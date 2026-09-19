@@ -239,6 +239,7 @@
     "/api/kg/curation-rules/entity-rules/batch": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/kg/entities/batch-curation": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/kg/entities/{entity_id}/bio": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
+    "/api/kg/entities/{entity_id}/readable": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/kg/entity-curation/audit": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/kg/entity-curation/audit/{audit_id}/undo": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/kg/entity-curation/authority/link": "External-authority reconciliation (#3528); per-path api-reference callout pending.",

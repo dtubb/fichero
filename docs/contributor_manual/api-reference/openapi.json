@@ -23909,6 +23909,50 @@
         }
       }
     },
+    "/api/kg/entities/{entity_id}/readable": {
+      "get": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Get the deterministic readable paragraph for a knowledge entity",
+        "description": "Composes the entity's claims into one readable paragraph, sentence by sentence, straight from each claim's own stored subject, verb and object \u2014 never an LLM, never a translation. Each sentence carries the claim id(s) behind it and its character offsets into the paragraph, so a reader can click a sentence and jump to the claim (and, later, its highlighted source).",
+        "operationId": "get_entity_readable_api_kg_entities__entity_id__readable_get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityReadableResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kg/entities/{entity_id}/bio": {
       "post": {
         "tags": [
@@ -41107,6 +41151,11 @@
             "type": "string",
             "nullable": true,
             "title": "Confidence Source"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind",
+            "nullable": true,
+            "description": "IGNORED (#4869). Who/what wrote this claim is a server-decided fact, never a client-supplied one -- kept on the wire only for compatibility; `create_claim_impl`'s real callers (`claim.create`, `enrich_import`) always set the effective value themselves before this model is used."
           }
         },
         "additionalProperties": false,
@@ -47130,6 +47179,33 @@
         "title": "EntityPatchRequest",
         "description": "Partial update \u2014 only fields present in the payload are written.\n\nEvery editable attribute is here as ``Optional`` so PATCH can\ntarget a single field without losing the rest. (#901)"
       },
+      "EntityReadableResponse": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "paragraph": {
+            "type": "string",
+            "title": "Paragraph"
+          },
+          "sentences": {
+            "items": {
+              "$ref": "#/components/schemas/ReadableSentence"
+            },
+            "type": "array",
+            "title": "Sentences"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "paragraph",
+          "sentences"
+        ],
+        "title": "EntityReadableResponse",
+        "description": "One entity's readable entry: a paragraph plus its sentence breakdown."
+      },
       "EntityResolutionResponse": {
         "properties": {
           "resolved": {
@@ -51300,7 +51376,11 @@
           "created_by": {
             "type": "string",
             "title": "Created By",
-            "default": "human"
+            "default": "unknown"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind",
+            "nullable": true
           },
           "created_at": {
             "type": "string",
@@ -58431,6 +58511,18 @@
         "title": "ProvenanceInfo",
         "description": "Tracks how source metadata was obtained."
       },
+      "ProvenanceKind": {
+        "type": "string",
+        "enum": [
+          "human",
+          "agent",
+          "workflow",
+          "external_import",
+          "unknown"
+        ],
+        "title": "ProvenanceKind",
+        "description": "Who or what wrote a claim (#4869) -- a closed vocabulary, set by the\nSERVER at the point of writing, never accepted from a client on any\nroute or action. Deliberately does NOT split `workflow` by model\n(LLM vs spaCy): `provider`/`model` already say which, and a reader\nwanting that detail reads those, not this field.\n\n`agent` is NOT a first-class principal today (#4869 open question):\nit identifies the SURFACE an action came through (the MCP tool\nroutes), not a verified property of the authenticated account. A real\nagent-principal type is the actual fix; this is the smallest honest\nsignal available until that exists."
+      },
       "ProvenanceLayer": {
         "type": "string",
         "enum": [
@@ -59207,6 +59299,53 @@
         ],
         "title": "RAGModesResponse",
         "description": "Response listing available RAG modes."
+      },
+      "ReadableSentence": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "start": {
+            "type": "integer",
+            "title": "Start"
+          },
+          "end": {
+            "type": "integer",
+            "title": "End"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Claim Ids"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "revoiced": {
+            "type": "boolean",
+            "title": "Revoiced"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "start",
+          "end",
+          "claim_ids",
+          "role",
+          "revoiced"
+        ],
+        "title": "ReadableSentence",
+        "description": "One clickable sentence of an entity's readable entry."
       },
       "RebuildRequest": {
         "properties": {
@@ -62151,7 +62290,11 @@
           "created_by": {
             "type": "string",
             "title": "Created By",
-            "default": "human"
+            "default": "unknown"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind",
+            "nullable": true
           },
           "created_at": {
             "type": "string",

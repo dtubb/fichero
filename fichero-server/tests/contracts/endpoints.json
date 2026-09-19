@@ -4875,6 +4875,18 @@
       },
       {
         "method": "GET",
+        "path": "/kg/entities/{entity_id}/readable",
+        "operation_id": "get_entity_readable_api_kg_entities__entity_id__readable_get",
+        "summary": "Get the deterministic readable paragraph for a knowledge entity",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EntityReadableResponse"
+      },
+      {
+        "method": "GET",
         "path": "/kg/entity-curation/audit",
         "operation_id": "list_entity_audits_api_kg_entity_curation_audit_get",
         "summary": "List Entity Audits",

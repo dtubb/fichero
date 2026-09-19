@@ -3017,6 +3017,7 @@ def register_generated_openapi_commands(
         predicted_by: Optional[str] = typer.Option(None, "--predicted-by", help="Request field: predicted_by."),
         predicted_confidence: Optional[float] = typer.Option(None, "--predicted-confidence", help="Request field: predicted_confidence."),
         prediction: Optional[str] = typer.Option(None, "--prediction", help="Request field: prediction."),
+        provenance_kind: Optional[str] = typer.Option(None, "--provenance-kind", help="Request field: provenance_kind."),
         provenance_layer: Optional[str] = typer.Option(None, "--provenance-layer", help="Request field: provenance_layer."),
         quotation_kind: Optional[str] = typer.Option(None, "--quotation-kind", help="Request field: quotation_kind."),
         scribe_entity_id: Optional[str] = typer.Option(None, "--scribe-entity-id", help="Request field: scribe_entity_id."),
@@ -3064,6 +3065,7 @@ def register_generated_openapi_commands(
                 "predicted_by": predicted_by,
                 "predicted_confidence": predicted_confidence,
                 "prediction": prediction,
+                "provenance_kind": provenance_kind,
                 "provenance_layer": provenance_layer,
                 "quotation_kind": quotation_kind,
                 "scribe_entity_id": scribe_entity_id,
@@ -3106,6 +3108,7 @@ def register_generated_openapi_commands(
                 "predicted_by": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Predicted By', 'x-cli-required': False},
                 "predicted_confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Predicted Confidence', 'x-cli-required': False},
                 "prediction": {'properties': {'confidence': {'type': 'number', 'title': 'Confidence'}, 'model': {'type': 'string', 'title': 'Model'}, 'entities': {'items': {'$ref': '#/components/schemas/PredictionEntity'}, 'type': 'array', 'title': 'Entities'}, 'uncertainty_spans': {'items': {'$ref': '#/components/schemas/PredictionUncertaintySpan'}, 'type': 'array', 'title': 'Uncertainty Spans'}, 'predicted_links': {'items': {'$ref': '#/components/schemas/PredictionLink'}, 'type': 'array', 'nullable': True, 'title': 'Predicted Links'}}, 'type': 'object', 'required': ['confidence', 'model'], 'title': 'PredictionMetadata', 'x-cli-required': False},
+                "provenance_kind": {'type': 'string', 'enum': ['human', 'agent', 'workflow', 'external_import', 'unknown'], 'title': 'ProvenanceKind', 'description': 'Who or what wrote a claim (#4869) -- a closed vocabulary, set by the\nSERVER at the point of writing, never accepted from a client on any\nroute or action. Deliberately does NOT split `workflow` by model\n(LLM vs spaCy): `provider`/`model` already say which, and a reader\nwanting that detail reads those, not this field.\n\n`agent` is NOT a first-class principal today (#4869 open question):\nit identifies the SURFACE an action came through (the MCP tool\nroutes), not a verified property of the authenticated account. A real\nagent-principal type is the actual fix; this is the smallest honest\nsignal available until that exists.', 'x-cli-required': False},
                 "provenance_layer": {'type': 'string', 'enum': ['main_text', 'marginalia', 'footnote', 'annotation_later', 'scribal_correction', 'interlinear'], 'title': 'ProvenanceLayer', 'description': "Where on a page the claim's source text lives.\n\nMarginalia and interlinear annotations were added by later readers and\ncarry different evidentiary weight than the main text. ``main_text``\nis the default; PDF-bbox heuristics (top/bottom margin offsets) flip\nto ``marginalia`` or ``footnote``.", 'x-cli-required': False},
                 "quotation_kind": {'type': 'string', 'enum': ['verbatim', 'paraphrase', 'indirect', 'inference', 'free_indirect'], 'title': 'QuotationKind', 'description': "How literally a claim reproduces its source text.\n\nPicks up the warrant strength: a verbatim quotation supports a stronger\nepistemic status than an inferred one. Defaults to ``paraphrase`` —\nthat's the realistic default for an LLM extractor that summarised the\nsource rather than copying it verbatim.", 'x-cli-required': False},
                 "scribe_entity_id": {'type': 'string', 'nullable': True, 'title': 'Scribe Entity Id', 'x-cli-required': False},
@@ -7157,6 +7160,18 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/kg/entities/{entity_id}/bio"
             params = None
             return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-the-deterministic-readable-paragraph-for-a-knowledge-entity")
+    def kg_get_the_deterministic_readable_paragraph_for_a_knowledge_entity_get(
+        ctx: typer.Context,
+        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
+    ) -> None:
+        """Get the deterministic readable paragraph for a knowledge entity (GET /api/kg/entities/{entity_id}/readable)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/kg/entities/{entity_id}/readable"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-entity-audits")

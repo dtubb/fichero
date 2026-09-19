@@ -67,6 +67,7 @@
     "/api/kg/entity-curation/dedupe": "KG batch dedupe is CLI-first (fichero kg dedupe-entities, 2026-09-03); a curation UI runs it later.",
     "/api/kg/export/rdf": "#2614 RDF export surface is backend/CLI/MCP-only today; no SwiftUI export/query UX yet (#2638/#2640)",
     "/api/kg/review/summary": "backend KG review-queue badge summary (#1356); SwiftUI badge wiring tracked in KG wiring backlog (#1422)",
+    "/api/kg/entities/{entity_id}/readable": "#4838 the Reader's readable-paragraph rendition is not built yet; the route landed first (cc2da29ae)",
     "/api/library-items/{item_id}/links": "#2636 generic node-relation backend landed first; Swift service/store wiring deferred to follow-up",
     "/api/library/links": "#2636 generic node-relation backend landed first; Swift service/store wiring deferred to follow-up",
     "/api/library/links/{link_id}": "#2636 generic node-relation backend landed first; Swift service/store wiring deferred to follow-up",
