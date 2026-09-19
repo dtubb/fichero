@@ -50,13 +50,6 @@ KNOWN_GAPS: dict[str, str] = {
     'DELETE /api/chains/executions/{execution_id}': "#1920 baseline - cli-only",
     'DELETE /api/folders/{entity_type}/folders': "#1920 baseline - cli-only",
     'DELETE /api/library/links/{link_id}': "#1920 baseline - cli-only",
-    # 2026-08-20 bbox review: the rendition BYTES route exists so the preview
-    # can show a named rendition, but the flip ships as an INDICATOR first —
-    # a visible control that does nothing is worse than an absent one, so the
-    # Swift side names the rendition and draws no chevrons yet. Tracked here
-    # rather than silently allowed: the gap is real and closes when the flip
-    # is wired.
-    'GET /api/documents/{document_id}/renditions/{rendition_id}/content': "bbox review - Swift flip wiring pending",
     'GET /api/auth/sessions': "#1920 baseline - cli-only",
     'GET /api/folders/{entity_type}/folders': "#1920 baseline - cli-only",
     'GET /api/folders/{folder_id}/views': "#1920 baseline - cli-only",
@@ -118,7 +111,6 @@ KNOWN_GAPS: dict[str, str] = {
     'POST /api/export/jsonl': "CLI/backend-only: request destination is an engine-local filesystem path, so no SwiftUI client may issue it",
     'POST /api/export/markdown-folder': "#1920 baseline - cli-only",
     'POST /api/export/parquet': "CLI/backend-only: request destination is an engine-local filesystem path, so no SwiftUI client may issue it",
-    'POST /api/export/word': "#1920 baseline - cli-only",
     'POST /api/tasks/reanchor': "2026-08-25 bbox step 4 maintenance pass - cli-only; SwiftUI maintenance-menu trigger queued",
     'GET /api/iiif/iiif/image/{document_id}': "#1920 baseline - cli-only",
     'GET /api/iiif/iiif/manifest/{document_id}': "#1920 baseline - cli-only",
@@ -128,11 +120,9 @@ KNOWN_GAPS: dict[str, str] = {
     'POST /api/images/batch-apply': "reversible image editing with undo; Swift wiring tracked in #3756",
     'POST /api/images/batch-apply/{batch_id}/undo': "reversible image editing with undo; Swift wiring tracked in #3756",
     'POST /api/images/crops/batch': "reversible image editing with undo; Swift wiring tracked in #3756",
-    'POST /api/images/{document_id}/crop': "reversible image editing with undo; Swift wiring tracked in #3756",
     'POST /api/images/{document_id}/split': "reversible image editing with undo; Swift wiring tracked in #3756",
     'POST /api/images/{document_id}/uncrop': "reversible image editing with undo; Swift wiring tracked in #3756",
     'POST /api/images/{document_id}/unsplit': "reversible image editing with undo; Swift wiring tracked in #3756",
-    'GET /api/model-comparison/language-fit': "#1820 backend LOOVE language-fit API; Settings/model-picker UI wiring tracked by #2116",
     'POST /api/model-comparison/compare-workflow': "#2195 baseline - cli-only model bake-off; SwiftUI comparison UI is #1753/#1739",
     'POST /api/model-comparison/recommend-models': "#2204 backend model recommendation API; Settings/model-picker UI wiring tracked by #2116",
     'GET /api/integrations/available': "#1920 baseline - cli-only",
@@ -209,7 +199,6 @@ KNOWN_GAPS: dict[str, str] = {
     'POST /api/settings/ai-defaults/repair': "#1920 baseline - cli-only",
     'GET /api/storage/snapshots/{snapshot_id}': "#1920 baseline - cli-only",
     'PATCH /api/storage/snapshots/{snapshot_id}/pin': "#1920 baseline - cli-only",
-    'GET /api/tasks': "#1920 baseline - cli-only",
     'GET /api/tasks/health': "doubled tasks-router prefix bug tracked in #3755",
     'POST /api/tasks/kg-metrics': "#1920 baseline - cli-only",
     'GET /api/tasks/kg-metrics/{task_id}/data': "#1920 baseline - cli-only",
@@ -228,7 +217,6 @@ KNOWN_GAPS: dict[str, str] = {
     'GET /api/workflow-execution/threads/{thread_id}/diagram.png': "#1920 baseline - cli-only",
     'DELETE /api/workflow-execution/workflows/{workflow_id}/cache': "#1920 baseline - cli-only",
     'GET /api/workflow-execution/workflows/{workflow_id}/cache/stats': "#1920 baseline - cli-only",
-    'POST /api/workflows/{workflow_id}/estimate-cost': "#1920 baseline - cli-only",
 }
 
 

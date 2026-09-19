@@ -584,7 +584,7 @@ is `docs/`; anything that must never be public goes outside `docs/` entirely.
 ### Authorship model — who writes which manual
 
 - **`user_manual` — the maintainer's, authored in Tinderbox** and exported to
-  `docs/user_manual/guide/`. Agents do not edit its prose. The agent's job for this
+  `docs/user_manual/`. Agents do not edit its prose. The agent's job for this
   audience is to keep its *facts* true to what shipped (behaviors, a11y ids, and
   **screenshots** — see below), never to author the chapters.
 - **`contributor_manual` — AI-authored markdown in the repo.** Agents edit these files

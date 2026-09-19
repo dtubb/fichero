@@ -356,7 +356,7 @@ Also waiting on the same not-yet-existing spec, from #248:
   ['book_structure']`, rendered in `ClaimSummaryCard`/`EntityKindRow`), not a Reader-tab
   question; no spec read this pass owns citation-label formatting.
 - **#1491** (TL-3: source outline endpoint, hierarchical drill-down API) — backend-only
-  ("Thinking Layer" program, `docs/architecture/thinking-layer.md`), no UI surface of its own
+  ("Thinking Layer" program, `docs/contributor_manual/architecture/thinking-layer.md`), no UI surface of its own
   to fold into.
 
 ### Fold table (issue → spec → behavior id → tag)

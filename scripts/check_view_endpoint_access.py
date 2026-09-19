@@ -80,13 +80,7 @@ TRANSPORT_PATTERNS: dict[str, re.Pattern] = {
 # Keys are POSIX paths relative to fichero/fichero/Views/.
 KNOWN_VIOLATIONS: dict[str, str] = {
     # @StateObject = …Service() constructed inside the view (#1882–#1900)
-    "Shell/ContentView/ContentView.swift": "#1884 — @StateObject PerformanceService() in view",
     "Connect/ConnectPairingIOS.swift": "#3102 — @StateObject BonjourDiscoveryService() in the iOS pairing view (local LAN discovery for pairing; grandfathered from FicheroApp_iOS before the file_length split)",
-    "Chat/ModelComparison/ModelComparisonView.swift": "#1900 — @StateObject ModelComparisonService()",
-    "Chat/ModelComparison/NodeComparisonSheet.swift": "#1900 — @StateObject ModelComparisonService()",
-    "Components/NodeClassPicker.swift": "#1886 — @StateObject WorkspacePickerService()",
-    "Library/WorkspaceItemPicker.swift": "#1886 — @StateObject WorkspacePickerService()",
-    "Integrations/IntegrationsView.swift": "#1899 — @StateObject IntegrationsService()",
     # client.api.* called directly from the view (raw transport)
     "Settings/AI/LocalModelsSettingsView.swift": "#1894 — client.api.* local-models calls in view",
     "Chat/ModelComparison/ComparisonDetailView+Actions.swift": "#1900 — client.api.getComparison… in view",
