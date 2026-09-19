@@ -1057,21 +1057,27 @@ def _descendant_doc_ids(db: Database, root_id: str) -> set[str]:
     can scope KG queries to "everything under this folder" — claims are
     written to PAGE doc ids by extract_all, not the folder, so a folder
     KG view that only filters by source_document_id=<folder> returns
-    empty even when descendants have rich entities (#826)."""
-    from fichero_server.models import Document
+    empty even when descendants have rich entities (#826).
 
-    seen: set[str] = {root_id}
-    frontier: list[str] = [root_id]
-    while frontier:
-        next_frontier: list[str] = []
-        for parent_id in frontier:
-            children = db.query(Document, parent_id=parent_id) or []
-            for child in children:
-                if child.id and child.id not in seen:
-                    seen.add(child.id)
-                    next_frontier.append(child.id)
-        frontier = next_frontier
-    return seen
+    CONSOLIDATED 2026-09-19 (#4885, kg.tables.folder-recursion-inconsistent-
+    across-routes): this used to run its OWN per-parent BFS loop here,
+    issuing one unbatched ``db.query(Document, parent_id=...)`` call per
+    node in the current BFS frontier. `Database._collect_folder_descendants`
+    (`db/__init__.py`) is the SAME walk (BFS over `parent_id`, root included
+    in the result), already proven correct for `search()`'s folder-scope
+    filter, but batches lookups 500-at-a-time via a single `IN (...)` SQL
+    query per BFS level instead of one query per node — a real, measured
+    difference at folder-tree scale, not just a style preference. Every
+    caller of this function (the `/api/claims` `include_descendants` path,
+    the entities `document_id` filter, the document knowledge-graph route's
+    `include_children` path, `chat.py`, `views.py`, `entity_curation.py`,
+    `curation.py`) now shares that ONE canonical implementation instead of
+    two independent copies of the same BFS. Signature and behavior
+    (root included, cycle-safe via the `seen` set, works for a FOLDER or a
+    FILE-with-page-children root — parent_id doesn't care about doc_type)
+    are unchanged, so no caller's default or return shape moves.
+    """
+    return db._collect_folder_descendants(root_id)
 
 
 @router.post("/assign-time-period", response_model=ClaimAssignTimePeriodResponse)
