@@ -27,6 +27,10 @@ Selecting a segment in any of them selects it in the others.
   select (click, shift-click, band), move a region, draw a new box and name it, delete, and
   rate lines. No reshape, no polygon, no merge or split, no order, no links.
 - Boxes are addressed by their position in a list, because they have no ids.
+- `RegionInteractionLayer.swift` is compiled for the Mac only (`#if os(macOS)`) and takes its
+  clicks from the Mac's pointer. There is no segment editing on the iPad or iPhone today. One
+  editor for all three means this gate goes and the editor has **one** input seam that
+  pointer, touch and Pencil all feed. Otherwise a second editor gets built.
 - Crops are rectangles only (`media/region_crops.py`).
 
 ## The design
@@ -47,9 +51,11 @@ can make every edit the editor can, through the same actions.
 
 ### What you can do
 
-- **See**: choose which layers, ink layers, levels (regions, lines, words, characters) and
-  reading order are shown; colour by kind, by layer, by hand, or by certainty; show order
-  numbers; show links as arrows; dim page furniture.
+- **See**: what is shown follows from what you are doing, not from a panel of switches. The
+  working pass is shown. Finer levels appear as you zoom in. Selecting a segment shows its
+  links and its place in the order. There are two switches only: *show the reading order*
+  and *show the links*. Comparing passes is done by opening a second pass beside the first,
+  the same way two sources are compared.
 - **Select**: click; shift-click; band; "select the same kind"; step through a reading order
   with the arrow keys; go up to the parent or down to the children.
 - **Draw**: a box, a polygon, a point, a line, a baseline. On the iPad, with the Pencil.
@@ -58,15 +64,16 @@ can make every edit the editor can, through the same actions.
 - **Propose**: click on something and the engine proposes its shape, which you then adjust.
 - **Cut and join**: a scissors stroke across one or many lines splits them (across columns in
   one go); join merges the selected segments; group lines into a region; ungroup.
-- **Set**: kind, layer, ink layer, direction (and "reverse this line"), language, script,
+- **Set**: kind, pass, campaign, direction (and "reverse this line"), language, script,
   hand, furniture or text, table row and column.
 - **Order**: see the order as numbers on the page and as a list; drag in the list, or click
   segments in turn on the page, to reorder; choose which named order you are editing.
 - **Link**: drag from one segment to another and pick the link's type; see and delete links.
-- **Match**: say that a segment in a new layer is the same as one in an old layer.
-- **Read while you edit**: with a line selected, its picture appears above a text field with
-  its chosen reading, and Return goes to the next line in the order. Line-by-line
-  transcription is keyboard-only if you want it to be.
+- **Match**: say that a segment in a new pass is the same as one in an old pass.
+- **Read while you edit**: readings are typed in the **Reader**, not the Preview. With a line
+  selected, the Reader shows that line's picture above its reading, and Return moves the
+  selection to the next line in the order; the Preview follows. Line-by-line transcription is
+  keyboard-only if you want it to be, and the three surfaces stay three.
 - **Mark**: note, highlight, star and tag the selection.
 - **Georeference**: drop control points and give them coordinates.
 
@@ -117,11 +124,11 @@ export.
 - `source.editor.edits-are-actions` — every edit is one audited, reversible engine action; the
   editor updates only the changed segments.
 - `source.editor.system-undo` — ⌘Z and ⇧⌘Z undo and redo editor actions through the action
-  layer.
+  pass.
 - `source.editor.agent-parity` — every edit the editor can make can be made over MCP and the
   command line through the same actions.
-- `source.editor.view-options` — layers, ink layers, levels, order numbers, links and
-  colouring can each be shown or hidden.
+- `source.editor.two-switches` — the editor has two view switches only (show the order; show
+  the links); everything else shown follows from zoom and selection.
 - `source.editor.draw-shapes` — box, polygon, point, line and baseline can be drawn.
 - `source.editor.reshape` — points can be dragged, added and removed; shapes moved and nudged.
 - `source.editor.propose-shape` — a click asks the engine to propose a shape, which can then be
@@ -129,15 +136,17 @@ export.
 - `source.editor.cut` — a scissors stroke splits one or many lines at once.
 - `source.editor.join-group` — selected segments can be merged; lines grouped into a region
   and ungrouped.
-- `source.editor.set-properties` — kind, layer, ink layer, direction, language, script, hand
-  and furniture can be set on the selection.
+- `source.editor.set-kind` — the selection's kind (and furniture or text) can be set.
+- `source.editor.set-direction` — the selection's direction can be set, and a line reversed.
+- `source.editor.set-language-script` — the selection's language and script can be set.
+- `source.editor.set-hand-campaign` — the selection's hand and campaign can be set.
 - `source.editor.reorder` — a named reading order can be edited by dragging in a list or
   clicking segments in turn.
 - `source.editor.draw-link` — dragging from one segment to another makes a typed link.
-- `source.editor.match-across-layers` — a segment in one layer can be matched to one in
+- `source.editor.match-across-passes` — a segment in one pass can be matched to one in
   another.
-- `source.editor.transcribe-by-line` — a selected line shows its picture above its reading;
-  Return moves to the next line in the order.
+- `source.editor.transcribe-by-line` — with a line selected, the Reader shows its picture above
+  its reading; Return selects the next line in the order and the Preview follows.
 - `source.editor.marks` — the selection can be noted, highlighted, starred and tagged.
 - `source.editor.control-points` — control points can be placed and given coordinates.
 - `source.editor.keyboard-complete` — every command has a menu item and can be done from the
@@ -150,8 +159,8 @@ export.
 - `source.editor.level-of-detail` — finer levels appear as you zoom in.
 - `source.editor.voiceover` — each visible segment is an accessibility element with kind,
   reading and order.
-- `source.editor.one-picture-call` — a segment's picture comes from one engine call wherever
-  it is shown.
+- `source.editor.one-input-seam` — pointer, touch and Pencil feed one input path; the same
+  editor runs on Mac, iPad and iPhone.
 
 ## Test matrix
 

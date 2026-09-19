@@ -413,6 +413,7 @@ nav:
               - Languages, Scripts & Signs: contributor_manual/specs/source/languages-scripts-glyphs.md
               - Segment Editor: contributor_manual/specs/source/segment-editor.md
               - Formats & Training: contributor_manual/specs/source/formats-and-training.md
+              - Rights, Consent & Access: contributor_manual/specs/source/rights-and-access.md
           - Testing:
               - Test Environment Contract: contributor_manual/specs/testing/test-environment-contract.md
               - UI-Test Harness: contributor_manual/specs/testing/ui-test-harness.md

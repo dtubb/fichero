@@ -2,7 +2,7 @@
 
 > Milestone: source-model
 > Manual: TBD — part of the "How Fichero represents a source" section: that one patch of ink
-> can carry several readings, which one counts, and how hands, ink layers, damage and a
+> can carry several readings, which one counts, and how hands, campaigns, damage and a
 > researcher's own notes are recorded.
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
@@ -30,7 +30,8 @@ A segment has any number of **readings**. A reading has:
 - its **kind**: *as written* (letter for letter), *expanded* (abbreviations opened),
   *normalised* (spelling regularised), *as read aloud* (the qere; the Japanese reading of a
   Chinese text), *transliteration*, *translation*, *description* (what a picture shows),
-  *coordinate* (for a map control point). A library can add kinds;
+  *coordinate* (for a map control point), *music* (the notes or neumes of a music segment,
+  in the field's encoding). A library can add kinds;
 - **how normalised it is**, as a named level. Levels cannot be reliably converted into each
   other, so the level is recorded, never assumed;
 - its **language and script**;
@@ -54,10 +55,13 @@ ranked guesses. The model holds both, and does not mix them up.
 
 ### Which reading counts
 
-For each kind, one reading is **the chosen one**: what the Reader shows, what search indexes,
-what export writes. A person can choose it. If nobody has, the rule in the foundation's open
-questions decides. The choice is itself recorded, with who and when, and changing it rewrites
-nothing.
+For each kind, one reading can be **the chosen one**: what the Reader shows first, what
+export writes. Only a person chooses. Until someone has, the Reader shows the newest reading
+and **labels it plainly as a machine's and unchosen**; search still finds it; an export marks
+it as machine-made in its loss report. A machine's output never becomes the record by
+default. Whether a reading was made by a person or a machine is set by the engine from how it
+arrived, never claimed by the sender. The choice is itself recorded, with who and when, and
+changing it rewrites nothing. (Proposed; open question 3 in the foundation.)
 
 ### Written and read
 
@@ -70,20 +74,20 @@ exist too (the scribe wrote it wrong; the editor emends), and are marked as corr
 
 A **hand** is who put the ink on the page: a named scribe, or "hand B", with a date or period,
 a place, a script style, and notes. A hand is a record in the library, shared across sources,
-so "everything in hand B" can be asked. A segment, or an ink layer of a segment, can name its
+so "everything in hand B" can be asked. A segment, or a campaign of a segment, can name its
 hand, with certainty and the author of that judgement. Several scholars can disagree.
 
 A hand is not provenance. Provenance says who made the *record* (a model, a person, a
 workflow run). Both are kept, separately, always.
 
-### Ink layers
+### Campaigns
 
 One patch of page can carry several **campaigns of writing**: the main ink; the rubric; vowel
 marks added a century later; reading-marks pressed in with a stylus; the under-text of a
-palimpsest; a modern librarian's pencil. An ink layer has a name, an order (what lies over
-what), and optionally a hand and a date. Segments belong to an ink layer. Two ink layers can
+palimpsest; a modern librarian's pencil. A campaign has a name, an order (what lies over
+what), and optionally a hand and a date. Segments belong to a campaign. Two campaigns can
 share the same characters (the consonants and their later vowels), and a reading can say
-which ink layers it takes in.
+which campaigns it takes in.
 
 ### Three different kinds of "sure"
 
@@ -117,7 +121,10 @@ document: the same note, star and tag, not a second kind. In addition:
 - marks live in **named sets with an author**, so two researchers' annotations of one source
   can overlap, disagree and be shown separately or together;
 - one mark can cover **several segments** that are not next to each other;
-- a mark can point at a stretch of a reading as well as at a segment.
+- a mark can point at a stretch of a reading as well as at a segment. A stretch always names
+  the exact reading it was measured on, never "the chosen one". If that reading is replaced,
+  the stretch is carried onto the new reading where the words still match, and otherwise
+  reported as unplaced. It is never silently re-measured.
 
 ### Descriptions of pictures
 
@@ -142,8 +149,14 @@ Readings
   corrects.
 - `source.reading.equal-alternatives` — several readings of one kind can stand as equally
   valid, apart from a machine's ranked guesses.
-- `source.reading.chosen` — for each kind one reading is the chosen one; the choice is
-  recorded and changing it rewrites nothing.
+- `source.reading.chosen-by-a-person` — only a person chooses the reading that counts; the
+  choice is recorded and changing it rewrites nothing.
+- `source.reading.unchosen-is-labelled` — until chosen, the Reader labels the shown reading as
+  a machine's and unchosen, and exports mark it machine-made.
+- `source.reading.maker-set-by-engine` — whether a person or a machine made a reading is set
+  by the engine, not claimed by the sender.
+- `source.reading.stretch-names-its-reading` — a stretch of text names the exact reading it was
+  measured on; when that reading is replaced it is carried over or reported unplaced.
 - `source.reading.written-read-pair` — two readings can be joined as written and read, apart
   from error and correction.
 - `source.reading.char-confidence-on-line` — per-character positions and confidence ride on a
@@ -152,13 +165,13 @@ Readings
 Hands and ink
 - `source.hand.record` — a hand is a library record (name or label, date, place, style, notes)
   shared across sources.
-- `source.hand.attributed` — a segment or ink layer names its hand, with certainty and the
+- `source.hand.attributed` — a segment or campaign names its hand, with certainty and the
   author of the judgement; rival attributions coexist.
-- `source.hand.not-provenance` — who wrote the ink and who made the record are separate and
-  both always shown.
-- `source.ink.layers` — a source has ordered ink layers; segments belong to one; layers can
+- `source.hand.not-provenance` — the Inspector shows who wrote the ink and who made the record
+  as two separate facts.
+- `source.campaign.ordered` — a source has ordered campaigns; segments belong to one; campaigns can
   share characters.
-- `source.ink.reading-says-which` — a reading can say which ink layers it takes in.
+- `source.campaign.reading-says-which` — a reading can say which campaigns it takes in.
 
 Sureness and damage
 - `source.sure.three-kinds` — machine confidence, scholarly certainty and the state of the page
@@ -169,8 +182,10 @@ Sureness and damage
   and export; they are never stored in a reading's text.
 
 Letterforms
-- `source.letterform.chain` — a character segment can be described as character, allograph,
-  scribe's form and mark, with components and features from open lists.
+- `source.letterform.chain` — a character segment can name its character, its allograph and
+  its scribe's form.
+- `source.letterform.features` — a character segment can carry components and features from
+  open lists.
 - `source.letterform.compare` — marks of the same character can be gathered and compared
   across hands and sources.
 

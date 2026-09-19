@@ -15,38 +15,63 @@
 
 A source is a page and the group of pages it belongs to. A segment is anything on it. This
 slice says what a segment *is*: its identity, its shape, its place in the ladder, in a reading
-order, in a layer, and its links to other segments. Readings, hands and certainty are in
+order, in a pass, and its links to other segments. Readings, hands and certainty are in
 `readings-and-apparatus.md`; language and signs in `languages-scripts-glyphs.md`.
 
 ## The design
 
 ### Identity
 
-A segment has an id that lasts. It keeps the id when it is moved, reshaped, re-read,
-re-typed or moved to another layer. When a page is segmented again by a model, the new run
-arrives as a **new layer** with new segments; it does not replace or renumber the old ones. A
-person (or a rule they approve) may then say "this new line is that old line", which carries
-the old id, its readings, marks and statements forward.
+A segment has an id that lasts, and **an id never moves**. A segment keeps its id when it is
+reshaped, moved, re-read or re-typed.
 
-Merging keeps one id and records the others as merged into it. Splitting keeps the id on one
-part and records where the rest went. Either way, anything that pointed at an old id can still
-be followed to where that ink is now. Nothing that points at a segment is ever left dangling.
+When a page is segmented again (by a model, an import, another scholar), the new run arrives
+as a **new pass** with new segments and new ids. Nothing existing is replaced or renumbered.
+A person can then say "this new line is that old line". That writes a **match**: a small
+record of its own, with who said so and how sure. Readings, marks and statements can then be
+carried across the match onto the new segment, and the trail stays visible. A machine may
+*propose* matches; only a person accepts them.
 
-This grows from what exists. The shared anchor (`SourceAnchor`) stays the one way to say
-"where". A segment is the lasting thing that *has* an anchor; today's boxes-in-a-list become
-segments with anchors. There is still one addressing scheme, not two.
+When segments are **merged**, one id goes on and the others leave a **forwarding note**
+("merged into X"). When one is **split**, its id stays on one part and a forwarding note says
+where the rest went. When one is **deleted**, it leaves a forwarding note that says so, and
+the delete can be undone. Forwarding notes are never removed. Following an old id to where
+that ink is now is one lookup, the same from the app, MCP and the command line. If the trail
+ends at a delete, Fichero says "this was deleted, by whom, when", and never shows nothing.
+
+**How this grows from what exists.** Today's shared anchor (`SourceAnchor`) stays the one way
+to say *where*. A segment is a record with an id whose *place* is an anchor; today's
+boxes-in-a-list become segments. There is one addressing scheme, not two. But the anchor as
+built cannot yet say everything this design needs (read on disk, `models/anchors.py`: one
+rectangle, which must have width and height; one polygon, which must be closed with three
+points or more; no id; no baseline). **What the anchor must gain:** a point; an open path; a
+baseline that can curve; more than one shape; a text angle; a stretch of time. Its
+`granularity` word and a segment's **kind** are the same idea and become one list.
+
+### A reference you can cite
+
+Every segment has one stable reference that names the library, the source, the segment and
+its pass. It can be pasted into a footnote, a note or another program; it opens the segment in
+the app, and resolves over MCP and the command line. It is what W3C annotation and IIIF
+export write. If the segment has been merged, split or deleted since, the reference follows
+the forwarding notes.
 
 ### Shape
 
-- A shape is a **point**, a **line** (open path), or an **area** (closed polygon; a box is the
-  simplest one). A segment may have more than one shape when the ink really is in two places
-  (a word broken across a line end).
+- A shape is a **point**, a **line** (open path), an **area** (closed polygon; a box is the
+  simplest one), or a **stretch of time** in a recording (for video, an area *and* a stretch
+  of time). A segment may have more than one shape when the ink really is in two places (a
+  word broken across a line end is one segment with two shapes).
 - A line of writing also has a **baseline**, which may curve, and may have a top line.
 - The **box** around a shape is always worked out from the shape, never typed in.
-- A shape may have a **text angle**, apart from any tilt of the whole page.
-- Every shape names **the image it was measured on**. Coordinates are fractions of that image,
-  from the top-left. The image record carries its pixel size and a checksum, so a shape can
-  never be silently drawn over the wrong picture.
+- **Angles, said once.** A crooked scan is straightened by making a new, deskewed image of the
+  page; that is an image, not a property of a shape. A shape's own **text angle** says the
+  writing in it runs at an angle on that image (a note written sideways in a margin).
+- Every shape names **the image (or recording) it was measured on**. Coordinates are fractions
+  of that image, from the top-left. The image record carries its pixel size, a checksum, and,
+  where known, its **physical scale** (so a letter's height can be given in millimetres).
+  Today geometry names its image once for a whole result, and an image has no checksum or
+  scale of its own; both are part of this design, not built.
 
 ### Several images of one page
 
@@ -59,12 +84,36 @@ kept.
 A reading may be tied to the image it was read from: "this under-text was read from the
 ultraviolet image".
 
+**Lining two images up.** Just as control points tie a map to the earth, **alignment points**
+tie one image of a page to another (this spot on the ultraviolet image is this spot on the
+ordinary one). A few of them let every shape cross over. They have authors and certainty.
+
+**When a page is scanned again.** A new scan is a new image. Shapes stay on the image they
+were measured on. They cross to the new scan only through an alignment. Until then Fichero
+says plainly which passes still sit on the old image.
+
+### Sound and moving pictures
+
+A recording is a source too. Its segments are stretches of time: an interview, a speaker's
+turn, a sentence, a word. Everything else is the same: kinds, passes, reading orders, links,
+readings (a transcript is a reading; so is a translation), hands become **speakers**, marks,
+statements. A reading of a page can name the recording it is read aloud in, and a stretch of
+a recording can link to the line of the page being read. This matters most where a language
+lives mainly in speech.
+
+Objects in the round (an inscription with several faces, a seal matrix, images made under
+moving light) are **not yet designed**. Each face photographed is a page today. A later slice
+will say how faces and light positions relate.
+
 ### The ladder, and two kinds of structure
 
 ```
-collection / codex unit  >  group of pages  >  page  >  region  >  line or column
-                                                     >  word  >  character  >  stroke
+collection  >  codex unit  >  quire  >  leaf  >  page (recto, verso)  >  region
+            >  line or column  >  word  >  character  >  stroke
 ```
+
+An **opening** (the two facing pages seen at once) is a group of two pages. A shape drawn
+across an opening belongs to the opening and is resolved onto each page it touches.
 
 - Every level is a segment with a **kind**. Kinds come from a standard list (SegmOnto's zones
   and lines, plus word, character, stroke, and the non-text kinds: picture, music, seal, stamp,
@@ -76,8 +125,11 @@ collection / codex unit  >  group of pages  >  page  >  region  >  line or colum
   entry, a legal case across several documents. Both are trees over the same segments, and a
   segment can sit in both. A letter that starts on one page and ends on the next is one logical
   unit over two physical pages.
-- **A flow** joins text that continues: across a column break, a page turn, or around a
-  picture. A reading of the flow reads straight through.
+- **Membership and order are the structure; links are cross-references.** "This text
+  continues" is said in exactly one way for each case. A word broken at a line end is *one
+  segment with two shapes*. Text running on across a column, a page turn or round a picture is
+  a **flow**, which is simply a named reading order over those segments. The link type
+  *continues* is kept for two *different* things (a letter continued in another document).
 - **Page furniture** (running heads, page numbers, catchwords, quire signatures) is marked as
   furniture, so a reading of the text can leave it out and an export can put it where the
   format wants it.
@@ -89,15 +141,15 @@ they span, and whether they are a header. A cell's text is ordinary lines and wo
 A form's "label" and "filled-in answer" are two segments joined by a typed link. Ticks,
 crosses and cancellation marks are **mark** segments with a state.
 
-### Layers
+### Passes
 
-A layer is a named set of segments on a source, with an author (a person, a model run, an
+A pass is a named set of segments on a source, with an author (a person, a model run, an
 import). Examples: a model's proposed layout; a person's corrected layout; a second
-scholar's competing layout; an imported PageXML file; the glosses; the pictures. Layers can be
+scholar's competing layout; an imported PageXML file; the glosses; the pictures. Passes can be
 shown, hidden and compared. They never overwrite each other. Two people disagreeing about
-where a line ends is two layers, both kept: disagreement is data.
+where a line ends is two passes, both kept: disagreement is data.
 
-One layer is the **working layer** for a source: the one the Reader, search and export use
+One pass is the **working pass** for a source: the one the Reader, search and export use
 unless told otherwise.
 
 ### Reading orders
@@ -133,6 +185,21 @@ segments). When word segments are later made, the pointer can be moved onto them
 a page is always worked out from its segments and a reading order; it is never the master
 copy.
 
+### Two people at once
+
+An edit names the version of the segment it was made against. If the segment has changed
+since (someone else reshaped it; an iPad was offline), the edit is refused and Fichero shows
+what changed. Edits are never silently merged or silently lost.
+
+### What is worked out from a segment
+
+Some things are computed from a segment and its readings and can always be computed again:
+its picture; search entries; **vectors** for finding similar images or text; the **words and
+grammar** of a reading (tokens, parts of speech, lemmas), which are stretches of a reading.
+They are kept with the segment and the reading they came from, with the model and version
+that made them, and are absent, not faked, when they have not been made. (This is what
+`kg/segment-representations.md` calls representations.)
+
 ### Statements
 
 A knowledge-graph claim or entity mention points at a segment id (and, if needed, a stretch
@@ -142,7 +209,7 @@ go to its ink.
 
 ### Versions
 
-Every change to a segment (shape, kind, layer, order, links) is a new version of *that
+Every change to a segment (shape, kind, pass, order, links) is a new version of *that
 segment*, with who, when and why. A segment's history can be read, compared and restored by
 itself. Deleting a segment is a version too, and can be undone. Nothing is rewritten by batch.
 
@@ -163,21 +230,20 @@ open questions on how their segments get ids).
 ## Behaviors (ids proposed; untagged until approval)
 
 Identity and versions
-- `source.segment.lasting-id` — a segment keeps its id through move, reshape, re-read, re-type.
-- `source.segment.rerun-is-new-layer` — segmenting a page again adds a layer; nothing existing
+- `source.segment.lasting-id` — a segment keeps its id through move, reshape, re-read and
+  re-type, and an id is never given to another segment.
+- `source.segment.rerun-is-new-pass` — segmenting a page again adds a pass; nothing existing
   is replaced or renumbered.
-- `source.segment.carry-forward` — a person can match a new segment to an old one; readings,
-  marks and statements follow.
-- `source.segment.merge-split-followable` — after a merge or split, every old id still leads to
-  where that ink is now.
+- `source.segment.carry-across-a-match` — across an accepted match, readings, marks and
+  statements can be carried to the new segment, leaving a visible trail.
 - `source.segment.versioned-alone` — one segment's history can be read, compared and restored
   without touching others.
 - `source.segment.delete-is-undoable` — a deleted segment can be brought back with everything
   that pointed at it.
 
 Shape and images
-- `source.segment.shape-kinds` — a segment's shape is a point, a line or an area; it may have
-  more than one.
+- `source.segment.shape-kinds` — a segment's shape is a point, a line, an area or a stretch of
+  time; it may have more than one.
 - `source.segment.box-is-derived` — the box is worked out from the shape and cannot be edited
   apart from it.
 - `source.segment.curved-baseline` — a line's baseline can curve; direction can follow it.
@@ -197,18 +263,18 @@ Structure
   disturbing others.
 - `source.segment.physical-and-logical` — a segment can sit in the physical ladder and in a
   logical unit that crosses pages or documents.
-- `source.segment.flow` — text that continues across a column, page or picture reads straight
-  through.
+- `source.segment.flow` — text that continues across a column, page or picture is a named
+  reading order and reads straight through.
 - `source.segment.furniture` — page furniture is marked, and a reading can leave it out.
 - `source.segment.table-cells` — a table's cells are segments with row, column, spans and
   header kind.
 - `source.segment.marks-have-state` — a tick, cross or cancellation is a segment with a state.
 
-Layers, orders, links
-- `source.layer.named-authored` — segments live in named layers, each with an author; layers
+Passes, orders, links
+- `source.pass.named-authored` — segments live in named passes, each with an author; passes
   can be shown, hidden and compared.
-- `source.layer.never-overwrites` — two layouts of one page are two layers, both kept.
-- `source.layer.working` — one layer is the working layer the Reader, search and export use by
+- `source.pass.never-overwrites` — two layouts of one page are two passes, both kept.
+- `source.pass.working` — one pass is the working pass the Reader, search and export use by
   default.
 - `source.order.named-multiple` — a source can have several named reading orders, each with an
   author and certainty.
@@ -236,7 +302,34 @@ Pointing and statements
 - `source.statement.both-ways` — from a segment, what is said about it; from a statement, its
   ink.
 
+Identity, continued
+- `source.segment.match-record` — "this new segment is that old one" is a record of its own
+  with an author and certainty; ids do not move; a machine may propose, a person accepts.
+- `source.segment.forwarding-notes` — a merged, split or deleted segment leaves a permanent
+  forwarding note; following an old id is one lookup; a trail ending in a delete says so.
+- `source.segment.citable` — a segment has one stable reference that opens it in the app and
+  resolves over MCP and the command line, following forwarding notes.
+- `source.segment.time-span` — a segment of a recording is a stretch of time (with an area,
+  for video) and behaves as any other segment.
+- `source.segment.opening` — a shape drawn across two facing pages belongs to the opening and
+  resolves onto each page.
+- `source.image.alignment-points` — two images of one page can be tied by points so shapes
+  cross between them.
+- `source.image.rescan-strands-nothing-silently` — after a rescan, shapes stay on their image
+  and Fichero says which passes have not crossed over.
+- `source.image.physical-scale` — an image can carry a scale so a segment's size can be given
+  in millimetres.
+- `source.edit.stale-is-refused` — an edit made against an old version of a segment is
+  refused, with what changed.
+- `source.derived.recomputable` — pictures, search entries, vectors and word-level analysis
+  name the segment, reading, model and version they came from, and are absent when not made.
+
 Storage
+- `source.store.ids-on-first-edit` — opening a page with old geometry shows its segments
+  without writing anything; the first edit writes that page's segments once, as one audited
+  action that can be undone. (Proposed; see the foundation's open questions.)
+- `source.store.bounded-reads` — a page's segments come back by level and by area, in bounded
+  time, however many there are.
 - `source.store.record-per-segment` — the store can answer questions about single segments
   (the lines of a page; a word's history; all segments in a hand).
 - `source.store.no-batch-rewrite` — an existing library's geometry is never converted by

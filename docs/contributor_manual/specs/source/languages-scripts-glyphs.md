@@ -27,13 +27,16 @@ language, script, direction and signs are *recorded*.
 
 ### Three facts, never one field
 
-- **Language** — a BCP 47 tag. Behind it, Glottolog, which covers dialects and under-resourced
-  and Indigenous languages under an open licence. Where no registry knows the language, a
-  private tag made in the library, with a name and notes. "Unknown" and "not yet looked at"
+- **Language** — a BCP 47 tag, *and* a Glottolog code where there is one. They are two
+  different systems: Glottolog (open licence; covers dialects and under-resourced and
+  Indigenous languages) is not part of BCP 47, so the record holds both, and one spelling of
+  each is kept for the whole library. Where no registry knows the language, a private tag
+  made in the library, with a name and notes. "Unknown" and "not yet looked at"
   are different values, as they already are for a document's language today.
-- **Script** — ISO 15924, including its honest codes: no writing; undetermined; not in
-  Unicode; and the private-use codes for a script a library declares itself.
-- **Encoding** — whether, and how far, the signs have Unicode characters. Never assumed.
+- **Script** — ISO 15924, including its honest codes: no writing; undetermined; and the
+  private-use codes for a script a library declares itself.
+- **Encoding** — whether, and how far, the signs have Unicode characters: fully, partly, or
+  not at all. No registry records this; it is Fichero's own third fact. Never assumed.
 
 One language can use several scripts. One page can hold several of each. A Japanese page
 holds Chinese characters and two syllabaries at once.
@@ -117,12 +120,13 @@ instance of one abbreviation in a codex.
 
 Language and script
 - `source.lang.three-facts` — language, script and encoding are recorded separately.
-- `source.lang.registries` — language is a BCP 47 tag backed by Glottolog; script is ISO 15924
-  including unwritten, undetermined, unencoded and private-use.
+- `source.lang.registries` — language holds a BCP 47 tag and, separately, a Glottolog code;
+  script is ISO 15924 including unwritten, undetermined and private-use; encoding (full, part,
+  none) is recorded by Fichero.
 - `source.lang.library-declared` — a library can declare a language or script no registry has.
 - `source.lang.unknown-is-not-unexamined` — "unknown" and "not yet looked at" are different.
-- `source.lang.cascade` — language, script and direction inherit downward from app to
-  character and can be overridden at any level.
+- `source.lang.cascade` — language and script inherit downward from app to character and can
+  be overridden at any level (direction inherits the same way: see `source.dir.per-segment`).
 - `source.lang.says-where-from` — a shown value says which level it came from.
 - `source.lang.reading-overrides` — a reading's own language and script win for that reading.
 - `source.lang.many-per-page` — one page can hold several languages and scripts at once.

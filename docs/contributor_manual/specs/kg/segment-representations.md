@@ -1,5 +1,9 @@
 # Segment Representations — Design Spec (#4635 · epic #4639)
 
+> **2026-09-19 — read this first.** The shared ideas in this file (what a segment is, its
+> slots, the delivery rule) now have one home: `../source/source-model.md` and its slices.
+> Where this file and that set differ, that set wins. This file stays as the FIRST SLICE (reading a segment's picture and text across the spine). Its "a segment is one anchor" is now "a segment is a record with a lasting id whose place is an anchor"; its "representations" are the source model's "worked-out things" (pictures, vectors, word-level analysis) and "readings". Its `segment.*` ids stay.
+>
 > Milestone: segment-representations
 > Manual: TBD — pairs with the archival-data-model section: a reader needs to be told that one
 > patch of a page can carry several readings (the OCR's, the VLM's, their own correction), how to

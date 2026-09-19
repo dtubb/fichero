@@ -25,7 +25,7 @@ a model trainer, and always knows what a format could not carry.
 ### The rules for every format
 
 - **A format is a mapping, not a model.** Adding one adds no fields to segments.
-- **Import arrives as a new layer** with its own provenance (the file, its checksum, the tool
+- **Import arrives as a new pass** with its own provenance (the file, its checksum, the tool
   that made it, when). It never overwrites what is in the library. Importing the same file
   again is recognised.
 - **Nothing unrecognised is thrown away.** What the model has no field for is kept on the
@@ -39,18 +39,18 @@ a model trainer, and always knows what a format could not carry.
   and readings, less exactly what the loss report named.
 - Import and export work from the app, over MCP and from the command line, and never assume
   the engine shares a disk with the app.
-- Export always says which layer, which reading order, and which kind of reading it is
-  writing, with sensible defaults (the working layer; the order as written; the chosen
+- Export always says which pass, which reading order, and which kind of reading it is
+  writing, with sensible defaults (the working pass; the order as written; the chosen
   reading).
 
 ### The formats
 
 | Format | In | Out | Carries | Loses (reported) |
 |---|---|---|---|---|
-| **PageXML** | yes | yes | regions, lines, words, glyphs; polygons; baselines; kinds; one order; direction (four); language and script; ranked readings; simple links; z-layers | extra reading orders; typed links; hands; ink layers; editorial facts; declared signs |
+| **PageXML** | yes | yes | regions, lines, words, glyphs; polygons; baselines; kinds; one order; direction (four); language and script; ranked readings; simple links; z-layers | extra reading orders; typed links; hands; campaigns; editorial facts; declared signs |
 | **ALTO** | yes | yes | blocks, lines, strings, glyphs; polygons; baselines; language; direction and order; alternatives and confidence; tags; processing history | as PageXML, and more of the link and kind detail |
 | **TEI** | yes | yes | zones linked to text; glosses and additions with place; reorder marks; hands; editorial facts; written and read pairs; apparatus for rival readings; declared signs; free links; page furniture | fine geometry below the zone in some encodings; direction beyond a style hint |
-| **MEI** | yes | yes | music zones linked to notes and neumes | polygons (its zones are boxes) |
+| **MEI** | yes | yes | music zones, and the notes or neumes where a music reading exists (otherwise zones only, and the loss report says so) | polygons (its zones are boxes) |
 | **W3C annotations / IIIF** | yes | yes | pointers to shapes and text; notes on notes; control points for maps | it is not a transcription format |
 | **hOCR** | yes | yes | lines, words, boxes or polygons, baselines, character cuts and confidence | most scholarly detail |
 | **Transkribus and eScriptorium packages** | yes | yes | a zip of images and PageXML, optionally with a METS file: someone else's whole project | as PageXML |
@@ -67,13 +67,13 @@ The loop:
 
 1. A large vision model reads a few pages: regions, lines, readings.
 2. A person corrects them on the page, in the editor.
-3. Fichero makes a **training set** from chosen sources, layer, kinds and readings: line
+3. Fichero makes a **training set** from chosen sources, pass, kinds and readings: line
    pictures (cut to the polygon, straightened on the baseline) with their readings, for a
    line recogniser (Kraken); page images with region and line shapes and kinds, for a
    segmenter (Kraken) or a layout detector (the YOLO family).
 4. The small model is fine-tuned, locally or elsewhere.
 5. The small model reads the rest of the collection, locally. Its output arrives as a new
-   layer and new readings, like any other machine's.
+   pass and new readings, like any other machine's.
 
 What the survey established, and the design follows:
 
@@ -82,8 +82,13 @@ What the survey established, and the design follows:
   palaeographic comparison, and for declared signs.
 - A training set is a **projection**. It is made from the library when wanted, and is never
   the record.
-- Only **human-checked** readings go into a training set unless the researcher says
-  otherwise. A machine's guess must not be taught back to a machine as truth.
+- Only **human-checked** readings go into a training set by default. A machine's guess must
+  not be taught back to a machine as truth. A researcher can deliberately include unchecked
+  readings (to bootstrap), and then the set's description says so, row by row.
+- **Measuring.** A page a person has fully corrected can be marked as **ground truth**. Any
+  model's pass can then be scored against it (character and word error rate, for each page
+  and each hand), and the score is kept with the date, the model and the training set that
+  made the model. Without this nobody can tell whether fine-tuning helped.
 - The split between training, validation and test is made **by manuscript**, not by line, so
   a model is never tested on a hand it has seen.
 - A training set carries a **description of itself** in the field's own terms (HTR-United's:
@@ -98,7 +103,7 @@ What the survey established, and the design follows:
 ## Behaviors (ids proposed; untagged until approval)
 
 Rules for every format
-- `source.format.import-is-layer` — an import arrives as a new layer with its provenance and
+- `source.format.import-is-pass` — an import arrives as a new pass with its provenance and
   overwrites nothing.
 - `source.format.reimport-recognised` — importing the same file again is recognised, not
   duplicated silently.
@@ -107,9 +112,10 @@ Rules for every format
 - `source.format.export-validated` — an export is validated against its schema; an invalid
   one is a reported failure.
 - `source.format.loss-report` — every export states what it could not carry.
-- `source.format.round-trip` — export then import returns the same segments, shapes, orders
-  and readings, less what the loss report named.
-- `source.format.export-choices` — an export names the layer, reading order and reading kind
+- `source.format.round-trip` — for each format that goes both ways, export then import returns
+  the same segments, shapes, orders and readings, less what the loss report named (one test
+  for each format).
+- `source.format.export-choices` — an export names the pass, reading order and reading kind
   it writes, with defaults.
 - `source.format.everywhere` — import and export work from the app, MCP and the command line,
   with a remote engine.
@@ -132,19 +138,24 @@ Each format (one import and one export behaviour each)
 - `source.format.pdf-out` — a searchable PDF with text in place and descriptions as alt text.
 
 Training
-- `source.train.set-from-selection` — a training set is made from chosen sources, layer, kinds
+- `source.train.set-from-selection` — a training set is made from chosen sources, pass, kinds
   and readings.
 - `source.train.line-pictures` — line pictures are cut to the polygon and straightened on the
   baseline.
-- `source.train.human-checked-only` — only human-checked readings are included unless the
-  researcher says otherwise.
+- `source.train.human-checked-by-default` — only human-checked readings are included by
+  default; including others is deliberate and is recorded row by row in the set.
+- `source.train.ground-truth` — a fully corrected page can be marked as ground truth.
+- `source.train.measured` — a model's pass can be scored against ground truth by page and by
+  hand, and the score is kept with the date, model and training set.
+- `source.train.model-lineage` — a pass made by a fine-tuned model names that model, and the
+  model names the training set it came from.
 - `source.train.split-by-manuscript` — training, validation and test are split by manuscript.
 - `source.train.self-describing` — a training set carries a description in HTR-United's terms.
 - `source.train.rows-keep-context` — each row keeps hand, script, period, source, guideline
   and level.
 - `source.train.sign-pictures` — pictures of characters and declared signs can be exported as
   a labelled set.
-- `source.train.output-is-layer` — a fine-tuned model's output arrives as a new layer and new
+- `source.train.output-is-pass` — a fine-tuned model's output arrives as a new pass and new
   readings.
 - `source.train.projection-only` — a training set is made on demand and is never the record.
 

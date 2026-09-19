@@ -1,5 +1,9 @@
 # Archival Data Model — Development Plan
 
+> **2026-09-19 — read this first.** The shared ideas in this file (what a segment is, its
+> slots, the delivery rule) now have one home: `../source/source-model.md` and its slices.
+> Where this file and that set differ, that set wins. This file stays as the STAGED PLAN, updated below ("How the phases map to the source model").
+>
 > Manual: TBD — the user manual needs a "How Fichero stores what it reads" section: what a
 > segment is, how a page's regions/lines/words relate, and why that shape lets a claim point back
 > at the exact ink it came from. Written for a researcher, not a developer.
@@ -171,6 +175,35 @@ Inspector-Knowledge #151 (inspector), Client-MCP #52 (MCP/CLI), Testing #267, Ex
   IIIF-georef/Linked-Art-place. (#1755)
 
 ---
+
+## 5a. How the phases map to the source model (2026-09-19)
+
+The maintainer has since ruled that the whole model is specified properly first, and the order
+of building is decided from the finished spec (`../source/source-model.md`, open question on
+order). The phases above stay as a record of intent; this table says where each now lives and
+what changed. Words: a "layer" of segments is now a **pass**; a "transcription" in an
+"edition" is a **reading** with a kind and a level; "representations" are readings plus
+**worked-out things**.
+
+| Phase | Now specified in | What changed |
+|---|---|---|
+| P0 read model | `segment-representations.md` (first slice) + `source/segments-and-geometry.md` | a segment has a lasting id and its own record; pictures are cut to the polygon |
+| P1 editing on the Preview | `source/segment-editor.md` | native SwiftUI, Mac + iPad + iPhone, Pencil; one overlay; merge, split, reorder, links |
+| P2 transcriptions + editions | `source/readings-and-apparatus.md` | readings as a set; written and read; only a person chooses; normalisation level recorded |
+| P3 vectors | `source/source-model.md` ("What stands on segments") | vectors per segment and per reading; search lands on a segment |
+| P4 provenance, versions, rationale | `source/segments-and-geometry.md`, `source/readings-and-apparatus.md` | versions per segment; hand kept apart from provenance; three kinds of "sure" |
+| P5 zones + relationships | `source/segments-and-geometry.md` | physical and logical structure; named reading orders; typed links; flows |
+| P6 linguistic annotation + tags | `source/source-model.md` (worked-out things), `source/readings-and-apparatus.md` (marks) | word-level analysis hangs on a reading; marks on any segment, in authored sets |
+| P7 language/script coverage, no-Unicode | `source/languages-scripts-glyphs.md` | moved from late to foundational: three facts, cascade, direction, declared signs, sign lists, fonts |
+| P8 authority linking | `kg-enrichment.md` | unchanged; a segment gains a citable reference |
+| P9 exporter, contribute | `source/formats-and-training.md`, `export/exporter.md` | every format both ways; validation; loss reports; imports arrive as passes |
+| P10 distilled VLM | `source/formats-and-training.md` | the training loop, human-checked by default, split by manuscript, measured against ground truth |
+| P11 georeference | `source/segments-and-geometry.md` | control points; shapes can be points and lines |
+| new | `source/rights-and-access.md` | rights, consent, community labels, redaction, removal (proposed) |
+| new | `source/segments-and-geometry.md` | recordings as stretches of time; several images lined up by alignment points; rescans |
+
+Embeddings, the knowledge graph, content and workflows all stand on segments: see "What stands
+on segments" in the foundation.
 
 ## 6. Standards map (the export slot, by layer)
 

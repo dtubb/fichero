@@ -23,7 +23,7 @@ model must carry, and tells us honestly what each export will lose. Sources are 
 | **YOLO** (layout training) | plain text, not XML: one class and one box or polygon per object | everything else: no text, no hierarchy, no order |
 | **Kraken** training | trains from ALTO, PageXML, or line image plus text; also a compiled Arrow dataset. Learns lines (baseline plus polygon) and typed regions; handles right-to-left and vertical | works at the **line**; it does not train on cut-out characters. It has no YOLO segmenter |
 
-Three conclusions:
+Four conclusions:
 
 1. **No one format holds everything.** PageXML and ALTO are the geometry formats. TEI is the
    scholarly format. Our model must be richer than any of them, and each export is a
@@ -32,10 +32,15 @@ Three conclusions:
    text zone, graphic zone, music zone, seal zone, stamp zone, damage zone, numbering zone…;
    default line, interlinear line, heading line, music line…). It is what Kraken and
    eScriptorium train on. We adopt it as the default, extensible.
-3. **Language, script and encoding have registries**: BCP 47 tags for language, ISO 15924 for
-   script — including codes for "unwritten", "undetermined", "not in Unicode", and
-   private-use scripts — and Glottolog (open licence, covers dialects and under-resourced
-   languages). Medievalists already share private-use characters through MUFI.
+3. **Language and script have registries**: BCP 47 tags for language; ISO 15924 for script,
+   including codes for "unwritten", "undetermined" and private-use scripts; and, separately,
+   Glottolog (open licence, covers dialects and under-resourced languages; its codes are not
+   part of BCP 47). No registry says whether a script is in Unicode: that is ours to record.
+   Medievalists already share private-use characters through MUFI.
+4. **"Cannot hold" means "has no element of its own for".** PageXML and ALTO both have escape
+   hatches (custom attributes, tags, user-defined metadata), and tools such as Transkribus use
+   them for hands and structure. We read and write those hatches on import and export, so
+   other tools' extras survive a round trip.
 
 ## What working philologists record (the worked examples)
 
@@ -52,7 +57,7 @@ These are the test of the design. If one of them needs a special case, the model
    vowel marks, were often added later, in another ink, by another hand. One undotted word can
    honestly be read several ways. Margins carry collation notes, reading certificates,
    ownership and endowment notes. Right-to-left text with left-to-right numerals inside it.
-   *Needs:* **ink layers** over the same characters, each with its own hand and date; **several
+   *Needs:* **campaigns** over the same characters, each with its own hand and date; **several
    equally valid readings**, not one best guess; mixed direction inside a line; typed marginal
    notes.
 3. **Aramaic, Syriac, Hebrew.** Papyri and potsherds with damage and gaps. Syriac in three
@@ -194,3 +199,9 @@ licences of Indigenous-language catalogues other than Glottolog. Also not verifi
 front-end framework; the cuneiform and Maya sign-list conventions (the sites could not be
 reached); Unicode variation sequences for Chinese characters; Arkindex's field names; the
 IIIF Georeference extension and Allmaps (named in the maps section from general knowledge).
+
+**To recheck before relying on them** (a reviewer doubted these, 2026-09-19): that
+eScriptorium's regions are only boxes (they may be polygons); that Transkribus's web app still
+cannot edit polygons; how well Kraken handles vertical text; which ALTO release added
+direction and reading order; hOCR's polygon and flow properties. The IIIF Georeference
+extension and Allmaps do exist and are the right prior art for maps.
