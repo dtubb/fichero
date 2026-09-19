@@ -176,7 +176,7 @@ sets defaults in this model (language, script, direction, kinds, guideline); it 
 of the model itself.
 
 Behaviour ids in this set begin `source.`. The ids beginning `segment.` belong to the first
-slice (`kg/segment-representations.md`) and stay as they are.
+slice (`segment-representations.md`) and stay as they are.
 
 ### What stands on segments
 
@@ -200,7 +200,7 @@ The point of doing this properly is that everything else in Fichero gets better 
   selection" can mean these three lines. Machine output always arrives as a new pass or a new
   reading, never over a person's work.
 - **Language tools.** Normalising, dating, name-matching, translating and transliterating
-  (`kg/historical-text-normalization.md`) work on a reading of a segment and produce another
+  (`historical-text-normalization.md`) work on a reading of a segment and produce another
   reading, with the language and script known from the cascade.
 - **Export and training.** See `formats-and-training.md`.
 
@@ -275,19 +275,20 @@ What is missing:
 
 An earlier ruling stands and fits: language and other attributes are to **cascade** from app
 to library to folder to page to region to line to word to character, with an override at any
-level (recorded in `kg/historical-text-normalization.md` as a ratified future direction). This
+level (recorded in `historical-text-normalization.md` as a ratified future direction). This
 design is where that cascade lives.
 
 ## How the existing specs fit under this one
 
 This spec is the one home for the shared ideas. The others keep their own work and point
-here. (They still live in `specs/kg/` for now; they move into this folder in one late step.)
+here. (They moved into this folder from `specs/kg/` on 2026-09-19; milestones and behaviour ids
+are unchanged.)
 
-- `kg/archival-data-model-plan.md` — the staged plan. Its primitive (the segment), its four
+- `archival-data-model-plan.md` — the staged plan. Its primitive (the segment), its four
   slots and its delivery rule move here; it stays as the roadmap.
-- `kg/segment-representations.md` — the first slice: read a segment's crop and text, in the
+- `segment-representations.md` — the first slice: read a segment's crop and text, in the
   Inspector, over MCP and CLI, exported.
-- `kg/historical-text-normalization.md` — the text layer: normalisation, dates, name variants
+- `historical-text-normalization.md` — the text layer: normalisation, dates, name variants
   across scripts, language detection, translation, transliteration.
 - `ui/reader-overlay-frame-identity.md` and `ui/preview-surface.md` — already own "a box is
   only valid against the image it was measured on", and the Preview / Reader / Inspector split.

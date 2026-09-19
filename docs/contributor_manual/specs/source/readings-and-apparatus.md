@@ -132,7 +132,7 @@ A date on a page is ink like anything else: a segment with a reading ("the third
 King Darius"; "12 Baktun 4 Katun…"; "era 1014"; "the feast of Saint John"). What it *means*
 is an interpretation, and there can be more than one.
 
-What exists (in `kg/historical-text-normalization.md`, section B; partly built and tested): a
+What exists (in `historical-text-normalization.md`, section B; partly built and tested): a
 date is stored as a **range of days on one common count** (the Julian Day Number), never
 collapsed to one guessed day, with conversion from the Gregorian, Julian, French Republican,
 Hebrew and Islamic calendars, regnal years and Chinese era names, and "explicitly undated"

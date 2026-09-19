@@ -226,4 +226,4 @@ graph.
 
 Ties: #4641 (authority/Web of Data), #4640 (exporter — add JSON-LD beside JSONL), #4636
 (provenance for enriched/imported values), #4624 (KG tables surface the affordances),
-`archival-data-model-plan.md` P8 (authority/linked data).
+`source/archival-data-model-plan.md` P8 (authority/linked data).

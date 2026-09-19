@@ -1,8 +1,8 @@
 # Historical Text Normalization — Design Spec (#TBD)
 
 > **2026-09-19 — read this first.** The shared ideas in this file (what a segment is, its
-> slots, the delivery rule) now have one home: `../source/source-model.md` and its slices.
-> Where this file and that set differ, that set wins. This file stays as the TEXT LAYER. How language, script and direction are recorded, and the cascade, now live in `../source/languages-scripts-glyphs.md`; what is done with text stays here, and works on a reading of a segment.
+> slots, the delivery rule) now have one home: `source-model.md` and its slices.
+> Where this file and that set differ, that set wins. This file stays as the TEXT LAYER. How language, script and direction are recorded, and the cascade, now live in `languages-scripts-glyphs.md`; what is done with text stays here, and works on a reading of a segment.
 >
 > Milestone: historical-text-normalization
 > Manual: TBD — the contributor manual has no historical-text-normalization section yet.

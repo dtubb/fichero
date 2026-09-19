@@ -198,7 +198,7 @@ its picture; search entries; **vectors** for finding similar images or text; the
 grammar** of a reading (tokens, parts of speech, lemmas), which are stretches of a reading.
 They are kept with the segment and the reading they came from, with the model and version
 that made them, and are absent, not faked, when they have not been made. (This is what
-`kg/segment-representations.md` calls representations.)
+`segment-representations.md` calls representations.)
 
 ### Statements
 

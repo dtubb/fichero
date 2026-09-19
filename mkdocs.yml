@@ -396,15 +396,12 @@ nav:
               - Git / Worktree / GitHub Workflow: contributor_manual/specs/harness/git-worktree-workflow.md
               - Release & Versioning: contributor_manual/specs/harness/release-and-versioning.md
           - KG:
-              - Archival Data Model: contributor_manual/specs/kg/archival-data-model-plan.md
               - Hermeneutic Layer: contributor_manual/specs/kg/hermeneutic-layer.md
-              - Historical Text Normalization: contributor_manual/specs/kg/historical-text-normalization.md
               - KG Enrichment, RDF & Linked Data: contributor_manual/specs/kg/kg-enrichment.md
               - KG Entity Inspector: contributor_manual/specs/kg/kg-entity-inspector.md
               - KG Interactions & Standards: contributor_manual/specs/kg/kg-interactions.md
               - KG Readable Representation: contributor_manual/specs/kg/kg-readable-representation.md
               - KG Tables: contributor_manual/specs/kg/kg-tables.md
-              - Segment Representations: contributor_manual/specs/kg/segment-representations.md
           - Source:
               - Source Model (foundation): contributor_manual/specs/source/source-model.md
               - Survey of the Field: contributor_manual/specs/source/source-survey.md
@@ -414,6 +411,9 @@ nav:
               - Segment Editor: contributor_manual/specs/source/segment-editor.md
               - Formats & Training: contributor_manual/specs/source/formats-and-training.md
               - Rights, Consent & Access: contributor_manual/specs/source/rights-and-access.md
+              - Segment Representations (first slice): contributor_manual/specs/source/segment-representations.md
+              - Historical Text Normalization: contributor_manual/specs/source/historical-text-normalization.md
+              - Archival Data Model (staged plan): contributor_manual/specs/source/archival-data-model-plan.md
           - Testing:
               - Test Environment Contract: contributor_manual/specs/testing/test-environment-contract.md
               - UI-Test Harness: contributor_manual/specs/testing/ui-test-harness.md

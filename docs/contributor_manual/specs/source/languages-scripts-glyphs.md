@@ -19,7 +19,7 @@ or a text written in a spiral, as it is for printed English. That means language
 direction and the identity of a sign are recorded honestly at every level, and that "the
 computer has no character for this" never stops the work.
 
-`kg/historical-text-normalization.md` owns what is *done* with text (normalising, dating,
+`historical-text-normalization.md` owns what is *done* with text (normalising, dating,
 matching names across scripts, detecting language, translating). This slice owns how
 language, script, direction and signs are *recorded*.
 
