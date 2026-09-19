@@ -325,6 +325,27 @@ class EpistemicStatus(str, Enum):
     rejected = "rejected"
 
 
+class ProvenanceKind(str, Enum):
+    """Who or what wrote a claim (#4869) -- a closed vocabulary, set by the
+    SERVER at the point of writing, never accepted from a client on any
+    route or action. Deliberately does NOT split `workflow` by model
+    (LLM vs spaCy): `provider`/`model` already say which, and a reader
+    wanting that detail reads those, not this field.
+
+    `agent` is NOT a first-class principal today (#4869 open question):
+    it identifies the SURFACE an action came through (the MCP tool
+    routes), not a verified property of the authenticated account. A real
+    agent-principal type is the actual fix; this is the smallest honest
+    signal available until that exists.
+    """
+
+    human = "human"
+    agent = "agent"
+    workflow = "workflow"
+    external_import = "external_import"
+    unknown = "unknown"
+
+
 class ClaimCurationState(str, Enum):
     unreviewed = "unreviewed"
     shortlisted = "shortlisted"
@@ -2019,7 +2040,23 @@ class KnowledgeClaim(BaseModel):
         ),
     )
 
-    created_by: str = "human"
+    # #4869: was "human" -- a default a caller never had to override, so
+    # every machine writer that forgot to set `created_by` (both extraction
+    # paths did) got a free, false claim of human authorship. "unknown" is
+    # honest about a value nobody actually asserted; a legacy row's
+    # DISPLAYED provenance is decided by `resolve_claim_provenance_kind`
+    # (knowledge/_common.py), never by trusting this default at read time.
+    created_by: str = "unknown"
+    # #4869 (kg.claim.provenance-kind-is-server-stated): who/what wrote this
+    # claim, a closed vocabulary set by the SERVER at write time -- never
+    # accepted from a client on any route or action (see
+    # `resolve_claim_provenance_kind` for how a legacy row with no value
+    # here gets one derived at read time, and where that derivation is
+    # applied). Nullable so existing rows need no backfill: `None` means
+    # "written before this field existed", not "unknown" the enum value --
+    # the two are deliberately distinct so a legacy row is never silently
+    # misread as having asserted `unknown` itself.
+    provenance_kind: ProvenanceKind | None = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 

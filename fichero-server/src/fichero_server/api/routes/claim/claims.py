@@ -31,6 +31,7 @@ from fichero_server.models.knowledge import (
     MutationLog,
     MutationOperationType,
     PredictionMetadata,
+    ProvenanceKind,
     ProvenanceLayer,
     QuotationKind,
     SourceGenre,
@@ -61,6 +62,42 @@ def _resolve_action_ctx(
         library_path=resolved_library_path,
         origin_window=resolved_origin_window,
     )
+
+
+def _resolved_claim_copy(claim: KnowledgeClaim) -> KnowledgeClaim:
+    """A NEW claim object with `provenance_kind` resolved to its effective,
+    read-time value (#4869: `kg.claim.provenance-kind-is-server-stated`).
+
+    Returns a COPY (`model_copy`) rather than mutating `claim` in place, so
+    the original, DB-loaded object is never touched -- there is no risk of
+    an unrelated later `db.save(claim)` in the same request accidentally
+    persisting the derived value (which would be exactly the silent
+    backfill the ruling forbids). Use for a claim returned DIRECTLY as an
+    object (a `response_model=KnowledgeClaim` route, or a list of them).
+    """
+    from fichero_server.knowledge._common import resolve_claim_provenance_kind
+
+    return claim.model_copy(
+        update={"provenance_kind": resolve_claim_provenance_kind(claim)}
+    )
+
+
+def _resolved_claim_dict(claim: KnowledgeClaim) -> dict[str, Any]:
+    """A claim's wire dict (`model_dump`) with `provenance_kind` resolved
+    (#4869). Deliberately does NOT touch `claim` itself -- a caller that
+    ALSO captures `claim.model_dump()` for an audit/undo snapshot
+    (`ChangeSpec.before`/`after`) must get the claim's TRUE stored value
+    there, never the derived display one, or an undo would silently
+    persist a value nobody ever actually asserted. Build the
+    ChangeSpec's own before/after from `claim.model_dump()` FIRST, then
+    call this for what the ACTION RESULT (what a caller receives back)
+    reports.
+    """
+    from fichero_server.knowledge._common import resolve_claim_provenance_kind
+
+    data = claim.model_dump(mode="json")
+    data["provenance_kind"] = resolve_claim_provenance_kind(claim).value
+    return data
 
 
 def _emit_claim_change_ctx(
@@ -152,6 +189,16 @@ class ClaimCreateRequest(BaseModel):
     claim_recorded_at: str | None = None
     claim_geo: GeoPoint | None = None
     confidence_source: str | None = None
+    provenance_kind: ProvenanceKind | None = Field(
+        default=None,
+        description=(
+            "IGNORED (#4869). Who/what wrote this claim is a server-decided "
+            "fact, never a client-supplied one -- kept on the wire only for "
+            "compatibility; `create_claim_impl`'s real callers "
+            "(`claim.create`, `enrich_import`) always set the effective "
+            "value themselves before this model is used."
+        ),
+    )
 
 
 class ClaimPatchRequest(BaseModel):
@@ -505,6 +552,7 @@ def create_claim_impl(db: Database, request: ClaimCreateRequest) -> KnowledgeCla
         language=request.language,
         metadata=request.metadata,
         created_by=request.created_by,
+        provenance_kind=request.provenance_kind,
         created_at=now,
         updated_at=now,
         source_type=request.source_type,
@@ -957,7 +1005,7 @@ async def get_claim(
     claim = db.get(KnowledgeClaim, claim_id)
     if claim is None:
         raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
-    return claim
+    return _resolved_claim_copy(claim)
 
 
 @router.delete("/{claim_id}", status_code=204)
@@ -1134,7 +1182,9 @@ def list_claims_impl(
     if source_type:
         claims = [c for c in claims if c.source_type == source_type]
 
-    return claims[offset : offset + limit]
+    # #4869: resolved for every caller of this shared function (the typed
+    # list route AND `claim.list`) in ONE place.
+    return [_resolved_claim_copy(c) for c in claims[offset : offset + limit]]
 
 
 @router.get("", response_model=ClaimListResponse)
@@ -1281,7 +1331,19 @@ def _action_create_claim(
     # `interpretation.create`) -- it must never trust a body value over the
     # real `ctx.actor`. `create_claim_impl` itself is left alone so its
     # other direct (non-action) callers keep their own explicit values.
-    params = params.model_copy(update={"created_by": ctx.actor})
+    #
+    # #4869: `provenance_kind` is likewise never trusted from the request --
+    # `human` normally, `agent` only when `ctx.via_mcp` says the CALLING
+    # ROUTE CODE (not anything the client sent) is one of the MCP tool
+    # routes. See `ActionContext.via_mcp`'s own docstring: this identifies
+    # the SURFACE an action came through, not a verified property of the
+    # account -- a real agent-principal type is the actual fix.
+    params = params.model_copy(
+        update={
+            "created_by": ctx.actor,
+            "provenance_kind": ProvenanceKind.agent if ctx.via_mcp else ProvenanceKind.human,
+        }
+    )
     claim = create_claim_impl(db, params)
     entity_ids = list(claim.entity_ids or [])
     spec = ChangeSpec(
@@ -1293,7 +1355,7 @@ def _action_create_claim(
         entity_ids=entity_ids,
         emit_fn=_emit_claim_change_spec,
     )
-    return claim.model_dump(mode="json"), spec
+    return _resolved_claim_dict(claim), spec
 
 
 @action(
@@ -1317,7 +1379,7 @@ def _action_patch_claim(
         entity_ids=list(claim.entity_ids or []),
         emit_fn=_emit_claim_change_spec,
     )
-    return claim.model_dump(mode="json"), spec
+    return _resolved_claim_dict(claim), spec
 
 
 @action(
@@ -1366,7 +1428,7 @@ def _action_restore_claim(
         claim_ids=[claim.id],
         entity_ids=list(claim.entity_ids or []),
     )
-    return claim.model_dump(mode="json"), spec
+    return _resolved_claim_dict(claim), spec
 
 
 @action(
@@ -1492,4 +1554,4 @@ def _action_get_claim(
         raise HTTPException(
             status_code=404, detail=f"Claim not found: {params.claim_id}"
         )
-    return claim.model_dump(mode="json"), ChangeSpec(domains=["claim"])
+    return _resolved_claim_dict(claim), ChangeSpec(domains=["claim"])

@@ -1508,6 +1508,7 @@ async def enrich_import(
         WikidataStatement,
         statement_to_claim_text,
     )
+    from fichero_server.models.knowledge import ProvenanceKind
 
     entity = db.get(KnowledgeEntity, body.entity_id)
     if entity is None:
@@ -1526,6 +1527,10 @@ async def enrich_import(
                 source_ref=stmt.value_url or source_url,
                 entity_ids=[entity.id],
                 created_by="wikidata",
+                # #4869: an external-import claim, not a workflow-extracted
+                # or human/agent-asserted one -- its own closed value, set
+                # here at the ONE place this pipeline creates claims.
+                provenance_kind=ProvenanceKind.external_import,
                 confidence_source="wikidata",
                 subject_canonical=entity.canonical_name,
                 subject_entity_id=entity.id,

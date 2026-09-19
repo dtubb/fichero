@@ -26,6 +26,7 @@ from fichero_server.models.knowledge import (
     Annotation,
     AnnotationKind,
     KnowledgeClaim,
+    ProvenanceKind,
     validate_annotation_color,
 )
 from fichero_server.core.utf16_offsets import utf16_range_to_codepoint_range
@@ -497,7 +498,11 @@ class PromoteResponse(BaseModel):
 
 
 def promote_to_claim_impl(
-    db: Database, annotation_id: str, *, actor: str | None = None
+    db: Database,
+    annotation_id: str,
+    *,
+    actor: str | None = None,
+    provenance_kind: ProvenanceKind = ProvenanceKind.human,
 ) -> tuple[Annotation, KnowledgeClaim, dict]:
     """Promote an annotation to a KnowledgeClaim. Returns ``(ann, claim, before)``.
 
@@ -510,6 +515,13 @@ def promote_to_claim_impl(
     ``actor`` is the ctx.actor from the action layer (#3263). If provided it
     overrides the annotation's created_by; otherwise the annotation's own
     created_by is inherited (backwards-compatible default).
+
+    ``provenance_kind`` (#4869) defaults to ``human`` -- promotion is a
+    person deciding a highlight is a claim, never an automated pipeline.
+    Not reachable via MCP today (no tool in ``mcp/tools.py`` wraps it), so
+    the caller (the ``annotation.promote_to_claim`` action) still threads
+    its own ``ctx.via_mcp`` check through rather than hardcoding ``human``
+    here, so this stays correct the day it does become reachable that way.
     """
     ann = db.get(Annotation, annotation_id)
     if ann is None:
@@ -554,6 +566,7 @@ def promote_to_claim_impl(
         source_anchor=ann.anchor,
         source_excerpt=excerpt,
         created_by=actor or ann.created_by,
+        provenance_kind=provenance_kind,
     )
     db.save(claim)
 
@@ -827,7 +840,12 @@ def _action_promote_to_claim(
 ) -> tuple[dict, ChangeSpec]:
     """Promote an annotation to a KnowledgeClaim. NOT undoable (see module note):
     auto-reversing would orphan the created claim, so we audit but don't invert."""
-    ann, claim, before = promote_to_claim_impl(db, params.annotation_id, actor=ctx.actor)
+    ann, claim, before = promote_to_claim_impl(
+        db,
+        params.annotation_id,
+        actor=ctx.actor,
+        provenance_kind=ProvenanceKind.agent if ctx.via_mcp else ProvenanceKind.human,
+    )
     after = {
         "annotation": ann.model_dump(mode="json"),
         "claim_id": claim.id,

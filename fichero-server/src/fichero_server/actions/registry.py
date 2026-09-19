@@ -66,6 +66,17 @@ class ActionContext:
     on_progress: "Callable[[int, int], None] | None" = None
     on_document: "Callable[[Any], None] | None" = None
     should_cancel: "Callable[[], bool] | None" = None
+    # #4869: True ONLY when the CALLING ROUTE CODE ITSELF is one of the MCP
+    # tool routes (`api/routes/mcp/tools.py`) -- hardcoded `True` there, by
+    # the route's own identity, never derived from anything a client sends
+    # (unlike `client` above, which comes from an optional, self-reported
+    # header and is explicitly documented as unverified). This identifies
+    # the SURFACE an action came through, not a verified property of the
+    # authenticated account -- there is no first-class "agent principal"
+    # today (#4869's own open question). A write path uses this ONLY to
+    # decide `KnowledgeClaim.provenance_kind` (`human` vs `agent`); it is
+    # never an authorization input.
+    via_mcp: bool = False
 
 
 @dataclass

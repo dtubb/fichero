@@ -43,6 +43,7 @@ from fichero_server.models.knowledge import (
     KnowledgeClaimLink,
     KnowledgeEntity,
     PlaceGeometryType,
+    ProvenanceKind,
     QuotationKind,
     SourceSupport,
 )
@@ -2564,6 +2565,14 @@ def save_claim(
         # so users can audit per-model claim quality.
         provider=provider,
         model=model,
+        # #4869: this is the extraction pipeline writing the claim, never a
+        # person -- `created_by` used to be left at the model's OLD default
+        # ("human"), which was a lie every extracted claim told for free.
+        # "extractor" matches this same function's existing sibling
+        # convention on `EvidentialPlace`/date-value `created_by` values
+        # elsewhere in this module.
+        created_by="extractor",
+        provenance_kind=ProvenanceKind.workflow,
         language=language,
         # #1123 Phase D — attribution fields populated automatically
         # from the claim text + source excerpt unless explicitly passed.

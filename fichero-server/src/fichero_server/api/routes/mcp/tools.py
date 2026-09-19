@@ -249,7 +249,7 @@ async def mcp_knowledge_entity_upsert(
 
     from pathlib import Path
 
-    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
+    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent), via_mcp=True)
     action_params = {
         "canonical_name": request.canonical_name,
         "entity_type": entity_type.value,
@@ -324,7 +324,7 @@ async def mcp_knowledge_claim_create(
 
     from pathlib import Path
 
-    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
+    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent), via_mcp=True)
     action_params = {
         "text": request.text.strip(),
         "source_document_id": request.source_document_id
@@ -377,10 +377,14 @@ async def mcp_knowledge_claim_get(
     db: Database = Depends(get_library_database),
 ) -> KnowledgeClaim:
     """MCP tool endpoint: Get knowledge claim by ID."""
+    from fichero_server.knowledge._common import resolve_claim_provenance_kind
+
     claim = db.get(KnowledgeClaim, claim_id)
     if not claim:
         raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
-    return claim
+    return claim.model_copy(
+        update={"provenance_kind": resolve_claim_provenance_kind(claim)}
+    )
 
 
 @router.delete(
@@ -408,7 +412,7 @@ async def mcp_knowledge_entity_delete(
     """
     from pathlib import Path
 
-    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
+    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent), via_mcp=True)
     registry.invoke(db, "entity.delete", {"entity_id": entity_id}, ctx)
     logger.info("MCP: Deleted entity %s by %s", entity_id, actor)
     return MCPEntityDeletedResponse(success=True, entity_id=entity_id, operation="deleted")
@@ -434,7 +438,7 @@ async def mcp_knowledge_claim_delete(
     """
     from pathlib import Path
 
-    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
+    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent), via_mcp=True)
     registry.invoke(db, "claim.delete", {"claim_id": claim_id}, ctx)
     logger.info("MCP: Deleted claim %s by %s", claim_id, actor)
     return MCPClaimDeletedResponse(success=True, claim_id=claim_id, operation="deleted")
@@ -501,8 +505,16 @@ async def mcp_knowledge_claims_list(
     # Apply pagination
     paginated = claims[offset:offset + limit]
 
+    from fichero_server.knowledge._common import resolve_claim_provenance_kind
+
+    out: list[dict[str, Any]] = []
+    for c in paginated:
+        item = c.model_dump(mode="json")
+        item["provenance_kind"] = resolve_claim_provenance_kind(c).value
+        out.append(item)
+
     return MCPClaimsListResponse(
-        claims=[c.model_dump(mode="json") for c in paginated],
+        claims=out,
         total=total,
         limit=limit,
         offset=offset,

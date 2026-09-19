@@ -32,7 +32,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover
-    from fichero_server.models.knowledge import KnowledgeClaim
+    from fichero_server.models.knowledge import KnowledgeClaim, ProvenanceKind
 
 
 #: Surface order of the three claim roles. Storage is ROLE-keyed
@@ -96,6 +96,43 @@ def compose_claim_sentence(
     pred = predicate.rstrip()
     suffix = "" if pred.endswith((".", "!", "?")) else "."
     return f"{subject_text} {pred}{suffix}".strip()
+
+
+def resolve_claim_provenance_kind(claim: "KnowledgeClaim") -> "ProvenanceKind":
+    """The claim's effective provenance for display -- #4869
+    (``kg.claim.provenance-kind-is-server-stated``).
+
+    A claim written since #4869 landed always carries a real, explicit
+    ``provenance_kind`` (every write path sets one; see the model field's
+    own docstring) -- this function returns it unchanged. A claim written
+    BEFORE the field existed has ``provenance_kind is None``; for those,
+    derive the best-supported honest answer from what the row already
+    carries, rather than trusting `created_by`'s old "human" default
+    (exactly the value #4868/#4869 proved cannot be trusted):
+
+    - a non-null ``provider`` or ``model`` means an automated pipeline
+      wrote it (LLM extraction or the NLP-draft/spaCy tier) -> ``workflow``.
+    - ``created_by == "wikidata"`` (the literal `enrich_import` stamps,
+      never anything else) -> ``external_import``.
+    - anything else -> ``unknown``, DELIBERATELY never ``human`` -- a
+      legacy row's `created_by` being the string "human" is exactly the
+      untrustworthy default this whole behavior exists to stop reading as
+      true.
+
+    THE ONE place this derivation happens; every serialization site reads
+    this function rather than the raw model field so a legacy row is never
+    silently shown (or filtered/exported) as more confidently human-made
+    than the data actually supports.
+    """
+    from fichero_server.models.knowledge import ProvenanceKind
+
+    if claim.provenance_kind is not None:
+        return claim.provenance_kind
+    if claim.provider or claim.model:
+        return ProvenanceKind.workflow
+    if claim.created_by == "wikidata":
+        return ProvenanceKind.external_import
+    return ProvenanceKind.unknown
 
 
 def enum_value(x: Any) -> str:
