@@ -278,7 +278,18 @@ Inspector content, not as a rival top-level surface.
   MCP, App Intents/Siri, in-app chat, plus "chat builds workflows"). The MCP entry point is
   real (chat-tools shares the action registry MCP already exposes); the App Intents/Siri entry
   point and "chat builds workflows" are not verified built — narrower open scope than #2280's
-  original framing.
+  original framing. **Updated 2026-09-19, evidence from this week**: the MCP entry point's own
+  write/delete tools were, until this week, the LEAST audited path in the system — the three
+  MCP entity/claim write tools built their rows inline, bypassing `ActionRegistry.invoke`
+  entirely (no `ActionAudit`, no undo, none of the action side's validation), and the two MCP
+  delete tools did a bare `db.delete` with no `MutationLog`/`ActionAudit` either (fixed
+  93b2e97e5, 54a13ffdf — each tool is now a thin caller of the same `entity.create`/`.update`/
+  `.delete`/`claim.create`/`.delete` actions the UI and chat-tools loop use, with the request's
+  real identity as actor). This closes a real gap between "the model is a user" as a slogan and
+  as a literal, audited fact for the MCP surface specifically. **Explicitly unchanged by this
+  fix, and the maintainer's own call to make**: neither `entity.delete` nor `claim.delete` is on
+  `CHAT_WRITE_ALLOWLIST` (`chat_tools.py:70-77`, re-verified at HEAD) — the in-app chat agent
+  still cannot delete anything; only the MCP path (a different caller, already privileged) can.
 - `research.chat-context-aware` — **[PARTIAL]** (implemented, unpinned; #4798) the toolbar's
   implicit-scope indicator (`ChatViewToolbar.swift:70-83`) shows what the chat is grounded on
   by default; the composer's pin menu (`ChatView.swift:296-330`) layers explicit pinned
@@ -339,6 +350,70 @@ Inspector content, not as a rival top-level surface.
   (`chat_tools.py:70-77`) does not include any `canvas.*` action — not built. This is the
   Library's Canvas/Space view modes becoming agent-operable, not a Research-surface behavior
   in its own right; it lives here because the audited-tool-exposure pattern is this spec's.
+
+### MCP surface (legacy milestones "Agent View - Researcher", "Client - MCP")
+
+- `research.mcp-servers-configurable-in-app` — **[PARTIAL]** (#509) contrary to the issue's
+  own "Wire" framing, this is substantially built: `MCPServersView.swift`,
+  `MCPServerDetailView.swift`, `AddMCPServerSheet.swift` mount a real add/browse/configure
+  surface (cited already as built in `ai-settings.md`'s own fold, `SettingsTab.mcp` →
+  `MCPServersView()`). Not independently re-verified this pass: whether "run a Fichero MCP
+  tool directly" from the catalog (the issue's own pass-criteria checklist item) is reachable
+  from this UI, or only server configuration is.
+- `research.mcp-semantic-spatial-tools` — **[PARTIAL]** (#270) some of the asked-for spatial
+  tools exist — `fichero_mp_place_node`, `fichero_mp_focus_node`
+  (`fichero-mcp/src/fichero_mcp/kg_tools.py`) — but the issue's fuller list (group, stack,
+  inspect-in-context, compact scene/viewport summaries, delta responses) was not found;
+  `research_tools.py` has note tools (`fichero_research_create_note`, `.list_notes`) but not
+  the update/merge/publish lifecycle the issue also asks for. A partial build of a larger ask,
+  not a from-scratch gap.
+- `research.mcp-three-servers-not-collapsed` — **[GAP]** (#2896) `fichero-mcp/src/
+  fichero_mcp/server.py`, `full.py`, and `simple.py` are still three separate,
+  hand-maintained servers with their own tool lists — none generated from the action registry
+  as this issue asks. Directly related to `research.agent-audited-tools`'s fresh evidence
+  above (individual MCP write/delete tools now call actions correctly) but a different,
+  larger ask: one server, tool list GENERATED, not three hand-maintained lists individually
+  patched to be correct.
+- `research.mcp-knowledge-endpoints-unwired` — **[GAP]** (#1439) re-verified at HEAD via
+  `fichero-server/tests/contracts/ui_wiring_allowlist_swiftui.json`: all six
+  `/api/mcp/tools/knowledge/*` endpoints (claims list/create/get/delete, entities list/upsert/
+  get/delete) remain allowlisted as "baseline: not yet wired" — this week's audit fix
+  (`research.agent-audited-tools`) corrected what these tools call on the BACKEND; it did not
+  touch this issue's own ask, which is SwiftUI reachability. The other 20 integrations/MCP
+  endpoints in this issue's own list were not individually re-checked this pass.
+- `research.apple-fm-tool-callback` — **[GAP]** (#821) no `Tool`-protocol conformance for
+  Apple's `LanguageModelSession(tools:)` was found anywhere under `fichero/fichero/`; the
+  entity-grounding-during-extraction ask (let `extract_all` check the KG before proposing a
+  duplicate) is unbuilt.
+- `research.finetune-local-paleography-model` — **[GAP]** (#1813) explicitly filed as FUTURE,
+  no-rush; no rubric/typology/gold-transcription dataset or LoRA fine-tuning pipeline exists.
+  Recorded as a real future direction, not urgent.
+
+### Touch-first alternatives (legacy milestone "Agent View - Researcher")
+
+- `research.touch-first-context-actions` — **[PARTIAL]** (#2342) "Add to Chat" and "Move to
+  Folder" context-menu actions exist (`LibraryView+ContextMenu.swift`,
+  `SidebarItemRow+Presentation.swift`, `ChatInspector+ScopedDocuments.swift`) — real
+  alternatives to drag/drop for scoping chat or moving documents. Not independently verified
+  this pass: whether these are reachable and adequate specifically in iPad/iPhone COMPACT
+  mode (the issue's own acceptance criteria), versus present but Mac-only in practice.
+
+### Watchlist (legacy milestone "Notifications & Watchlist View", #76)
+
+A five-issue, explicitly sequenced cluster (backend trigger → review surface → follow-up
+actions → tests, #1870 the origin ask) with nothing built at any layer — no model, no API
+route, no Swift view. Grouped here rather than as five isolated gaps because the sequence
+itself is the issue filer's own design and should stay legible as one program if picked up.
+
+- `research.watchlist-not-built` — **[GAP]** (#1870, #2360, #2361, #2362, #2363) verified at
+  HEAD: no `Watchlist`-named model, API route, or SwiftUI view exists anywhere in the tree.
+  #2360 (backend trigger on new ingest/clips/KG updates), #2361 (review surface + notifications),
+  #2362 (agent follow-up actions from a hit, gated on user approval — explicitly built on
+  Researcher/audited-action primitives, not a separate agent system per the issue's own
+  wording), and #2363 (privacy/audit tests for the whole cluster) are the sequenced build-out
+  of #1870's own ask. None started. #2362 in particular is this spec's own territory once
+  picked up (follow-up research actions ARE Research/audited-tool behavior) — noted so it
+  isn't lost if #1870's cluster gets split across specs later.
 
 ## Test matrix
 
