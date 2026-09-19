@@ -405,6 +405,8 @@ nav:
               - KG Readable Representation: contributor_manual/specs/kg/kg-readable-representation.md
               - KG Tables: contributor_manual/specs/kg/kg-tables.md
               - Segment Representations: contributor_manual/specs/kg/segment-representations.md
+          - Source:
+              - Source Model: contributor_manual/specs/source/source-model.md
           - Testing:
               - Test Environment Contract: contributor_manual/specs/testing/test-environment-contract.md
               - UI-Test Harness: contributor_manual/specs/testing/ui-test-harness.md
