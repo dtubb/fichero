@@ -131,7 +131,13 @@ class TestCleanupActuallyFiresEndToEnd:
         # The child must mint its OWN base path. Inheriting ours points it at
         # this process's app.duckdb, which is held under an exclusive lock —
         # the child then dies on a concurrency error and never reaches cleanup.
-        child_env = {k: v for k, v in os.environ.items() if k != "FICHERO_BASE_PATH"}
+        # FICHERO_PERF_RATCHET is dropped too: the release gate exports it, the
+        # child's 16 trivial tests then "regress" against nothing, and the child
+        # exits 3 with every test passed (found by the gate, 2026-09-19).
+        child_env = {
+            k: v for k, v in os.environ.items()
+            if k not in ("FICHERO_BASE_PATH", "FICHERO_PERF_RATCHET")
+        }
         child_env["PYTHONPATH"] = str(root / "fichero-server" / "src")
 
         # Judge the CHILD's directories, not the whole temp dir. A plain
