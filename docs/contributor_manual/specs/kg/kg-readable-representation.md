@@ -229,13 +229,18 @@ often the wrong subject; not multilingual.
   pre-existing gap. **Fixed in 3f017efac**: the reveal now passes the focused entity;
   `RevealPreservesEntityFocusTests` drives the real `KGFocusState` and `inspectorArm`. The build
   PASSES, but the tests have NOT executed (a locked screen blocked the run) and the fix has NOT
-  been seen working. A follow-up — making `entityId` a required argument, and fixing
-  `DocumentKGSurface` and the force graph's edge click, the same two call sites named below — is
-  built and awaiting a build verdict. Tag stays BROKEN until the maintainer sees it work. Two
-  more call sites omit `entityId` the identical way: `DocumentKGSurface.swift` (~line 405) and
-  `ForceDirectedGraphView+Render.swift` (~line 128). Whether Preview's "No selection" symptom
-  shares this exact cause is NOT yet verified — stated as open, not assumed just because the
-  symptom co-occurs.
+  been seen working. Tag stays BROKEN until the maintainer sees it work. The two other omitting
+  call sites, `DocumentKGSurface.swift` (~line 405) and `ForceDirectedGraphView+Render.swift`
+  (~line 128), are now FIXED and `entityId` is a REQUIRED argument (c1e88973a) — built,
+  untested, unseen, same status as the primary fix. A guard for reveals that legitimately
+  change the entity is in progress. **Preview's "No selection" symptom is now EXPLAINED,
+  verified at the tree — one cause, both symptoms**: `ContentView+RootLayout.swift` has an
+  unguarded `.onChange(of: kgFocusState.focusedEntityId)` that sets `sourceRevealDocument =
+  nil` — the old reveal changed the focused entity to `nil` on every click, so that clear fired
+  every time, tearing down Preview's reveal the same way it tore down the Inspector's. The
+  earlier pane-plan hypothesis (Preview asking `PaneContentPlan` for an unhandled entity-
+  selection kind) is REFUTED: that code path's `entitySelection` branch is never reached by the
+  app, and both Preview/Reader leaves already read the reveal-aware document.
   the claim excerpt, the biography sentence, the digest sentences and the statement row
   (double-click and Open Source). **Extended in 82ae96b9b** to claim cards (the quote button,
   the quick-look Reveal, and the card tap — all three share one path — plus the attestation

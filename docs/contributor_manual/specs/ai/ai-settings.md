@@ -171,10 +171,16 @@ left to point at.
   provider-linked state, and `/api/local-inference/*` should fold into
   `/api/providers/{id}/…`. Verified not done: `local_inference.py:29` still declares its own
   `APIRouter(prefix="/local-inference")`, entirely separate.
-- `settings.health-observability` — **[GAP]** (#4327) a status surface across providers,
-  tiers, and tools (plus per-call visibility into the underlying LangChain routing) does not
-  exist today — every provider row shows its own status in isolation, with nothing
-  cross-cutting.
+- `settings.health-observability` — **[GAP]** (#4327, #4620, #4626, #4628, #4629 — the latter
+  four moved onto this milestone 2026-09-19 while folding legacy milestone
+  "Settings - Models & Providers - HPC") a status surface across providers, tiers, and tools (plus per-call visibility into
+  the underlying LangChain routing) does not exist today — every provider row shows its own
+  status in isolation, with nothing cross-cutting. #4620 is the umbrella "declared == embedded
+  == runnable == surfaced" ask this behavior already answers structurally; #4626 (loove),
+  #4628 (Whisper), and #4629 (Apple Intelligence/Vision) are per-runtime instances of the exact
+  same complaint — each wants its OWN availability shown truthfully, which is this behavior's
+  claim generalized to every provider, not four separate gaps. `settings.mlx-runtime-honest-
+  status` above is the MLX-specific case of this same pattern, already tracked there.
 
 ## Dead-simple-UX check (no needless toggles)
 

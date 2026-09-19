@@ -171,7 +171,16 @@ read of the calling loop before it can be called fully resolved.
   does not starve it. Nothing at the `Database.search` layer reproduces the bug across two
   separate constructions; that hypothesis is no longer a live candidate. **Next, untested**: the
   route wrapper `enhanced_search` — ACL visibility, phrase/exclude post-filters, and scope
-  filters — none of which `Database.search` itself exercises.
+  filters — none of which `Database.search` itself exercises. **Update, 2026-09-19**: the
+  route layer was driven end to end in a temp library; six shapes came back clean. Two
+  MECHANISMS drop a page-child hit — stated as mechanisms found, not a confirmed cause of the
+  maintainer's own repro: (1) a `doc_type=file` filter tests the HIT's own `doc_type` ("page"),
+  not its parent document's, so a page-child hit fails a filter meant for the parent; (2) the
+  ACL visibility filter, under real multiuser, would also drop a hit the requesting user lacks
+  access to — but this is a no-op for a single owner on loopback, so it is a mechanism to know
+  about, not a suspect for the maintainer's own single-user repro. **Whether the app ever
+  actually SENDS `doc_type` on this query path is UNVERIFIED — the next check.** No cause
+  claimed yet.
 - `search.four-leg-response` — **[OK]** `SearchResponse` carries documents, entities, claims,
   and artifacts as four peer legs (`entity_hits`, `claim_hits: list[SearchClaimHit]`,
   `artifact_hits`), not a document search with metadata bolted on — the exact shape the unified-

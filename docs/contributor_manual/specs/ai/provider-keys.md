@@ -157,6 +157,19 @@ the value from the original migration, unaffected by anything Settings has done 
   provider-management surface this spec already documents — not re-litigated as a fresh claim
   here since #484 itself names no gap beyond what's already built or already tracked.
 
+### Legacy milestone fold — "Settings - Models & Providers - HPC" (#240), 2026-09-19
+
+Two of the milestone's seven issues in this spec's scope are genuinely this spec's own subject;
+the rest belong to `ai-settings.md` or maintainer triage (folded there, not restated here).
+
+- **#4631** ("Google AI: availability + model-list parity") and **#4632** ("Hugging Face:
+  availability + model-list parity") — each names two asks. The AVAILABILITY half ("shown iff
+  key configured + reachable") is a verify-close against `keys.test-connection-real-probe`
+  above, which already does exactly this for every registered provider, Google AI and Hugging
+  Face included — evidence posted on both, left open. The MODEL-LIST-PARITY half ("== Settings
+  across surfaces") is NOT this spec's claim — it's `ai-settings.md`'s
+  `settings.one-catalog-unification` (GAP), cross-referenced there, not duplicated here.
+
 ### Apple Vision as an OCR/vision capability
 
 - `keys.apple-vision-is-a-capability-not-only-a-key-check` — **[GAP]** (#2060, redirected

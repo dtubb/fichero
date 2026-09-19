@@ -118,10 +118,15 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   arm rule nothing to show; a regression of e71bb070b (Slice A), fixed in 3f017efac, build
   passes, but NOT yet seen working (tests haven't executed). Tag stays BROKEN until the
   maintainer sees it work. See `kg-readable-representation.md`'s
-  `kg.read.sentence-opens-source-highlighted`. **Whether
-  Preview's OWN "No selection" symptom shares this exact cause is explicitly NOT yet verified**
-  — stated as open, not assumed just because the symptom co-occurs with the entity-focus bug.
-  What follows describes the mechanism as designed and unit-tested, now known false
+  `kg.read.sentence-opens-source-highlighted`. **Preview's OWN "No selection" symptom is now
+  EXPLAINED, verified at the tree — the SAME single cause as the Inspector side, not a second
+  bug**: `ContentView+RootLayout.swift` has an unguarded `.onChange(of:
+  kgFocusState.focusedEntityId)` that sets `sourceRevealDocument = nil` — the old reveal changed
+  the focused entity to `nil` on every click, so that clear fired every time and tore down
+  Preview's reveal along with the Inspector's. An earlier pane-plan hypothesis (Preview asking
+  `PaneContentPlan` for an unhandled entity-selection kind) is REFUTED: that code path's
+  `entitySelection` branch is never reached by the app, and Preview already reads the
+  reveal-aware document. What follows describes the mechanism as designed and unit-tested, now known false
   in the running app: Preview prefers a
   knowledge-surface click (a statement, a claim) can put a source on screen in Preview
   without touching the current selection, `detailDocument`, or the sidebar mode. Verified at
