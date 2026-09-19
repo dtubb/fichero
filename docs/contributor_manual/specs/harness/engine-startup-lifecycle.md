@@ -209,6 +209,19 @@ very engine spawn those tests exist to exercise.
   `PortConflictDecisionTests` ("foreign holder + no decision → surface the portConflict phase,
   never adopt or spawn", "portConflict is a non-ready phase with a PID-bearing diagnosis (renders
   the connection view, not blank)").
+- `engine.orphan-sweep-precedes-spawn-decision` — **[PARTIAL]** (#4896) the sweep that
+  terminates orphaned engines COMPLETES before the app decides to spawn its own. Built:
+  `resolvePortConflict()` (`EmbeddedBackendService+Ports.swift`) awaits the detached sweep's
+  value before the port preflight and before returning `.spawnOurs`; the spawn happens only
+  on that return. It was broken once: run detached and not awaited, the sweep could kill the
+  engine the app had just spawned, a launch failure; f9a737d5f restored the await. PARTIAL
+  because nothing tests it: the fix shipped with no test, and only review would catch the
+  await being dropped again. This is a separate rule from `engine.launch-path-never-blocks-main`,
+  which says WHERE the sweep runs (off the main thread), not WHEN relative to the spawn: a
+  change can keep the sweep off-main and still race it against the spawn. The test must
+  drive the real function with an injected slow sweep and assert it had finished when the
+  decision was returned; a test of an extracted "await a, then b" helper would still pass
+  with the await dropped at the call site.
 - `engine.launch-path-never-blocks-main` — **[PARTIAL]** (implemented and tested, the fix
   commit's own tracking issue is closed; #3928 still open pending close) the port-clear poll,
   orphan-engine sweep, and
