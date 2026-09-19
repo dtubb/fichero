@@ -275,4 +275,25 @@ final class EntityServiceTransportTests: XCTestCase {
         )
         assertRecorded(pathContains: "/api/kg/entity-curation/enrich/import", method: "POST")
     }
+
+    // MARK: - #4885 folder recursion (kg.tables.folder-recursion-inconsistent-across-routes)
+
+    func testListClaimsSendsIncludeDescendantsFlagAsPassedThrough() async throws {
+        // `LibraryClaimsModel.load`'s `includeDescendants: Bool = true` default
+        // is never overridden by any of its callers — this pins the ACTUAL
+        // query string a folder-scoped claims load sends, not a constant, so a
+        // future caller that silently drops the flag breaks a test, not just
+        // behavior in the field.
+        let service = makeService(stubs: [
+            Stub(pathContains: "/api/claims", status: 200, body: Data(#"{"items":[],"count":0}"#.utf8))
+        ])
+        _ = try await service.listClaims(sourceDocumentId: "folder-1", includeDescendants: true)
+        let requests = MockTransportURLProtocol.recorded()
+        let claimsRequest = requests.first { $0.url?.path.contains("/api/claims") == true }
+        let query = claimsRequest?.url?.query ?? ""
+        XCTAssertTrue(
+            query.contains("include_descendants=true"),
+            "expected include_descendants=true on the wire; got: \(query)"
+        )
+    }
 }

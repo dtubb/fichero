@@ -3,16 +3,30 @@ import SwiftUI
 
 // MARK: - Entities library content (folder-scoped entities as a table)
 
-/// Hosts the entities table inside the library: loads library-wide entities via
-/// the shared `EntityStore`, folder-scopes them client-side, and wires the row
-/// context menu to the EXISTING curation services (bless / reject / retype /
-/// merge / delete). Shows ALL entities — duplicates and messy NER included —
-/// because the demo point is that they are visible AND curatable in place.
+/// Hosts the entities table inside the library: loads this scope's entities
+/// via the shared `EntityStore` (#4885: folder-scoped, the SAME server-
+/// recursive aggregated seam the Inspector uses; library-wide otherwise) and
+/// wires the row context menu to the EXISTING curation services (bless /
+/// reject / retype / merge / delete). Shows ALL entities — duplicates and
+/// messy NER included — because the demo point is that they are visible AND
+/// curatable in place.
 struct EntitiesLibraryContent: View {
-    /// The folder's document ids for client-side scoping; `nil` is library-wide
-    /// (the Phase-3 sidebar path). `/api/entities` has no recursive scope, so we
-    /// filter the library-wide list by the entity's `source_document_ids`.
-    let folderDocumentIds: Set<String>?
+    /// The folder's OWN id, for the server-recursive aggregated load; `nil` is
+    /// library-wide (the Phase-3 sidebar path).
+    ///
+    /// #4885 (spec: kg-tables, `kg.tables.folder-scope-misses-subfolders`):
+    /// this REPLACES the old `folderDocumentIds: Set<String>?` — a client-side
+    /// filter of the library-wide list by DIRECT children only, which missed
+    /// every entity whose source lived in a SUBFOLDER. The Inspector's own
+    /// `DocumentInspectorEntitiesTab+Scope.swift` already solves this via
+    /// `EntityStore.loadAggregatedEntities(forFolder:childDocumentIds:)` →
+    /// `entities(forDocument:)` — the SAME seam this table now uses, not a
+    /// second definition of "this folder's knowledge." No descendant ids are
+    /// collected client-side beyond the folder's own DIRECT children (which
+    /// `loadAggregatedEntities` already asks for); the recursion itself is
+    /// server-side, via `GET /api/documents/{id}/inspector`, which recurses
+    /// unconditionally for any document id — no flag needed.
+    let folderId: String?
     /// The loaded documents, to resolve an entity's node parent and its open
     /// target to a real document.
     let documents: [Document]
@@ -59,7 +73,7 @@ struct EntitiesLibraryContent: View {
             EntitiesTableView(
                 items: items,
                 selection: $selection,
-                isLoading: store.isLoadingLibrary,
+                isLoading: isLoadingCurrentScope,
                 emptyMessage: emptyMessage,
                 actions: actions
             )
@@ -80,11 +94,15 @@ struct EntitiesLibraryContent: View {
         // the environment store changes — leaving the new library's table
         // un-loaded. The parallel of the Claims F5 fix, so both tables behave
         // identically (spec: panes-workspaces F5 / entities==claims).
-        .task(id: ObjectIdentifier(store)) { await store.loadEntities(limit: 25000) }
+        // #4885: folder-scoped, this loads via the SAME aggregated seam the
+        // Inspector uses (server-recursive, one document id) — never the
+        // library-wide list. Keyed on the folder id too, so switching
+        // folders (not just libraries) refires the load.
+        .task(id: "\(ObjectIdentifier(store))|\(folderId ?? "")") { await reloadScope(force: false) }
         .sheet(isPresented: $showingCreateSheet) {
             // Reuse the Ontology create/edit sheet; it reads its own EntityService
             // from the environment (the library it mutates). On commit, force a
-            // library-wide reload so the new row appears here and select it.
+            // reload of THIS scope so the new row appears here and select it.
             NewEntitySheet(onCreated: handleCreatedEntity)
         }
         .sheet(item: Binding(
@@ -95,7 +113,7 @@ struct EntitiesLibraryContent: View {
             // reflects the change in place.
             NewEntitySheet(editing: wrapped.entity) { _ in
                 entityToEdit = nil
-                Task { await store.loadEntities(limit: 25000, force: true) }
+                Task { await reloadScope(force: true) }
             }
         }
         // #4851/#4794: report the visible ids on every input that can change
@@ -106,18 +124,38 @@ struct EntitiesLibraryContent: View {
         .onChange(of: filterText) { _, _ in onVisibleIds?(items.map(\.id)) }
         .onChange(of: filterType) { _, _ in onVisibleIds?(items.map(\.id)) }
         .onChange(of: searchQuery) { _, _ in onVisibleIds?(items.map(\.id)) }
-        .onChange(of: store.isLoadingLibrary) { _, loading in
+        .onChange(of: isLoadingCurrentScope) { _, loading in
             if !loading { onVisibleIds?(items.map(\.id)) }
         }
     }
 
-    /// After a manual create, force-reload the library-wide list (the change-stream's
-    /// scheduleReload targets the document scope; the table reads `libraryEntities`)
-    /// and select the new row so the researcher lands on what they just made.
+    /// True while THIS view's actual scope (folder-aggregated or
+    /// library-wide) is loading — not always `store.isLoadingLibrary`,
+    /// which is a different scope for a folder-scoped table (#4885).
+    private var isLoadingCurrentScope: Bool {
+        folderId.map(store.isLoading(forDocument:)) ?? store.isLoadingLibrary
+    }
+
+    /// Reload THIS view's scope — the folder's aggregated entities, or the
+    /// library-wide list — never the wrong one (#4885: a folder-scoped table
+    /// force-reloading the LIBRARY list left its own rows stale).
+    private func reloadScope(force: Bool) async {
+        if let folderId {
+            await store.loadAggregatedEntities(
+                forFolder: folderId, childDocumentIds: documents.map(\.id), force: force
+            )
+        } else {
+            await store.loadEntities(limit: 25000, force: force)
+        }
+    }
+
+    /// After a manual create, force-reload THIS view's actual scope (#4885:
+    /// folder-aggregated or library-wide, never the wrong one) and select
+    /// the new row so the researcher lands on what they just made.
     private func handleCreatedEntity(_ entity: Components.Schemas.KnowledgeEntity) {
         guard entity.id != nil else { return }
         Task {
-            await store.loadEntities(limit: 25000, force: true)
+            await reloadScope(force: true)
             let parent = Document(id: entity.sourceDocumentIds?.first ?? "unknown",
                                   name: entity.canonicalName)
             selection = [LibraryOutlineNode.entityItem(entity, parent: parent).id]
@@ -144,10 +182,17 @@ struct EntitiesLibraryContent: View {
         return true
     }
 
+    /// This view's actual entity set BEFORE the text/type filter — the
+    /// folder's aggregated (server-recursive) entities, or the library-wide
+    /// list (#4885: no more client-side direct-children filtering).
+    private var scopedEntities: [Components.Schemas.KnowledgeEntity] {
+        folderId.map(store.entities(forDocument:)) ?? store.libraryEntities
+    }
+
     /// The entity types present in the loaded set, for the type picker (only offer
     /// types that exist — filter.entity-type).
     private var availableTypes: [String] {
-        Array(Set(store.libraryEntities.compactMap { $0.entityType?.rawValue })).sorted()
+        Array(Set(scopedEntities.compactMap { $0.entityType?.rawValue })).sorted()
     }
 
     @ViewBuilder
@@ -185,8 +230,9 @@ struct EntitiesLibraryContent: View {
     }
 
     private var emptyMessage: String {
-        if let error = store.libraryLoadError {
-            return "Couldn't load entities: \(error)"
+        let loadError = folderId.map(store.loadError(forDocument:)) ?? store.libraryLoadError
+        if let loadError {
+            return "Couldn't load entities: \(loadError)"
         }
         if let query = trimmedQuery, filterText.isEmpty, filterType == nil {
             return "No entities match “\(query)”."
@@ -194,13 +240,13 @@ struct EntitiesLibraryContent: View {
         if trimmedQuery != nil || !filterText.isEmpty || filterType != nil {
             return "No entities match the current filter."
         }
-        return folderDocumentIds == nil
+        return folderId == nil
             ? "No entities in this library yet. Run knowledge extraction to populate them."
             : "No entities in this folder yet."
     }
 
-    /// Library entities, folder-scoped client-side, as sortable rows. Claim counts
-    /// come from the store's already-loaded map.
+    /// This scope's entities (folder-aggregated or library-wide — #4885), as
+    /// sortable rows. Claim counts come from the store's already-loaded map.
     private var trimmedQuery: String? {
         let trimmed = (searchQuery ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
@@ -208,11 +254,7 @@ struct EntitiesLibraryContent: View {
 
     private var items: [EntitiesTableView.Item] {
         let docsById = Dictionary(documents.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        return store.libraryEntities.compactMap { entity -> EntitiesTableView.Item? in
-            if let scope = folderDocumentIds {
-                let sources = Set(entity.sourceDocumentIds ?? [])
-                guard !sources.isDisjoint(with: scope) else { return nil }
-            }
+        return scopedEntities.compactMap { entity -> EntitiesTableView.Item? in
             guard Self.entityMatches(
                 name: entity.canonicalName,
                 type: entity.entityType?.rawValue ?? "",

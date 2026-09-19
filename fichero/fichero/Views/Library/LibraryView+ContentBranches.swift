@@ -225,14 +225,15 @@ extension LibraryView {
         }
     }
 
-    /// The folder's entities as a library table (node-model IA, Phase 2). All of
-    /// them, folder-scoped client-side (the entity list carries source_document_ids,
-    /// so we filter to the folder's docs); a single-row click focuses the entity
-    /// and opens its detail, and the row context menu curates in place.
+    /// The folder's entities as a library table (node-model IA, Phase 2). All
+    /// of them, folder-scoped through the SAME server-recursive aggregated
+    /// seam the Inspector uses (#4885) — the whole subtree, not just direct
+    /// children; a single-row click focuses the entity and opens its detail,
+    /// and the row context menu curates in place.
     @ViewBuilder
     var entitiesContent: some View {
         EntitiesLibraryContent(
-            folderDocumentIds: (isLibraryWideKG || folderId == nil) ? nil : Set(documents.map(\.id)),
+            folderId: (isLibraryWideKG || folderId == nil) ? nil : folderId,
             documents: documents,
             searchQuery: activeSearchQuery,
             selection: $selection,

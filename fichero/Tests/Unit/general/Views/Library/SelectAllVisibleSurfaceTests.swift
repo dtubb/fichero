@@ -258,7 +258,10 @@ struct SelectAllVisibleSurfaceTests {
         #expect(table.contains("onChange(of: filterText)"))
         #expect(table.contains("onChange(of: filterType)"))
         #expect(table.contains("onChange(of: searchQuery)"))
-        #expect(table.contains("onChange(of: store.isLoadingLibrary)"))
+        // #4885: the loading trigger is THIS scope's own loading state
+        // (folder-aggregated or library-wide), not always the library flag —
+        // a folder-scoped table's own load finishing must still report.
+        #expect(table.contains("onChange(of: isLoadingCurrentScope)"))
 
         let branch = try code(at: "Views/Library/LibraryView+ContentBranches.swift")
         #expect(branch.contains("onVisibleIds: { entitiesVisibleIds = $0 }"))

@@ -35,13 +35,14 @@ final class EntitiesTableCreateTests: XCTestCase {
                       "create must reuse the existing NewEntitySheet, not a new form")
     }
 
-    func testCreatedEntityForcesLibraryReloadSoTheRowAppears() throws {
+    func testCreatedEntityForcesAReloadOfThisScopeSoTheRowAppears() throws {
         let source = try entitiesContentSource()
-        // The change-stream's scheduleReload targets the document scope; the table reads
-        // the library-wide list, so a manual create MUST force a library-wide reload or
-        // the new row never appears here.
-        XCTAssertTrue(source.contains("loadEntities(limit: 25000, force: true)"),
-                      "a manual create must force-reload the library-wide entity list")
+        // #4885: a manual create must force-reload THIS view's actual scope
+        // (folder-aggregated or library-wide) — not always the library-wide
+        // list, which used to leave a folder-scoped table's new row invisible
+        // until an unrelated library-wide refresh happened to fire.
+        XCTAssertTrue(source.contains("await reloadScope(force: true)"),
+                      "a manual create must force-reload this table's own scope")
     }
 
     func testTableOffersEditReusingTheSameSheet() throws {

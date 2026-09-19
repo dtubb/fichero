@@ -381,6 +381,64 @@ final class EntityStoreTests: XCTestCase {
         )
     }
 
+    // MARK: - #4885 folder recursion (kg.tables.folder-scope-misses-subfolders)
+
+    func testAggregatedLoadSurfacesEntitiesFromAFolderWithNoDirectChildDocuments() async throws {
+        // The maintainer's exact repro: a folder whose documents live only in
+        // SUBFOLDERS (no direct children at all) must still yield its entities.
+        // `childDocumentIds: []` proves this — with no per-child ids to loop
+        // over, the only source of "Deep" is the folder's OWN inspector call,
+        // which the server recurses through the whole subtree for
+        // unconditionally (verified server-side, _descendant_doc_ids).
+        MockFicheroURLProtocol.configure(
+            responses: [
+                .init(
+                    method: "GET", path: "/api/documents/folder-1/inspector",
+                    statusCode: 200,
+                    body: makeDocumentInspectorResponse(
+                        documentId: "folder-1",
+                        entities: [makeEntityJSON(id: "entity-deep", name: "Deep")]
+                    )
+                )
+            ]
+        )
+
+        let store = makeStore()
+        await store.loadAggregatedEntities(forFolder: "folder-1", childDocumentIds: [])
+
+        XCTAssertEqual(store.entities(forDocument: "folder-1").map(\.canonicalName), ["Deep"])
+
+        // Assert the request the app actually sent, not a constant: the ONLY
+        // path hit must be the folder's own inspector route — there is no
+        // separate client-side descendant-listing call.
+        let paths = MockFicheroURLProtocol.recordedRequests().compactMap { $0.url?.path }
+        XCTAssertEqual(paths, ["/api/documents/folder-1/inspector"])
+    }
+
+    func testAggregatedLoadOnAPlainDocumentScopeIsUnchanged() async throws {
+        // Regression pin: a non-folder (plain document) scope — no children —
+        // behaves exactly as `loadEntities(forDocument:)` always has.
+        MockFicheroURLProtocol.configure(
+            responses: [
+                .init(
+                    method: "GET", path: "/api/documents/doc-9/inspector",
+                    statusCode: 200,
+                    body: makeDocumentInspectorResponse(
+                        documentId: "doc-9",
+                        entities: [makeEntityJSON(id: "entity-9", name: "Solo")]
+                    )
+                )
+            ]
+        )
+
+        let store = makeStore()
+        await store.loadEntities(forDocument: "doc-9")
+
+        XCTAssertEqual(store.entities(forDocument: "doc-9").map(\.canonicalName), ["Solo"])
+        let paths = MockFicheroURLProtocol.recordedRequests().compactMap { $0.url?.path }
+        XCTAssertEqual(paths, ["/api/documents/doc-9/inspector"])
+    }
+
     func testAuthoritySettingsLoadAndToggleFlowThroughTheStore() async throws {
         // #3757 — the store is the only endpoint accessor: GET reflects the
         // persisted setting into the observable flag, PUT advances it to
