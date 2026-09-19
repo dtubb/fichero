@@ -101,19 +101,7 @@ extension ContentView {
         // one (`PaneSurface.allowsSplit`), this is the belt-and-suspenders
         // render-time guarantee for however else a duplicate Preview leaf
         // might exist (a saved multi-pane workspace, for instance).
-        // #4882 (spec: workflows.selection.library-row-opens-editor):
-        // `workflowCanvasSelection` resolves the sidebar's own
-        // `viewMode == .workflow(_)` (unchanged — still wins) OR a Library
-        // row whose SINGLE selection is a workflow mirror, with `viewMode`
-        // staying `.library` (the new case). `singleSelectedWorkflowRowDocument`
-        // is `nil` for a multi-selection (more than one id in
-        // `browserSelection`) — a multi-selection is not "this one workflow,"
-        // it stays a plain multi-selection preview, same as today.
-        } else if let selectedWorkflow = workflowCanvasSelection(
-            viewMode: viewMode,
-            singleSelectedDocument: singleSelectedWorkflowRowDocument,
-            workflows: workflowStore.workflows
-        ) {
+        } else if case .workflow(let selectedWorkflow) = viewMode, let selectedWorkflow {
             if isSecondarySplitPane {
                 PaneEmptyStateView(
                     reason: "\"\(selectedWorkflow.name)\" is already open in the other pane."
@@ -329,32 +317,6 @@ extension ContentView {
         sourceRevealDocument ?? detailDocument
     }
 
-    /// The single selected document, for `workflowCanvasSelection` (#4882) —
-    /// `nil` for anything other than EXACTLY one selected id, so a
-    /// multi-selection never resolves to "this one workflow." Uses the SAME
-    /// `shellPrimarySelectionId(in:orderedBy:)` tier `documentForCanvas`
-    /// already reads for its own "selected" tier — no second, divergent
-    /// selection-resolution path.
-    var singleSelectedWorkflowRowDocument: Document? {
-        guard browserSelection.count == 1,
-              let id = shellPrimarySelectionId(in: browserSelection, orderedBy: selectedDocuments)
-        else { return nil }
-        return selectedDocuments.first(where: { $0.id == id })
-    }
-
-    /// `PaneContentPlan.plan(...)`'s `workflowNodeSelected:` argument (#4882)
-    /// — computed the SAME way at every one of `plan`'s three real call
-    /// sites (below), from the SAME `workflowCanvasSelection(...)` the
-    /// Preview branch reads directly, so Preview/Reader/Inspector can never
-    /// disagree about a workflow-node selection.
-    var isWorkflowNodeSelected: Bool {
-        workflowCanvasSelection(
-            viewMode: viewMode,
-            singleSelectedDocument: singleSelectedWorkflowRowDocument,
-            workflows: workflowStore.workflows
-        ) != nil
-    }
-
     @ViewBuilder
     private func widescreenReadingPaneBody(readingSplitKey: String) -> some View {
         // Compute the page count ONCE (#3866): reading `pdfDocPages` twice here
@@ -411,9 +373,7 @@ extension ContentView {
                 // as this file's other two `PaneContentPlan.plan(for:)`
                 // call sites (the preview/inspector empty-reason reads
                 // below).
-                readerCell: PaneContentPlan.plan(
-                    for: viewMode, workflowNodeSelected: isWorkflowNodeSelected
-                ).reader,
+                readerCell: PaneContentPlan.plan(for: viewMode).reader,
                 // #4705 "4b-2" (#4741): WHICH schedule/trigger/run, computed
                 // from the SAME `viewMode` as `readerCell` above so the two
                 // can never disagree — and the kind-specific "nothing
@@ -526,9 +486,7 @@ extension ContentView {
             // #4525 step), a `.content` cell here falls back to naming where
             // the surface currently lives rather than showing a blank.
             PaneEmptyStateView(
-                reason: PaneContentPlan.plan(
-                    for: viewMode, workflowNodeSelected: isWorkflowNodeSelected
-                ).preview.emptyReason
+                reason: PaneContentPlan.plan(for: viewMode).preview.emptyReason
                     ?? "This view is shown in the main area."
             )
         }
@@ -607,9 +565,7 @@ extension ContentView {
             // the chain's WorkflowInspector bound to whatever workflow was
             // last edited (a stale surface — the pane-audit's 💀 cell).
             PaneEmptyStateView(
-                reason: PaneContentPlan.plan(
-                    for: viewMode, workflowNodeSelected: isWorkflowNodeSelected
-                ).inspector.emptyReason
+                reason: PaneContentPlan.plan(for: viewMode).inspector.emptyReason
                     ?? "Select an item to inspect.",
                 systemImage: "info.circle"
             )

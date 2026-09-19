@@ -52,67 +52,6 @@ struct ShellPrimarySelectionTests {
     }
 }
 
-/// #4882 (spec: workflows.selection.library-row-opens-editor): a Library
-/// row's single-selected workflow mirror resolves the SAME editor item the
-/// sidebar path resolves, without touching `AppViewMode` — through the real
-/// `workflowCanvasSelection` function, not a source scan.
-struct WorkflowCanvasSelectionTests {
-    private func doc(_ id: String, workflow: Bool) -> Document {
-        Document(id: id, docType: .file, name: id, prototypeKey: workflow ? "workflow" : nil)
-    }
-
-    private let workflows = [WorkflowSidebarItem(id: "wf-1", name: "Extract Names")]
-
-    @Test("a Library row's single selection, a workflow mirror, resolves the editor item")
-    func libraryRowWorkflowSelectionResolves() {
-        let result = workflowCanvasSelection(
-            viewMode: .library(nil),
-            singleSelectedDocument: doc("wf-1", workflow: true),
-            workflows: workflows
-        )
-        #expect(result?.id == "wf-1")
-        #expect(result?.name == "Extract Names")
-    }
-
-    @Test("a non-workflow document resolves nil")
-    func nonWorkflowDocumentResolvesNil() {
-        let result = workflowCanvasSelection(
-            viewMode: .library(nil),
-            singleSelectedDocument: doc("d-1", workflow: false),
-            workflows: workflows
-        )
-        #expect(result == nil)
-    }
-
-    @Test("the sidebar's own viewMode == .workflow still wins, even over an unrelated Library selection")
-    func sidebarModeWins() {
-        let sidebarItem = WorkflowSidebarItem(id: "wf-2", name: "Sidebar-Driven")
-        let result = workflowCanvasSelection(
-            viewMode: .workflow(sidebarItem),
-            // A DIFFERENT document is also selected in a Library pane — the
-            // sidebar's own mode must win regardless.
-            singleSelectedDocument: doc("wf-1", workflow: true),
-            workflows: workflows
-        )
-        #expect(result?.id == "wf-2", "the sidebar-driven selection must win over an unrelated Library row")
-    }
-
-    @Test("a multi-selection (the caller passes nil) resolves nil, not a guess at which row")
-    func multiSelectionResolvesNil() {
-        // The caller's contract: `singleSelectedDocument` is nil for more
-        // than one selected id (real call site:
-        // `ContentView.singleSelectedWorkflowRowDocument`, gated on
-        // `browserSelection.count == 1`) — this function does not itself
-        // re-derive "single-ness" from a selection set.
-        let result = workflowCanvasSelection(
-            viewMode: .library(nil),
-            singleSelectedDocument: nil,
-            workflows: workflows
-        )
-        #expect(result == nil)
-    }
-}
-
 /// F2 (page-1 snapback) and F4 (right-click targeting) shipped without
 /// tests; both fix symptoms Daniel reported personally, so a silent
 /// regression is indistinguishable from the original bug. Source pins —
