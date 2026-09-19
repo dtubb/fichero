@@ -110,15 +110,6 @@ KNOWN_EXTENSIONS: list[tuple[str, str, str]] = [
         "Renders raw DocumentCitation without direction metadata — CitationRow "
         "requires a CitationItem wrapper (#1935).",
     ),
-    # OntologyBrowser+List entityRow wrapper: thin function that calls the canonical
-    # EntityRow(entity:, claimCount:) and adds .tag(entity.id) + .contextMenu {}.
-    # Not a duplicate — it IS the canonical renderer with context-menu decoration.
-    (
-        "OntologyBrowser+List.swift",
-        "entityRow",
-        "Thin wrapper: calls EntityRow(entity:, claimCount:) directly, adds "
-        ".tag() and .contextMenu{}. Delegates to canonical renderer (#1935).",
-    ),
     # ClaimReviewQueueSheet claimRow: a Toggle-bearing selection row for the review
     # queue batch-select UI. Not display — it's a checkbox row for claim approval.
     # ClaimSummaryCard renders claim CONTENT; this renders a claim SELECTION widget.
