@@ -102,11 +102,6 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "Library - Engine"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "Library View"
   },
   {

@@ -115,6 +115,23 @@ app's own Export menu), `Services/DocumentService.swift`.
   because two routes genuinely are wired and tested from the app; filed #4873 for a dispatch
   test asserting exactly this reachability matrix, since it was verified by reading
   `ReaderExportCommands.swift`/`ReaderExportRunner.swift` directly, not by a test.
+- `export.error-title-and-success-feedback-accurate` — **[PARTIAL]** (→ #3305) File ▸ Export's two
+  App/Menus exports (BibTeX, Markdown static site) each report their OWN failure and success
+  honestly, not a shared misleading state. **Two of the three problems this legacy-milestone
+  issue named are fixed, verified at HEAD 2026-09-19**: `presentExportError` now takes a `title`
+  parameter per call site (`FileMenuCommands+Export.swift:28,55` — "BibTeX Export Failed" vs.
+  "Markdown Static Site Export Failed"), where it previously hardcoded the BibTeX title for both;
+  and both exports call `revealInFinder` on success (`:25,52`, a doc comment citing this same
+  legacy issue directly: "so a successful export isn't silent"), where success previously
+  logged only.
+  **The third problem is narrower than filed, and still open**: `fetchAllDocumentIDs`
+  (`:68-79`) calls `GET /api/documents` with an empty query — verified at HEAD, the route's own
+  `limit` parameter defaults to "no limit if not specified)" (`documents.py`), so this is NOT a
+  silent-truncation bug as the issue worried (a) — but it is still one unpaginated round trip
+  fetching every document id in the library for a BibTeX export, the scale concern the issue
+  also raised (b), and that half is unaddressed. Pinned: none found this pass for the two fixed
+  problems — filed under the same issue for a pinning test, since both are already-shipped fixes
+  without a Swift test asserting the distinct title / reveal-in-finder call.
 
 ### D. The knowledge graph's own RDF export — a separate contract, not the record stream
 

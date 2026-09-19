@@ -185,6 +185,22 @@ producing false positives. Also found and fixed: Redo re-offering itself after r
 
 ---
 
+## Changelog 2026-09-19 — legacy milestone fold (#131 "UX - Mac - Menus, Commands & Shortcuts")
+
+Grounding pass against HEAD for this legacy milestone's 8 open issues (Pass 1 — findings only,
+issue moves not executed this pass). Two of the eight are this spec's own subject; three belong
+to sibling specs (export-pipeline, audited-action-layer) and are cross-referenced there, not
+restated here; three are a cluster of undo-scope GAPs living in `audited-action-layer.md`.
+
+- **#3302 and #4185, verify-close against `menus.undo-reaches-every-mutating-action` below.**
+  Both describe the same gap this milestone opened them for — ⌘Z reaching only the entity-merge
+  button, no Redo, silent undo failures — and all three are now built and tested. See the
+  behavior below for the evidence; not restated here.
+- **#3307 (iPad menu parity)** is a live GAP, not touched this pass — see
+  `menus.ipad-full-parity` below.
+
+---
+
 ## Intent (the design)
 
 A command exists **once** and appears wherever it is useful — the menu bar (discovery, keyboard
@@ -450,6 +466,36 @@ either way (shared components), but scope of the cross-platform tests depends on
 - `menus.context-matches-bar` — **[PROPOSED]** a verb in both a context menu and the menu bar is the
   SAME component (same label/icon/shortcut/enablement). *Test:* the `SidebarContextMenuPolicyTests`
   pure-function shape — assert the context menu's verb list is drawn from the shared components.
+- `menus.undo-reaches-every-mutating-action` — **[OK]** ⌘Z is a central, multi-level undo seam,
+  not a one-button special case. Verified at HEAD 2026-09-19: `ActionInvokeService.invokeAction`
+  (`Services/ActionInvokeService.swift:62-68`) records EVERY successful audited mutation into the
+  per-library `LastAction` holder — a comment there cites this fold's own finding directly
+  ("central undo seam (part 1 of the legacy milestone's 'only entity-merge seeds undo' issue):
+  record EVERY audited mutation so ⌘Z reaches all ~109 registry actions"), not only the
+  entity-merge call site the milestone's issues named.
+  `UndoLastActionButton` (`FocusedCommandButtons+UndoNavigation.swift`) then walks
+  `AuditStore`'s full audit log for genuine multi-level undo, and a failed/empty reversal raises
+  a real `NSAlert` ("Couldn't Undo") rather than clearing silently — the doc comment names this
+  "raise-not-silent" fix directly against that same issue. `RedoLastActionButton` (⌘⇧Z) exists
+  and does not re-offer itself after redoing (`AuditStore.nextRedoable` excludes an
+  inverse-of-an-inverse). Pinned:
+  `ActionInvokeServiceTests`, `LastActionScopingTests`, `UndoRoutingPolicyTests`,
+  `AuditStoreRedoTests`. **Not the literal design the milestone's "Undo on everything" issue
+  asked for** — NSUndoManager registration
+  was considered and superseded by this central-seam design (⌘Z replaces SwiftUI's default
+  `.undoRedo` entirely, per this spec's own Changelog above), a deliberate substitution, not an
+  oversight. **Still bounded, not unlimited**: this reaches every action that goes through
+  `ActionRegistry.invoke` — the 9 routes `audited-action-layer.md`'s own
+  `audit.every-mutating-route-uses-the-registry` still finds outside the registry (canvas
+  layout persistence among the untouched territory) are outside this behavior's reach too;
+  cross-referenced there, not restated.
+- `menus.ipad-full-parity` — **[GAP]** (→ #3307) iPad must expose the SAME menu-bar command set and
+  the SAME contextual-menu items as macOS — no iPad-reduced subset (the maintainer's 2026-07-06 directive;
+  iPhone scope is explicitly left open, undecided). Not audited this pass: no source scan was run
+  against every `CommandGroup`/`.commands` definition and every `.contextMenu` for an
+  `os(macOS)`-only gate that would silently exclude iPad. This spec's own "Cross-platform" section
+  above already commits to the shared-component design that would make parity fall out for free
+  once built — the gap is verifying/completing that build, not a design question.
 
 ---
 

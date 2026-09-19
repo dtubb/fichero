@@ -253,6 +253,53 @@ parallel pattern to keep.
   `::test_the_scan_itself_would_catch_a_real_bypass`,
   `test_mcp_kg_write_attribution.py::TestEntityCreateIsAccountable`,
   `::TestEntityDeleteIsAccountable`, `::TestClaimDeleteIsAccountable`.
+- `audit.app-intents-use-typed-entities-not-raw-ids` — **[PARTIAL]** (→ #3304, legacy milestone
+  "UX - Mac - Menus, Commands & Shortcuts" fold, 2026-09-19) every App Intent already routes
+  through `invokeAuditedAction` → the registry (`FicheroActionIntents.swift`, verified at
+  HEAD) — the one-audited-action-layer contract this behavior's siblings above establish holds
+  for Shortcuts/Siri too, not only MCP. But a Siri/Shortcuts user can't discover a UUID: this
+  issue's own two findings are **partly fixed, partly still open, verified at HEAD 2026-09-19**.
+  `DeleteDocumentIntent` now takes a real `DocumentAppEntity` parameter (`@Parameter(title:
+  "Document") var document: DocumentAppEntity`) — fixed, a picker with `EntityQuery` resolves it
+  by name, not a pasted id — but still has **no confirmation step** before deleting
+  (`perform()` invokes `document.delete` directly; no `requestConfirmation`), the destructive-
+  action-without-confirmation half of this issue, unfixed. `MergeEntitiesIntent`,
+  `RunWorkflowIntent`, and `CreateAnnotationIntent` still take raw `String`/`[String]` id
+  parameters (`absorbingEntityId`, `workflowId`, `selectedDocumentIds`, `documentId`) despite
+  `EntityAppEntity`/`WorkflowAppEntity`-shaped queries existing elsewhere in the codebase for at
+  least some of these — the majority of this issue's own ask is not yet built. No dedicated
+  pinning test found this pass for either the fixed or unfixed half.
+
+### F. Undo scope beyond a single action — not this spec's mechanism, but its natural extension
+
+> The mechanism above (registry, generic undo/redo, actor attribution) is built and largely
+> proven for a SINGLE action. These three legacy-milestone issues (2026-09-19 fold, "UX - Mac -
+> Menus, Commands & Shortcuts" #131) all ask for something structurally bigger — undoing a GROUP
+> of actions, or exposing the audit trail as its own view — none of which exists yet. Grouped
+> here as one family rather than three unrelated gaps, since all three read from the SAME
+> `ActionAudit` table this spec's mechanism already writes.
+
+- `audit.run-scoped-undo` — **[GAP]** (→ #2074, → #1831 — the workflow-run half of this issue;
+  its curation-undo half is already covered by the `entity.merge`/`entity.split` OK behaviors
+  above, not a second gap) no capability exists to reverse every action of one agent/workflow
+  run (`ActionContext.run_id`, already stamped on every `ActionAudit` row) as a single "Undo
+  this run" — verified at HEAD: no `POST /api/actions/run/{run_id}/undo`-shaped route exists
+  anywhere under `fichero-server/src/fichero_server/`. The data this would walk (per-run audit
+  rows, newest-first) already exists; only the grouped-reversal endpoint and its UI affordance
+  are missing. `ui/activity.md` is the natural home for the UI half of this once it's built
+  (a run's own undo control) — cross-referenced, not restated, since that spec's own territory
+  note already excludes execution mechanics.
+- `audit.blame-and-rollback-view` — **[GAP]** (→ #1691) no "who changed what, when" view exists
+  spanning documents/pages/entities/claims/notes with author+timestamp, wired to undo/rollback —
+  verified at HEAD: no `blame`-named route, view, or model was found anywhere in
+  `fichero-server/` or `fichero/fichero/`. The `ActionAudit` table this spec's mechanism already
+  writes (actor, target ids, before/after snapshot, timestamp) is the exact data this behavior
+  would read — the gap is a query/view surface over data that already exists, not a new audit
+  mechanism. Explicitly `needs-design` per the issue's own label — scope the event model and
+  retention before building, not decided here.
+
+### G. Curation protection
+
 - `audit.curation-actions-protect-nlp-drafts` — **[OK]** an entity or claim touched through the
   action layer (update, merge, link-authority, a claim link) is recognized as "touched" by the
   NLP draft purge action (`entity.purge_nlp_draft`, `importer.md`'s
