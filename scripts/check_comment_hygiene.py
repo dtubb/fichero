@@ -33,6 +33,20 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     # Prose explaining the debounce starvation fix; the words "class"/"for"/
     # "import" in ordinary sentences trip the code-like regex.
     "fichero/fichero/Models/ObservableDomainStore.swift#099e95cd6d": "#4223 false positive (prose)",
+    # #4902 green-up: all six below are the same false-positive class as the
+    # two entries above — multi-line PROSE explaining a design decision
+    # (shortcut collisions, chat bridge reasoning, sidebar-sync scoping,
+    # model-shown=model-sent, detached-run status), not commented-out code.
+    # Verified by reading each block directly: none contains an actual Swift
+    # statement, just decision-history sentences whose keywords ("for", "let",
+    # method names in prose) trip the crude regex.
+    "fichero/fichero/App/Menus/ImagePreviewMenuCommands.swift#4ac9821465": "#4902 false positive (prose, #4693 shortcut-collision history)",
+    "fichero/fichero/Views/Chat/ChatView.swift#ab36c64e96": "#4902 false positive (prose, #4817 chat-bridge reasoning)",
+    "fichero/fichero/Views/Chat/ChatView.swift#e458ea8af6": "#4902 false positive (prose, #4705/#4817 scoping reasoning)",
+    "fichero/fichero/Views/Shell/ContentView/ContentView+StateEvents.swift#ab96b28b09": "#4902 false positive (prose, #4850/#4862 outline-id reasoning)",
+    "fichero/fichero/Views/Shell/ContentView/ContentViewModifiers.swift#dcec92f425": "#4902 false positive (prose, #4882 sidebar-sync scoping)",
+    "fichero/fichero/Views/Shell/ContentView/Layout/ContentView+WorkflowChainEngine.swift#019629ad5d": "#4902 false positive (prose, model-shown=model-sent reasoning)",
+    "fichero/fichero/Views/Shell/Toolbar/WorkflowBar.swift#63e6cf43c0": "#4902 false positive (prose, detached-run status reasoning)",
     "fichero/fichero/Views/Library/ViewModes/LibraryView+Helpers.swift#6db3c7cd5e": "#1916 baseline (DocRowIdentity doc block moved here when LibraryView+DisplayModes was split by file_length)",
     "fichero/fichero/Views/Preview/ImageViewer/ZoomableImagePreviewMac+ZoomActions.swift#c7669329ed": "#1916 baseline",
     "fichero/fichero/Views/Library/LibraryView+KeyboardShortcuts.swift#d5e49f726d": "#1916 baseline",

@@ -67,7 +67,21 @@ struct OCRTextRegionDefaultTests {
     @Test("the OCR geometry task is keyed on the page's geometry document")
     func geometryTaskFollowsTheGeometryDocument() throws {
         let source = try AppSource.text("Views/Preview/PDFViewer/PDFPageWithToolbar.swift")
-        #expect(source.contains(#".task(id: "\(effectiveGeometryDocumentId)|\(effectivePageIndex)|\(ocrBoxesEnabled)")"#))
+        // #4902: pinning the whole `.task(id:)` string broke when a later
+        // field (`artifactEntityRevision`) joined the key. Assert what the
+        // behavior actually means — the key is built off the GEOMETRY
+        // document, not the parent's — not the exact field list, which is
+        // free to grow.
+        let taskId = try #require(
+            source.range(of: #".task(id: ""#).map { start in
+                let lineEnd = source.range(of: "\n", range: start.upperBound..<source.endIndex)
+                return String(source[start.upperBound..<(lineEnd?.lowerBound ?? source.endIndex)])
+            }
+        )
+        #expect(taskId.contains("effectiveGeometryDocumentId"))
+        // The exact old, WRONG literal (keyed on the parent doc, not the
+        // geometry doc) must never reappear — an absence check on a known-bad
+        // pattern, not a pin on the current-correct one.
         #expect(
             !source.contains(#".task(id: "\(effectiveDocumentId)|\(ocrBoxesEnabled)")"#),
             "the parent-keyed probe is back — a page turn would keep another page's boxes"

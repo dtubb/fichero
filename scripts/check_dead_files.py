@@ -41,6 +41,22 @@ IDENTIFIER = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
 
 # Current candidate-dead backlog. Drop entries as files are removed or wired.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    "Views/Shell/ContentView/Layout/ContentView+WindowEnvironment.swift": (
+        "#4902 — false positive, NOT dead: WindowEnvironmentModifier IS used, but only "
+        "indirectly — three boundaries (ContentView+Navigation.swift:154, PaneSpec.swift:313, "
+        "ContentView+RootLayout.swift:57) call `.modifier(windowEnvironment)`, the lowercase "
+        "COMPUTED PROPERTY declared in this same file, never spelling out the type name "
+        "`WindowEnvironmentModifier` again outside its own declaration. The scanner's "
+        "type-name-reference heuristic can't see through that indirection."
+    ),
+    "Views/Inspector/Knowledge/EntityDigestContent+Provenance.swift": (
+        "#4896/#4902 — extension file (the #4896 EntityDigestView split); its only NEW "
+        "declared type is the private `StatementsState` enum (used only by this file's own "
+        "`statementsState`/`provenanceSection`), so the scanner credits it as the 'primary "
+        "type' and finds it unreferenced by name elsewhere — the file's real content is "
+        "`EntityDigestContent` extension members (`provenanceSection`, `loadClaims`, etc.), "
+        "all live and called from EntityDigestView.swift's `body`."
+    ),
     "Services/AnnotationService+Create.swift": "#4235-class — extension file; ScopeIds is the private scope-unpacking carrier for the same-file create path (2026-08-23 large_tuple fix)",
     "Views/Preview/EntrySourcePreview.swift": "#4235-class — extension-heavy view file; LadderLevel is the private containment-ladder rung enum used only by this view's own step logic (2026-08-23)",
     "Views/Sidebar/ItemRow/SidebarItemRow+Presentation+Body.swift": "#4235-class — extension file; SidebarRowDropGate is the private drop-gate helper used by the same-file SidebarItemRow body (surfaced when the 2026-08-10 dead-code sweep removed the sibling files the scanner had credited)",
@@ -59,7 +75,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Chat/Inspector/ChatInspector+ScopedDocuments.swift": "#2955 — helper row used only by same-file ChatInspector scoped-documents view builder",
     "Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCard+Provenance.swift": "#1945 — candidate dead file: ProvenanceBadge",
     "Views/Library/ViewModes/Graph/Ontology/Entity/EntityDetailView+Biography.swift": "#1945 — candidate dead file: MentionSummary",
-    "Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+Toolbar.swift": "#1945 — candidate dead file: EntityKindChip",
     "Intents/FicheroShortcuts.swift": "#2017 — App Intents/Shortcuts entry point helper",
     "Views/Library/ViewModes/LibraryView+ColumnConfig.swift": "#1945 — candidate dead file: ColumnDefinition",
     "Views/Library/ViewModes/LibraryView+EntityFiltering.swift": "#1945 — candidate dead file: KgKindMapping (moved here from LibraryView+DisplayModes when that file was split by file_length; used only by the same-file entity-filter extension)",
@@ -71,7 +86,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Settings/MCP/MCPToolsCatalogView.swift": "#1945 — candidate dead file: MCP tools catalog helper types",
     "Views/Settings/MCP/MCPServersSheet.swift": "#3366 — settings routing keeps legacy sheet compiled for transition/back-compat",
     "Views/Library/Notes/NotesBrowserView.swift": "#2955 — live but scanner-blind: source read by NoteServiceTests",
-    "Views/Settings/AI/AISettingsView+Helpers.swift": "#1945 — candidate dead file: TierCapability",
     "Views/Sidebar/State/ActivityDataProcessing.swift": "#1945 — candidate dead file: ActivityWorkflowGroup",
     "Views/Sidebar/ItemRow/SidebarItemRow+DropHandlers.swift": "#2955 — live but scanner-blind: FolderDropItemOutcome is a local result bundle; the extension's handleProvidersDrop/handleDropIntoFolder are called from SidebarItemRow+Drop.swift",
     "Views/Sidebar/ItemRow/SidebarItemRow+Workflow.swift": "live but scanner-blind: SidebarWorkflowRequest is a private same-file parameter bundle used by runWorkflowOnDocuments/executeSidebarWorkflow; the extension is called from SidebarItemRow+Presentation.swift",
@@ -85,7 +99,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Services/ChainService+StepExecution.swift": "2026-08-30 chains lane — extension file; WireRequest is its private request carrier; scanner misses same-file extension wiring",
     "Views/Shell/ContentView/Layout/ContentView+WorkflowChainEngine.swift": "2026-08-30 chains lane — extension file driving engine-run chains from ContentView; EngineChainLaunch is its private launch carrier; scanner misses same-file extension wiring",
     "Views/Library/ViewModes/List/LibraryView+ListView.swift": "2026-09-01 — ListRowChrome is the per-pass row-settings carrier threaded into the same-file documentRow/mailRow builders (list-scroll perf); scanner misses same-file wiring",
-    "Views/Shell/PaneHead/PreviewHeadControls.swift": "2026-08-31 — MarkupNotePopover is the note text-entry popover mounted by the same-file noteButton; scanner misses same-file wiring",
     "Views/Inspector/Document/DocumentInspector+Sections.swift": "#2955 — DocumentInspectorImageEditsTab is used only by the same-file editsTab() section builder (split from DocumentInspector); scanner misses same-file extension wiring",
     "Services/ResearchService+Search.swift": "#2955 — WebSearchResultItem is the return type of the same-file webSearch() extension method (split from ResearchService by file_length); scanner misses same-file extension wiring",
     "Views/Workflow/Canvas/WorkflowEdgeView+Edges.swift": "#2955 — EdgesView/PortPositionCalculator split out of WorkflowEdgeView.swift by file_length; were ALREADY unreferenced pre-split (co-located, so unflagged). Appears to be superseded dead code (edges now render via WorkflowCanvasView+EdgesLayer) — FLAG FOR DANIEL to delete/wire; grandfathered so the split lands.",

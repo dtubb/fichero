@@ -45,6 +45,21 @@ struct PinnedLibraryScope {
     let folderId: String?
 }
 
+/// #4902: a plain reference box for `ContentView.lastSyncedWorkflow` /
+/// `MainContentModifiers.lastSyncedWorkflow` — see the doc comment on
+/// `ContentView.lastSyncedWorkflowBox` for why this exists (the
+/// `ViewValueSizeTests` byte budget). No `@Observable`: nothing renders
+/// `.value`, it is pure dirty-check bookkeeping, so plain reference sharing
+/// is all two structs need to see the same live baseline.
+///
+/// WARNING: because this is not observable, a change to `.value` re-renders
+/// NOTHING. Every read today is in an event handler (autosave, resync, quit).
+/// A visible "unsaved changes" indicator bound to it would silently never
+/// update: make this `@Observable` first.
+final class WorkflowSyncBaseline {
+    var value: Workflow?
+}
+
 struct ContentView: View {
     /// The preview pane's lens (Daniel, 2026-08-23: "preview and edit").
     /// Never changes WHICH document shows, only how.
@@ -463,10 +478,23 @@ struct ContentView: View {
     /// successfully loaded. Moved UP from `MainContentModifiers`'s own
     /// `@State` (2026-09-19): `handleWillTerminate` (this file) and
     /// `handleActiveWorkflowChange` (`MainContentModifiers`) both need to
-    /// read it for the SAME "has a baseline" rule, so ContentView is now the
-    /// one owner and `MainContentModifiers` holds a `@Binding` to it — the
-    /// same shape `editingWorkflow` already uses.
-    @State var lastSyncedWorkflow: Workflow?
+    /// read it for the SAME "has a baseline" rule.
+    ///
+    /// #4902: BOXED, not a plain `@State var Workflow?` — `Workflow` is a
+    /// large value type (nodes/edges graph), and holding it inline here is
+    /// what pushed `MemoryLayout<ContentView>.size` over `ViewValueSizeTests`'
+    /// real 6064-byte budget (measured 6136). `WorkflowSyncBaseline` is a
+    /// plain reference box (no `@Observable` — nothing renders this value, it
+    /// is pure dirty-check bookkeeping) shared by reference with
+    /// `MainContentModifiers` instead of via `@Binding` — reference sharing
+    /// gives the identical "one source of truth, mutation visible everywhere
+    /// holding it" contract `@Binding` provided, without inlining `Workflow?`
+    /// into either struct's own layout.
+    @State var lastSyncedWorkflowBox = WorkflowSyncBaseline()
+    var lastSyncedWorkflow: Workflow? {
+        get { lastSyncedWorkflowBox.value }
+        nonmutating set { lastSyncedWorkflowBox.value = newValue }
+    }
 
     // Chat state (shared between ChatView and ChatInspectorView)
     @State var chatSelectedDocuments: Set<String> = []

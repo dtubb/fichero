@@ -188,10 +188,16 @@ struct EntityInspectorPinningTests {
     func entityArmRekeysAndClearsOnFocusChange() throws {
         let inspector = try AppSource.code("Views/Inspector/Document/DocumentInspector.swift")
 
-        let arm = try #require(
-            inspector.components(separatedBy: ".task(id: entityId)").dropFirst().first
+        // #4902: f47f4b60d added loadFailed/loadFailureReason resets ahead of
+        // `entity = nil`, pushing both checked strings past a fixed-length
+        // `.prefix(160)` window. Bound by the task's own closing brace instead
+        // (the "\n            }" body-boundary pattern, as for the font test),
+        // which survives however much the block grows.
+        let start = try #require(inspector.range(of: ".task(id: entityId) {"))
+        let bodyEnd = try #require(
+            inspector.range(of: "\n            }", range: start.upperBound..<inspector.endIndex)
         )
-        let body = String(arm.prefix(160))
+        let body = inspector[start.upperBound..<bodyEnd.lowerBound]
         // Reset FIRST so the stale entity never renders under the new id.
         #expect(body.contains("entity = nil"))
         #expect(body.contains("entityService.getEntity(entityId)"))

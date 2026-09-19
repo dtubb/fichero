@@ -95,7 +95,11 @@ struct WorkspaceSplitStack: View {
     /// `PaneNode`'s own id, freshly generated per applied `PaneList`, so two different workspaces'
     /// splits at the same tree position never collide. `keyPath` stays in the key too, purely for
     /// human-readable debugging (e.g. in a `defaults read`).
-    static func storageKey(keyPath: String, leadingChildID: UUID?) -> String {
+    // #4902: `nonisolated` is load-bearing, not decorative — WorkspaceSplitStackSizingTests
+    // is a non-@MainActor Swift Testing suite that calls this directly; a View's static
+    // members are @MainActor-isolated by default (Swift 6), so without this the call would
+    // not even compile off-main. Pure string composition, no actor-isolated state read.
+    nonisolated static func storageKey(keyPath: String, leadingChildID: UUID?) -> String {
         "\(keyPath)-\(leadingChildID?.uuidString ?? keyPath)"
     }
 

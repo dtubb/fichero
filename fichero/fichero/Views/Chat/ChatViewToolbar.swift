@@ -210,6 +210,10 @@ struct ChatModelPicker: View, Equatable {
         // so the chip reads the same way to a screen reader as it looks.
         .accessibilityLabel("Choose model")
         .accessibilityValue(selectedModel.isEmpty ? "No model selected" : selectedModel)
+        // #4902: sighted-mouse users get the same "which model" answer
+        // VoiceOver's accessibilityValue above already gives — an icon-only
+        // control needs a tooltip, not just an accessibility label.
+        .help(selectedModel.isEmpty ? "Choose model" : "Model: \(selectedModel)")
         // A POPOVER that PICKS, rendering the SHARED row — the same face the
         // island, Settings and the comparison sheet show — not a bespoke Menu.
         .popover(isPresented: $isPresented, arrowEdge: .bottom) {

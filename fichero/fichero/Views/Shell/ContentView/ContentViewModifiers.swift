@@ -184,11 +184,21 @@ struct MainContentModifiers: ViewModifier {
     /// baseline that lets cross-window re-sync tell "no unsaved edits" (safe to
     /// overwrite) from "local edits pending" (must not clobber). See #2278 /
     /// `WorkflowSync`. #4882 HOLE 3 (2026-09-19): moved from this struct's
-    /// own `@State` to a `@Binding` onto `ContentView.lastSyncedWorkflow` —
+    /// own `@State` onto `ContentView.lastSyncedWorkflow` —
     /// `ContentView.handleWillTerminate` needs to read the SAME value for
     /// the same "never autosave without a baseline" rule this struct's
     /// `handleActiveWorkflowChange` enforces.
-    @Binding var lastSyncedWorkflow: Workflow?
+    ///
+    /// #4902: a shared REFERENCE (`WorkflowSyncBaseline`, see `ContentView.swift`),
+    /// not `@Binding` — a `Binding<Workflow?>` still inlines `Workflow?`'s full
+    /// size into whichever struct holds it (this one, previously); the box is
+    /// a small class reference here AND on `ContentView`, and mutating
+    /// `.value` through either side is visible on both, same as `@Binding` was.
+    let lastSyncedWorkflowBox: WorkflowSyncBaseline
+    var lastSyncedWorkflow: Workflow? {
+        get { lastSyncedWorkflowBox.value }
+        nonmutating set { lastSyncedWorkflowBox.value = newValue }
+    }
     /// The id most recently passed to `loadEditingWorkflow(for:)` (#4882) —
     /// a slow `getWorkflow` for a superseded id must not overwrite
     /// `editingWorkflow` after the user has moved to a different workflow;

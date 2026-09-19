@@ -163,17 +163,18 @@ struct EnvironmentOptionalObservableGuardrailTests {
         // #4703 follow-up
         "Views/Inspector/Document/DocumentInspector+Sections.swift:126 StorageService->storageService",
         // #4703 follow-up
-        "Views/Inspector/Document/DocumentInspector.swift:73 DocumentStore->documentStore",
+        // #4902: line pins re-synced to source (+3, unrelated growth above them)
+        "Views/Inspector/Document/DocumentInspector.swift:76 DocumentStore->documentStore",
         // #4703 follow-up
-        "Views/Inspector/Document/DocumentInspector.swift:74 EntityService->entityService",
+        "Views/Inspector/Document/DocumentInspector.swift:77 EntityService->entityService",
         // #4703 follow-up
-        "Views/Inspector/Document/DocumentInspector.swift:75 ArtifactService->artifactService",
+        "Views/Inspector/Document/DocumentInspector.swift:78 ArtifactService->artifactService",
         // #4703 follow-up
-        "Views/Inspector/Document/DocumentInspector.swift:76 KGCurationService->kgCurationService",
+        "Views/Inspector/Document/DocumentInspector.swift:79 KGCurationService->kgCurationService",
         // #4703 follow-up
-        "Views/Inspector/Document/DocumentInspector.swift:77 ClaimFocusState->claimFocusState",
+        "Views/Inspector/Document/DocumentInspector.swift:80 ClaimFocusState->claimFocusState",
         // #4703 follow-up
-        "Views/Inspector/Document/DocumentInspector.swift:81 KGFocusState->kgFocusState",
+        "Views/Inspector/Document/DocumentInspector.swift:84 KGFocusState->kgFocusState",
         // #4703 follow-up
         "Views/Inspector/Document/DocumentInspectorRelatedTab.swift:17 DocumentStore->documentStore",
         // #4703 follow-up
@@ -197,9 +198,10 @@ struct EnvironmentOptionalObservableGuardrailTests {
         // #4703 follow-up
         "Views/Inspector/Knowledge/EntityDigestView.swift:9 EntityService->entityService",
         // #4703 follow-up
-        "Views/Inspector/Knowledge/EntityKindRow.swift:45 ClaimFocusState->claimFocusState",
+        // #4902: line pins re-synced to source (+5, unrelated growth above them)
+        "Views/Inspector/Knowledge/EntityKindRow.swift:50 ClaimFocusState->claimFocusState",
         // #4703 follow-up
-        "Views/Inspector/Knowledge/EntityKindRow.swift:46 KGFocusState->kgFocusState",
+        "Views/Inspector/Knowledge/EntityKindRow.swift:51 KGFocusState->kgFocusState",
         // #4703 follow-up
         "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection.swift:43 KGFocusState->kgFocusState",
         // #4703 follow-up
@@ -233,7 +235,8 @@ struct EnvironmentOptionalObservableGuardrailTests {
         // #4703 follow-up
         "Views/Inspector/Source/Info/DocumentInspectorInfoTab.swift:9 WindowState->windowState",
         // #4703 follow-up
-        "Views/Inspector/Source/SourceOutlineView.swift:112 DocumentService->documentService",
+        // #4902: line pin re-synced to source (+1)
+        "Views/Inspector/Source/SourceOutlineView.swift:113 DocumentService->documentService",
         // #4703 follow-up
         "Views/Shell/Toolbar/ActivityStatusToolbarItem.swift:24 ActivityStore->activityStore",
         // #4703 follow-up

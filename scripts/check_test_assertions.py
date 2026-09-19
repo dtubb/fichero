@@ -35,6 +35,18 @@ SWIFT_ROOT = ROOT / "fichero" / "fichero"
 
 # Seeded with current-tree vacuous tests.
 KNOWN_VACUOUS = {
+    # #4902: the assertion is a monkeypatched callback that raises if called
+    # (`_fail_if_called`) — real, negative-assertion coverage ("must not
+    # re-run NLP on an already-processed document") the AST detector can't
+    # trace into, same class as the allowlist meta-tests below.
+    "fichero-server/tests/unit/api/test_nlp_draft_import.py::TestNlpStageInDerivatives::test_already_processed_document_is_skipped",
+    # #4902: `_check_not_truncated` is `-> None` and either prints+raises
+    # SystemExit(2) (truncated) or returns silently (below limit) — there is
+    # no return value to assert on, so "call it and it must not raise" (the
+    # comment) IS the entire test; pytest already fails this test if it DID
+    # raise. Nothing stronger to assert without testing an implementation
+    # detail outside the function's actual contract.
+    "fichero-server/tests/unit/scripts/test_spec_pipeline.py::test_check_not_truncated_passes_when_below_limit",
     # Allowlist-hygiene meta-tests: they assert via a shared helper
     # (_assert_allowlist_has_reasons / stale-check) which the AST detector
     # cannot trace into; the assertions are real (#2153).
