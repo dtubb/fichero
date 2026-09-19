@@ -265,6 +265,18 @@ class TestModelPreference:
         assert spacy_ner._load_pipeline("fr") is not None
         assert loaded["last"] == "fr_core_news_sm"
 
+    def test_a_language_with_no_pipeline_never_substitutes_english(self, fake_spacy):
+        """#4914 (normalization.ner.no-silent-language-fallback): a language
+        with no entry in `_MODEL_PREFERENCE` at all used to log a warning
+        and silently load English instead. English is genuinely installed
+        here -- the assertion is that it is never even ATTEMPTED for a
+        language `_load_pipeline` was never asked to serve."""
+        installed, loaded = fake_spacy
+        installed.update({"en_core_web_sm", "en_core_web_md"})
+
+        assert spacy_ner._load_pipeline("syr") is None  # Syriac: no model at all
+        assert "last" not in loaded  # spacy.load was never called
+
 
 class TestClusterAliases:
     def test_substring_variants_cluster_under_longest(self):

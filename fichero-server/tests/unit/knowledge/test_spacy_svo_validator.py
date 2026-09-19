@@ -57,6 +57,27 @@ needs_model = pytest.mark.skipif(
 )
 
 
+class TestPipelineNeverSubstitutesSpanish:
+    """#4914 (normalization.ner.no-silent-language-fallback): `_pipeline`'s
+    own docstring claims "or return None with a reason" -- the body used to
+    silently substitute `MODELS["es"]` for any language not in `MODELS`
+    instead. Reachable from `importers/nlp_draft.py`, which passes
+    spacy_ner's already-validated language (which supports "fr"/"de"/"pt",
+    languages this module's own per-language dependency tables do not)
+    straight through here -- a French/German/Portuguese page's SVO
+    proposals were silently parsed with SPANISH grammar. No real spaCy
+    model needed: the decline happens before any model is ever loaded."""
+
+    def test_a_language_not_in_models_returns_none_not_spanish(self):
+        from fichero_server.knowledge.spacy_svo import MODELS, _pipeline
+
+        assert "fr" not in MODELS  # the actual gap this delivery closes
+        assert _pipeline("fr") is None
+
+    def test_no_triples_proposed_for_an_unsupported_language(self):
+        assert propose_triples("Le notaire a signé l'acte.", language="fr") == []
+
+
 @needs_model
 class TestRejectsWhatIsNotAStatement:
     @pytest.mark.parametrize(

@@ -316,6 +316,167 @@ class TestMissingModelIsVisible:
         assert real_available  # sanity: the real function still exists
 
 
+class TestNoSilentLanguageFallback:
+    """#4914 (normalization.ner.no-silent-language-fallback): a language with
+    no spaCy model must decline honestly -- naming the language -- and an
+    undetected language must not become English either. Runs through the
+    REAL `spacy_ner`/`spacy_svo` code (a fake `spacy` module stands in for
+    the installed-package check and `spacy.load`, so no model download is
+    needed), not the `ner_fn`/`svo_fn` stubs the rest of this file uses.
+    """
+
+    @pytest.fixture
+    def fake_spacy(self, monkeypatch):
+        import sys
+        import types
+
+        from fichero_server.knowledge import spacy_ner
+
+        spacy_ner._pipelines.clear()
+        loaded: list[str] = []
+        installed: set[str] = set()
+
+        module = types.ModuleType("spacy")
+        util = types.ModuleType("spacy.util")
+        util.get_installed_models = lambda: sorted(installed)  # type: ignore[attr-defined]
+        module.util = util  # type: ignore[attr-defined]
+
+        def _load(name: str):
+            # The whole point of this fixture: fail LOUD if anything ever
+            # asks for an English model in a test that must never load one.
+            if name.startswith("en_"):
+                raise AssertionError(f"must never load an English model, got {name!r}")
+            if name not in installed:
+                raise OSError(f"[E050] Can't find model {name!r}")
+            loaded.append(name)
+            return object()
+
+        module.load = _load  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, "spacy", module)
+        monkeypatch.setitem(sys.modules, "spacy.util", util)
+        yield installed, loaded
+        spacy_ner._pipelines.clear()
+
+    def test_unsupported_known_language_declines_and_never_loads_english(
+        self, db, test_package, fake_spacy
+    ):
+        """A document in a real, KNOWN language spaCy has NO model family for
+        at all (Latin -- not merely 'not installed', genuinely absent from
+        `_MODEL_PREFERENCE`, exactly the issue's own example) declines with
+        a reason naming Latin -- never a silent English substitution."""
+        _installed, loaded = fake_spacy
+        doc = Document(
+            name="la.md", doc_type=DocType.file, file_type=FileType.text,
+            status=Status.pending,
+            page_content="Notarius instrumentum coram testibus signavit.",
+            language="Latin",
+        )
+        db.save(doc)
+
+        def _fail_if_called(*a, **kw):
+            raise AssertionError("must not run NER once the language is known unsupported")
+
+        result = run_nlp_draft(
+            db, doc, ner_fn=_fail_if_called, svo_fn=_fail_if_called, filter_fn=_fail_if_called,
+        )
+
+        assert result.error is not None
+        assert "Latin" in result.error
+        assert result.entity_ids == []
+        assert result.claim_ids == []
+        assert loaded == []  # nothing was ever loaded -- declined before trying
+
+    def test_undetected_language_does_not_become_english(
+        self, db, test_package, monkeypatch, fake_spacy
+    ):
+        """A document whose language genuinely could not be determined must
+        decline -- never silently resolve to English and proceed."""
+        from fichero_server.llm import language_policy
+
+        _installed, loaded = fake_spacy
+
+        def _undetermined(*, requested=None, document=None, text="", **kw):
+            return language_policy.LanguageResolution(
+                language=None, status=language_policy.UNKNOWN,
+                source="test", basis="document language could not be determined (test)",
+            )
+
+        monkeypatch.setattr(language_policy, "resolve_language", _undetermined)
+        doc = _text_doc(db, text="Some page with no determinable language signal.")
+
+        def _fail_if_called(*a, **kw):
+            raise AssertionError("must not run NER when the language is undetermined")
+
+        result = run_nlp_draft(
+            db, doc, ner_fn=_fail_if_called, svo_fn=_fail_if_called, filter_fn=_fail_if_called,
+        )
+
+        assert result.error is not None
+        assert "en" not in result.error.split()
+        assert result.entity_ids == []
+        assert result.claim_ids == []
+        assert loaded == []
+
+    def test_a_supported_language_still_works_through_the_real_pipeline(
+        self, db, test_package, fake_spacy, monkeypatch
+    ):
+        """Regression guard: the decline path must not have broken the
+        normal case. Spanish, installed, no NER/SVO stubs -- the real
+        `spacy_ner.extract_entities`/`spacy_svo.propose_triples` run,
+        against a fake `es` spaCy pipeline standing in for the real model."""
+        import types
+
+        installed, loaded = fake_spacy
+        installed.add("es_core_news_sm")
+
+        # A minimal fake spaCy Language callable: returns an object with a
+        # `.ents` list carrying one PERSON span, matching what
+        # `spacy_ner.extract_entities` reads off `nlp(text)`.
+        class _FakeSpan:
+            def __init__(self, text, label, start, end):
+                self.text = text
+                self.label_ = label
+                self.start_char = start
+                self.end_char = end
+
+        class _FakeDoc:
+            def __init__(self, ents):
+                self.ents = ents
+
+        class _FakeNLP:
+            def __call__(self, text):
+                idx = text.index("Juan Perez")
+                return _FakeDoc([_FakeSpan("Juan Perez", "PER", idx, idx + len("Juan Perez"))])
+
+        import sys
+
+        real_load = sys.modules["spacy"].load
+
+        def _load_with_fake_pipeline(name):
+            real_load(name)  # still exercises the installed-check/load path
+            return _FakeNLP()
+
+        monkeypatch.setattr(sys.modules["spacy"], "load", _load_with_fake_pipeline)
+
+        doc = Document(
+            name="es.md", doc_type=DocType.file, file_type=FileType.text,
+            status=Status.pending, page_content="Juan Perez firmó la escritura.",
+            language="es",
+        )
+        db.save(doc)
+
+        def _no_triples(text, language=None):
+            return []
+
+        result = run_nlp_draft(db, doc, svo_fn=_no_triples, filter_fn=lambda proposals, text: ([], []))
+
+        assert result.error is None
+        assert result.entity_ids
+        entity = db.get(KnowledgeEntity, result.entity_ids[0])
+        assert entity.canonical_name == "Juan Perez"
+        assert loaded == ["es_core_news_sm"]
+
+
 class TestNlpStageInDerivatives:
     def test_missing_model_records_visible_metadata_never_flips_processed(
         self, db, test_package, monkeypatch

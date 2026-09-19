@@ -178,8 +178,26 @@ class ProposedTriple:
 
 @lru_cache(maxsize=4)
 def _pipeline(language: str):
-    """Load a spaCy model once per process, or return None with a reason."""
-    model = MODELS.get(language, MODELS["es"])
+    """Load a spaCy model once per process, or return None with a reason.
+
+    #4914 (normalization.ner.no-silent-language-fallback): a language not
+    in `MODELS` used to silently fall back to `MODELS["es"]` -- reachable
+    from `importers/nlp_draft.py`, which passes spacy_ner's already-
+    validated NER language straight through here. spaCy NER supports
+    "fr"/"de"/"pt" (`spacy_ner._MODEL_PREFERENCE`) that this module's own
+    per-language dependency tables do not, so a French/German/Portuguese
+    page's SVO proposals were silently parsed with SPANISH grammar. Decline
+    instead, matching this function's own docstring's claimed contract.
+    """
+    if language not in MODELS:
+        logger.info(
+            "spacy_svo: no dependency-parse model for language=%r — "
+            "declining SVO proposals for this language rather than "
+            "substituting Spanish",
+            language,
+        )
+        return None
+    model = MODELS[language]
     try:
         import spacy
 
