@@ -243,6 +243,22 @@ parallel pattern to keep.
 
 ### E. Only the action surface reaches a capability
 
+- `audit.chat-tools-share-the-registry` — **[PARTIAL]** (#1847, legacy milestone fold,
+  2026-09-19) the chat agent should reach the app's own capabilities as tools — the same
+  registry a UI button and App Intents already reach, not a second hand-built tool list.
+  Verified at HEAD: `actions/chat_tools.py` — `action_tools()` generates one LiteLLM/OpenAI
+  function-tool definition per registered action, and `dispatch_tool_call()` runs the matching
+  one through the SAME audited `registry.invoke` choke point (`actor="chat"`) every other
+  caller uses — genuinely "one definition, reached five ways," not a parallel mechanism. Wired
+  into `POST /api/chat` (`api/routes/system/chat.py`) behind a default-OFF
+  `FICHERO_CHAT_TOOLS` flag: with it on, a READ-only tool call dispatches and surfaces in the
+  response as a real `tool_calls[]` entry with a real `audit_id`; a MUTATING tool call is
+  explicitly DENIED (recorded, never invoked, no audit row) — a deliberate reads-only slice, not
+  a bug. PARTIAL, not OK: the issue's own ask (make workflows, run actions — mutating
+  capabilities) is exactly the half still switched off; the mechanism it would route through
+  already exists and is tested. Pinned: `test_chat_tools_loop.py` (flag-off unchanged behavior,
+  flag-on read dispatch, flag-on mutating denial), `test_action_chat_tools.py`.
+
 - `audit.only-the-action-surface-reaches-capabilities` — **[PARTIAL]** (#4847, MCP half fixed
   93b2e97e5/54a13ffdf; #4866) agents, the CLI, and MCP should reach every mutating capability
   ONLY through the registered action surface — never a route or code path the action surface
@@ -321,6 +337,41 @@ parallel pattern to keep.
   routing a capability through the registry has a real downstream payoff beyond the audit log
   itself. Pinned: `test_nlp_draft_purge_action.py::TestF2IndependentTouchProtection` (the whole
   class), `test_routes_entity_curation.py::TestLinkAuthorityAction::test_a_linked_entity_survives_the_nlp_draft_purge`.
+
+### H. Durability and thread-safety of the write path beneath the registry
+
+> The registry mechanism above (section A) assumes the write path it sits on is durable and
+> serialized. These two legacy-milestone issues (2026-09-19 fold, "Engine - AI" #90) are about
+> that FOUNDATION, not the registry's own contract — grouped here because a race or a
+> reset-on-restart beneath the choke point undermines the audit/undo guarantees this spec makes,
+> even when `registry.invoke` itself is implemented correctly.
+
+- `audit.write-policy-durable` — **[BROKEN]** (#4161) the agent-write policy engine
+  (`llm/orchestration_policy.py::PolicyEngine`) must persist its rules and its audit trail
+  durably, not reset to factory defaults on every engine restart. Verified at HEAD:
+  `PolicyEngine.__init__` still initializes `self._records: dict[str, AgentWriteRecord] = {}` —
+  a plain in-process dict, exactly as filed. `/api/agents/write*` and
+  `/api/policies/orchestration*` remain unusable as a real policy/audit surface across a
+  restart. Not built. The maintainer's own call on this issue (2026-07-27): fix the 7 in-memory
+  endpoints properly (DB-backed rules + durable audit) rather than delete them — the evaluation
+  logic itself is fine and stays.
+- `audit.write-path-is-thread-safe` — **[PARTIAL]** (#2508) every write should serialize
+  through one locked connection, not race across a mixed direct/DBWriter model. Verified at
+  HEAD, from the issue's own most recent finding (2026-07-30): Phases 0–4 of the fix are
+  REACHABLE on `origin/integration` — one shared `Database` connection with a lock per package,
+  locked `execute` helpers, direct-SQL stores sealed onto that seam, and a permanent guardrail
+  (`test_single_connection_guardrail.py`) that fails on a bare connection-attribute `execute`
+  outside the locked seam. **Not fixed, and structurally excluded from the guardrail's own
+  scope, not merely unverified**: `file_watcher.py`, `scheduler.py`, `activity_store`, and
+  `tasks` still open a fresh per-operation `duckdb.connect` each time — the guardrail's own
+  docstring says this shape "is NOT matched — that is a connection-per-op handle, not a shared
+  connection touched past the seam," meaning these four sites can race with the locked seam's
+  writers and the guardrail would never catch it. Whether a per-operation connection is
+  actually safe here or is the same systemic race the issue names is the issue's own unresolved
+  question, not decided here. Pinned (the built four-fifths):
+  `test_single_connection_guardrail.py::test_db_manager_pool_not_keyed_by_thread_ident`,
+  `::test_get_database_is_one_shared_instance_across_threads`,
+  `::test_no_raw_conn_attr_execute_outside_seam`.
 
 ## Test matrix
 

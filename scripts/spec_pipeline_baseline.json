@@ -22,11 +22,6 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "Engine - AI"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "Engine - Curation"
   },
   {
