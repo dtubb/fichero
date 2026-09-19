@@ -256,6 +256,84 @@ struct ContentView: View {
         if entityChanged { return false }
         return newClaimId != revealingClaimId
     }
+
+    /// #4882 (spec: workflows.selection.library-row-opens-editor): whether
+    /// `activeWorkflowItem` changing from `old` to `new` should autosave
+    /// `old`'s edited content — the SAME decision whichever route moved the
+    /// selection away (a different Library row, nothing selected, or the
+    /// sidebar's mode changing). Replaces the old `viewMode`-only
+    /// `shouldAutoSaveWorkflow` local closure (`ContentView+StatePreview
+    /// .swift`), which never fired for a Library-driven active workflow at
+    /// all — the bug that made the first delivery of this fix lose edits.
+    ///
+    /// Rule: nothing to save if nothing was active (`old == nil`); nothing
+    /// to save if the active item hasn't actually changed (`old.id ==
+    /// new?.id` — e.g. a sidebar rename refresh); nothing to save unless the
+    /// EDITOR ACTUALLY HOLDS `old`'s content (`editingWorkflowId ==
+    /// old.id`) — HOLE 2, 2026-09-19: `autoSaveWorkflow`'s real save target
+    /// is `editingWorkflow.id` (`Workflow.toAPIFormat().id`, read by
+    /// `WorkflowStore.updateWorkflow`/`WorkflowService.updateWorkflow(_:workflow:)`
+    /// — confirmed by reading both), NOT the `workflowId` parameter passed
+    /// in for logging/canonical-lookup only. If `old`'s own load never
+    /// completed (slow network, stale-discarded, in flight) `editingWorkflow`
+    /// still holds a DIFFERENT workflow's content, and `isDirty` can be
+    /// `true` on a `nil` baseline for a workflow the user never touched —
+    /// without this guard, that content would silently save under whatever
+    /// id it actually carries, not under `old`. NEVER save without a
+    /// baseline (`hasBaseline`) — HOLE 3, 2026-09-19: `lastSyncedWorkflow ==
+    /// nil` means `old` was never successfully loaded, so there is nothing
+    /// of the user's to save; the id-match guard alone does not catch a
+    /// FAILED load specifically, because the failure path's placeholder
+    /// (`Workflow(id: item.id, name: item.name, description: ...)`, empty
+    /// nodes/edges) keeps `old`'s own id — without this rule that near-empty
+    /// placeholder could silently overwrite real content already on the
+    /// server. Otherwise save ONLY if there are unsaved edits (`isDirty`) —
+    /// reusing the existing baseline dirty-tracking (`lastSyncedWorkflow`,
+    /// see `MainContentModifiers`), not re-saving unchanged content on every
+    /// selection move.
+    static func shouldAutoSaveWorkflow(
+        old: WorkflowSidebarItem?,
+        new: WorkflowSidebarItem?,
+        isDirty: Bool,
+        editingWorkflowId: String,
+        hasBaseline: Bool
+    ) -> Bool {
+        guard let old else { return false }
+        guard old.id != new?.id else { return false }
+        guard editingWorkflowId == old.id else { return false }
+        guard hasBaseline else { return false }
+        return isDirty
+    }
+
+    /// #4882 HOLE 1, 2026-09-19: `WorkflowSidebarItem`'s synthesized
+    /// `Equatable` covers ALL 15 stored fields (name, description,
+    /// nodeCount, edgeCount, isEnabled, folderPath, sortOrder, isSystem,
+    /// isUntested, isDirectlyRunnable, acceptsModelOverride, acceptedInputs,
+    /// createdAt, updatedAt, requiresVision — besides `id`), so
+    /// `activeWorkflowItem` can change on a SAME-id rename/nodeCount bump/
+    /// `updatedAt` refresh from `workflowStore.workflows` — the Library
+    /// path derives its item from that live list, so any store refresh can
+    /// fire `.onChange(of: activeWorkflowItem)` with the SAME workflow.
+    /// Reloading on every such change would overwrite unsaved local edits
+    /// with the server's last-saved content — this decides which reaction
+    /// fits: a genuine id change loads; a same-id field change only aligns
+    /// the editor's display metadata (name/description — `resyncActive
+    /// WorkflowGraph`, gated on `workflowStore.changeToken` and
+    /// `WorkflowSync.decide`'s baseline check, already owns reconciling the
+    /// GRAPH itself and already refuses to clobber unsaved edits); no
+    /// change does nothing.
+    enum WorkflowChangeAction: Equatable {
+        case load
+        case alignMetadataOnly
+        case none
+    }
+
+    static func workflowChangeAction(oldId: String?, newId: String?) -> WorkflowChangeAction {
+        guard let newId else { return .none }
+        if oldId == newId { return .alignMetadataOnly }
+        return .load
+    }
+
     // Per-window instances (NOT `.shared`) so a search / source reveal in one
     // window never drives another (#3437). Injected into the subtree below.
     @State var entitySearchState = EntitySearchState()
@@ -378,6 +456,17 @@ struct ContentView: View {
     // Workflow state
     @State var editingWorkflow: Workflow = Workflow(name: "New Workflow", description: "")
     @State var workflowReloadTask: Task<Void, Never>?
+    /// Last workflow definition this window loaded or the server confirmed —
+    /// the baseline that lets cross-window re-sync tell "no unsaved edits"
+    /// from "local edits pending" (#2278 / `WorkflowSync`), and — #4882 HOLE
+    /// 3 — that lets autosave refuse to save a workflow that was never
+    /// successfully loaded. Moved UP from `MainContentModifiers`'s own
+    /// `@State` (2026-09-19): `handleWillTerminate` (this file) and
+    /// `handleActiveWorkflowChange` (`MainContentModifiers`) both need to
+    /// read it for the SAME "has a baseline" rule, so ContentView is now the
+    /// one owner and `MainContentModifiers` holds a `@Binding` to it — the
+    /// same shape `editingWorkflow` already uses.
+    @State var lastSyncedWorkflow: Workflow?
 
     // Chat state (shared between ChatView and ChatInspectorView)
     @State var chatSelectedDocuments: Set<String> = []

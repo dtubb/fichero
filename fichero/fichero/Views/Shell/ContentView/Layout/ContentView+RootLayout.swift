@@ -552,6 +552,13 @@ extension ContentView {
                     isImporting: $isImporting,
                     importProgress: $importProgress,
                     importError: $importError,
+                    activeWorkflowItem: activeWorkflowItem,
+                    onAutoSaveWorkflow: { workflowId, workflow in
+                        Task { @MainActor in
+                            await autoSaveWorkflow(workflowId: workflowId, workflow: workflow)
+                        }
+                    },
+                    lastSyncedWorkflow: $lastSyncedWorkflow,
                     handleDocumentChange: handleDocumentChange,
                     isSidebarMultiSelect: { sidebarSelectionState.selectedDestinations.count > 1 }
                 )

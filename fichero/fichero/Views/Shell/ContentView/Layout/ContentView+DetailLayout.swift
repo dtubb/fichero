@@ -101,7 +101,15 @@ extension ContentView {
         // one (`PaneSurface.allowsSplit`), this is the belt-and-suspenders
         // render-time guarantee for however else a duplicate Preview leaf
         // might exist (a saved multi-pane workspace, for instance).
-        } else if case .workflow(let selectedWorkflow) = viewMode, let selectedWorkflow {
+        // #4882 (spec: workflows.selection.library-row-opens-editor):
+        // `activeWorkflowItem` is the ONE "is a workflow active, and which"
+        // answer — the sidebar's own `viewMode == .workflow(_)` (unchanged,
+        // still wins) OR a Library row whose SINGLE selection is a workflow
+        // mirror, with `viewMode` staying `.library`. Every site that used
+        // to ask "is viewMode == .workflow?" now asks this instead — see
+        // `ShellPrimarySelection.swift`'s `workflowCanvasSelection` for the
+        // full rationale.
+        } else if let selectedWorkflow = activeWorkflowItem {
             if isSecondarySplitPane {
                 PaneEmptyStateView(
                     reason: "\"\(selectedWorkflow.name)\" is already open in the other pane."
@@ -317,6 +325,34 @@ extension ContentView {
         sourceRevealDocument ?? detailDocument
     }
 
+    /// The single selected document, for `workflowCanvasSelection` (#4882) —
+    /// `nil` for anything other than EXACTLY one selected id, so a
+    /// multi-selection never resolves to "this one workflow." Uses the SAME
+    /// `shellPrimarySelectionId(in:orderedBy:)` tier `documentForCanvas`
+    /// already reads for its own "selected" tier — no second, divergent
+    /// selection-resolution path.
+    var singleSelectedWorkflowRowDocument: Document? {
+        guard browserSelection.count == 1,
+              let id = shellPrimarySelectionId(in: browserSelection, orderedBy: selectedDocuments)
+        else { return nil }
+        return selectedDocuments.first(where: { $0.id == id })
+    }
+
+    /// #4882 (spec: workflows.selection.library-row-opens-editor): THE ONE
+    /// "is a workflow active, and which" answer. Every mode-gated
+    /// `case .workflow = viewMode` site that decides load/autosave/canvas
+    /// split/Inspector/quit-save now asks THIS instead (see the site-by-site
+    /// audit in the delivery report) — so the sidebar's `viewMode ==
+    /// .workflow(_)` path and a Library row's single workflow-mirror
+    /// selection share one load, one autosave and one Inspector, never two.
+    var activeWorkflowItem: WorkflowSidebarItem? {
+        workflowCanvasSelection(
+            viewMode: viewMode,
+            singleSelectedDocument: singleSelectedWorkflowRowDocument,
+            workflows: workflowStore.workflows
+        )
+    }
+
     @ViewBuilder
     private func widescreenReadingPaneBody(readingSplitKey: String) -> some View {
         // Compute the page count ONCE (#3866): reading `pdfDocPages` twice here
@@ -373,7 +409,9 @@ extension ContentView {
                 // as this file's other two `PaneContentPlan.plan(for:)`
                 // call sites (the preview/inspector empty-reason reads
                 // below).
-                readerCell: PaneContentPlan.plan(for: viewMode).reader,
+                readerCell: PaneContentPlan.plan(
+                    for: viewMode, workflowNodeSelected: activeWorkflowItem != nil
+                ).reader,
                 // #4705 "4b-2" (#4741): WHICH schedule/trigger/run, computed
                 // from the SAME `viewMode` as `readerCell` above so the two
                 // can never disagree — and the kind-specific "nothing
@@ -486,7 +524,9 @@ extension ContentView {
             // #4525 step), a `.content` cell here falls back to naming where
             // the surface currently lives rather than showing a blank.
             PaneEmptyStateView(
-                reason: PaneContentPlan.plan(for: viewMode).preview.emptyReason
+                reason: PaneContentPlan.plan(
+                    for: viewMode, workflowNodeSelected: activeWorkflowItem != nil
+                ).preview.emptyReason
                     ?? "This view is shown in the main area."
             )
         }
@@ -513,6 +553,12 @@ extension ContentView {
                         "Select a single item to inspect it. Multi-item editing is coming."
                     )
                 )
+            } else if activeWorkflowItem != nil {
+                // #4882: a Library row's workflow-node selection gets the
+                // SAME Inspector the sidebar's `.workflow` mode gets below —
+                // "inspector tabs only for the selected kind" ruling. ONE
+                // construction (`workflowInspectorView`), two call sites.
+                workflowInspectorView
             } else {
             DocumentInspector(
                 document: inspectorDocument,
@@ -552,12 +598,7 @@ extension ContentView {
             )
 
         case .workflow:
-            WorkflowInspector(
-                workflow: $editingWorkflow,
-                onAddNode: { tool, position in
-                    addNodeFromTool(tool, at: position)
-                }
-            )
+            workflowInspectorView
 
         case .chain, .batches, .automation, .schedule, .trigger, .activity:
             // #4525: the honest per-mode empty from the ONE decided matrix,
@@ -565,11 +606,27 @@ extension ContentView {
             // the chain's WorkflowInspector bound to whatever workflow was
             // last edited (a stale surface — the pane-audit's 💀 cell).
             PaneEmptyStateView(
-                reason: PaneContentPlan.plan(for: viewMode).inspector.emptyReason
+                reason: PaneContentPlan.plan(
+                    for: viewMode, workflowNodeSelected: activeWorkflowItem != nil
+                ).inspector.emptyReason
                     ?? "Select an item to inspect.",
                 systemImage: "info.circle"
             )
         }
+    }
+
+    /// #4882: the ONE `WorkflowInspector` construction — the sidebar's
+    /// `.workflow` mode and a Library row's `activeWorkflowItem` selection
+    /// both call this, never a second copy. `$editingWorkflow` is the SAME
+    /// binding the Preview canvas edits; both read/write one workflow.
+    @ViewBuilder
+    private var workflowInspectorView: some View {
+        WorkflowInspector(
+            workflow: $editingWorkflow,
+            onAddNode: { tool, position in
+                addNodeFromTool(tool, at: position)
+            }
+        )
     }
 
     // MARK: - Detail View (Right Column)

@@ -264,35 +264,19 @@ extension ContentView {
     }
 
     /// Handles `.onChange(of: viewMode)`.
-    /// Auto-saves workflow on transition, persists view mode, records navigation entry.
+    /// Persists view mode, records navigation entry.
+    ///
+    /// #4882: workflow autosave-on-leave moved OFF this `viewMode`-only
+    /// trigger to `.onChange(of: activeWorkflowItem)`
+    /// (`ContentViewModifiers.swift` / `handleActiveWorkflowChange`) — the
+    /// old inline `shouldAutoSaveWorkflow` closure here never fired for a
+    /// Library-driven active workflow (`viewMode` stays `.library` by
+    /// design), which is how the first delivery of the Library-selection
+    /// fix could lose edits. `ContentView.shouldAutoSaveWorkflow` is now the
+    /// one pure decision, reused by both the load/save trigger and its own
+    /// tests.
     func handleViewModeChange(old oldMode: AppViewMode, new newMode: AppViewMode) {
         guard !isRestoringNavigationHistory else { return }
-        // Auto-save only when leaving the currently edited workflow.
-        // Skip workflow->same-workflow transitions (e.g., sidebar rename refresh),
-        // which can otherwise overwrite a fresh rename with stale editor state.
-        let shouldAutoSaveWorkflow: Bool = {
-            guard case .workflow(let oldWorkflow) = oldMode, let oldWorkflow else {
-                return false
-            }
-
-            switch newMode {
-            case .workflow(let newWorkflow):
-                guard let newWorkflow else {
-                    return false
-                }
-                return newWorkflow.id != oldWorkflow.id
-            default:
-                return true
-            }
-        }()
-
-        if shouldAutoSaveWorkflow, case .workflow(let oldWorkflow) = oldMode, let workflow = oldWorkflow {
-            // Capture the editing workflow content before it changes
-            let workflowToSave = editingWorkflow
-            Task { @MainActor in
-                await autoSaveWorkflow(workflowId: workflow.id, workflow: workflowToSave)
-            }
-        }
 
         // Persist view mode to @SceneStorage
         let (type, id) = Self.serializeViewMode(newMode)

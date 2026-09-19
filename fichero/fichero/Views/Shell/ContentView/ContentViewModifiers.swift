@@ -168,12 +168,32 @@ struct MainContentModifiers: ViewModifier {
     @Binding var importProgress: String?
     @Binding var importError: String?
 
+    /// #4882 (spec: workflows.selection.library-row-opens-editor): THE ONE
+    /// "is a workflow active, and which" answer, computed by `ContentView`
+    /// (`ContentView+DetailLayout.swift`'s `activeWorkflowItem`) and passed
+    /// in like `handleDocumentChange`/`isSidebarMultiSelect` below — the
+    /// sidebar's `viewMode == .workflow(_)` and a Library row's single
+    /// workflow-mirror selection both resolve to this one value.
+    let activeWorkflowItem: WorkflowSidebarItem?
+    /// Delegates the actual save UP to `ContentView.autoSaveWorkflow` (a
+    /// ContentView method this modifier struct does not own) — same
+    /// closure-passing shape as `handleDocumentChange` below.
+    let onAutoSaveWorkflow: (String, Workflow) -> Void
+
     /// Last workflow definition this window loaded or the server confirmed — the
     /// baseline that lets cross-window re-sync tell "no unsaved edits" (safe to
     /// overwrite) from "local edits pending" (must not clobber). See #2278 /
-    /// `WorkflowSync`. Internal, not private: the view-mode routing extension
-    /// (MainContentModifiers+ViewMode.swift) reads/writes it.
-    @State var lastSyncedWorkflow: Workflow?
+    /// `WorkflowSync`. #4882 HOLE 3 (2026-09-19): moved from this struct's
+    /// own `@State` to a `@Binding` onto `ContentView.lastSyncedWorkflow` —
+    /// `ContentView.handleWillTerminate` needs to read the SAME value for
+    /// the same "never autosave without a baseline" rule this struct's
+    /// `handleActiveWorkflowChange` enforces.
+    @Binding var lastSyncedWorkflow: Workflow?
+    /// The id most recently passed to `loadEditingWorkflow(for:)` (#4882) —
+    /// a slow `getWorkflow` for a superseded id must not overwrite
+    /// `editingWorkflow` after the user has moved to a different workflow;
+    /// see `MainContentModifiers+ViewMode.swift`.
+    @State var loadingWorkflowId: String?
     /// Coalesces the active workflow's graph re-fetch on change-stream bursts
     /// (#2278), independent of the sidebar-list reload task in ContentView.
     @State private var workflowGraphResyncTask: Task<Void, Never>?
@@ -226,6 +246,13 @@ struct MainContentModifiers: ViewModifier {
             .onChange(of: workflowStore.changeToken) { _, _ in
                 resyncActiveWorkflowGraph()
             }
+            // #4882: THE ONE trigger for both load and autosave, whichever
+            // axis (sidebar mode or a Library row) chose the active
+            // workflow — see `handleActiveWorkflowChange` in
+            // `MainContentModifiers+ViewMode.swift`.
+            .onChange(of: activeWorkflowItem) { old, new in
+                handleActiveWorkflowChange(old: old, new: new)
+            }
     }
 
     /// Re-fetch the currently-edited workflow after a change-stream event and
@@ -233,8 +260,10 @@ struct MainContentModifiers: ViewModifier {
     /// `workflowGraphResyncTask` so a burst of `workflow.*` events triggers one
     /// fetch.
     private func resyncActiveWorkflowGraph() {
-        guard case .workflow(let item) = viewMode, let item,
-              editingWorkflow.id == item.id else { return }
+        // #4882: reads `activeWorkflowItem`, not `viewMode` — a Library-
+        // driven active workflow must resync on a `workflow.*` event exactly
+        // like a sidebar-driven one.
+        guard let item = activeWorkflowItem, editingWorkflow.id == item.id else { return }
         workflowGraphResyncTask?.cancel()
         workflowGraphResyncTask = Task { @MainActor in
             // Short debounce coalesces an event storm into a single re-fetch.
@@ -283,19 +312,26 @@ struct MainContentModifiers: ViewModifier {
     // registration; this struct no longer observes browserSelection at all.
 
     private func syncActiveWorkflowMetadata(with updatedWorkflows: [WorkflowSidebarItem]) {
-        guard case .workflow(let selectedWorkflow) = viewMode,
-              let selectedWorkflow,
-              let canonical = updatedWorkflows.first(where: { $0.id == selectedWorkflow.id }) else {
-            return
-        }
-
-        if selectedWorkflow != canonical {
+        // #4882: the sidebar's OWN case stays in sync when ITS workflow
+        // renames — meaningful, and safe, ONLY while `viewMode` already IS
+        // `.workflow(_)`. Never write `viewMode` for a Library-driven active
+        // workflow — that would BE the mode flip #4882 exists to avoid.
+        if case .workflow(let selectedWorkflow) = viewMode,
+           let selectedWorkflow,
+           let canonical = updatedWorkflows.first(where: { $0.id == selectedWorkflow.id }),
+           selectedWorkflow != canonical {
             viewMode = .workflow(canonical)
         }
 
-        if editingWorkflow.id == canonical.id {
-            editingWorkflow.name = canonical.name
-            editingWorkflow.description = canonical.description ?? ""
+        // The editor's name/description track whichever workflow is
+        // ACTIVE, however it was chosen (#4882) — `activeWorkflowItem`, not
+        // `viewMode`.
+        guard let item = activeWorkflowItem,
+              let canonical = updatedWorkflows.first(where: { $0.id == item.id }),
+              editingWorkflow.id == canonical.id else {
+            return
         }
+        editingWorkflow.name = canonical.name
+        editingWorkflow.description = canonical.description ?? ""
     }
 }

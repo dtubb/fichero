@@ -162,9 +162,12 @@ extension ContentView {
     /// #4705 increment 2: routes through `PaneSurface.allowsSplit`, the ONE
     /// pure split policy — `.workflow` is the only mode today whose Preview
     /// rendition (`.workflowCanvas`) refuses a split (two `WorkflowEditor`s
-    /// on one `editingWorkflow` would race their autosave tasks).
+    /// on one `editingWorkflow` would race their autosave tasks). #4882:
+    /// reads `activeWorkflowItem`, not `viewMode` — a Library-driven active
+    /// workflow mounts the SAME `WorkflowEditor` on the SAME
+    /// `editingWorkflow` binding, so it needs the SAME split refusal.
     private var previewPaneCanSplit: Bool {
-        if case .workflow = viewMode {
+        if activeWorkflowItem != nil {
             return PaneSurface.workflowCanvas.allowsSplit
         }
         return true

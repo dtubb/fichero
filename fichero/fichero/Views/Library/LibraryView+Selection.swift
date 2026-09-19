@@ -350,20 +350,19 @@ extension LibraryView {
         // Opening is a plain selection of one row — cursor included, so the
         // arrows resume from what you just opened rather than from wherever
         // the previous anchor was (#4377).
+        // #4882: a workflow mirror's special case is GONE — `apply(...)`
+        // above already makes this row the single selection, and
+        // `ContentView.activeWorkflowItem` (`workflowCanvasSelection`)
+        // picks up a single-selected workflow row directly, showing its
+        // canvas/run log/Inspector in place with no mode flip. Double-click
+        // used to flip `viewMode` into `.workflow(_)` via a
+        // `.sidebarRevealDocument` post — a SECOND way to open a workflow,
+        // now removed: double-click converges on the same result single-
+        // click already gives (traced: `doc.isNavigableContainer` is false
+        // for a workflow mirror — `docType: .file`, no `fileType` — so the
+        // ordinary path below takes its `else`, `detailDocument = doc`,
+        // which is inert here since `activeWorkflowItem` resolves first).
         apply(SelectionGrammar.select(doc.id))
-        if doc.isWorkflowNode {
-            // A workflow mirror opens its EDITOR (Daniel, 2026-08-29: "if you
-            // go to select a workflow from library it should take you to the
-            // workflow editor, rather than ... it just shows nothing"). The
-            // sidebar already routes exactly this through its reveal seam —
-            // ride it rather than duplicating the workflow-store lookup here.
-            NotificationCenter.default.post(
-                name: .sidebarRevealDocument,
-                object: nil,
-                userInfo: ["documentId": doc.id]
-            )
-            return
-        }
         if canNavigateInto(doc) {
             onNavigateInto(doc)
         } else {

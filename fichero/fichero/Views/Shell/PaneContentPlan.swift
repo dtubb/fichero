@@ -146,11 +146,21 @@ enum PaneContentPlan {
     ///   - mode: the selection's view mode (the ONE axis, per the V7 fix —
     ///     every sidebar selection sets it).
     ///   - entitySelection: the library's entities browser is selected.
+    ///   - workflowNodeSelected: a Library row's SINGLE selection is a
+    ///     workflow mirror document, computed the SAME way at every real
+    ///     call site as `ContentView.activeWorkflowItem != nil` (#4882, spec
+    ///     workflows.selection.library-row-opens-editor) — so Preview
+    ///     (which reads `activeWorkflowItem` directly, not this cell) and
+    ///     Reader/Inspector (which read THIS cell) can never disagree about
+    ///     which surface a workflow-node selection gets. `mode ==
+    ///     .workflow(_)` already takes the `.workflow` row below regardless
+    ///     of this flag — it only matters while `mode == .library`.
     ///   - hasLibrary: false when the window has no library at all (#4518);
     ///     wins over every node-type cell.
     static func plan(
         for mode: AppViewMode,
         entitySelection: Bool = false,
+        workflowNodeSelected: Bool = false,
         hasLibrary: Bool = true
     ) -> Plan {
         guard hasLibrary else {
@@ -173,6 +183,22 @@ enum PaneContentPlan {
                 // `docs/contributor_manual/specs/ui/kg-entity-inspector.md`
                 // lands a real one.
                 inspector: .surface(.documentInspector)
+            )
+        }
+        // #4882: a Library row's workflow-node selection gets the SAME three
+        // cells the sidebar's `.workflow` mode gets (below, `stablePanePlan`)
+        // — canvas in Preview, run log in Reader, `WorkflowInspector` in the
+        // Inspector ("inspector tabs only for the selected kind" ruling) —
+        // WITHOUT flipping `mode` itself. `mode == .workflow(_)` already
+        // reaches the same three cells via `stablePanePlan` below, so this
+        // guard only fires for the NEW case: `.library` with a workflow row
+        // selected.
+        if workflowNodeSelected, case .library = mode {
+            return Plan(
+                library: .surface(.libraryBrowser),
+                preview: .surface(.workflowCanvas),
+                reader: .surface(.workflowRecipe),
+                inspector: .surface(.workflowInspector)
             )
         }
         return mode.stablePanePlan

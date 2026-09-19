@@ -433,11 +433,38 @@ extension ContentView {
     /// Handles `.onReceive` of `NSApplication.willTerminateNotification`.
     /// Auto-saves the editing workflow when the app quits.
     func handleWillTerminate() {
-        // Auto-save workflow when app quits
-        if case .workflow(let workflow) = viewMode, let workflowItem = workflow {
+        // Auto-save workflow when app quits (#4882: `activeWorkflowItem`,
+        // not `viewMode` — a Library-driven active workflow must save on
+        // quit exactly like a sidebar-driven one). HOLE 2 (2026-09-19): the
+        // SAME id-mismatch guard `shouldAutoSaveWorkflow` applies elsewhere —
+        // `autoSaveWorkflow`'s real save target is `editingWorkflow.id`
+        // (`Workflow.toAPIFormat().id`), not `item.id`; if `item`'s own load
+        // never completed, `editingWorkflow` holds a DIFFERENT workflow's
+        // content and saving it under the belief it's `item`'s would
+        // silently write to whatever id it actually carries.
+        if let item = activeWorkflowItem {
+            guard editingWorkflow.id == item.id else {
+                stateEventsLogger.error(
+                    "Refusing quit-time autosave: editor holds workflow \(self.editingWorkflow.id), not the active \(item.id)"
+                )
+                return
+            }
+            // HOLE 3 (2026-09-19): never autosave without a baseline —
+            // `lastSyncedWorkflow == nil` means `item` was never
+            // successfully loaded, so there is nothing of the user's to
+            // save. Loud when the editor holds a non-empty graph anyway:
+            // that would be real work about to be silently dropped.
+            guard lastSyncedWorkflow != nil else {
+                if !editingWorkflow.nodes.isEmpty || !editingWorkflow.edges.isEmpty {
+                    stateEventsLogger.error(
+                        "Refusing quit-time autosave for \(item.id): no baseline (never successfully loaded), but the editor holds a non-empty graph (\(self.editingWorkflow.nodes.count) nodes) — POSSIBLE UNSAVED WORK IS BEING DROPPED"
+                    )
+                }
+                return
+            }
             let workflowToSave = editingWorkflow
             Task { @MainActor in
-                await autoSaveWorkflow(workflowId: workflowItem.id, workflow: workflowToSave)
+                await autoSaveWorkflow(workflowId: item.id, workflow: workflowToSave)
             }
         }
     }
