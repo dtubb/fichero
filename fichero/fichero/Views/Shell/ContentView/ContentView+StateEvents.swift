@@ -536,8 +536,15 @@ extension ContentView {
             )
             if isKnowledgeSurface {
                 revealingClaimId = claimId
+                // Preserve whatever entity is currently focused (#4834): the
+                // default `entityId: nil` on `focusClaim` is a trap — omitting
+                // it here CLEARS `kgFocusState.focusedEntityId`, which flips
+                // `DocumentInspector.inspectorArm` away from `.entity` and
+                // tears the biography down mid-click (maintainer test,
+                // 2026-09-19, finding A1).
                 kgFocusState.focusClaim(
                     claimId: claimId,
+                    entityId: kgFocusState.focusedEntityId,
                     sourceDocumentId: docId,
                     sourcePageLabel: request.pageLabel
                 )

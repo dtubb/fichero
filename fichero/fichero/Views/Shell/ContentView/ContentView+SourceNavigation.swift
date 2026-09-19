@@ -132,22 +132,38 @@ extension ContentView {
     /// (no regression).
     @MainActor
     func revealResolvedSource(_ request: ClaimSourceNavigationRequest) async {
+        // Diagnosis we keep, not debug noise (#4834): the maintainer's test
+        // showed a reveal that fired with no visible effect and no way to
+        // tell, from a log, whether the resolve succeeded and
+        // `sourceRevealDocument` was actually set. Every exit of this
+        // function logs the claim id, the resolved document id (if any),
+        // and whether `sourceRevealDocument` ended up set.
+        let claimId = request.claimId ?? "<none>"
         do {
             let resolved = try await documentStore.locationService.resolve(request.asLocation)
             let target = try await documentStore.documentService.getDocument(resolved.resolvedDocumentId)
             if request.destination == .reader {
                 await navigateToResolvedSource(target)
+                workflowLogger.info(
+                    "revealResolvedSource: claim \(claimId) resolved to document \(target.id) — navigated (reader destination), sourceRevealDocument not used"
+                )
             } else {
                 sourceRevealDocument = target
+                workflowLogger.info(
+                    "revealResolvedSource: claim \(claimId) resolved to document \(target.id) — sourceRevealDocument set"
+                )
             }
         } catch {
             workflowLogger.warning(
-                "revealResolvedSource: engine resolve failed (\(error.localizedDescription)); falling back to client-side navigation"
+                "revealResolvedSource: claim \(claimId) engine resolve failed (\(error.localizedDescription)); falling back to client-side navigation"
             )
             if request.destination == .reader {
                 await navigateToSourcePage(request.documentId)
             } else {
                 await focusKGSourcePreview(request.documentId)
+                workflowLogger.info(
+                    "revealResolvedSource: claim \(claimId) client-side fallback — sourceRevealDocument is now \(self.sourceRevealDocument?.id ?? "nil")"
+                )
             }
         }
     }
