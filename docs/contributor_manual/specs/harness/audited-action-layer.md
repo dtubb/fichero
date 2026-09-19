@@ -111,6 +111,24 @@ parallel pattern to keep.
   name+params — no per-action redo code exists or is needed. Pinned:
   `test_action_registry.py::TestEntityMergeAction::test_undo_reverses_merge`,
   `::test_unmerge_undo_remerges_same_entities`.
+- `audit.one-operation-has-one-undo` — **[BROKEN]** (#4864) one operation has ONE undo, and
+  every undo of it gives the SAME result. Today an entity delete writes two trails.
+  `delete_entity_impl` is reached through the registered, undoable `entity.delete` action,
+  whose inverse `entity.restore` brings back the entity AND its claims' snapshot; the same
+  function also writes a plain `MutationLog` row on every call, which feeds the older `POST
+  /api/kg/mutations/{id}/undo` (`mutations.py::undo_mutation`, one of the nine routes still
+  outside the registry, see `audit.every-mutating-route-uses-the-registry`). That older undo
+  restores ONLY the entity row: the claims keep their cleared entity links and stripped
+  `entity_ids`, which is exactly the drift the merge and delete link-integrity fixes removed from the
+  forward path (kg-tables, `kg.merge.repoints-subject` and its delete sibling).
+  Expected, in two steps. First, the narrowing, which needs no design decision: the older
+  undo never performs a PARTIAL restore. For a mutation whose operation the action layer owns
+  and can invert, it refuses with an error that names the action-layer undo, rather than
+  restoring half the state; a refusal is loud and loses nothing, a partial restore is silent
+  and corrupts curated links. Every other `MutationLog` writer is audited for the same
+  duplication before the narrowing is called complete. Second, open (see Open questions):
+  whether the older route then retires, or becomes a thin caller of the registry's undo, and
+  when the second trail stops being written.
 - `audit.action-record-not-best-effort` — **[PARTIAL]** (#4845) the `ActionAudit` write happens
   inside the same transaction as the mutation and is NOT best-effort — if the audit write
   fails, the whole action fails (`registry.py:220-233`). The change-stream broadcast that
@@ -273,6 +291,10 @@ guardrail) once its violation count starts shrinking rather than only being trac
 3. `EntityMergeAudit`'s two self-referencing `reversal_id = audit.id` writes (noted on #4831 as
    "meaning unknown; parity kept") — worth understanding before extending that table's pattern
    to more operations, or safe to leave as an established quirk? Not investigated in this pass.
+- For the maintainer: once the older mutation undo refuses operations the action layer owns
+  (`audit.one-operation-has-one-undo`, #4864), does that route RETIRE in favour of the
+  registry's undo, or stay as a thin caller of it? And when does `MutationLog` stop being
+  written for operations that already have an action audit?
 
 ## Sources folded in
 
