@@ -424,7 +424,6 @@ class TestNoSilentLanguageFallback:
         normal case. Spanish, installed, no NER/SVO stubs -- the real
         `spacy_ner.extract_entities`/`spacy_svo.propose_triples` run,
         against a fake `es` spaCy pipeline standing in for the real model."""
-        import types
 
         installed, loaded = fake_spacy
         installed.add("es_core_news_sm")

@@ -10,8 +10,10 @@ api/change_stream.py::_ChangeHub.emit 1
 api/change_stream.py::emit_change 1
 api/change_stream.py::emit_change_all_libraries 1
 api/main.py::_collapse_duplicate_providers 1
+api/main.py::_dependency_versions 2
 api/main.py::_prewarm_embeddings 2
 api/main.py::_seed_builtin_providers 2
+api/main.py::_static_dependency_versions 1
 api/main.py::lifespan._prewarm_embeddings_after_ready 1
 api/main.py::lifespan._start_bonjour 1
 api/main.py::lifespan._warm_workflow_stack 1
@@ -130,6 +132,7 @@ knowledge/graph_reasoning.py::NetworkXReasoner.get_graph_metrics 1
 knowledge/rebuild.py::rebuild_kg 3
 knowledge/triangulation.py::compute_support_counts 1
 llm/__init__.py::_log_provider_quota_hit 1
+llm/language_coverage.py::_ensure_derived_coverage 1
 llm/__init__.py::_model_has_capability 1
 llm/local_inference.py::ManagedLocalInferenceProcess._environment 1
 llm/mlx_model_store.py::MLXModelStore.cancel 1
@@ -195,6 +198,7 @@ workflows/tools/extract_all.py::_records_from_selected_documents.add_doc 1
 workflows/tools/extract_all.py::_run_two_stage 2
 workflows/tools/extract_all.py::extract_all 2
 workflows/tools/extractors.py::_run_extractor 3
+workflows/tools/geo_extract.py::_claim_scope 1
 workflows/tools/kg_persist_finalize.py::kg_persist_finalize 1
 workflows/tools/llm_base.py::_save_artifact_sync 3
 workflows/tools/mcp.py::load_mcp_tools_into_registry 1

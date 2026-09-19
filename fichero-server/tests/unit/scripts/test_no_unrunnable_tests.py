@@ -26,7 +26,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
 
 TESTS_ROOT = Path(__file__).resolve().parents[2]
 CONTRACTS_DIR = TESTS_ROOT / "contracts"

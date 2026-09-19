@@ -12,7 +12,6 @@ cannot tell them apart. The per-file skip-if-done path already recorded
 
 from __future__ import annotations
 
-import pytest
 
 
 def _summarize(results, artifact_ids):

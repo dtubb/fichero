@@ -15,7 +15,6 @@ against this file's own assumptions about what those paths do.
 
 from __future__ import annotations
 
-import pytest
 
 # Importing the route module registers entity.purge_nlp_draft via @action.
 import fichero_server.api.routes.kg.nlp_draft_purge  # noqa: F401

@@ -26,11 +26,8 @@ from fichero_server.models import ActionAudit
 from fichero_server.models.hermeneutics import (
     CircleNavigationDirection,
     FrameworkType,
-    HermeneuticCircleState,
     Interpretation,
-    InterpretiveActType,
     InterpretiveFramework,
-    PatternInstance,
     PatternStatus,
 )
 from fichero_server.models.knowledge import KnowledgeClaim

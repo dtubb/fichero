@@ -22,7 +22,6 @@ from pydantic import BaseModel
 
 from fichero_server.llm import (
     AppleUnavailableError,
-    GuardrailViolationError,
     LLMConfig,
     StructuredDecodeError,
     UnsupportedLocaleError,

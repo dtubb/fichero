@@ -4,12 +4,11 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from fichero_server.llm import LLMConfig, resolve_model_alias_for_capability
+from fichero_server.llm import LLMConfig
 from fichero_server.llm.model_profiles import ModelProfile
 from fichero_server.workflows.types import NodeDef, WorkflowDef
 from fichero_server.workflows.validation import (
     validate_workflow_llm_preflight,
-    validate_workflow_preflight,
 )
 
 
@@ -291,8 +290,6 @@ def test_paleography_review_needs_a_generative_vision_model(monkeypatch):
     no on-device generative-vision model on macOS 26. So a plain apple-vision
     (OCR) default is NOT enough — preflight refuses clearly; only a
     generation-capable vision model (cloud, or opt-in MLX) satisfies it."""
-    import json
-    from pathlib import Path
 
     monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
 

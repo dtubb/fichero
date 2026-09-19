@@ -14,8 +14,6 @@ from __future__ import annotations
 
 import asyncio
 
-import pytest
-from fastapi import HTTPException
 
 import fichero_server.api.routes.claim.claims  # noqa: F401 -- registers claim.* actions
 import fichero_server.api.routes.document.annotations  # noqa: F401 -- registers annotation.* actions

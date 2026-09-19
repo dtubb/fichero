@@ -145,7 +145,6 @@ async def test_enrich_import_calls_registry_invoke_and_records_the_real_actor(tm
     would hide it. The ActionAudit it writes must name the REAL caller, never
     a hardcoded "human" (this route's `actor` param was already real before
     this conversion -- the registry wrap must not regress that)."""
-    from fichero_server.actions.registry import registry
     from fichero_server.models import ActionAudit
 
     db = Database(path=tmp_path / "lib" / "fichero.duckdb")

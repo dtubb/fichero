@@ -1568,9 +1568,12 @@ def _static_dependency_versions() -> dict[str, str]:
         try:
             versions[dist.lower()] = package_version(dist)
         except PackageNotFoundError:
-            continue
-        except Exception:
-            continue
+            # Legitimately not installed in this env -- the expected case
+            # `package_version` itself documents raising for. Debug, not a
+            # warning: this is not a problem, just an absent optional dep.
+            logger.debug("dependency %r not installed; omitting its version", dist)
+        except Exception as exc:  # noqa: BLE001 -- anything else IS unexpected
+            logger.warning("could not read version for %r: %s", dist, exc)
     return versions
 
 
@@ -1591,16 +1594,18 @@ def _dependency_versions() -> dict[str, str]:
             value = status.get(meta_key)
             if value:
                 deps[dist] = str(value)
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001 -- status() has no single documented
+        # failure mode (file I/O, missing runtime dir, etc.); the common case
+        # is simply "not provisioned", so debug rather than warn.
+        logger.debug("mlx runtime status unavailable: %s", exc)
     try:
         from fichero_server.llm.kraken_runtime import get_kraken_runtime
 
         kraken_version = get_kraken_runtime().status().get("kraken_version")
         if kraken_version:
             deps["kraken"] = str(kraken_version)
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001 -- same reasoning as the mlx branch above
+        logger.debug("kraken runtime status unavailable: %s", exc)
     return deps
 
 

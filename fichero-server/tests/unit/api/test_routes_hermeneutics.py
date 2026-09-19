@@ -232,7 +232,6 @@ from fichero_server.models.hermeneutics import (  # noqa: E402
     CircleNavigationDirection,
     HermeneuticCircleState,
     PatternInstance,
-    PatternStatus,
 )
 
 
