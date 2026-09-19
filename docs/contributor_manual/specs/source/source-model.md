@@ -15,7 +15,8 @@
 > · **[GAP]** intended, never built · **[BROKEN]** code contradicts the rule.
 >
 > The folder name `source/` and the name "source model" are PROVISIONAL (see Open questions).
-> Everything under "The design" is PROPOSED until the maintainer rules it.
+> Under "The design", what the maintainer has ruled is listed first ("Ruled"); the rest is
+> PROPOSED until ruled.
 
 ## Intent (the design)
 
@@ -120,7 +121,41 @@ These are the test of the design. If one of them needs a special case, the model
 Things a palaeographer records that sit **above** the page — the quire, the ruling pattern,
 the part of a codex made at one time — mean the ladder must reach above the page too.
 
-## The design (proposed)
+## The design
+
+### Ruled (maintainer, 2026-09-19)
+
+- **All of it, done properly, from the start.** The whole scholar's apparatus is in the model
+  from the beginning: hands, ink layers, certainty and damage, written-versus-read, named
+  reading orders, typed links, declared glyphs. Not a core now and the rest later.
+- **Engine and app together.** Everything the model can hold can be got into Fichero, seen in
+  Fichero, and edited in Fichero. A thing stored but not visible is not done.
+- **Fichero has its own model**, richer than any one standard. The standards are ways in and
+  out, not the model.
+- **Every format goes both ways.** The XML formats, the columnar format, Kraken's formats and
+  YOLO's are all import *and* export.
+- **Open to what we do not know yet.** An Indigenous script nobody has encoded, an ancient
+  language with no glyphs in any font, a practice no standard describes: the model must be
+  able to hold it and the app must be able to show it, without waiting for a new version of
+  Fichero.
+
+### Open to what we do not know yet
+
+How the last ruling is met:
+
+- **Every vocabulary is open.** Segment kinds, link types, reading kinds, directions, ink
+  layers, damage reasons: each ships with a standard default list and a library can add its
+  own terms. A term is data, not code.
+- **A sign is never required to be a character.** A declared glyph needs only a name and a
+  picture cut from a real page. A whole script can be built up this way, sign by sign, from
+  the sources themselves, and transcribed, searched, compared and exported.
+- **Nothing unrecognised is thrown away.** An import that meets something the model has no
+  field for keeps it, attached to the segment, labelled with where it came from, and writes it
+  back on export.
+- **What can be stored can be shown.** A reading made of declared glyphs shows their pictures
+  in line. A direction the Reader cannot lay out as text is shown on the image, in place.
+
+### The model (proposed until ruled)
 
 ### One ladder, every level a segment
 
@@ -231,11 +266,13 @@ previous in a reading order, across a link.
 
 ### Standards in and out, validated, honest about loss
 
-- **In and out:** PageXML, ALTO, TEI, MEI. Every export is **validated against the format's
-  schema**; one that does not validate is a failed export and says so.
-- **Out only:** SVG (the image with polygons and text laid over it, in the right direction,
-  with descriptions), searchable PDF (text in place, descriptions as alt text), YOLO-style
-  training labels.
+- **In and out** (ruled): PageXML, ALTO, TEI, MEI; the columnar format (Arrow / Parquet);
+  Kraken's training formats; YOLO-style labels. Every export is **validated against the
+  format's schema** where it has one; one that does not validate is a failed export and says
+  so.
+- **Out, as a page to look at:** SVG (the image with polygons and text laid over it, in the
+  right direction, with descriptions) and searchable PDF (text in place, descriptions as alt
+  text). A PDF is already something Fichero imports as a source.
 - **Every export reports what it could not carry** (for example: "PageXML: 2 reading orders
   reduced to 1; 14 hands dropped"). Nothing is lost silently.
 - **Every import arrives as a new layer with its own provenance.** It never overwrites what is
@@ -255,7 +292,9 @@ detector for that kind of page; the small models read the rest, locally.
 Two facts from the survey shape this. Kraken learns from **lines**, not from cut-out
 characters, so the unit of training is the corrected line. And a training set is a
 **projection**: it keeps shape, type and text, and drops hands, links, order and certainty. It
-is regenerated from the library whenever needed. It is never the record.
+is regenerated from the library whenever needed; it is never the record. A training set that
+is *imported* (someone else's corrected lines, a public dataset) comes in like any import: as
+a new layer with its own provenance.
 
 ## What exists today (read on disk, 2026-09-19; VERIFIED unless marked)
 
@@ -342,9 +381,8 @@ milestone exists.
 3. **Which reading counts.** When a segment has several readings, which one is the
    transcription: an explicit choice by a person, falling back to the newest human reading,
    then the newest machine reading? Or something else?
-4. **How much of the scholar's apparatus is in scope now.** Hands, ink layers, damage and
-   certainty, written-versus-read: are all of these in the model from the start (even if the
-   app shows them later), or added one at a time?
+4. *(Ruled 2026-09-19: all of the scholar's apparatus is in the model from the start. See
+   "Ruled".)* What remains open is the **order of building**: see the last question.
 5. **No-Unicode signs.** Is the declared glyph (a name, a picture, optional private-use code)
    the right answer for what a researcher "types" when there is no character to type?
 6. **The language authority.** BCP 47 tags backed by Glottolog are proposed. Is there a
