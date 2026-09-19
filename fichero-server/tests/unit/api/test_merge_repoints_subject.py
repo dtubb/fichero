@@ -183,6 +183,111 @@ class TestMergeRepointsSubjectViaEntityMergeAction:
         assert matching[0]["role"] == "subject"
 
 
+class TestMergeRepointsOtherScalarEntityFields:
+    """kg.merge.repoints-subject (#4859, second commit 74d539720): a merge
+    also repoints a claim's `speaker_entity_id`, `subject_of_inquiry_entity_id`,
+    `scribe_entity_id` and `editor_entity_id` -- not only `subject_entity_id`.
+
+    Gap found in a spec-led test audit (2026-09-19): `CLAIM_ENTITY_ID_FIELDS`
+    (`_entity_writer.py:1522`) has named all five fields since 74d539720, and
+    the commit message says so ("a merge moves a claim's speaker, subject of
+    inquiry, scribe and editor to the survivor too, and unmerge moves each
+    back"), but this file -- the spec's own cited test for this behaviour id
+    -- never exercised the four non-subject fields until now.
+    """
+
+    def _claim_with_all_roles(
+        self, db, absorbed: KnowledgeEntity, other: KnowledgeEntity
+    ) -> KnowledgeClaim:
+        claim = KnowledgeClaim(
+            text="A notary recorded a deposition.",
+            source_document_id="doc-1",
+            # subject_entity_id is a DIFFERENT entity throughout, to prove
+            # this merge only touches the four OTHER role fields here --
+            # subject repointing is already covered above.
+            subject_entity_id=other.id,
+            speaker_entity_id=absorbed.id,
+            subject_of_inquiry_entity_id=absorbed.id,
+            scribe_entity_id=absorbed.id,
+            editor_entity_id=absorbed.id,
+            entity_ids=[other.id, absorbed.id],
+        )
+        db.save(claim)
+        return claim
+
+    def test_merge_repoints_every_scalar_role_field(self, db):
+        survivor = _entity(db, "Alice")
+        absorbed = _entity(db, "Alicia")
+        other = _entity(db, "Notary Bob")
+        claim = self._claim_with_all_roles(db, absorbed, other)
+
+        registry.invoke(
+            db,
+            "entity.merge",
+            {"absorbing_entity_id": survivor.id, "absorbed_entity_ids": [absorbed.id]},
+            _ctx(),
+        )
+
+        after = db.get(KnowledgeClaim, claim.id)
+        assert after.speaker_entity_id == survivor.id
+        assert after.subject_of_inquiry_entity_id == survivor.id
+        assert after.scribe_entity_id == survivor.id
+        assert after.editor_entity_id == survivor.id
+        # subject_entity_id was Bob's throughout -- this merge never absorbed
+        # Bob, so it must stay untouched.
+        assert after.subject_entity_id == other.id
+
+    def test_unmerge_restores_every_scalar_role_field(self, db):
+        survivor = _entity(db, "Alice")
+        absorbed = _entity(db, "Alicia")
+        other = _entity(db, "Notary Bob")
+        claim = self._claim_with_all_roles(db, absorbed, other)
+
+        merge_result = registry.invoke(
+            db,
+            "entity.merge",
+            {"absorbing_entity_id": survivor.id, "absorbed_entity_ids": [absorbed.id]},
+            _ctx(),
+        )
+        audit = db.get(ActionAudit, merge_result.audit_id)
+        reg = registry.get("entity.merge")
+        inverse = reg.invert(audit.before, audit.after, _ctx())
+        assert inverse is not None
+        registry.invoke(db, inverse[0], inverse[1], _ctx())
+
+        after = db.get(KnowledgeClaim, claim.id)
+        assert after.speaker_entity_id == absorbed.id
+        assert after.subject_of_inquiry_entity_id == absorbed.id
+        assert after.scribe_entity_id == absorbed.id
+        assert after.editor_entity_id == absorbed.id
+
+    def test_audit_names_every_repointed_field(self, db):
+        survivor = _entity(db, "Alice")
+        absorbed = _entity(db, "Alicia")
+        other = _entity(db, "Notary Bob")
+        claim = self._claim_with_all_roles(db, absorbed, other)
+
+        result = registry.invoke(
+            db,
+            "entity.merge",
+            {"absorbing_entity_id": survivor.id, "absorbed_entity_ids": [absorbed.id]},
+            _ctx(),
+        )
+        merge_audit = db.get(EntityMergeAudit, result.result["id"])
+        repoints = merge_audit.alias_changes.get("claim_field_repoints")
+        fields_touched = {r["field"] for r in repoints}
+        assert fields_touched == {
+            "speaker_entity_id",
+            "subject_of_inquiry_entity_id",
+            "scribe_entity_id",
+            "editor_entity_id",
+        }
+        assert all(
+            r["claim_id"] == claim.id and r["old_entity_id"] == absorbed.id
+            for r in repoints
+        )
+
+
 class TestMergeRepointsSubjectViaReviewAccept:
     """Same behavior through the OTHER caller of merge_entities_impl,
     review.accept (#4831 batch 2) -- proves the fix through both."""
