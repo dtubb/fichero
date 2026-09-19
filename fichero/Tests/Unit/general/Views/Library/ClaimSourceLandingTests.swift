@@ -209,7 +209,12 @@ struct ClaimSourceLandingTests {
             source.components(separatedBy: "func revealResolvedSource(_ request: ClaimSourceNavigationRequest) async {")
                 .dropFirst().first
         )
-        let scope = AppSource.codeOnly(String(body.prefix(900)))
+        // Scoped to the function's OWN body (up to its closing brace at the
+        // extension's member indent), not a character count: a fixed
+        // `prefix(900)` broke when diagnostics were added inside the function
+        // (#4834) and the line it looks for moved past the window.
+        let ownBody = body.components(separatedBy: "\n    }\n").first ?? body
+        let scope = AppSource.codeOnly(String(ownBody))
         #expect(scope.contains("if request.destination == .reader {"))
         #expect(scope.contains("await navigateToResolvedSource(target)"))
         #expect(scope.contains("sourceRevealDocument = target"))
