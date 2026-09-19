@@ -16,7 +16,16 @@ def test_full_macos_gate_runs_fichero_ui_tests_scheme() -> None:
     # After the scheme rework there is no standalone "FicheroUITests" scheme; the
     # macOS UI smoke leg runs the UI-only `fichero` test plan (testTargets:
     # [FicheroUITests]) via the macOS app scheme. Guard that wiring.
-    assert '-testPlan "fichero"' in verify_all
+    #
+    # RENAMED by 982318ca3 (2026-09-12): `-testPlan "fichero"` pulled in the
+    # whole (not-yet-green) UI suite AND, via the plan union, iOS test targets
+    # that cannot link on macOS, so that leg had never actually passed. Moved
+    # to the green, Mac-only `fichero-ui-mac` plan (verify_all.sh's own
+    # comment right above this line says so). This test pinned the pre-rename
+    # plan name and went stale the same day. Updated to the ruled plan name,
+    # same coverage otherwise (still guards that a macOS UI smoke leg exists
+    # and names its scheme/plan explicitly).
+    assert '-testPlan "fichero-ui-mac"' in verify_all
 
 
 def test_full_ios_gate_is_generic_simulator_compile_only() -> None:

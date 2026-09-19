@@ -617,11 +617,27 @@ def _prewarm_embeddings() -> None:
 # identity and finally an authenticated `GET /api/registry` 200 — that last
 # leg is the concrete, cheap signal that the app's own readiness poll has
 # actually succeeded, so the embeddings prewarm below waits for it instead of
-# a fixed sleep. A NEW `Event` every lifespan (`_reset_first_registry_200_signal`,
-# called from `lifespan()`'s startup) so a signal set by one test's `lifespan()`
-# call can't leak into the next one sharing this module in-process.
-_first_registry_200_signal = asyncio.Event()
-
+# a fixed sleep.
+#
+# CORRECTED (2026-09-19, #4690 follow-up): this Event and timestamp used to
+# be bare MODULE-level globals, reset per lifespan by
+# `_reset_first_registry_200_signal()` so "tests cannot leak it" between
+# sequential lifespans. That reset does not make a shared module-level name
+# safe across CONCURRENT lifespans on separate event loops in the same
+# process — exactly what `test_multiuser_flow.py`'s concurrent-redeem test
+# does (two `TestClient`s, two threads, two loops, both racing to reassign
+# the same global). Whichever loop's task reached `.wait()`/`.set()` LAST
+# bound the (possibly reassigned) Event to itself; the other loop's task then
+# collided with that binding: "Event object ... is bound to a different
+# event loop". UNREACHABLE in the shipped app (one process, one lifespan, one
+# loop, for the app's entire run) — reachable only when a process runs more
+# than one lifespan, which only a test harness does. Fixed at the root: both
+# live on `app.state`, which is per-`FastAPI`-instance, not per-process, so
+# two concurrently-running app instances (or lifespans) never share the
+# object at all — no reset needed to prevent a leak that structurally cannot
+# happen anymore. `_reset_first_registry_200_signal` is kept (same name, same
+# job, same call site in `lifespan()`) but now takes the `app` it resets.
+#
 # #4690/run-4: the readiness signal alone fires too EARLY — `markReady()`'s
 # own authenticated follow-up calls (session refresh, identity load, then
 # library restore) run for several more seconds AFTER "ready", and starting
@@ -630,42 +646,39 @@ _first_registry_200_signal = asyncio.Event()
 # @18523ms → markReady @27132ms, an 8.6s gap, vs. 3.3s in run 3 with no
 # prewarm running concurrently). So the prewarm additionally waits for the
 # request stream to go QUIET: no non-`/api/health` request completed for
-# `FICHERO_EMBEDDINGS_PREWARM_IDLE_S` seconds (default 3.0). `_last_request_at`
+# `FICHERO_EMBEDDINGS_PREWARM_IDLE_S` seconds (default 3.0). `last_request_at`
 # is a monotonic timestamp (not wall-clock — only elapsed-time math is ever
 # done with it), updated by the same middleware that sets the readiness
 # signal, and re-armed on every qualifying request — the waiter loop below
 # just keeps sleeping for however much of the idle window is left.
-_last_request_at = time.monotonic()
 
 _EMBEDDINGS_PREWARM_IDLE_SECONDS = float(
     os.environ.get("FICHERO_EMBEDDINGS_PREWARM_IDLE_S", "3.0")
 )
 
 
-def _reset_first_registry_200_signal() -> None:
-    """Resets both lifespan-scoped readiness/idle-tracking globals above —
-    name kept for continuity (it was here first); a fresh `Event` AND a fresh
-    `_last_request_at` every lifespan, for the same in-process-test-leak
-    reason."""
-    global _first_registry_200_signal, _last_request_at
-    _first_registry_200_signal = asyncio.Event()
-    _last_request_at = time.monotonic()
+def _reset_first_registry_200_signal(app: FastAPI) -> None:
+    """Fresh `Event` AND a fresh `last_request_at` on ``app.state`` for THIS
+    app instance's lifespan. Held on `app.state`, not a module global, so
+    concurrently-running app instances (only a test harness ever has more
+    than one) each get their own — see the module comment above."""
+    app.state.first_registry_200_signal = asyncio.Event()
+    app.state.last_request_at = time.monotonic()
 
 
-def _mark_first_registry_200() -> None:
+def _mark_first_registry_200(app: FastAPI) -> None:
     """Set once traffic proves readiness. A function, not inlined in the
     middleware below, so a test can drive it directly — no live HTTP round
     trip needed — the same way `test_provider_seed_after_yield.py` drives its
     blocking event directly rather than timing a real launch (#4690)."""
-    _first_registry_200_signal.set()
+    app.state.first_registry_200_signal.set()
 
 
-def _mark_request_activity() -> None:
+def _mark_request_activity(app: FastAPI) -> None:
     """Re-arm the idle window. Called by the same middleware, for every
     request whose path is not `/api/health` (health polling is not activity —
     it never stops, so counting it would mean the idle window never closes)."""
-    global _last_request_at
-    _last_request_at = time.monotonic()
+    app.state.last_request_at = time.monotonic()
 
 
 def prefetch_library_caches(package_path: Path) -> dict:
@@ -869,7 +882,7 @@ async def lifespan(app: FastAPI):
     from fichero_server.api.change_stream import reset_sse_shutdown, signal_sse_shutdown
 
     reset_sse_shutdown()
-    _reset_first_registry_200_signal()
+    _reset_first_registry_200_signal(app)
 
     # Write/rotate the bootstrap auth token NOW that the server is actually
     # starting, so the Swift app can read ~/Library/Application Support/Fichero/
@@ -1064,10 +1077,10 @@ async def lifespan(app: FastAPI):
         that may never come).
         """
         _api_stamp("embeddings prewarm waiting for readiness signal")
-        await _first_registry_200_signal.wait()
+        await app.state.first_registry_200_signal.wait()
         _api_stamp("embeddings prewarm waiting for idle")
         while True:
-            elapsed = time.monotonic() - _last_request_at
+            elapsed = time.monotonic() - app.state.last_request_at
             remaining = _EMBEDDINGS_PREWARM_IDLE_SECONDS - elapsed
             if remaining <= 0:
                 break
@@ -1136,6 +1149,16 @@ app = FastAPI(
     version=_ENGINE_VERSION,
     lifespan=lifespan,
 )
+# #4690 follow-up (2026-09-19): seed these at app-CONSTRUCTION time too, not
+# only inside `lifespan()`. Some ASGI callers (`httpx.ASGITransport` with no
+# lifespan manager, several `test_multiuser_flow.py` fixtures among them)
+# never send lifespan startup/shutdown events at all, so `_observe_first_
+# registry_200`'s middleware -- which runs on every request regardless of
+# whether lifespan ran -- would otherwise hit an `AttributeError` reading
+# `app.state.first_registry_200_signal` before any `lifespan()` call ever
+# populated it. A real lifespan run still refreshes both via
+# `_reset_first_registry_200_signal(app)`, exactly as before.
+_reset_first_registry_200_signal(app)
 
 
 @app.exception_handler(LibraryAccessDeniedError)
@@ -1236,15 +1259,15 @@ async def _observe_first_registry_200(request: Request, call_next):
     response = await call_next(request)
     routed_path = request.scope.get("path")
     if (
-        not _first_registry_200_signal.is_set()
+        not request.app.state.first_registry_200_signal.is_set()
         and routed_path == "/api/registry"
         and response.status_code == 200
     ):
-        _mark_first_registry_200()
+        _mark_first_registry_200(request.app)
     # Health polling never stops, so it must not count as "activity" — only
     # non-health traffic re-arms the idle window the prewarm waits for.
     if routed_path != "/api/health":
-        _mark_request_activity()
+        _mark_request_activity(request.app)
     return response
 
 

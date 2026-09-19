@@ -57,6 +57,31 @@ EXPECTED_TOOLS = {
     # Authoring/canvas writes through the audited action layer (#4469, #4192).
     "fichero_workflow_create",
     "fichero_document_move",
+    # #4914 gate follow-up: verified as one deliberate, single-commit
+    # addition (76297c956, 2026-09-06, "add provider / local-runtime /
+    # model / Kraken / HPC tools to the fichero MCP surface") -- all 19
+    # confirmed `@mcp.tool()`-registered in fichero_mcp/server.py, not
+    # accidental surface leaks. This list had gone 18 days without being
+    # updated for them (EXPECTED_TOOLS itself last touched 2026-09-01).
+    "fichero_providers",
+    "fichero_provider_catalog",
+    "fichero_local_runtimes",
+    "fichero_models_catalog",
+    "fichero_model_download",
+    "fichero_model_download_status",
+    "fichero_model_download_cancel",
+    "fichero_model_delete",
+    "fichero_runtime_status",
+    "fichero_runtime_provision",
+    "fichero_local_models",
+    "fichero_local_model_download",
+    "fichero_kraken_status",
+    "fichero_kraken_install",
+    "fichero_hpc_clusters",
+    "fichero_hpc_configure_cluster",
+    "fichero_hpc_delete_cluster",
+    "fichero_hpc_test_cluster",
+    "fichero_hpc_dry_run_submit",
 }
 
 

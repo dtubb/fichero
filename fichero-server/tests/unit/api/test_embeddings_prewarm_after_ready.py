@@ -66,8 +66,10 @@ async def test_embeddings_prewarm_waits_for_first_registry_200_signal(
 
         # Drive the signal directly (#4690: same style as
         # test_provider_seed_after_yield.py's blocking-event technique) —
-        # no live request needed.
-        api_main._mark_first_registry_200()
+        # no live request needed. Held on app.state (2026-09-19 follow-up:
+        # a bare module global raced across concurrent lifespans), so the
+        # same `app` object `lifespan()` above was entered with.
+        api_main._mark_first_registry_200(api_main.app)
 
         for _ in range(100):  # up to 2s
             if calls:
@@ -94,12 +96,12 @@ async def test_embeddings_prewarm_waits_for_idle_after_signal(
     monkeypatch.setattr(api_main, "_EMBEDDINGS_PREWARM_IDLE_SECONDS", 0.3)
 
     async with api_main.lifespan(api_main.app):
-        api_main._mark_first_registry_200()
+        api_main._mark_first_registry_200(api_main.app)
 
         # Simulate arriving requests every 0.1s — well inside the 0.3s idle
         # window, so each one re-arms it before it can close.
         for _ in range(8):
-            api_main._mark_request_activity()
+            api_main._mark_request_activity(api_main.app)
             await asyncio.sleep(0.1)
             assert calls == [], (
                 "embeddings prewarm ran while requests were still arriving — "
@@ -126,10 +128,13 @@ async def test_registry_200_middleware_sets_signal_once(
     from starlette.requests import Request
     from starlette.responses import Response
 
-    api_main._reset_first_registry_200_signal()
+    api_main._reset_first_registry_200_signal(api_main.app)
 
+    # A real ASGI scope always carries "app" (Starlette sets it before
+    # dispatch); the middleware reads `request.app.state` (2026-09-19
+    # follow-up), so a synthetic scope for this direct test must too.
     def _request(path: str) -> Request:
-        scope = {"type": "http", "path": path, "headers": []}
+        scope = {"type": "http", "path": path, "headers": [], "app": api_main.app}
         return Request(scope)
 
     async def _call_next_200(_request: Request) -> Response:
@@ -140,15 +145,15 @@ async def test_registry_200_middleware_sets_signal_once(
 
     # Wrong status on the right path: must NOT set it.
     await api_main._observe_first_registry_200(_request("/api/registry"), _call_next_401)
-    assert not api_main._first_registry_200_signal.is_set()
+    assert not api_main.app.state.first_registry_200_signal.is_set()
 
     # Right status, wrong path: must NOT set it.
     await api_main._observe_first_registry_200(_request("/api/health"), _call_next_200)
-    assert not api_main._first_registry_200_signal.is_set()
+    assert not api_main.app.state.first_registry_200_signal.is_set()
 
     # Right path, right status: sets it.
     await api_main._observe_first_registry_200(_request("/api/registry"), _call_next_200)
-    assert api_main._first_registry_200_signal.is_set()
+    assert api_main.app.state.first_registry_200_signal.is_set()
 
 
 @pytest.mark.asyncio
@@ -159,14 +164,14 @@ async def test_middleware_excludes_health_from_activity() -> None:
     from starlette.responses import Response
 
     def _request(path: str) -> Request:
-        return Request({"type": "http", "path": path, "headers": []})
+        return Request({"type": "http", "path": path, "headers": [], "app": api_main.app})
 
     async def _call_next_200(_request: Request) -> Response:
         return Response(status_code=200)
 
-    api_main._last_request_at = 0.0
+    api_main.app.state.last_request_at = 0.0
     await api_main._observe_first_registry_200(_request("/api/health"), _call_next_200)
-    assert api_main._last_request_at == 0.0, "a /api/health 200 must not re-arm the idle window"
+    assert api_main.app.state.last_request_at == 0.0, "a /api/health 200 must not re-arm the idle window"
 
     await api_main._observe_first_registry_200(_request("/api/workflows"), _call_next_200)
-    assert api_main._last_request_at > 0.0, "a non-health request must re-arm the idle window"
+    assert api_main.app.state.last_request_at > 0.0, "a non-health request must re-arm the idle window"

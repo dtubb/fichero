@@ -1154,14 +1154,18 @@ class TestLoadPresetFiles:
     def test_detect_regions_kraken_preset_routes_to_kraken(self):
         """The Kraken baseline segmenter ships as a runnable preset (blla is
         built into the runtime — no model download), routing detect_regions to
-        the kraken provider so a user can actually RUN kraken segmentation."""
+        the kraken provider so a user can actually RUN kraken segmentation.
+
+        Preset renamed "Detect Regions" -> "Detect Segments" by 085690931
+        (2026-09-07); this test pinned the pre-rename name and went stale
+        the same day. Updated to the ruled name, same coverage otherwise."""
         presets = {p["name"]: p for p in _load_preset_files()}
-        assert "Detect Regions (Kraken)" in presets, "Kraken segmenter preset must ship"
-        preset = presets["Detect Regions (Kraken)"]
+        assert "Detect Segments (Kraken)" in presets, "Kraken segmenter preset must ship"
+        preset = presets["Detect Segments (Kraken)"]
 
         assert preset.get("is_template") is True
         assert preset.get("is_system") is True
-        assert preset.get("folder_path") == "/Detect Regions"
+        assert preset.get("folder_path") == "/Detect Segments"
 
         node_tools = {n["tool"] for n in preset["nodes"]}
         assert node_tools == {"files", "detect_regions"}
@@ -1216,7 +1220,7 @@ class TestLoadPresetFiles:
             ), f"{port} must flow into economy_htr"
 
     @pytest.mark.parametrize(
-        "preset_name", ["Detect Regions (Kraken)", "Transcribe (Kraken)"]
+        "preset_name", ["Detect Segments (Kraken)", "Transcribe (Kraken)"]
     )
     def test_kraken_presets_pass_execution_gate(self, preset_name):
         """Both Kraken presets must pass the exact validation the /execute
