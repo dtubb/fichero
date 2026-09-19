@@ -157,12 +157,13 @@ rather than defaulting to the pessimistic prior.
 
 ### A. Normalization foundation
 
-- `histnorm.no-content-canonicalization` — **[GAP]** (→ #3320) `page_content` is stored verbatim
+- `histnorm.no-content-canonicalization` — **[GAP]** (#3320, #3319 — the review that sequenced
+  this whole program) `page_content` is stored verbatim
   from every writer (LLM/VLM tools, transcription review, catalogue, import); no NFC/ftfy
   canonicalization choke point exists. `ftfy` is declared and used locally in the date extractor
   only. Building this must apply to NEW writes at the storage boundary, per constraint 3 above —
   never a batch rewrite of existing rows without an explicit, separate sign-off.
-- `histnorm.dual-field-model-not-built` — **[GAP]** (→ #3312, → #3321) no `normalized_content`/
+- `histnorm.dual-field-model-not-built` — **[GAP]** (#3312, #3321) no `normalized_content`/
   search-index column exists; `page_content` is the only text field, serving as both the
   diplomatic source and (folded at query time, not stored) the search target. Constraint 1 is
   honored today only incidentally (nothing has touched the field), not by a deliberate diplomatic/
@@ -182,26 +183,26 @@ rather than defaulting to the pessimistic prior.
 ### B. Historical dates
 
 - `histnorm.dates.jdn-core` — **[PARTIAL]** (implemented and tested, 34 tests in
-  `test_histdate.py`; → #3322 still open pending close) Gregorian, Julian (with the 1752 Britain
+  `test_histdate.py`; #3322, #3314 still open pending close) Gregorian, Julian (with the 1752 Britain
   cutover), French Republican, Hebrew, and Islamic calendar conversion to a Julian Day Number
   range (`jdn`/`jdn_end`), via `convertdate`/`jdcal`, never hand-rolled; regnal-year and
   Chinese-era-name tables; explicit-undated detection distinct from nothing-found.
   `Document.date_original`/`date_jdn`/`date_jdn_end`/`date_meta` store the range and its
   metadata, never collapsing to one guessed point.
-- `histnorm.dates.wired-at-import` — **[PARTIAL]** (→ #3322) import-carried dates (sidecar,
+- `histnorm.dates.wired-at-import` — **[PARTIAL]** (#3322) import-carried dates (sidecar,
   manifest) are applied automatically and non-destructively (`apply_import_date`, never
   overwrites an existing date); parsing a date out of the document's OWN transcribed text
   (`date_extract` workflow tool) is built and tested but not wired into any default workflow, so
   it runs only when a workflow author adds it — not automatically at every import the way
   segmentation and embeddings are.
 - `histnorm.dates.search-and-sort` — **[PARTIAL]** (implemented and tested,
-  `test_dataset_query.py`; → #3309, → #3322 still open pending close) `date_jdn_from`/
+  `test_dataset_query.py`; → #3309, #3322 still open pending close) `date_jdn_from`/
   `date_jdn_to` filters and JDN-based sort exist in `db/__init__.py` and `dataset_query.py`;
   undated documents fall back to `created_at`, matching the documented fallback rule.
 - `histnorm.dates.adopt-standards-format` — **[GAP]** (→ #4364) the built date model above is real
   and tested, but it is entirely hand-rolled (custom `HistoricalDate`/`date_meta` JSON), not the
   `undate`/EDTF standard that issue asks the project to adopt instead of inventing its own. Its
-  own scope note says to evaluate `undate` against what → #3322 built and prefer the library if
+  own scope note says to evaluate `undate` against what #3322 built and prefer the library if
   it covers the same ground — that evaluation has not happened. This is the one concrete,
   actionable ask left in the date-handling thread; everything else it worried about
   ("uncertainty thrown away") is already handled by the JDN-range + `date_meta` model, just not
@@ -216,7 +217,7 @@ rather than defaulting to the pessimistic prior.
   (`EntityResolutionRule`) so a re-import doesn't need re-review. This is NOT this milestone's
   gap — the same-script half of the entity-variant ask is already solved. Pinned:
   `test_entity_writer.py::test_claim_svo_dedup_collapses_normalized_near_duplicate`.
-- `histnorm.entities.cross-script-candidates` — **[GAP]** (→ #3323) no mechanism surfaces
+- `histnorm.entities.cross-script-candidates` — **[GAP]** (#3323, #3313) no mechanism surfaces
   cross-script variant PAIRS (Tokyo/東京) as review candidates; `anyascii` is declared but
   unused; `TRANSLITERATION_PATTERNS` is still a 6-entry hardcoded toy table backing
   `/api/multilingual/transliterate`, and `/api/multilingual/entities/search` is still an O(n)
@@ -227,7 +228,7 @@ rather than defaulting to the pessimistic prior.
 
 ### D. Paleography rendering
 
-- `histnorm.render.no-bundled-fonts` — **[GAP]** (→ #3324) no paleographic or CJK-extension fonts
+- `histnorm.render.no-bundled-fonts` — **[GAP]** (#3324, #3315) no paleographic or CJK-extension fonts
   are bundled; rare glyphs depend on the system cascade and may render as `.notdef` boxes. The
   semantic-fonts rule (`.title`/`.body`, never a raw point size) does not forbid this — a
   diplomatic-view face is a deliberate, scoped exception, the same way a serif/mono case already
@@ -239,7 +240,7 @@ rather than defaulting to the pessimistic prior.
   17th-century-corpus fixture (`test_rtf_escapes_never_reach_rows.py`). Stated precisely so it is
   not mistaken for progress on `histnorm.render.no-bundled-fonts` above — the two are different
   bugs in the same general "unicode/RTF mojibake" class, and only one of them is fixed.
-- `histnorm.render.charset-pinning-audit` — **[GAP]** (→ #3324) no regression test pins that served
+- `histnorm.render.charset-pinning-audit` — **[GAP]** (#3324) no regression test pins that served
   HTML/text carries `charset=utf-8` for paleographic/CJK-extension fixtures end to end; the
   2026-07-06 review's own read of the code judged this LIKELY fine (Starlette's `FileResponse`
   appends charset for `text/*`) but explicitly said it needs a pinning test, which does not
@@ -247,7 +248,7 @@ rather than defaulting to the pessimistic prior.
 
 ### E. Language detection and per-language resources
 
-- `histnorm.language.detection-heuristic-only` — **[GAP, unchanged since 2026-07]** (→ #3311)
+- `histnorm.language.detection-heuristic-only` — **[GAP, unchanged since 2026-07]** (#3311)
   `cld3` remains an optional import with no declared dependency; production language detection
   is always the character-range heuristic fallback, never the real detector.
   `normalize_text()`'s NFKC fold is a fourth, narrower folding scheme alongside
@@ -265,18 +266,18 @@ rather than defaulting to the pessimistic prior.
 ### F. Translation
 
 - `histnorm.translate.searchable` — **[PARTIAL]** (implemented and tested,
-  `test_translation_embedding.py`; → #3325 still open pending close) translation artifacts embed
+  `test_translation_embedding.py`; #3325 still open pending close) translation artifacts embed
   with `embedding_scope="translation"` and are found by search; deleting the artifact removes its
   vectors (no stale entries).
 - `histnorm.translate.audited-action` — **[PARTIAL]** (implemented and tested,
   `test_translation_embedding.py`'s `TestArtifactTranslateAction`,
-  `DocumentInspectorTests.testArtifactsTranslateActionLivesInInspectorMiniToolbar`; → #3325 still
+  `DocumentInspectorTests.testArtifactsTranslateActionLivesInInspectorMiniToolbar`; #3325 still
   open pending close) `artifact.translate` is a registered, undoable, UI-reachable action — not
   workflow-only, closing the "can't translate without authoring a workflow" gap the review named.
-- `histnorm.translate.entity-labels` — **[GAP]** (→ #3325) no entity-label translation/alias
+- `histnorm.translate.entity-labels` — **[GAP]** (#3325, #3316) no entity-label translation/alias
   mechanism exists; `KnowledgeEntity.aliases` could carry a language-tagged translated name (no
   schema change needed) but nothing writes one.
-- `histnorm.translate.representations-picker` — **[GAP]** (→ #3325) no single menu switches
+- `histnorm.translate.representations-picker` — **[GAP]** (#3325) no single menu switches
   between a document's source image, its diplomatic transcription, and its translation
   versions with provenance shown per representation; today's UI is a translate action plus a
   target-language picker, not a representation switcher. The plan's own note that a prior
@@ -286,9 +287,9 @@ rather than defaulting to the pessimistic prior.
 
 ### G. Transliteration/romanization (a standalone ask, not sequenced into the six)
 
-- `histnorm.transliteration.romanization` — **[GAP]** (→ #3326) no derived romanized/
+- `histnorm.transliteration.romanization` — **[GAP]** (#3326) no derived romanized/
   transliterated form exists alongside the diplomatic text; `anyascii` (declared, unused) is the
-  natural candidate once phase 4's cross-script work above (→ #3323) picks it up — the two issues
+  natural candidate once phase 4's cross-script work above (#3323) picks it up — the two issues
   should very likely become one delivery, not two, since both need the same library for related
   ends (cross-script matching vs. display), but that decision belongs to Pass 2 triage, not
   asserted here.
@@ -346,59 +347,55 @@ a specific behavior above beyond this cross-reference, pending their own design 
    genuine case for replacing internals while keeping the tested contract), or does EDTF become
    an export/display format layered on the existing JDN-range storage?
 
-## Fold plan for the 19 issues (Pass 2 — plan only, NOT executed this pass)
+## Fold record for the 19 issues (Pass 2 — executed 2026-09-19)
 
-No issues were moved, no milestones touched, no GitHub comments posted this pass — spec-writing
-only, per the task's scope. The plan below is what a Pass 2 fold would do:
+All by NUMBER. 14 issues moved onto #317 (`gh api -X PATCH .../milestone=317`); 5 stayed
+untouched (the design-first epics). No issue was closed by this pass — every "already built"
+finding was posted as GitHub-comment evidence with "Left OPEN; not closing myself," per the
+standing rule that a lane states evidence and never recommends closure or calls an open issue
+superseded; that judgement is the maintainer's.
 
-**Move onto #317 (historical-text-normalization), each now backing a named behavior above:**
+**Moved onto #317 (historical-text-normalization), each now backing a named behavior above:**
 - #3311 (strategy brief) — background/intent source, cited throughout; folds as context, not a
   behavior of its own.
 - #3312 → `histnorm.dual-field-model-not-built`
 - #3313 → `histnorm.entities.same-script-variants` (OK half) + `histnorm.entities.cross-script-
-  candidates` (GAP half) — one issue, two behaviors, since the review found it already half-solved.
-- #3314 → cite from `histnorm.dates.jdn-core` and `histnorm.dates.adopt-standards-format`.
-  Its own ask (JDN plus calendar metadata) is the part already built, so it is a verify-close
-  candidate: post the evidence and leave it OPEN for the maintainer, who decides whether it
-  closes now or waits for #4364.
+  candidates` (GAP half) — one issue, two behaviors, since the review found it already
+  half-solved. **Verify-close comment posted**, evidence for the same-script half; stays OPEN.
+- #3314 → cites `histnorm.dates.jdn-core` and `histnorm.dates.adopt-standards-format`.
+  **Verify-close comment posted** — its own ask (JDN plus calendar metadata) is the part already
+  built; stays OPEN, the maintainer decides whether it closes now or waits on #4364.
 - #3315 → `histnorm.render.no-bundled-fonts` + `histnorm.render.charset-pinning-audit`
-- #3316 → `histnorm.translate.entity-labels` + `histnorm.translate.representations-picker`
-  (its own feasibility question is answered: yes, and mostly built — the design gaps above are
-  what remains)
-- #3319 (the deep review that sequenced this program) — the record of the grounding. It
-  stays OPEN; the maintainer decides when a review issue closes, and its six children are the
-  work.
+- #3316 → `histnorm.translate.entity-labels` + `histnorm.translate.representations-picker`.
+  **Verify-close comment posted** — its own feasibility question is answered: yes, and mostly
+  built; stays OPEN, the two named gaps are what remains.
+- #3319 (the deep review that sequenced this program) — the record of the grounding, stays
+  OPEN with no comment; its six children carry the actual work above.
 - #3320 → `histnorm.no-content-canonicalization`
-- #3321 → `histnorm.dual-field-model-not-built` (schema half) + `histnorm.fuzzy-search` (OK half)
-  — **recommend a maintainer comment noting the fuzzy half is done, narrowing #3321's remaining
-  scope to the schema/index half before this fold executes.**
+- #3321 → `histnorm.dual-field-model-not-built` (schema half) + `histnorm.fuzzy-search` (OK
+  half). **Scope-narrowing comment posted** (not a verify-close): the fuzzy half is done and
+  named by test; the remaining scope is the schema/index half only.
 - #3322 → `histnorm.dates.jdn-core`, `histnorm.dates.wired-at-import`,
-  `histnorm.dates.search-and-sort` — **verify-close candidate**: post evidence, recommend the
-  maintainer close #3322 outright once confirmed live, since the plan's own six numbered tests
-  (1752 cutover, French Republican, regnal, era-name, round-trip, migration) are the ones
-  `test_histdate.py`'s 34 tests appear to cover — a Pass 2 pass should name each test by suite
-  before recommending close, not assume from the count.
+  `histnorm.dates.search-and-sort`. **Verify-close comment posted**, naming each test suite
+  (`TestGoldenConversions`, `TestRangeSemantics`, `TestHonestAbsence`,
+  `TestExtractionFromRunningText`, `TestColumnsPersist`, `TestUserDatesSurviveReExtraction`) by
+  name rather than citing the 34-test count; stays OPEN.
 - #3323 → `histnorm.entities.cross-script-candidates`
 - #3324 → `histnorm.render.no-bundled-fonts`, `histnorm.render.charset-pinning-audit` (with
   `histnorm.render.rtf-hex-escape-leak` cited as a related-but-different already-fixed bug, not
   progress toward this issue)
-- #3325 → `histnorm.translate.searchable` + `histnorm.translate.audited-action`
-  (**verify-close candidates** — post evidence, leave open pending maintainer confirmation) +
-  `histnorm.translate.entity-labels` + `histnorm.translate.representations-picker` (remain open,
-  genuine gaps)
+- #3325 → `histnorm.translate.searchable` + `histnorm.translate.audited-action`.
+  **Verify-close comment posted**, evidence for both, plus `histnorm.translate.entity-labels` +
+  `histnorm.translate.representations-picker` (named as the two gaps that remain); stays OPEN.
 - #3326 → `histnorm.transliteration.romanization`
 
-**Redirect elsewhere:**
-- #1755 does not belong on this milestone at all (see Waiting-issue notes above) — if it was
-  ever pointed here, point it back to its own "UX - Representations" (#183) queue.
+**Left untouched, on their own milestones:**
+- #1755 was never on milestone #265 in the first place (see Waiting-issue notes above) — no
+  action needed; it stays on "UX - Representations" (#183).
+- #4636, #4637, #4638, #4639, #4642 — each has its own Status-gated design-first path; folding
+  them into #317 would blur "approved, testable spec" with "not-yet-approved design brief."
+  Cross-referenced from this spec (above); milestone left as-is.
 
-**Leave on their own design-first issues, cross-referenced only:**
-- #4636, #4637, #4638, #4639, #4642 — each already has its own Status-gated design-first path;
-  folding them into #317 would blur "approved, testable spec" with "not-yet-approved design
-  brief." Cross-reference from this spec (done above); do not move their milestone.
-
-**Net effect if Pass 2 executes as planned:** #265 would drop from 19 open to roughly 5–7
-(the four design-first issues stay elsewhere already, several of the six-phase issues verify-
-close with evidence and stay open for the maintainer, #3314 among them, and #1755 leaves the
-milestone entirely). No milestone reaches zero this pass since this
-plan is not executed.
+**Net effect:** #265 dropped from 19 open to 5 (verified via `gh api .../milestones/265`'s
+`open_issues`) — exactly the five design-first epics; #317 (historical-text-normalization) now
+holds 14 open issues, all cited by a behavior above. No milestone reached zero this pass.

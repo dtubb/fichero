@@ -397,6 +397,7 @@ nav:
           - KG:
               - Archival Data Model: contributor_manual/specs/kg/archival-data-model-plan.md
               - Hermeneutic Layer: contributor_manual/specs/kg/hermeneutic-layer.md
+              - Historical Text Normalization: contributor_manual/specs/kg/historical-text-normalization.md
               - KG Enrichment, RDF & Linked Data: contributor_manual/specs/kg/kg-enrichment.md
               - KG Entity Inspector: contributor_manual/specs/kg/kg-entity-inspector.md
               - KG Interactions & Standards: contributor_manual/specs/kg/kg-interactions.md
