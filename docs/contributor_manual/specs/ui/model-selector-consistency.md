@@ -195,6 +195,17 @@ a ruling.
   an unhandled throw into the function's own `catch`. Both are named; neither is the confirmed
   cause. #4694 already names the same CLASS of bug ("Node picker filters providers on the
   provider-level vision flag") — evidence added there rather than duplicated as a new issue.
+- `models.chat-picker-uses-the-shared-builder` — **[PARTIAL]** (#4900) the chat toolbar's model
+  picker (`ChatViewToolbar.swift`, `ChatModelPicker`) renders the shared
+  `SharedModelListBuilder`/`SharedModelRow` spine, not its own inline picker. Built: `21820e8d2`
+  (82 insertions, 31 deletions). PARTIAL because nothing tests it — the commit's own message
+  states outright: "No tests reference this surface." A high-traffic surface (every chat
+  window's model picker) with zero coverage of the rewrite. The test shape that would catch a
+  regression: drive the picker through the real shared builder and assert the rendered choice
+  set, PLUS an explicit companion asserting the chat toolbar's production call site still
+  routes through it rather than a re-inlined picker — the same pure-function-plus-
+  call-site-routing pairing `AISettingsSelectionTests` uses for its own
+  "productionCallSiteRoutesOnlyThroughThePureFunction" check.
 
 ## RATIFIED 2026-09-15 (evening, CD)
 

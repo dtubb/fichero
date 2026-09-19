@@ -278,6 +278,19 @@ below rather than folded in on a title match.
   the existing Match App/System choice, driving the same CSS custom properties the Reader
   already var-drives (`systemThemeCSS()`/`themeInjectionScript()` in
   `DocumentKGWebPane.swift`) — no new injection path needed, just new theme values. Not built.
+- `reader.surfaces-read-annotation-store-optionally` — **[PARTIAL]** (#4898) `ReadingPaneView`/
+  `PageContentPane` read `AnnotationStore` as an optional `@Environment` value rather than
+  force-unwrapping it, per house rule #4513 (degrade, never trap). Built: `dbf5b983d`. It was a
+  defensive hardening fix, not a confirmed-reproduced one — the commit's own message says it
+  could not reproduce the crash trigger from a clean launch. PARTIAL because nothing tests
+  either half: a PLAIN unit test CAN cover the nil-safety half today — `pageAnnotations`,
+  `loadAnnotations()`, and the four `addNote` paths can be extracted as functions taking
+  `AnnotationStore?` directly and called with `nil`, asserting a graceful no-op/`[]` rather than
+  a crash, no view mounting required. What a plain test CANNOT prove is that the app ever
+  actually mounts `ReadingPaneView`/`PageContentPane` with a nil store in a real ancestor chain
+  — that half still needs a mounted reproduction (an XCUITest from the exact restored-scene
+  path that triggers it, if one is ever found), and a test that only covers the nil-safety half
+  would keep passing even if the real trigger were never real to begin with.
 
 ### F. Redirected to an existing spec
 

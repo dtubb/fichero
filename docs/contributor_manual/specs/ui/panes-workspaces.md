@@ -915,6 +915,55 @@ math, not a mounted pane" lesson.
   a saved workspace; how the color assignment avoids clashing across more than a few
   simultaneous links.
 
+- `panes.environment-boundary-covers-every-hosted-pane` — **[PARTIAL]** (#4897) every applied
+  pane's hosting boundary injects the FULL set of window/app `@Environment`/`@State` objects a
+  pane subtree might read, not a hand-picked subset per boundary. Built:
+  `WindowEnvironmentModifier` (`f88a031e8`) is now the ONE shared list applied at all three
+  hosting boundaries (`PaneSpec`, `ContentView+Navigation`, `ContentView+RootLayout`) —
+  previously each boundary hand-picked its own list, and `WorkflowStore` was missed by all
+  three. It was broken TWICE before this: first, a pane leaf's re-injection was missing
+  entirely (`07e712157`, launch crash); then even after boundary-by-boundary re-injection
+  landed, the three boundaries' hand-picked lists still disagreed (`f88a031e8` unified them).
+  PARTIAL because nothing tests either fix: no automated test mounts a pane subtree at any of
+  the three boundaries and asserts every environment object it might read resolves without a
+  trap — a `Mirror`-based reflection test comparing `WindowEnvironmentModifier`'s property list
+  against `ContentView`'s own list would catch "forgot to add a new one" but NOT "the object
+  doesn't actually resolve when a real pane is hosted," since that failure is in SwiftUI's real
+  AttributeGraph resolution, not in a property list's contents. The test must build (or mount)
+  a real pane view at each of the three boundaries with the shared modifier applied and assert
+  no trap when reading each environment object — a reflection-only test would keep passing if a
+  boundary silently stopped applying the modifier at all.
+- `panes.scene-roots-carry-a-fallback-environment` — **[PARTIAL]** (#4897) every top-level
+  `Window`/`WindowGroup` scene root that can reach workflow-execution UI carries a fallback
+  `WorkflowExecutionObserver`, not only the scenes someone remembered to wire. Built:
+  `54e01872f` added the fallback to the five scene roots that lacked it (About, Feature Tier
+  Legend, Install Tools, Document, Language Coverage). PARTIAL because nothing tests it: no
+  test instantiates each scene root view and asserts it resolves the observer with or without
+  the app's own injection. The test shape that WOULD catch a regression: an
+  `NSHostingController`-based test per scene root, built once WITHOUT the app's own
+  `.environment(appExecutionObserver)` (asserting the fallback alone is enough) and once WITH
+  it (asserting no duplicate/conflicting instance) — narrower than a full app launch, no scene
+  restoration needed. A pure structural/reflection test over `FicheroApp.swift`'s scene bodies
+  (every `Window`/`WindowGroup` applies the modifier) would catch "forgot to wire a new scene"
+  but not "the fallback itself fails to resolve when actually hosted."
+- `panes.toolbar-inspector-survive-restored-scene-state` — **[PARTIAL]** (#4897) the toolbar and
+  inspector, which do NOT inherit their hosting window's environment the way an ordinary pane
+  subtree does, must read `WorkflowExecutionObserver` optionally rather than trapping when a
+  RESTORED scene (a relaunch with saved window state) mounts them before the window's own
+  injection completes. Built: `48498334c` made five sites
+  (`StatusIslandToolbarItem`, `ActivityStatusToolbarItem`, `ArtifactsInspectorPane`,
+  `ArtifactEntityViews` ×2, `WorkflowInspector`) read the observer as optional. It was broken
+  once: the crash reproduced only with an actual restored document-selection scene state, ~25s
+  after a relaunch — not on a cold launch with no saved state, which is why the fix's own commit
+  says it was never build-verified by the automated gate, only reproduced by hand in Xcode.
+  PARTIAL because nothing tests it, and this is the hardest of the three panes fixes to test:
+  a `Mirror`/reflection test cannot see this failure at all (it is a `.toolbar`/`.inspector`
+  environment-non-inheritance property of AppKit/SwiftUI, not a missing property), and even a
+  narrow `NSHostingController` test would need to reproduce actual scene RESTORATION (saved
+  window state from a prior launch), not just a fresh mount — the test shape that would catch a
+  regression is a genuine relaunch-with-restored-state test (an XCUITest or a state-restoration
+  test harness), not a lighter substitute.
+
 ## Known bugs to fix (already observed by the creative director)
 
 1. ~~**Claims don't reset on library change**~~ — **FIXED 5b709aca0** (F5): Claims + Entities

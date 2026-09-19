@@ -118,6 +118,20 @@ Zoom (`zoom`)
 - `nodeconfig.model.vision-only-filter` — [PARTIAL] (implemented, unpinned; #4800) a vision tool lists only vision-capable providers, shows vision aliases, and says "No vision-capable providers available" when none.
 - `nodeconfig.model.vision-requirement-from-server` — **[GAP]** (#4710) which tools need vision / support Apple Vision comes from the served tool definition (server already knows `supports_apple_vision`, `requires_generative_model`, category); today the popover keeps two hard-coded sets (`visionTools`, `appleVisionTools`) that drift from the registry — the same client-hardcodes-a-server-fact pattern the node-editor connection-contract issue (since fixed) forbade for port conversions. (F8)
 - `nodeconfig.model.uses-llm-is-tool-fact` — **[OK]** `node.usesLLM` describes the TOOL and never changes with the provider choice; `NodeProviderModelSelector.apply` (pure static) no longer sets `usesLLM=false` on "Default", so the provider section, Compare Models button and Prompt Preview survive reopen. (F6; pinned: `NodeProviderModelSelectorVisionModeTests`.)
+- `nodeconfig.model.picker-is-one-step-not-drill-down` — **[PARTIAL]** (#4899) the node's model
+  picker is a single shared chip/popover, not a two-step drill-down (choose provider, then
+  choose model in a second screen). Built: `9388a2679` rewrote `NodeProviderModelSelector.swift`
+  (232 insertions, 16 deletions) to render the shared picker directly. PARTIAL because nothing
+  tests it: the commit touches zero test files, and `NodeModelListParityTests`/
+  `NodeProviderModelSelectorVisionModeTests` — the tests that DO exist for this file — cover a
+  SIBLING surface (the popover's model-list mapping) and are explicitly unchanged by this
+  commit per its own message; a test that only exercises those would keep passing even if this
+  rewrite fully reverted to the old drill-down. The test shape that would catch a regression:
+  drive the picker through the real `SharedModelListBuilder`/`SharedModelRow` and assert the
+  rendered choice set, PLUS an explicit companion asserting the production call site still
+  routes through the shared component rather than a re-inlined drill-down — the same
+  pure-function-plus-call-site-routing pairing `AISettingsSelectionTests` uses for its own
+  "productionCallSiteRoutesOnlyThroughThePureFunction" check.
 - `nodeconfig.model.auto-mode-representation` — **[BROKEN]** (#4711) a transcribe node whose `vision_mode` is `"auto"` (server default for new nodes) shows "Default" in the picker AND its LLM-only fields (prompt, image size), since auto resolves to LLM unless the resolved provider is Apple. Today it shows Default with the LLM fields hidden. (F2/F3)
 - `nodeconfig.model.provider-switch-picks-first-model` — [PARTIAL] (implemented, unpinned; #4800) selecting an LLM provider auto-selects its first model so the node is never provider-without-model.
 - `nodeconfig.model.stale-provider-visible` — **[BROKEN]** (#4712) if the node's saved provider is no longer among the loaded providers (disabled/removed), the picker shows the stale value with a warning; today it silently shows "Default" while `providerName` still carries the stale id the run will use. (F11)
