@@ -414,6 +414,7 @@ nav:
               - "Engine Transport: HTTPS / UDS / In-Memory": contributor_manual/specs/transport/transport-http-uds.md
           - UI:
               - About: contributor_manual/specs/ui/about.md
+              - Activity: contributor_manual/specs/ui/activity.md
               - Automation: contributor_manual/specs/ui/automation.md
               - Library View Modes: contributor_manual/specs/ui/library-view-modes.md
               - Menus & Commands: contributor_manual/specs/ui/menus-and-commands.md
