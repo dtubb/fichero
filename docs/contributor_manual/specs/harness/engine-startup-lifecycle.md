@@ -177,7 +177,7 @@ very engine spawn those tests exist to exercise.
   "main WindowGroup observes UI without owning backend lifecycle"). The historical reuse-guard
   workaround (`shouldReuseExistingConnection`) is confirmed dead code (zero call sites), not
   deleted — see `engine.dead-reuse-guard-not-removed` below.
-- `engine.ownership-is-a-pure-function` — **[PARTIAL]** (→ #3947, → #4057) `EngineOwnership`
+- `engine.ownership-is-a-pure-function` — **[PARTIAL]** (#3947, → #4057) `EngineOwnership`
   (`.ownedEmbedded`/`.adoptedExternal`) is derived once from `(strategy, transportMode,
   portResolution)`, not `#if os` or a view-level heuristic — the governing property the EPIC
   wanted is real. Pinned: `PortConflictDecisionTests` ("release embedded spawn is owned and stopped on
@@ -188,7 +188,7 @@ very engine spawn those tests exist to exercise.
   encode a genuinely remote Mac/iOS client, not just local-embedded-vs-adopted). Whether a third
   case is still needed for the remote-client class of "which buttons may exist" decisions was not
   re-checked this pass.
-- `engine.dead-reuse-guard-not-removed` — **[GAP]** (→ #3947) `shouldReuseExistingConnection`
+- `engine.dead-reuse-guard-not-removed` — **[GAP]** (#3947) `shouldReuseExistingConnection`
   still exists in source with zero callers — the EPIC's own explicit instruction ("Delete the
   WindowGroup `.task` and `shouldReuseExistingConnection` with it") is half-done: the `.task`
   trigger is gone (confirmed), the dead function it left behind is not.
@@ -209,14 +209,15 @@ very engine spawn those tests exist to exercise.
   `PortConflictDecisionTests` ("foreign holder + no decision → surface the portConflict phase,
   never adopt or spawn", "portConflict is a non-ready phase with a PID-bearing diagnosis (renders
   the connection view, not blank)").
-- `engine.launch-path-never-blocks-main` — **[OK]** (fixed via → #3936) the port-clear
-  poll, orphan-engine sweep, and TLS-material preparation all run inside
-  `Task.detached(priority: .userInitiated)`, off the `@MainActor`, during launch. Pinned:
-  `StartupWorkGateTests` ("the TLS-prep subprocess is dispatched off the main actor", "the launch
-  TLS-prep function is nonisolated, keeping its blocking wait off-main"). The shutdown path's own
-  synchronous wait (`applicationWillTerminate` must block for graceful shutdown) is deliberately
-  unchanged and out of scope for this behavior.
-- `engine.embedded-uitest-carve-out-unified` — **[PARTIAL]** (→ #3968) the boot-side-effect
+- `engine.launch-path-never-blocks-main` — **[PARTIAL]** (implemented and tested, the fix
+  commit's own tracking issue is closed; #3928 still open pending close) the port-clear poll,
+  orphan-engine sweep, and
+  TLS-material preparation all run inside `Task.detached(priority: .userInitiated)`, off the
+  `@MainActor`, during launch. Pinned: `StartupWorkGateTests` ("the TLS-prep subprocess is
+  dispatched off the main actor", "the launch TLS-prep function is nonisolated, keeping its
+  blocking wait off-main"). The shutdown path's own synchronous wait (`applicationWillTerminate`
+  must block for graceful shutdown) is deliberately unchanged and out of scope for this behavior.
+- `engine.embedded-uitest-carve-out-unified` — **[PARTIAL]** (#3968) the boot-side-effect
   suppression predicate for UI tests is now ONE function,
   `suppressesBootSideEffectsForUITesting()`, so embedded-engine UI-test mode is no longer
   accidentally caught by the general test carve-out that used to suppress its own engine spawn —
@@ -249,13 +250,13 @@ very engine spawn those tests exist to exercise.
   suppression on recovery. Pinned: `HeartbeatLowersAlarmTests`,
   `SpawnedEngineLivenessWaitTests` (`fichero/Tests/Unit/general/App/`,
   `fichero/Tests/Unit/general/Transport/`).
-- `engine.live-updates-pause-ux` — **[GAP, split territory]** (→ #3403) the connection-level
+- `engine.live-updates-pause-ux` — **[GAP, split territory]** (#3403) the connection-level
   reconnect loop above is built; the UI-visible "Live updates paused" banner and per-store
   pause/resume state (`LiveUpdatesPausedPill.swift`, `ObservableDomainStore`) are NOT this
   spec's own behaviors — they belong to `harness/observable-data-layer.md` (queued, not yet
   written). Recorded here only so this issue isn't silently dropped from every spec's view.
 - `engine.new-window-does-not-reauthenticate` — **[PARTIAL, structural inference, not pinned]**
-  (→ #3362) since only the app-scoped controller writes `EngineSession` and windows merely
+  (#3362) since only the app-scoped controller writes `EngineSession` and windows merely
   observe, a new window opening cannot itself trigger reconnect or token rotation by
   construction — but no test specifically exercises "open a second window, assert no
   reconnect/no token change," so this is inferred from the architecture, not proven by a named
@@ -263,7 +264,7 @@ very engine spawn those tests exist to exercise.
 
 ### D. The library connection axis (separate from the engine process axis)
 
-- `engine.library-load-not-transactional` — **[GAP]** (→ #3989) the library open/load/close
+- `engine.library-load-not-transactional` — **[GAP]** (#3989) the library open/load/close
   lifecycle is still ad-hoc: `LibraryManager` tracks `loadedLibraryIds`/`loadingLibraryIds` as
   separate `Set<UUID>` properties (`LibraryManager.swift:46-47`) rather than one explicit
   per-library `loadState` (`unopened → granting → loading → loaded | failed(Error) → closing →
@@ -274,7 +275,7 @@ very engine spawn those tests exist to exercise.
 
 ### E. Typed errors, not silent fallbacks
 
-- `engine.error-detail-reaches-the-caller` — **[BROKEN]** (→ #3931) 216 call sites (up from the
+- `engine.error-detail-reaches-the-caller` — **[BROKEN]** (#3931) 216 call sites (up from the
   issue's own count of 182, re-measured fresh this pass) discard the engine's error body via
   `case .undocumented(let statusCode, _)` — the underlying taxonomy
   (`AccessError.classify(statusCode:body:)`, `DenialBody.decode`) exists and works; these sites
@@ -285,57 +286,75 @@ very engine spawn those tests exist to exercise.
 
 ### F. Distribution and bundle hygiene (P3, not urgent)
 
-- `engine.dmg-mas-byte-identical-guard` — **[GAP]** (→ #3982) both app targets stage from the
+- `engine.dmg-mas-byte-identical-guard` — **[GAP]** (#3982) both app targets stage from the
   same bundle path today (structurally sound per the issue's own read), but no automated parity
   guard exists to keep a future config change from silently shipping two different engines; not
   built.
-- `engine.bundle-trim-litellm` — **[GAP]** (→ #3929) `litellm` (+ the AWS SDK it drags in via
+- `engine.bundle-trim-litellm` — **[GAP]** (#3929) `litellm` (+ the AWS SDK it drags in via
   `botocore`, ~84 MB) remains a full dependency though project policy says LLM calls route
   through langchain providers and litellm is used for pricing-lookup ONLY; not vendored down or
   made lazy.
-- `engine.launch-profiler-hangs` — **[GAP, unverified without re-profiling]** (→ #3979, → #3980)
+- `engine.launch-profiler-hangs` — **[GAP, unverified without re-profiling]** (#3979, #3980)
   two main-thread hangs (~601ms, ~991ms) and a 729ms atfork static-init cost were measured by
   Instruments 2026-07-17; whether they still fire needs a fresh trace, not a source read.
-- `engine.sandboxed-dev-embedded-footgun` — **[GAP, unverified this pass]** (→ #3993) whether the
+- `engine.sandboxed-dev-embedded-footgun` — **[GAP, unverified this pass]** (#3993) whether the
   `Fichero (App Store)` target still exposes a sandboxed "Dev Embedded" configuration (the
   reported footgun — selecting it silently rejects `~/code` libraries) was not conclusively
   re-checked against `project.pbxproj`'s current target/configuration mapping this pass.
-- `engine.uds-default-at-rest` — **[GAP]** (→ #4037) the engine's own at-rest listen socket is
+- `engine.uds-default-at-rest` — **[GAP]** (#4037) the engine's own at-rest listen socket is
   still HTTPS/TCP by default (per `transport/transport-http-uds.md`'s own behavior table); the
   uvicorn-binds-UDS-by-default design (removing the `portConflict` failure class entirely at
   the source) has not been adopted. This is the one item in this milestone that most overlaps
   `transport-http-uds.md`'s territory — cited there, not duplicated as a competing claim; that
   spec's own maintainers should decide which spec's milestone eventually owns the fix.
 
-## Fold plan for the 13 issues (Pass 2 — plan only, NOT executed this pass)
+## Fold record for the 13 issues (Pass 2 — executed 2026-09-19)
 
-**Move onto #318 (engine-startup-lifecycle):**
-- #3945 (referenced throughout, not itself one of the 13 — the earlier PR1 issue #3947 sequences
-  from) — not applicable, not on this milestone.
-- #3928 → `engine.launch-path-never-blocks-main`
-- #3931 → `engine.error-detail-reaches-the-caller`
+All by NUMBER. All 13 moved onto #318 (`gh api -X PATCH .../milestone=318`) — every issue on
+this legacy milestone found a real home, the first time that has happened in this program.
+**Milestone #110 ("Engine - Connection & Startup Bulletproofing") reached zero open issues and
+was closed** (`gh api -X PATCH .../milestones/110 -f state=closed`, never deleted). No issue was
+closed by this pass — every "already built" finding was posted as GitHub-comment evidence with
+"Left OPEN; not closing myself," per the standing rule.
+
+**Moved onto #318, each now backing a named behavior above:**
+- #3928 → `engine.launch-path-never-blocks-main`. **Verify-close comment posted**, naming
+  `StartupWorkGateTests` by test name; stays OPEN (tag PARTIAL, not OK, for exactly that reason).
+- #3931 → `engine.error-detail-reaches-the-caller` (stays BROKEN; the 216-site recount is worse
+  than the issue's own 182, no comment needed beyond what the spec already states).
 - #3947 → `engine.owned-by-app-not-window`, `.ownership-is-a-pure-function`,
   `.dead-reuse-guard-not-removed`, `.auto-respawn-bounded-backoff`,
-  `.port-conflict-is-a-user-decision` — the umbrella EPIC, cited from every behavior descending
-  from it rather than one line of its own.
-- #3968 → `engine.embedded-uitest-carve-out-unified`
+  `.port-conflict-is-a-user-decision`. **Verify-close comment posted**, covering all five pieces
+  by test name (`StartupWorkGateTests`, `PortConflictDecisionTests`, `BackendDropAutoRestartTests`)
+  and naming what's still NOT built (the reuse-guard's physical deletion, the three-way ownership
+  split, the library-connection axis/#3989); stays OPEN.
+- #3968 → `engine.embedded-uitest-carve-out-unified`. **Verify-close comment posted** — the fix
+  matches the diagnosed cause exactly, but no dedicated unit test was found and the issue's own
+  two UI tests weren't re-run end to end, so the comment says precisely that; stays OPEN
+  (PARTIAL).
 - #3979, #3980 → `engine.launch-profiler-hangs`
 - #3982 → `engine.dmg-mas-byte-identical-guard`
 - #3929 → `engine.bundle-trim-litellm`
 - #3989 → `engine.library-load-not-transactional`
 - #3993 → `engine.sandboxed-dev-embedded-footgun`
-- #4037 → `engine.uds-default-at-rest` (cross-referenced against `transport-http-uds.md`)
+- #4037 → `engine.uds-default-at-rest`. **Ownership decision made, not left as two competing
+  claims**: this spec owns the "should the engine's own at-rest listen socket default to UDS"
+  decision (a startup-lifecycle question, not a client-dial question); `transport/transport-
+  http-uds.md` (which owns WHICH transport a client dials) got a prose cross-reference added
+  pointing here, rather than restating or contradicting this spec's GAP tag.
 
-**Redirect / split, not moved outright:**
-- #3403 → half stays here (`engine.live-updates-pause-ux`, cross-reference only), half waits on
-  `harness/observable-data-layer.md` once written — do not move the issue itself until that
-  spec exists and can take a real citation.
-- #3362 → tentatively this spec (`engine.new-window-does-not-reauthenticate`), but as a
-  PARTIAL/inferred behavior with no pinning test — a Pass 2 executor should decide whether to
-  write that test before moving the issue, or move it now and note the test as follow-up work.
+**Split, not a clean fit — comment posted on each, both stay OPEN:**
+- #3403 → moved onto #318 for now (the more-built half); **split-territory comment posted**:
+  the reconnect/heartbeat backend loop is this spec's and built (`engine.reconnect-heartbeat`);
+  the UI-visible pause banner and per-store state belong to `harness/observable-data-layer.md`,
+  not yet written — recommended re-splitting once that spec exists rather than treating this as
+  resolved by either spec alone.
+- #3362 → moved onto #318; **comment posted stating this is an INFERENCE, explicitly not a
+  verify-close** — the app-scope move removes the MECHANISM this issue describes (only the
+  controller writes `EngineSession`, windows only observe), but no test pins "open a second
+  window, assert no reconnect," and the issue was not manually reproduced against HEAD. The
+  comment says this in so many words: "do not read this comment as built and tested."
 
-**Net effect if Pass 2 executes as planned:** #110 would drop from 13 open to 0 — every issue
-either fits directly or is a deliberate split/cross-reference, unlike prior folds in this
-program. No issue here is recommended for closure by this pass; several (#3928, #3947's own
-respawn/ownership/main-thread pieces, #3968) are strong verify-close candidates once Pass 2 runs
-and posts evidence.
+**Net effect:** #110 dropped from 13 open to 0 and is now CLOSED. #318
+(engine-startup-lifecycle) holds all 15 of its open issues (the 13 folded in, plus #4874/#4875
+filed during Pass 1) — none closed, none recommended for closure by this pass.

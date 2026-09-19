@@ -199,15 +199,16 @@ rather than defaulting to the pessimistic prior.
   `test_dataset_query.py`; → #3309, #3322 still open pending close) `date_jdn_from`/
   `date_jdn_to` filters and JDN-based sort exist in `db/__init__.py` and `dataset_query.py`;
   undated documents fall back to `created_at`, matching the documented fallback rule.
-- `histnorm.dates.adopt-standards-format` — **[GAP]** (→ #4364) the built date model above is real
-  and tested, but it is entirely hand-rolled (custom `HistoricalDate`/`date_meta` JSON), not the
-  `undate`/EDTF standard that issue asks the project to adopt instead of inventing its own. Its
-  own scope note says to evaluate `undate` against what #3322 built and prefer the library if
-  it covers the same ground — that evaluation has not happened. This is the one concrete,
-  actionable ask left in the date-handling thread; everything else it worried about
-  ("uncertainty thrown away") is already handled by the JDN-range + `date_meta` model, just not
-  in EDTF's standard form. **That issue is correctly waiting on this spec** — it names this exact
-  thread and belongs here, not on a code-lane's own milestone.
+- `histnorm.dates.adopt-standards-format` — **[GAP]** (#4364, moved onto this milestone
+  2026-09-19) the built date model above is real and tested, but it is entirely hand-rolled
+  (custom `HistoricalDate`/`date_meta` JSON), not the `undate`/EDTF standard #4364 asks the
+  project to adopt instead of inventing its own. Its own scope note says to evaluate `undate`
+  against what #3322 built and prefer the library if it covers the same ground — that
+  evaluation has not happened. This is the one concrete, actionable ask left in the
+  date-handling thread; everything else it worried about ("uncertainty thrown away") is already
+  handled by the JDN-range + `date_meta` model, just not in EDTF's standard form. #4364 was
+  correctly waiting on this spec — it named this exact thread and now lives here, not on a
+  code-lane's own milestone.
 
 ### C. Entity variants across scripts
 
@@ -320,8 +321,9 @@ a specific behavior above beyond this cross-reference, pending their own design 
 
 ## Waiting-issue notes for other folds
 
-- **#4364** (adopt undate/EDTF) — **belongs here**, see `histnorm.dates.adopt-standards-format`
-  above. Correctly waiting on this spec.
+- **#4364** (adopt undate/EDTF) — **belonged here, now moved** (2026-09-19, onto #317), see
+  `histnorm.dates.adopt-standards-format` above. Was correctly waiting on this spec; no longer
+  waiting.
 - **#1755** (georeference a map image onto a real/3D basemap) — **does NOT belong here.**
   Checked its full body: it is about treating a scanned map IMAGE as a georeferenced overlay on a
   basemap/globe (2D warp + 3D RealityKit), filed under milestone "UX - Representations" (#183).

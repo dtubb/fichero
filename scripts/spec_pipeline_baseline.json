@@ -42,11 +42,6 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "Engine - Connection & Startup Bulletproofing"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "Engine - Curation"
   },
   {

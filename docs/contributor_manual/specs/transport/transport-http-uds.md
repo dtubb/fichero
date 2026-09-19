@@ -25,6 +25,14 @@ The contract lives in `EngineConfig.transportMode` / `localDebugTransportOverrid
 | `.uds(path:)` | `FICHERO_FORCE_UDS_PATH=/path` or `FICHERO_FORCE_UDS=1` (app-computed socket) | owner-trusted, no TLS | Dev Local, the UI-test harness |
 | `.inMemory` | `FICHERO_FORCE_INMEMORY` (macOS) — PythonKit in-process | in-process | `⌘R` embedded-engine dev |
 
+**Cross-reference, not restated here**: WHICH transport a client dials is this spec's own
+territory (the table above). WHETHER the engine's own at-rest listen socket should default to
+UDS (removing the `portConflict` failure class entirely at the source, TCP+TLS brought up only
+when a sharing toggle is on) is a startup-lifecycle decision, not a client-dial decision — owned
+by `harness/engine-startup-lifecycle.md`'s `engine.uds-default-at-rest` behavior. Today `.https`
+is this spec's own documented default (table above), so the two specs currently agree; if that
+default ever changes, it changes there, not here.
+
 Rules: in-memory wins if both env flags are set; a configured remote host keeps `.https` EXCEPT
 under `--uitesting`, where the test's explicit transport owns the launch (so a developer's saved
 remote host can't redirect a hermetic test).

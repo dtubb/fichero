@@ -341,8 +341,11 @@ re-verified this pass.
 Left in its legacy milestone, not folded here: **#2807** (iOS first-run parity, an onboarding
 product decision) and **#1755** (georeferencing a scanned map image onto a real basemap/globe
 — an authoring feature, not a mode that plots existing coordinates the way Map mode does) are
-both waiting on a home this spec isn't: onboarding has no spec, and georeferencing is closer
-to the not-yet-written `historical-text-normalization` spec than to a Library view mode.
+both waiting on a home this spec isn't: onboarding has no spec, and georeferencing needs a map/
+representations spec of its own — **corrected 2026-09-19**: `kg/historical-text-normalization.md`
+was written and read in full; #1755 is unrelated to it (that spec is about historical TEXT
+normalization — dates, entity variants, scripts — not map images), so this is not its waiting
+issue either. Left on its own milestone ("UX - Representations", #183) with no home found yet.
 
 ### I. Canvas & Space (legacy milestones "Library View - Spatial", "Library View - Canvas")
 
@@ -418,16 +421,20 @@ current-window`, #3364; `panes.split.each-pane-its-own-document`, #2422), `resea
 
 ### K. No spec exists yet — left on the legacy milestone, not moved
 
-Four issues wait on a spec this ledger's burn-down proposed but nobody has written yet, per
-the fold rule: do not invent a home, do not move the issue.
+Four issues originally waited on a spec this ledger's burn-down proposed but nobody had written
+yet, per the fold rule: do not invent a home, do not move the issue. One (#4364) has since been
+resolved and moved; the other three's status is corrected below.
 
-- **#4364** (Historical dates: adopt undate/EDTF) — waiting on `historical-text-normalization`.
-  Left on milestone "Library - Engine" (#165).
+- **#4364** (Historical dates: adopt undate/EDTF) — **RESOLVED 2026-09-19**:
+  `historical-text-normalization` was written (milestone #317) and #4364 has been moved onto
+  it, cited from `histnorm.dates.adopt-standards-format`. No longer waiting.
 - **#4236** (Search returns 0 results for text the Inspector is displaying) — waiting on the
   proposed `search` spec. Left on milestone "Library View" (#117).
-- **#1755** (georeference a scanned map as a real-world overlay) — waiting on
-  `historical-text-normalization`. Left on milestone "UX - Representations" (#183) (already
-  noted in section H).
+- **#1755** (georeference a scanned map as a real-world overlay) — **corrected 2026-09-19**:
+  does NOT wait on `historical-text-normalization` — that spec was written and read in full;
+  #1755 is map georeferencing, unrelated to historical text. This line was a wrong pointer,
+  found and fixed while folding that spec's own legacy milestone. Left on its own milestone
+  ("UX - Representations", #183), no home found yet (already noted in section H).
 - **#4583** (Preview pane: first click delay before the full image loads) — RESOLVED since
   this was written: moved onto `preview-surface.md`'s milestone as
   `preview.image.shows-cache-before-full-load`. The SELECTION-latency half of the same
