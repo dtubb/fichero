@@ -246,7 +246,11 @@ struct WorkspaceSplitStack: View {
     ///
     /// Pure — no SwiftUI, no view mounting. `WorkspaceSplitStackTests` calls this directly at
     /// several stack sizes.
-    static func resolvedExtents(
+    // #4902: `nonisolated` is load-bearing — WorkspaceSplitStackSeedingTests
+    // and WorkspaceSplitStackSizingTests are non-@MainActor Swift Testing
+    // suites calling this directly; pure over its own parameters, no
+    // actor-isolated state read.
+    nonisolated static func resolvedExtents(
         _ sizings: [Sizing],
         storedOverrides: [Double?] = [],
         total: Double,

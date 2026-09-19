@@ -306,7 +306,10 @@ struct ContentView: View {
     /// reusing the existing baseline dirty-tracking (`lastSyncedWorkflow`,
     /// see `MainContentModifiers`), not re-saving unchanged content on every
     /// selection move.
-    static func shouldAutoSaveWorkflow(
+    // #4902: `nonisolated` is load-bearing — ShouldAutoSaveWorkflowTests is a
+    // non-@MainActor Swift Testing suite calling this directly; pure over its
+    // own parameters, no actor-isolated state read.
+    nonisolated static func shouldAutoSaveWorkflow(
         old: WorkflowSidebarItem?,
         new: WorkflowSidebarItem?,
         isDirty: Bool,
@@ -343,7 +346,10 @@ struct ContentView: View {
         case none
     }
 
-    static func workflowChangeAction(oldId: String?, newId: String?) -> WorkflowChangeAction {
+    // #4902: `nonisolated` is load-bearing — WorkflowChangeActionTests is a
+    // non-@MainActor Swift Testing suite calling this directly; pure over its
+    // own parameters, no actor-isolated state read.
+    nonisolated static func workflowChangeAction(oldId: String?, newId: String?) -> WorkflowChangeAction {
         guard let newId else { return .none }
         if oldId == newId { return .alignMetadataOnly }
         return .load
