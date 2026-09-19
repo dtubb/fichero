@@ -209,12 +209,23 @@ async def inspector(
     except Exception as exc:
         logger.warning("entity_inspector: triangulation lookup failed: %s", exc)
 
+    # #4869: this embeds full claim rows -- a legacy row's stored
+    # `provenance_kind=None` must be resolved before it reaches the wire,
+    # same as every other claim read path. `model_copy` never touches
+    # the stored row (no backfill).
+    from fichero_server.knowledge._common import resolve_claim_provenance_kind
+
+    resolved_claims = [
+        c.model_copy(update={"provenance_kind": resolve_claim_provenance_kind(c)})
+        for c in claims
+    ]
+
     return EntityInspectorResponse(
         entity_id=entity_id,
         entity=entity,
         summary=_compose_entity_summary(entity, claims, documents),
         claim_count=len(claims),
-        claims=claims,
+        claims=resolved_claims,
         documents=documents,
         annotations=annotations,
         notes=notes,

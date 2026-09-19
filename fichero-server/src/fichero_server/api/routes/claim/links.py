@@ -276,7 +276,15 @@ async def get_related_claims(
 
     # Fetch related claims
     related_claims = [db.get(KnowledgeClaim, rid) for rid in related_ids]
-    items = [c for c in related_claims if c is not None]
+    # #4869: a legacy row's stored `provenance_kind=None` must be resolved
+    # before it reaches the wire, same as every other claim read path.
+    from fichero_server.knowledge._common import resolve_claim_provenance_kind
+
+    items = [
+        c.model_copy(update={"provenance_kind": resolve_claim_provenance_kind(c)})
+        for c in related_claims
+        if c is not None
+    ]
     return ClaimListResponse(items=items, count=len(items))
 
 

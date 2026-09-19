@@ -796,6 +796,19 @@ class SearchClaimHit(KnowledgeClaim):
     similarity_score: float = 0.0
 
 
+def _resolved_search_claim_hits(claim_hits: list[dict]) -> list[SearchClaimHit]:
+    """Validate raw claim rows into `SearchClaimHit`s with `provenance_kind`
+    resolved (#4869) -- a legacy row's stored `None` must never reach the
+    wire as-is, same as every other claim read path. `model_copy` never
+    touches the stored row (no backfill)."""
+    from fichero_server.knowledge._common import resolve_claim_provenance_kind
+
+    return [
+        hit.model_copy(update={"provenance_kind": resolve_claim_provenance_kind(hit)})
+        for hit in (SearchClaimHit.model_validate(item) for item in claim_hits)
+    ]
+
+
 class SearchResponse(BaseModel):
     """Response model for enhanced search results."""
 
@@ -1357,7 +1370,7 @@ async def enhanced_search(
     # means the header cannot disagree with the body without the body changing
     # under it — rather than being accumulated in parallel beside them.
     typed_entity_hits = [SearchEntityHit.model_validate(item) for item in entity_hits]
-    typed_claim_hits = [SearchClaimHit.model_validate(item) for item in claim_hits]
+    typed_claim_hits = _resolved_search_claim_hits(claim_hits)
 
     return SearchResponse(
         query=request.query,

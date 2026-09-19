@@ -245,6 +245,128 @@ class TestSerializationSitesApplyTheDerivation:
         result = asyncio.run(mcp_knowledge_claim_get(legacy.id, db=db))
         assert result.provenance_kind == ProvenanceKind.external_import
 
+    def test_search_claim_hit_resolves_a_legacy_row(self):
+        """#4869 follow-up: team-lead's regen diff showed `SearchClaimHit`
+        (search/core.py) also embeds a full claim row and was missed in the
+        first sweep. Tested at the same boundary the codebase already uses
+        for this response (see test_search_header_matches_body.py): the raw
+        row dict `_run_claim_semantic_queries` would hand back, validated
+        the way the route does, never the full route with its retrieval/ACL
+        machinery mocked out."""
+        from fichero_server.api.routes.search.core import _resolved_search_claim_hits
+
+        legacy_row = {
+            "id": "c-1",
+            "text": "t",
+            "source_document_id": "doc-1",
+            "provider": "openai",
+            "provenance_kind": None,
+        }
+        hits = _resolved_search_claim_hits([legacy_row])
+        assert hits[0].provenance_kind == ProvenanceKind.workflow
+
+    def test_entity_inspector_resolves_a_legacy_row(self, db):
+        from fichero_server.api.routes.entity.inspector import inspector as entity_inspector
+        from fichero_server.models.knowledge import EntityType, KnowledgeEntity
+
+        entity = KnowledgeEntity(canonical_name="Alicia", entity_type=EntityType.person)
+        db.save(entity)
+        legacy = KnowledgeClaim(
+            text="t",
+            source_document_id="doc-1",
+            entity_ids=[entity.id],
+            created_by="human",
+            provenance_kind=None,
+        )
+        db.save(legacy)
+        result = asyncio.run(entity_inspector(entity.id, db=db))
+        assert result.claims[0].provenance_kind == ProvenanceKind.unknown
+        assert db.get(KnowledgeClaim, legacy.id).provenance_kind is None
+
+    def test_document_inspector_resolves_a_legacy_row(self, db):
+        from fichero_server.api.routes.document.inspector import inspector as doc_inspector
+
+        doc = _doc(db)
+        legacy = KnowledgeClaim(
+            text="t", source_document_id=doc.id, model="spacy_ner", provenance_kind=None
+        )
+        db.save(legacy)
+        result = asyncio.run(doc_inspector(doc.id, db=db))
+        assert result.claims[0].provenance_kind == ProvenanceKind.workflow
+
+    def test_document_knowledge_graph_resolves_a_legacy_row(self, db):
+        from fichero_server.api.routes.document.inspector import knowledge_graph
+
+        doc = _doc(db)
+        legacy = KnowledgeClaim(
+            text="t", source_document_id=doc.id, created_by="wikidata", provenance_kind=None
+        )
+        db.save(legacy)
+        result = asyncio.run(knowledge_graph(doc.id, db=db))
+        assert result.claims[0].provenance_kind == ProvenanceKind.external_import
+
+    def test_related_claims_resolves_a_legacy_row(self, db):
+        from fichero_server.api.routes.claim.links import get_related_claims
+        from fichero_server.models.knowledge import ClaimRelationType, KnowledgeClaimLink
+
+        source = KnowledgeClaim(text="source", source_document_id="doc-1")
+        db.save(source)
+        legacy = KnowledgeClaim(
+            text="related", source_document_id="doc-1", provider="anthropic", provenance_kind=None
+        )
+        db.save(legacy)
+        db.save(
+            KnowledgeClaimLink(
+                claim_id=source.id,
+                related_claim_id=legacy.id,
+                relation_type=ClaimRelationType.supports,
+            )
+        )
+        result = asyncio.run(get_related_claims(source.id, db=db))
+        assert result.items[0].provenance_kind == ProvenanceKind.workflow
+
+    def test_citation_usage_resolves_a_legacy_row(self, db):
+        from fichero_server.api.routes.citation.usages import list_citation_usages
+        from fichero_server.models.knowledge import DocumentCitation
+
+        legacy = KnowledgeClaim(
+            text="t", source_document_id="doc-1", created_by="human", provenance_kind=None
+        )
+        db.save(legacy)
+        citation = DocumentCitation(
+            source_document_id="doc-1",
+            target_document_id="doc-2",
+            target_citation_text="see doc-2",
+            detector="llm-usage",
+            metadata={"claim_id": legacy.id, "matched_reference_id": None, "stance": None},
+        )
+        db.save(citation)
+        result = asyncio.run(
+            list_citation_usages(
+                source_document_id=None,
+                target_document_id=None,
+                reference_id=None,
+                stance=None,
+                db=db,
+            )
+        )
+        found = next(i for i in result.items if i.claim is not None)
+        assert found.claim.provenance_kind == ProvenanceKind.unknown
+
+    def test_entity_biography_resolves_a_legacy_row(self, db):
+        from fichero_server.api.routes.entity.entities import assemble_entity_biography
+        from fichero_server.models.knowledge import EntityType, KnowledgeEntity
+
+        entity = KnowledgeEntity(canonical_name="Alicia", entity_type=EntityType.person)
+        db.save(entity)
+        legacy = KnowledgeClaim(
+            text="t", source_document_id="doc-1", entity_ids=[entity.id], provider="openai", provenance_kind=None
+        )
+        db.save(legacy)
+        response = assemble_entity_biography(entity.id, db)
+        assert response.claims[0].provenance_kind == ProvenanceKind.workflow
+        assert db.get(KnowledgeClaim, legacy.id).provenance_kind is None
+
 
 def test_a_library_created_before_the_field_upgrades_without_rewriting_its_rows(tmp_path):
     """kg.claim.provenance-kind-is-server-stated (#4869): the field's tests above all

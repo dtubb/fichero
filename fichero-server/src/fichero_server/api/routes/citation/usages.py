@@ -52,10 +52,16 @@ async def list_citation_usages(
         if isinstance(claim_id, str):
             claim_ids.add(claim_id)
 
+    # #4869: a legacy row's stored `provenance_kind=None` must be resolved
+    # before it reaches the wire, same as every other claim read path.
+    from fichero_server.knowledge._common import resolve_claim_provenance_kind
+
     claim_map: dict[str, KnowledgeClaim] = {}
     if claim_ids:
         for claim in db.query_in(KnowledgeClaim, "id", list(claim_ids)):
-            claim_map[claim.id] = claim
+            claim_map[claim.id] = claim.model_copy(
+                update={"provenance_kind": resolve_claim_provenance_kind(claim)}
+            )
 
     items: list[CitationUsageItem] = []
     for citation in rows:

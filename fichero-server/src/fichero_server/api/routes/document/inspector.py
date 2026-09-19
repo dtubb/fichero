@@ -182,12 +182,23 @@ async def inspector(
         if p is not None
     ]
 
+    # #4869: this embeds full claim rows -- a legacy row's stored
+    # `provenance_kind=None` must be resolved before it reaches the wire,
+    # same as every other claim read path. `model_copy` never touches
+    # the stored row (no backfill).
+    from fichero_server.knowledge._common import resolve_claim_provenance_kind
+
+    resolved_doc_claims = [
+        c.model_copy(update={"provenance_kind": resolve_claim_provenance_kind(c)})
+        for c in doc_claims
+    ]
+
     return DocumentInspectorResponse(
         document_id=document_id,
         document=doc.model_dump(mode="json"),
         source_metadata=doc.source_metadata,
         claim_count=len(doc_claims),
-        claims=doc_claims,
+        claims=resolved_doc_claims,
         entities=entities,
         annotations=annotations,
         notes=notes,
@@ -668,11 +679,20 @@ def _build_knowledge_graph(
             KGEntityGroup(kind=kind, label=_KIND_LABELS[kind], items=items)
         )
 
+    # #4869: a legacy row's stored `provenance_kind=None` must be resolved
+    # before it reaches the wire, same as every other claim read path.
+    from fichero_server.knowledge._common import resolve_claim_provenance_kind
+
+    resolved_kg_claims = [
+        c.model_copy(update={"provenance_kind": resolve_claim_provenance_kind(c)})
+        for c in doc_claims
+    ]
+
     return DocumentKnowledgeGraphResponse(
         document_id=document_id,
         include_children=include_children,
         groups=groups,
-        claims=doc_claims,
+        claims=resolved_kg_claims,
         entity_count=entity_count,
         claim_count=len(doc_claims),
         catalogue=catalogue,
