@@ -168,6 +168,40 @@ made it.
   its label from `confidence_source` (`ClaimTableRow.swift:26-35`) — a different field
   entirely. An uncurated, hand-authored claim shows "—" instead of "Human," because the badge
   and the write path disagree about which field means "who made this."
+- `kg.claim.provenance-kind-is-server-stated` — **[PARTIAL]** (#4868, #4869) sits beside
+  `hermeneutic.claim-provenance-badge-reads-the-right-field` above rather than in
+  `kg-tables.md`, because both issues are filed on this milestone and both are the same class
+  of defect the sibling behavior already names — which field means "who made this" — one
+  layer deeper: that field's own STORED VALUE, not just which field the badge reads.
+  (`kg-tables.md`'s own `kg.tables.provenance.author-mark` is the aspirational design line
+  this behavior makes concrete; cross-referenced there, not duplicated.) Verified BROKEN at
+  HEAD: `KnowledgeClaim.created_by` (`models/knowledge.py`) defaults to `"human"` — a default
+  no caller has to override — and the workflow claim writer (`_entity_writer.py`'s
+  `KnowledgeClaim(...)` construction) sets `provider`/`model` but never `created_by`; the
+  NLP-draft importer likewise never sets it. So every machine-extracted claim is STORED as
+  authored by a human, not merely mislabeled at render time. `ClaimSummaryCard
+  +Provenance.swift`'s `createdByBadge(for:)` reads that same untrustworthy field: an exact
+  match against `["human", "user", "manual", "researcher", "editor", "curator", "cli"]`
+  badges "Human," and a substring `.contains("ai")`/`"agent"`/`"llm"`/`"extract"` badges
+  "AI" — so a real human actor whose account name happens to contain "ai" (or any string not
+  in the human list) gets badged "AI," and every machine claim gets badged "Human" by the
+  same default. **Ruled direction**: one CLOSED field (`ProvenanceKind`: human/agent/
+  workflow/external_import/unknown) set by the SERVER at the point of writing, never accepted
+  from a client on any route or action; existing stored rows are NOT rewritten — a legacy
+  row's kind is derived at READ time instead (provider/model present → `workflow`;
+  `created_by == "wikidata"` → `external_import`; otherwise `unknown`, deliberately never
+  `human`, since a legacy row's `created_by` being the string "human" is exactly the
+  untrustworthy value this behavior exists to stop trusting). Whether stored rows also get an
+  audited repair pass is explicitly the maintainer's decision, not decided here. **The engine half is built** (c30680467, contract
+  regenerated in 6adec7180): `ProvenanceKind` and `KnowledgeClaim.provenance_kind`, set by the
+  server on every write path and ignored when a client supplies it; `created_by` defaults to
+  `unknown`; `resolve_claim_provenance_kind` is the one place a legacy row's kind is derived;
+  an existing library takes the new column without any row being rewritten. Pinned:
+  `fichero-server/tests/unit/knowledge/test_claim_provenance_kind.py`. PARTIAL, not OK, for
+  three reasons that keep #4869 and #4868 open: the app's claim card still badges from words in
+  `created_by` and has not yet been moved to this field; search results and export paths embed
+  a claim and do not yet apply the derivation; and "agent" is identified by the surface an
+  action came through, not by a verified property of the account.
 
 ## Test matrix
 

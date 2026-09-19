@@ -147,21 +147,80 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   layout choice). No test found exercising this second banner specifically — PARTIAL rather
   than OK.
 
-## PASS 2 fold plan (not executed — no issues moved)
+## PASS 2 — the fold (9 waiting issues, every body read fresh)
 
-Nine issues are waiting on this spec (found while reading bodies fresh during the
-`library-view-modes.md` and `reader-view.md` folds — by the CODE PATHS their bodies name,
-`Views/Preview/PDFViewer/`, `Views/Preview/ImageViewer/`, `Views/Preview/DocumentCanvas.swift`,
-not by title resemblance to "reading surface" vocabulary that belongs to the Reader):
-**#2257** (a 2D page-grid mode for PDFs — its body names `PDFPageWithToolbar`), **#2090**
-(multi-page 1-up/2-up/N-up layouts — names `DocumentCanvas.swift`/`PDFPageView.swift`),
-**#2040** (multi-select continuous-scroll preview — its own title says "preview"), **#1817**
-(continuous-scroll multi-image viewer — "the image viewer"), **#1747** (unify page/image
-navigation — the same `DocumentCanvas.swift`), **#1552** (swipe page-change parity, PDF vs
-images — `PDFPageController`, the image-viewer sibling-swipe gesture), **#4587** (zoom-out has
-no sensible floor), **#4583** (first click delay before the full image loads), **#588** (PDF
-trackpad pinch-zoom + parent-gesture interception). None read yet against this spec's actual
-behaviors above — that reading is Pass 2's job, not done here (Pass 1 was the ask).
+None redirect elsewhere and none need maintainer triage — all nine are genuinely this spec's
+subject. Evidence varies by issue: #2090, #2040, #1817, #1747, #1552, and #588's bodies name a
+Preview code path or class directly (`DocumentCanvas.swift`, `PDFPageView.swift`,
+`PDFPageController`, "the image viewer"); #2257's body names a specific CLASS
+(`PDFPageWithToolbar`) which reading the code (not the issue) places under
+`Views/Preview/PDFViewer/`; #4587 and #4583 are evidenced by their own titles ("Preview
+zoom-out," "before Preview loads") plus the code read below.
+
+### New behaviors (fits, cited from HEAD, moved onto #314)
+
+- `preview.pdf.page-grid-mode` — **[GAP]** (#2257) a 2D page-GRID mode for a PDF — a
+  `LazyVGrid` of thumbnail cells, not one image at a time — mounted via a Page/Grid toggle in
+  `PDFPageWithToolbar`, with per-tile or global toggling of image vs. extracted text in the
+  grid. Distinct from the spatial node-map (Canvas) and from georeferencing a page onto a
+  basemap (waiting on `historical-text-normalization`, per the ledger). Not built.
+- `preview.pdf.multi-page-layouts` — **[GAP]** (#2090) multiple page-layout modes for BOTH
+  PDFs and image documents — 1-up, 2-up (facing spread), 3-up, 4-up, continuous scroll — split
+  honestly into two tiers by what PDFKit gives for free: Tier 1 (single/single-continuous/
+  two-up/two-up-continuous) is a small toolbar-control change surfacing `PDFView.displayMode`
+  states already rendered; Tier 2 (3-up/4-up, and the same grid for image documents, which
+  have no `PDFView` at all) needs one shared custom N-column grid renderer over page images,
+  lazy-loaded. Not built.
+- `preview.selection.continuous-scroll-on-multiselect` — **[GAP]** (#2040) selecting multiple
+  items should turn the image preview into a continuous vertical scroll of their pages
+  (Preview.app's own behavior for a multi-selection), as a property of the existing canvas —
+  not a second, parallel viewer. Not built.
+- `preview.image.continuous-scroll-mode` — **[GAP]** (#1817) a folder of images should offer a
+  continuous vertical-scroll mode — flowing through pages the way a PDF's continuous mode
+  does — reusing the existing viewer stack, lazy-loading through the storage HTTP endpoints.
+  Distinct from `preview.selection.continuous-scroll-on-multiselect` above: that one is
+  triggered BY a multi-selection; this one is a standing MODE for browsing any image folder
+  regardless of how many items are selected.
+- `preview.canvas.unified-sibling-navigation` — **[GAP]** (#1747, #1552 — the same ask: PDF
+  and image-folder navigation should behave identically) `DocumentCanvas` should navigate
+  siblings the SAME way for a PDF and for a folder of images — left/right swipe, arrow keys,
+  on-screen arrow buttons — one navigation model, not two. Verified BROKEN-by-omission at
+  HEAD, not merely unbuilt: `DocumentCanvas`'s `onNavigateToDocument` callback (the
+  sibling-stepping hook) is threaded to BOTH image `Content` cases
+  (`.imageStorageDisplay`/`.imageRendered`, `DocumentCanvas.swift:82,89`), but the `.pdf` case
+  (`:113-117`) passes only `documentId`/`pageIndex`/`onPageIndexChange` to
+  `PDFPageWithToolbar` — that view has no `onNavigateToDocument` parameter AT ALL (confirmed:
+  no such parameter appears anywhere in `PDFPageWithToolbar.swift`). A PDF genuinely cannot
+  step to a sibling FILE the way an image can, by construction, not by an unverified report.
+  #1552's specific repro (swipe works on a PDF, not on an image in a folder) is the same gap
+  from the opposite direction — the image viewer has its own internal swipe-to-next-PAGE
+  gesture but no sibling-FILE step wired the same way a PDF's page-turn is, per that issue's
+  own note that "the image viewer has no equivalent sibling-nav gesture."
+- `preview.zoom.has-a-sensible-floor` — **[GAP]** (#4587) zooming a page image out should
+  clamp at fit-to-view (or a small multiple below it), not permit a 1% speck in a grey field.
+  Not verified as built.
+- `preview.image.shows-cache-before-full-load` — **[GAP]** (#4583) the first click on an icon
+  should show Preview's cached thumbnail instantly, swapping in the full image when ready —
+  no blank beat. This is the Preview-side half of a symptom `library-view-modes.md`'s
+  `library.icon.arrow-nav-latency` names the Library-side half of (synchronous selection,
+  async image load) — cross-referenced there, not duplicated as a second behavior for the
+  same root cause.
+
+### Verify-close — evidence posted, left OPEN, not closed here
+
+- **#588** ("PDFView: trackpad pinch-zoom + prevent parent gesture interception") — verified
+  BUILT at HEAD: `PinchOwningPDFView` (`PDFPageView.swift:22-33`) overrides `magnify(with:)` to
+  disable `autoScales` the moment a pinch begins (calling `super.magnify` so PDFKit's native
+  pinch recognizer still does the zooming), and two LATER fixes' own comments (#4125, #4279)
+  build on this behavior as already-working infrastructure, not as something still broken.
+  Not independently tested — no dedicated test exercises the pinch gesture itself. Left OPEN
+  for the maintainer to confirm live; not closed here.
+
+**Milestones**: legacy milestone "Reader View - Page" doesn't hold these nine — they came from
+the earlier `library-view-modes.md`/`reader-view.md` folds' waiting lists, which have no
+single legacy milestone to close (their issues were scattered across "UX - Library & Reading
+Surface" and "Reader View - Page," both already handled in prior passes). No milestone closes
+from this fold.
 
 **Legacy milestone "Preview - Image Editing" (#168, 16 open issues) — recommend it stays
 BESIDE this spec, as its own `preview-image-editing` spec, not folded in.** `DocumentCanvas`

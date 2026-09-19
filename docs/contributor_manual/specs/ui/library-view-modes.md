@@ -427,11 +427,11 @@ the fold rule: do not invent a home, do not move the issue.
 - **#1755** (georeference a scanned map as a real-world overlay) — waiting on
   `historical-text-normalization`. Left on milestone "UX - Representations" (#183) (already
   noted in section H).
-- **#4583** (Preview pane: first click delay before the full image loads) — waiting on a
-  Preview-surface spec that doesn't exist yet (`preview-magnifier.md` is scoped to the
-  magnifier control specifically, not general Preview load sequencing). Left on milestone
-  "Library View — Icons" (#158); the SELECTION-latency half of the same symptom is
-  `library.icon.arrow-nav-latency` in section E above, which does belong here.
+- **#4583** (Preview pane: first click delay before the full image loads) — RESOLVED since
+  this was written: moved onto `preview-surface.md`'s milestone as
+  `preview.image.shows-cache-before-full-load`. The SELECTION-latency half of the same
+  symptom stays here as `library.icon.arrow-nav-latency` in section E above — cross-referenced
+  from both sides, not duplicated.
 
 ### L. No existing spec fits either — maintainer triage, not a guess
 

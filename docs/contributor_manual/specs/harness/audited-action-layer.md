@@ -91,25 +91,20 @@ parallel pattern to keep.
   `test_action_registry.py::TestRegistryInvoke::test_invoke_returns_result_writes_audit_and_emits`,
   `::test_invoke_validates_params`, `::test_invoke_unknown_action_raises`,
   `TestActionsRegistryRoute::test_invoke_via_route_writes_audit`.
-- `audit.actor-cannot-be-forged` — **[BROKEN]** (#4844, #4843) `POST /api/actions/invoke`
-  rejects a request body that sets `actor`/`origin_window` directly
-  (`InvokeActionRequest.reject_deprecated_fields`, → #3285); the real actor is derived
-  exclusively from authenticated request state (`action_context()` →
+- `audit.actor-cannot-be-forged` — **[PARTIAL]** (#4844, fixed for #4843's specific finding by
+  8aa6c8e12) `POST /api/actions/invoke` rejects a request body that sets `actor`/
+  `origin_window` directly (`InvokeActionRequest.reject_deprecated_fields`, → #3285); the real
+  actor is derived exclusively from authenticated request state (`action_context()` →
   `actor_from_request(request)`). A `client` header (e.g. `X-Fichero-Client: fichero-mcp`) is
-  attribution metadata only, never an authorization input (a fix landed under a separate closed
-  issue). **This guard is narrow, not general — verified by reading the code, not guessed**:
-  `reject_deprecated_fields` is defined ONLY on `InvokeActionRequest`, the request model for
-  `POST /api/actions/invoke` specifically. A route that bypasses the action layer entirely has
-  no such guard at all — `kg/inclusion.py::upsert_inclusion` (already a tracked
-  `audit.every-mutating-route-uses-the-registry` violation, #4831) accepts a plain
-  client-supplied `updated_by: str = "human"` field on its OWN request model
-  (`InclusionUpsertRequest`, `inclusion.py:30`) and stores it verbatim (`:47`) — no validation,
-  no derivation from the real actor, at all. Retagged from [PARTIAL] to [BROKEN]: this isn't
-  just "untested," a real forgeable path exists today. Fixed once the route is wired through the
-  registry (`updated_by` then comes from `ctx.actor`, never the request body, same as every
-  other action) — tracked on #4831, not a separate fix. The `POST /api/actions/invoke` guard
-  itself remains untested — no test drives the route with a forged `actor` and asserts the
-  rejection; filed as #4844.
+  attribution metadata only, never an authorization input. **The concrete forgeable path this
+  behavior found is fixed**: `kg/inclusion.py::upsert_inclusion`'s `InclusionUpsertRequest
+  .updated_by` field stays on the request model for compatibility, but its value is now
+  IGNORED — the route stores `updated_by=actor` (`inclusion.py:63,71`), never
+  `request.updated_by`; a test sends a forged name and reads the real actor back from the
+  stored row. Verified at HEAD: no code path reads `request.updated_by` for the write. Still
+  PARTIAL, not OK: the `POST /api/actions/invoke` guard itself remains untested — no test
+  drives the route with a forged `actor` and asserts the rejection; that half is still filed
+  as #4844. Pinned: `test_routes_kg_inclusion.py::test_forged_updated_by_is_ignored`.
 - `audit.undo-redo-is-generic` — **[OK]** one endpoint (`POST
   /api/actions/audit/{audit_id}/undo`) reverses any undoable action via its own declared
   `invert()`, and redoes an inverse by replaying the ORIGINAL forward action's recorded
@@ -134,50 +129,38 @@ parallel pattern to keep.
   `registry.invoke(` in its own body (directly — no tracing through helper indirection; a
   route that calls a private helper which itself calls `registry.invoke` is still flagged,
   deliberately, per the guardrail's own docstring). The guardrail
-  (`scripts/check_routes_use_action_layer.py`, an AST scan) ran for real (2026-09-18) and found
-  **20 violations + 4 by-design routes** across 42 decorated mutating routes total. **First
-  batch landed while this spec was written** (e06b12551): `entity.split`, `add_entity_aliases`
-  (a thin caller of `entity.update` — no second action for the same underlying write),
-  `entity.batch_curation` — confirmed COMPLIANT by the real scan. **Second landing**
-  (7523bcf95, its own now-closed filing issue): `entity.link_authority` — also confirmed
-  compliant. `render.py::generate_entity_bio` (the LLM `/bio` route,
-  `kg.read.no-llm`'s BROKEN finding in `kg-readable-representation.md`) is itself already
-  compliant — it calls `registry.invoke("entity.update", …)` to persist the LLM output, which
-  is a *separate* finding from whether that write should exist at all.
+  (`scripts/check_routes_use_action_layer.py`, an AST scan) ran for real (re-run 2026-09-18,
+  after tonight's three landings) and now finds **9 violations + 5 by-design routes** across
+  the same 42 decorated mutating routes — down from the 20 violations + 4 by-design this
+  behavior originally found. **Three more landings since this spec's first pass**: 8aa6c8e12
+  (`inclusion.upsert`, `review.accept`, `review.reject`, `review.queue`,
+  `triangulation.recompute` — five routes; `review.accept` also stopped carrying its own copy
+  of the entity-merge algorithm, calling `merge_entities_impl` instead so its undo is the
+  already-tested `entity.unmerge`); 8e06dc31d (`claim.embed`, `entity.embed`, the
+  external-authority setting, and creating/deciding a prediction review — five more routes,
+  and `generate_heuristic_predictions` reclassified BY-DESIGN, not fixed — its body only reads
+  and returns, POST only because its parameters travel in the body).
 
-  **The 20 real violations, by file:** `claim_search.py::embed_claims`; `entity_curation.py`'s
-  `embed_entities`, `put_external_authority_settings`, `refresh_external_authority`,
-  `enrich_import`; `inclusion.py::upsert_inclusion` (also client-supplies `updated_by`, a
-  second, distinct actor-forgery risk — see `audit.actor-attribution-is-real-not-hardcoded`);
-  `mutations.py::undo_mutation`; `predictions.py`'s `generate_heuristic_predictions` and
-  `apply_prediction_run`; `pykeen.py`'s `train`, `create_prediction_review`,
-  `decide_prediction_review`, `delete_trained_model`, `verify_prediction`; `rebuild.py`'s
-  `reset_kg`/`rebuild_kg` (destructive); `review.py`'s `accept_pair`/`reject_pair`/`queue_pair`;
-  `triangulation.py::recompute_triangulation`.
+  **The 9 remaining violations, verified against the live allowlist
+  (`scripts/routes_action_layer_allowlist.json`) rather than assumed from the old count:**
+  `entity_curation.py`'s `refresh_external_authority` and `enrich_import`;
+  `mutations.py::undo_mutation`; `predictions.py::apply_prediction_run`; `pykeen.py`'s `train`,
+  `delete_trained_model`, `verify_prediction`; `rebuild.py`'s `reset_kg`/`rebuild_kg`
+  (destructive).
 
-  **The 4 by-design routes** (each read on its own merits, never an automatic "looks read-only"
-  guess — see the guardrail's own allowlist rule): `render.py::render_paragraph` (composes
-  existing claims into prose via `db.get()` only, POST for the request body's `claim_ids` list,
-  not for mutation); `sparql.py`'s `sparql_query`/`sparql_query_legacy` (both reject any
-  mutating SPARQL verb before running, by their own docstring); `entity_curation.py
-  ::enrich_preview` (fetches candidate Wikidata statements for review, no `db.save`/`delete` —
-  its mutating sibling `enrich_import` above IS a real violation).
+  **The 5 by-design routes** (one more than the 4 this behavior first found):
+  `render.py::render_paragraph`, `sparql.py`'s `sparql_query`/`sparql_query_legacy`,
+  `entity_curation.py::enrich_preview` (all as before), plus
+  `predictions.py::generate_heuristic_predictions` (new this pass, see above).
 
-  **Diff against the engine lane's own #4831 sweep (comparing both directions, as requested):**
-  the sweep listed ~14 mutating violations and separately named `sparql.py`'s two query
-  endpoints and `render_paragraph` as "probably fine, not verified exhaustively" — the guardrail
-  CONFIRMS all three are by-design after reading their bodies, closing that open question. The
-  guardrail found ONE violation the sweep's list did not name: `inclusion.py::upsert_inclusion`
-  — a real, previously-unlisted bare mutating route. The guardrail also surfaced
-  `enrich_preview` as a finding the sweep never mentioned at all (it isn't mutating, so it was
-  out of the sweep's own scope) — resolved by-design, not a miss. No violation the sweep named
-  went unfound by the guardrail. This behavior is the guardrail's own home; it stays BROKEN
-  until the guardrail reports zero unallowlisted violations AND its violation count (currently
-  20) starts shrinking, tracking real debt rather than a point-in-time count. Pinned:
-  `test_check_routes_use_action_layer.py` (all 13 tests, incl.
-  `test_multi_router_file_scans_every_router_variable`,
-  `test_fires_on_a_decorator_on_a_nested_async_function`,
-  `test_does_not_trace_through_helper_indirection`).
+  This behavior is the guardrail's own home; it stays BROKEN until the guardrail reports zero
+  unallowlisted violations — the count has now shrunk twice (20 → 15 → 9), which is the
+  tracked-debt trend this line exists to hold the fixers to, not a point-in-time snapshot.
+  Pinned: `test_check_routes_use_action_layer.py` (unchanged suite, all 13 tests), plus the
+  new landings' own tests — `test_review_actions.py`, `test_routes_kg_inclusion.py`,
+  `test_action_layer_batch3.py` (`TestClaimEmbedAction`, `TestEntityEmbedAction`,
+  `TestSetExternalAuthorityEnabledAction`, `TestPykeenCreateReviewAction`,
+  `TestPykeenDecideReviewAction`).
 - `audit.wrapping-a-route-preserves-its-openapi-surface` — **[PARTIAL]** (#4846) wrapping a
   bare route to call `registry.invoke` internally must not change the OpenAPI document — three
   concrete traps found and avoided while doing this (2026-09-18): (1) adding
@@ -195,29 +178,23 @@ parallel pattern to keep.
 
 ### C. Attribution — the actor recorded is the real one
 
-- `audit.actor-attribution-is-real-not-hardcoded` — **[BROKEN]** (#4843) an
-  action's audit row must record the ACTUAL actor (`ctx.actor`), never a hardcoded string —
-  `merge_entities_impl` was fixed to thread the real actor under a separate, already-closed
-  issue, and the entity-split forward operation was fixed the same way (46132827f, "first of
-  four"). Three sibling spots in the same file still hardcode `created_by="human"` regardless
-  of who or what triggered the operation, verified still at these exact lines after that fix:
-  `EntityMergeAudit` rows for undo-of-merge (`entity_curation.py:647`), undo-of-split
-  (`entity_curation.py:667`), and the authority-link audit (`entity_curation.py:1211`). A
-  workflow- or agent-driven undo or authority-link is logged as if a person did it. Distinct
-  from `audit.every-mutating-route-uses-the-registry` above — these three ARE reachable through
-  the action layer's own audit-adjacent bookkeeping (`EntityMergeAudit`, a domain-specific
-  curation-history table, not `ActionAudit` itself); the registry's own `ActionAudit.actor` for
-  these operations is correct (it threads `ctx.actor`) — this is a SECOND, domain-local audit
-  trail with its own actor field that wasn't updated to match. **The authority-link spot in
-  particular was earlier argued domain-fixed** ("a person confirmed this authority match, so
-  `created_by="human"` is a true statement of the domain, not a bug") — **that argument no
-  longer holds**: once `entity.link_authority` became reachable by agents through `POST
-  /api/actions/invoke` (7523bcf95), an agent-confirmed match is a real, common case the
-  hardcoded string actively misrepresents. Recording this reasoning here so the fix is not
-  re-litigated the next time someone reads this line and reaches for the old justification.
-  Also found on `kg/inclusion.py::upsert_inclusion` (see `audit.actor-cannot-be-forged` above):
-  a related but distinct failure mode — not a hardcoded wrong value, a caller-CHOSEN one, with
-  no forgery protection at all.
+- `audit.actor-attribution-is-real-not-hardcoded` — **[PARTIAL]** (implemented and tested,
+  8e06dc31d; #4843 still open pending close) all
+  three sibling spots this behavior found hardcoding `created_by="human"` regardless of who or
+  what triggered the operation now record the real actor. Verified at HEAD: `EntityMergeAudit`
+  rows for undo-of-merge, undo-of-split, and the authority-link audit
+  (`entity_curation.py`, `created_by=actor` at every one of the sites this behavior previously
+  named) — a `grep` for the literal `created_by="human"` in the file finds only the fix's own
+  explanatory comment, no live hardcode. The authority-link argument that "a person confirmed
+  this match, so the hardcode is a true domain statement" no longer holds — once
+  `entity.link_authority` became reachable by agents through `POST /api/actions/invoke`, an
+  agent-confirmed match was a real case the hardcode misrepresented, which is exactly why it
+  was fixed rather than kept. Tests use different actors on each side of an operation, so a
+  coincidence cannot hide a hardcoded value returning. Pinned:
+  `test_routes_entity_curation.py::TestUndoEntityOperation`,
+  `::TestLinkAuthorityAction`. `kg/inclusion.py::upsert_inclusion`'s related but distinct
+  failure (a caller-CHOSEN actor, not a hardcoded one) is `audit.actor-cannot-be-forged`
+  above's finding, not this one's — also fixed, per that behavior's own line.
 
 ### D. Undo/redo is honestly declared
 
@@ -235,13 +212,29 @@ parallel pattern to keep.
 
 ### E. Only the action surface reaches a capability
 
-- `audit.only-the-action-surface-reaches-capabilities` — **[GAP]** (#4847) agents, the CLI, and MCP
-  should reach every mutating capability ONLY through the registered action surface (`POST
-  /api/actions/invoke` or an equivalent typed wrapper) — never a route or code path the action
-  surface doesn't also expose. No test or check was found that PINS this as an invariant (e.g.
-  "every capability the CLI/MCP exposes has a matching registered action" or its converse); it
-  is currently a design intent stated in `registry.py`'s own module docstring and this spec's
-  Intent section, not a checked property. A candidate future guardrail, not built this pass.
+- `audit.only-the-action-surface-reaches-capabilities` — **[PARTIAL]** (#4847, MCP half fixed
+  93b2e97e5/54a13ffdf; #4866) agents, the CLI, and MCP should reach every mutating capability
+  ONLY through the registered action surface — never a route or code path the action surface
+  doesn't also expose. **The MCP tools half is now built and pinned**: all five MCP
+  entity/claim write and delete tools (`mcp/tools.py`) are thin callers of `entity.create`/
+  `entity.update`/`entity.delete`/`claim.create`/`claim.delete` via `registry.invoke` —
+  verified at HEAD (`registry.invoke(db, "entity.create"/"claim.create"/"entity.delete"/
+  "claim.delete", …, ctx)` at each of the five call sites) — where they previously built rows
+  inline with no `ActionAudit`, no guarded undo, and none of the action side's validation. A
+  source-scan test now enforces this as an INVARIANT for the whole file, not just these five:
+  it fails if any function in `mcp/tools.py` writes to the database outside
+  `registry.invoke` unless explicitly allowlisted, and the allowlist (the "bypass list") is
+  now EMPTY — a synthetic case proves the scan still catches a real bypass, so an empty list
+  reads as "nothing bypasses," not as a broken detector. Still PARTIAL, not OK: this is scoped
+  to `mcp/tools.py` specifically, not a general "every capability the CLI/agent surface
+  exposes has a matching registered action" guardrail across the whole app — the broader
+  invariant this behavior's id names is still only a design intent, not a checked property
+  everywhere. Pinned:
+  `test_mcp_tools_write_through_registry.py::test_no_function_writes_to_the_db_outside_registry_invoke_unless_allowlisted`,
+  `::test_the_five_reconciled_tools_are_not_in_the_bypass_list`,
+  `::test_the_scan_itself_would_catch_a_real_bypass`,
+  `test_mcp_kg_write_attribution.py::TestEntityCreateIsAccountable`,
+  `::TestEntityDeleteIsAccountable`, `::TestClaimDeleteIsAccountable`.
 - `audit.curation-actions-protect-nlp-drafts` — **[OK]** an entity or claim touched through the
   action layer (update, merge, link-authority, a claim link) is recognized as "touched" by the
   NLP draft purge action (`entity.purge_nlp_draft`, `importer.md`'s
@@ -259,7 +252,7 @@ parallel pattern to keep.
 | Guardrail (Swift-style Python AST scan) | y | every mutating KG/entity route calls `registry.invoke` | `scripts/check_routes_use_action_layer.py` + `fichero-server/tests/unit/scripts/test_check_routes_use_action_layer.py` |
 | Backend (pytest) | y | undo/redo generic contract, actor cannot be forged, non-undoable says so | `test_routes_entity_curation.py` |
 | Backend (pytest) | y | an action-layer touch protects an NLP draft row from purge | `test_nlp_draft_purge_action.py::TestF2IndependentTouchProtection` |
-| MCP / CLI | n | no test found pinning "only the action surface reaches a capability" | — (`audit.only-the-action-surface-reaches-capabilities`, [GAP]) |
+| MCP / CLI | y (MCP only) | MCP write/delete tools reach capabilities only via `registry.invoke`, source-scan enforced | `test_mcp_tools_write_through_registry.py`, `test_mcp_kg_write_attribution.py` (`audit.only-the-action-surface-reaches-capabilities`, [PARTIAL] — CLI/agent surface beyond MCP still unchecked) |
 | OpenAPI diff | n | no dedicated regression test for the three wrapping traps | — (Open Questions) |
 
 Hard-gate: `audit.every-mutating-route-uses-the-registry` (the guardrail exists and is wired

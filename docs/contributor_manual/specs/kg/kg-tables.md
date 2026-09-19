@@ -80,6 +80,23 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
   `editor_entity_id` are resolved entity ids a merge still does not repoint; and rows merged
   before this fix are not rewritten, which is the maintainer's decision (an audited,
   scan-first repair action, never a batch rewrite).
+- `kg.delete.clears-entity-links` — **[PARTIAL]** (implemented and tested, 017995dbe; #4863
+  still open pending close) a non-cascading `entity.delete`
+  clears (sets to `None`) every scalar entity-id field a claim carries that names the deleted
+  entity — `subject_entity_id` and its four siblings, `speaker_entity_id`,
+  `subject_of_inquiry_entity_id`, `scribe_entity_id`, `editor_entity_id` — not only strips it
+  from `entity_ids`, and records `{claim_id, field, old_entity_id}` for each field cleared,
+  the same shape a merge records. Unlike a merge's absorbed-but-tombstoned entity, a deleted
+  entity no longer exists at all, so the correct link value is `None`, never a dangling dead
+  id. Never touches `subject_canonical` or the claim's `text` — the source still said what it
+  said. Undo restores the full claim snapshot first (the pinned contract three existing tests
+  require), then reapplies the recorded field clears as an additive, guarded restore; the
+  cascade delete path removes the claim rows outright, so nothing is left dangling there
+  either. This is the delete-side sibling of `kg.merge.repoints-subject` above, and closes the
+  same field-completeness gap for delete that merge still has open (all five fields here,
+  versus merge's `subject_entity_id` only). Pinned:
+  `fichero-server/tests/unit/api/test_delete_clears_entity_links.py::TestEachFieldClearsOnDelete`,
+  `::TestClaimCarryingSeveralFieldsAtOnce`, `::TestDisplayFieldsNeverTouched`.
 - `kg.entity.menu.merge` — **[GAP]** (#4828, → #1675) `EntityMergeSheet` merges duplicate
   entities. Cross-references `kg.tables.entity.curate` above (#4801) rather than duplicating
   it — the merge CAPABILITY is the same one that behavior already tracks; this entry is about
@@ -192,7 +209,10 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
 
 ### E. Provenance + versions (creative-director priority — likely its own cross-cutting spec)
 - `kg.tables.provenance.author-mark` — a claim/entity shows who AUTHORED it: hand-authored
-  (human) vs AI-extracted, at a glance. (Backend records `created_by`.)
+  (human) vs AI-extracted, at a glance. (Backend records `created_by`.) The concrete defect in
+  today's `created_by` — machine-extracted claims stored and badged as human-authored — is
+  tracked as `kg.claim.provenance-kind-is-server-stated` in `hermeneutic-layer.md` (same
+  milestone as its two issues), not duplicated here.
 - `kg.tables.provenance.modification-chain` — and who MODIFIED it, in order, each step
   labeled by the actor: an AI extractor (e.g. "apple-vision", "sonnet-5.1") or a human.
   "Apple Vision created it → Sonnet 5.1 changed it → hand-edited by you" is visible.
