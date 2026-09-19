@@ -179,8 +179,27 @@ read of the calling loop before it can be called fully resolved.
   ACL visibility filter, under real multiuser, would also drop a hit the requesting user lacks
   access to — but this is a no-op for a single owner on loopback, so it is a mechanism to know
   about, not a suspect for the maintainer's own single-user repro. **Whether the app ever
-  actually SENDS `doc_type` on this query path is UNVERIFIED — the next check.** No cause
-  claimed yet.
+  actually SENDS `doc_type` on this query path is UNVERIFIED — the next check.**
+
+  **REPRODUCED, 2026-09-19** (engine lane, temp library, the real route, the real embedder).
+  Cause: the keyword fallback that scans raw page text runs only when the index returns
+  NOTHING for the query (`db/__init__.py`, the `if not fulltext_results:` gate, about line
+  5439). A page that is not indexed yet is found only by that fallback. The moment ANY other
+  indexed passage matches the same term, the gate stays shut and the unindexed page vanishes,
+  for hybrid and keyword search alike. Shape: a name that appears across many documents, most
+  already embedded, one freshly imported page not yet embedded. Exactly the "Inspector shows
+  the text, search finds nothing" report.
+
+  Ruled out with evidence: folder scope (the folder walk is an unbounded BFS and is correct,
+  the drop is identical with and without `folder_id`, three levels deep), an unrelated
+  embedded document (does not shut the gate, which is why an earlier test of this same idea
+  came back clean), the doc_type filter (the app never sends it), the visibility filter (a
+  no-op for a single owner on loopback). A stale comment above the folder filter still
+  describes a one-hop walk.
+
+  Not the same defect as #4885's three recursion switches. **Fix in progress**: the fallback
+  must cover documents the index does not cover, per document, not only when the whole result
+  set is empty. Tag stays BROKEN until the fix lands.
 - `search.four-leg-response` — **[OK]** `SearchResponse` carries documents, entities, claims,
   and artifacts as four peer legs (`entity_hits`, `claim_hits: list[SearchClaimHit]`,
   `artifact_hits`), not a document search with metadata bolted on — the exact shape the unified-

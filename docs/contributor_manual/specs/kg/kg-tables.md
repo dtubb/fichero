@@ -66,20 +66,30 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
   Cross-ref: `kg-readable-representation.md`'s `kg.read.edit-unit-is-the-claim` covers a
   DIFFERENT surface reaching the same `claim.patch` action — editing FROM a rendered sentence
   rather than from this table — the two should stay in sync as both land.
-- `kg.merge.repoints-subject` — **[PARTIAL]** (#4859) a merge repoints a claim's
-  `subject_entity_id` to the survivor the same way it repoints `entity_ids`, and records each
-  replaced subject on the merge audit (`claim_subject_repoints`); unmerge restores exactly
-  those claims, and only where the subject still names the survivor, so a curator's later
+- `kg.merge.repoints-subject` — **[PARTIAL]** (#4859 still open pending close) a merge repoints
+  a claim's `subject_entity_id` to the survivor the same way it repoints `entity_ids`, and
+  records each replaced value on the merge audit (`claim_subject_repoints`); unmerge restores
+  exactly those claims, and only where the field still names the survivor, so a curator's later
   correction is never overwritten. A merge never rewrites the subject's canonical name or the
   claim's sentence: it says two records are one entity, not what the source said. Both
   callers reach this code, `entity.merge` and `review.accept`. After a merge the readable
-  paragraph gives role `subject` on the survivor's page. Pinned:
-  `fichero-server/tests/unit/api/test_merge_repoints_subject.py::TestMergeRepointsSubjectViaEntityMergeAction`
-  and `::TestMergeRepointsSubjectViaReviewAccept`. PARTIAL, not OK, for two reasons that keep
-  #4859 open: `speaker_entity_id`, `subject_of_inquiry_entity_id`, `scribe_entity_id` and
-  `editor_entity_id` are resolved entity ids a merge still does not repoint; and rows merged
-  before this fix are not rewritten, which is the maintainer's decision (an audited,
-  scan-first repair action, never a batch rewrite).
+  paragraph gives role `subject` on the survivor's page. **Generalized to all five scalar
+  entity-id fields, verified at HEAD (74d539720):** `speaker_entity_id`,
+  `subject_of_inquiry_entity_id`, `scribe_entity_id` and `editor_entity_id` — the four role
+  fields this behavior previously listed as NOT repointed — now share `merge_entities_impl`'s
+  one `CLAIM_ENTITY_ID_FIELDS` loop, the same list the entity writer's dedup repointing already
+  used, so the two paths cannot drift apart. **Now actually tested, not only claimed (96e928783,
+  found by this session's own test audit — the code was right, the test file asserted only the
+  subject)**: `test_merge_repoints_subject.py::test_merge_repoints_every_scalar_role_field`
+  drives a real merge through the action layer and asserts all four role fields repoint while an
+  unrelated subject is untouched; `::test_unmerge_restores_every_scalar_role_field` asserts undo
+  restores all four; `::test_audit_names_every_repointed_field` asserts the merge audit names
+  each one. PARTIAL, not OK, for the one reason that keeps #4859 open: rows merged before this
+  fix are not rewritten, which is the maintainer's decision (an audited, scan-first repair
+  action, never a batch rewrite) — a data-migration gap, not a code or test gap. Pinned:
+  `fichero-server/tests/unit/api/test_merge_repoints_subject.py::TestMergeRepointsSubjectViaEntityMergeAction`,
+  `::TestMergeRepointsSubjectViaReviewAccept`, `::test_merge_repoints_every_scalar_role_field`,
+  `::test_unmerge_restores_every_scalar_role_field`, `::test_audit_names_every_repointed_field`.
 - `kg.delete.clears-entity-links` — **[PARTIAL]** (implemented and tested, 017995dbe; #4863
   still open pending close) a non-cascading `entity.delete`
   clears (sets to `None`) every scalar entity-id field a claim carries that names the deleted
@@ -92,9 +102,9 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
   said. Undo restores the full claim snapshot first (the pinned contract three existing tests
   require), then reapplies the recorded field clears as an additive, guarded restore; the
   cascade delete path removes the claim rows outright, so nothing is left dangling there
-  either. This is the delete-side sibling of `kg.merge.repoints-subject` above, and closes the
-  same field-completeness gap for delete that merge still has open (all five fields here,
-  versus merge's `subject_entity_id` only). Pinned:
+  either. This is the delete-side sibling of `kg.merge.repoints-subject` above — both now cover
+  all five scalar entity-id fields (merge's own field-completeness gap closed 74d539720/
+  96e928783, see above). Pinned:
   `fichero-server/tests/unit/api/test_delete_clears_entity_links.py::TestEachFieldClearsOnDelete`,
   `::TestClaimCarryingSeveralFieldsAtOnce`, `::TestDisplayFieldsNeverTouched`.
 - `kg.entity.menu.merge` — **[GAP]** (#4828, → #1675) `EntityMergeSheet` merges duplicate

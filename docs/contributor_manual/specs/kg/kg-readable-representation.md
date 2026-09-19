@@ -360,17 +360,26 @@ often the wrong subject; not multilingual.
   `test_pronoun_subject_resolution.py::TestPronounSubjectResolution` (all 6),
   `test_svo_write_quality.py::TestPronounSubjectsNeverLand` (all 3).
 
-  **Kept OPEN, one case still BROKEN:** a Spanish impersonal "se" passive
-  ("Se le entregó la escritura") still proposes the deed ("la escritura") as the subject with
-  an EMPTY object — verified by reading the code and its own comment
-  (`spacy_svo.py:120-122`): this small Spanish model marks "escritura" plain `nsubj` (never
-  `nsubjpass` — Spanish has no such label in this parser) and "le" as a clitic object dropped
-  by the pronoun-object filter, so the row survives as "the deed [was handed over]" with no
-  recipient and a subject a reader has no way to tell apart from an ordinary active-voice
-  subject. No test exercises this sentence; nothing in 7c6f1aae5 addresses it. This is why the
-  behavior stays [PARTIAL] and #4836 stays open rather than closing — the render/pronoun/
-  relative-clause/passive-with-agent fixes are real and tested, but this ONE wrong-subject
-  shape survives them.
+  **Fixed and tested, verified at HEAD (82937b118):** the Spanish impersonal "se" passive case
+  this paragraph previously reported as BROKEN — "Se vendió la mina a Pedro Mosquera" proposing
+  the mine as the seller, "Se le entregó la escritura" making the deed the one who delivered —
+  no longer proposes the patient as the subject. The small Spanish model puts the patient at
+  plain `nsubj` and marks the "se" itself: `expl:pass` for an impersonal/passive clause,
+  `expl:pv` for a true reflexive. A clause with an `expl:pass` child now goes through the
+  existing passive rule, so with no stated agent it yields no triple (counted as skipped,
+  never a false claim); a true reflexive ("Juan se fue a Quito") keeps its real subject.
+  **Known, honestly-disclosed conservative loss, not a false claim**: "Se vendió la mina por
+  Juan Asprilla" states its agent but still yields nothing, because the parse doesn't attach
+  the agent where the agent search looks — it loses a claim, it never states a false one.
+  Pinned: `test_spacy_svo_validator.py::test_se_passive_with_dative_clitic_yields_no_triple`,
+  `::test_se_passive_with_recipient_yields_no_triple`,
+  `::test_se_passive_plural_with_place_yields_no_triple`,
+  `::test_true_reflexive_keeps_its_real_subject`,
+  `::test_se_dice_impersonal_report_verb_yields_no_triple_but_keeps_the_embedded_clause` (5
+  tests, all passing on the exact sentences this paragraph names). This was the ONE remaining
+  wrong-subject shape keeping this behavior PARTIAL after 7c6f1aae5 — with it fixed and tested,
+  #4836's own scope is resolved; #4836 stays open only for the maintainer to verify and close,
+  not because a known gap remains in this behavior's own claim.
 
   **Concurrency fix is PARTIAL, not proven, and said so honestly:** the cached spaCy
   `Language` object had no lock while two derivative workers could parse concurrently

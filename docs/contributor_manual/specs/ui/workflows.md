@@ -205,6 +205,25 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   validate a workflow before spending a real run. ISSUE: #4370.
 - `workflows.canvas.cost-estimate-up-front` — **[GAP]** no shown cost/call
   estimate before running from the editor. ISSUE: #1818.
+- `workflows.canvas.switching-workflow-blocks-the-stale-editor` — **[BROKEN]** (#4893, found
+  2026-09-19 while wiring #4882) switching the active workflow starts an async load, but
+  `editingWorkflow` — the canvas's own key — still holds the PREVIOUS workflow's nodes and id
+  until that load lands, while the title/chrome already show the new one. The canvas stays fully
+  editable during this window: an edit lands on the previous workflow's content under the new
+  workflow's label, and the editor's own 300ms debounced autosave (`WorkflowEditor`, `.onChange(of:
+  editingWorkflow)`, the original debounced-autosave feature, since closed) can fire and save
+  that stray edit before the real load replaces it. No
+  edit is ever written to the WRONG workflow's row (the save targets the workflow's own id) — the
+  defect is that the user edited a workflow they did not believe they were looking at, an
+  every-frame-perfect violation, not a data-corruption one. **Second, related finding, same
+  issue**: two separate autosave paths exist for the same object — the original debounced
+  autosave feature
+  and the leave/quit autosave (#4882's tested "never without a baseline, never when the editor
+  holds a different workflow" guard) — one should own saving, with the other routed through it
+  and inheriting its guards, not duplicating them. A snapshot guard (skip a stale load result if
+  the editor changed since the load began) was considered and explicitly NOT applied, per the
+  issue's own account — it would hide the symptom (still shows wrong content briefly) rather
+  than fix the window itself.
 
 ### B. Tool/node configuration
 
@@ -529,6 +548,7 @@ are out of scope for this table — see that spec's own behaviors, all already c
 | #4397 | Workflows need a declared scope contract | `workflows.defaults.scope-contract-undeclared` | cited |
 | #4402 | Cancellation check is scoped to the parallel fan-out branch only, not every boundary | `workflows.run.controls-are-fire-and-forget` | cited — moved here 2026-09-19 from the `activity` legacy milestone fold, per the ruling that an issue lives on the milestone of the spec that owns its behaviour |
 | #4478 | Decide the six port conversions the old editor permitted | `workflows.canvas.edge-legality-matches-engine` | cited |
+| #4893 | Workflow editor stays editable over the previous workflow's nodes while the next loads, and two separate autosaves exist | `workflows.canvas.switching-workflow-blocks-the-stale-editor` | cited — new 2026-09-19 |
 | #4736 | `workflows.canvas.ports-come-from-registry` — client fabricates fallback ports | `workflows.canvas.ports-come-from-registry` | cited |
 | #4738 | `workflows.defaults.duplication-regrown` — near-duplicate default presets regrown | `workflows.defaults.duplication-regrown` | cited |
 | #4746 | `workflows.canvas.16-palette-tools-cannot-execute` | `workflows.canvas.16-palette-tools-cannot-execute` | cited |
@@ -576,11 +596,12 @@ are out of scope for this table — see that spec's own behaviors, all already c
 | #4330 | Rendition model and two-axis navigation in Preview | — | **UNCOVERED** — reads as `panes-workspaces`/Preview rendition work; recommend re-homing |
 | #4339 | Library: Finder-style grouping (group-by in the sort menu) | — | **UNCOVERED** — a Library browsing feature; recommend re-homing |
 
-**Coverage: 21 of 57 cited (#4402 added 2026-09-19, moved here from the `activity` legacy
-milestone fold), 3 RESHAPED and awaiting CD triage (Comparison — the result side retired by
-the CD ruling), 33 UNCOVERED** (36 total orphan issues by `check`'s rule-f count, since the 3
+**Coverage: 22 of 58 cited (#4402 added 2026-09-19, moved here from the `activity` legacy
+milestone fold; #4893 filed and cited 2026-09-19), 3 RESHAPED and awaiting CD triage (Comparison
+— the result side retired by the CD ruling), 33 UNCOVERED** (36 total orphan issues by `check`'s
+rule-f count, since the 3
 reshaped issues are now also uncited and correctly show up as orphans too —
-21+3+33=57, 33+3=36 rule-f lines). Clustered by theme (creative-director instruction: propose a sub-spec only for a
+22+3+33=58, 33+3=36 rule-f lines). Clustered by theme (creative-director instruction: propose a sub-spec only for a
 cluster with ≥4 issues; PROPOSAL ONLY, not written, no milestone created):
 
 - **Transcription/translation presets** (#3907, #3909, #4306, #4633 — 4 issues): quality and

@@ -453,7 +453,10 @@ either way (shared components), but scope of the cross-platform tests depends on
 - `menus.natural-home` — **[PROPOSED]** appearance/layout only under View; Sort and Workspaces are
   NOT in the View dump. *Test:* a source/policy assertion on which sections `ViewMenuCommands`
   composes (it must not compose `SortSection`/`WorkspaceCommandsSection` once re-homed).
-- `menus.shortcut-uniqueness` — **[OK]** (enforced 2026-09-16, dfa937946) no two commands share a key
+- `menus.shortcut-uniqueness` — **[PARTIAL]** (#4894, retagged 2026-09-19 by the spec-led test
+  audit: both its pinning tests read `.swift` files as text and regex-match chord literals — a
+  real regression guardrail, but proof the SOURCE contains no duplicate chord literal, not proof
+  a menu mounted at runtime never collides) (enforced 2026-09-16, dfa937946) no two commands share a key
   equivalent in one scope (the ⌘⌥1→loupe and double-minted ⌘⌥F "Find in Artifact"/"Find in Page"
   defects the workspace consolidation hit). *Enforced:*
   `Tests/Unit/general/Views/Shell/MenuShortcutUniquenessTests.swift` enumerates every ⌘⌥ chord the app

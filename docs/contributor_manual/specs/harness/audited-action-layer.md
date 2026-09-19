@@ -87,10 +87,18 @@ parallel pattern to keep.
 
 - `audit.registry-is-the-one-write-choke-point` — **[OK]** every registered action's mutation
   runs inside `ActionRegistry.invoke`; `execute()` never writes state outside the transaction
-  `invoke` opens for an atomic action. Pinned:
+  `invoke` opens for an atomic action. **Verified 2026-09-19** (test-audit follow-up: the
+  citations below were plumbing-only, a throwaway `test.dummy` action, not a real production
+  action driven end to end): `TestActionsRegistryRoute::test_invoke_via_route_writes_audit`
+  drives the real `entity.merge` action through the real `POST /api/actions/invoke` route with
+  real `KnowledgeEntity` rows, and `TestEntityMergeAction::test_merge_via_registry_effect_and_audit`
+  drives the same action directly through `registry.invoke`, asserting both the merge effect
+  (`merged_into_id`) and the written `ActionAudit` row — the choke point proven on real
+  production behavior, not only the dummy. Pinned (plumbing + real-action, both needed):
   `test_action_registry.py::TestRegistryInvoke::test_invoke_returns_result_writes_audit_and_emits`,
   `::test_invoke_validates_params`, `::test_invoke_unknown_action_raises`,
-  `TestActionsRegistryRoute::test_invoke_via_route_writes_audit`.
+  `::TestActionsRegistryRoute::test_invoke_via_route_writes_audit`,
+  `::TestEntityMergeAction::test_merge_via_registry_effect_and_audit`.
 - `audit.actor-cannot-be-forged` — **[PARTIAL]** (#4844, fixed for #4843's specific finding by
   8aa6c8e12) `POST /api/actions/invoke` rejects a request body that sets `actor`/
   `origin_window` directly (`InvokeActionRequest.reject_deprecated_fields`, → #3285); the real
@@ -108,7 +116,12 @@ parallel pattern to keep.
 - `audit.undo-redo-is-generic` — **[OK]** one endpoint (`POST
   /api/actions/audit/{audit_id}/undo`) reverses any undoable action via its own declared
   `invert()`, and redoes an inverse by replaying the ORIGINAL forward action's recorded
-  name+params — no per-action redo code exists or is needed. Pinned:
+  name+params — no per-action redo code exists or is needed. **Verified 2026-09-19**
+  (test-audit follow-up): both cited tests genuinely drive a real round trip — `entity.merge`
+  through `registry.invoke`, `registry.get(...).invert(...)` for the real inverse, then
+  `registry.invoke` again on the inverse — not a mock or a plumbing-only assertion; this
+  citation was already correct, re-confirmed by opening the test bodies rather than trusted.
+  Pinned:
   `test_action_registry.py::TestEntityMergeAction::test_undo_reverses_merge`,
   `::test_unmerge_undo_remerges_same_entities`.
 - `audit.one-operation-has-one-undo` — **[BROKEN]** (#4864) one operation has ONE undo, and
