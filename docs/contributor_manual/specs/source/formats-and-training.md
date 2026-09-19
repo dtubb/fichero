@@ -26,7 +26,7 @@ a model trainer, and always knows what a format could not carry.
 
 - **A format is a mapping, not a model.** Adding one adds no fields to segments.
 - **Import arrives as a new pass** with its own provenance (the file, its checksum, the tool
-  that made it, when). It never overwrites what is in the library. Importing the same file
+  that made it, when). It never overwrites what is in the project. Importing the same file
   again is recognised.
 - **Nothing unrecognised is thrown away.** What the model has no field for is kept on the
   segment, labelled with its source, and written back on export to the same format.
@@ -80,7 +80,7 @@ What the survey established, and the design follows:
 - Kraken learns from **lines**, not from cut-out characters. The unit of recognition training
   is the corrected line. Character and sign pictures still matter: for a sign classifier, for
   palaeographic comparison, and for declared signs.
-- A training set is a **projection**. It is made from the library when wanted, and is never
+- A training set is a **projection**. It is made from the project when wanted, and is never
   the record.
 - Only **human-checked** readings go into a training set by default. A machine's guess must
   not be taught back to a machine as truth. A researcher can deliberately include unchecked

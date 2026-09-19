@@ -31,10 +31,10 @@ against their sources before approval.)
 
 ## The design (proposed)
 
-- **A rights record** can be attached to a library, a source, or any segment. It says: who
+- **A rights record** can be attached to a project, a source, or any segment. It says: who
   holds rights or authority; what was consented to, by whom, when; any conditions; any
   **labels** from an open list (Traditional Knowledge and Biocultural labels among them; a
-  library can add its own community's); who recorded this, and when. It is inherited
+  project can add its own community's); who recorded this, and when. It is inherited
   downward like language is, and can be tightened at any level.
 - **Restricted** means some people may not see a segment's picture, readings, marks or
   statements. For them the segment is **absent, and said to be absent** ("one passage on this
@@ -48,7 +48,7 @@ against their sources before approval.)
   would break it.
 - **Redaction** is a verb of its own, different from delete: the segment stays, its content is
   covered for everyone without the right, and the covering is visible as a covering (in the
-  Preview, the Reader, exports and pictures of the page).
+  Source view, the Reader, exports and pictures of the page).
 - **Removal on request.** "Nothing is ever destroyed" cannot be the whole story when consent
   is withdrawn. A **purge** truly removes a segment's content (its readings, pictures, marks
   and statements, and copies in search and vectors). It is rarer and louder than delete; it
@@ -59,7 +59,7 @@ against their sources before approval.)
 
 ## Behaviors (ids proposed; untagged until approval)
 
-- `source.rights.record` — a rights and consent record can be attached to a library, a source
+- `source.rights.record` — a rights and consent record can be attached to a project, a source
   or any segment, with labels from an open list, and is inherited downward.
 - `source.rights.restricted-is-said` — a restricted segment is absent for those without the
   right, and the absence is stated.
@@ -79,7 +79,7 @@ To be filled at approval.
 ## Open questions
 
 1. Is this the right place for rights and access, or does it belong with accounts and sharing?
-2. Who in a library may restrict, redact and purge?
+2. Who in a project may restrict, redact and purge?
 3. Which label sets ship with Fichero?
 4. Does a purge also reach backups and exports already made (it cannot reach what has left
    the machine; should Fichero keep a list of what was exported, so the owner can follow up)?

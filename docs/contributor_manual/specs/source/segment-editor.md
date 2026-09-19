@@ -13,10 +13,12 @@
 ## Intent
 
 Everything the model can hold can be seen and edited on the page. The editor lives in the
-**Preview**, on the image, and nowhere else. It is **native SwiftUI** (ruled), so one editor
+**Source view** (the pane the app has called the Preview; the maintainer has decided on the
+new name, and the rename is not this spec's to carry through the app), on the image, and
+nowhere else. It is **native SwiftUI** (ruled), so one editor
 serves the Mac, the iPad and the iPhone, feels like a Mac app, and takes the Apple Pencil.
 
-The three surfaces stay three. The **Preview** shows the image and edits segments. The
+The three surfaces stay three. The **Source view** shows the image and edits segments. The
 **Reader** shows readings. The **Inspector** shows the facts about the one selected segment.
 Selecting a segment in any of them selects it in the others.
 
@@ -34,6 +36,21 @@ Selecting a segment in any of them selects it in the others.
 - Crops are rectangles only (`media/region_crops.py`).
 
 ## The design
+
+### The Source view, with a segment focus, beside anything
+
+The Source view shows a source. With a **segment focus** it becomes the segment editor: the
+tools below appear, and the image is the working surface. Because it is a pane like any
+other, it can sit **beside** a Reader (type the reading of the selected line), beside an
+Inspector (the facts of the selected segment), beside the Library, or beside a second Source
+view on another pass, another image of the same page, or another source altogether.
+
+**Browsing segments needs no new surface (proposed).** The Library is always the navigator,
+and segments are nodes. Selecting a source lets the Library list its segments as rows in its
+ordinary table and outline views (kind, reading, order, hand, language, certainty, marks),
+sortable and filterable like anything else; selecting a row selects the segment everywhere.
+"Every line in hand B", "every segment with no chosen reading", "all instances of this sign"
+are then searches in the Library, not a separate browser.
 
 ### One overlay, one editor
 
@@ -70,9 +87,9 @@ can make every edit the editor can, through the same actions.
   segments in turn on the page, to reorder; choose which named order you are editing.
 - **Link**: drag from one segment to another and pick the link's type; see and delete links.
 - **Match**: say that a segment in a new pass is the same as one in an old pass.
-- **Read while you edit**: readings are typed in the **Reader**, not the Preview. With a line
+- **Read while you edit**: readings are typed in the **Reader**, not the Source view. With a line
   selected, the Reader shows that line's picture above its reading, and Return moves the
-  selection to the next line in the order; the Preview follows. Line-by-line transcription is
+  selection to the next line in the order; the Source view follows. Line-by-line transcription is
   keyboard-only if you want it to be, and the three surfaces stay three.
 - **Mark**: note, highlight, star and tag the selection.
 - **Georeference**: drop control points and give them coordinates.
@@ -115,11 +132,16 @@ export.
 
 ## Behaviors (ids proposed; untagged until approval)
 
-- `source.editor.one-overlay` — one component draws and edits segments in the Preview; no
+- `source.editor.segment-focus` — the Source view has a segment focus in which the editing
+  tools appear; it can sit beside a Reader, an Inspector, the Library or another Source view.
+- `source.editor.library-lists-segments` — a source's segments can be listed, sorted, filtered
+  and selected in the Library's ordinary table and outline views; there is no separate segment
+  browser.
+- `source.editor.one-overlay` — one component draws and edits segments in the Source view; no
   second overlay renderer exists in the app.
-- `source.editor.preview-only` — segments are edited in the Preview, not in the Reader or the
+- `source.editor.source-view-only` — segments are edited in the Source view, not in the Reader or the
   Inspector.
-- `source.editor.selection-shared` — selecting a segment in the Preview, Reader or Inspector
+- `source.editor.selection-shared` — selecting a segment in the Source view, Reader or Inspector
   selects it in the others.
 - `source.editor.edits-are-actions` — every edit is one audited, reversible engine action; the
   editor updates only the changed segments.
@@ -146,7 +168,7 @@ export.
 - `source.editor.match-across-passes` — a segment in one pass can be matched to one in
   another.
 - `source.editor.transcribe-by-line` — with a line selected, the Reader shows its picture above
-  its reading; Return selects the next line in the order and the Preview follows.
+  its reading; Return selects the next line in the order and the Source view follows.
 - `source.editor.marks` — the selection can be noted, highlighted, starred and tagged.
 - `source.editor.control-points` — control points can be placed and given coordinates.
 - `source.editor.keyboard-complete` — every command has a menu item and can be done from the

@@ -50,7 +50,7 @@ baseline that can curve; more than one shape; a text angle; a stretch of time. I
 
 ### A reference you can cite
 
-Every segment has one stable reference that names the library, the source, the segment and
+Every segment has one stable reference that names the project, the source, the segment and
 its pass. It can be pasted into a footnote, a note or another program; it opens the segment in
 the app, and resolves over MCP and the command line. It is what W3C annotation and IIIF
 export write. If the segment has been merged, split or deleted since, the reference follows
@@ -117,7 +117,7 @@ across an opening belongs to the opening and is resolved onto each page it touch
 
 - Every level is a segment with a **kind**. Kinds come from a standard list (SegmOnto's zones
   and lines, plus word, character, stroke, and the non-text kinds: picture, music, seal, stamp,
-  table, table cell, diagram, map, mark, damage, blank). A library can add its own. When a
+  table, table cell, diagram, map, mark, damage, blank). A project can add its own. When a
   model supplied the kind, the model's own label is kept beside the tidy one.
 - Any level can be missing. Finer levels can be added later.
 - **Physical structure** is the ladder: what is where on the object (codex unit, quire, leaf,
@@ -165,7 +165,7 @@ A link joins one segment to another (on the same source or a different one). It 
 **type**, a direction, an author and a certainty. The standard types: *glosses*, *comments on*,
 *answers*, *quotes*, *expands*, *reorders*, *marks* (a footnote marker to its note),
 *captions* (a caption to its picture), *labels* (a form label to its answer), *continues*,
-*translates*, *same as*, *names* (a label on a map to the place). A library can add types.
+*translates*, *same as*, *names* (a label on a map to the place). A project can add types.
 Links can chain to any depth (a comment on a comment on the text).
 
 ### Maps and plans
@@ -235,7 +235,7 @@ asked for and may be cached; they are never the record.
 
 Today all the boxes of a result are one block of data. This design needs **one record per
 segment**, so the store can answer "the lines of this page", "this word's history", "every
-segment in this hand". Existing libraries are never converted by batch (see the foundation's
+segment in this hand". Existing projects are never converted by batch (see the foundation's
 open questions on how their segments get ids).
 
 ## Behaviors (ids proposed; untagged until approval)
@@ -268,7 +268,7 @@ Shape and images
 Structure
 - `source.segment.one-primitive` — every level of the ladder, and every non-text thing, is a
   segment with a kind.
-- `source.segment.open-kinds` — kinds come from a standard list a library can extend; a model's
+- `source.segment.open-kinds` — kinds come from a standard list a project can extend; a model's
   own label is kept beside the tidy kind.
 - `source.segment.levels-optional` — any level may be absent and added later without
   disturbing others.
@@ -349,7 +349,7 @@ Storage
   time, however many there are.
 - `source.store.record-per-segment` — the store can answer questions about single segments
   (the lines of a page; a word's history; all segments in a hand).
-- `source.store.no-batch-rewrite` — an existing library's geometry is never converted by
+- `source.store.no-batch-rewrite` — an existing project's geometry is never converted by
   batch.
 
 ## Test matrix
@@ -359,5 +359,5 @@ image and picture from the engine, MCP, the command line and the app.
 
 ## Open questions
 
-See `source-model.md`. The ones that belong here: how existing libraries' segments get ids;
+See `source-model.md`. The ones that belong here: how existing projects' segments get ids;
 whether a claim keeps a copy of its anchor as well as the segment id.

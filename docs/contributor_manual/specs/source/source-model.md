@@ -52,7 +52,7 @@ are the test.
 | `segments-and-geometry.md` | identity, shape, images, the ladder, passes, reading orders, links, maps, versions, storage |
 | `readings-and-apparatus.md` | readings, written and read, hands, campaigns, the three kinds of "sure", letterforms, the researcher's marks |
 | `languages-scripts-glyphs.md` | language, script, encoding, the cascade, direction, declared signs, fonts, input |
-| `segment-editor.md` | the native editor in the Preview, the Pencil, the performance trial, accessibility |
+| `segment-editor.md` | the native editor in the Source view, the Pencil, the performance trial, accessibility |
 | `formats-and-training.md` | every format in and out, validation, loss reports, the training loop, measuring a model |
 | `models-chains-and-projects.md` | one card for every model, jobs with typed inputs and outputs, chains as workflows, how a result was made, projects and onboarding, finding models, the synced folder |
 | `rights-and-access.md` | rights, consent, community labels, restriction, redaction, removal (raised by review; not yet discussed) |
@@ -79,7 +79,7 @@ are the test.
   region editing are the base; this design develops and expands them. It does not start again.
   The purpose of this spec is to describe the whole thing properly first. The order of
   building is decided afterwards, from the finished spec.
-- **Two known shortfalls the design must close.** The Preview's editor cannot yet handle what
+- **Two known shortfalls the design must close.** The Source view's editor cannot yet handle what
   this model describes. And Fichero cannot yet hand out, or take in, the picture of one
   segment (a glyph, a word, a line) the way Kraken training needs.
 - **A researcher's own marks go on any segment.** Notes, highlights, stars and tags, and a
@@ -89,7 +89,7 @@ are the test.
 - **The words.** The **source** is the page (and the group of pages it belongs to). A
   **segment** is everything on it: every region, line, word, character, stroke, picture, note
   and gloss. Things in Fichero point at segments; segments belong to a source.
-- **The editor is native.** Segments are edited in a SwiftUI editor in the Preview, so that one
+- **The editor is native.** Segments are edited in a SwiftUI editor in the Source view, so that one
   editor works on the Mac, the iPad and the iPhone, feels like a Mac app, and takes the Apple
   Pencil. SVG is an export format, and a web editor is not the plan. The field's web tools are
   surveyed for their ideas, not their code.
@@ -106,10 +106,13 @@ are the test.
   the baselines; Apple Vision or a local model reads each line; another corrects it). How any
   reading or pass came to be, step by step, can always be seen, and the chain is offered
   through workflows and the workflow bar.
-- **A project sets itself up.** Language is no longer one setting for a whole library, and
-  neither are models. A project (palaeography here, twenty-first-century notes there) has its
-  own settings, reached through a short onboarding, with a default chain and best practice
-  chosen from its languages, scripts and period.
+- **A project sets itself up.** A **project** is what Fichero has called a library (the new
+  name is decided; the app has not been renamed yet). Language and models have been one
+  setting for the whole app. Now each project (palaeography here, twenty-first-century notes
+  there) has its own settings window and its own onboarding, with a default chain and best
+  practice chosen from its languages, scripts and period.
+- **The Preview becomes the Source view.** Also decided, also not yet carried through the app.
+  This set uses the new names. Code paths and older specs still say Library and Preview.
 - **A synced folder.** A project can be tied to a folder. Its outputs (the XML and the rest)
   are written there and kept up to date as the work goes on.
 
@@ -120,7 +123,7 @@ are the test.
 How the "open to what we do not know yet" ruling is met:
 
 - **Every vocabulary is open.** Segment kinds, link types, reading kinds, directions, ink
-  passes, damage reasons: each ships with a standard default list and a library can add its
+  passes, damage reasons: each ships with a standard default list and a project can add its
   own terms. A term is data, not code.
 - **A sign is never required to be a character.** A declared glyph needs only a name and a
   picture cut from a real page. A whole script can be built up this way, sign by sign, from
@@ -162,6 +165,8 @@ primitive with a kind. A segment has:
 
 | Word | Means | Replaces |
 |---|---|---|
+| **project** | one research undertaking with its own file, settings and onboarding | "library" (the Library pane's own name is an open question) |
+| **Source view** | the pane that shows a source's image and, with a segment focus, edits its segments | "Preview" |
 | **source** | the page, the group of pages it belongs to, or a recording | |
 | **segment** | anything on a source, at any level, with a lasting id | the older "a segment is one anchor" |
 | **pass** | one authored set of segments over a source: a model run, a person's layout, an import | "layer", in its first sense |
@@ -212,7 +217,7 @@ pass; it must be before these are tagged.
 
 The same stored segments serve every use. No use gets its own copy:
 
-- the **Preview** draws and edits them;
+- the **Source view** draws and edits them;
 - the **Reader** shows their readings, in the right direction, order and font;
 - the **Inspector** shows one segment: readings, versions, hand, links, statements;
 - an **agent** (MCP) and the **command line** read and write them;
@@ -247,7 +252,7 @@ Good foundations, which this design must grow from and not duplicate:
 - **Kraken already returns a baseline and a polygon per line**
   (`fichero_server/llm/kraken_runtime.py`). The PDF importer keeps every word's rectangle from
   a PDF's text layer (`media/ocr_geometry.py`).
-- **The Preview already edits regions a little**: select, move, draw and name a new region,
+- **The Source view already edits regions a little**: select, move, draw and name a new region,
   delete, and rate lines (`Views/Preview/ImageViewer/Regions/RegionInteractionLayer.swift`).
 - **A claim's pointer is already fine-grained**: a character span or a region, resolved through
   one seam (`Models/ClaimSourceRequest.swift`), which refuses to draw a guess.
@@ -264,9 +269,9 @@ What is missing:
 - **Versions exist at two levels that do not meet**: a whole result has a version; a reading
   has revisions. Neither is per segment. This design must join them, not add a third.
 - **No direction anywhere.** No right-to-left or vertical handling in the engine, the Reader or
-  the Preview. Language is recorded per document only; script only on a reading. The detector
+  the Source view. Language is recorded per document only; script only on a reading. The detector
   knows English and Spanish.
-- **No merge or split** in the Preview.
+- **No merge or split** in the Source view.
 - **No PageXML, ALTO, TEI, MEI, SVG or YOLO** import or export. The Parquet export carries
   documents, entities and claims, and no geometry at all.
 - **Kraken is inference only.** No training code. And it is not yet run automatically at
@@ -275,7 +280,7 @@ What is missing:
   orders, or declared glyphs.**
 
 An earlier ruling stands and fits: language and other attributes are to **cascade** from app
-to library to folder to page to region to line to word to character, with an override at any
+to project to folder to page to region to line to word to character, with an override at any
 level (recorded in `historical-text-normalization.md` as a ratified future direction). This
 design is where that cascade lives.
 
@@ -292,7 +297,7 @@ are unchanged.)
 - `historical-text-normalization.md` — the text layer: normalisation, dates, name variants
   across scripts, language detection, translation, transliteration.
 - `ui/reader-overlay-frame-identity.md` and `ui/preview-surface.md` — already own "a box is
-  only valid against the image it was measured on", and the Preview / Reader / Inspector split.
+  only valid against the image it was measured on", and the Source view / Reader / Inspector split.
 
 ## The delivery rule (stated once, here; a gate, not a behaviour)
 
@@ -313,11 +318,11 @@ The foundation's own:
   language, script, kind and furniture flag.
 - `source.workflow.segments-in-passes-out` — a workflow tool can take chosen segments as input
   and writes its results as a new pass or new readings.
-- `source.one-store` — the Preview, Reader, Inspector, agents, training and export all read
+- `source.one-store` — the Source view, Reader, Inspector, agents, training and export all read
   the same stored segments; no use keeps its own copy.
 - `source.open-vocabularies` — every list (kinds, link types, reading kinds, directions, ink
   passes, damage reasons, components and features) ships with a standard set and can be
-  extended by a library as data.
+  extended by a project as data.
 - `source.builds-on-the-anchor` — segments are addressed through the one shared anchor type;
   no second addressing scheme is introduced.
 
@@ -356,7 +361,7 @@ Still open (each has a proposal in the text):
    match record; merge, split and delete leave forwarding notes. Agreed?
 4. **Which reading counts.** Proposed: only a person chooses; until then the Reader shows the
    newest and labels it a machine's. Or may a machine reading count by default?
-5. **Existing libraries.** Proposed: opening a page writes nothing; the first edit writes that
+5. **Existing projects.** Proposed: opening a page writes nothing; the first edit writes that
    page's segments once, undoably. Or only when the researcher asks?
 6. **Reading orders and links.** Proposed: several named orders, plus typed links, with links
    kept for cross-references only. Agreed?
@@ -368,7 +373,7 @@ Still open (each has a proposal in the text):
 10. **Signs with no character.** Is the declared sign the right answer?
 11. **The language authority.** BCP 47 plus Glottolog are proposed. Is there a particular
     Indigenous-language source to use as well? (Name it here.)
-12. **Fonts.** Ship some, let a library add its own, or both?
+12. **Fonts.** Ship some, let a project add its own, or both?
 13. **Rival passes.** When two scholars' passes disagree, who picks the working pass?
 14. **Openings and millimetres.** Should the two facing pages be something you can draw
     across? Should a segment be able to give its size in millimetres?

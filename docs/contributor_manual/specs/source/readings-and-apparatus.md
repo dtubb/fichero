@@ -31,7 +31,7 @@ A segment has any number of **readings**. A reading has:
   *normalised* (spelling regularised), *as read aloud* (the qere; the Japanese reading of a
   Chinese text), *transliteration*, *translation*, *description* (what a picture shows),
   *coordinate* (for a map control point), *music* (the notes or neumes of a music segment,
-  in the field's encoding). A library can add kinds;
+  in the field's encoding). A project can add kinds;
 - **how normalised it is**, as a named level. Levels cannot be reliably converted into each
   other, so the level is recorded, never assumed;
 - its **language and script**;
@@ -73,7 +73,7 @@ exist too (the scribe wrote it wrong; the editor emends), and are marked as corr
 ### Hands
 
 A **hand** is who put the ink on the page: a named scribe, or "hand B", with a date or period,
-a place, a script style, and notes. A hand is a record in the library, shared across sources,
+a place, a script style, and notes. A hand is a record in the project, shared across sources,
 so "everything in hand B" can be asked. A segment, or a campaign of a segment, can name its
 hand, with certainty and the author of that judgement. Several scholars can disagree.
 
@@ -151,7 +151,7 @@ What this design adds:
   reckonings, the Spanish era (thirty-eight years ahead; used in tenth-century Iberia),
   Coptic, Ethiopic, Persian, Indian, Japanese and Chinese era names, indictions, Roman
   consular and *ab urbe condita* years, dating by feast days, and the Maya Long Count and
-  Calendar Round. A library can add one.
+  Calendar Round. A project can add one.
 - **A conversion records its assumptions.** Turning a calendar date into days always rests on
   choices: which correlation between the Maya count and ours; whether an Islamic month began
   by sighting or by table; when the year began (January, March, Easter); which king's reign
@@ -167,7 +167,7 @@ What this design adds:
 - **The field's formats in and out**: the extended date format (EDTF) for uncertain and
   approximate dates; TEI's dating attributes (calendar, custom dates, dating method); PeriodO
   for named periods ("the Umayyad period") as ranges with an authority. (Named from general
-  knowledge; to be checked. The open question of adopting a standard library for dates,
+  knowledge; to be checked. The open question of adopting a standard project for dates,
   #4364, stays with the normalization spec.)
 - The timeline, sorting and search use the common count, so sources dated in different
   calendars can be set in one order.
@@ -209,7 +209,7 @@ Readings
   line's reading without character segments existing.
 
 Hands and ink
-- `source.hand.record` — a hand is a library record (name or label, date, place, style, notes)
+- `source.hand.record` — a hand is a project record (name or label, date, place, style, notes)
   shared across sources.
 - `source.hand.attributed` — a segment or campaign names its hand, with certainty and the
   author of the judgement; rival attributions coexist.
@@ -239,7 +239,7 @@ Dates
 - `source.date.on-segment` — a date can hang on any segment, not only on a document.
 - `source.date.three-parts` — a date keeps its wording, its parts in a named calendar, and a
   range of days on the common count, separately.
-- `source.date.open-calendars` — calendars come from an open list a library can extend.
+- `source.date.open-calendars` — calendars come from an open list a project can extend.
 - `source.date.conversion-names-its-choices` — an interpretation names the rule, the choices
   (correlation, month reckoning, start of year, reign), its author and certainty; rival
   interpretations coexist.

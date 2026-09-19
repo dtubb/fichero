@@ -33,7 +33,7 @@ Four rulings from the maintainer drive it (recorded in the foundation): every mo
 one way, the same in the app, over MCP and on the command line; steps chain, and how a result
 was made is always visible, through workflows and the workflow bar; a project sets itself up
 through a short onboarding, because language and models are no longer one setting for a whole
-library; and a project can be tied to a synced folder.
+project; and a project can be tied to a synced folder.
 
 ## What exists today (read on disk 2026-09-19 by a code worker; to be re-read before tagging)
 
@@ -49,7 +49,7 @@ library; and a project can be tied to a synced folder.
   through into two families of MCP tools. **The command line has no model commands at all**:
   it can run workflows and manage providers, nothing else.
 - **Role defaults** (`$small`, `$large`, vision tiers) are app-wide. A workflow node can store
-  an alias, resolved when it runs. There is no default at the level of a library, a folder or
+  an alias, resolved when it runs. There is no default at the level of a project, a folder or
   a document.
 - **Kraken's reading models are a hard-coded shortlist of two**, fetched from Zenodo by DOI and
   marked in the code as provisional. There is no browsing of Kraken's repository or of
@@ -75,9 +75,9 @@ library; and a project can be tied to a synced folder.
   and carry attributes that a node of that prototype takes on, in the manner of Tinderbox. It
   is used for kinds of document today. It is the natural base for project profiles.
 - **Fichero's own licence is the GNU Affero GPL, version 3** (VERIFIED: `LICENSE` at the root).
-- **No project.** Nothing between a library and a document carries settings. The one
-  library-level setting mechanism has a single use. First-run onboarding asks about the
-  library, permissions and AI providers; it asks nothing about languages, scripts or period.
+- **No project.** Nothing between a project and a document carries settings. The one
+  project-level setting mechanism has a single use. First-run onboarding asks about the
+  project, permissions and AI providers; it asks nothing about languages, scripts or period.
 - **Apple Vision** runs in the engine, takes a language from a supported list, and returns line
   and word boxes.
 - **Two Readers exist**: a native one, and an engine-made HTML page that declares itself
@@ -91,7 +91,7 @@ library; and a project can be tied to a synced folder.
 ## What the field does (survey, 2026-09-19; sources at the end)
 
 - **Kraken's model repository** (the `ocr_models` community on Zenodo, read through the
-  HTRMoPo library that `kraken list` uses) now publishes a machine-readable model card: task,
+  HTRMoPo project that `kraken list` uses) now publishes a machine-readable model card: task,
   script, language, characters covered, accuracy, licence, authors, a DOI for the version and
   one for the family. It covers segmentation, reading, reading order and correction, and is
   not tied to Kraken alone.
@@ -99,7 +99,7 @@ library; and a project can be tied to a synced folder.
   places, these two are the likely pair: HTR-United for ground truth; Zenodo/HTRMoPo for
   models.)
 - **Hugging Face** is where most other models live and can be searched by language, task,
-  library and licence. Period and script are only in free text, so Fichero must read the
+  project and licence. Period and script are only in free text, so Fichero must read the
   model pages to find "seventeenth-century Spanish". Teklia publishes permissively licensed
   PyLaia readers there; the CATMuS sets are there.
 - **Transkribus** has hundreds of public models, usable only inside Transkribus.
@@ -153,7 +153,7 @@ A card says:
   it needs; whether this Mac can run it.
 - **How far to trust it**: its licence and **licence class**; its published accuracy, on what
   data; what it was trained on; its known limits; whether Fichero's maintainers have tried it;
-  and **this library's own measurements** of it against ground-truth pages (see
+  and **this project's own measurements** of it against ground-truth pages (see
   `formats-and-training.md`).
 
 The same card is what the app shows, what MCP returns and what the command line prints.
@@ -231,10 +231,15 @@ it was made from, the whole chain can be walked back.
 
 ### A project
 
-A **project** is a folder in the library that has been given a **project profile**. It is not
-a new kind of container and not a mode: the library stays a tree of nodes, and any folder can
-be made a project. A group of pages can be a project too (one notebook inside a larger
-collection), because a group is a folder like any other.
+**A project is what Fichero has called a library** (the maintainer has decided on the new
+name; the rename is not yet carried through the app, and is not this spec's to carry). One
+project is one research undertaking with its own file: a palaeographic project here, a
+project of twenty-first-century notes there. So a project is not a new kind of container, and
+nothing new sits between it and its folders.
+
+What is new is that **a project has settings of its own**, and an onboarding that fills them
+in. Until now almost every such setting (language, the models for each job) has been one
+value for the whole app.
 
 ### Project profiles: "Spanish palaeography", and it sets itself up
 
@@ -245,7 +250,7 @@ Fichero brings the right languages and scripts, the right chain, the right model
 to download them), the right transcription guideline, and only the tools that matter.
 
 - A profile is built on the **prototype system that already exists**: a profile is a prototype
-  for a project folder. Profiles inherit ("Spanish palaeography, notarial hands" from "Spanish
+  for a project. Profiles inherit ("Spanish palaeography, notarial hands" from "Spanish
   palaeography" from "Handwritten, Latin script"), and a project can override anything.
 - A profile is **a plain file that can be shared** (one JSON document, or lines of JSON for a
   set of them): languages and scripts; period; material; the default chain, as jobs or with
@@ -262,20 +267,21 @@ to download them), the right transcription guideline, and only the tools that ma
 Project settings sit **inside the cascade already ruled** for language and other attributes:
 
 ```
-app  >  library  >  project (a folder with settings)  >  folder  >  source  >  page
-     >  region  >  line  >  word  >  character
+app  >  project  >  folder  >  source  >  page  >  region  >  line  >  word  >  character
 ```
 
 Each level inherits from the one above unless it says otherwise, and every shown value says
-where it came from. A library with no projects behaves exactly as today. (The cascade was
-recorded earlier as a future direction; per-project settings bring its upper levels forward.)
+where it came from. So a project of mostly Spanish papers can hold one folder of Nahuatl
+ones, set on that folder, without becoming two projects. A project whose settings were never
+filled in behaves exactly as today. (The cascade was recorded earlier as a future direction;
+per-project settings bring its upper levels forward.)
 
 A project's settings:
 
 - **What it is**: languages, scripts, period, print or hand, how complex the pages are. These
   become the defaults that cascade down to its pages and segments.
 - **Its chain**: the default workflow for new sources, and which model does each job here (a
-  card, or a role default). Two projects in one library can use quite different models: a
+  card, or a role default). Two projects in one project can use quite different models: a
   palaeographic one, and one of twenty-first-century notes.
 - **Its rules**: whether pages may leave this machine (which shuts out cloud models for
   everything in it); the transcription guideline and level of normalisation; the rights
@@ -284,10 +290,11 @@ A project's settings:
 
 ### Onboarding: a profile, or a few questions
 
-Onboarding is a window (the app's first-run window is the pattern to reuse), opened from
-**File > New Project…** and from a folder's context menu (**Make Project…**). The same
-settings are reached afterwards from **Project Settings…**, on the project's context menu and
-in the File menu. One window, two doors; no second settings surface.
+Onboarding is a window (the app's first-run window, which already has a step for making a
+library, is the thing to grow), shown when a **new project** is made. The same settings are
+reached afterwards from **Project Settings…**, in the File menu and on the project's context
+menu. One window, reached two ways; no second settings surface. An existing project can run
+the onboarding at any time.
 
 It offers the profiles first. If none fits, making a project asks **at most six things**, each of which changes what Fichero does.
 Anything that can be worked out is worked out and shown for correction, not asked.
@@ -371,12 +378,12 @@ source model needs from it, and the two must share one import path, not grow a s
 - **In, as they arrive.** New images dropped into the folder become sources in the project and
   go through its default chain. An XML file that appears or changes there (edited in another
   tool) comes in as **a new pass with its own provenance**, the same as any import. It never
-  overwrites work in the library.
-- **Conflicts are shown, not settled silently.** If the library and the file both changed,
+  overwrites work in the project.
+- **Conflicts are shown, not settled silently.** If the project and the file both changed,
   Fichero keeps both, as two passes, and says so.
 - **Restricted material stays out** of the folder unless deliberately included.
-- The folder is a **projection**: it can be deleted and made again from the library. The
-  library remains the record.
+- The folder is a **projection**: it can be deleted and made again from the project. The
+  project remains the record.
 - The engine may be on another machine, so the folder is named on the engine's side; the app
   never assumes it can see the same disk.
 - Writing is throttled like all background work, so a large project never pegs the machine.
@@ -397,7 +404,7 @@ Model cards and jobs
   models (permissive, or compatible copyleft) download without a further deliberate step.
 - `source.model.citation-shown` — a model's citation appears wherever its work is shown and in
   exports.
-- `source.model.measured-here` — a card shows this library's own measurements of the model.
+- `source.model.measured-here` — a card shows this project's own measurements of the model.
 - `source.model.cli-parity` — the command line can list, show, search, download and remove
   models.
 
@@ -422,9 +429,10 @@ Chains and making
 - `source.making.compare-chains` — two chains' results on one page can be compared and scored.
 
 Projects and onboarding
-- `source.project.folder-with-settings` — any folder or group of pages can be made a project; a
-  library without projects behaves as before.
-- `source.profile.is-a-prototype` — a project profile is a prototype for a project folder;
+- `source.project.has-settings` — a project (today's library) has settings of its own for
+  languages, scripts, period, chain, models, rules and folder; one never filled in behaves as
+  before.
+- `source.profile.is-a-prototype` — a project profile is a prototype for a project;
   profiles inherit from one another, and a project can override any value.
 - `source.profile.shareable-file` — a profile can be exported to and imported from a plain file
   that holds settings, chain, tools to show, guideline and model suggestions, and no sources
@@ -435,12 +443,11 @@ Projects and onboarding
   profile names, and the rest stay reachable but out of the way.
 - `source.profile.automatic` — with a profile chosen, new sources run the project's chain
   without being asked; nothing automatic overwrites a person's work.
-- `source.project.one-settings-window` — File > New Project…, Make Project… and Project
-  Settings… open the same window; there is no second project-settings surface.
-- `source.project.in-the-cascade` — project settings sit between library and folder in the one
-  cascade; a shown value says which level it came from.
-- `source.project.own-models` — two projects in one library can use different models for the
-  same job.
+- `source.project.one-settings-window` — making a new project and Project Settings… (File menu
+  and the project's context menu) open the same window; there is no second surface.
+- `source.project.in-the-cascade` — project settings sit between the app and a folder in the
+  one cascade; a folder can override them; a shown value says which level it came from.
+- `source.project.own-models` — two projects can use different models for the same job.
 - `source.project.stays-local` — a project marked "pages may not leave this machine" refuses
   cloud models for everything in it, and says why.
 - `source.onboard.six-questions` — making a project asks at most six questions.
@@ -478,11 +485,11 @@ The synced folder
   project's default chain.
 - `source.sync.outside-edits-are-passes` — a changed or new XML file comes in as a new pass
   with provenance and overwrites nothing.
-- `source.sync.conflicts-kept-both` — when library and file both changed, both are kept and
+- `source.sync.conflicts-kept-both` — when project and file both changed, both are kept and
   the conflict is shown.
 - `source.sync.restricted-stays-out` — restricted material is left out of the folder unless
   deliberately included.
-- `source.sync.folder-is-a-projection` — the folder can be deleted and remade from the library.
+- `source.sync.folder-is-a-projection` — the folder can be deleted and remade from the project.
 - `source.sync.one-import-path` — files arriving through the synced folder go through the same
   import path as any other import.
 - `source.sync.engine-side-and-throttled` — the folder is named where the engine runs, and
@@ -508,7 +515,8 @@ To be filled at approval.
 
 ## Open questions
 
-1. Is a project **a folder with settings** (proposed), or a new kind of thing in the library?
+1. *(Answered 2026-09-19: a project is today's library, renamed; it has a settings window and
+   an onboarding.)* Does the Library pane keep its name when a library becomes a project?
 2. Are the six onboarding questions the right six? Should sample pages come first?
 3. Fichero is AGPL, so AGPL layout models are compatible. Should they be **downloaded on
    request** rather than bundled (proposed, because of the Mac App Store build), with Apple's
