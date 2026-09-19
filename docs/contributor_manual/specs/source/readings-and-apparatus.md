@@ -126,6 +126,52 @@ document: the same note, star and tag, not a second kind. In addition:
   the stretch is carried onto the new reading where the words still match, and otherwise
   reported as unplaced. It is never silently re-measured.
 
+### Dates, in any calendar
+
+A date on a page is ink like anything else: a segment with a reading ("the third year of
+King Darius"; "12 Baktun 4 Katun…"; "era 1014"; "the feast of Saint John"). What it *means*
+is an interpretation, and there can be more than one.
+
+What exists (in `kg/historical-text-normalization.md`, section B; partly built and tested): a
+date is stored as a **range of days on one common count** (the Julian Day Number), never
+collapsed to one guessed day, with conversion from the Gregorian, Julian, French Republican,
+Hebrew and Islamic calendars, regnal years and Chinese era names, and "explicitly undated"
+kept apart from "no date found". It hangs on a whole document.
+
+What this design adds:
+
+- **A date hangs on a segment**, not only on a document: the dating clause of a charter; a
+  diary entry's heading; the date in a colophon.
+- **A date has three parts, kept apart.** *As written* (a reading, in its own language and
+  script). *In its own calendar*, as parts (era, year, month, day, cycle position), with the
+  calendar named from an open list. *On the common count*, as a range of days, worked out
+  from the second.
+- **Calendars are an open list**, like every vocabulary here. Beyond those built: the
+  Seleucid era (common in Aramaic and Syriac sources), Babylonian and other regnal
+  reckonings, the Spanish era (thirty-eight years ahead; used in tenth-century Iberia),
+  Coptic, Ethiopic, Persian, Indian, Japanese and Chinese era names, indictions, Roman
+  consular and *ab urbe condita* years, dating by feast days, and the Maya Long Count and
+  Calendar Round. A library can add one.
+- **A conversion records its assumptions.** Turning a calendar date into days always rests on
+  choices: which correlation between the Maya count and ours; whether an Islamic month began
+  by sighting or by table; when the year began (January, March, Easter); which king's reign
+  and from when. Each interpretation names the rule and the choices it used, its author, and
+  the scholar's certainty. Rival interpretations stand side by side, like rival readings.
+- **A calendar with no conversion is still a calendar.** A date can be recorded faithfully in
+  a calendar Fichero cannot convert. It is then sortable within its own calendar, shown as
+  written, and honestly absent from the common timeline until a rule or a person supplies a
+  range.
+- **Cycles and partial dates are first-class.** "A Tuesday in Lent", a Calendar Round that
+  recurs every fifty-two years, a regnal year without a day: each is a set of possible ranges,
+  narrowed by other evidence, not an error.
+- **The field's formats in and out**: the extended date format (EDTF) for uncertain and
+  approximate dates; TEI's dating attributes (calendar, custom dates, dating method); PeriodO
+  for named periods ("the Umayyad period") as ranges with an authority. (Named from general
+  knowledge; to be checked. The open question of adopting a standard library for dates,
+  #4364, stays with the normalization spec.)
+- The timeline, sorting and search use the common count, so sources dated in different
+  calendars can be set in one order.
+
 ### Descriptions of pictures
 
 A picture, seal, stamp, diagram or map segment has readings of kind *description* (what it
@@ -188,6 +234,20 @@ Letterforms
   open lists.
 - `source.letterform.compare` — marks of the same character can be gathered and compared
   across hands and sources.
+
+Dates
+- `source.date.on-segment` — a date can hang on any segment, not only on a document.
+- `source.date.three-parts` — a date keeps its wording, its parts in a named calendar, and a
+  range of days on the common count, separately.
+- `source.date.open-calendars` — calendars come from an open list a library can extend.
+- `source.date.conversion-names-its-choices` — an interpretation names the rule, the choices
+  (correlation, month reckoning, start of year, reign), its author and certainty; rival
+  interpretations coexist.
+- `source.date.unconvertible-is-kept` — a date in a calendar with no conversion is stored,
+  shown and sortable within that calendar, and absent from the common timeline.
+- `source.date.cycles-and-partials` — a recurring or partial date is a set of possible ranges.
+- `source.date.one-timeline` — sorting, search and the timeline use the common count across
+  calendars.
 
 Marks and descriptions
 - `source.mark.any-level` — notes, highlights, stars and tags go on any segment, using the same
