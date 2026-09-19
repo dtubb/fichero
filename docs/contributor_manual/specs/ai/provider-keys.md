@@ -149,7 +149,17 @@ the value from the original migration, unaffected by anything Settings has done 
   (verified in code today). That gap belongs to `ai/ai-settings.md`'s local-runtime honest
   status behavior on the ai-settings milestone, a different behavior, unchanged by this fix.
 
-### Security
+### Apple Vision as an OCR/vision capability
+
+- `keys.apple-vision-is-a-capability-not-only-a-key-check` — **[GAP]** (#2060, redirected
+  from the legacy "Importer" milestone while folding `importer.md`'s pass 2) `apple_vision` is
+  already a recognized provider with a real connection probe
+  (`keys.test-connection-real-probe` above), but this issue's actual ask is broader: using
+  Apple's Vision framework as an on-device OCR/vision ENGINE the importer or a workflow can
+  choose, alongside cloud OCR providers — not only a settings-row key check. Whether Vision is
+  wired as a selectable OCR/transcription engine anywhere in the import or workflow path was
+  not verified this pass; the provider-key surface and the actual capability are two different
+  questions, and this behavior is the capability one.
 
 - `keys.key-never-in-logs` — **[PARTIAL]** (#4821) the app-supplied in-process key is never logged:
   `supply_api_key` (`fichero-server/src/fichero_server/security/provider_keys.py:39-58`)

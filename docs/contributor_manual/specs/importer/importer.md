@@ -138,10 +138,15 @@ in the file's own status), never a silent nothing.
 ### What has not shipped, or contradicts a ruling
 
 - `importer.segmentation-automatic-no-toggle` — **[GAP]** (#4822, filed this pass) Kraken
-  segmentation should auto-provision and run on every eligible page at import. Verified not
-  wired: no reference to Kraken exists in `importers/ingest.py`, `api/routes/ingest/core.py`,
-  or `importers/derivatives.py` — it exists only as an opt-in workflow tool
-  (`detect_regions_kraken.json`) a user must run manually.
+  segmentation should auto-provision and run on every eligible page at import. Re-verified at
+  HEAD (2026-09-19): the RUNTIME layer is real and working — `get_kraken_runtime().status()`/
+  `.start_install()` (`api/routes/ai/local_models.py:55-92`) can report install state and
+  provision Kraken on request — but that capability is still never CALLED from the import
+  path: no reference to Kraken exists in `importers/ingest.py`, `api/routes/ingest/core.py`,
+  or `importers/derivatives.py`, so it stays an opt-in workflow tool
+  (`detect_regions_kraken.json`) a user must run manually, exactly as behind the ratified
+  "auto-provision + auto-run at import, no toggle" ruling as before. The gap is the wiring
+  between two things that both already exist, not a missing capability.
 - `importer.nlp-auto-at-import` — **[PARTIAL]** (#4830 — the original filing issue for the
   NLP-draft stage is closed, its engine half landed 177fc6cd3) the free NLP draft stage itself is BUILT: `run_nlp_draft`
   (`fichero-server/src/fichero_server/importers/nlp_draft.py`) writes real entity/claim rows
@@ -228,6 +233,115 @@ in the file's own status), never a silent nothing.
   independently re-traced in code this pass — cited at face value from the issue's own
   survey.
 
+### Legacy milestone fold (#188 "Importer," #65 "Importer - Source Archives"), pass 2
+
+All 35 open issues read fresh by body. One methodological note first: `gh issue list
+--milestone "Importer"` (by TITLE) silently merges this legacy milestone (#188) with the
+spec's OWN milestone (#307, titled lowercase `importer`) — GitHub's milestone-title matching
+is case-insensitive. Every count and list below is filtered by milestone NUMBER
+(`.milestone.number == 188`), not title, to avoid re-folding issues already moved.
+
+- `importer.spreadsheet-import-reachable-from-app` — **[GAP]** (#4210) row-per-record
+  spreadsheet import exists at the engine and CLI layers but has no route reachable from the
+  app. Not independently re-verified in code this pass.
+- `importer.dead-fe-surface-cleanup` — **[GAP]** (#3288) the import surface carries dead and
+  duplicated code. Verified PARTIALLY at HEAD: two SEPARATE `IngestMode` enums genuinely exist
+  — `Document.IngestMode` (`Models/Document.swift:536`, raw values `link`/`copy`/`move`,
+  lowercase) and `ImportServiceTypes.IngestMode` (`Services/ImportServiceTypes.swift:7`, raw
+  values `"LINK"`/`"COPY"`/`"MOVE"`, uppercase) — a real, confirmed conflict. NOT verified as
+  claimed: `DragDropModel.swift` is referenced across at least nine other files (sidebar
+  actions, focused commands, drop handlers) — it reads as actively used, not dead code; that
+  specific half of the issue's claim does not hold as stated.
+- `importer.url-and-share-in-entry-point` — **[GAP]** (#2106) adding documents via HTTP/URL
+  and OS share-in (Share extension / macOS Services) is a real alternate entry point, distinct
+  from drag-drop. Not verified as built.
+- `importer.drag-in-is-smooth-at-scale` — **[PARTIAL]** (#1328) drag-in folder/file import
+  works today (`handleFileImport`/`ImportService`, confirmed by an earlier pass), but whether
+  it stays "smooth" at scale ties directly to `importer.bulk-import-activity-visible` above
+  (#739/#3308/#4203) rather than being a separate mechanism — cited together, not duplicated.
+- `importer.resumable-content-hash-skip` — **[GAP]** (#739) a resumable corpus pass should
+  skip already-imported content by hash at 100k-document scale, distinct from progress
+  VISIBILITY (`importer.bulk-import-activity-visible`) — resuming a partial import and
+  reporting one already in progress are two different capabilities. Not verified as built.
+- `importer.bilingual-content-does-not-duplicate-kg-rows` — **[GAP]** (#1798, redirected from
+  the legacy "Importer - Source Archives" milestone) when a source's transcription duplicates
+  the same content in two languages (reported against the Marshall corpus specifically,
+  English + Spanish), the importer should not produce duplicate KG entities/claims from the
+  translated duplicate. No dedup-by-language mechanism was found in
+  `importers/`/`workflows/tools/` this pass. Stated as a generalizable defect class, not
+  assumed to be Marshall-specific plumbing — not independently reproduced against a second
+  corpus this pass.
+
+**Verify-close — evidence posted, left OPEN, not closed here:**
+
+- **#3276** ("FE forces extractText/autoEmbed=false, defeating 'searchable on land'") —
+  re-verified at HEAD (2026-09-19), same finding an earlier pass through this file reached
+  2026-09-18: both halves are true in code NOW — `extract_text` defaults `True` end-to-end,
+  and embeddings run automatically via the deferred `queue_derivatives`/`_embed_stage` path;
+  `auto_embed=False` means "not inline," not "not at all." Resolved by the 2026-08-09
+  deferred-derivative redesign. Not verified: whether the `pending`→`completed` transition is
+  surfaced to the user beyond the generic document-status refresh mechanism (a real,
+  unconfirmed open question, not asserted as a defect).
+
+**Redirected to an existing spec:**
+
+- **#2060** ("Apple Vision framework as an on-device OCR/vision engine") →
+  `ai/provider-keys.md` as `keys.apple-vision-is-a-capability-not-only-a-key-check` — a
+  provider/capability question, not the raw import pipeline.
+
+**Waiting on a spec that does not exist (left on the legacy milestone, not moved):**
+
+Two clusters, neither with a spec today:
+
+- **Mobile/watched-folder capture** (9 issues): #3280, #2380, #2367, #2364, #2357, #2356,
+  #2355, #2353, #2352 — session/upload contract, camera intake, capture-batch workflows,
+  configuration by person/library/workflow, the smoke-test matrix, and the non-idempotent
+  mobile-upload-duplicates bug. One coherent sub-system (capture SESSIONS, distinct from a
+  plain file drop), consistently reasoned as its own spec's territory by an earlier pass
+  through this file — re-confirmed, not re-litigated.
+- **Specific/pluggable importers** (9 issues): #1658, #1656, #1651, #1650, #1646, #1632, #744
+  (from "Importer"), plus #1708, #1654 (from "Importer - Source Archives") — the IIIF/W3C
+  annotation importer family (manifest/collection consumption, the old-format converter,
+  cluster-output merge, its own OpenAPI/CLI test suite, the Andy→IIIF converter), the
+  pluggable image+sidecar corpus importer, the Tinderbox `.tbx` importer, the Marshall IIIF
+  reliability EPIC, and the Black Pacific maps importer (whose image-region-anchoring half
+  also touches `segment-representations.md`, noted but not split into two issues). Each is a
+  DISTINCT importer implementation this general pipeline spec should not absorb — they need
+  their own spec (an "importer implementations" or per-format spec), not this one's behaviors.
+
+**Maintainer triage, no home found:**
+
+- **#3292** ("Fabel Review Summary — Importers, Ingest & Capture") — a review-summary meta
+  issue; this spec is positioned to supersede it as the living anchor, but retiring a tracking
+  issue is the maintainer's call, not asserted here.
+- **#975** ("Structured transcript ingest: timecoded segments + speaker diarization") — a
+  specific format's own feature (audio/video transcripts), not cleanly capture, not cleanly
+  IIIF, not a general pipeline behavior — no home found among the specs read this pass.
+- **#2464** ("ICANH library shows no PDFs — verify data present, fix listing") — a
+  data-verification task against one specific, already-imported real library, not a
+  generalizable importer behavor to state as a spec line.
+- **#2209** ("Archivos Nuestros importer + reproducible library QA"), **#2208** ("ICANH/
+  Andagoya importer + Spanish Script transcription QA") — building and QA-ing specific
+  real-archive importers; same "needs its own spec" reasoning as the pluggable-importers
+  cluster above, but framed as one-off data-loading projects for named collections rather than
+  a generalizable capability — TRIAGE rather than folded into that waiting cluster, since
+  grouping them together would understate how dataset-specific each one is.
+- **#1667** ("Marshall SMB staging logs missing 1928 enhanced image files during rsync") — an
+  operational/infrastructure bug in one collection's staging pipeline, not an app behavior.
+- **#1331** ("Black folder + Maps folder metadata fusion") — dataset-specific metadata work
+  for one named collection.
+- **#1235** ("import Sergio Mosquera notebooks"), **#1233** ("import already-catalogued GHC
+  materials") — literal data-loading tasks for named collections, not spec behaviors.
+
+**Milestones**: neither #188 nor #65 reaches zero this pass. #188 (25 open) loses 6 (5 fit,
+moved onto #307; 1 redirected to `provider-keys`), retaining 19 — 1 verify-close, 9 capture-
+waiting, 7 pluggable-importer-waiting, 2 triage. #65 (10 open) loses 1 (fit, moved onto #307),
+retaining 9 — 2 waiting (joining the pluggable-importer cluster), 7 triage. Neither closed.
+
+Moved onto `importer` (#307) this pass, by number: **#4210, #3288, #2106, #1328, #739, #1798**.
+Redirected to `provider-keys` (#305): **#2060**. Left in place, dispositioned above, not moved:
+everything else.
+
 ## Out of scope (pointed at with arrows)
 
 - **What a workflow does to a node once it exists** (transcription, extraction, chains) —
@@ -256,7 +370,13 @@ Hard-gate: none yet — DRAFT spec; a hard-gate set is chosen once `importer.seg
 automatic-no-toggle` and `importer.nlp-auto-at-import` (the two genuinely unbuilt rulings)
 have owners.
 
-## Issue map (all 29 open issues on "Importer", #188)
+## Issue map (all 29 open issues on "Importer", #188) — HISTORICAL, 2026-09-18 pass
+
+Superseded by "Legacy milestone fold... pass 2" above (2026-09-19), which re-read every issue
+against this vocabulary's exact fits/redirect/waiting/verify-close/triage rubric and reflects
+the CURRENT open set (25 on #188, not 29 — four moved between this table and the pass 2 fold).
+Kept for the reasoning trail, not as the live disposition; the pass 2 section above is
+authoritative.
 
 Disposition key: **cited** = moved onto `importer` (#307), backs a behavior above by plain
 citation · **related** = touches this pipeline but not folded into a specific claim above;
