@@ -56,10 +56,16 @@ library; and a project can be tied to a synced folder.
   Hugging Face.
 - **Chains.** Workflow tools declare typed ports, and about fifty default workflows ship. But
   the paleography ones are a single transcribe step with a tuned prompt, not real chains.
-  "Find the lines with one engine, read them with another" exists **three or four separate
-  ways** with no shared part: Kraken segmenting and reading in one go; `economy_htr` (Apple
-  Vision finds lines, crops them, a local recogniser reads them); `align_transcript` (joins a
-  whole-page transcript to Kraken's lines by counting lines); `merge_geometry`. **Kraken's
+  "Find the lines with one engine, read them with another" exists **four separate ways** with
+  no shared part. VERIFIED on disk by the spec writer (file and function), 2026-09-19:
+  (1) `llm/kraken_runtime.py` `recognize_lines` / `recognize_to_geometry`: Kraken segments
+  (`blla.segment`) and reads (`rpred.rpred`) in one script; (2)
+  `workflows/tools/economy_htr.py`, tool `economy_htr`: `crop_line_strips` cuts line pictures,
+  then `trocr_transcribe_lines` or `kraken_transcribe_page` reads them, all inside one
+  function `economy_htr_file`; (3) `workflows/tools/align_transcript.py`, tool
+  `align_transcript`; (4) `workflows/tools/merge_geometry.py`, tool `merge_geometry`. What (3)
+  and (4) do inside (joining by counting lines; laying a reviewed transcript over word boxes)
+  is from the code worker's reading, INFERRED here. **Kraken's
   baselines cropped and handed to Apple Vision or a local vision model does not exist**,
   though every piece it needs does (Apple Vision accepts any image; the cropping exists).
 - **How a result was made** is partly recorded: an artifact names its provider, model, run,
@@ -74,7 +80,8 @@ library; and a project can be tied to a synced folder.
 - **Embeddings** use one multilingual model for everything; the alternative is chosen by an
   environment variable, not in Settings. Vectors live in DuckDB and refuse to mix spaces.
 - **spaCy** knows five languages. For any other language it **falls back to English without
-  telling the user**, or to a language model if nothing is installed.
+  telling the user** (VERIFIED on disk; recorded as broken in
+  `historical-text-normalization.md`, #4914), or to a language model if nothing is installed.
 
 ## What the field does (survey, 2026-09-19; sources at the end)
 
@@ -433,9 +440,8 @@ The synced folder
   before it runs; the general "segments to any reader" step replaces `economy_htr` and its
   kin; the known drift between `kraken_model` and `kraken_recognition_model` disappears when
   the model is a card.
-- `historical-text-normalization.md`: the silent fall-back to the English spaCy pipeline for
-  an unsupported language contradicts the standing rule to raise, not substitute; it should
-  be recorded there as broken, with an issue.
+- `historical-text-normalization.md`: done. The silent fall-back to the English spaCy pipeline
+  is recorded there as `histnorm.language.no-silent-english-entity-model`, broken, #4914.
 - The Reader specs: two renderers exist, one declaring itself English.
 
 ## Test matrix

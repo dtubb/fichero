@@ -260,6 +260,16 @@ rather than defaulting to the pessimistic prior.
   `_fold_for_search` (NFD/search), `_fold_accents` (NFKD/entity keys), and whatever this spec's
   phase-1 canonicalization eventually adds — any new normalization work must state which of
   these it replaces or coexists with, not silently add a fifth.
+- `histnorm.language.no-silent-english-entity-model` — **[BROKEN]** (#4914) VERIFIED on disk
+  2026-09-19 (`fichero_server/knowledge/spacy_ner.py`, in the pipeline loader): when there is
+  no spaCy pipeline for a document's language, the code sets the language to English, loads
+  the English models, and only logs a warning. So a text in an unsupported language gets
+  English entity recognition, and its results feed the automatic draft layer at import with no
+  sign to the researcher. This breaks the standing rule to decline, not substitute. Expected:
+  entity recognition declines for that language, says plainly "no entity model for this
+  language", and the import carries on without it; no English fallback. Not yet checked: what
+  language detection returns for a language it cannot identify, and whether that value reaches
+  this loader (see `source/models-chains-and-projects.md`, "Language tools are honest").
 - `histnorm.language.per-language-tables-exist-elsewhere` — **[OK]** (pre-existing, cited for
   context, not this milestone's own delivery) `spacy_svo.py`'s `_LANG_DEPS` (extraction-time
   dependency-label tables) and `readable.py`'s `_LEADING_PREPOSITIONS`/`_REALISATION` (added
