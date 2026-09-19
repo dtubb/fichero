@@ -2,6 +2,81 @@
 
 ## Unreleased
 
+**Knowledge and the source reveal.** Clicking a sentence in an entity's biography opens the claim
+editor and highlights the source at once, and the Inspector now stays on the entity instead of
+losing focus — a caller could previously clear the focused entity just by omitting it; the
+argument is required now, so no caller can make that mistake again (#4834). Built and tested,
+awaiting a look on screen. Clicking a claim now shows its source in both the Reader and Preview
+panes without losing your place (#4834, #4852). Clicking an entity loads it reliably, each window
+now owns its own focus, and a failed load says why (#4850, #4856). Editing a statement from its
+own sentence is wired end to end — saved through the audited path, updated in place, with a date
+field and a subject you pick, and changing a claim's subject also moves its linked entity, name,
+and sentence together (#4833). An entity's biography now states each claim's own subject, never
+the page entity's name or a bare pronoun (#4835). The sentence extractor no longer invents a
+subject or hangs an import, and a Spanish impersonal "se" passive no longer makes the thing sold
+into the seller (#4836). An entity's readable paragraph has its own read route and composes
+claims that know their own place and language, refusing any merge it cannot state truthfully
+(#4832, #4838). A claim's provenance (human vs. machine vs. AI) is now derived consistently
+everywhere it reaches the wire, never defaulting to "human" for a machine-extracted claim
+(#4868, #4860, #4862, #4869). Deleting an entity now clears every link to it, not only the
+obvious list; merging two entities now moves a claim's speaker, subject-of-inquiry, scribe, and
+editor to the survivor too, and unmerging moves each back (#4859, #4863). An interpretation's
+recorded author is the real actor now, not a name the client happened to send (#4857, #4858).
+Visiting the Entities or Claims table no longer forces the window into list view, and Select All
+now selects what the table actually shows (#4575, #4851, #4794).
+
+**Workflows.** Selecting a workflow by clicking its row in the Library now opens its editor in
+place — canvas and run log, no mode flip, no double-click — through one "effective workflow"
+that loads and saves safely however it was chosen (#4882). This landed once, was reverted the
+same day because it did not yet load and save the workflow it showed, and was relanded properly
+once that was fixed — noted here rather than hidden. Known and filed as a separate, narrower
+issue: the editor can still stay briefly editable over the previous workflow's nodes while the
+next one loads, and two autosave paths still exist (#4893). Schedules, triggers, chains, batches,
+and activity now open as node detail in the Preview pane, with the Library staying the navigator
+(#4705); a selected workflow opens its canvas in the Source pane with its run log in the Reader
+(#4705); the Reader now consults the pane plan, so selecting a schedule, trigger, chain, batch,
+or activity item no longer leaves the previous document showing (#4803). The Knowledge Graph
+sidebar mode has retired — Entities and Claims are Library tables now, and the SPARQL console is
+its own window.
+
+**Model pickers.** Role defaults ("small," "large," "vision small," and so on) now live in one
+shared builder that names the concrete model each one resolves to today; the workflow bar's
+model control is the same shared-row popover the step inspector already used, and its two
+hand-drawn menus are deleted. Picking a role default stores the alias, not a frozen model choice,
+so a later change to your defaults is picked up automatically (#4883). Not yet seen on screen.
+Still open: what a row shows, how the document island offers role defaults, and what Settings'
+own row should look like.
+
+**Segmentation and Kraken.** Kraken can now segment a single page of a PDF — it used to refuse
+every PDF page outright, while Apple Vision handled the same page fine (#4892). A finished
+workflow run now announces the artifacts it saved, so a segmentation overlay can refresh itself
+without waiting for a click (#4890); this covers the vision-processing tools today, not every
+tool that can write an artifact. Built and tested; not yet seen working on screen, and needs an
+engine restart to pick up the change.
+
+**Undo and the audit trail.** An entity split, an alias edit, and batch curation now go through
+the audited action layer, so they are undoable and recorded like everything else (#4831). Two
+more rounds of routes followed: linking to an authority record, and then five more knowledge-
+graph routes, closing out most of the sweep (#4829, #4831, #4843). An agent's writes AND deletes
+are audited now too — the MCP entity and claim tools call the same registered actions a person's
+click does, and a claim can no longer arrive claiming an author it did not verify (#4866). The
+older, separate mutation-undo path now refuses an operation the audited action layer already
+owns, instead of silently restoring only half of it (#4864).
+
+**Testing and harness.** A bad test fixture now fails the one test it belongs to instead of
+crashing the whole test host. Several data stores (claims, interpretations, notes, annotations,
+artifacts) now update the one changed item in place instead of reloading their whole list on
+every save — a guardrail scans every store's mutating methods for this and tracks what is left
+to fix as a shrinking, named debt list, not a vague someday. `start_backend.sh --uds` now
+defaults to the same container socket path the Dev Local scheme dials.
+
+**Specs and milestones.** A months-long backlog of legacy GitHub milestones with no owning spec
+is being worked down one at a time: each one's open issues are read fresh against today's code,
+folded into the spec that actually owns that behavior (or redirected to one that does), and
+closed once empty — over twenty legacy milestones have closed this way so far, with the process
+itself now checked by a guardrail that fails if a spec claim goes untested or an issue goes
+uncited.
+
 ## 2026-09-18
 
 **Workspaces are one model, and they persist.** Pane visibility derives from the applied pane list
