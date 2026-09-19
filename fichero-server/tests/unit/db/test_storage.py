@@ -64,12 +64,22 @@ class TestStorageSettings:
             assert s.vectors_dir == Path(tmpdir) / "vectors"
 
     def test_size_tuples(self):
-        """Size properties should return tuples."""
-        from fichero_server.db.storage import StorageSettings, THUMBNAIL_MAX_DIMENSION
+        """Size properties should return tuples.
+
+        `display_size` asserted against the live constant, not a hardcoded
+        literal (8862f64f9 deliberately raised DISPLAY_MAX_DIMENSION
+        1000->2200 "so the reader's preview/zoom is sharp on ~3600x4800
+        archival scans" -- a hardcoded (1000, 1000) went stale the moment
+        that shipped and was never updated)."""
+        from fichero_server.db.storage import (
+            DISPLAY_MAX_DIMENSION,
+            StorageSettings,
+            THUMBNAIL_MAX_DIMENSION,
+        )
 
         s = StorageSettings()
         assert s.thumb_size == (THUMBNAIL_MAX_DIMENSION, THUMBNAIL_MAX_DIMENSION)
-        assert s.display_size == (1000, 1000)
+        assert s.display_size == (DISPLAY_MAX_DIMENSION, DISPLAY_MAX_DIMENSION)
 
     def test_custom_sizes(self):
         """Custom dimensions should work."""

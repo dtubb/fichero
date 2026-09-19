@@ -154,10 +154,32 @@ class TestEntitiesRoutes:
         entity_id = entity.id
 
         # Add aliases
+        # #4831 first batch (e06b12551): add_entity_aliases now routes
+        # through registry.invoke("entity.update", ...), which builds a
+        # real ActionAudit(actor: str, ...) -- an explicit actor is
+        # required when calling the route function directly (bypassing
+        # FastAPI's own dependency resolution of `actor: str =
+        # Depends(request_actor)`), and the whole point of that
+        # conversion was a real actor landing on the audit row, not just
+        # not-crashing.
         alias_request = EntityAliasRequest(aliases=["New1", "New2"])
-        updated = await add_entity_aliases(entity_id, alias_request, db)
+        updated = await add_entity_aliases(
+            entity_id,
+            alias_request,
+            db,
+            x_fichero_library_path=str(db_path.parent),
+            actor="alias-tester",
+        )
 
         assert "Initial" in updated.aliases
+
+        from fichero_server.models import ActionAudit
+
+        audits = [
+            a for a in db.all(ActionAudit)
+            if a.action_name == "entity.update" and entity_id in a.target_ids
+        ]
+        assert audits and audits[-1].actor == "alias-tester"
         assert "New1" in updated.aliases
         assert "New2" in updated.aliases
 

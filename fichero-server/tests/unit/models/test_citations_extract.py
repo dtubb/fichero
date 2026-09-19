@@ -88,18 +88,28 @@ def test_extract_citations_writes_page_scoped_kg_rows(tmp_path, monkeypatch):
     for doc in (parent, page1, page2):
         db.save(doc)
 
-    async def fake_parse(raw_text, index, llm_config):
+    received_prompts = []
+
+    async def fake_parse(raw_text, index, llm_config, *, prompt=None):
+        received_prompts.append(prompt)
         return parse_bibliography_entry_regex(raw_text, index)
 
     monkeypatch.setattr(cite_tool, "parse_bibliography_entry", fake_parse)
 
+    custom_prompt = "Parse this bibliography entry with extra care for Spanish names."
     result = asyncio.run(
         extract_citations_for_document(
             db,
             parent,
             LLMConfig(provider="openrouter", model="openai/gpt-4o-mini"),
+            prompt=custom_prompt,
         )
     )
+
+    # `prompt` is a user-overridable instruction (f1df4eec8): the whole
+    # point of the parameter is that it actually reaches the LLM call, not
+    # just that the call signature accepts it.
+    assert received_prompts and all(p == custom_prompt for p in received_prompts)
 
     assert result["entries"][0]["canonical_name"] == "Smith-1999"
     entities = db.query(KnowledgeEntity, entity_type=EntityType.citation)
@@ -145,7 +155,7 @@ def test_citations_extract_preserves_selected_page_document(tmp_path, monkeypatc
     for doc in (parent, page1, page2):
         db.save(doc)
 
-    async def fake_parse(raw_text, index, llm_config):
+    async def fake_parse(raw_text, index, llm_config, *, prompt=None):
         return parse_bibliography_entry_regex(raw_text, index)
 
     monkeypatch.setattr(cite_tool, "parse_bibliography_entry", fake_parse)
@@ -198,7 +208,7 @@ def test_extract_citations_detects_footnote_citation_lines(tmp_path, monkeypatch
     for doc in (parent, page1, page2):
         db.save(doc)
 
-    async def fake_parse(raw_text, index, llm_config):
+    async def fake_parse(raw_text, index, llm_config, *, prompt=None):
         return parse_bibliography_entry_regex(raw_text, index)
 
     monkeypatch.setattr(cite_tool, "parse_bibliography_entry", fake_parse)
@@ -256,7 +266,7 @@ def test_extract_citations_skips_suppressed_citation_entity(tmp_path, monkeypatc
         )
     )
 
-    async def fake_parse(raw_text, index, llm_config):
+    async def fake_parse(raw_text, index, llm_config, *, prompt=None):
         return parse_bibliography_entry_regex(raw_text, index)
 
     monkeypatch.setattr(cite_tool, "parse_bibliography_entry", fake_parse)
@@ -290,7 +300,7 @@ def test_citations_extract_workflow_uses_selected_document(tmp_path, monkeypatch
     )
     db.save(doc)
 
-    async def fake_parse(raw_text, index, llm_config):
+    async def fake_parse(raw_text, index, llm_config, *, prompt=None):
         return parse_bibliography_entry_regex(raw_text, index)
 
     monkeypatch.setattr(cite_tool, "parse_bibliography_entry", fake_parse)
