@@ -95,6 +95,42 @@ def collect_processed_document_ids(final_state: Any) -> set[str]:
     return ids
 
 
+def collect_created_artifact_ids(final_state: Any) -> set[str]:
+    """Extract the artifact ids a workflow run actually created or touched.
+
+    Mirrors :func:`collect_processed_document_ids`'s own defensive shape: a
+    tool's return dict carries its own ``artifacts`` list of ids (e.g.
+    ``process_vision``'s ``result["artifacts"]``, ``vision_base.py:5301``),
+    the parallel/elementwise aggregator merges those per-branch lists onto
+    the SAME key on the node's own output (``builder.py``'s
+    ``all_artifacts``), and either shape can end up readable from
+    ``final_state["outputs"][node_id]["artifacts"]`` OR, when the graph's
+    state schema merges a node's return dict onto the top level, from
+    ``final_state["artifacts"]`` directly (segment.overlay.refreshes-when-
+    segmentation-finishes, #4890).
+    """
+    ids: set[str] = set()
+    if not isinstance(final_state, dict):
+        return ids
+
+    def _add_all(values: Any) -> None:
+        if not isinstance(values, list):
+            return
+        for value in values:
+            if isinstance(value, str) and value:
+                ids.add(value)
+
+    outputs = final_state.get("outputs")
+    if isinstance(outputs, dict):
+        for node_output in outputs.values():
+            if isinstance(node_output, dict):
+                _add_all(node_output.get("artifacts"))
+
+    _add_all(final_state.get("artifacts"))
+
+    return ids
+
+
 # Terminal outcomes finalize_run_documents accepts. "completed" advances the
 # run's documents; "failed"/"cancelled" revert them so nothing spins forever.
 FINAL_STATUSES: frozenset[str] = frozenset({"completed", "failed", "cancelled"})
@@ -104,13 +140,21 @@ def complete_run_documents(
     db: Any,
     document_ids: set[str],
     workflow_run: Any | None = None,
+    *,
+    artifact_ids: Any = None,
 ) -> int:
     """Advance the run's documents (and their page children) to ``completed``.
 
     Success-path wrapper around :func:`finalize_run_documents` (kept for the
-    existing runner/batch call sites and tests).
+    existing runner/batch call sites and tests). ``artifact_ids`` — pass
+    :func:`collect_created_artifact_ids`'s result — makes the run's saved
+    artifacts (e.g. a Kraken segmentation's "regions" artifact) broadcast on
+    the change stream even when settling this run's documents produces no
+    status transition (segment.overlay.refreshes-when-segmentation-finishes).
     """
-    return finalize_run_documents(db, document_ids, "completed", workflow_run)
+    return finalize_run_documents(
+        db, document_ids, "completed", workflow_run, artifact_ids=artifact_ids
+    )
 
 
 def finalize_run_documents(
@@ -118,6 +162,8 @@ def finalize_run_documents(
     document_ids: set[str],
     final_status: str,
     workflow_run: Any | None = None,
+    *,
+    artifact_ids: Any = None,
 ) -> int:
     """Settle the run's documents (and their page children) at a terminal
     boundary — EVERY terminal path must call this (#4315).
@@ -231,6 +277,50 @@ def finalize_run_documents(
             logger.warning(
                 "finalize_run_documents: change-stream emit failed "
                 "(documents persisted; UI will refresh on reload): %s",
+                exc,
+            )
+
+    # Broadcast the run's saved artifacts, INDEPENDENT of whether any
+    # document's status transitioned (segment.overlay.refreshes-when-
+    # segmentation-finishes): a segmentation run on an already-`completed`
+    # document (a re-run) saves/updates a "regions" artifact but settles no
+    # document, so `changed_ids` above stays empty and `document.updated`
+    # never fires — the overlay would otherwise never learn the geometry
+    # changed. One event per RUN, not per artifact, naming every artifact id
+    # the run touched plus the documents those artifacts belong to (looked
+    # up fresh from the id, since an artifact's own document is not
+    # necessarily one of `document_ids` — e.g. a page-child artifact when
+    # the run only knows the parent). Best-effort, same as the emit above:
+    # a broadcast failure must never fail the run.
+    created_artifact_ids = {aid for aid in (artifact_ids or ()) if aid}
+    if created_artifact_ids:
+        try:
+            from pathlib import Path
+
+            from fichero_server.api.change_stream import emit_change
+            from fichero_server.models import Artifact
+
+            artifact_doc_ids: set[str] = set()
+            for artifact_id in created_artifact_ids:
+                artifact = db.get(Artifact, artifact_id)
+                if artifact is not None and artifact.document_id:
+                    artifact_doc_ids.add(artifact.document_id)
+
+            run_id = (
+                workflow_run_entry.get("thread_id") if workflow_run_entry else None
+            )
+            emit_change(
+                str(Path(db.path).parent),
+                type="artifact.updated",
+                artifact_ids=sorted(created_artifact_ids),
+                document_ids=sorted(artifact_doc_ids),
+                run_id=run_id,
+                actor="workflow",
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning(
+                "finalize_run_documents: artifact change-stream emit failed "
+                "(artifacts persisted; UI will refresh on reload): %s",
                 exc,
             )
 

@@ -2094,11 +2094,13 @@ async def _run_workflow_in_background(
         # still-in-progress pages.
         try:
             from fichero_server.workflows.completion import (
+                collect_created_artifact_ids,
                 collect_processed_document_ids,
                 complete_run_documents,
             )
 
             run_doc_ids = collect_processed_document_ids(final_state)
+            run_artifact_ids = collect_created_artifact_ids(final_state)
             completed_count = complete_run_documents(
                 db,
                 run_doc_ids,
@@ -2115,6 +2117,7 @@ async def _run_workflow_in_background(
                     "started_at": start_time,
                     "completed_at": datetime.now(timezone.utc),
                 },
+                artifact_ids=run_artifact_ids,
             )
             if completed_count:
                 # Status bookkeeping, NOT a result count (S7, 2026-08-23:

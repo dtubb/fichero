@@ -705,14 +705,15 @@ class BatchManager:
                     try:
                         from fichero_server.db.manager import db_manager
                         from fichero_server.workflows.completion import (
+                            collect_created_artifact_ids,
                             collect_processed_document_ids,
                             complete_run_documents,
                         )
 
                         snapshot = await compiled_graph.aget_state(config)
-                        run_doc_ids = collect_processed_document_ids(
-                            getattr(snapshot, "values", None)
-                        )
+                        snapshot_values = getattr(snapshot, "values", None)
+                        run_doc_ids = collect_processed_document_ids(snapshot_values)
+                        run_artifact_ids = collect_created_artifact_ids(snapshot_values)
                         item_db = db_manager.get_database(str(Path(self.db_path).parent))
                         complete_run_documents(
                             item_db,
@@ -728,6 +729,7 @@ class BatchManager:
                                 "started_at": item.started_at,
                                 "completed_at": item.completed_at,
                             },
+                            artifact_ids=run_artifact_ids,
                         )
                         # document.updated is broadcast inside
                         # complete_run_documents (centralised for both paths,

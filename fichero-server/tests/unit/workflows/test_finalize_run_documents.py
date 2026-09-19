@@ -104,6 +104,129 @@ class TestFinalizeRunDocuments:
 
 
 # ---------------------------------------------------------------------------
+# segment.overlay.refreshes-when-segmentation-finishes: a run's saved
+# artifacts must broadcast on the change stream, naming the artifact and its
+# document, even when settling the run's documents produces no status
+# transition. (#4890.)
+# ---------------------------------------------------------------------------
+
+
+class TestArtifactChangeEmission:
+    def test_segmentation_run_emits_an_event_naming_the_artifact_and_document(
+        self, temp_db, monkeypatch
+    ):
+        from fichero_server.api import change_stream
+        from fichero_server.models import Artifact
+
+        doc = _processing_doc(temp_db)
+        art = Artifact(document_id=doc.id, artifact_type="regions", content="")
+        temp_db.save(art)
+
+        captured = []
+        monkeypatch.setattr(
+            change_stream._change_hub,
+            "emit",
+            lambda library_path, event: captured.append(event),
+        )
+
+        complete_run_documents(temp_db, {doc.id}, artifact_ids={art.id})
+
+        artifact_events = [e for e in captured if e.type == "artifact.updated"]
+        assert len(artifact_events) == 1
+        assert artifact_events[0].artifact_ids == [art.id]
+        assert artifact_events[0].document_ids == [doc.id]
+
+    def test_a_run_that_changes_no_document_status_still_emits(
+        self, temp_db, monkeypatch
+    ):
+        """The exact scenario named in the ruling: re-running segmentation on
+        an already-`completed` document settles no status transition, so the
+        pre-existing `document.updated` broadcast stays silent -- the new
+        artifact-carrying emission must fire anyway."""
+        from fichero_server.api import change_stream
+        from fichero_server.models import Artifact
+
+        doc = Document(name="done.pdf", path="/tmp/done.pdf", status=Status.completed)
+        temp_db.save(doc)
+        art = Artifact(document_id=doc.id, artifact_type="regions", content="")
+        temp_db.save(art)
+
+        captured = []
+        monkeypatch.setattr(
+            change_stream._change_hub,
+            "emit",
+            lambda library_path, event: captured.append(event),
+        )
+
+        updated = complete_run_documents(temp_db, {doc.id}, artifact_ids={art.id})
+
+        assert updated == 0  # no status transition -- the old path's own gate
+        assert [e for e in captured if e.type == "document.updated"] == []
+        artifact_events = [e for e in captured if e.type == "artifact.updated"]
+        assert len(artifact_events) == 1
+        assert artifact_events[0].artifact_ids == [art.id]
+
+    def test_no_event_is_emitted_twice_for_one_artifact(self, temp_db, monkeypatch):
+        from fichero_server.api import change_stream
+        from fichero_server.models import Artifact
+
+        doc = _processing_doc(temp_db)
+        art = Artifact(document_id=doc.id, artifact_type="regions", content="")
+        temp_db.save(art)
+
+        captured = []
+        monkeypatch.setattr(
+            change_stream._change_hub,
+            "emit",
+            lambda library_path, event: captured.append(event),
+        )
+
+        complete_run_documents(temp_db, {doc.id}, artifact_ids={art.id})
+
+        artifact_events = [e for e in captured if e.type == "artifact.updated"]
+        assert len(artifact_events) == 1, "one event for the RUN, not one per artifact"
+        assert artifact_events[0].artifact_ids.count(art.id) == 1
+
+    def test_no_artifacts_means_no_artifact_event(self, temp_db, monkeypatch):
+        from fichero_server.api import change_stream
+
+        doc = _processing_doc(temp_db)
+        captured = []
+        monkeypatch.setattr(
+            change_stream._change_hub,
+            "emit",
+            lambda library_path, event: captured.append(event),
+        )
+
+        complete_run_documents(temp_db, {doc.id})
+
+        assert [e for e in captured if e.type == "artifact.updated"] == []
+
+
+class TestCollectCreatedArtifactIds:
+    def test_reads_a_node_outputs_own_artifacts_key(self):
+        from fichero_server.workflows.completion import collect_created_artifact_ids
+
+        final_state = {"outputs": {"detect_regions_node": {"artifacts": ["a1", "a2"]}}}
+        assert collect_created_artifact_ids(final_state) == {"a1", "a2"}
+
+    def test_reads_the_top_level_fallback(self):
+        """The graph's state schema can merge a node's return dict onto the
+        top level (the same shape `process_vision` itself returns, #4890,
+        `vision_base.py:5301`)."""
+        from fichero_server.workflows.completion import collect_created_artifact_ids
+
+        final_state = {"artifacts": ["a3"]}
+        assert collect_created_artifact_ids(final_state) == {"a3"}
+
+    def test_non_dict_state_is_empty_not_an_error(self):
+        from fichero_server.workflows.completion import collect_created_artifact_ids
+
+        assert collect_created_artifact_ids(None) == set()
+        assert collect_created_artifact_ids([1, 2, 3]) == set()
+
+
+# ---------------------------------------------------------------------------
 # Runner terminal paths: cancel and failure must call the finalize boundary.
 # ---------------------------------------------------------------------------
 
