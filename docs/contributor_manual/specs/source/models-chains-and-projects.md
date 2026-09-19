@@ -516,7 +516,10 @@ To be filled at approval.
 ## Open questions
 
 1. *(Answered 2026-09-19: a project is today's library, renamed; it has a settings window and
-   an onboarding.)* Does the Library pane keep its name when a library becomes a project?
+   an onboarding. "Project" has that one meaning only.)* Two follow-ups: does the Library pane
+   keep its name when a library becomes a project? And may a **folder inside a project** carry
+   its own settings (proposed: yes, through the cascade, set in the Inspector, with no second
+   settings window and no second kind of project)?
 2. Are the six onboarding questions the right six? Should sample pages come first?
 3. Fichero is AGPL, so AGPL layout models are compatible. Should they be **downloaded on
    request** rather than bundled (proposed, because of the Mac App Store build), with Apple's
