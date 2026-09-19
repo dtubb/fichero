@@ -98,6 +98,17 @@ exportable = not done. Every behavior below names which spine segment it lands o
   `cleanup` — none of these emit the new event yet. Not yet proven against a real run's final
   state, and the app has no subscriber yet — the event existing is not the same claim as the
   overlay redrawing. Tag stays BROKEN.
+- `segment.kraken.segments-a-pdf-page` — **[BROKEN]** (#4892) seen live 2026-09-19: the
+  maintainer ran Kraken segmentation on one page of a PDF and it failed, while Apple Vision on
+  the same page worked. Cause, verified in source: the Kraken branch of the shared vision
+  pipeline (`workflows/tools/vision_base.py`) raises "split the PDF into page images first"
+  for any file path ending in `.pdf`, and a PDF's page child resolves to the parent PDF's
+  file, so every PDF page is refused. The Apple Vision and LLM branches render the page
+  themselves. Expected: Kraken segments a PDF page by rendering that page through the SAME
+  page-render seam the other vision modes use and segmenting the render; the geometry is
+  recorded against the page, and its provenance names the render (page index, resolution).
+  No manual split step. Not yet checked: whether the refusal reaches the run log as a
+  readable message or only as a failed run.
 - `segment.overlay.artifact-event-covers-every-write-tool` — **[GAP]** (#4890) the
   `artifact.updated` event (above) covers `process_vision` only; `align_transcript`,
   `extract_all`, `extractors`, `import_artifacts`, `merge_geometry`, `similarity`, `catalogue`,
