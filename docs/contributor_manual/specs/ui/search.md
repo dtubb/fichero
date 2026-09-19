@@ -158,14 +158,20 @@ read of the calling loop before it can be called fully resolved.
 
 - `search.zero-results-for-visible-text` — **[BROKEN]** (#4236) a search can return 0 results
   for a term the Inspector is displaying, on screen at the same moment, for the SAME document —
-  a confident, wrong, empty answer, not a stale-index absence. The cause is undiagnosed; stated
-  as only what is known, not guessed. The issue itself names three candidates needing different
-  fixes: (1) search silently scopes to an empty/no-selection collection and reports a correct
-  zero for that empty scope; (2) case-sensitivity somewhere in the match path (the displayed
-  text has "Jemseg," the query was "jemseg"); (3) the text belongs to a PAGE child, and the
-  index covers parent documents but not page children, so page text is invisible to search
-  while visible in the Inspector. This behavior deliberately does not pick one — reproducing
-  against a real test library and naming the actual cause is separate, follow-up work.
+  a confident, wrong, empty answer, not a stale-index absence. The issue itself named three
+  candidates needing different fixes: (1) search silently scopes to an empty/no-selection
+  collection and reports a correct zero for that empty scope; (2) case-sensitivity somewhere in
+  the match path; (3) the text belongs to a PAGE child, and the index covers parent documents
+  but not page children. **Update, 2026-09-19**: the engine lane reproduced all three named
+  candidates against a real test library, and NONE of them reproduces the symptom — the cause
+  is something else at that layer. **A second hypothesis (the keyword-fallback-scan gate)
+  was then TESTED and KILLED**: in a partly-embedded temp library using the real embedder, the
+  never-embedded page child was still found — the safety net's gate looks only at the fulltext
+  leg's OWN hits for the query term, not at the semantic leg, so an unrelated embedded document
+  does not starve it. Nothing at the `Database.search` layer reproduces the bug across two
+  separate constructions; that hypothesis is no longer a live candidate. **Next, untested**: the
+  route wrapper `enhanced_search` — ACL visibility, phrase/exclude post-filters, and scope
+  filters — none of which `Database.search` itself exercises.
 - `search.four-leg-response` — **[OK]** `SearchResponse` carries documents, entities, claims,
   and artifacts as four peer legs (`entity_hits`, `claim_hits: list[SearchClaimHit]`,
   `artifact_hits`), not a document search with metadata bolted on — the exact shape the unified-
@@ -245,6 +251,24 @@ read of the calling loop before it can be called fully resolved.
   reader graph view with subject-verb-object statements laid out is described as "hidden in
   some reorg" by the issue itself, filed separately — not independently checked this pass
   whether it has since resurfaced.
+
+### D. Naming (placed here, not `panes-workspaces.md`)
+
+- `search.built-in-library-has-one-name` — **[GAP, DESIGN]** (#4891) seen live 2026-09-19: the
+  built-in library is called "Global" in the sidebar and "Local" in breadcrumbs — two names
+  for the same thing. Placed in THIS spec rather than `panes-workspaces.md` (owned by a
+  different lane on this same findings pass) because `search.scope-carries-the-breadcrumb`
+  above is this spec's own behavior that displays the inconsistent name today; the sidebar-row
+  naming itself may also need a matching fix in that other spec, cross-referenced, not
+  restated. **Candidate names, none recommended** — the maintainer decides: "Home" (short,
+  familiar from other apps, but implies a single default rather than a specific library kind);
+  "This Mac" / "On My Mac" (Apple's own convention for the local, non-iCloud store — precise,
+  but wordy in a breadcrumb); "Built-In" (accurate and neutral, but sounds like a settings
+  category, not a place); "Default" (matches how the code already treats it internally, but
+  reads as "the one nothing else overrode," not a place with things in it); "Global" (already
+  used in the sidebar today — keeping it and fixing only the breadcrumb's "Local" would be the
+  smallest change, at the cost of not addressing whichever name the maintainer actually
+  dislikes).
 
 ## Behavior counts
 

@@ -85,6 +85,25 @@ exportable = not done. Every behavior below names which spine segment it lands o
   not a new one. Selecting a region selects its text and vice versa, through the SAME cursor
   `reader-overlay-frame-identity.md` and `kg-entity-inspector.md`'s `ClaimSourceRequest` seam
   already use — explicitly not a third addressing scheme. Not verified as built.
+- `segment.overlay.refreshes-when-segmentation-finishes` — **[BROKEN]** (#4890) seen live
+  2026-09-19: the maintainer ran Kraken; it produced bounding boxes, but they did not appear on
+  screen until he clicked the item — the overlay does not refresh on its own when segmentation
+  finishes. **Cause, VERIFIED at the tree (not a hypothesis):** saving an artifact emitted NO
+  change event; the run's only event fired on a document STATUS transition and never named an
+  artifact; the app has no subscriber for artifact updates. **The engine half is committed,
+  193ce62ef**: one `artifact.updated` event per finished run, naming `artifact_ids` and
+  `document_ids`, fired whether or not a document's status changed — covers every
+  `process_vision` tool. **NOT covered, its own gap**: `align_transcript`, `extract_all`,
+  `extractors`, `import_artifacts`, `merge_geometry`, `similarity`, `catalogue`, `date_extract`,
+  `cleanup` — none of these emit the new event yet. Not yet proven against a real run's final
+  state, and the app has no subscriber yet — the event existing is not the same claim as the
+  overlay redrawing. Tag stays BROKEN.
+- `segment.overlay.artifact-event-covers-every-write-tool` — **[GAP]** (#4890) the
+  `artifact.updated` event (above) covers `process_vision` only; `align_transcript`,
+  `extract_all`, `extractors`, `import_artifacts`, `merge_geometry`, `similarity`, `catalogue`,
+  `date_extract`, and `cleanup` all write artifacts without emitting it. Until every
+  artifact-writing tool emits the same event, an overlay subscriber (once built) will be
+  correct for Kraken-triggered segmentation and silently stale for everything else.
 
 ### C. AI / MCP / CLI — made available to an agent
 - `segment.mcp.get` [MISSING] (#4766) — an MCP tool returns a segment with requested

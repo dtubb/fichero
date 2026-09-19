@@ -102,6 +102,14 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
   `ClaimChangeDeliveryTests`.
 - `kg.entity.statements.loading-state` — while claims load, a progress indicator
   shows and no stale list from a previous entity is visible.
+- `kg.entity.statements.list-uses-full-height` — **[BROKEN]** (#4888) seen live 2026-09-19: an entity with 51 claims shows a list far too short for that
+  count, in a hand-built layout distinct from the Entities/Claims tables (screenshots 9.25.12
+  "Source Annotations," 9.26.38). Expected: the statements list takes the full available
+  height and is built from the SAME table-list component `kg-tables.md` already specs, not a
+  custom, independently-sized view.
+- `kg.entity.rows-wrap-a-syllable-per-line` — **[BROKEN]** (#4889) seen live 2026-09-19 (screenshot 9.28.45): grouped rows in the document Inspector's
+  Knowledge tab wrap text a single syllable per line — a layout bug, not a font-size question
+  (distinct from #4388's serif-headline finding, same general area).
 
 ### C. Statement → source (click-through)
 

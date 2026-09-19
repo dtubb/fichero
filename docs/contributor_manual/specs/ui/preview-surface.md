@@ -105,8 +105,24 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
 
 ### C. Reveal without losing your place (landed tonight, e71bb070b, #4834/#4852)
 
-- `preview.reveal.prefers-transient-source-over-shown-document` — **[OK]** Preview prefers a
-  transient `sourceRevealDocument` over whatever document is otherwise "shown" — a
+- `preview.reveal.prefers-transient-source-over-shown-document` — **[BROKEN]** (→ #4834, retagged
+  2026-09-19 from the maintainer's own test session — was **[OK]**) clicking a sentence in the
+  entity's biography does NOT make Preview follow — Preview shows "No selection" throughout,
+  the exact opposite of "prefers a transient source." **The lesson, stated plainly**:
+  `ClaimSourceLandingTests` (cited below) passed and this behavior still failed on screen,
+  because those tests are source scans and pure functions — none of them mounted a pane. A
+  green pinning test proved the mechanism's shape, never that a real Preview pane reads it.
+  **Cause, VERIFIED on disk for the KG-Inspector side of this same click (2026-09-19)**: the
+  reveal's own call to `focusClaim` omits the entity argument, so `focusClaim` assigns its
+  default — `nil` — unconditionally, clearing the focused entity and leaving the Inspector's
+  arm rule nothing to show; a regression of e71bb070b (Slice A), fixed in 3f017efac, build
+  passes, but NOT yet seen working (tests haven't executed). Tag stays BROKEN until the
+  maintainer sees it work. See `kg-readable-representation.md`'s
+  `kg.read.sentence-opens-source-highlighted`. **Whether
+  Preview's OWN "No selection" symptom shares this exact cause is explicitly NOT yet verified**
+  — stated as open, not assumed just because the symptom co-occurs with the entity-focus bug.
+  What follows describes the mechanism as designed and unit-tested, now known false
+  in the running app: Preview prefers a
   knowledge-surface click (a statement, a claim) can put a source on screen in Preview
   without touching the current selection, `detailDocument`, or the sidebar mode. Verified at
   HEAD: `previewDocument` (`ContentView+DetailLayout.swift:316-318`, "the reveal-aware sibling
@@ -120,8 +136,19 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   (`fichero/Tests/Unit/general/Views/Library/ClaimSourceLandingTests.swift`, suite
   `ClaimSourceLandingTests`; cases "a knowledge-surface reveal never writes sidebar mode or
   selection," "inspectorDocument never reads sourceRevealDocument").
-- `preview.reveal.region-and-passage-share-one-resolve` — **[OK]** clicking a statement
-  resolves its source location ONCE and posts to BOTH highlight channels from that one
+- `preview.reveal.region-and-passage-share-one-resolve` — **[BROKEN]** (→ #4834, retagged 2026-09-19
+  from the maintainer's own test session — was **[OK]**) clicking a claim goes to the page but
+  the highlight is not precise and he loses his place — consistent with
+  `kg-readable-representation.md`'s `kg.read.span-reuses-existing-location-resolver` finding
+  for the identical mechanism. **The lesson, stated plainly**: `ClaimSourceLandingTests` (cited
+  below) passed and this behavior still failed live — the test proves one resolve is called
+  once, not that its result renders correctly in a mounted pane. **Cause, VERIFIED on disk
+  (2026-09-19), the same root cause as the sibling behaviors above**: `focusClaim` is called
+  without the entity argument and clears the focused entity, a regression of e71bb070b (Slice
+  A); fixed in 3f017efac, build passes, but NOT yet seen working (tests haven't executed). Tag
+  stays BROKEN until the maintainer sees it work. What follows describes the
+  mechanism as designed and unit-tested, now known imprecise in the running app: clicking a
+  statement resolves its source location ONCE and posts to BOTH highlight channels from that one
   resolve — the Reader's passage anchor (`postClaimPassageAnchor`) and the source image's
   region highlight (`.ficheroNavigateToPage`'s `bbox` payload, consumed by `PDFPageView`'s
   pre-existing `applyHighlightSpan`, an already-closed earlier feature) — so a
@@ -146,6 +173,15 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   `missingPreviewSurface` (a reveal is the direct consequence of a click, not a workspace
   layout choice). No test found exercising this second banner specifically — PARTIAL rather
   than OK.
+- `preview.reveal.panes-should-follow-not-banner` — **[GAP, DESIGN]** (#4870) seen live
+  2026-09-19: the maintainer does not want the banner above — a "Open in Preview" prompt
+  reads as the app asking permission to do its job. Expected, stated as intent, not a decided
+  mechanism: panes should FOLLOW a reveal automatically rather than asking. **Open questions,
+  not decided here:** does a hidden Preview/Reader pane open itself on a reveal (and if so, does
+  it ever surprise a user who deliberately closed it), does the banner stay as a fallback for
+  some narrower case, and does this interact with `panes.strip`/workspace-layout rulings the
+  other lane's findings are deciding (out of this spec's own scope — cross-reference, don't
+  restate).
 
 ## PASS 2 — the fold (9 waiting issues, every body read fresh)
 

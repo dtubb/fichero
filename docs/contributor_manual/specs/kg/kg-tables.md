@@ -207,6 +207,44 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   canonical name; a claim needs at least a subject or text); an invalid input is refused
   with an inline reason, not silently dropped.
 
+### D2. Maintainer test findings, 2026-09-19 (B1-B4)
+
+- `kg.tables.pane-kind-mismatch` — **[BROKEN]** (#4884) seen live: a Library pane with its kind chip set to Claims still renders the ENTITIES
+  table underneath — columns read Name/Type/Claims, the footer reads "Filter Entities," while
+  the head says Claims. The pane's own displayed kind and its rendered content disagree.
+  **Cause, VERIFIED by reading**: the window-scoped sidebar collection always overrides a
+  pane's own content kind; `PaneConfig.libraryContentKind` is never read by the live view.
+  Cross-reference the pane lane's own design-root behavior in `panes-workspaces.md` once it
+  exists — not restated here, that spec owns the pane-config model this defect lives in.
+- `kg.tables.folder-scope-misses-subfolders` — **[BROKEN]** (#4885) seen live: with a FOLDER selected, the Entities (and Claims) pane reports "No entities
+  in this folder yet" while the Inspector, looking at the same folder, lists 22 people.
+  **Cause, VERIFIED by reading on both sides (not a hypothesis)**: the app scopes to a
+  folder's DIRECT child documents only; the engine already HAS recursion, but it is
+  inconsistently opt-in across three separate routes — `include_descendants` on
+  `/api/claims` (opt-in), always-on for the entities `document_id` filter, and `include_children`
+  on the document knowledge-graph route. No new endpoint is needed; the fix is choosing one
+  consistent default (or one consistent flag) across the three, not building a fourth. The
+  three inconsistent knobs are recorded as their own gap below, distinct from this specific
+  symptom.
+- `kg.tables.folder-recursion-inconsistent-across-routes` — **[GAP]** (#4885, same evidence as
+  above) three separate engine routes disagree on whether folder scoping recurses into
+  subfolders: `include_descendants` on `/api/claims` is opt-in, the entities `document_id` filter
+  is always-on, and `include_children` on the document knowledge-graph route is its own third
+  knob. Expected, stated as intent not a decided mechanism: one consistent default (or one
+  consistent flag name/semantics) across all three, so a caller does not need to know which
+  route silently recurses and which needs an explicit flag.
+- `kg.tables.filter-bar-and-footer-are-two-controls` — **[GAP, DESIGN]** (#4856, this issue
+  already tracks exactly this ask — commented, not duplicated) each table pane shows TWO bars
+  today: its own filter bar (Filter entities, All types, New Entity) and the pane's own footer
+  (+, −, import, Filter). Expected, stated as intent: ONE bar, with Merge and the other
+  curation verbs folded into it too. **Open questions, not decided here:** which bar's layout
+  wins, and whether "New Entity"/import stay visually distinct from the curation-verb group or
+  blend into one undifferentiated control strip.
+- `kg.tables.entities-master-claims-detail` — **[GAP, RULED]** (#4886) the maintainer's ruling, 2026-09-19: Entities in one Library pane, Claims in the pane
+  below, is a MASTER/DETAIL pair — selecting an entity in the Entities pane updates the Claims
+  pane below to that entity's claims. This is a decided design, not an open question; nothing
+  currently wires the two panes together this way.
+
 ### E. Provenance + versions (creative-director priority — likely its own cross-cutting spec)
 - `kg.tables.provenance.author-mark` — a claim/entity shows who AUTHORED it: hand-authored
   (human) vs AI-extracted, at a glance. (Backend records `created_by`.) The concrete defect in

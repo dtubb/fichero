@@ -226,6 +226,15 @@ cross-document view, and no agent/chat-tool access (see `hermeneutic.reachable-b
 An interpretation is scoped to exactly one document, editable only while that document's
 Inspector is open, and invisible everywhere else in the app.
 
+**Confirmed live 2026-09-19 (maintainer test, → #4692):** the maintainer asked this exact
+question directly, unprompted — how are hypotheses, citations, interpretations, and the rest
+of this layer exposed at all? He wants FEWER rendering paths overall (echoing
+`kg.read.statements-lens-becomes-the-paragraph` and `kg.read.one-renderer` in
+`kg-readable-representation.md` — the same "too many renderers for one thing" pattern, a
+different layer), and to be able to click around and see the source image from whichever kind
+is currently showing, not just claims. This does not answer the five open questions below; it
+confirms they are live, not hypothetical.
+
 ## Open questions (for the maintainer — options the code makes cheap, not a recommendation)
 
 1. **Does the Interpretations tab move, or does the Inspector stay its home?** The code makes

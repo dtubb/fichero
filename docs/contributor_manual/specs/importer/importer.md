@@ -153,6 +153,12 @@ in the file's own status), never a silent nothing.
   (`detect_regions_kraken.json`) a user must run manually, exactly as behind the ratified
   "auto-provision + auto-run at import, no toggle" ruling as before. The gap is the wiring
   between two things that both already exist, not a missing capability.
+**Cross-spec note (moved 2026-09-19):** the maintainer's Kraken-overlay-refresh finding
+(running the opt-in tool above produced bounding boxes that didn't appear until clicked) is
+NOT this spec's own behavior — the verified cause is a change-stream gap on the artifact/
+segmentation side, not the import-trigger path. It now lives at
+`kg/segment-representations.md`'s `segment.overlay.refreshes-when-segmentation-finishes`
+(#4890), not restated here.
 - `importer.nlp-auto-at-import` — **[PARTIAL]** (#4830 — the original filing issue for the
   NLP-draft stage is closed, its engine half landed 177fc6cd3) the free NLP draft stage itself is BUILT: `run_nlp_draft`
   (`fichero-server/src/fichero_server/importers/nlp_draft.py`) writes real entity/claim rows

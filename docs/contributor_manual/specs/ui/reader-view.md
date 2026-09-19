@@ -114,7 +114,21 @@ Knowledge tab), `PaneContentPlan.ReaderPageRoute`/`ReaderSubject`
 
 ### C. Passage-level source reveal (landed tonight, e71bb070b, #4834/#4852)
 
-- `reader.reveal.transient-state-preferred-over-shown-document` — **[OK]** (e71bb070b) a
+- `reader.reveal.transient-state-preferred-over-shown-document` — **[BROKEN]** (→ #4834, retagged
+  2026-09-19 from the maintainer's own test session — was **[OK]**) clicking a sentence in the
+  entity's biography does NOT make Reader and Preview follow; Preview shows "No selection"
+  throughout. **The lesson, stated plainly**: `ClaimSourceLandingTests` (cited below) passed
+  and this behavior still failed on screen, because those tests are source scans and pure
+  functions — none of them mounted a pane. A green pinning test proved the mechanism's shape;
+  it never proved a real pane reads it. **Cause, VERIFIED on disk (2026-09-19)**: the reveal's
+  own call to `focusClaim` omits the entity argument, so `focusClaim` assigns its default —
+  `nil` — unconditionally, clearing the focused entity; a regression of e71bb070b (Slice A),
+  fixed in 3f017efac, build passes, but NOT yet seen working (tests haven't executed). Tag stays
+  BROKEN until the maintainer sees it work. See `kg-readable-representation.md`'s
+  `kg.read.sentence-opens-source-highlighted`. What follows (verified at HEAD:
+  `sourceRevealDocument`
+  is set, read by Preview and the Reader...) describes the mechanism as designed and
+  unit-tested — the claim under test, now known false in the running app: a
   click on a knowledge surface (a statement, a claim) reveals its source in the Reader and
   the source image WITHOUT changing the current selection or switching sidebar mode — Preview
   and the Reader prefer a transient `sourceRevealDocument` over whatever document is
@@ -130,7 +144,18 @@ Knowledge tab), `PaneContentPlan.ReaderPageRoute`/`ReaderSubject`
   reveal never writes sidebar mode or selection," "inspectorDocument never reads
   sourceRevealDocument," "a real sidebar or browser selection change clears the reveal," "a
   knowledge-surface reveal never reaches the workflow run selection").
-- `reader.reveal.destination-is-explicit-not-a-silent-default` — **[OK]** (e71bb070b) a
+- `reader.reveal.destination-is-explicit-not-a-silent-default` — **[BROKEN]** (→ #4834, retagged
+  2026-09-19 from the maintainer's own test session — was **[OK]**) clicking a claim in the
+  Inspector goes to the page, the highlight is not precise, and he loses his place — the
+  "reveal without losing your place" property this behavior and its sibling above both claim
+  does not hold on screen. **The lesson, stated plainly**: `ClaimSourceLandingTests` (cited
+  below) passed and this behavior still failed live, because those tests are pure-function/
+  contract tests — none mounted a pane. **Cause, VERIFIED on disk (2026-09-19), the same root
+  cause as the sibling above**: `focusClaim` is called without the entity argument and clears
+  the focused entity, a regression of e71bb070b (Slice A); fixed in 3f017efac, build passes, but
+  NOT yet seen working (tests haven't executed). Tag stays BROKEN until the maintainer sees it
+  work. What follows (about 25 construction sites audited...)
+  describes the mechanism as designed and unit-tested, now known false in the running app: a
   source request now STATES its destination (`.reader`, or both panes) rather than falling
   back to a silent `.reader` default — about 25 construction sites were audited; knowledge
   surfaces that are wired ask for both panes, navigational surfaces (source outline,

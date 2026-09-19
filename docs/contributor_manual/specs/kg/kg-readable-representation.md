@@ -68,6 +68,17 @@ extracted from (a claim from a Spanish document renders Spanish, a French source
 representation is multilingual *because the sources are*, so realisation must be language-aware
 per claim, not a fixed language pair.
 
+## A question a reader will have: who writes the sentence? (B8, answered 2026-09-19)
+
+**Neither an LLM nor spaCy writes the sentence you read.** The SENTENCE is composed
+deterministically from the stored subject, verb, and object — no model runs at render time; see
+"Composition is 100% deterministic" above. The TRIPLES themselves (the subject/verb/object this
+composer reads) were extracted earlier, upstream, by either an LLM workflow or by spaCy,
+depending on which extraction path produced the claim — that provenance is a fact about the
+CLAIM, not about the sentence written from it. A better paragraph than what the app shows today
+already exists in the engine — `render_entry` with aggregation (landed 424ae4223) — but the app
+does not call it yet; see `kg.read.lives-in-reader` and `kg.read.biography` below for that gap.
+
 ## Rulings (creative director, 2026-09-18) — the claim as the unit, re-centred, in the Reader, source-language-only
 
 Four rulings, following a Fabel review (`fabel-kg-readable`, revision 2) that traced every live
@@ -170,7 +181,61 @@ often the wrong subject; not multilingual.
   showed until a later change-stream echo); the digest, the biography, and the row editor each
   splice that one returned claim in place, none reloads. Pinned: same four suites as
   `kg.read.edit-unit-is-the-claim` above.
-- `kg.read.sentence-opens-source-highlighted` — **[PARTIAL]** (#4834) BUILT in e71bb070b for
+- `kg.read.edit-affordance-is-legible` — **[GAP, DESIGN]** (#4833) seen live 2026-09-19:
+  "[Edit]" as a text run after every sentence is wrong, and the whole paragraph underlined is
+  hard to read. Expected, stated as intent not a decided mechanism: an ICON, not a text word,
+  and reaching the SOURCE should be exactly as easy as reaching the edit affordance — today's
+  underline-the-whole-sentence treatment competes with normal reading. **Open questions, not
+  decided here:** which icon (a pencil glyph? a chevron/disclosure?), whether it shows on
+  hover/focus only or always, and whether "reach the source" gets its own icon beside "reach
+  the editor" or the two share one affordance that offers both on activation.
+- `kg.read.one-editor-not-two` — **[BROKEN, DESIGN]** (→ #1888) seen live 2026-09-19: two
+  different claim editors exist — the Inspector's popover (`InlineClaimEditor`) and the
+  Claims table's sheet (`EditClaimSheet`) — with different layouts for the same edit. Same
+  question raised for entities (an Inspector popover vs. wherever the table edits one). In the
+  popover, the subject is an unlabeled button — nothing tells a user that is where the
+  subject is edited, a legibility defect independent of the two-editor problem. Expected: ONE
+  editor, reached the same way from every surface a claim/entity appears. **Open questions, not
+  decided here:** which shape wins (popover, sheet, inline-in-place), and whether entity editing
+  literally reuses the same component or its own parallel one.
+- `kg.read.editor-fields-vary-by-kind` — **[GAP, DESIGN]** (→ #1768) seen live 2026-09-19: the
+  claim editor's fields are the same regardless of the claim's KIND (fact, claim, hypothesis,
+  quotation...) — a hypothesis has a source a plain fact might not need, and so on. Also: the
+  editor's "Page" field for a claim's source is imprecise — the true source is a page OR a
+  SEGMENT (a bbox-anchored region within a page), and the editor doesn't distinguish them.
+  Expected, stated as intent: the editor's field set is schema-driven per claim kind, and the
+  source field names a segment when the claim has one, not just its containing page. **Open
+  questions, not decided here:** the exact field set per kind (this spec does not enumerate
+  KnowledgeClaim's kind taxonomy here — that belongs to `kg-tables.md`'s claim CRUD section),
+  and whether page-vs-segment is a single field that specializes or two fields shown
+  conditionally.
+- `kg.read.sentence-opens-source-highlighted` — **[BROKEN]** (#4834, retagged 2026-09-19 from
+  the maintainer's own test session) clicking a sentence in the entity's biography does NOT
+  make Reader and Preview follow, and Preview shows "No selection" throughout — verified live,
+  not inferred. **The lesson, stated plainly**: `ClaimSourceLandingTests` (cited below) passed
+  and this behavior still failed on screen, because those tests are source scans and pure
+  functions — none of them mounted a pane. A green pinning test proved the mechanism's SHAPE is
+  right; it never proved a real pane reads it. Kept PARTIAL/BROKEN distinction alive going
+  forward: passing unit tests are necessary, never sufficient, for a behavior whose claim is
+  about what appears on screen. What follows below (BUILT in e71bb070b for...) describes the
+  mechanism as designed and unit-tested; it is the CLAIM under test, now known false in the
+  running app. **Cause, VERIFIED on disk (2026-09-19, not a hypothesis):**
+  `KGFocusState.focusClaim` assigns `focusedEntityId = entityId` unconditionally, and `entityId`
+  defaults to `nil`; the reveal call site in `ContentView+StateEvents.swift` (~line 539) omitted
+  the argument, so every sentence reveal cleared the focused entity, and
+  `DocumentInspector.inspectorArm(hasDocument: false, focusedEntityId: nil)` returns `.empty` —
+  the biography is torn down mid-click, by the Inspector's own correct rule acting on now-wrong
+  input. Slice A (e71bb070b) is the commit that added this call, so this is a REGRESSION, not a
+  pre-existing gap. **Fixed in 3f017efac**: the reveal now passes the focused entity;
+  `RevealPreservesEntityFocusTests` drives the real `KGFocusState` and `inspectorArm`. The build
+  PASSES, but the tests have NOT executed (a locked screen blocked the run) and the fix has NOT
+  been seen working. A follow-up — making `entityId` a required argument, and fixing
+  `DocumentKGSurface` and the force graph's edge click, the same two call sites named below — is
+  built and awaiting a build verdict. Tag stays BROKEN until the maintainer sees it work. Two
+  more call sites omit `entityId` the identical way: `DocumentKGSurface.swift` (~line 405) and
+  `ForceDirectedGraphView+Render.swift` (~line 128). Whether Preview's "No selection" symptom
+  shares this exact cause is NOT yet verified — stated as open, not assumed just because the
+  symptom co-occurs.
   the claim excerpt, the biography sentence, the digest sentences and the statement row
   (double-click and Open Source). **Extended in 82ae96b9b** to claim cards (the quote button,
   the quick-look Reveal, and the card tap — all three share one path — plus the attestation
@@ -200,7 +265,24 @@ often the wrong subject; not multilingual.
   showing, and neither highlight changes the current selection. This is the concrete,
   dual-surface form the "one gesture" ruling takes once there are two source renditions
   (transcript text and page image) to keep in sync, not a new requirement beyond it.
-- `kg.read.source-request-declares-intent` — **[PARTIAL]** (#4834) BUILT in e71bb070b: `destination` has no default and every construction site states one; open until the remaining knowledge surfaces move off `.reader`. Pinned: `fichero/Tests/Unit/general/Models/ClaimSourceRequestTests.swift` (suite `ClaimSourceRequestTests`) and `fichero/Tests/Unit/general/Views/Inspector/SourceNavigationContractTests.swift` (suite `SourceNavigationContractTests`). `ClaimSourceNavigationRequest
+- `kg.read.source-request-declares-intent` — **[BROKEN]** (#4834, retagged 2026-09-19 from the
+  maintainer's own test session) clicking a claim in the Inspector goes to the page, the
+  highlight is not precise, and he loses his place — the exact "reveal without losing your
+  place" property this behavior claims does not hold on screen. **Cause, VERIFIED on disk
+  (2026-09-19, not a hypothesis) — the same root cause as `kg.read.sentence-opens-source-
+  highlighted` above**: the reveal's own call to `focusClaim` omits the entity argument, so
+  `focusClaim` assigns its default — `nil` — unconditionally; the focused entity clears, and the
+  Inspector's own arm rule shows nothing focused. A regression of e71bb070b (Slice A added this
+  call); fixed in 3f017efac, build passes, but NOT yet seen working (tests haven't executed).
+  Tag stays BROKEN until the maintainer sees it work. **The lesson, stated plainly**:
+  `ClaimSourceRequestTests`/`SourceNavigationContractTests` (cited below) passed and this
+  behavior still failed live, because those tests are pure-function/contract tests — none
+  mounted a pane. Kept as evidence that a green pinning test proves the mechanism's SHAPE, not
+  that a real pane reads it correctly. Restated ruling: from an Inspector showing a claim
+  paragraph, clicking around must never cost the user their place. What follows below (BUILT in
+  e71bb070b: `destination` has no default and every construction site states one; open until
+  the remaining knowledge surfaces move off `.reader`) describes the mechanism as designed and
+  unit-tested — the claim under test, now known false in the running app. Pinned: `fichero/Tests/Unit/general/Models/ClaimSourceRequestTests.swift` (suite `ClaimSourceRequestTests`) and `fichero/Tests/Unit/general/Views/Inspector/SourceNavigationContractTests.swift` (suite `SourceNavigationContractTests`). `ClaimSourceNavigationRequest
   .destination` silently defaults to `.reader` at every one of its five construction sites
   feeding one shared request bus — the fix drops that default and makes `destination` a
   REQUIRED argument. KNOWLEDGE surfaces (the biography, claim cards, entity/claim rows, KG
@@ -215,7 +297,21 @@ often the wrong subject; not multilingual.
   your place" bug possible at all — this is the concrete mechanism behind
   `kg.read.lives-in-reader`'s "reveal without losing your place" property. Design/planning only
   (code lane, 2026-09-18) — nothing built; app source is frozen while the maintainer tests.
-- `kg.read.span-reuses-existing-location-resolver` — **[PARTIAL]** (#4834) BUILT in e71bb070b: one `locationService.resolve` feeds both the Reader passage channel and the source-image region, with no new engine call; open until the maintainer confirms both highlights live. Pinned: `fichero/Tests/Unit/general/Views/Library/ClaimSourceLandingTests.swift` (suite `ClaimSourceLandingTests`). the sentence-click-to-
+- `kg.read.span-reuses-existing-location-resolver` — **[BROKEN]** (#4834, retagged 2026-09-19
+  from the maintainer's own test session) confirmed live: the highlight the resolver produces
+  is not precise, consistent with `kg.read.source-request-declares-intent`'s finding above —
+  one resolve is reached, but what it lights up on screen is wrong. **Cause, VERIFIED on disk
+  (2026-09-19), the same root cause as the two behaviors above**: `focusClaim` is called
+  without the entity argument and clears the focused entity, a regression of e71bb070b (Slice
+  A); fixed in 3f017efac, build passes, but NOT yet seen working (tests haven't executed). Tag
+  stays BROKEN until the maintainer sees it work. **The lesson, stated
+  plainly**: `ClaimSourceLandingTests` (cited below) passed and this behavior still failed live
+  — the test proves one resolver is called once, not that its result renders correctly in a
+  mounted pane. What follows below (BUILT in e71bb070b: one `locationService.resolve` feeds
+  both the Reader passage channel and the source-image region, with no new engine call) is the
+  mechanism as designed and unit-tested, now known imprecise in the running app. Pinned:
+  `fichero/Tests/Unit/general/Views/Library/ClaimSourceLandingTests.swift` (suite
+  `ClaimSourceLandingTests`). the sentence-click-to-
   highlight path needs NO new engine call: `revealResolvedSource` already calls the existing
   location resolver (`POST /api/locations/resolve`); its `ResolvedLocation` already carries
   page/bbox/char-range, today only `resolvedDocumentId` is read from it. The fix is reading more
@@ -306,11 +402,18 @@ often the wrong subject; not multilingual.
   (`ContentView+StateEvents.swift:397-446`) sets `sidebarMode` and selects the source document
   directly, and never reads `ClaimSourceRequest.destination` (`.reader` is set at
   `ClaimSourceRequest.swift:89`, but nothing in `Views/Shell/ContentView` reads `destination` —
-  confirmed by grep, zero matches). Consequence (not yet manually verified, flagged as a
-  precise check rather than assumed): selecting the source document today likely REPLACES the
-  entity inspector under the current pane system, so the biography a user clicked from
-  disappears — the exact "reveal without losing your place" problem `focusKGSourcePreview`
-  already solves for a different call site. **Cross-spec note:** the exact matrix-row text for
+  confirmed by grep, zero matches). **Confirmed live 2026-09-19 (maintainer test, A3), where a
+  prior pass had only flagged this as a precise check, not yet manually verified**: selecting
+  an entity (reproduced on Antonio Mondragon) shows NOTHING in the Reader or Preview — worse
+  than the predicted "replaces the inspector," it is an empty pane in both, not even the
+  document the entity was found in. The expected behavior, stated without picking a mechanism:
+  something useful should show — the entity's claims list or its readable paragraph. See #4838
+  (this behavior's own tracker) and #4855 (the Statements/Claims duplication below), both
+  commented with this evidence. **Cause, VERIFIED by reading (structural, not a bug in one
+  call site)**: the Preview and Reader document-resolution paths each have three tiers, and all
+  three tiers are DOCUMENT-shaped — none has a branch for a bare entity selection with no
+  document behind it at all, so there is no path to anything to show. #4838 (already cited
+  above) is the fix this structural gap needs. **Cross-spec note:** the exact matrix-row text for
   `ui/modes-to-panes.md` (code lane's file, not edited here) is given verbatim in this spec's
   Migration section below, for the maintainer to relay.
 - `kg.read.statements-lens-becomes-the-paragraph` — **[BROKEN]** (#4855) no lens should
