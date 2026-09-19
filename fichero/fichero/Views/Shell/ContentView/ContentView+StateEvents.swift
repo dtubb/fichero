@@ -24,7 +24,20 @@ extension ContentView {
         // library-wide table, not a folder listing — reset the browse context the
         // same way (P4).
         if let id = newFolderId, SidebarDestination.isKnowledgeCollectionId(id) {
-            viewDisplayMode = .list
+            // #4575: no `viewDisplayMode = .list` here. That line dates to
+            // when the Entities table was a `.list`-mode-only rendering
+            // INSIDE LibraryView (d5b5e5c31, "entities as a first-class
+            // collection in LIST VIEW") — forcing list mode was the only way
+            // to make the table visible at all. Entities and Claims are now
+            // their own content kind (`effectiveContentKind`, driven by
+            // `contentCollection`, in `LibraryView+ContentBranches.swift`),
+            // rendered independent of `viewDisplayMode` — neither
+            // `EntitiesLibraryContent` nor `ClaimsLibraryContent` reads it.
+            // Leaving the line in place meant the window's document view
+            // mode silently changed and then STUCK on returning to a folder
+            // (`library.modes.persists-until-changed` — the mode is ONE
+            // choice per window, the same ruling two lines below in the
+            // non-KG branch already states and follows).
             browserSelection.removeAll()
             detailDocument = nil
             kgFocusState.clear()

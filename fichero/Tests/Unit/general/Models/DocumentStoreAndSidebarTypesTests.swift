@@ -206,7 +206,19 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(source.contains("Automation Unavailable"))
     }
 
-    func testEntityLibrarySelectionLocksDisplayModeToList() throws {
+    /// #4575 (`library.modes.persists-until-changed`): selecting a KG
+    /// collection (Entities/Claims) must NOT change the window's document
+    /// view mode. It used to (`viewDisplayMode = .list`, forced in
+    /// `handleSidebarSelectionChange`) — a leftover from when the Entities
+    /// table was a `.list`-mode-only rendering INSIDE `LibraryView`
+    /// (d5b5e5c31). It is now its own content kind, rendered independent of
+    /// `viewDisplayMode` (`effectiveContentKind` in
+    /// `LibraryView+ContentBranches.swift`, driven by `contentCollection`,
+    /// which neither `EntitiesLibraryContent` nor `ClaimsLibraryContent`
+    /// reads) — so forcing the mode only left it STUCK on `.list` after
+    /// returning to a folder, violating "the mode is ONE choice per window"
+    /// two lines below the removed line's old home.
+    func testEntityLibrarySelectionDoesNotForceDisplayMode() throws {
         // file_length: ContentView+State split into ContentView+State*; read them all concatenated.
         let stateSource = try [
             Self.appSource("Views/Shell/ContentView/ContentView+StateDisplay.swift"),
@@ -216,13 +228,26 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/ContentView+StateEvents.swift"),
         ].joined(separator: "\n")
 
+        // `availableViewDisplayModes`'s own `[.list]`-only offer for a KG
+        // selection is unchanged by this fix — it's a live computed picker
+        // constraint, not a stored assignment, so it can never "stick".
         XCTAssertTrue(stateSource.contains("var isEntityLibrarySelection: Bool"))
-        XCTAssertTrue(stateSource.contains("if isEntityLibrarySelection {"))
+        XCTAssertTrue(stateSource.contains("if isKGLibrarySelection {"))
         XCTAssertTrue(stateSource.contains("return [.list]"))
-        // Entity-library selection is now detected via selectedKnowledgeKind
-        // (was the "entities-browser" folder-id sentinel). Behavior unchanged.
-        XCTAssertTrue(stateSource.contains("selectedKnowledgeKind == .entities"))
-        XCTAssertTrue(stateSource.contains("viewDisplayMode = .list"))
+        // The forced assignment inside `handleSidebarSelectionChange`'s
+        // knowledge-collection branch is GONE. Bounded by the branch's own
+        // closing brace (`return\n        }`), a structural marker, not a
+        // character count.
+        let afterBranchOpen = try XCTUnwrap(
+            stateSource.components(separatedBy: "SidebarDestination.isKnowledgeCollectionId(id) {")
+                .dropFirst().first
+        )
+        let branchScope = AppSource.codeOnly(
+            try XCTUnwrap(afterBranchOpen.components(separatedBy: "return\n        }").first)
+        )
+        XCTAssertFalse(branchScope.contains("viewDisplayMode = .list"))
+        XCTAssertTrue(branchScope.contains("browserSelection.removeAll()"), "the rest of the reset must survive")
+        XCTAssertTrue(branchScope.contains("kgFocusState.clear()"))
     }
 
     func testEntityLibrarySelectionRoutesBrowserSelectionIntoKGFocus() throws {

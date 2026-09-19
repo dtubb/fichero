@@ -1134,9 +1134,27 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         let body = try XCTUnwrap(
             groupingSource.components(separatedBy: "func spliceUpdatedClaim(").dropFirst().first
         )
-        let scope = String(body.prefix(300))
+        // Bounded by the function's own closing brace, a structural marker.
+        let scope = try XCTUnwrap(body.components(separatedBy: "\n    }").first)
         XCTAssertTrue(scope.contains("claims[index] = updated"))
         XCTAssertFalse(scope.contains("await reload()"), "a patched claim splices — it never triggers a network reload")
+    }
+
+    /// #4833 slice C: `EntityKindBlock` was the one `EntityKindRow` caller
+    /// with no `onClaimUpdated` wired through — its only real construction
+    /// site is `KnowledgeGraphPreviews.swift` (Preview scaffolding), so this
+    /// is dead in production today, same class as the `ClaimSummaryCard`
+    /// fix; the parameter exists so a future real caller gets the splice for
+    /// free.
+    func testEntityKindBlockThreadsOnClaimUpdatedToTheRow() throws {
+        let source = try Self.appSource("Views/Inspector/Knowledge/EntityKindBlock.swift")
+        XCTAssertTrue(source.contains("var onClaimUpdated: ((Components.Schemas.KnowledgeClaim) -> Void)?"))
+        let body = try XCTUnwrap(
+            source.components(separatedBy: "EntityKindRow(").dropFirst().first
+        )
+        // Bounded by the call's own closing paren, a structural marker.
+        let scope = try XCTUnwrap(body.components(separatedBy: "\n                            )").first)
+        XCTAssertTrue(scope.contains("onClaimUpdated: onClaimUpdated"))
     }
 
     // MARK: - Cross-target drag payload (#3425)

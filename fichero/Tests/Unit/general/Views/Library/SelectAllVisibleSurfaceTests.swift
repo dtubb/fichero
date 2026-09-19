@@ -241,4 +241,65 @@ struct SelectAllVisibleSurfaceTests {
         // bypass the resilience filter and primary derivation.
         #expect(components.contains("applySidebarSelectionProposal(Set(currentLibraryVisibleDestinations))"))
     }
+
+    // MARK: - #4851/#4794: the Entities and Claims tables answer too
+
+    /// Same question, same trigger set as the dataset's `onVisibleIds`
+    /// (`datasetPublishesVisibleIds` above): ⌘A reads a `LibraryView`-owned
+    /// `@State` that the table itself keeps current, never a computation
+    /// `LibraryView` makes on its own about what the table shows.
+    @Test("the Entities table publishes what it shows, post its own filter")
+    func entitiesTablePublishesVisibleIds() throws {
+        let table = try code(at: "Views/Library/ViewModes/Table/EntitiesLibraryContent.swift")
+        #expect(table.contains("var onVisibleIds: (([String]) -> Void)?"))
+        #expect(table.contains("onChange(of: items.map(\\.id)) { _, newIds in onVisibleIds?(newIds) }"))
+        // Every input that can change what's on screen reports — the per-table
+        // filter, the shared search, and the store's own load finishing.
+        #expect(table.contains("onChange(of: filterText)"))
+        #expect(table.contains("onChange(of: filterType)"))
+        #expect(table.contains("onChange(of: searchQuery)"))
+        #expect(table.contains("onChange(of: store.isLoadingLibrary)"))
+
+        let branch = try code(at: "Views/Library/LibraryView+ContentBranches.swift")
+        #expect(branch.contains("onVisibleIds: { entitiesVisibleIds = $0 }"))
+    }
+
+    @Test("the Claims table publishes what it shows, post its own filter")
+    func claimsTablePublishesVisibleIds() throws {
+        let table = try code(at: "Views/Library/ViewModes/Table/ClaimsLibraryContent.swift")
+        #expect(table.contains("var onVisibleIds: (([String]) -> Void)?"))
+        #expect(table.contains("onChange(of: items.map(\\.id)) { _, newIds in onVisibleIds?(newIds) }"))
+        #expect(table.contains("onChange(of: filterText)"))
+        #expect(table.contains("onChange(of: filterType)"))
+        #expect(table.contains("onChange(of: searchQuery)"))
+        #expect(table.contains("onChange(of: model?.isLoading)"))
+
+        let branch = try code(at: "Views/Library/LibraryView+ContentBranches.swift")
+        #expect(branch.contains("onVisibleIds: { claimsVisibleIds = $0 }"))
+    }
+
+    /// `selectAllIds` answers from the PUBLISHED ids, not from a second,
+    /// LibraryView-owned computation — that split (a legacy `filteredEntities`
+    /// search pipeline the entities table's OWN filter had long since diverged
+    /// from) was the actual root cause: ⌘A answered a different question than
+    /// "what is on screen", the same class of bug `datasetPublishesVisibleIds`
+    /// already fixed once for dataset mode.
+    @Test("selectAllIds answers Entities/Claims from the published ids, not a second computation")
+    func selectAllIdsUsesThePublishedTableIds() throws {
+        let source = try code(at: "Views/Library/LibraryView+DeleteActions.swift")
+        #expect(source.contains("var selectAllIds: [String]"), "scan read the wrong file")
+        let body = try #require(
+            source.components(separatedBy: "var selectAllIds: [String] {").dropFirst().first
+        )
+        let scope = try #require(body.components(separatedBy: "\n    }").first)
+        #expect(scope.contains("if contentCollection == .entities {"))
+        #expect(scope.contains("return entitiesVisibleIds"))
+        #expect(scope.contains("if contentCollection == .claims {"))
+        #expect(scope.contains("return claimsVisibleIds"))
+        // The old answer — a second, drifted computation — is gone from THIS
+        // property. `filteredEntities`/`entitySelectionId` may still exist for
+        // their other callers (arrow-nav, delete, type-to-select), just not
+        // feeding ⌘A any more.
+        #expect(!scope.contains("filteredEntities.map { entitySelectionId(for: $0) }"))
+    }
 }

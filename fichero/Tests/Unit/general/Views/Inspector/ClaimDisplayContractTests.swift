@@ -144,18 +144,29 @@ final class ClaimDisplayContractTests: XCTestCase {
     /// Editing goes through the audited action layer, so the mutation names its
     /// actor (#1848 / #4415 / #4485). A claim edited by nobody in particular is
     /// not curation — it is an unattributed change to the evidence.
+    ///
+    /// #4833: was a direct `actionsService.invokeAction(name: "claim.patch")`
+    /// call, discarding the response and never calling `onSave` at all — now
+    /// `ClaimStore.patch`, which calls the SAME audited `PATCH /api/claims/{id}`
+    /// endpoint (`ClaimStore.swift`'s own doc comment: "Edit a claim in place")
+    /// and, unlike the direct call, actually hands the result back.
     func testEditingAClaimGoesThroughTheAuditedActionLayer() throws {
         let source = try AppSource.text(
             "Views/Library/ViewModes/Graph/Ontology/Claim/EditClaimSheet.swift")
 
-        XCTAssertTrue(source.contains("invokeAction("))
-        XCTAssertTrue(source.contains("name: \"claim.patch\""))
+        XCTAssertTrue(source.contains("try await claimStore.patch("))
+        XCTAssertFalse(source.contains("actionsService.invokeAction("))
     }
 
     /// **The fields, not the sentence.** The issue asks for structured editing
     /// precisely so a corrected claim stays a triple — editing a rendered
     /// sentence and re-parsing it is what embeds a subject in an object string
     /// and recreates the doubling by hand.
+    ///
+    /// #4833: the fields now flow as `ClaimStore.patch`'s own labelled
+    /// arguments rather than assignments on a locally-built
+    /// `ClaimPatchRequest` — same fields, sent the same way `InlineClaimEditor`
+    /// sends them.
     func testTheEditorEditsTheTripleRatherThanTheRenderedSentence() throws {
         let source = try AppSource.text(
             "Views/Library/ViewModes/Graph/Ontology/Claim/EditClaimSheet.swift")
@@ -163,9 +174,9 @@ final class ClaimDisplayContractTests: XCTestCase {
         XCTAssertTrue(source.contains("TextField(\"Subject\", text: $subject)"))
         XCTAssertTrue(source.contains("TextField(\"Predicate\", text: $predicate)"))
         XCTAssertTrue(source.contains("TextField(\"Object\", text: $object)"))
-        XCTAssertTrue(source.contains("patch.subjectCanonical"))
-        XCTAssertTrue(source.contains("patch.predicateVerb"))
-        XCTAssertTrue(source.contains("patch.objectPhrase"))
+        XCTAssertTrue(source.contains("subjectCanonical: trimmedOrNil(subject)"))
+        XCTAssertTrue(source.contains("predicateVerb: trimmedOrNil(predicate)"))
+        XCTAssertTrue(source.contains("objectPhrase: trimmedOrNil(object)"))
     }
 
     /// A patch updates ONE row (#4389). Not a reload: the server already

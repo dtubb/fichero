@@ -172,6 +172,13 @@ struct LibraryView: View {
     /// those modes (Daniel, 2026-08-23: "visible surface, always"). Empty
     /// outside them.
     @State var datasetVisibleIds: [String] = []
+    /// What the Entities/Claims tables are SHOWING, post-filter (#4851/#4794)
+    /// — what ⌘A covers when `contentCollection` is `.entities`/`.claims`.
+    /// Reported by `EntitiesLibraryContent`/`ClaimsLibraryContent`, the SAME
+    /// `onVisibleIds` shape `datasetVisibleIds` already uses. Empty outside
+    /// those collections.
+    @State var entitiesVisibleIds: [String] = []
+    @State var claimsVisibleIds: [String] = []
 
     /// Document pending presentation in the Add-to-Workspace picker (#1494).
     /// Non-nil drives the `.sheet(item:)` below.

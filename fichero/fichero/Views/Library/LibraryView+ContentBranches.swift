@@ -216,7 +216,8 @@ extension LibraryView {
                 entityService: service,
                 documents: documents,
                 searchQuery: activeSearchQuery,
-                selection: $selection
+                selection: $selection,
+                onVisibleIds: { claimsVisibleIds = $0 }
             )
             .padding(.leading, browserLeadingInset)
         } else {
@@ -235,7 +236,8 @@ extension LibraryView {
             documents: documents,
             searchQuery: activeSearchQuery,
             selection: $selection,
-            onOpen: { openEntityFromLibrary($0) }
+            onOpen: { openEntityFromLibrary($0) },
+            onVisibleIds: { entitiesVisibleIds = $0 }
         )
         .padding(.leading, browserLeadingInset)
     }

@@ -26,7 +26,10 @@ struct InlineClaimEditorTests {
     private static func saveBody() throws -> String {
         let source = try appSource()
         let body = try #require(source.components(separatedBy: "private func save() {").last)
-        return AppSource.codeOnly(String(body.prefix(2200)))
+        // Bounded by the next method's signature, a structural marker, not a
+        // character count.
+        let scope = try #require(body.components(separatedBy: "private func trimmedOrNil(").first)
+        return AppSource.codeOnly(scope)
     }
 
     // MARK: - kg.read.editor-saves-through-the-audited-action

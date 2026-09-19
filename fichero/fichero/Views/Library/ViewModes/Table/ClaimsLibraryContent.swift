@@ -19,6 +19,13 @@ struct ClaimsLibraryContent: View {
     /// search box as every other mode.
     let searchQuery: String?
     @Binding var selection: Set<String>
+    /// Reports the row ids currently on screen (post-filter) so `LibraryView`'s
+    /// ⌘A — the ONE owner of Select All (`LibraryMenuParityTests.
+    /// selectAllHasOneOwner`) — can select what this table is actually
+    /// showing, never a second handler (#4851/#4794, spec: kg-tables
+    /// `kg.view.keyboard-delete`; same `onVisibleIds` shape
+    /// `DatasetModeView` already reports through).
+    var onVisibleIds: (([String]) -> Void)?
 
     /// The SHARED source cursor — a claim row opens its page + highlight through
     /// the same seam the claim card and entity biography use. Optional → safe
@@ -50,8 +57,10 @@ struct ClaimsLibraryContent: View {
     /// `KnowledgeClaim.id` is optional, which `.sheet(item:)` cannot key on.
     @State private var claimToEdit: Components.Schemas.KnowledgeClaim?
 
-    /// EditClaimSheet reads WindowState non-optionally; a `.sheet` is a hosting
-    /// boundary, so this is grabbed here and re-injected across it.
+    /// This view's own library/folder-switch reload keying (below), not
+    /// `EditClaimSheet`'s — #4833 moved that sheet's save off
+    /// `LibraryManager.shared.getLibrary(id:)` onto the per-window
+    /// `ClaimStore`, so it no longer reads `WindowState` at all.
     @Environment(WindowState.self) private var windowState
 
     /// Resolves a claim's source document id → its real name even when that
@@ -107,13 +116,23 @@ struct ClaimsLibraryContent: View {
             get: { claimToEdit.map(EditingClaim.init) },
             set: { claimToEdit = $0?.claim }
         )) { wrapped in
-            // Reuse the existing SVO editor (PATCH). Re-inject WindowState across the
-            // sheet boundary. On save, reload the scope so the row reflects the edit.
+            // Reuse the existing SVO editor (PATCH, #4833: now via ClaimStore).
+            // On save, reload the scope so the row reflects the edit.
             EditClaimSheet(claim: wrapped.claim) { _ in
                 claimToEdit = nil
                 Task { await model?.load(folderId: folderId) }
             }
-            .environment(windowState)
+        }
+        // #4851/#4794: report the visible ids on every input that can change
+        // them — the filter inputs directly, and the model's own load
+        // finishing (covers both the initial load and a folder/library
+        // switch). Mirrors `DatasetModeView.reportVisible()`'s trigger set.
+        .onChange(of: items.map(\.id)) { _, newIds in onVisibleIds?(newIds) }
+        .onChange(of: filterText) { _, _ in onVisibleIds?(items.map(\.id)) }
+        .onChange(of: filterType) { _, _ in onVisibleIds?(items.map(\.id)) }
+        .onChange(of: searchQuery) { _, _ in onVisibleIds?(items.map(\.id)) }
+        .onChange(of: model?.isLoading) { _, loading in
+            if loading == false { onVisibleIds?(items.map(\.id)) }
         }
     }
 

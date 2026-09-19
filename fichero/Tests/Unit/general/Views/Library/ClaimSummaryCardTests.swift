@@ -425,4 +425,28 @@ final class ClaimSummaryCardTests: XCTestCase {
         let decoder = JSONDecoder()
         return try decoder.decode(Components.Schemas.KnowledgeClaim.self, from: data)
     }
+
+    // MARK: - #4833 slice C: the inline-edit save bubbles up, since `claim` is a `let`
+
+    /// `claim` is immutable on this type — the only way an edit ever shows is
+    /// if the save bubbles the server's returned claim UP through a callback.
+    /// Both of this type's real construction sites are currently dead code
+    /// (`EntityDetailView`, unreachable — #4828; `SpeakerComparisonView`,
+    /// Preview-only), which this test also confirms, so the fix cannot be
+    /// exercised end to end today — it exists so neither needs it again if
+    /// either comes back.
+    func testInlineEditSaveBubblesTheUpdatedClaimUp() throws {
+        let source = try Self.appSource(
+            "Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCardView.swift"
+        )
+        XCTAssertTrue(source.contains("var onClaimUpdated: ((Components.Schemas.KnowledgeClaim) -> Void)?"))
+        let body = try XCTUnwrap(
+            source.components(separatedBy: "} else if isInlineEditing {").dropFirst().first
+        )
+        // Bounded by the branch's own close (`} else {`, the next branch),
+        // a structural marker, not a character count.
+        let scope = try XCTUnwrap(body.components(separatedBy: "} else {").first)
+        XCTAssertTrue(scope.contains("onSave: { updated in"))
+        XCTAssertTrue(scope.contains("onClaimUpdated?(updated)"))
+    }
 }

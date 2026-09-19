@@ -395,7 +395,8 @@ struct EntityClickthroughTests {
         let body = try #require(
             source.components(separatedBy: "func spliceUpdatedClaim(").dropFirst().first
         )
-        let scope = String(body.prefix(300))
+        // Bounded by the function's own closing brace, a structural marker.
+        let scope = try #require(body.components(separatedBy: "\n    }").first)
         #expect(scope.contains("claims[index] = updated"))
         #expect(!scope.contains("await loadClaims()"), "a patched claim splices — it never re-triggers the network load")
     }

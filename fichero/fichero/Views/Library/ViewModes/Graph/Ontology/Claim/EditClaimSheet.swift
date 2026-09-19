@@ -1,16 +1,6 @@
 import FicheroAPIClient
 import SwiftUI
 
-private struct ClaimPatchActionParams: Encodable {
-    let claimId: String
-    let patch: Components.Schemas.ClaimPatchRequest
-
-    enum CodingKeys: String, CodingKey {
-        case claimId = "claim_id"
-        case patch
-    }
-}
-
 /// Sheet for editing the text, type, and epistemic status of a claim (#1135).
 /// Calls PATCH /api/claims/{id} on save.
 struct EditClaimSheet: View {
@@ -18,7 +8,13 @@ struct EditClaimSheet: View {
     let onSave: (Components.Schemas.KnowledgeClaim) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(WindowState.self) private var windowState
+    // #4833 slice C: was `LibraryManager.shared.getLibrary(id: windowState.libraryId)`
+    // — the same global-library-reaching pattern `ClaimReviewQueueSheet` was
+    // fixed away from (`testReviewQueueDoesNotReachForTheGlobalLibrary`).
+    // The per-window store sidesteps it and IS the audited save path.
+    // Optional for the same reason `InlineClaimEditor`'s is: a non-optional
+    // read here would trap in a host without one injected.
+    @Environment(ClaimStore.self) private var claimStore: ClaimStore?
     @State private var text: String
     @State private var subject: String
     @State private var predicate: String
@@ -115,26 +111,30 @@ struct EditClaimSheet: View {
     }
 
     private func save() {
-        guard let claimId = claim.id,
-              let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
+        guard let claimId = claim.id else { return }
+        guard let claimStore else {
+            errorText = "No claim store available in this window."
+            return
+        }
         isSaving = true
         errorText = nil
         Task {
             do {
-                let typeEnum = Components.Schemas.ClaimType(rawValue: claimType)
-                let statusEnum = Components.Schemas.EpistemicStatus(rawValue: epistemicStatus)
-                var patch = Components.Schemas.ClaimPatchRequest()
-                patch.text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                patch.subjectCanonical = trimmedOrNil(subject)
-                patch.predicateVerb = trimmedOrNil(predicate)
-                patch.objectPhrase = trimmedOrNil(object)
-                patch.sourcePageLabel = trimmedOrNil(sourcePageLabel)
-                patch.claimType = typeEnum
-                patch.epistemicStatus = statusEnum
-                _ = try await library.actionsService.invokeAction(
-                    name: "claim.patch",
-                    params: ClaimPatchActionParams(claimId: claimId, patch: patch)
+                // #4833: PATCH /api/claims/{id} via the store — the audited
+                // claim.patch action, splicing one row, same as
+                // InlineClaimEditor's fix. `onSave` gets the RETURNED claim,
+                // never the stale one this sheet was opened with.
+                let updated = try await claimStore.patch(
+                    claimId: claimId,
+                    text: text.trimmingCharacters(in: .whitespacesAndNewlines),
+                    subjectCanonical: trimmedOrNil(subject),
+                    predicateVerb: trimmedOrNil(predicate),
+                    objectPhrase: trimmedOrNil(object),
+                    sourcePageLabel: trimmedOrNil(sourcePageLabel),
+                    claimType: Components.Schemas.ClaimType(rawValue: claimType),
+                    epistemicStatus: Components.Schemas.EpistemicStatus(rawValue: epistemicStatus)
                 )
+                onSave(updated)
                 dismiss()
             } catch {
                 errorText = error.localizedDescription

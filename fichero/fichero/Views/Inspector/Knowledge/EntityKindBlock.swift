@@ -25,6 +25,10 @@ struct EntityKindBlock: View {
     var requestPruneTrivialAction: ((InspectorEntityBulkActionScope) -> Void)?
     var onNavigateToSource: ((String) -> Void)?
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
+    /// #4833 slice C: threaded straight to `EntityKindRow.onClaimUpdated` —
+    /// this type has no claim state of its own to splice into, only rows
+    /// that pass claims down.
+    var onClaimUpdated: ((Components.Schemas.KnowledgeClaim) -> Void)?
 
     @SceneStorage("inspector.kg.expandedKinds") private var expandedKindsCSV: String = ""
     @SceneStorage("inspector.kg.showAllKinds") private var showAllKindsCSV: String = ""
@@ -113,7 +117,8 @@ struct EntityKindBlock: View {
                                 requestClaimDeleteAction: requestClaimDeleteAction,
                                 requestPruneTrivialAction: requestPruneTrivialAction,
                                 onNavigateToSource: onNavigateToSource,
-                                onClaimSelect: onClaimSelect
+                                onClaimSelect: onClaimSelect,
+                                onClaimUpdated: onClaimUpdated
                             )
                         }
                     }

@@ -164,8 +164,24 @@ extension LibraryView {
         if displayMode == .space {
             return renderedSpaceDocumentIds
         }
-        if isShowingEntitiesCollection {
-            return filteredEntities.map { entitySelectionId(for: $0) }
+        // #4851/#4794: `entitiesVisibleIds`/`claimsVisibleIds`, reported by
+        // `EntitiesLibraryContent`/`ClaimsLibraryContent` themselves
+        // (`onVisibleIds`) — what those tables ACTUALLY show, post their own
+        // per-table filter. Replaces the older `filteredEntities`-based
+        // answer here, which came from a SEPARATE, LibraryView-owned
+        // entities/search pipeline that had drifted from what
+        // `EntitiesLibraryContent` renders (its own `filterText`/
+        // `filterType`, intersected with the shared search) — ⌘A was
+        // answering a different question than "what's on screen", which is
+        // #4851/#4794's actual root cause, not merely an unwired shortcut.
+        // `filteredEntities`/`entitySelectionId` stay as they are for their
+        // OTHER callers (arrow-nav, delete, type-to-select) — out of scope
+        // for this fix.
+        if contentCollection == .entities {
+            return entitiesVisibleIds
+        }
+        if contentCollection == .claims {
+            return claimsVisibleIds
         }
         if displayMode == .table {
             // Via `visibleOutlineRowIds`, which is now the ONE answer to "what

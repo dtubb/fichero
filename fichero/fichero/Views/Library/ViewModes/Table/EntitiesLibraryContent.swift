@@ -24,6 +24,13 @@ struct EntitiesLibraryContent: View {
     /// Focus the entity + open its detail/editor — supplied by LibraryView, which
     /// owns the KG focus state and the detail binding.
     let onOpen: (Components.Schemas.KnowledgeEntity) -> Void
+    /// Reports the row ids currently on screen (post-filter) so `LibraryView`'s
+    /// ⌘A — the ONE owner of Select All (`LibraryMenuParityTests.
+    /// selectAllHasOneOwner`) — can select what this table is actually
+    /// showing, never a second handler (#4851/#4794, spec: kg-tables
+    /// `kg.view.keyboard-delete`; same `onVisibleIds` shape
+    /// `DatasetModeView` already reports through).
+    var onVisibleIds: (([String]) -> Void)?
 
     @Environment(EntityStore.self) private var store
 
@@ -90,6 +97,17 @@ struct EntitiesLibraryContent: View {
                 entityToEdit = nil
                 Task { await store.loadEntities(limit: 25000, force: true) }
             }
+        }
+        // #4851/#4794: report the visible ids on every input that can change
+        // them — the filter inputs directly, and the store's own load
+        // finishing (covers the initial load and a library switch). Mirrors
+        // `DatasetModeView.reportVisible()`'s trigger set.
+        .onChange(of: items.map(\.id)) { _, newIds in onVisibleIds?(newIds) }
+        .onChange(of: filterText) { _, _ in onVisibleIds?(items.map(\.id)) }
+        .onChange(of: filterType) { _, _ in onVisibleIds?(items.map(\.id)) }
+        .onChange(of: searchQuery) { _, _ in onVisibleIds?(items.map(\.id)) }
+        .onChange(of: store.isLoadingLibrary) { _, loading in
+            if !loading { onVisibleIds?(items.map(\.id)) }
         }
     }
 

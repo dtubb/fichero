@@ -21,6 +21,13 @@ struct ClaimSummaryCard: View {
     let claim: Components.Schemas.KnowledgeClaim
     var focusedEntityId: String?
     var onNavigateToSource: ((Components.Schemas.KnowledgeClaim) -> Void)?
+    /// #4833 slice C: `claim` is a `let` — this card cannot splice into
+    /// itself, so a save bubbles the returned claim up here. Both of this
+    /// type's real construction sites are currently dead code
+    /// (`EntityDetailView`, unreachable — #4828; `SpeakerComparisonView`,
+    /// Preview-only), so nothing changes visibly today; the callback exists
+    /// so whichever comes back does not need this same fix again.
+    var onClaimUpdated: ((Components.Schemas.KnowledgeClaim) -> Void)?
 
     /// Per-window request buses (#3437); optional → safe no-op when a host
     /// hasn't injected them. The search bus serves the chip rule (nouns
@@ -144,10 +151,15 @@ struct ClaimSummaryCard: View {
             InlineClaimEditor(
                 claim: claim,
                 onCancel: { isInlineEditing = false },
-                // The editor persists via PATCH; the change-stream's
-                // `claim.updated` event refreshes the bound surfaces (#1862),
-                // so no NotificationCenter nudge is needed.
-                onSave: { _ in isInlineEditing = false }
+                // #4833: splice immediately via the returned claim — never
+                // wait on the change-stream's `claim.updated` echo, which is
+                // eventually-consistent, not immediate (#1862 covers OTHER
+                // windows/surfaces catching up; this one has the answer
+                // already, in hand, from the same PATCH response).
+                onSave: { updated in
+                    onClaimUpdated?(updated)
+                    isInlineEditing = false
+                }
             )
         } else {
             VStack(alignment: .leading, spacing: 6) {
