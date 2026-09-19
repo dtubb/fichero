@@ -367,39 +367,87 @@ extension ContentView {
         return AnyView(WorkspaceSplitStack(axis: axis, storageKey: storageKey, children: views))
     }
 
+    /// The whole-pane fixed extent for a `.library` leaf pinned via `paneExtent` (#4848,
+    /// `panes.strip.fixed-extent-is-content-not-whole-pane`): `paneExtent` names the VISIBLE ICON
+    /// STRIP height only (72pt, unchanged) — this adds the pane's OWN chrome (its head bar +
+    /// its bottom mini-toolbar), which used to have nowhere to render because `paneExtent` was
+    /// being treated as the extent of the WHOLE pane. Derived from the SAME metrics `PaneHead`
+    /// and the library bottom bar actually render at (`PaneHeadMetrics.barHeight`,
+    /// `MiniToolbar.standardHeight`) — not a second magic number.
+    static func libraryStripExtent(iconStrip: Double) -> Double {
+        iconStrip + PaneHeadMetrics.barHeight + MiniToolbar<EmptyView, EmptyView>.standardHeight
+    }
+
     /// Per-child SIZING for a split's children: HARD-pinned (`PaneConfig.paneExtent` — the film
     /// strip, absolute points, ignores stored drag state), PROPORTIONAL (`PaneConfig.paneFraction`
     /// — a resizable column seeded from a fraction of the stack's own extent), or FLEX (fills
     /// whatever the sized/pinned siblings leave over). An extent always wins over a fraction on the
-    /// same leaf (`Sizing.preferred`, pure + unit-tested).
-    ///
-    /// With a pin present, the FIRST non-pinned child flexes — this is what makes the
-    /// Transcribe/Compare library strip stay a hard 72pt while the content above fills the rest
-    /// (CD 2026-09-16). With no pin anywhere, the LAST child flexes and the earlier ones are
-    /// proportional (CD 2026-09-17: "think through % for the various default workspaces") — the
-    /// two-@SceneStorage-slot limit in `WorkspaceSplitStack` caps a split at two resizable columns,
-    /// which every built-in respects.
+    /// same leaf (`Sizing.preferred`, pure + unit-tested). A `.library` leaf's `paneExtent` is
+    /// widened to include its own chrome (`libraryStripExtent`, #4848) before `Sizing.preferred`
+    /// ever sees it.
     private func childExtents(_ nodes: [PaneNode], axis: SplitAxis) -> [WorkspaceSplitStack.Sizing] {
         let preferences: [WorkspaceSplitStack.Sizing?] = nodes.map { node in
-            guard case let .leaf(_, _, _, config) = node else { return nil }
-            return WorkspaceSplitStack.Sizing.preferred(extent: config.paneExtent, fraction: config.paneFraction)
+            guard case let .leaf(_, kind, _, config) = node else { return nil }
+            let extent = config.paneExtent.map { kind == .library ? Self.libraryStripExtent(iconStrip: $0) : $0 }
+            return WorkspaceSplitStack.Sizing.preferred(extent: extent, fraction: config.paneFraction)
         }
-        // ponytail: only a SPLIT-type sibling (never a leaf in the five built-ins) falls back to
-        // this — a reasonable share of a typical window, not a value the CD specified per-workspace
-        // (unlike every leaf fraction above, which IS the CD's number).
-        let fallbackFraction = 0.4
+        return Self.childSizings(preferences, fallbackFraction: 0.4)
+    }
+
+    /// Pure (#4849, `panes.split.peers-open-even`): turn each child's own preference (an explicit
+    /// pin/fraction, or `nil`) into its final `Sizing`, given the whole sibling set.
+    ///
+    /// A PEER is a child with NO explicit `paneExtent`/`paneFraction` of its own (a `nil`
+    /// preference) — the definition team-lead proposed. Peers SHARE EVENLY whatever the explicit
+    /// siblings (fractions and — via the existing sum-clamp in `WorkspaceSplitStack.resolvedExtents`
+    /// — fixed pins) leave over: `(1 − sum of explicit fractions) / peer count`, not the old flat
+    /// `fallbackFraction` every non-explicit child got regardless of how many peers there were
+    /// (which made 2/3/4 peers come out unequal — two matched the flat fallback, only the LAST
+    /// child ever truly flexed to the real remainder).
+    ///
+    /// One peer still gets `.flex` rather than `.fraction(peerShare)` — the same value as every
+    /// other peer WHEN NO PIN IS PRESENT (the flex space left over is exactly `peerShare × total`,
+    /// once every other peer and every explicit fraction sibling has taken its share, since
+    /// `peerShare` is itself derived as a share of `total`) — but it keeps a genuine flex slot in
+    /// the mix so the pane list always has somewhere that absorbs a total that doesn't divide
+    /// evenly, and preserves which slot flexes today: the FIRST peer when a pin is present (the
+    /// rule that keeps the Transcribe/Compare film strip pinned while the content above it fills
+    /// the rest), the LAST peer when there is no pin (CD 2026-09-17's rule for the un-pinned
+    /// workspaces). With a pin and no peer at all, nothing is left to flex — every child is
+    /// either pinned or explicitly fractioned, so each just keeps its own preference.
+    ///
+    /// KNOWN LIMITATION, not exercised by any built-in and not part of #4849's reported shape
+    /// (every built-in pairs a pin with exactly ONE peer, which is always correct): with a pin
+    /// AND MORE THAN ONE peer in the same split, `peerShare` is computed as a fraction of the
+    /// whole `total` — this function has no `total` to subtract the pin's absolute points from
+    /// (that value is not known until `WorkspaceSplitStack`'s own `GeometryReader`, deliberately
+    /// later than this pure, position-only decision) — so the non-flexing peers divide `total`
+    /// evenly among themselves, but the ONE flexing peer additionally absorbs the pin's points and
+    /// ends up smaller than its siblings by roughly the pin's size. Fixing this precisely would
+    /// mean threading `total` all the way back to `childExtents`, called before it exists.
+    static func childSizings(
+        _ preferences: [WorkspaceSplitStack.Sizing?],
+        fallbackFraction: Double
+    ) -> [WorkspaceSplitStack.Sizing] {
+        guard !preferences.isEmpty else { return [] }
         let isPinned: (WorkspaceSplitStack.Sizing?) -> Bool = { if case .fixed? = $0 { return true }; return false }
-        if preferences.contains(where: isPinned) {
-            let flexIndex = preferences.firstIndex { !isPinned($0) } ?? 0
-            return preferences.indices.map { idx in
-                if isPinned(preferences[idx]) { return preferences[idx]! }
-                if idx == flexIndex { return .flex }
-                return preferences[idx] ?? .fraction(fallbackFraction)
-            }
-        }
-        let last = preferences.count - 1
+        let explicitFractionSum: Double = preferences.compactMap { pref -> Double? in
+            if case let .fraction(fraction)? = pref { return fraction }
+            return nil
+        }.reduce(0, +)
+        let peerIndices = preferences.indices.filter { preferences[$0] == nil }
+        let peerShare = peerIndices.isEmpty
+            ? fallbackFraction
+            : max(0, 1 - explicitFractionSum) / Double(peerIndices.count)
+
+        let hasPin = preferences.contains(where: isPinned)
+        let flexIndex: Int? = hasPin ? peerIndices.first : peerIndices.last
+
         return preferences.indices.map { idx in
-            idx == last ? .flex : (preferences[idx] ?? .fraction(fallbackFraction))
+            if isPinned(preferences[idx]) { return preferences[idx]! }
+            if let preference = preferences[idx] { return preference }
+            if idx == flexIndex { return .flex }
+            return .fraction(peerShare)
         }
     }
 

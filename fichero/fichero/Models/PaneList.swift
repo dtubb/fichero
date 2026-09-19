@@ -89,6 +89,13 @@ struct PaneConfig: Codable, Sendable, Hashable {
     /// 2026-09-16). `nil` = follow the normal sizing (resizable column, or flex if it's the tail).
     /// A HARD pin — wins over `paneFraction` on the same leaf, and (in `WorkspaceSplitStack`)
     /// ignores any stored drag state (#4688).
+    ///
+    /// #4848: for a `.library` leaf, this names the VISIBLE ICON STRIP height only — NOT the
+    /// whole pane's extent. `PaneSpec.childExtents` widens it by the pane's own chrome (its head
+    /// bar + bottom mini-toolbar, via `PaneSpec.libraryStripExtent`) before handing it to
+    /// `WorkspaceSplitStack`, so the strip's 72pt is headroom for icons, not for icons AND chrome
+    /// squeezed into the same 72pt (the bug: no icons showed at all, because the chrome alone
+    /// used about that much).
     var paneExtent: Double?
     /// Preferred PROPORTIONAL extent — a share (0–1) of the parent split's own extent — for a
     /// content pane that should hold its proportion across a 13" laptop and a 32" display instead

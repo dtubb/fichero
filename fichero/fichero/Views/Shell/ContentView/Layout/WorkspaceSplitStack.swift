@@ -52,14 +52,23 @@ struct WorkspaceSplitStack: View {
     let axis: SplitAxis
     let children: [Child]
 
-    // Up to two SIZED (proportional/resizable) child slots persist their extent per split position.
-    // Every built-in split has at most two resizable children (a HARD-pinned film strip never uses
-    // a slot, and the third pane, if any, flexes), so two slots suffice.
-    // ponytail: two @SceneStorage slots, not an array — @SceneStorage needs fixed properties; a
-    // 3rd resizable child would fall back to resolving fresh from its fraction every render (never
-    // happens in the five built-ins).
+    // Up to THREE sized (proportional/resizable) child slots persist their extent per split
+    // position (#4849, grown from two). A split of up to four peers needs at most three
+    // resizable columns — `PaneSpec.childSizings` gives exactly ONE peer `.flex` (it needs no
+    // slot) and the rest `.fraction`, so a 4-peer split needs 3 slots, a 3-peer split needs 2,
+    // and the five built-ins (never more than one resizable-and-un-pinned peer per split today)
+    // still fit in the original two. Growing this is additive, not a migration: each slot is
+    // its OWN `@SceneStorage` key (`"wsplit.<key>.0"`/`.1`/`.2`), so an existing stored layout's
+    // `.0`/`.1` drags are read exactly as before — a workspace that gains a third resizable
+    // peer just starts that ONE new column undragged (`.unset`, below) until the user drags it
+    // once, the same first-appearance behavior every resizable column already has.
+    // ponytail: three @SceneStorage slots, not an array — @SceneStorage needs fixed properties.
+    // A 5th-or-beyond peer (this app's built-ins top out at four) would fall back to resolving
+    // fresh from its fraction every render rather than persisting a drag — grow again if that
+    // ever ships.
     @SceneStorage private var extent0: Double
     @SceneStorage private var extent1: Double
+    @SceneStorage private var extent2: Double
 
     /// Sentinel meaning "never dragged" — @SceneStorage needs a concrete `Double` at init, before
     /// the `GeometryReader` below knows the stack's actual `total`. NOTHING ever seeds this to a
@@ -76,6 +85,7 @@ struct WorkspaceSplitStack: View {
         self.children = children
         self._extent0 = SceneStorage(wrappedValue: Self.unset, "wsplit.\(storageKey).0")
         self._extent1 = SceneStorage(wrappedValue: Self.unset, "wsplit.\(storageKey).1")
+        self._extent2 = SceneStorage(wrappedValue: Self.unset, "wsplit.\(storageKey).2")
     }
 
     /// A workspace-unique storage-key component (#4688): `keyPath` alone is a tree POSITION
@@ -103,6 +113,18 @@ struct WorkspaceSplitStack: View {
         }
     }
 
+    /// Read one of the three `@SceneStorage` slots by index — the ONE place that maps a slot
+    /// number to its concrete property, so `storedOverrides()` and the drag-write binding in
+    /// `arranged()` can never disagree about which slot is which (#4849).
+    private func slotValue(_ slot: Int) -> Double {
+        switch slot {
+        case 0: extent0
+        case 1: extent1
+        case 2: extent2
+        default: Self.unset
+        }
+    }
+
     /// The stored slot value for each `.fraction` child, in child order — `nil` for a slot never
     /// seeded/dragged yet (so `resolvedExtents` falls back to its fraction of `total`), and `nil`
     /// for every non-`.fraction` child (fixed/flex have no stored slot).
@@ -111,7 +133,7 @@ struct WorkspaceSplitStack: View {
         return children.map { child in
             guard case .fraction = child.sizing else { return nil }
             defer { slot += 1 }
-            let raw = slot == 0 ? extent0 : (slot == 1 ? extent1 : Self.unset)
+            let raw = slotValue(slot)
             return raw == Self.unset ? nil : raw
         }
     }
@@ -147,11 +169,16 @@ struct WorkspaceSplitStack: View {
                 // The setter is the only path that ever writes `extent0`/`extent1`, and it only
                 // fires from `ResizableDivider`'s own drag handler — never from a mere appearance.
                 let displayValue = resolved[index] ?? 0
-                let isFirstFractionSlot = slot == 0
+                let thisSlot = slot
                 let binding = Binding<Double>(
                     get: { displayValue },
                     set: { newValue in
-                        if isFirstFractionSlot { extent0 = newValue } else { extent1 = newValue }
+                        switch thisSlot {
+                        case 0: extent0 = newValue
+                        case 1: extent1 = newValue
+                        case 2: extent2 = newValue
+                        default: break // #4849: a 4th+ resizable peer has no slot; see the type doc comment.
+                        }
                     }
                 )
                 slot += 1

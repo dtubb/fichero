@@ -122,9 +122,12 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
             // guard flags the second secondary).
             // #4688: all three panes are equally-weighted reading surfaces here (no natural
             // "primary" the way Read's table/reader split has one) — equal thirds. Only the first
-            // two carry an explicit 0.33 (WorkspaceSplitStack's two-@SceneStorage-slot limit means
-            // at most two resizable columns per split anyway); reading is last and flexes to the
-            // remaining ~34%.
+            // two carry an explicit 0.33; reading is left as a PEER (no explicit weight) and is
+            // last, so it flexes to the remaining ~34% — the same answer #4849's peer-sharing
+            // rule would give it explicitly (`(1 − 0.66) / 1 peer`), stated as fractions here
+            // because a workspace author picking exact numbers is clearer than three peers left
+            // silently equal by omission (WorkspaceSplitStack now has three resizable slots, not
+            // two — #4849 — so a third explicit column would fit too, if this ever needs one).
             return PaneList([
                 .stableSplit(.vertical, named: "\(rawValue).outerSplit", [
                     .stableSplit(.horizontal, named: "\(rawValue).topSplit", [
