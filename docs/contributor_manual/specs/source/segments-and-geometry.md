@@ -140,10 +140,14 @@ across an opening belongs to the opening and is resolved onto each page it touch
 The maintainer's own project holds printed diaries with three dated entries on each page.
 Today a workflow ("Diary Entries") already turns each page into **entry nodes**: each entry is
 a child of its page, made from a prototype (`diary_entry`), with its date as a structured
-attribute. Checked in the running app on 2026-09-19, read-only: the entries are there and
-dated, but an entry looked at carried **no region at all** (`region_in_parent` and `bbox`
-empty; its note says the page's dimensions were not known when it was made). So the entry is
-structured data with nothing tying it back to its part of the page.
+attribute. Checked in the running app on 2026-09-19, read-only, on four entries: the tie back
+to the page **exists when the page had measured word boxes** (one entry from the September
+run carries `region_in_parent`: a rectangle that is the union of its words' boxes, marked
+measured, method `diary-entry-word-union:apple`), and is **honestly absent otherwise** (two
+entries from the August run, and one with no text, carry no region, and say why:
+`bbox_basis` is `no_page_dimensions` or `none`). So today an entry is a node with structured
+data and, at best, a rectangle; it has no lasting segment id, no polygon, and its lines and
+words are not its children.
 
 In this model that is one thing, not two:
 

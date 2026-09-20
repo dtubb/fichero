@@ -462,11 +462,16 @@ Projects and onboarding
   suitable models, and the languages, scripts and periods it is for.
 - `source.recipe.makes-a-workflow` — applying a recipe makes a workflow; nothing runs except
   workflows.
+- `source.recipe.holds-no-second-copy` — a recipe holds no chain that the workflow store also
+  holds: a shipped best-practice chain exists once, and the other form is made from it.
 - `source.profile.automatic-after-first-yes` — automatic chaining is switched on for each
   project and confirms before its first run; what it makes counts as the record only as the
   project's rule allows.
 - `source.project.record-rule` — a project is strict or relaxed about what counts as the
   record; a new project is strict; a profile can set either.
+- `source.project.relaxed-never-changes-the-maker` — a relaxed project changes what counts as
+  the record, never who made it: a machine's reading, pass or claim is stored and shown as a
+  machine's in every project (the engine sets this; see #4868, #4869).
 - `source.project.one-settings-window` — making a new project and Project Settings… (File menu
   and the project's context menu) open the same window; there is no second surface.
 - `source.project.in-the-cascade` — project settings sit between the app and a folder in the

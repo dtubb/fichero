@@ -14,7 +14,9 @@
 > · **[GAP]** intended, never built · **[BROKEN]** code contradicts the rule.
 >
 > The name "source model" follows the maintainer's wording (the source is the page; a segment
-> is everything on it) and is confirmed at approval.
+> is everything on it). **One milestone for the whole set** (ruled 2026-09-19): every file in
+> this folder's new set declares `Milestone: source-model` (GitHub milestone 322). That is
+> deliberate; do not "fix" it to one milestone for each file.
 > Under "The design", what the maintainer has ruled is listed first ("Ruled"); the rest is
 > PROPOSED until ruled.
 
