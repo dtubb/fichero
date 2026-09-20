@@ -62,6 +62,8 @@ process anyway. Two rules this module still keeps:
 
 from __future__ import annotations
 
+import ctypes
+import ctypes.util
 import importlib.metadata
 import importlib.util
 import json
@@ -240,6 +242,212 @@ class KrakenSegmentationError(RuntimeError):
     """Raised when the segmenter ran and did not return usable geometry."""
 
 
+class KrakenMemoryUnavailableError(RuntimeError):
+    """Raised when the machine cannot safely run Kraken right now (#4987).
+
+    "Know before running": Kraken shares this process with the rest of the
+    engine (#4959), so its peak memory IS the engine's peak memory, and it
+    is measured (`agent-work/reviews/kraken-memory-4987.md`, 2026-09-20, M1
+    16 GB) to settle into a 2.3-3.6 GB peak band per page and NOT give that
+    memory back afterward. A message a non-programmer can act on: what
+    Kraken needs, what is free right now, and that closing other apps or
+    waiting will help.
+    """
+
+
+# #4987: the declared need: ONE named constant, measured, not guessed.
+# Measured 2026-09-20 on an M1 MacBook Pro (16 GB): a page peaks at 2.3 to
+# 3.6 GB resident once warm (agent-work/reviews/kraken-memory-4987.md). The
+# floor is what the machine must have AVAILABLE, which is not the same number:
+# in that same measurement every run SUCCEEDED with 3.3 to 5.5 GB available
+# (rows C, E and I ran at 3.3 to 3.9 GB), because macOS compresses and pages
+# other work while memory pressure is normal. A 4 GB floor would have refused
+# runs the measurement itself completed, and on a 16 GB laptop in ordinary use
+# would refuse most of the time. So: pressure must be NORMAL (the real safety
+# signal) and at least 2.5 GB must be available (the report's own minimum).
+# Override with the environment variable for a machine where this is wrong.
+_DEFAULT_KRAKEN_MEMORY_NEED_BYTES = int(2.5 * 1024**3)
+_MEMORY_NEED_ENV_VAR = "FICHERO_KRAKEN_MEMORY_NEED_MB"
+
+# kern.memorystatus_vm_pressure_level values (Apple's dispatch_source
+# memorypressure levels; verified live via `sysctl kern.memorystatus_vm_
+# pressure_level` and the matching ctypes read, 2026-09-20).
+_PRESSURE_NORMAL = 1
+_PRESSURE_LABELS = {2: "warn", 4: "critical"}
+
+# Mach `host_statistics64` — the public struct layout from Apple's
+# <mach/vm_statistics.h>, reproduced here only because ctypes needs a field
+# layout to read into; no subprocess, no new dependency.
+_HOST_VM_INFO64 = 4
+
+
+class _VMStatistics64(ctypes.Structure):
+    _fields_ = [
+        ("free_count", ctypes.c_uint32),
+        ("active_count", ctypes.c_uint32),
+        ("inactive_count", ctypes.c_uint32),
+        ("wire_count", ctypes.c_uint32),
+        ("zero_fill_count", ctypes.c_uint64),
+        ("reactivations", ctypes.c_uint64),
+        ("pageins", ctypes.c_uint64),
+        ("pageouts", ctypes.c_uint64),
+        ("faults", ctypes.c_uint64),
+        ("cow_faults", ctypes.c_uint64),
+        ("lookups", ctypes.c_uint64),
+        ("hits", ctypes.c_uint64),
+        ("purges", ctypes.c_uint64),
+        ("purgeable_count", ctypes.c_uint32),
+        ("speculative_count", ctypes.c_uint32),
+        ("decompressions", ctypes.c_uint64),
+        ("compressions", ctypes.c_uint64),
+        ("swapins", ctypes.c_uint64),
+        ("swapouts", ctypes.c_uint64),
+        ("compressor_page_count", ctypes.c_uint32),
+        ("throttled_count", ctypes.c_uint32),
+        ("external_page_count", ctypes.c_uint32),
+        ("internal_page_count", ctypes.c_uint32),
+        ("total_uncompressed_pages_in_compressor", ctypes.c_uint64),
+    ]
+
+
+_HOST_VM_INFO64_COUNT = ctypes.sizeof(_VMStatistics64) // ctypes.sizeof(ctypes.c_int)
+
+
+def _kraken_memory_need_bytes() -> int:
+    """The declared need, overridable per-machine via env var (MB)."""
+    override = os.environ.get(_MEMORY_NEED_ENV_VAR)
+    if override:
+        try:
+            return int(float(override) * 1024 * 1024)
+        except ValueError:
+            logger.warning(
+                "%s=%r is not a number; using the default", _MEMORY_NEED_ENV_VAR, override
+            )
+    return _DEFAULT_KRAKEN_MEMORY_NEED_BYTES
+
+
+def _available_memory_bytes() -> int | None:
+    """Best-effort free memory on macOS — no new dependency.
+
+    #4987 follow-up: `psutil` is NOT in the shipped bundle's dependency
+    closure. Checked directly (`pip show psutil` against the dev venv,
+    2026-09-20): its only `Required-by` are `briefcase` (the BUILD tool,
+    never bundled) and `flufl.lock` (itself unused anywhere in this
+    project's own source) — no runtime package this engine ships pulls it
+    in. Using it here would make this exact guard raise
+    `ModuleNotFoundError` in the one build it exists to protect.
+
+    In-process only — NO subprocess (`vm_stat` was tried and rejected: this
+    module has its own hard, tested rule against ever shelling out or
+    provisioning a runtime, `test_kraken_runtime_never_shells_out_or_
+    provisions_a_runtime`, for the same sandboxing reasons #4555 already
+    forced this module in-process in the first place). Calls the public
+    Mach host API directly via ctypes — `host_statistics64`, the same
+    mechanism `psutil` itself uses on macOS, and the same
+    `ctypes.CDLL(ctypes.util.find_library("System"))` technique this
+    project's own `kraken_timing.py` measurement script already uses for
+    QoS. Cross-checked live against `psutil.virtual_memory().available`,
+    2026-09-20: within ~1.3% (`(free + inactive + speculative) pages`,
+    reading slightly LOW — the safer direction for a refuse-below-threshold
+    guard).
+
+    Sysctl names alone (`vm.page_free_count` etc., no `host_statistics64`)
+    were tried first and rejected: macOS keeps almost nothing in `free` and
+    parks most reclaimable memory in `inactive`, which has no equivalent
+    sysctl — a free+speculative-only reading came in at ~117 MB against
+    psutil's ~3.7 GB on the same machine at the same moment, ~97% low —
+    unusably conservative, not just "safer".
+
+    Returns ``None`` on any failure (non-macOS, the Mach call itself
+    failing) — callers must decide what "unknown" means; this never
+    guesses a number.
+    """
+    try:
+        libsystem = ctypes.CDLL(ctypes.util.find_library("System"))
+    except OSError:
+        return None
+    try:
+        host_port = libsystem.mach_host_self()
+        page_size = ctypes.c_uint64(0)
+        if libsystem.host_page_size(host_port, ctypes.byref(page_size)) != 0:
+            return None
+        vm_stat = _VMStatistics64()
+        count = ctypes.c_uint32(_HOST_VM_INFO64_COUNT)
+        kr = libsystem.host_statistics64(
+            host_port, _HOST_VM_INFO64, ctypes.byref(vm_stat), ctypes.byref(count)
+        )
+        if kr != 0:
+            return None
+    except Exception:  # noqa: BLE001 — a platform surprise here must degrade, not crash
+        return None
+    free_pages = vm_stat.free_count + vm_stat.inactive_count + vm_stat.speculative_count
+    return free_pages * page_size.value
+
+
+def _memory_pressure_level() -> int | None:
+    """macOS ``kern.memorystatus_vm_pressure_level`` via one sysctl read
+    (no subprocess — a single syscall through ctypes, not "shelling out on
+    every call", per #4987). 1=normal, 2=warn, 4=critical. ``None`` if
+    unavailable (non-macOS, or the sysctl name doesn't resolve)."""
+    try:
+        libc = ctypes.CDLL("libc.dylib")
+    except OSError:
+        return None
+    value = ctypes.c_int(0)
+    size = ctypes.c_size_t(ctypes.sizeof(value))
+    try:
+        ret = libc.sysctlbyname(
+            b"kern.memorystatus_vm_pressure_level",
+            ctypes.byref(value),
+            ctypes.byref(size),
+            None,
+            0,
+        )
+    except Exception:  # noqa: BLE001 — a missing/renamed sysctl must degrade, not crash
+        return None
+    return value.value if ret == 0 else None
+
+
+def assert_memory_available_for_kraken(
+    *,
+    available_bytes: Callable[[], int | None] | None = None,
+    pressure_level: Callable[[], int | None] | None = None,
+) -> None:
+    """Refuse BEFORE any kraken/torch import if this machine cannot safely
+    run one Kraken call right now (#4987).
+
+    Checked on EVERY call, not once at startup: the measurement showed
+    Kraken's elevated memory floor is NOT released between calls within a
+    session, so a machine that had room for the first page may not have
+    room for the fifth.
+
+    ``available_bytes``/``pressure_level`` are injectable so a test never
+    depends on the real machine's memory or pressure — pass a lambda
+    returning a fixed number instead of the real macOS reader.
+    """
+    get_available = available_bytes or _available_memory_bytes
+    get_pressure = pressure_level or _memory_pressure_level
+
+    need = _kraken_memory_need_bytes()
+    free = get_available()
+    if free is not None and free < need:
+        raise KrakenMemoryUnavailableError(
+            f"Kraken needs about {need / 1024**3:.1f} GB of free memory to run "
+            f"safely, and this Mac has about {free / 1024**3:.1f} GB free right "
+            "now. Close other apps, or wait for other work to finish, then try "
+            "again."
+        )
+
+    level = get_pressure()
+    if level is not None and level != _PRESSURE_NORMAL:
+        label = _PRESSURE_LABELS.get(level, f"level {level}")
+        raise KrakenMemoryUnavailableError(
+            f"This Mac's memory pressure is {label}, not normal, so starting "
+            f"Kraken now (it needs about {need / 1024**3:.1f} GB) risks the "
+            "whole app crashing. Close other apps, or wait, then try again."
+        )
+
+
 def is_installed() -> bool:
     """Whether Kraken can actually segment: is it importable at all.
 
@@ -298,25 +506,37 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
     outcome: list[object] = []
 
     def _throttled() -> None:
-        # The throttle is set on a thread this seam OWNS and that ends with the
-        # call. Callers arrive on `asyncio.to_thread`'s POOLED workers; a QoS
-        # class set on one of those would outlive this call and slow whatever
-        # unrelated request that worker serves next.
-        # UTILITY, not background: someone is waiting for this page. Measured:
-        # 23 s at utility against 426 s at background for one page (#4959).
-        set_utility_qos()
         try:
-            import torch
+            # #4987 "know before running": checked INSIDE the lock, before
+            # ANY kraken/torch import — a queued second call must see the
+            # machine's state at the moment IT is about to run, not the
+            # (possibly much rosier) state when it was first queued, since
+            # measured Kraken memory is not released between calls within
+            # a session. A refusal here costs nothing: no import has
+            # happened yet.
+            assert_memory_available_for_kraken()
 
-            # Same balanced-throttle knob the embedder uses (`embed_threads`,
-            # `FICHERO_EMBED_THREADS`-overridable); no second preference.
-            # Process-wide in torch, which is the point: never peg the machine.
-            torch.set_num_threads(max(1, embed_threads()))
-        except (ImportError, RuntimeError):
-            # Narrow on purpose: a throttle that crashes the work is worse than
-            # an unthrottled page, but nothing else may be hidden here.
-            logger.warning("could not cap torch threads for kraken", exc_info=True)
-        try:
+            # The throttle is set on a thread this seam OWNS and that ends with
+            # the call. Callers arrive on `asyncio.to_thread`'s POOLED workers;
+            # a QoS class set on one of those would outlive this call and slow
+            # whatever unrelated request that worker serves next.
+            # UTILITY, not background: someone is waiting for this page.
+            # Measured: 23 s at utility against 426 s at background for one
+            # page (#4959).
+            set_utility_qos()
+            try:
+                import torch
+
+                # Same balanced-throttle knob the embedder uses
+                # (`embed_threads`, `FICHERO_EMBED_THREADS`-overridable); no
+                # second preference. Process-wide in torch, which is the
+                # point: never peg the machine.
+                torch.set_num_threads(max(1, embed_threads()))
+            except (ImportError, RuntimeError):
+                # Narrow on purpose: a throttle that crashes the work is
+                # worse than an unthrottled page, but nothing else may be
+                # hidden here.
+                logger.warning("could not cap torch threads for kraken", exc_info=True)
             outcome.append((True, op()))
         except BaseException as exc:  # noqa: BLE001 — re-raised on the caller's thread
             outcome.append((False, exc))
@@ -393,7 +613,11 @@ def segment_lines(
     caller = run_call or _kraken_call
     try:
         return caller(lambda: _segment_raw(image_path))
-    except KrakenRuntimeMissingError:
+    except (KrakenRuntimeMissingError, KrakenMemoryUnavailableError):
+        # Both are already the plain-language, non-programmer-actionable
+        # message #4987/#4959 want on screen — wrapping either as "Kraken
+        # segmentation failed: ..." would bury that message inside a less
+        # useful one, so both pass through the SAME way.
         raise
     except Exception as exc:
         raise KrakenSegmentationError(f"Kraken segmentation failed: {exc}") from exc
@@ -409,7 +633,7 @@ def recognize_lines(
     caller = run_call or _kraken_call
     try:
         return caller(lambda: _recognize_raw(image_path, model_path))
-    except KrakenRuntimeMissingError:
+    except (KrakenRuntimeMissingError, KrakenMemoryUnavailableError):
         raise
     except Exception as exc:
         raise KrakenSegmentationError(f"Kraken recognition failed: {exc}") from exc
@@ -647,6 +871,8 @@ __all__ = [
     "require_installed",
     "KrakenRuntimeMissingError",
     "KrakenSegmentationError",
+    "KrakenMemoryUnavailableError",
+    "assert_memory_available_for_kraken",
     "recognize_lines",
     "recognize_to_geometry",
     "runtime_status",

@@ -164,6 +164,20 @@ if [ ! -x "$STAGED_BRIDGE" ]; then
 fi
 echo "  Staged fm-bridge: $STAGED_BRIDGE"
 
+# Kraken ships INSIDE the engine (#4959): nothing can be installed at run time
+# in the sandbox. It goes in HERE, not only at release, because `briefcase
+# update -r` above rebuilds app_packages from the `requires` list and so drops
+# anything added afterwards; every staged engine (Dev Embedded, DMG, App Store)
+# comes through this script. The step refuses a Python that does not match the
+# bundle's, refuses to change a bundled distribution, and refuses a duplicate.
+KRAKEN_INSTALL_PY="$("$ROOT_DIR/scripts/find_project_python.sh" "$ROOT_DIR")"
+"$KRAKEN_INSTALL_PY" "$ROOT_DIR/scripts/install_kraken_into_engine_bundle.py" \
+  "$ENGINE_APP/Contents/Resources/app_packages" || {
+    echo "error: could not install Kraken into the staged engine." >&2
+    echo "       Kraken segmentation and recognition would be unusable in this build." >&2
+    exit 1
+  }
+
 # Briefcase ships .py with NO .pyc, so every import pays a full compile. This is
 # not a micro-optimisation — measured on this exact bundle, same binary, only
 # bytecode differing (#3940):

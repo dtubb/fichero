@@ -24,8 +24,11 @@ from pathlib import Path
 
 import pytest
 
+import sys
+
 from fichero_server.llm import kraken_runtime
 from fichero_server.llm.kraken_runtime import (
+    KrakenMemoryUnavailableError,
     KrakenRuntimeMissingError,
     KrakenSegmentationError,
 )
@@ -172,6 +175,7 @@ def test_the_throttle_never_leaks_onto_the_callers_thread(monkeypatch: pytest.Mo
     from fichero_server.core import background_compute as bc
 
     monkeypatch.setattr(kraken_runtime, "is_installed", lambda: True)
+    monkeypatch.setattr(kraken_runtime, "assert_memory_available_for_kraken", lambda: None)
     seen: dict[str, object] = {}
 
     def op() -> str:
@@ -198,6 +202,7 @@ def test_the_throttle_never_leaks_onto_the_callers_thread(monkeypatch: pytest.Mo
 
 def test_an_error_inside_the_seam_reaches_the_caller(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(kraken_runtime, "is_installed", lambda: True)
+    monkeypatch.setattr(kraken_runtime, "assert_memory_available_for_kraken", lambda: None)
 
     def op() -> None:
         raise ValueError("boom")
@@ -206,9 +211,10 @@ def test_an_error_inside_the_seam_reaches_the_caller(monkeypatch: pytest.MonkeyP
         kraken_runtime._kraken_call(op)
 
 
-def test_the_seam_serializes_concurrent_calls() -> None:
+def test_the_seam_serializes_concurrent_calls(monkeypatch: pytest.MonkeyPatch) -> None:
     """One Kraken call runs at a time — two pages must never double the
     memory (the maintainer's "never peg the machine" rule)."""
+    monkeypatch.setattr(kraken_runtime, "assert_memory_available_for_kraken", lambda: None)
     order: list[tuple[str, str, float]] = []
 
     def make_op(tag: str):
@@ -232,6 +238,68 @@ def test_the_seam_serializes_concurrent_calls() -> None:
     # The second call's start must come after the first call's end — never
     # interleaved (start, start, end, end) or overlapping.
     assert [e[0] for e in by_time] == ["start", "end", "start", "end"], order
+
+
+# --- #4987: "know before running" -------------------------------------------
+
+
+def test_memory_guard_refuses_below_the_declared_need() -> None:
+    with pytest.raises(KrakenMemoryUnavailableError, match="2.5 GB"):
+        kraken_runtime.assert_memory_available_for_kraken(
+            available_bytes=lambda: 1 * 1024**3,
+            pressure_level=lambda: kraken_runtime._PRESSURE_NORMAL,
+        )
+
+
+def test_memory_guard_refuses_under_pressure() -> None:
+    with pytest.raises(KrakenMemoryUnavailableError, match="warn"):
+        kraken_runtime.assert_memory_available_for_kraken(
+            available_bytes=lambda: 8 * 1024**3,
+            pressure_level=lambda: 2,  # warn
+        )
+
+
+def test_memory_guard_runs_when_there_is_room() -> None:
+    kraken_runtime.assert_memory_available_for_kraken(
+        available_bytes=lambda: 8 * 1024**3,
+        pressure_level=lambda: kraken_runtime._PRESSURE_NORMAL,
+    )
+
+
+def test_memory_guard_message_names_both_figures() -> None:
+    with pytest.raises(KrakenMemoryUnavailableError) as exc_info:
+        kraken_runtime.assert_memory_available_for_kraken(
+            available_bytes=lambda: 1.5 * 1024**3,
+            pressure_level=lambda: kraken_runtime._PRESSURE_NORMAL,
+        )
+    message = str(exc_info.value)
+    assert "2.5 GB" in message, message  # the declared need
+    assert "1.5 GB" in message, message  # what is free right now
+
+
+def test_memory_guard_refuses_before_any_kraken_or_torch_import(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A refused call must cost nothing: no kraken/torch import may happen
+    on the way to the refusal (#4987)."""
+    monkeypatch.setattr(kraken_runtime, "is_installed", lambda: True)
+    monkeypatch.delitem(sys.modules, "torch", raising=False)
+    monkeypatch.delitem(sys.modules, "kraken", raising=False)
+
+    def op() -> None:
+        raise AssertionError("op() must never run when the memory guard refuses")
+
+    monkeypatch.setattr(
+        kraken_runtime,
+        "assert_memory_available_for_kraken",
+        lambda: (_ for _ in ()).throw(KrakenMemoryUnavailableError("no room")),
+    )
+
+    with pytest.raises(KrakenMemoryUnavailableError, match="no room"):
+        kraken_runtime._kraken_call(op)
+
+    assert "torch" not in sys.modules, "a refused call must not import torch"
+    assert "kraken" not in sys.modules, "a refused call must not import kraken"
 
 
 def test_the_seam_refuses_when_kraken_is_not_installed(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -317,6 +385,22 @@ def test_a_segmentation_failure_reports_kraken_own_words(monkeypatch: pytest.Mon
         kraken_runtime.segment_to_geometry("/tmp/page.png")
 
 
+def test_a_memory_refusal_passes_through_segmentation_unwrapped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#4987: the memory guard's plain-language message must reach the
+    caller AS ITSELF, the same way `KrakenRuntimeMissingError` already
+    does — not re-wrapped as "Kraken segmentation failed: ..."."""
+
+    def explode(op):
+        raise KrakenMemoryUnavailableError("Kraken needs about 2.5 GB...")
+
+    monkeypatch.setattr(kraken_runtime, "_kraken_call", explode)
+
+    with pytest.raises(KrakenMemoryUnavailableError, match="2.5 GB"):
+        kraken_runtime.segment_to_geometry("/tmp/page.png")
+
+
 # --- recognition (segment + read, tied to baselines) ------------------------
 
 
@@ -386,6 +470,18 @@ def test_recognition_failure_surfaces_kraken_own_words(monkeypatch: pytest.Monke
     monkeypatch.setattr(kraken_runtime, "_kraken_call", explode)
 
     with pytest.raises(KrakenSegmentationError, match="bad model"):
+        kraken_runtime.recognize_to_geometry("/tmp/p.png", "/m.mlmodel")
+
+
+def test_a_memory_refusal_passes_through_recognition_unwrapped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def explode(op):
+        raise KrakenMemoryUnavailableError("Kraken needs about 2.5 GB...")
+
+    monkeypatch.setattr(kraken_runtime, "_kraken_call", explode)
+
+    with pytest.raises(KrakenMemoryUnavailableError, match="2.5 GB"):
         kraken_runtime.recognize_to_geometry("/tmp/p.png", "/m.mlmodel")
 
 
