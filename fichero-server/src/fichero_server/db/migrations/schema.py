@@ -927,8 +927,9 @@ def read_library_uuid(conn) -> str | None:
 
 def migrate_segment_indices(conn) -> None:
     """Add indices on ``segments`` and ``segment_passes`` (source-model
-    slice 3, #4921), and ``segmentmatchs``/``segmentforwardings``/
-    ``segmentcarrys`` (slice 4, #4922).
+    slice 3, #4921), ``segmentmatchs``/``segmentforwardings``/
+    ``segmentcarrys`` (slice 4, #4922), and ``segmentversions`` (slice 5,
+    #4923).
 
     Both tables are created by ``_ensure_table`` (a `Segment`/`SegmentPass`
     pydantic model saved through ``Database.save()``), never by this
@@ -1023,6 +1024,13 @@ def migrate_segment_indices(conn) -> None:
             "SegmentForwarding.sequence -- the append order two notes for "
             "one id in the same microsecond otherwise have no defined "
             "order by created_at alone (#4922 third look)",
+        ),
+        # Source-model slice 5 (#4923): versions.
+        (
+            "idx_segmentversions_segment_id",
+            "CREATE INDEX IF NOT EXISTS idx_segmentversions_segment_id "
+            "ON segmentversions(segment_id)",
+            "GET /api/segments/{segment_id}/versions; restore_version's lookup",
         ),
     ]
     created = 0

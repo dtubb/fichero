@@ -740,6 +740,114 @@ class SegmentCarry(BaseModel):
     created_at: datetime = Field(default_factory=utc_now)
 
 
+# ---------------------------------------------------------------------------
+# Slice 5 -- versions for each segment, and refusing a stale edit (#4923)
+# ---------------------------------------------------------------------------
+
+
+class SegmentVersion(BaseModel):
+    """Append-only: a full copy of one segment's own fields AT ONE OF ITS
+    versions (`source.segment.versioned-alone`), so undo restores from
+    ORDINARY DATA, never from the audit chain. Written as a PREIMAGE --
+    the row's state right BEFORE the change that bumped `Segment.version`
+    past the number this row carries -- by every action that changes a
+    segment (`segment.update`/`.delete`/`.undelete`/`.restore_version`,
+    and slice 4's `segment.merge`/`.split`): `segment.update`'s own
+    `before: {segment_id, version}` names exactly the version number a
+    version row was written under, so `segment.restore_version(version=N)`
+    finds it directly. No row is written at creation (version 1 has none
+    until the segment's first change)."""
+
+    id: str = Field(default_factory=_new_id)
+    segment_id: str
+    version: int
+    document_id: str
+    pass_id: str
+    parent_segment_id: str | None = None
+    kind: str
+    kind_raw: str | None = None
+    anchor: SourceAnchor
+    baseline: list[list[float]] | None = None
+    is_furniture: bool = False
+    #: True when this snapshot is the state a delete (or a merge's
+    #: soft-delete of an absorbed segment) acted on -- "writes a deleted
+    #: version" -- never on an ordinary update's snapshot.
+    deleted: bool = False
+    actor: str | None = None
+    provenance_kind: ProvenanceKind
+    #: The action invocation that wrote this row -- same minted-locally
+    #: convention as `SegmentForwarding.audit_id` (the generic `ActionAudit`
+    #: id is not known yet when this is written).
+    audit_id: str
+    reason: str | None = None
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class SegmentStale(ValueError):
+    """`segment.update`/`.delete`/`.restore_version`'s compare-and-set
+    failed: the caller's `expected_version` no longer matches the live
+    row. Carries enough for a caller to re-read and retry
+    (`source.edit.stale-is-refused`). `changed` is computed from the
+    `SegmentVersion` row tagged with `expected_version` (every bump past
+    it writes exactly one, as a preimage); when `expected_version` was
+    never actually superseded -- a client sending a version number that
+    never existed for this segment -- no such row exists and `changed` is
+    simply `[]` (there is nothing recorded to diff against, not "nothing
+    changed")."""
+
+    def __init__(self, segment_id: str, expected_version: int, current_version: int, changed: list[str]) -> None:
+        self.segment_id = segment_id
+        self.expected_version = expected_version
+        self.current_version = current_version
+        self.changed = changed
+        super().__init__(
+            f"segment {segment_id!r} is at version {current_version}, not the "
+            f"expected {expected_version} (changed: {', '.join(changed) or 'unknown'})"
+        )
+
+
+class SegmentDeleted(ValueError):
+    """The segment named is already deleted (or merged away, which sets
+    the same `deleted_at`) -- it cannot be updated."""
+
+    def __init__(self, segment_id: str) -> None:
+        self.segment_id = segment_id
+        super().__init__(f"segment {segment_id!r} is deleted and cannot be updated")
+
+
+#: Fields compared to fill `SegmentStale.changed` -- geometry and
+#: placement only, never text (nothing here ever holds a reading).
+_VERSIONED_FIELDS = ("anchor", "baseline", "kind", "kind_raw", "parent_segment_id", "is_furniture")
+
+
+def changed_fields(before: "SegmentVersion", after: "Segment") -> list[str]:
+    """The field names that differ between a historical snapshot and the
+    current row -- `SegmentStale.changed` (#4923)."""
+    return [f for f in _VERSIONED_FIELDS if getattr(before, f) != getattr(after, f)]
+
+
+def snapshot_segment_version(
+    db: Any, row: "Segment", *, deleted: bool, actor: str | None, audit_id: str, reason: str | None = None,
+) -> "SegmentVersion":
+    """Write ROW's CURRENT fields as a `SegmentVersion` tagged with its
+    CURRENT `version` number (a preimage), then bump `row.version` in
+    place -- the one place every segment-changing action does this, so
+    `segment.update`, `.delete`, and slice 4's `.merge`/`.split` cannot
+    drift from each other. The caller applies its OWN field changes to
+    `row` AFTER calling this (the snapshot must capture the OLD values),
+    and is responsible for `db.save(row)` once it is done."""
+    version = SegmentVersion(
+        segment_id=row.id, version=row.version, document_id=row.document_id,
+        pass_id=row.pass_id, parent_segment_id=row.parent_segment_id,
+        kind=row.kind, kind_raw=row.kind_raw, anchor=row.anchor, baseline=row.baseline,
+        is_furniture=row.is_furniture, deleted=deleted, actor=actor,
+        provenance_kind=row.provenance_kind, audit_id=audit_id, reason=reason,
+    )
+    db.save(version)
+    row.version += 1
+    return version
+
+
 #: Past this many hops, `resolve_segment` raises rather than keep walking
 #: (`source.segment.forwarding-notes`): a loop-free graph should never need
 #: this many, so it is a safety net, not a normal path.

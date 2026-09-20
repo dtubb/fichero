@@ -3402,6 +3402,328 @@
         }
       }
     },
+    "/api/segments/{segment_id}": {
+      "put": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Update Segment",
+        "operationId": "update_segment_api_segments__segment_id__put",
+        "parameters": [
+          {
+            "name": "segment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Segment Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SegmentUpdateParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Get Segment",
+        "description": "The live row for `segment_id`, resolving through `resolve_segment`\nwhen it has been forwarded (and saying so) -- never a silent\nsubstitution.",
+        "operationId": "get_segment_api_segments__segment_id__get",
+        "parameters": [
+          {
+            "name": "segment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Segment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/segments/delete": {
+      "post": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Delete Segments",
+        "operationId": "delete_segments_api_segments_delete_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SegmentDeleteParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Segments Api Segments Delete Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/segments/undelete": {
+      "post": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Undelete Segments",
+        "operationId": "undelete_segments_api_segments_undelete_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SegmentUndeleteParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Undelete Segments Api Segments Undelete Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/segments/{segment_id}/restore-version": {
+      "post": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Restore Segment Version",
+        "operationId": "restore_segment_version_api_segments__segment_id__restore_version_post",
+        "parameters": [
+          {
+            "name": "segment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Segment Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SegmentRestoreVersionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/segments/{segment_id}/versions": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "List Segment Versions",
+        "description": "`source.segment.versioned-alone`: one segment's own history, read\nwithout touching any other segment's rows.",
+        "operationId": "list_segment_versions_api_segments__segment_id__versions_get",
+        "parameters": [
+          {
+            "name": "segment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Segment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SegmentVersion"
+                  },
+                  "title": "Response List Segment Versions Api Segments  Segment Id  Versions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{document_id}/renditions": {
       "get": {
         "tags": [
@@ -64012,6 +64334,63 @@
         ],
         "title": "SegmentCreateParams"
       },
+      "SegmentDeleteParams": {
+        "properties": {
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Segment Ids"
+          },
+          "expected_versions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Expected Versions"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "segment_ids",
+          "expected_versions"
+        ],
+        "title": "SegmentDeleteParams",
+        "description": "The real, versioned delete (`source.segment.delete-is-undoable`):\ncompare-and-set per id, a `SegmentVersion` snapshot, and a `deleted`\nforwarding row -- replaces slice 3's internal stand-in (which only set\n`deleted_at`, undoable=False)."
+      },
+      "SegmentDetailResponse": {
+        "properties": {
+          "segment": {
+            "$ref": "#/components/schemas/SegmentRead"
+          },
+          "resolved_from_forwarding": {
+            "type": "boolean",
+            "title": "Resolved From Forwarding",
+            "default": false
+          },
+          "trail": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentForwarding"
+            },
+            "type": "array",
+            "title": "Trail",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment"
+        ],
+        "title": "SegmentDetailResponse"
+      },
       "SegmentForwarding": {
         "properties": {
           "id": {
@@ -64118,6 +64497,7 @@
           },
           "note": {
             "type": "string",
+            "maxLength": 200,
             "nullable": true,
             "title": "Note"
           }
@@ -64399,6 +64779,25 @@
         ],
         "title": "SegmentReferenceResponse"
       },
+      "SegmentRestoreVersionBody": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "expected_version": {
+            "type": "integer",
+            "title": "Expected Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "expected_version"
+        ],
+        "title": "SegmentRestoreVersionBody"
+      },
       "SegmentSpec": {
         "properties": {
           "kind": {
@@ -64483,6 +64882,176 @@
           "anchor"
         ],
         "title": "SegmentSplitPart"
+      },
+      "SegmentUndeleteParams": {
+        "properties": {
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Segment Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "segment_ids"
+        ],
+        "title": "SegmentUndeleteParams",
+        "description": "`segment.delete`'s inverse -- also directly callable to bring a\ndeleted segment back (`source.segment.delete-is-undoable`).\n\nTakes no `expected_version` (#4923 second look): a deleted segment\ncannot change -- `update`, `merge`, `split` and `carry` all refuse a\nnot-live participant -- so \"is it deleted\" (checked below) is the\nWHOLE precondition. A stale undelete (already live) is a plain 409,\nnot a `SegmentStale`."
+      },
+      "SegmentUpdateParams": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "expected_version": {
+            "type": "integer",
+            "title": "Expected Version"
+          },
+          "anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Input",
+            "nullable": true
+          },
+          "baseline": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Baseline"
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kind"
+          },
+          "kind_raw": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kind Raw"
+          },
+          "parent_segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Segment Id"
+          },
+          "is_furniture": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Is Furniture"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "segment_id",
+          "expected_version"
+        ],
+        "title": "SegmentUpdateParams",
+        "description": "`document_id`/`pass_id` are deliberately absent (`extra=\"forbid\"`\nrefuses them outright) -- a segment never moves pass or document\n(`source.pass.never-overwrites`); that is a merge, not an update."
+      },
+      "SegmentVersion": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "pass_id": {
+            "type": "string",
+            "title": "Pass Id"
+          },
+          "parent_segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Segment Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "kind_raw": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kind Raw"
+          },
+          "anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Output"
+          },
+          "baseline": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Baseline"
+          },
+          "is_furniture": {
+            "type": "boolean",
+            "title": "Is Furniture",
+            "default": false
+          },
+          "deleted": {
+            "type": "boolean",
+            "title": "Deleted",
+            "default": false
+          },
+          "actor": {
+            "type": "string",
+            "nullable": true,
+            "title": "Actor"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind"
+          },
+          "audit_id": {
+            "type": "string",
+            "title": "Audit Id"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id",
+          "version",
+          "document_id",
+          "pass_id",
+          "kind",
+          "anchor",
+          "provenance_kind",
+          "audit_id"
+        ],
+        "title": "SegmentVersion",
+        "description": "Append-only: a full copy of one segment's own fields AT ONE OF ITS\nversions (`source.segment.versioned-alone`), so undo restores from\nORDINARY DATA, never from the audit chain. Written as a PREIMAGE --\nthe row's state right BEFORE the change that bumped `Segment.version`\npast the number this row carries -- by every action that changes a\nsegment (`segment.update`/`.delete`/`.undelete`/`.restore_version`,\nand slice 4's `segment.merge`/`.split`): `segment.update`'s own\n`before: {segment_id, version}` names exactly the version number a\nversion row was written under, so `segment.restore_version(version=N)`\nfinds it directly. No row is written at creation (version 1 has none\nuntil the segment's first change)."
       },
       "SelectionKind": {
         "type": "string",

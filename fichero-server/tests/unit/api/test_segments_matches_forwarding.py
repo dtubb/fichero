@@ -27,6 +27,7 @@ from fichero_server.models import (
     SegmentForwardingTooDeep,
     SegmentMatch,
     SegmentPass,
+    SegmentVersion,
     Status,
     resolve_segment,
 )
@@ -132,17 +133,13 @@ class TestForwardingNotes:
         seg_c = seg_b.id  # "its id stays on one part"
         seg_d = split_result.result["new_segment_ids"][0]
 
+        # segment.delete is now the real, versioned one (slice 5, #4923) --
+        # it writes its own `deleted` forwarding row.
+        c_version = db.get(Segment, seg_c).version
         registry.invoke(
             db, "segment.delete",
-            {"segment_ids": [seg_c]}, ctx,
+            {"segment_ids": [seg_c], "expected_versions": {seg_c: c_version}}, ctx,
         )
-        # segment.delete (slice 3's internal one) does not itself write a
-        # forwarding row -- write one directly the way slice 5's real
-        # delete will, so resolve_segment sees the deletion in this test.
-        db.save(SegmentForwarding(
-            document_id=doc.id, old_segment_id=seg_c, kind="deleted",
-            new_segment_ids=[], actor="daniel", audit_id="test-audit",
-        ))
 
         resolved = resolve_segment(db, seg_a.id)
         assert resolved.live_segment_ids == [seg_d]
@@ -297,6 +294,87 @@ class TestForwardingNotes:
         kinds = sorted(r.kind for r in rows)
         assert kinds == ["merged", "restored"]
         assert db.get(Segment, seg_a.id).deleted_at is None
+
+    def test_unmerge_restores_from_the_snapshot_even_with_a_blanked_audit_before(self, db, client):
+        """#4923 second look: unmerge restores from the `SegmentVersion`
+        snapshot `segment.merge` itself wrote -- never from the audit
+        record's own `before` -- proven the same way `segment.update`'s
+        undo is: blank `before` and it still restores."""
+        from fichero_server.models import ActionAudit
+
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg_a = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.1, 0.1])
+        seg_b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.2, 0.2, 0.1, 0.1])
+        ctx = _ctx(db, actor="daniel")
+
+        merge_result = registry.invoke(
+            db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx,
+        )
+        audit = db.get(ActionAudit, merge_result.audit_id)
+        audit.before = None
+        db.save(audit)
+
+        undo = client.post(f"/api/actions/audit/{merge_result.audit_id}/undo")
+        assert undo.status_code == 200, undo.text
+        restored = db.get(Segment, seg_a.id)
+        assert restored.deleted_at is None
+        assert restored.anchor.rect == [0.0, 0.0, 0.1, 0.1]
+
+    def test_unsplit_restores_from_the_snapshot_even_with_a_blanked_audit_before(self, db, client):
+        from fichero_server.models import ActionAudit
+
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        original = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.2, 0.2])
+        original_rect = list(original.anchor.rect)
+        ctx = _ctx(db, actor="daniel")
+
+        split_result = registry.invoke(
+            db, "segment.split",
+            {
+                "segment_id": original.id,
+                "parts": [
+                    {"anchor": {"document_id": doc.id, "rect": [0.0, 0.0, 0.1, 0.1]}},
+                    {"anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]}},
+                ],
+            },
+            ctx,
+        )
+        audit = db.get(ActionAudit, split_result.audit_id)
+        audit.before = None
+        db.save(audit)
+
+        undo = client.post(f"/api/actions/audit/{split_result.audit_id}/undo")
+        assert undo.status_code == 200, undo.text
+        restored = db.get(Segment, original.id)
+        assert restored.anchor.rect == original_rect
+
+    def test_split_then_unsplit_the_version_is_higher_than_before_the_split(self, db, client):
+        """#4923 second look: a version number is never set back -- after
+        split then unsplit, the segment sits at a NEW, higher version, not
+        the one it had before the split."""
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        original = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.2, 0.2])
+        version_before_split = original.version
+        ctx = _ctx(db, actor="daniel")
+
+        split_result = registry.invoke(
+            db, "segment.split",
+            {
+                "segment_id": original.id,
+                "parts": [
+                    {"anchor": {"document_id": doc.id, "rect": [0.0, 0.0, 0.1, 0.1]}},
+                    {"anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]}},
+                ],
+            },
+            ctx,
+        )
+        undo = client.post(f"/api/actions/audit/{split_result.audit_id}/undo")
+        assert undo.status_code == 200, undo.text
+
+        assert db.get(Segment, original.id).version > version_before_split
 
 
 class TestCarryAcrossAMatch:
@@ -915,6 +993,25 @@ class TestInvariants:
         undo = client.post(f"/api/actions/audit/{merge_result.audit_id}/undo")
         assert undo.status_code == 200, undo.text
 
+        # #4923 second look: slice 5's own actions too -- update, delete,
+        # undelete, restore_version -- in the SAME scenario.
+        registry.invoke(
+            db, "segment.update",
+            {"segment_id": seg_x.id, "expected_version": db.get(Segment, seg_x.id).version,
+             "anchor": {"document_id": doc.id, "rect": [0.41, 0.41, 0.1, 0.1]}}, ctx,
+        )
+        current_x = db.get(Segment, seg_x.id)
+        registry.invoke(
+            db, "segment.delete",
+            {"segment_ids": [seg_x.id], "expected_versions": {seg_x.id: current_x.version}}, ctx,
+        )
+        registry.invoke(db, "segment.undelete", {"segment_ids": [seg_x.id]}, ctx)
+        current_x = db.get(Segment, seg_x.id)
+        registry.invoke(
+            db, "segment.restore_version",
+            {"segment_id": seg_x.id, "version": 1, "expected_version": current_x.version}, ctx,
+        )
+
         # (a) identity never changes.
         for original_id, (id_, document_id, pass_id) in identity_before.items():
             row = db.get(Segment, original_id)
@@ -931,6 +1028,23 @@ class TestInvariants:
         rows_for_a = db.query(SegmentForwarding, old_segment_id=seg_a.id)
         kinds = sorted(r.kind for r in rows_for_a)
         assert kinds == ["merged", "restored"]
+
+        # (d) #4923 second look: (segment_id, version) is unique in
+        # segmentversions after this whole sequence of actions.
+        pairs = [(v.segment_id, v.version) for v in db.all(SegmentVersion)]
+        assert len(pairs) == len(set(pairs)), f"duplicate (segment_id, version) pairs: {pairs}"
+
+        # (e) #4923 second look: no Segment.version ever decreased. X went
+        # through update, delete, undelete, restore_version above -- its
+        # own version-row numbers must be exactly 1..N, no gap, no repeat,
+        # never a number lower than one already seen.
+        x_version_rows = sorted(
+            (v.version for v in db.query(SegmentVersion, segment_id=seg_x.id)),
+        )
+        assert x_version_rows == sorted(set(x_version_rows)), "a version number repeated for seg_x"
+        assert x_version_rows == list(range(1, len(x_version_rows) + 1)), (
+            f"seg_x's version history has a gap or a regression: {x_version_rows}"
+        )
 
 
 class TestRollbackOnlyInAnger:
@@ -1062,6 +1176,39 @@ _ROUTE_ID_CHECKS: dict[tuple[str, str], list[tuple[str, Any]]] = {
     ("GET", "/segments/{segment_id}/reference"): [
         ("segment_id (path)", lambda doc_id, pass_id: ("GET", "/api/segments/legacy:x/reference", None)),
     ],
+    ("PUT", "/segments/{segment_id}"): [
+        ("segment_id", lambda doc_id, pass_id: (
+            "PUT", "/api/segments/legacy:x",
+            {"segment_id": "legacy:x", "expected_version": 1},
+        )),
+        ("parent_segment_id", lambda doc_id, pass_id: (
+            "PUT", "/api/segments/real",
+            {"segment_id": "real", "expected_version": 1, "parent_segment_id": "legacy:x"},
+        )),
+    ],
+    ("POST", "/segments/delete"): [
+        ("segment_ids[]", lambda doc_id, pass_id: (
+            "POST", "/api/segments/delete",
+            {"segment_ids": ["legacy:x"], "expected_versions": {"legacy:x": 1}},
+        )),
+    ],
+    ("POST", "/segments/undelete"): [
+        ("segment_ids[]", lambda doc_id, pass_id: (
+            "POST", "/api/segments/undelete", {"segment_ids": ["legacy:x"]},
+        )),
+    ],
+    ("POST", "/segments/{segment_id}/restore-version"): [
+        ("segment_id (path)", lambda doc_id, pass_id: (
+            "POST", "/api/segments/legacy:x/restore-version",
+            {"version": 1, "expected_version": 1},
+        )),
+    ],
+    ("GET", "/segments/{segment_id}/versions"): [
+        ("segment_id (path)", lambda doc_id, pass_id: ("GET", "/api/segments/legacy:x/versions", None)),
+    ],
+    ("GET", "/segments/{segment_id}"): [
+        ("segment_id (path)", lambda doc_id, pass_id: ("GET", "/api/segments/legacy:x", None)),
+    ],
 }
 
 
@@ -1103,6 +1250,7 @@ def test_a_legacy_id_is_refused_with_422_on_every_write_route_field(
     b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.3, 0.3, 0.1, 0.1])
 
     method, url, json_body = build_request(doc.id, pass_row.id)
+    url = url.replace("real2", b.id).replace("real", a.id)
     if json_body is not None:
         json_body = json.loads(
             json.dumps(json_body).replace('"real2"', f'"{b.id}"').replace('"real"', f'"{a.id}"')

@@ -12637,6 +12637,29 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("delete")
+    def segments_delete_post(
+        ctx: typer.Context,
+        expected_versions: str = typer.Option(..., "--expected-versions", help="Request field: expected_versions."),
+        reason: Optional[str] = typer.Option(None, "--reason", help="Request field: reason."),
+        segment_ids: str = typer.Option(..., "--segment-ids", help="Request field: segment_ids."),
+    ) -> None:
+        """Delete Segments (POST /api/segments/delete)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/delete"
+            params = None
+            payload = _build_json_payload({
+                "expected_versions": expected_versions,
+                "reason": reason,
+                "segment_ids": segment_ids,
+            }, {
+                "expected_versions": {'additionalProperties': {'type': 'integer'}, 'type': 'object', 'title': 'Expected Versions', 'x-cli-required': True},
+                "reason": {'type': 'string', 'maxLength': 200, 'nullable': True, 'title': 'Reason', 'x-cli-required': False},
+                "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Segment Ids', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-document")
     def segments_list_document_get(
         ctx: typer.Context,
@@ -12678,7 +12701,7 @@ def register_generated_openapi_commands(
             }, {
                 "certainty": {'type': 'number', 'nullable': True, 'title': 'Certainty', 'x-cli-required': False},
                 "from_segment_id": {'type': 'string', 'title': 'From Segment Id', 'x-cli-required': True},
-                "note": {'type': 'string', 'nullable': True, 'title': 'Note', 'x-cli-required': False},
+                "note": {'type': 'string', 'maxLength': 200, 'nullable': True, 'title': 'Note', 'x-cli-required': False},
                 "to_segment_id": {'type': 'string', 'title': 'To Segment Id', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
@@ -12789,6 +12812,74 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("undelete")
+    def segments_undelete_post(
+        ctx: typer.Context,
+        segment_ids: str = typer.Option(..., "--segment-ids", help="Request field: segment_ids."),
+    ) -> None:
+        """Undelete Segments (POST /api/segments/undelete)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/undelete"
+            params = None
+            payload = _build_json_payload({
+                "segment_ids": segment_ids,
+            }, {
+                "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Segment Ids', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("get")
+    def segments_get_get(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+    ) -> None:
+        """Get Segment (GET /api/segments/{segment_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/{segment_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("update")
+    def segments_update_put(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+        anchor: Optional[str] = typer.Option(None, "--anchor", help="Request field: anchor."),
+        baseline: Optional[str] = typer.Option(None, "--baseline", help="Request field: baseline."),
+        expected_version: int = typer.Option(..., "--expected-version", help="Request field: expected_version."),
+        is_furniture: Optional[bool] = typer.Option(None, "--is-furniture/--no-is-furniture", help="Request field: is_furniture."),
+        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
+        kind_raw: Optional[str] = typer.Option(None, "--kind-raw", help="Request field: kind_raw."),
+        parent_segment_id: Optional[str] = typer.Option(None, "--parent-segment-id", help="Request field: parent_segment_id."),
+        segment_id_2: str = typer.Option(..., "--segment-id", help="Request field: segment_id."),
+    ) -> None:
+        """Update Segment (PUT /api/segments/{segment_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/{segment_id}"
+            params = None
+            payload = _build_json_payload({
+                "anchor": anchor,
+                "baseline": baseline,
+                "expected_version": expected_version,
+                "is_furniture": is_furniture,
+                "kind": kind,
+                "kind_raw": kind_raw,
+                "parent_segment_id": parent_segment_id,
+                "segment_id": segment_id,
+            }, {
+                "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
+                "baseline": {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Baseline', 'x-cli-required': False},
+                "expected_version": {'type': 'integer', 'title': 'Expected Version', 'x-cli-required': True},
+                "is_furniture": {'type': 'boolean', 'nullable': True, 'title': 'Is Furniture', 'x-cli-required': False},
+                "kind": {'type': 'string', 'nullable': True, 'title': 'Kind', 'x-cli-required': False},
+                "kind_raw": {'type': 'string', 'nullable': True, 'title': 'Kind Raw', 'x-cli-required': False},
+                "parent_segment_id": {'type': 'string', 'nullable': True, 'title': 'Parent Segment Id', 'x-cli-required': False},
+                "segment_id": {'type': 'string', 'title': 'Segment Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("reference")
     def segments_reference_get(
         ctx: typer.Context,
@@ -12797,6 +12888,39 @@ def register_generated_openapi_commands(
         """Segment Reference (GET /api/segments/{segment_id}/reference)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/segments/{segment_id}/reference"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("restore-version")
+    def segments_restore_version_post(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+        expected_version: int = typer.Option(..., "--expected-version", help="Request field: expected_version."),
+        version: int = typer.Option(..., "--version", help="Request field: version."),
+    ) -> None:
+        """Restore Segment Version (POST /api/segments/{segment_id}/restore-version)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/{segment_id}/restore-version"
+            params = None
+            payload = _build_json_payload({
+                "expected_version": expected_version,
+                "version": version,
+            }, {
+                "expected_version": {'type': 'integer', 'title': 'Expected Version', 'x-cli-required': True},
+                "version": {'type': 'integer', 'title': 'Version', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-versions")
+    def segments_list_versions_get(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+    ) -> None:
+        """List Segment Versions (GET /api/segments/{segment_id}/versions)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/{segment_id}/versions"
             params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)

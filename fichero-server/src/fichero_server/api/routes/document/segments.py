@@ -21,7 +21,7 @@ import uuid
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import request_actor
@@ -35,10 +35,13 @@ from fichero_server.models import (
     Document,
     Segment,
     SegmentCarry,
+    SegmentDeleted,
     SegmentForwarding,
     SegmentListResponse,
     SegmentMatch,
     SegmentPass,
+    SegmentStale,
+    SegmentVersion,
 )
 from fichero_server.models.anchors import SourceAnchor, validate_rect
 from fichero_server.models.knowledge import Annotation, ProvenanceKind
@@ -49,16 +52,20 @@ from fichero_server.models.segments import (
     SegmentForwardingLoop,
     SegmentForwardingTooDeep,
     SegmentRead,
+    changed_fields,
     assert_not_provisional,
     bbox_and_tile_from_anchor,
     forwards_to,
     grow_rect_by_half_tile,
     legacy_pass_id,
     pass_read_from_row,
+    primary_live_segment_id,
     rects_intersect,
+    resolve_segment,
     segment_liveness_reason,
     segment_read_from_row,
     segments_from_result,
+    snapshot_segment_version,
     tiles_for_rect,
 )
 
@@ -167,7 +174,18 @@ class SegmentNotLive(ValueError):
 def _as_http_error(exc: Exception) -> HTTPException:
     if isinstance(exc, ProvisionalSegmentIdError):
         return HTTPException(status_code=422, detail=str(exc))
-    if isinstance(exc, (SegmentPassMismatchError, SegmentParentMismatchError, SegmentForwardingWouldLoop, SegmentNotLive)):
+    if isinstance(exc, SegmentStale):
+        # Carries structured fields (#4923: "carrying segment_id,
+        # expected_version, current_version and changed"), not just text --
+        # a caller re-reads and retries from these, it does not parse prose.
+        return HTTPException(status_code=409, detail={
+            "message": str(exc),
+            "segment_id": exc.segment_id,
+            "expected_version": exc.expected_version,
+            "current_version": exc.current_version,
+            "changed": exc.changed,
+        })
+    if isinstance(exc, (SegmentPassMismatchError, SegmentParentMismatchError, SegmentForwardingWouldLoop, SegmentNotLive, SegmentDeleted)):
         return HTTPException(status_code=409, detail=str(exc))
     if isinstance(exc, (SegmentAnchorMismatchError, MatchNeedsAPerson, MatchNotAccepted, StatementsCarriedInStatementsStep)):
         return HTTPException(status_code=422, detail=str(exc))
@@ -583,7 +601,14 @@ def _invert_segment_create(before, after, ctx: ActionContext):
     segment_ids = after.get("segment_ids")
     if not segment_ids:
         return None
-    return ("segment.delete", {"segment_ids": segment_ids})
+    # A freshly created segment is always at version 1 (slice 5, #4923: real
+    # `segment.delete` now takes a compare-and-set, so its inverse must
+    # supply one) -- if something else touched it since creation, the
+    # compare-and-set correctly refuses this undo as stale, which is right.
+    return (
+        "segment.delete",
+        {"segment_ids": segment_ids, "expected_versions": {sid: 1 for sid in segment_ids}},
+    )
 
 
 @action(
@@ -686,48 +711,383 @@ def _action_segment_create_many(db: Database, params: SegmentCreateManyParams, c
     return {"segment_ids": segment_ids}, change_spec
 
 
+def _stale_changed_fields(db: Database, segment_id: str, expected_version: int, current_row: Segment) -> list[str]:
+    """`SegmentStale.changed`: the field names that differ between the
+    version the caller thought it was editing (the `SegmentVersion` row
+    tagged with `expected_version` -- every bump past it writes exactly
+    one, as a preimage) and the CURRENT live row. `[]` if that version was
+    never snapshotted (expected_version was never actually superseded)."""
+    candidates = db.query(SegmentVersion, segment_id=segment_id, version=expected_version)
+    if not candidates:
+        return []
+    return changed_fields(candidates[0], current_row)
+
+
+def _same_pass_and_document(db: Database, segment_ids: list[str]) -> dict[str, Segment]:
+    """Fetch every id, 404 on a miss, and refuse (`SegmentPassMismatchError`,
+    409) if they do not all share one pass and document -- the same rule
+    `segment.merge` enforces, applied to every action that takes several
+    segment ids together (#4923: "refusals from slices 3 and 4 apply to
+    every new action")."""
+    rows: dict[str, Segment] = {}
+    for segment_id in segment_ids:
+        row = db.get(Segment, segment_id)
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Segment not found: {segment_id}")
+        rows[segment_id] = row
+    first = next(iter(rows.values()))
+    for row in rows.values():
+        if row.pass_id != first.pass_id or row.document_id != first.document_id:
+            raise _as_http_error(SegmentPassMismatchError(
+                "segments are not all in the same pass and document"
+            ))
+    return rows
+
+
 class SegmentDeleteParams(BaseModel):
-    """Internal: used only as `segment.create`/`.create_many`'s inverse in
-    this slice. Update and delete of a segment as a user-facing feature,
-    with version compare-and-set, arrive in slice 5."""
+    """The real, versioned delete (`source.segment.delete-is-undoable`):
+    compare-and-set per id, a `SegmentVersion` snapshot, and a `deleted`
+    forwarding row -- replaces slice 3's internal stand-in (which only set
+    `deleted_at`, undoable=False)."""
 
     model_config = ConfigDict(extra="forbid")
 
     segment_ids: list[str]
+    expected_versions: dict[str, int]
+    #: Capped (#4923 review): recorded inside the tamper-evident audit
+    #: chain, where nothing can ever be purged -- an operator's short note
+    #: about the delete, never a quote from a source. Whether even a short
+    #: typed field belongs in the chain at all is the maintainer's open
+    #: question (morning file, question 17/23), not settled here.
+    reason: Optional[str] = Field(default=None, max_length=200)
 
 
-@action("segment.delete", SegmentDeleteParams, domains=["segment"], undoable=False)
+def _invert_segment_delete(before, after, ctx: ActionContext):
+    """Reads ONLY `after` (#4923 second look: "every inverse in this file
+    follows one rule") -- `after["versions"]` is the state POST-delete
+    (after `snapshot_segment_version`'s bump), which is what `undelete`
+    (itself taking no `expected_version`) needs the ids for."""
+    if not after:
+        return None
+    versions = after.get("versions")
+    if not versions:
+        return None
+    return ("segment.undelete", {"segment_ids": list(versions.keys())})
+
+
+@action(
+    "segment.delete",
+    SegmentDeleteParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_segment_delete,
+)
 def _action_segment_delete(db: Database, params: SegmentDeleteParams, ctx: ActionContext):
-    from fichero_server.core.timeutil import utc_now
+    for segment_id in params.segment_ids:
+        _assert_not_provisional_http(segment_id, what="segment_id")
+        if segment_id not in params.expected_versions:
+            raise HTTPException(
+                status_code=422, detail=f"expected_versions is missing segment_id {segment_id!r}"
+            )
+    rows = _same_pass_and_document(db, params.segment_ids)
 
     now = utc_now()
+    audit_id = uuid.uuid4().hex
+    before_versions: dict[str, int] = {}
+    after_versions: dict[str, int] = {}
     document_ids: set[str] = set()
     pass_ids: set[str] = set()
     for segment_id in params.segment_ids:
-        _assert_not_provisional_http(segment_id, what="segment_id")
-        row = db.get(Segment, segment_id)
-        if not row:
-            # Never silently skip and still list it in `after`/the event
-            # (#4921 review): an id this action cannot find is a real
-            # problem for whatever asked for its deletion (most often
-            # `segment.create`'s own inverse), not a no-op to swallow.
-            raise HTTPException(status_code=404, detail=f"Segment not found: {segment_id}")
+        row = rows[segment_id]
+        if row.deleted_at is not None:
+            raise _as_http_error(SegmentDeleted(segment_id))
+        expected = params.expected_versions[segment_id]
+        if row.version != expected:
+            raise _as_http_error(SegmentStale(
+                segment_id, expected, row.version,
+                _stale_changed_fields(db, segment_id, expected, row),
+            ))
+        before_versions[segment_id] = row.version
+        snapshot_segment_version(
+            db, row, deleted=True, actor=ctx.actor, audit_id=audit_id, reason=params.reason,
+        )
         row.deleted_at = now
         row.deleted_by = ctx.actor
         db.save(row)
+        after_versions[segment_id] = row.version
+        db.save(SegmentForwarding(
+            document_id=row.document_id, old_segment_id=segment_id, kind="deleted",
+            new_segment_ids=[], actor=ctx.actor, audit_id=audit_id, reason=params.reason,
+            sequence=db.next_forwarding_sequence(),
+        ))
         document_ids.add(row.document_id)
         pass_ids.add(row.pass_id)
     spec = ChangeSpec(
         domains=["segment"],
         target_ids=list(params.segment_ids),
-        before=None,
-        after={"segment_ids": params.segment_ids},
+        before=before_versions,
+        after={"segment_ids": params.segment_ids, "versions": after_versions},
         emit_type="segment.deleted",
         segment_ids=list(params.segment_ids),
         pass_ids=list(pass_ids),
         document_ids=list(document_ids),
     )
     return {"segment_ids": params.segment_ids}, spec
+
+
+class SegmentUndeleteParams(BaseModel):
+    """`segment.delete`'s inverse -- also directly callable to bring a
+    deleted segment back (`source.segment.delete-is-undoable`).
+
+    Takes no `expected_version` (#4923 second look): a deleted segment
+    cannot change -- `update`, `merge`, `split` and `carry` all refuse a
+    not-live participant -- so "is it deleted" (checked below) is the
+    WHOLE precondition. A stale undelete (already live) is a plain 409,
+    not a `SegmentStale`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str]
+
+
+def _invert_segment_undelete(before, after, ctx: ActionContext):
+    """Reads ONLY `after` (#4923 second look) -- `after["versions"]` is
+    the state POST-undelete (after the bump), exactly what `segment.delete`
+    needs as `expected_versions` to undo THIS undelete without meeting a
+    stale row."""
+    if not after:
+        return None
+    versions = after.get("versions")
+    if not versions:
+        return None
+    return ("segment.delete", {"segment_ids": list(versions.keys()), "expected_versions": versions})
+
+
+@action(
+    "segment.undelete",
+    SegmentUndeleteParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_segment_undelete,
+)
+def _action_segment_undelete(db: Database, params: SegmentUndeleteParams, ctx: ActionContext):
+    for segment_id in params.segment_ids:
+        _assert_not_provisional_http(segment_id, what="segment_id")
+    rows = _same_pass_and_document(db, params.segment_ids)
+
+    audit_id = uuid.uuid4().hex
+    before_versions: dict[str, int] = {}
+    after_versions: dict[str, int] = {}
+    document_ids: set[str] = set()
+    pass_ids: set[str] = set()
+    for segment_id in params.segment_ids:
+        row = rows[segment_id]
+        if row.deleted_at is None:
+            raise HTTPException(status_code=409, detail=f"segment {segment_id!r} is not deleted")
+        before_versions[segment_id] = row.version
+        snapshot_segment_version(db, row, deleted=True, actor=ctx.actor, audit_id=audit_id)
+        row.deleted_at = None
+        row.deleted_by = None
+        db.save(row)
+        after_versions[segment_id] = row.version
+        db.save(SegmentForwarding(
+            document_id=row.document_id, old_segment_id=segment_id, kind="restored",
+            new_segment_ids=[], actor=ctx.actor, audit_id=audit_id,
+            sequence=db.next_forwarding_sequence(),
+        ))
+        document_ids.add(row.document_id)
+        pass_ids.add(row.pass_id)
+    spec = ChangeSpec(
+        domains=["segment"],
+        target_ids=list(params.segment_ids),
+        before=before_versions,
+        after={"segment_ids": params.segment_ids, "versions": after_versions},
+        emit_type="segment.restored",
+        segment_ids=list(params.segment_ids),
+        pass_ids=list(pass_ids),
+        document_ids=list(document_ids),
+    )
+    return {"segment_ids": params.segment_ids}, spec
+
+
+class SegmentUpdateParams(BaseModel):
+    """`document_id`/`pass_id` are deliberately absent (`extra="forbid"`
+    refuses them outright) -- a segment never moves pass or document
+    (`source.pass.never-overwrites`); that is a merge, not an update."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    segment_id: str
+    expected_version: int
+    anchor: Optional[SourceAnchor] = None
+    baseline: Optional[list[list[float]]] = None
+    kind: Optional[str] = None
+    kind_raw: Optional[str] = None
+    parent_segment_id: Optional[str] = None
+    is_furniture: Optional[bool] = None
+
+
+def _invert_via_previous_version(before, after, ctx: ActionContext):
+    """`segment.update`/`.restore_version`'s shared inverse -- deliberately
+    reads ONLY `after` (#4923: "undo restores from ordinary data", proven
+    by a test that BLANKS the audit row's `before` and still restores).
+    `snapshot_segment_version` always writes exactly one preimage (tagged
+    with the OLD version number) and bumps by exactly one, so the version
+    to restore to is ALWAYS `after.version - 1` -- true for undoing an
+    update, a delete, an undelete, or a restore_version alike, without
+    ever needing the audit's own `before`."""
+    if not after:
+        return None
+    segment_id = after.get("segment_id")
+    version = after.get("version")
+    if not segment_id or not version:
+        return None
+    return (
+        "segment.restore_version",
+        {"segment_id": segment_id, "version": version - 1, "expected_version": version},
+    )
+
+
+_invert_segment_update = _invert_via_previous_version
+
+
+@action(
+    "segment.update",
+    SegmentUpdateParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_segment_update,
+)
+def _action_segment_update(db: Database, params: SegmentUpdateParams, ctx: ActionContext):
+    _assert_not_provisional_http(params.segment_id, what="segment_id")
+    if params.parent_segment_id:
+        _assert_not_provisional_http(params.parent_segment_id, what="parent_segment_id")
+    row = db.get(Segment, params.segment_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Segment not found: {params.segment_id}")
+    if row.deleted_at is not None:
+        raise _as_http_error(SegmentDeleted(params.segment_id))
+    if row.version != params.expected_version:
+        raise _as_http_error(SegmentStale(
+            params.segment_id, params.expected_version, row.version,
+            _stale_changed_fields(db, params.segment_id, params.expected_version, row),
+        ))
+    if params.anchor is not None and params.anchor.document_id != row.document_id:
+        raise _as_http_error(SegmentAnchorMismatchError(
+            f"anchor's document_id {params.anchor.document_id!r} does not "
+            f"match the segment's document_id {row.document_id!r}"
+        ))
+    if params.parent_segment_id:
+        parent = db.get(Segment, params.parent_segment_id)
+        if not parent or parent.pass_id != row.pass_id or parent.document_id != row.document_id:
+            raise _as_http_error(SegmentParentMismatchError(
+                f"parent segment {params.parent_segment_id!r} is not in pass "
+                f"{row.pass_id!r} of document {row.document_id!r}"
+            ))
+
+    audit_id = uuid.uuid4().hex
+    before_version = row.version
+    snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+
+    if params.anchor is not None:
+        row.anchor = params.anchor
+        bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
+        row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
+    if params.baseline is not None:
+        row.baseline = params.baseline
+    if params.kind is not None:
+        row.kind = params.kind
+        row.doc_kind = f"{row.document_id}:{row.kind}"
+    if params.kind_raw is not None:
+        row.kind_raw = params.kind_raw
+    if params.parent_segment_id is not None:
+        row.parent_segment_id = params.parent_segment_id
+    if params.is_furniture is not None:
+        row.is_furniture = params.is_furniture
+    db.save(row)
+
+    spec = ChangeSpec(
+        domains=["segment"],
+        target_ids=[row.id],
+        before={"segment_id": row.id, "version": before_version},
+        after={"segment_id": row.id, "version": row.version},
+        emit_type="segment.updated",
+        segment_ids=[row.id],
+        pass_ids=[row.pass_id],
+        document_ids=[row.document_id],
+    )
+    return {"segment_id": row.id, "version": row.version}, spec
+
+
+class SegmentRestoreVersionParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    segment_id: str
+    version: int
+    expected_version: int
+
+
+_invert_segment_restore_version = _invert_via_previous_version
+
+
+@action(
+    "segment.restore_version",
+    SegmentRestoreVersionParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_segment_restore_version,
+)
+def _action_segment_restore_version(db: Database, params: SegmentRestoreVersionParams, ctx: ActionContext):
+    _assert_not_provisional_http(params.segment_id, what="segment_id")
+    row = db.get(Segment, params.segment_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Segment not found: {params.segment_id}")
+    if row.deleted_at is not None:
+        raise _as_http_error(SegmentDeleted(params.segment_id))
+    if row.version != params.expected_version:
+        raise _as_http_error(SegmentStale(
+            params.segment_id, params.expected_version, row.version,
+            _stale_changed_fields(db, params.segment_id, params.expected_version, row),
+        ))
+
+    # Scoped by (segment_id, version) together -- can never target another
+    # segment's row by construction (#4922-style review question, answered
+    # the same way here: "restoring a version of another segment" is a 404,
+    # never a silent cross-segment hit).
+    candidates = db.query(SegmentVersion, segment_id=params.segment_id, version=params.version)
+    if not candidates:
+        raise HTTPException(
+            status_code=404,
+            detail=f"segment {params.segment_id!r} has no version {params.version}",
+        )
+    target = candidates[0]
+
+    audit_id = uuid.uuid4().hex
+    before_version = row.version
+    snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+
+    row.anchor = target.anchor
+    row.baseline = target.baseline
+    row.kind = target.kind
+    row.kind_raw = target.kind_raw
+    row.parent_segment_id = target.parent_segment_id
+    row.is_furniture = target.is_furniture
+    row.doc_kind = f"{row.document_id}:{row.kind}"
+    bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
+    row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
+    db.save(row)
+
+    spec = ChangeSpec(
+        domains=["segment"],
+        target_ids=[row.id],
+        before={"segment_id": row.id, "version": before_version},
+        after={"segment_id": row.id, "version": row.version},
+        emit_type="segment.updated",
+        segment_ids=[row.id],
+        pass_ids=[row.pass_id],
+        document_ids=[row.document_id],
+    )
+    return {"segment_id": row.id, "version": row.version}, spec
 
 
 # ---------------------------------------------------------------------------
@@ -741,7 +1101,12 @@ class SegmentMatchProposeParams(BaseModel):
     from_segment_id: str
     to_segment_id: str
     certainty: Optional[float] = None
-    note: Optional[str] = None
+    #: Capped (#4923 review): this is recorded inside the tamper-evident
+    #: audit chain, where nothing can ever be purged -- an operator's short
+    #: note about the match, never a quote from a source. Whether even a
+    #: short typed field belongs in the chain at all is the maintainer's
+    #: open question (morning file, question 17/23), not settled here.
+    note: Optional[str] = Field(default=None, max_length=200)
 
 
 def _invert_match_propose(before, after, ctx: ActionContext):
@@ -932,12 +1297,18 @@ class SegmentMergeParams(BaseModel):
 
 
 def _invert_merge(before, after, ctx: ActionContext):
-    if not before:
+    """Reads ONLY `after` (#4923 second look: "no inverse takes geometry
+    from the audit record; inverses carry ids and version numbers, read
+    from after") -- `after["absorbed_versions"]` names each absorbed
+    segment's PRE-merge version, which `segment.unmerge` restores FROM THE
+    SNAPSHOT `segment.merge` already wrote (never from this dict's own
+    content -- it carries no geometry)."""
+    if not after:
         return None
-    absorbed = before.get("absorbed")
-    if not absorbed:
+    absorbed_versions = after.get("absorbed_versions")
+    if not absorbed_versions:
         return None
-    return ("segment.unmerge", {"absorbed": absorbed})
+    return ("segment.unmerge", {"versions": absorbed_versions})
 
 
 @action(
@@ -994,21 +1365,22 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
             raise _as_http_error(SegmentForwardingWouldLoop(params.keep_id, absorbed_id))
 
     audit_id = uuid.uuid4().hex
-    before_absorbed = []
+    absorbed_versions: dict[str, int] = {}
     forwarding_ids = []
     now = utc_now()
     for absorbed_id in absorbed_ids:
         row = rows[absorbed_id]
-        before_absorbed.append({
-            "segment_id": row.id,
-            "anchor": row.anchor.model_dump(mode="json"),
-            "kind": row.kind,
-            "parent_segment_id": row.parent_segment_id,
-            "version": row.version,
-        })
+        pre_merge_version = row.version
+        # #4923: every action that changes a segment writes the version
+        # snapshot (preimage) and bumps `Segment.version` -- merge and
+        # split are named explicitly as needing this. `unmerge` restores
+        # FROM this exact snapshot (segment_id, pre_merge_version), never
+        # from geometry carried in the audit's own before/after.
+        snapshot_segment_version(db, row, deleted=True, actor=ctx.actor, audit_id=audit_id)
         row.deleted_at = now
         row.deleted_by = ctx.actor
         db.save(row)
+        absorbed_versions[absorbed_id] = pre_merge_version
         forwarding = SegmentForwarding(
             document_id=row.document_id,
             old_segment_id=absorbed_id,
@@ -1024,8 +1396,11 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
     spec = ChangeSpec(
         domains=["segment"],
         target_ids=[params.keep_id, *absorbed_ids],
-        before={"absorbed": before_absorbed},
-        after={"kept_id": params.keep_id, "forwarding_ids": forwarding_ids},
+        before=None,
+        after={
+            "kept_id": params.keep_id, "forwarding_ids": forwarding_ids,
+            "absorbed_versions": absorbed_versions,
+        },
         emit_type="segment.merged",
         segment_ids=[params.keep_id, *absorbed_ids],
         pass_ids=[keep_row.pass_id],
@@ -1035,11 +1410,17 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
 
 
 class SegmentUnmergeParams(BaseModel):
-    """Internal: `segment.merge`'s inverse only."""
+    """Internal: `segment.merge`'s inverse only. Ids and version numbers
+    ONLY (#4923 second look) -- geometry is never carried here; each
+    absorbed segment is restored from the `SegmentVersion` snapshot
+    `segment.merge` itself wrote, the SAME path `segment.restore_version`
+    uses, so a segment's state comes back by exactly one path."""
 
     model_config = ConfigDict(extra="forbid")
 
-    absorbed: list[dict]
+    #: segment_id -> the version to restore it to (its own pre-merge
+    #: version; the snapshot at that number is what merge itself wrote).
+    versions: dict[str, int]
 
 
 @action("segment.unmerge", SegmentUnmergeParams, domains=["segment"], undoable=False)
@@ -1048,21 +1429,35 @@ def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionConte
     restored_ids = []
     document_ids: set[str] = set()
     pass_ids: set[str] = set()
-    for item in params.absorbed:
-        segment_id = item["segment_id"]
+    for segment_id, version in params.versions.items():
         _assert_not_provisional_http(segment_id, what="segment_id")
         row = db.get(Segment, segment_id)
         if not row:
             raise HTTPException(status_code=404, detail=f"Segment not found: {segment_id}")
-        row.anchor = SourceAnchor.model_validate(item["anchor"])
-        row.kind = item["kind"]
-        row.parent_segment_id = item.get("parent_segment_id")
-        row.version = item["version"]
-        row.deleted_at = None
-        row.deleted_by = None
+        # #4923 second look: restore FROM THE SNAPSHOT merge itself wrote --
+        # the SAME path `segment.restore_version` uses, never a second
+        # restore path built from the audit's own params.
+        candidates = db.query(SegmentVersion, segment_id=segment_id, version=version)
+        if not candidates:
+            raise HTTPException(
+                status_code=404, detail=f"segment {segment_id!r} has no version {version}"
+            )
+        target = candidates[0]
+        # The version only ever goes UP: a fresh preimage of the CURRENT
+        # (still merged-away) state, then apply the target's fields --
+        # never `row.version = version` (that would move it BACKWARDS).
+        snapshot_segment_version(db, row, deleted=True, actor=ctx.actor, audit_id=audit_id)
+        row.anchor = target.anchor
+        row.baseline = target.baseline
+        row.kind = target.kind
+        row.kind_raw = target.kind_raw
+        row.parent_segment_id = target.parent_segment_id
+        row.is_furniture = target.is_furniture
+        row.doc_kind = f"{row.document_id}:{row.kind}"
         bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
         row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
-        row.doc_kind = f"{row.document_id}:{row.kind}"
+        row.deleted_at = None
+        row.deleted_by = None
         db.save(row)
         db.save(SegmentForwarding(
             document_id=row.document_id,
@@ -1107,11 +1502,21 @@ class SegmentSplitParams(BaseModel):
 
 
 def _invert_split(before, after, ctx: ActionContext):
-    if not before or not after:
+    """Reads ONLY `after` (#4923 second look) -- `pre_split_version` names
+    the snapshot `segment.split` itself wrote for the kept id; `unsplit`
+    restores FROM IT, never from geometry carried here."""
+    if not after:
+        return None
+    segment_id = after.get("kept_id")
+    pre_split_version = after.get("pre_split_version")
+    if not segment_id or pre_split_version is None:
         return None
     return (
         "segment.unsplit",
-        {**before, "new_segment_ids": after.get("new_segment_ids", [])},
+        {
+            "segment_id": segment_id, "version": pre_split_version,
+            "new_segment_ids": after.get("new_segment_ids", []),
+        },
     )
 
 
@@ -1139,18 +1544,18 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
                 f"match the segment's document_id {original.document_id!r}"
             ))
 
-    before = {
-        "segment_id": original.id,
-        "anchor": original.anchor.model_dump(mode="json"),
-        "kind": original.kind,
-        "parent_segment_id": original.parent_segment_id,
-        "version": original.version,
-    }
+    audit_id = uuid.uuid4().hex
+    pre_split_version = original.version
+    # #4923: every action that changes a segment writes the version
+    # snapshot (preimage) and bumps `Segment.version` -- named explicitly
+    # for merge and split. `unsplit` restores FROM this exact snapshot
+    # (segment_id, pre_split_version) -- the audit's own before/after
+    # carries no geometry, only this version number.
+    snapshot_segment_version(db, original, deleted=False, actor=ctx.actor, audit_id=audit_id)
 
     first_part, *rest_parts = params.parts
     original.anchor = first_part.anchor
     original.baseline = first_part.baseline
-    original.version += 1
     bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(original.anchor)
     original.bbox_x, original.bbox_y, original.bbox_w, original.bbox_h, original.tile = (
         bbox_x, bbox_y, bbox_w, bbox_h, tile,
@@ -1173,7 +1578,6 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     if new_rows:
         db.save_many(new_rows)
 
-    audit_id = uuid.uuid4().hex
     forwarding = SegmentForwarding(
         document_id=original.document_id,
         old_segment_id=params.segment_id,
@@ -1192,8 +1596,11 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     change_spec = ChangeSpec(
         domains=["segment"],
         target_ids=[params.segment_id, *new_ids],
-        before=before,
-        after={"kept_id": params.segment_id, "new_segment_ids": new_ids, "forwarding_id": forwarding.id},
+        before=None,
+        after={
+            "kept_id": params.segment_id, "new_segment_ids": new_ids,
+            "forwarding_id": forwarding.id, "pre_split_version": pre_split_version,
+        },
         emit_type="segment.split",
         segment_ids=[params.segment_id, *new_ids],
         pass_ids=[original.pass_id],
@@ -1206,14 +1613,15 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
 
 
 class SegmentUnsplitParams(BaseModel):
-    """Internal: `segment.split`'s inverse only."""
+    """Internal: `segment.split`'s inverse only. Ids and a version number
+    ONLY (#4923 second look) -- restores from the `SegmentVersion` snapshot
+    `segment.split` itself wrote (the same path `segment.restore_version`
+    uses), never from geometry carried in the params."""
 
     model_config = ConfigDict(extra="forbid")
 
     segment_id: str
-    anchor: dict
-    kind: str
-    parent_segment_id: Optional[str] = None
+    #: The pre-split version to restore the kept segment to.
     version: int
     new_segment_ids: list[str] = []
 
@@ -1224,6 +1632,13 @@ def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionConte
     row = db.get(Segment, params.segment_id)
     if not row:
         raise HTTPException(status_code=404, detail=f"Segment not found: {params.segment_id}")
+    candidates = db.query(SegmentVersion, segment_id=params.segment_id, version=params.version)
+    if not candidates:
+        raise HTTPException(
+            status_code=404,
+            detail=f"segment {params.segment_id!r} has no version {params.version}",
+        )
+    target = candidates[0]
 
     deleted_ids = []
     for new_id in params.new_segment_ids:
@@ -1232,10 +1647,17 @@ def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionConte
             db.delete(new_row)
             deleted_ids.append(new_id)
 
-    row.anchor = SourceAnchor.model_validate(params.anchor)
-    row.kind = params.kind
-    row.parent_segment_id = params.parent_segment_id
-    row.version = params.version
+    audit_id = uuid.uuid4().hex
+    # The version only ever goes UP: a fresh preimage of the CURRENT
+    # (post-split) state, then apply the target's fields -- never
+    # `row.version = params.version` (that would move it BACKWARDS).
+    snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+    row.anchor = target.anchor
+    row.baseline = target.baseline
+    row.kind = target.kind
+    row.kind_raw = target.kind_raw
+    row.parent_segment_id = target.parent_segment_id
+    row.is_furniture = target.is_furniture
     bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
     row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
     row.doc_kind = f"{row.document_id}:{row.kind}"
@@ -1246,7 +1668,7 @@ def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionConte
         kind="restored",
         new_segment_ids=[],
         actor=ctx.actor,
-        audit_id=uuid.uuid4().hex,
+        audit_id=audit_id,
         sequence=db.next_forwarding_sequence(),
     ))
     spec = ChangeSpec(
@@ -1672,3 +2094,142 @@ async def segment_reference(
     library_uuid = db.library_uuid() or "unknown"
     reference = f"fichero:segment/{library_uuid}/{row.document_id}/{segment_id}"
     return SegmentReferenceResponse(reference=reference, segment_id=segment_id)
+
+
+# ---------------------------------------------------------------------------
+# Slice 5 (#4923) -- versions, and refusing a stale edit
+# ---------------------------------------------------------------------------
+
+
+@router.put("/{segment_id}", response_model=SegmentRead)
+async def update_segment(
+    segment_id: str,
+    params: SegmentUpdateParams,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(default=None, alias="X-Fichero-Origin-Window"),
+    actor: str = Depends(request_actor),
+) -> SegmentRead:
+    if params.segment_id != segment_id:
+        raise HTTPException(
+            status_code=422,
+            detail=f"path segment_id {segment_id!r} does not match body segment_id {params.segment_id!r}",
+        )
+    ctx = _resolve_action_ctx(
+        actor=actor, library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window, db=db,
+    )
+    registry.invoke(db, "segment.update", params.model_dump(mode="json"), ctx)
+    return segment_read_from_row(db.get(Segment, segment_id))
+
+
+@router.post("/delete")
+async def delete_segments(
+    params: SegmentDeleteParams,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(default=None, alias="X-Fichero-Origin-Window"),
+    actor: str = Depends(request_actor),
+) -> dict[str, Any]:
+    ctx = _resolve_action_ctx(
+        actor=actor, library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window, db=db,
+    )
+    result = registry.invoke(db, "segment.delete", params.model_dump(mode="json"), ctx)
+    return result.result
+
+
+@router.post("/undelete")
+async def undelete_segments(
+    params: SegmentUndeleteParams,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(default=None, alias="X-Fichero-Origin-Window"),
+    actor: str = Depends(request_actor),
+) -> dict[str, Any]:
+    ctx = _resolve_action_ctx(
+        actor=actor, library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window, db=db,
+    )
+    result = registry.invoke(db, "segment.undelete", params.model_dump(mode="json"), ctx)
+    return result.result
+
+
+class SegmentRestoreVersionBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    version: int
+    expected_version: int
+
+
+@router.post("/{segment_id}/restore-version", response_model=SegmentRead)
+async def restore_segment_version(
+    segment_id: str,
+    body: SegmentRestoreVersionBody,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(default=None, alias="X-Fichero-Origin-Window"),
+    actor: str = Depends(request_actor),
+) -> SegmentRead:
+    ctx = _resolve_action_ctx(
+        actor=actor, library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window, db=db,
+    )
+    params = {
+        "segment_id": segment_id, "version": body.version, "expected_version": body.expected_version,
+    }
+    registry.invoke(db, "segment.restore_version", params, ctx)
+    return segment_read_from_row(db.get(Segment, segment_id))
+
+
+@router.get("/{segment_id}/versions", response_model=list[SegmentVersion])
+async def list_segment_versions(
+    segment_id: str,
+    db: Database = Depends(get_library_database),
+) -> list[SegmentVersion]:
+    """`source.segment.versioned-alone`: one segment's own history, read
+    without touching any other segment's rows."""
+    _assert_not_provisional_http(segment_id, what="segment_id")
+    rows = db.query(SegmentVersion, segment_id=segment_id)
+    rows.sort(key=lambda r: r.version)
+    return rows
+
+
+class SegmentDetailResponse(BaseModel):
+    segment: SegmentRead
+    #: True when `segment_id` had been forwarded (merged, split, or
+    #: deleted-then-restored) and this is a DIFFERENT, live id.
+    resolved_from_forwarding: bool = False
+    trail: list[SegmentForwarding] = []
+
+
+@router.get("/{segment_id}", response_model=SegmentDetailResponse)
+async def get_segment(
+    segment_id: str,
+    db: Database = Depends(get_library_database),
+) -> SegmentDetailResponse:
+    """The live row for `segment_id`, resolving through `resolve_segment`
+    when it has been forwarded (and saying so) -- never a silent
+    substitution."""
+    _assert_not_provisional_http(segment_id, what="segment_id")
+    row = db.get(Segment, segment_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Segment not found: {segment_id}")
+    if row.deleted_at is None:
+        return SegmentDetailResponse(segment=segment_read_from_row(row), resolved_from_forwarding=False)
+
+    resolved = resolve_segment(db, segment_id)
+    live_id = primary_live_segment_id(resolved)
+    if live_id is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"segment {segment_id!r} was deleted and has no live successor",
+        )
+    live_row = db.get(Segment, live_id)
+    if not live_row:
+        raise HTTPException(status_code=404, detail=f"Segment not found: {live_id}")
+    return SegmentDetailResponse(
+        segment=segment_read_from_row(live_row),
+        resolved_from_forwarding=(live_id != segment_id),
+        trail=resolved.trail,
+    )

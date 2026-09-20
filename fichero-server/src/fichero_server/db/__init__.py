@@ -1201,6 +1201,7 @@ class Database(DatabaseEmbeddingMixin):
             SegmentForwarding,
             SegmentMatch,
             SegmentPass,
+            SegmentVersion,
             Trace,
             Workflow,
         )
@@ -1268,14 +1269,16 @@ class Database(DatabaseEmbeddingMixin):
             Run,
             SavedSearch,
             SearchSource,
-            # Source-model slice 3 (#4921) and slice 4 (#4922): registered
-            # here so the empty tables and their indexes arrive at OPEN
-            # (`_materialize_schema`) with every other table -- schema on
-            # open, data on first edit, never a side effect of a GET.
+            # Source-model slice 3 (#4921), slice 4 (#4922) and slice 5
+            # (#4923): registered here so the empty tables and their
+            # indexes arrive at OPEN (`_materialize_schema`) with every
+            # other table -- schema on open, data on first edit, never a
+            # side effect of a GET.
             Segment,
             SegmentCarry,
             SegmentForwarding,
             SegmentMatch,
+            SegmentVersion,
             SegmentPass,
             SpatialConnection,
             SpatialNode,

@@ -454,11 +454,57 @@ matches only) — a many-to-many match carries no reading and reports why in
 `fichero:segment/<library_uuid>/<document_id>/<segment_id>`, worked out on
 request (never stored). It resolves through the EXISTING `POST
 /api/locations/resolve` — never a second resolver — which gains an
-optional `segmentId` (a bare id or the citable string form): the route
-follows any forwarding first (`resolve_segment`), so a merged, split or
-deleted id still resolves to where its content lives today, and the
-response's `resolvedSegmentId`, `segmentForwarding` (the trail followed)
-and `segmentDeleted` say what happened along the way.
+optional `segmentId` (a bare id or the citable string form, checked against
+the current library and refused with `422` if it names another one): the
+route follows any forwarding first (`resolve_segment`), so a merged, split
+or deleted id still resolves to where its content lives today. The
+response's `liveSegmentIds` names EVERY live part (a split line has two —
+this never quietly picks one), `resolvedSegmentId` names the primary
+(the part that kept the requested id, else the first part listed when the
+split was made), `segmentForwarding` is the trail followed, and
+`segmentDeleted` says whether nothing is live any more. A `documentId` sent
+alongside a `segmentId` that disagrees with what it resolves to is refused
+(`422`) rather than the segment's silently winning.
+
+**Versions, and refusing a stale edit (slice 5).** Every segment carries a
+`version`, and every writing action names the version it read
+(`expected_version`); if the segment has changed since, the write is
+refused with `409` — never silently merged, never silently overwritten.
+Editing while out of reach of the engine (a device offline) is **not
+supported** in this work: a queue of stale edits made while disconnected is
+refused one by one, same as any other stale edit, with no reconciliation.
+
+`PUT /api/segments/{segment_id}` changes one segment's `anchor`,
+`baseline`, `kind`, `kind_raw`, `parent_segment_id` and/or `is_furniture`
+(body: `SegmentUpdateParams` — `segment_id` matching the path, plus
+`expected_version`; `document_id`/`pass_id` are not accepted — a segment
+never moves pass or document, that is a merge). A stale `expected_version`
+is refused (`409`, body: `{message, segment_id, expected_version,
+current_version, changed}` — `changed` names exactly the fields that moved
+since); an update to a deleted (or merged-away) segment is refused
+(`409`).
+
+`POST /api/segments/delete` soft-deletes one or more segments in the same
+pass and document (body: `segment_ids`, `expected_versions` — one per id
+— optional `reason`), writing a `SegmentVersion` snapshot and a `deleted`
+forwarding note for each. This REPLACES slice 3's internal stand-in: it is
+now a real, undoable action with a real inverse. `POST
+/api/segments/undelete` brings them back (body: `segment_ids`), clearing
+`deleted_at` and writing a `restored` forwarding note.
+
+`POST /api/segments/{segment_id}/restore-version` writes the segment back
+to one of its own recorded versions (body: `version`, `expected_version`),
+as a NEW version — history only grows, nothing is overwritten in place.
+Restoring a version number that was never recorded for this segment (a
+version that belongs to a different segment, or simply does not exist) is
+a `404`.
+
+`GET /api/segments/{segment_id}/versions` lists one segment's own history
+(`SegmentVersion` rows, oldest first) without touching any other segment's
+rows. `GET /api/segments/{segment_id}` returns the live row, resolving
+through the same forwarding walk as the citable reference when the id has
+been merged, split or deleted, and saying so
+(`resolved_from_forwarding`, `trail`).
 
 Access follows the same rule as every other library-scoped route today (a
 valid token bound to the library, write-checked per target id; no

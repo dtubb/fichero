@@ -8595,6 +8595,16 @@
         "response_model": null
       },
       {
+        "method": "POST",
+        "path": "/segments/delete",
+        "operation_id": "delete_segments_api_segments_delete_post",
+        "summary": "Delete Segments",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentDeleteParams",
+        "response_model": null
+      },
+      {
         "method": "GET",
         "path": "/segments/document/{doc_id}",
         "operation_id": "list_document_segments_api_segments_document__doc_id__get",
@@ -8704,6 +8714,40 @@
         "response_model": null
       },
       {
+        "method": "POST",
+        "path": "/segments/undelete",
+        "operation_id": "undelete_segments_api_segments_undelete_post",
+        "summary": "Undelete Segments",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentUndeleteParams",
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/segments/{segment_id}",
+        "operation_id": "get_segment_api_segments__segment_id__get",
+        "summary": "Get Segment",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SegmentDetailResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/segments/{segment_id}",
+        "operation_id": "update_segment_api_segments__segment_id__put",
+        "summary": "Update Segment",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [],
+        "request_model": "SegmentUpdateParams",
+        "response_model": "SegmentRead"
+      },
+      {
         "method": "GET",
         "path": "/segments/{segment_id}/reference",
         "operation_id": "segment_reference_api_segments__segment_id__reference_get",
@@ -8714,6 +8758,30 @@
         "query_params": [],
         "request_model": null,
         "response_model": "SegmentReferenceResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/segments/{segment_id}/restore-version",
+        "operation_id": "restore_segment_version_api_segments__segment_id__restore_version_post",
+        "summary": "Restore Segment Version",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [],
+        "request_model": "SegmentRestoreVersionBody",
+        "response_model": "SegmentRead"
+      },
+      {
+        "method": "GET",
+        "path": "/segments/{segment_id}/versions",
+        "operation_id": "list_segment_versions_api_segments__segment_id__versions_get",
+        "summary": "List Segment Versions",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[SegmentVersion]"
       }
     ],
     "settings": [

@@ -119,8 +119,10 @@ class TestSchemaArrivesAtOpen:
             tables_after_first_open = _table_names(db1.conn)
             assert "segments" in tables_after_first_open
             assert "segment_passes" in tables_after_first_open
+            assert "segmentversions" in tables_after_first_open
             assert db1.conn.execute("SELECT COUNT(*) FROM segments").fetchone()[0] == 0
             assert db1.conn.execute("SELECT COUNT(*) FROM segment_passes").fetchone()[0] == 0
+            assert db1.conn.execute("SELECT COUNT(*) FROM segmentversions").fetchone()[0] == 0
             indexes_after_first_open = _segment_index_names(db1.conn)
             for expected in (
                 "idx_segments_document_id", "idx_segments_pass_id",
@@ -129,6 +131,7 @@ class TestSchemaArrivesAtOpen:
                 "idx_segment_passes_document_id", "idx_segment_passes_run_id",
                 "idx_segmentmatchs_from_segment_id", "idx_segmentmatchs_to_segment_id",
                 "idx_segmentforwardings_old_segment_id", "idx_segmentcarrys_match_id",
+                "idx_segmentversions_segment_id",
             ):
                 assert expected in indexes_after_first_open, expected
             assert _row(db1.conn, "documents", doc_id) == before_doc_row
@@ -283,3 +286,72 @@ class TestSequenceMigrationOnAnExistingForwardingTable:
             sequence=1,  # but written after (a null sequence is always oldest)
         )
         assert _newest([old_note, new_note]) is new_note
+
+
+class TestVersionColumnMigrationOnAnExistingSegmentsTable:
+    """#4923: a `segments` table from before `version` existed (this
+    branch, two rounds ago -- `version` shipped with slice 3, but the
+    reconciliation path is the same one every additive column relies on)
+    must open cleanly, backfill the column to the model's own default
+    (1), and the row must be genuinely updatable afterward."""
+
+    def test_a_pre_version_column_segment_reads_back_as_version_one_and_is_updatable(
+        self, tmp_path,
+    ):
+        from fichero_server.models import Segment
+
+        db_path = tmp_path / "pre_version.duckdb"
+
+        conn = duckdb.connect(str(db_path))
+        conn.execute(_DDL)
+        # A `segments` table with every column EXCEPT `version` -- as if
+        # built before that field existed.
+        conn.execute(
+            "CREATE TABLE segments (id VARCHAR PRIMARY KEY, document_id VARCHAR, "
+            "pass_id VARCHAR, parent_segment_id VARCHAR, kind VARCHAR, kind_raw VARCHAR, "
+            "anchor JSON, baseline JSON, bbox_x DOUBLE, bbox_y DOUBLE, bbox_w DOUBLE, "
+            "bbox_h DOUBLE, tile VARCHAR, doc_kind VARCHAR, confidence DOUBLE, "
+            "is_furniture BOOLEAN, provenance_kind VARCHAR, created_by VARCHAR, "
+            "created_at TIMESTAMP, updated_at TIMESTAMP, deleted_at TIMESTAMP, "
+            "deleted_by VARCHAR, metadata JSON)"
+        )
+        seg_id = uuid.uuid4().hex
+        doc_id = uuid.uuid4().hex
+        pass_id = uuid.uuid4().hex
+        anchor_json = '{"document_id": "%s", "rect": [0.1, 0.1, 0.1, 0.1]}' % doc_id
+        conn.execute(
+            "INSERT INTO segments "
+            "(id, document_id, pass_id, kind, anchor, bbox_x, bbox_y, bbox_w, bbox_h, "
+            "tile, doc_kind, is_furniture, provenance_kind, created_at, updated_at, metadata) "
+            "VALUES (?, ?, ?, 'word', ?, 0.1, 0.1, 0.1, 0.1, 'x0y0', ?, false, 'workflow', "
+            "now(), now(), '{}')",
+            [seg_id, doc_id, pass_id, anchor_json, f"{doc_id}:word"],
+        )
+        conn.close()
+
+        db = Database(db_path)
+        try:
+            row = db.get(Segment, seg_id)
+            assert row is not None
+            assert row.version == 1, "a NULL version must backfill to the model's default, 1"
+        finally:
+            db.close()
+
+        # Genuinely updatable: a second open, then a real compare-and-set
+        # update against version 1 succeeds.
+        db2 = Database(db_path)
+        try:
+            from fichero_server.actions.registry import ActionContext, registry
+
+            ctx = ActionContext(actor="daniel", library_path=str(db_path.parent))
+            registry.invoke(
+                db2, "segment.update",
+                {"segment_id": seg_id, "expected_version": 1,
+                 "anchor": {"document_id": doc_id, "rect": [0.2, 0.2, 0.1, 0.1]}},
+                ctx,
+            )
+            updated = db2.get(Segment, seg_id)
+            assert updated.version == 2
+            assert updated.anchor.rect == [0.2, 0.2, 0.1, 0.1]
+        finally:
+            db2.close()
