@@ -185,17 +185,22 @@ final class ArtifactEntityStoreTests: XCTestCase {
         XCTAssertEqual(store.revision(for: "doc-1"), 0)
     }
 
-    /// Proves the extra `artifact_ids` key (the engine's actual payload shape,
+    /// Proves the `artifact_ids` key (the engine's actual payload shape,
     /// `completion.py`'s `emit_change(..., artifact_ids=..., document_ids=...)`)
-    /// is harmless — `ChangeEvent` has no field for it, `Decodable` ignores an
-    /// unmapped key, and the event still decodes and carries `document_ids`.
-    func testArtifactIdsExtraKeyDecodesHarmlessly() throws {
+    /// decodes alongside `document_ids` and neither is harmed by the other's
+    /// presence. UPDATED (source-model slice 2, #4920,
+    /// `source.events.segment-ids`): `ChangeEvent` now HAS a field for
+    /// `artifact_ids` — it used to be an unmapped key `Decodable` silently
+    /// ignored; this test's own premise ("no field for it") predates that
+    /// change and is corrected here rather than left stale.
+    func testArtifactIdsKeyDecodesAlongsideDocumentIds() throws {
         let event = try makeChangeEvent(
             type: "artifact.updated",
             documentIds: ["doc-1"],
             extra: ["artifact_ids": ["art-1", "art-2"], "run_id": "run-9"]
         )
         XCTAssertEqual(event.documentIds, ["doc-1"])
+        XCTAssertEqual(event.artifactIds, ["art-1", "art-2"])
         XCTAssertEqual(event.runId, "run-9")
 
         let store = makeStore()

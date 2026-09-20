@@ -22,6 +22,10 @@ struct ChangeEvent: Decodable, Sendable {
     let entityIds: [String]
     let claimIds: [String]
     let documentIds: [String]
+    /// Artifact rows touched (`artifact.*`). The engine has always sent
+    /// `artifact_ids`; Swift never decoded it until now (source-model slice
+    /// 2, #4920, `source.events.segment-ids`).
+    let artifactIds: [String]
     /// Citation rows touched (`citation.*`). The citation routes emit both
     /// `citation_ids` and the owning `document_ids`, so a document-scoped
     /// store filters on `documentIds` while a granular delete uses these.
@@ -31,6 +35,18 @@ struct ChangeEvent: Decodable, Sendable {
     /// `document_ids` — so a document-scoped bibliography store reloads its
     /// current scope on any reference event (the empty-`documentIds` path).
     let referenceIds: [String]
+    /// Interpretation rows touched. Same dropped-until-now history as
+    /// `artifactIds` above.
+    let interpretationIds: [String]
+    /// Segment rows touched (`segment.*`). Nothing emits these yet — no
+    /// segment action exists until slice 4 — so every event today carries
+    /// `[]`. Decoded now so `CHANGE_ID_LISTS` is complete on the app side
+    /// from the start, matching the engine's own comment for the field.
+    /// NOT consumed by any store yet — `SegmentStore` gains
+    /// `ChangeEventConsumer` conformance in stage 2, not here.
+    let segmentIds: [String]
+    /// Pass rows touched (`pass.*`). Same as `segmentIds` above.
+    let passIds: [String]
     let runId: String?
     let actor: String
     let originWindow: String?
@@ -51,8 +67,12 @@ struct ChangeEvent: Decodable, Sendable {
         case entityIds = "entity_ids"
         case claimIds = "claim_ids"
         case documentIds = "document_ids"
+        case artifactIds = "artifact_ids"
         case citationIds = "citation_ids"
         case referenceIds = "reference_ids"
+        case interpretationIds = "interpretation_ids"
+        case segmentIds = "segment_ids"
+        case passIds = "pass_ids"
         case runId = "run_id"
         case actor
         case originWindow = "origin_window"
@@ -65,8 +85,12 @@ struct ChangeEvent: Decodable, Sendable {
         entityIds = try container.decodeIfPresent([String].self, forKey: .entityIds) ?? []
         claimIds = try container.decodeIfPresent([String].self, forKey: .claimIds) ?? []
         documentIds = try container.decodeIfPresent([String].self, forKey: .documentIds) ?? []
+        artifactIds = try container.decodeIfPresent([String].self, forKey: .artifactIds) ?? []
         citationIds = try container.decodeIfPresent([String].self, forKey: .citationIds) ?? []
         referenceIds = try container.decodeIfPresent([String].self, forKey: .referenceIds) ?? []
+        interpretationIds = try container.decodeIfPresent([String].self, forKey: .interpretationIds) ?? []
+        segmentIds = try container.decodeIfPresent([String].self, forKey: .segmentIds) ?? []
+        passIds = try container.decodeIfPresent([String].self, forKey: .passIds) ?? []
         runId = try container.decodeIfPresent(String.self, forKey: .runId)
         actor = try container.decodeIfPresent(String.self, forKey: .actor) ?? "system"
         originWindow = try container.decodeIfPresent(String.self, forKey: .originWindow)
@@ -92,8 +116,12 @@ struct ChangeEvent: Decodable, Sendable {
         entityIds = ids("entity_ids")
         claimIds = ids("claim_ids")
         documentIds = ids("document_ids")
+        artifactIds = ids("artifact_ids")
         citationIds = ids("citation_ids")
         referenceIds = ids("reference_ids")
+        interpretationIds = ids("interpretation_ids")
+        segmentIds = ids("segment_ids")
+        passIds = ids("pass_ids")
         runId = nil
         actor = metadata["actor"] ?? "system"
         // The folded activity frame carries no origin-window tag, so window-level

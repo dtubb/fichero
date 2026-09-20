@@ -147,6 +147,27 @@ struct ActivityStoreTests {
         #expect(change?.actor == "ipad")
     }
 
+    /// The folded activity path's own coverage for the four id lists Swift
+    /// used to drop entirely (source-model slice 2, #4920,
+    /// `source.events.segment-ids`) — a document-level check for the exact
+    /// keys `_change_event_to_activity_response` folds every `ChangeEvent`
+    /// through, independent of the engine-fixture contract test.
+    @Test("ChangeEvent(activityMetadata:) decodes artifact/interpretation/segment/pass ids")
+    func changeEventFromActivityMetadataDecodesNewIdLists() {
+        let metadata = [
+            "change_type": "segment.created",
+            "artifact_ids": "[\"a1\"]",
+            "interpretation_ids": "[\"in1\"]",
+            "segment_ids": "[\"s1\",\"s2\"]",
+            "pass_ids": "[\"p1\"]"
+        ]
+        let change = ChangeEvent(activityMetadata: metadata)
+        #expect(change?.artifactIds == ["a1"])
+        #expect(change?.interpretationIds == ["in1"])
+        #expect(change?.segmentIds == ["s1", "s2"])
+        #expect(change?.passIds == ["p1"])
+    }
+
     @Test("ChangeEvent(activityMetadata:) is nil for an ordinary activity frame")
     func changeEventNilWithoutChangeType() {
         #expect(ChangeEvent(activityMetadata: ["message": "hi"]) == nil)
@@ -185,7 +206,8 @@ struct ActivityStoreTests {
     /// activity stream PER DOC — 30+ back-to-back frames hit the folded-change
     /// branch on the main actor during an image-folder expand. On a LOCAL host
     /// (changeRouter == nil) each one used to reconstruct a full `ChangeEvent`
-    /// (its init JSON-decodes up to five id lists) and log, only to discard it.
+    /// (its init JSON-decodes every `CHANGE_ID_LISTS` id list — nine as of
+    /// source-model slice 2, #4920) and log, only to discard it.
     /// The branch must now detect the frame by its cheap `change_type` key and
     /// build the ChangeEvent ONLY when a router exists. Structural, matching the
     /// house pattern (`activityEventsRouteThroughTheDebouncer`): a live
