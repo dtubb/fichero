@@ -58,47 +58,35 @@ extension ContentView {
         paneListDidChange()
     }
 
-    /// Tabs and splits, as a SECTION of the Workspaces menu (Daniel,
-    /// 2026-09-01 — it was its own toolbar item). Split now mutates the applied `PaneList`
-    /// directly (#4685) rather than posting to the retired `SplittablePane`
-    /// slot-id space, which never matched the applied renderer's own ids.
-    @ViewBuilder
-    var splitSection: some View {
-        let leafID = focusedLeafID
-        Section("Split") {
-            Button {
-                // The existing new-tab path — the same WindowOpener the
-                // library rows' "Open in New Tab" uses.
-                WindowOpener.open(
-                    libraryId: windowState.libraryId,
-                    asTab: true,
-                    using: openWindow
-                )
-            } label: {
-                Label("New Tab", systemImage: "plus.rectangle.on.rectangle")
-            }
-            .help("Open this library in a new tab of this window")
-
-            Button {
-                splitFocusedLeaf(.vertical)
-            } label: {
-                Label("Split Right", systemImage: "square.split.2x1")
-            }
-            .disabled(leafID == nil)
-            .help(leafID == nil
-                  ? "Focus a pane that can split first"
-                  : "Split the focused pane side by side")
-
-            Button {
-                splitFocusedLeaf(.horizontal)
-            } label: {
-                Label("Split Below", systemImage: "square.split.1x2")
-            }
-            .disabled(leafID == nil)
-            .help(leafID == nil
-                  ? "Focus a pane that can split first"
-                  : "Split the focused pane top and bottom")
+    /// Pure decision core for `canSplitFocusedLeaf` (#4968), over the two facts that decide it —
+    /// `nonisolated static` so a non-@MainActor Swift Testing suite can drive the three cases
+    /// directly (no focus, an ordinary focused leaf, a focused leaf AT ITS SPLIT CAP) without
+    /// standing up a real `ContentView`.
+    nonisolated static func canSplit(
+        focusedLeafExists: Bool,
+        focusedKind: PaneKind?,
+        activeWorkflowShown: Bool
+    ) -> Bool {
+        guard focusedLeafExists else { return false }
+        if focusedKind == .preview, activeWorkflowShown {
+            return PaneSurface.workflowCanvas.allowsSplit
         }
+        return true
+    }
+
+    /// #4968: whether the FOCUSED leaf can split right now — a real leaf must be focused, AND
+    /// its own surface must allow a second instance. The workflow canvas is the one surface that
+    /// refuses (`PaneSurface.workflowCanvas.allowsSplit == false`, #4705 increment 2 — two
+    /// `WorkflowEditor`s on one `editingWorkflow` would race their autosave tasks); the pane
+    /// head's own split "+" already enforces this (`ContentView+PreviewPaneHead.swift`'s
+    /// `previewPaneCanSplit`), so the Workspaces menu's Split commands must agree with it rather
+    /// than offering a split the head itself would refuse to draw.
+    var canSplitFocusedLeaf: Bool {
+        Self.canSplit(
+            focusedLeafExists: focusedLeafID != nil,
+            focusedKind: focusedPaneKindForSplit,
+            activeWorkflowShown: activeWorkflowItem != nil
+        )
     }
 
     // MARK: Workspaces (ONE button — Daniel, 2026-08-31)
@@ -114,21 +102,13 @@ extension ContentView {
     /// and whether the workflow bar rides along. Three built-in arrangements
     /// ship with the app so the menu is useful before anything is saved.
     var workspacesMenu: some View {
+        // #4968: the SAME shared body the View menu's `WorkspaceCommandsSection` renders — this
+        // toolbar menu just supplies its own `windowLayoutCommands` directly (it already IS the
+        // focused window's ContentView, unlike the View menu, which has to reach it through a
+        // FocusedValue). The two can no longer differ in items, wording, order, shortcuts or
+        // enabled state, because they are the same view rendering the same input shape.
         Menu {
-            workspaceLayoutsSection
-            splitSection
-            savedWorkspaceSection
-            Divider()
-            Button("Save Current as Workspace…") {
-                chromeUX.workspaceNameDraft = ""
-                chromeUX.showSaveWorkspacePrompt = true
-            }
-            .help("Name the current arrangement — panes, widths, splits, the "
-                + "workflow and markup bars, and toolbar buttons — so you can "
-                + "come back to it")
-            deleteWorkspaceMenu
-            Divider()
-            toolbarButtonsMenu
+            WorkspacesMenuBody(commands: windowLayoutCommands)
         } label: {
             Label("Workspaces", systemImage: "rectangle.grid.1x2")
         }
@@ -151,124 +131,14 @@ extension ContentView {
         }
     }
 
-    /// The v2 PaneList-backed workspaces — the ONE built-in workspace system (spec
-    /// workspaces.one-system). Applying one stores it as the window's pane list (`activePaneList`),
-    /// which the centre renders directly. There is no "Default Layout" escape hatch any more: a
-    /// window is ALWAYS a workspace (seeded to Read), so there is no legacy visibility layout to
-    /// fall back to (CD 2026-09-16). ⌘⌥1–5 are bound in the menu bar (`WorkspaceCommandsSection`);
-    /// this toolbar menu shows the same set without duplicating the keys.
-    @ViewBuilder
-    private var workspaceLayoutsSection: some View {
-        Section("Workspaces") {
-            ForEach(BuiltInWorkspaceLayout.allCases) { layout in
-                Button {
-                    applyWorkspaceLayout(layout)
-                } label: {
-                    Label(layout.title, systemImage: layout.systemImage)
-                }
-                .help(layout.summary)
-            }
-        }
-    }
-
-    /// Apply a v2 workspace as the window's STORED pane list (spec §"v2 workspace design").
+    /// Apply a v2 workspace as the window's STORED pane list (spec §"v2 workspace design"). The
+    /// ONE built-in workspace system (spec workspaces.one-system): applying one stores it as the
+    /// window's pane list (`activePaneList`), which the centre renders directly.
     func applyWorkspaceLayout(_ layout: BuiltInWorkspaceLayout) {
         activePaneList = layout.panes
         // Remember it for the next launch (#4686/#4687) — the funnel every `activePaneList`
         // writer ends in.
         paneListDidChange()
-    }
-
-    /// The user's own, checkmarked when the window matches what they saved.
-    @ViewBuilder
-    private var savedWorkspaceSection: some View {
-        let saved = WindowWorkspaceStore.shared.catalog.workspaces
-        if !saved.isEmpty {
-            let panes = currentPaneVisibilityPlan
-            let toolbar = WindowWorkspaceStore.shared.toolbarVisibility
-            Section("Saved") {
-                ForEach(saved) { workspace in
-                    Button {
-                        applyLayoutSnapshot(workspace.layout)
-                    } label: {
-                        // Every row carries a glyph (Daniel, 2026-09-02: "add
-                        // icons to the menu rows") — derived from what the
-                        // arrangement IS, so it cannot go stale on a re-save.
-                        // The checkmark still wins when the window matches:
-                        // "you are here" outranks "this is what it looks like".
-                        Label(
-                            workspace.name,
-                            systemImage: isActive(workspace, panes: panes, toolbar: toolbar)
-                                ? "checkmark"
-                                : workspace.systemImage
-                        )
-                    }
-                    .help(workspace.help)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var deleteWorkspaceMenu: some View {
-        let saved = WindowWorkspaceStore.shared.catalog.workspaces
-        if !saved.isEmpty {
-            Menu("Delete Workspace") {
-                ForEach(saved) { workspace in
-                    Button(role: .destructive) {
-                        WindowWorkspaceStore.shared.remove(id: workspace.id)
-                    } label: {
-                        Label(workspace.name, systemImage: workspace.systemImage)
-                    }
-                }
-            }
-            .help("Remove a saved arrangement. The built-in ones cannot be deleted.")
-        }
-    }
-
-    /// Which optional toolbar buttons show. App-wide, the way a Mac toolbar
-    /// configuration is — and never able to hide the Workspaces menu itself,
-    /// which is the control that brings the others back.
-    private var toolbarButtonsMenu: some View {
-        let plan = WindowWorkspaceStore.shared.toolbarVisibility
-        return Menu("Toolbar Buttons") {
-            toolbarItemToggle("Back and Forward", \.showNavigation)
-            toolbarItemToggle("Pane Toggles", \.showPaneToggles)
-            // "Split and New Tab" and "Layouts" are gone from this list
-            // (Daniel, 2026-09-01): they no longer name toolbar items — they
-            // are sections of the menu you are standing in. The plan still
-            // carries the flags so older saved workspaces decode.
-            Divider()
-            Button("Show All Buttons") {
-                WindowWorkspaceStore.shared.setToolbarVisibility(.everything)
-            }
-            .disabled(plan == .everything)
-            .help("Put every optional toolbar button back")
-        }
-        .help("Choose which buttons the window toolbar shows")
-    }
-
-    /// A checkmarked menu item rather than a `Toggle`: the same no-colour
-    /// grammar the pane buttons use — the words and the checkmark carry the
-    /// state, nothing changes colour.
-    private func toolbarItemToggle(
-        _ title: String,
-        _ field: WritableKeyPath<ToolbarVisibilityPlan, Bool>
-    ) -> some View {
-        let store = WindowWorkspaceStore.shared
-        let isOn = store.toolbarVisibility[keyPath: field]
-        return Button {
-            var next = store.toolbarVisibility
-            next[keyPath: field] = !isOn
-            store.setToolbarVisibility(next)
-        } label: {
-            if isOn {
-                Label(title, systemImage: "checkmark")
-            } else {
-                Text(title)
-            }
-        }
-        .help(isOn ? "Hide \(title) in the toolbar" : "Show \(title) in the toolbar")
     }
 
     /// A saved workspace is "active" when the window shows the chrome it
@@ -405,7 +275,16 @@ extension ContentView {
             newTab: {
                 WindowOpener.open(libraryId: windowState.libraryId, asTab: true, using: openWindow)
             },
-            canSplitFocusedLeaf: focusedLeafID != nil
+            canSplitFocusedLeaf: canSplitFocusedLeaf,
+            // #4968: cheaply available (already computed for the toolbar's own use) — lets a
+            // Split row say WHAT it splits ("Split Library Right") in both menus alike, instead
+            // of a bare "Split Right".
+            focusedPaneKindForSplit: focusedPaneKindForSplit,
+            // #4968: the toolbar's own `isActive` check, now reachable from either menu so the
+            // active-workspace checkmark stops being a toolbar-only feature.
+            isWorkspaceActive: { workspace in
+                isActive(workspace, panes: currentPaneVisibilityPlan, toolbar: WindowWorkspaceStore.shared.toolbarVisibility)
+            }
         )
     }
 }
@@ -414,12 +293,28 @@ extension ContentView {
 ///
 /// Equatable is LOAD-BEARING (the RunWorkflowOnSelectionKey lesson): a
 /// non-Equatable focused value is byte-compared per body pass, always reads
-/// as changed, and cascades focus invalidations. These verbs carry no state
-/// of their own — any instance from the same window is interchangeable — so
-/// equality is constant (`canSplitFocusedLeaf` is a snapshot read fresh every
-/// time `windowLayoutCommands` is recomputed, same as every other field here).
+/// as changed, and cascades focus invalidations. #4968: a blanket `{ true }`
+/// (the ORIGINAL fix for that churn) went too far — it also froze
+/// `canSplitFocusedLeaf` for `@FocusedValue` consumers, since SwiftUI skips
+/// republishing a focused value it considers unchanged, so the View menu's
+/// Split rows kept whatever enabled state they had the FIRST time a window
+/// published one and never saw a real focus change again (#4968's own
+/// diagnosis: "likely the menu bar reads a focused value that is not set" —
+/// more precisely, one that never gets marked changed). Comparing the two
+/// DATA fields that can actually differ keeps the churn-dampening (an
+/// unrelated re-render, same two values, still compares equal — no
+/// downstream invalidation) while letting a REAL change through (either
+/// value flips → not equal → republished, so the menu's enabled state and
+/// its "Split WHAT" wording both stay live). The closures are deliberately
+/// excluded from the comparison: they are recreated with a new identity on
+/// every `windowLayoutCommands` evaluation regardless of whether anything
+/// meaningful changed, so comparing them would reintroduce the exact churn
+/// the original blanket `true` was added to dampen.
 struct WindowLayoutCommands: Equatable {
-    static func == (lhs: Self, rhs: Self) -> Bool { true }
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.canSplitFocusedLeaf == rhs.canSplitFocusedLeaf
+            && lhs.focusedPaneKindForSplit == rhs.focusedPaneKindForSplit
+    }
 
     let saveWorkspace: @MainActor () -> Void
     let applyWorkspace: @MainActor (SavedWindowWorkspace) -> Void
@@ -434,4 +329,11 @@ struct WindowLayoutCommands: Equatable {
     let newTab: @MainActor () -> Void
     /// Whether the focused window currently has an eligible focused leaf to split.
     let canSplitFocusedLeaf: Bool
+    /// #4968: the focused pane's kind, when the window makes it cheaply available — lets a Split
+    /// row name its target ("Split Library Right") instead of a bare "Split Right". `nil` when no
+    /// pane has focus, matching `canSplitFocusedLeaf == false` in that case.
+    let focusedPaneKindForSplit: PaneKind?
+    /// #4968: whether a saved workspace matches what this window currently shows — the checkmark
+    /// both menus now display identically (previously toolbar-only).
+    let isWorkspaceActive: @MainActor (SavedWindowWorkspace) -> Bool
 }
