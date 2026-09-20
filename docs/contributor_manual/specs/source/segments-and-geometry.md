@@ -363,9 +363,11 @@ below).
   restored block: two stores. That trap stays closed: the old region action and its restore
   are unreachable once a result is converted, and the block is never written again.) Ids are
   repeatable, so a true "unconvert" can be added later as its own action if it is wanted.
-- **What pointed at the old boxes.** In the same action, a claim, note or mark whose rectangle
-  matches a converted box exactly gains that segment's id; one that does not match keeps its
-  anchor and is reported. Nothing is silently re-pointed.
+- **What pointed at the old boxes.** The converting action **reports** each reading, mark,
+  support or claim whose rectangle matches a converted box exactly, and changes none of them
+  (changed 2026-09-20). Pointing by id arrives with the anchor's own segment id
+  (`source.point.anchor-names-its-segment`); until then a matching anchor is followed to its
+  box at read time, storing nothing. Nothing is silently re-pointed.
 - **The old block is marked as replaced**, and the permitted readers of it are listed in one
   place; any other reader raises.
 - **It is detected properly**: a result counts as converted when it is marked as replaced by a
@@ -472,6 +474,17 @@ Pointing and statements
 - `source.statement.on-segment` — **[GAP]** (#4932) a claim or mention points at a segment id, keeps a copy of
   its anchor beside it, and survives re-segmentation and re-transcription; a claim on an
   unconverted page points by its anchor alone.
+- `source.point.anchor-names-its-segment` — **[GAP]** (#4932) the one anchor every reading, mark, support and
+  claim already carries gains an optional lasting segment id; the id is the pointer and the
+  stored shape is the record of where the ink was; one resolver answers with the live
+  segment's current shape, or the stored shape when the segment was deleted. One shape for
+  all four, no new column on any of them; an old record reads as having none.
+- `source.point.unpointed-anchor-follows-its-box` — **[GAP]** (#4932) an anchor with no segment id, whose
+  rectangle equals a box of a converted result, is resolved through that box's segment at
+  read time, storing nothing, so a mark drawn before conversion follows its box when it moves.
+- `source.statement.old-segment-field-left-alone` — **[GAP]** (#4932) the claim field `source_segment_id`, which
+  predates this model and names an entry in a segmentation artifact, keeps its meaning and
+  its data, is described as such in the contract, and is never given a segment record's id.
 - `source.statement.both-ways` — **[GAP]** (#4932) from a segment, what is said about it; from a statement, its
   ink.
 
@@ -535,9 +548,10 @@ Storage
 - `source.store.old-app-still-works` — **[GAP]** (#4924) until the app draws from segments, a converted result
   is served with its boxes filled from the segment records in one order, and an edit by
   position lands on the box shown at that position.
-- `source.store.conversion-repoints-exact-matches` — **[GAP]** (#4924) in the converting action, a claim, note or
-  mark whose rectangle matches a converted box gains its segment id; others keep their anchor
-  and are reported.
+- `source.store.conversion-reports-exact-matches` — **[GAP]** (#4924) the converting action lists each reading,
+  mark, support and claim whose rectangle matches a converted box exactly, with the segment id
+  it would take, and changes none of them. (Replaces `…conversion-repoints-exact-matches`,
+  2026-09-20: there is nowhere lawful to write the id until `source.point.anchor-names-its-segment`.)
 - `source.store.ids-on-first-edit` — **[GAP]** (#4924) opening a page with old geometry shows its segments
   without writing anything; the first edit writes that page's segments once, as one audited
   action that can be undone. (Ruled 2026-09-19.)

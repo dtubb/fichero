@@ -606,8 +606,12 @@ at the end is a case of that one test.
      replaced, break `SegmentStale.changed` and `restore_version`, fail the master test, and
      cost 20,000 single saves on a dense page. The first edit writes the first preimage, by
      slice 5's own path.
-  3. Re-point exact matches (unchanged from the older draft: same rendition, all four numbers
-     within 1e-6, otherwise reported in `not_repointed`; nothing by overlap or nearness).
+  3. **Report** exact matches; re-point nothing (the manager's ruling, 2026-09-20; see "Where a
+     lasting segment reference lives" below). Run slice 4's one matching rule,
+     `_anchor_matches_segment` (same rendition, all four numbers within 1e-6, never overlap
+     or nearness), over the document's readings, marks, source supports and claims, and list
+     every match in the result as `would_point: [{kind, id, segment_id}]`. Nothing is written
+     to any of the four, and never to the old `KnowledgeClaim.source_segment_id`.
   4. Record the working pass (`SegmentPassChoice`, only when `artifact_id` is given).
   5. If `edit` is given: translate it (see "What the old app sees") and apply it through the
      **same internal functions** the slice 5 actions call, not through `registry.invoke` (a
@@ -615,7 +619,7 @@ at the end is a case of that one test.
      the HTTP layer; where a slice 5 action body raises `HTTPException` directly, lift the
      body into a plain function that raises the typed error and let the route map it.
 - **`before`:** `{document_id, converted_artifact_ids: []}`. **`after`:**
-  `{pass_ids, segment_count, artifact_ids, repointed: [{kind, id, segment_id}], choice_id,
+  `{pass_ids, segment_count, artifact_ids, would_point_count, choice_id,
   edit: {…what the matching slice 5 action records in its own `after`…}}`. Numbers and ids.
   **Not** 20,000 segment ids: they are repeatable from `artifact_ids` (see 2), and a dense page
   must not put a megabyte in the chain.
@@ -783,6 +787,56 @@ Until readings hang on segments (slice 8), a box's words have one home: the kept
   when and what, for each segment, which is more than the log held. Carrying that history
   out of the app is the export slices' work, from those records. No second log is kept.
 
+### Where a lasting segment reference lives (ruled by the spec author, 2026-09-20; built under #4932, not here)
+
+VERIFIED on disk: four models carry a `SourceAnchor`: `ContentRepresentation.source_anchor`
+(a reading), `Annotation.anchor` (a mark), `SourceSupport.source_anchor`,
+`KnowledgeClaim.source_anchor`. Only one has anywhere to put a segment id today,
+`KnowledgeClaim.source_segment_id`, and it means something else: it is supplied by the client
+on claim create and patch (`api/routes/claim/claims.py`), published in the contract, produced
+by nothing in the engine, and historically names an entry in a segmentation artifact's
+`data["segments"]`, not a `Segment` row.
+
+- **One shape, not four: `SourceAnchor.segment_id: str | None`.** All four already carry the
+  anchor, the anchor is stored as one JSON value inside each record, so the field is additive
+  with no migration, and an old record simply reads `None`. It is what
+  `source.statement.on-segment` already says: the id, with a copy of the anchor beside it.
+  The stored rectangle stops being the pointer and becomes **the record of where the ink was
+  when it was pointed at**; the id is the pointer. That is "ids never move" applied to
+  pointing: the rectangle may go stale, the id cannot.
+- **Rules on the field.** Set only by the engine or checked by it: never provisional
+  (`assert_not_provisional`); the segment's document must equal `anchor.document_id`; a
+  `Segment`'s own `anchor.segment_id` is always `None` (a validator on `Segment`; a segment
+  does not point at a segment, and `refines` stays what it is).
+- **Reading it.** One resolver, `resolve_anchor(db, anchor) -> ResolvedAnchor`: with a
+  `segment_id`, follow slice 4's `resolve_segment` to the live segment and answer with ITS
+  current shape; if it ended in a delete, answer with the stored rectangle and say so. Without
+  one, the anchor's own numbers, as today. Every place that turns an anchor into pixels calls
+  it. No index is needed: "everything resting on segment X" is always asked inside X's
+  document, which is how slice 4's `_records_anchored_to` already looks (by document, then
+  filter).
+- **The old `source_segment_id`: left exactly as it is.** Not renamed (it is in the published
+  contract and in generated Swift), not reused (two meanings in one column of real projects is
+  not acceptable, as the manager ruled), never written by source-model code. Its contract
+  description changes to say what it is: "names an entry in a segmentation artifact; not a
+  segment record; use `source_anchor.segment_id`". Existing values are untouched and never
+  read as row ids. Removing it is a contract change for a later release, not this work.
+- **What deferring costs, plainly.** An anchor is a stored rectangle. After a person moves a
+  box on a converted page, a mark, reading, support or claim anchored BY RECTANGLE to the old
+  place still shows the old place. Nothing re-points anything today either, but today nobody
+  can move a box that something else rests on and then see both. Smaller than it sounds for
+  claims: they mostly point by CHARACTER span (VERIFIED by the recon: no KG, claim, search or
+  embedding code reads geometry), and a span finds its pixels through `live_geometry`, so it
+  follows a moved box as soon as slice 6 lands. The cost falls on anchors that carry a
+  rectangle: marks a person drew, and any reading or claim saved with a box.
+- **A cheap interim that stores nothing (recommended; can follow slice 6 directly).** The kept
+  block never changes, so it is a permanent table from "the rectangle a box had" to "the box's
+  position", and position gives the repeatable id. In `resolve_anchor`, for an anchor with no
+  `segment_id` on a converted result: find the block's box whose rectangle equals the anchor's
+  by slice 4's one rule, take its repeatable id, and resolve that. A pure function; nothing
+  written; and when #4932 later stores the id it stores the same one. It only helps anchors
+  that matched a box exactly, which is the only case slice 6 would have re-pointed anyway.
+
 ### 4. Who made what
 
 - The pass and each segment get exactly the `provenance_kind` `segments_from_result` derives
@@ -864,7 +918,7 @@ All tests in a temporary library built as `tests/conftest.py` builds one. Never 
 | `source.store.converted-boxes-keep-their-maker` (new) | `provenance_kind`, `created_by`; no version rows at conversion | a hand-drawn box inside a machine result stays the person's | the 50-box probe in 4 |
 | `source.store.undo-first-edit-keeps-conversion` (replaces `…conversion-undo-leaves-nothing`) | inverse from `after.edit` | block never restored | move, undo: geometry back, version 3, rows and marker remain, block byte-equal; `artifact.regions_edit` refused on a converted artifact |
 | `source.store.one-page-per-conversion`, `.no-batch-rewrite` | one `document_id` | document B untouched | guardrail script as in the older draft, plus: params model has no list of documents |
-| `source.store.conversion-repoints-exact-matches` | `segment_id` on the three record kinds | unmatched reported | exact gains the id; off by 0.01 reported, unchanged |
+| `source.store.conversion-reports-exact-matches` (replaces `…repoints…`) | none written | every record left byte-equal | an exact match is listed with the segment id it would take; one off by 0.01 is not; all four record kinds byte-equal after |
 | `source.store.old-app-still-works` (new) | projection + index translation | the app's positions | move, delete, then move "index 3": the box moved is the one the projection listed fourth |
 
 **Awkward inputs to probe when the build is reviewed** (each is a row of the master test

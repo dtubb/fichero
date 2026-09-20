@@ -18,7 +18,10 @@
 `.maker-set-by-engine`, `.written-read-pair`, `.stretch-names-its-reading`,
 `.char-confidence-on-line`; `source.pass.working`, `source.pass.working-follows-project-rule`;
 `source.point.by-id-or-span`, `source.point.text-is-derived`. (`source.statement.*` is its own
-later step: claims gain a segment id in slice 6's re-pointing and nothing more here.)
+later step. Corrected 2026-09-20: slice 6 re-points nothing, it only reports. The lasting
+segment id lives in the anchor, `SourceAnchor.segment_id`, one shape for readings, marks,
+supports and claims; it is built HERE, under #4932, with `resolve_anchor`; see "Where a
+lasting segment reference lives" in the identity and storage notes.)
 
 **What exists.** `ContentRepresentation` (`models/__init__.py`): `id`, `document_id`, `kind`
 (a **closed** enum: transcription, normalized_text, translation, transliteration, markdown,
