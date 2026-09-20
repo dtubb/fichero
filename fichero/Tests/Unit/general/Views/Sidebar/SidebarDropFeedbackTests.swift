@@ -31,12 +31,51 @@ struct SidebarDropFeedbackTests {
         #expect(allFailed == "Nothing was dropped (3 items: 3 failed).")
     }
 
-    @Test("fully-rejected drop says nothing was dropped")
+    @Test("fully-rejected non-self drop says nothing was dropped")
     func fullyRejectedDropSummarises() {
         var skips = SidebarDropSkipSummary()
-        skips.selfDrop = 1
+        skips.circular = 1
         let message = sidebarDropOutcomeMessage(applied: 0, failed: 0, skips: skips)
-        #expect(message == "Nothing was dropped (1 item: 1 dropped onto itself).")
+        #expect(message == "Nothing was dropped (1 item: 1 would nest a folder inside itself).")
+    }
+
+    // MARK: - #4980: self-drop is refused silently, never an alert
+
+    @Test("sidebarDropIsSelfTarget: pure identity check every drop site shares")
+    func selfTargetCheck() {
+        #expect(sidebarDropIsSelfTarget(draggedId: "doc:1", targetId: "doc:1"))
+        // Dropping onto its own PARENT is a different id — allowed (no-op move).
+        #expect(!sidebarDropIsSelfTarget(draggedId: "doc:1", targetId: "doc:parent"))
+        // A descendant target is also a different id — self-check alone must
+        // not catch it; that is `isDescendant`'s job.
+        #expect(!sidebarDropIsSelfTarget(draggedId: "doc:1", targetId: "doc:child-of-1"))
+    }
+
+    @Test("a self-only drop produces no alert")
+    func selfDropAloneIsSilent() {
+        var skips = SidebarDropSkipSummary()
+        skips.selfDrop = 1
+        #expect(sidebarDropOutcomeMessage(applied: 0, failed: 0, skips: skips) == nil)
+    }
+
+    @Test("one self-drop among several dragged items stays silent about that one")
+    func selfDropAmongMixedSelectionIsSilent() {
+        // Three items dragged, one of them is the drop target itself: two
+        // move, one is refused — and the drop as a whole must stay silent,
+        // never reporting "1 dropped onto itself" as if it were a failure.
+        var skips = SidebarDropSkipSummary()
+        skips.selfDrop = 1
+        #expect(sidebarDropOutcomeMessage(applied: 2, failed: 0, skips: skips) == nil)
+    }
+
+    @Test("a self-drop mixed with a REAL refusal still reports the real one, not the self-drop")
+    func selfDropNeverAppearsAlongsideARealRefusal() {
+        var skips = SidebarDropSkipSummary()
+        skips.selfDrop = 1
+        skips.circular = 1
+        let message = sidebarDropOutcomeMessage(applied: 0, failed: 0, skips: skips)
+        #expect(message == "Nothing was dropped (2 items: 1 would nest a folder inside itself).")
+        #expect(!(message ?? "").contains("dropped onto itself"))
     }
 
     // MARK: - Option-drag copy (⌥ at drop time)
@@ -130,7 +169,7 @@ struct SidebarDropFeedbackTests {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
-    @Test("skip counts sum across reasons")
+    @Test("skip counts sum across reasons, but selfDrop never appears in the message")
     func skipTotals() {
         var skips = SidebarDropSkipSummary()
         skips.crossSection = 1
@@ -138,10 +177,12 @@ struct SidebarDropFeedbackTests {
         skips.circular = 1
         #expect(skips.total == 3)
         let message = sidebarDropOutcomeMessage(applied: 0, failed: 0, skips: skips)
+        // selfDrop still counts toward the reported TOTAL item count (3), but
+        // is never named as a reason (#4980) — only the real refusals are.
         #expect(
             message ==
                 "Nothing was dropped (3 items: 1 in a different section, "
-                + "1 dropped onto itself, 1 would nest a folder inside itself)."
+                + "1 would nest a folder inside itself)."
         )
     }
 }

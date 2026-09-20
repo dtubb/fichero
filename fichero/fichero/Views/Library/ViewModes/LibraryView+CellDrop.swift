@@ -290,10 +290,19 @@ extension LibraryView {
         into folder: Document
     ) async {
         guard let library = activeLibraryReference else { return }
-        let ids = prefixedIDs
-            .map { extractActualId(from: $0) }
-            .filter { !$0.isEmpty && $0 != folder.id }
-        guard !ids.isEmpty else { return }
+        let bareIds = prefixedIDs.map { extractActualId(from: $0) }.filter { !$0.isEmpty }
+        // #4980: same self-check the sidebar row uses (SidebarDropFeedback) —
+        // refused before any move is attempted, no alert, just a trace.
+        let ids = bareIds.filter { !sidebarDropIsSelfTarget(draggedId: $0, targetId: folder.id) }
+        guard !ids.isEmpty else {
+            if bareIds.count > ids.count {
+                DragDropLog.refused(
+                    "library-cell(\(folder.id))",
+                    reason: "\(bareIds.count) item(s) dropped onto themselves — ignored, no alert"
+                )
+            }
+            return
+        }
 
         windowState.dropErrorMessage = nil
         var failures: [String] = []
