@@ -9,6 +9,16 @@
     "ms": 157.7,
     "note": "tightened from 319.1 ms"
   },
+  "documents.inspector.small_doc.cold": {
+    "commit": "52040faec",
+    "ms": 51.3,
+    "note": "first recorded run"
+  },
+  "documents.inspector.small_doc.warm": {
+    "commit": "52040faec",
+    "ms": 43.6,
+    "note": "first recorded run"
+  },
   "documents.list": {
     "commit": "18917fe1f",
     "ms": 9.8,

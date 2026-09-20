@@ -108,14 +108,20 @@ async def inspector(
     doc = _document_or_404(db, document_id)
 
     from fichero_server.api.routes.claim.claims import _descendant_doc_ids
+    from fichero_server.api.routes.entity.entities import _entity_ids_scoped_to_docs
 
     doc_ids = _descendant_doc_ids(db, document_id)
 
     # Claims for this document and any descendant pages/chunks. Page
     # selections still resolve to {page_id}; parent PDFs/folders roll up
     # page-level extraction rows for display.
-    all_claims = db.query(KnowledgeClaim)
-    doc_claims = [c for c in all_claims if c.source_document_id in doc_ids]
+    #
+    # #4975: was `db.query(KnowledgeClaim)` (every claim in the library,
+    # hydrated) followed by a Python filter — cost independent of this
+    # document's own claim count, dominated by total library size instead.
+    # `query_in` pushes the same filter to SQL (same fix `list_entities_impl`
+    # already applied for #1815's "O(claims) melt at GHG scale").
+    doc_claims = db.query_in(KnowledgeClaim, "source_document_id", list(doc_ids))
 
     # Entities referenced by those claims.
     entity_ids: set[str] = set()
@@ -129,21 +135,21 @@ async def inspector(
     # (source_document_ids, recorded at upsert) intersects this doc — so
     # entities imported WITHOUT claims (e.g. IIIF/W3C tagging annotations,
     # which carry no SVO) still surface in the inspector. Mirrors the
-    # /entities?document_id= list endpoint. Dedup by id.
+    # /entities?document_id= list endpoint's own `_entity_ids_scoped_to_docs`
+    # (SQL LIKE per doc-id chunk) instead of `db.all(KnowledgeEntity)` —
+    # hydrating every entity in the library just to check scope (#4975, same
+    # shape as the claims fix above). Dedup by id.
     seen_ids = {e.id for e in entities}
-    for entity in db.all(KnowledgeEntity):
-        if entity.id in seen_ids:
-            continue
-        if doc_ids.intersection(entity.source_document_ids or []):
-            entities.append(entity)
-            seen_ids.add(entity.id)
+    # One IN query, not a get per id: a folder can scope thousands of entities.
+    extra_ids = [eid for eid in _entity_ids_scoped_to_docs(db, doc_ids) if eid not in seen_ids]
+    if extra_ids:
+        entities.extend(db.query_in(KnowledgeEntity, "id", extra_ids))
     entities.sort(key=lambda e: e.canonical_name)
 
-    # Annotations on this document.
-    annotations = [
-        a for a in db.query(Annotation)
-        if a.document_id == document_id
-    ]
+    # Annotations on this document — equality filter pushed to SQL instead
+    # of `db.query(Annotation)` (every annotation in the library) + a Python
+    # `==` filter (#4975, same shape).
+    annotations = list(db.query(Annotation, document_id=document_id))
     annotations.sort(key=lambda a: a.created_at, reverse=True)
 
     # Notes that reference this document.
