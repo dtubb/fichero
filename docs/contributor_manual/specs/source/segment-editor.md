@@ -285,39 +285,39 @@ Reading before editing (the app's first step: it draws from the seam, and edits 
 The editor
 - `source.editor.segment-focus` — **[GAP]** (#4941) the Source view has a segment focus in which the editing
   tools appear; it can sit beside a Reader, an Inspector, the Library or another Source view.
-- `source.textedit.reader-shows-segments` — **[GAP]** (#4942) for a source whose segments have readings, the text
+- `source.textedit.reader-shows-segments` — **[GAP]** (#5001) for a source whose segments have readings, the text
   surface shows the lines of the working pass in the named reading order, one block for each
   region and direction, and is editable; with no Source view in sight each line shows its
   picture. (Home recommended: the Reader; a sixth pane kind is the other option; the
   maintainer's to choose.)
-- `source.textedit.typing-is-a-new-reading` — **[GAP]** (#4942) typing corrects the reading of the segment under the
+- `source.textedit.typing-is-a-new-reading` — **[GAP]** (#5001) typing corrects the reading of the segment under the
   caret as a new reading whose maker is the person, set by the engine; the earlier reading
   stays.
-- `source.textedit.return-splits-the-line` — **[GAP]** (#4942) Return inside a line splits that segment at the caret
+- `source.textedit.return-splits-the-line` — **[GAP]** (#5001) Return inside a line splits that segment at the caret
   in one action: the reading divides at the caret; the cut falls between words when their
   places are known, otherwise by proportion along the baseline and marked estimated; the
   first part keeps the id.
-- `source.textedit.backspace-joins-in-reading-order` — **[GAP]** (#4942) Backspace at a line's start joins it to the line
+- `source.textedit.backspace-joins-in-reading-order` — **[GAP]** (#5001) Backspace at a line's start joins it to the line
   before it in the reading order, in one action, keeping the earlier line's id; refused with
   the reason across regions or passes.
-- `source.textedit.deleting-words-keeps-ink` — **[GAP]** (#4942) removing text is a new reading without those words;
+- `source.textedit.deleting-words-keeps-ink` — **[GAP]** (#5001) removing text is a new reading without those words;
   no segment is deleted by it; a word segment left without a reading, or an emptied line, is
   shown as such; deleting a segment is a separate, named command.
-- `source.textedit.lines-move-in-the-order` — **[GAP]** (#4942) cutting and pasting whole lines changes the named
+- `source.textedit.lines-move-in-the-order` — **[GAP]** (#5001) cutting and pasting whole lines changes the named
   reading order and nothing on the page; other pasted text is typing, its line breaks
   turned to spaces.
-- `source.textedit.one-selection` — **[GAP]** (#4942) the caret's line (and word) is the selection in the Source
+- `source.textedit.one-selection` — **[GAP]** (#5001) the caret's line (and word) is the selection in the Source
   view, and a selection there selects the text; one shared selection.
-- `source.textedit.a-run-of-keys-is-one-action` — **[GAP]** (#4942) typing in one line commits as one reading, one
+- `source.textedit.a-run-of-keys-is-one-action` — **[GAP]** (#5001) typing in one line commits as one reading, one
   audit record and one undo step, on leaving the line, a structural key, loss of focus, Save,
   or two seconds' pause; structural edits are their own action at once.
-- `source.textedit.stale-keeps-your-words` — **[GAP]** (#4942) an edit against a version that has moved on is refused
+- `source.textedit.stale-keeps-your-words` — **[GAP]** (#5001) an edit against a version that has moved on is refused
   and the typed words are kept and offered: keep mine, take theirs, compare; out of reach of
   the engine the text is read-only.
-- `source.textedit.every-direction` — **[GAP]** (#4942) each block is laid out and edited in its own direction;
+- `source.textedit.every-direction` — **[GAP]** (#5001) each block is laid out and edited in its own direction;
   line starts, joins and cuts follow reading order and the baseline; a direction the platform
   cannot lay out is labelled, never reordered.
-- `source.textedit.no-second-path` — **[GAP]** (#4942) every change made from the text is one of the existing
+- `source.textedit.no-second-path` — **[GAP]** (#5001) every change made from the text is one of the existing
   segment, reading and reading-order actions; the text surface defines none of its own.
 - `source.segments-pane.exists` — **[GAP]** (#4942) **Superseded in direction 2026-09-20 by `source.textedit.*`;
   still not to be built** (a Segments pane, or a view of
