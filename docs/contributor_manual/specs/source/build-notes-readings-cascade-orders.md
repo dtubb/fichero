@@ -176,3 +176,105 @@ pairing two readings of different segments.
 
 **For the maintainer:** nothing new. (Question 8, on words in the audit chain, already covers
 the default taken here.)
+
+## Slice 9 — the cascade: language, script and direction, with where each came from (#4938)
+
+**Pins:** `source.lang.cascade`, `.says-where-from`, `.reading-overrides`, `.three-facts`,
+`.registries`, `.project-declared`, `.unknown-is-not-unexamined`, `.many-per-page`;
+`source.dir.per-segment`, `.logical-order-stored`; the engine half of
+`source.resolve.one-cascade`. (`source.dir.reader-lays-out` is app work, after the editor.)
+
+**What exists.** `llm/language_policy.py` resolves **one document's language**:
+`resolve_language(requested=, document=, text=, policy=, detect=) -> LanguageResolution
+{language, status, source, basis}`, with a stated precedence (a language pinned on the
+workflow node; then a language a person set on the document; then the app-wide policy: `one`,
+`many`, `document`, or `unset`, the last keeping an English fallback "so existing libraries do
+not shift"). `Document.language` and `language_meta` keep known / unknown / never-determined
+apart. The policy is **one app-wide setting** (`configured_policy()`). `LibrarySetting {id,
+value}` is a key-value record in a library's own database, with one use today. Script lives
+only on a reading. Direction lives nowhere.
+
+**The design: extend that resolver; do not write a second one.**
+
+- **Where a value can be set** (the one list): app, project, folder, document, page, region,
+  line, word, character. App stays where it is (the policy). **Project** values are
+  `LibrarySetting` rows (keys `source.language`, `source.script`, `source.direction`,
+  `source.record_rule`; the value a small JSON string). **Folder, document and page** are
+  nodes: a new optional JSON field on `Document`, `source_settings: dict | None`, added on
+  open, holding any of `language`, `script`, `direction` with `set_by` and `set_at`.
+  `Document.language` and `language_meta` stay exactly as they are and keep their meaning (a
+  document's *own determined* language); they are read as the document level's language when
+  `source_settings` has none. **Region to character** are segments: three optional fields on
+  `Segment`, `language`, `script`, `direction`, plus `settings_set_by` and `settings_set_at`.
+- **One function:** `resolve_setting(db, *, key, segment_id=None, document_id=None,
+  requested=None) -> SettingResolution { value, status, level, level_id, basis }`, in
+  `llm/language_policy.py` beside `resolve_language`. It walks **up**: the segment, its parent
+  segments, the page, the document, each folder above it, the project, the app. The first
+  level that says something wins. `level` and `level_id` are what "says where from" shows.
+  For `key="language"`, the document-and-above part **is** today's `resolve_language`, called,
+  not copied, so its precedence, its refusal to guess, and its `unset` behaviour for existing
+  libraries are untouched.
+- **Three facts.** `language` is a BCP 47 tag; beside it an optional `glottocode` (a second
+  field on the same value, not a second registry). `script` is an ISO 15924 code, the honest
+  ones included (`Zxxx`, `Zyyy`, `Zzzz`, and `Qaaa` to `Qabx` for a script a project declares).
+  `encoding` is `full` | `part` | `none` | unknown, worked out where it can be from
+  `llm/script_coverage.py`'s exemplar sets and otherwise set by a person; it is **not** stored
+  on every segment: it is a property of a *script in a project*, kept in one project record
+  (`LibrarySetting` key `source.scripts`, a list of `{script, name, encoding, declared: bool}`),
+  which is also where a project declares a script no registry has.
+- **Direction** is one of `ltr`, `rtl`, `ttb`, `btt`, `alternating`, `follows-baseline`, plus,
+  for a region, `line_progression` (the way its lines or columns succeed each other). With
+  nothing set anywhere, direction is worked out from the resolved script (a small table:
+  `Arab`, `Hebr`, `Syrc` and kin give `rtl`; `Hani`, `Hira`, `Kana`, `Hang`, `Mong` say
+  "may be vertical" and resolve to `ltr` unless a level says otherwise) and the answer's
+  `level` is `derived-from-script`, so it is never mistaken for something a person set.
+- **Stored text stays in reading order.** Nothing in this slice reorders a string; the rule is
+  pinned by a test on a mixed right-to-left and left-to-right reading.
+- **A reading's own language and script win for that reading** (`ContentRepresentation.language`
+  and `.script`, which exist).
+- **The same walk answers for models and guidelines** (`key="model:<job>"`, `key="guideline"`):
+  the walk is general; the keys are registered when the models and projects work arrives.
+  Today's app-wide role defaults are read as the app level. No second resolver is written then.
+
+**Actions.** `source_setting.set` and `source_setting.clear`: params `level` (`project` |
+`node` | `segment`), `target_id` (none for project), `key`, `value`; they record `before:
+{value}` and `after: {value}` (a setting is not a researcher's words); each is the other's
+inverse. Setting a node's `language` through this action also calls today's
+`set_user_language`, so the two never disagree.
+
+**Routes.** `GET /api/source-settings/resolve?key=&segment_id=&document_id=` (the answer with
+its level); `PUT /api/source-settings`; the seam's `SegmentRead` gains `language`, `script`,
+`direction` as **set on the segment** (not resolved: resolving every segment of a page in a
+list call would be a walk for each row; the app asks for the resolved value of the selection).
+
+**ChangeSpec.** `domains=["source_setting","segment"|"document"]`; `segment_ids` or
+`document_ids`; event type `source_setting.changed`.
+
+**Migration and old libraries.** New optional columns only. A library made before this slice
+resolves exactly as it did: a test runs `resolve_language` and `resolve_setting(key=
+"language")` over the same fixture documents and asserts equal answers, for each of the four
+policy modes.
+
+**Refusals** (typed, tested): a tag that is not well-formed BCP 47 (`BadLanguageTag`); a script
+code neither in ISO 15924 nor declared by the project (`UnknownScript`, naming how to declare
+one); a direction outside the list; setting a value on a `legacy:` segment.
+
+**Tests, by behaviour.**
+- `.cascade` / `.says-where-from`: a Basque gloss inside a Latin page inside a Spanish folder
+  inside a project set to `es`: the gloss resolves `eu` at level segment, a sibling line
+  resolves `la` at level page, a line on another page resolves `es` at level folder; clearing
+  the page value makes the sibling resolve from the folder.
+- `.unknown-is-not-unexamined`: never-determined, unknown and known stay three answers through
+  the walk.
+- `.reading-overrides`: a translation's language is its own, whatever the segment resolves to.
+- `.project-declared`: a declared script resolves and an undeclared private code is refused.
+- `.many-per-page`: one page with three scripts resolves each segment to its own.
+- `source.dir.per-segment`: `rtl` on a region is inherited by its lines; `alternating` set on a
+  region is reported for each line; with nothing set, `Arab` gives `rtl` at level
+  `derived-from-script`.
+- `source.dir.logical-order-stored`: a reading with Arabic and digits is stored and returned
+  byte for byte in reading order.
+- Equal answers with `resolve_language` on an old library, in all four policy modes.
+
+**For the maintainer:** nothing. (That a folder can carry settings, set in the Inspector, was
+ruled on 2026-09-19.)
