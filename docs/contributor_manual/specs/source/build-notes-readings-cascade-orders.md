@@ -106,7 +106,21 @@ a test sends `reviewer="human"` from an MCP context and sees `agent` recorded.
   `newest-machine-unchosen` (or `newest-human`) and `labelled_machine` true when a machine made
   it: shown, labelled, not the record;
 - **relaxed** project, no choice: newest counts, a person's outranks a machine's;
-- the same function, given passes, answers "which pass is working".
+- **Passes are ranked by a rule of their own, and it is the app's existing one** (ruled
+  2026-09-03, after a drawn region vanished behind a newer machine run). `resolve_working_pass(
+  project_rule, pass_choices, passes_with_makers) -> PassAnswer { pass_id | None, basis }`:
+  a live human choice of pass wins; with none, a pass that a person made **or that carries any
+  segment a person made** comes first, then a pass made from a file's own text layer, then the
+  newest. `passes_with_makers` therefore carries, for each pass, its own maker **and whether
+  any of its segments is a person's**: the function never reads a pass's maker alone. This is
+  the same ranking the app has (`OCRGeometrySelection`'s one ranking core, app slice A stage
+  2), now worked out by the engine, so the app and the engine cannot disagree about which pass
+  is shown; when this lands, the app's ranking reads the engine's answer and its own copy goes.
+- **Showing a pass says nothing about who made its parts.** A curated pass on top does not make
+  its machine-made segments or readings a person's. Each still carries its own
+  `provenance_kind`; in a strict project each machine reading is still labelled unchosen until
+  a person chooses. `resolve_counting` (readings) and `resolve_working_pass` (passes) are two
+  functions for two questions and must not be folded into one.
 
 The project rule is read through one call, `project_record_rule(db) -> "strict" | "relaxed"`,
 which returns `strict` until project settings exist (slice 9 and the projects work give it a
@@ -160,6 +174,11 @@ pairing two readings of different segments.
   counting answer is `none` until one is chosen.
 - `.chosen-is-worked-out` / `.chosen-follows-project-rule` / `.machine-is-labelled`: the truth
   table of `resolve_counting` as a pure test; flipping the rule writes nothing.
+- `source.pass.working` / `.working-follows-project-rule`: the truth table of
+  `resolve_working_pass`, including **a machine pass carrying one human segment outranking a
+  newer machine pass** (the 2026-09-03 case), a text-layer pass outranking a newer machine
+  pass, and a human choice outranking both; and, on that winning mixed pass, a machine reading
+  still reported as a machine's and unchosen in a strict project.
 - `.maker-set-by-engine`: a create through the MCP context is recorded `agent` whatever the
   body says; a params model with `provenance_kind` is refused.
 - `.kinds` / `.level-recorded`: an unknown kind is refused with the list; a project-added kind
