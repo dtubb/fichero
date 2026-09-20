@@ -1211,10 +1211,12 @@ def _spacy_runtime_row() -> LocalRuntimeRow:
 
 
 def _kraken_runtime_row() -> LocalRuntimeRow:
-    from fichero_server.llm.kraken_runtime import get_kraken_runtime
+    # #4959, 2026-09-20: Kraken is bundled at build time now — no install
+    # action, the same shape as the "two small [spaCy] models" row above.
+    from fichero_server.llm.kraken_runtime import runtime_status
 
     try:
-        status = get_kraken_runtime().status()
+        status = runtime_status()
         installed = bool(status.get("installed"))
         reason = status.get("reason")
     except Exception as exc:  # noqa: BLE001
@@ -1226,11 +1228,9 @@ def _kraken_runtime_row() -> LocalRuntimeRow:
         name="Kraken (line segmentation)",
         installed=installed,
         available=True,
-        size_note="~1 GB download",
+        size_note="bundled with the app",
         reason=reason,
-        install_action=LocalRuntimeAction(
-            method="POST", path="/api/local-models/kraken/install"
-        ),
+        install_action=None,
         status_path="/api/local-models/kraken/status",
     )
 

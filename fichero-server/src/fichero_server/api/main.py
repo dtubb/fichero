@@ -68,6 +68,7 @@ from fichero_server.models import (
     EmbeddingStatsResponse,
     HealthResponse,
     LibraryStatsResponse,
+    MigrationFailureResponse,
 )
 from fichero_server.db.paths import migrate_legacy_server_state
 from fichero_server.security.remote_backend import build_remote_backend_status
@@ -1599,9 +1600,13 @@ def _dependency_versions() -> dict[str, str]:
         # is simply "not provisioned", so debug rather than warn.
         logger.debug("mlx runtime status unavailable: %s", exc)
     try:
-        from fichero_server.llm.kraken_runtime import get_kraken_runtime
+        # #4959, 2026-09-20: Kraken is bundled now (a STATIC dep, like the
+        # rest of `_static_dependency_versions()`), not runtime-provisioned
+        # — kept in this try/except only because status() still does an
+        # import-check, which can legitimately fail on a broken build.
+        from fichero_server.llm.kraken_runtime import runtime_status
 
-        kraken_version = get_kraken_runtime().status().get("kraken_version")
+        kraken_version = runtime_status().get("kraken_version")
         if kraken_version:
             deps["kraken"] = str(kraken_version)
     except Exception as exc:  # noqa: BLE001 -- same reasoning as the mlx branch above
@@ -1648,6 +1653,19 @@ async def health_check(
                     document_count=doc_count,
                     backend_version=_ENGINE_VERSION,
                     dependencies=_dependency_versions(),
+                    # #4983 phase 1: schema-migration failures recorded on
+                    # THIS cached `Database` instance — empty for a healthy
+                    # migration run, or for a library not yet reopened since
+                    # this process last ran the migrations.
+                    migration_failures=[
+                        MigrationFailureResponse(
+                            migration=f.migration,
+                            error_type=f.error_type,
+                            message=f.message,
+                            occurred_at=f.occurred_at,
+                        )
+                        for f in db.migration_failures
+                    ],
                 ),
                 nonce or x_fichero_client_nonce,
             )

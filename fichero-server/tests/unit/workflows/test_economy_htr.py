@@ -133,59 +133,50 @@ def test_unknown_backend_errors(page_image: Path, monkeypatch):
 
 def test_kraken_without_model_path_names_the_gap(page_image: Path):
     result = economy_htr_file(str(page_image), backend="kraken")
-    assert "kraken_model_path" in result["error"]
+    assert "needs a model" in result["error"]
 
 
-def test_kraken_missing_cli_names_kraken(tmp_path: Path, monkeypatch):
+def test_kraken_not_bundled_names_kraken(tmp_path: Path, monkeypatch):
+    """#4959: Kraken ships INSIDE the bundle or it does not — a build that
+    lacks it must say so by name, not fail some other, confusing way."""
+    from fichero_server.llm import kraken_runtime
+
     model = tmp_path / "catmus.mlmodel"
     model.write_bytes(b"x")
-    monkeypatch.setattr("fichero_server.workflows.tools.economy_htr.shutil.which", lambda _: None)
-    # Neither the app runtime nor a system CLI is present.
-    monkeypatch.setattr("fichero_server.llm.kraken_runtime.kraken_bin", lambda home=None: None)
-    with pytest.raises(RuntimeError, match="kraken"):
+    monkeypatch.setattr(kraken_runtime, "is_installed", lambda: False)
+
+    with pytest.raises(kraken_runtime.KrakenRuntimeMissingError, match="not bundled"):
         kraken_transcribe_page(str(tmp_path / "img.png"), str(model))
 
 
-def test_kraken_prefers_the_app_runtime_binary_and_resolves_a_catalog_id(
+def test_kraken_transcribe_page_resolves_a_catalog_id_and_reads_in_process(
     tmp_path: Path, monkeypatch
 ):
+    """#4959: no CLI, no runtime binary — the model resolves via the catalog
+    and the actual read runs through `kraken_runtime.recognize_lines`'s
+    in-process seam."""
     from fichero_server.llm import kraken_runtime
 
-    # The app installed the runtime and downloaded McCATMuS via the catalog.
-    venv_kraken = tmp_path / "kraken-runtime" / "bin" / "kraken"
-    venv_kraken.parent.mkdir(parents=True)
-    venv_kraken.write_text("#!/bin/sh\n")
     model_file = tmp_path / "mccatmus.mlmodel"
     model_file.write_bytes(b"weights")
-    monkeypatch.setattr(kraken_runtime, "kraken_bin", lambda home=None: venv_kraken)
+    monkeypatch.setattr(kraken_runtime, "is_installed", lambda: True)
     monkeypatch.setattr(
         kraken_runtime, "recognition_model_path",
         lambda model_id, home=None: str(model_file),
     )
-    # System `kraken` must NOT be used when the app runtime is present.
-    monkeypatch.setattr(
-        "fichero_server.workflows.tools.economy_htr.shutil.which",
-        lambda _: "/usr/bin/kraken-SYSTEM",
-    )
     captured = {}
 
-    def fake_run(argv, **kwargs):
-        captured["argv"] = argv
-        # Command is [exe, "-i", image, out_path, "segment", ...]; kraken writes
-        # the recognized text to out_path (argv[3]).
-        Path(argv[3]).write_text("línea uno\n", encoding="utf-8")
-        return SimpleNamespace(returncode=0, stdout="", stderr="")
+    def fake_call(op):
+        captured["called"] = True
+        return {"width": 100, "height": 100, "lines": [{"text": "línea uno"}]}
 
-    monkeypatch.setattr(
-        "fichero_server.workflows.tools.economy_htr.subprocess.run", fake_run
-    )
+    monkeypatch.setattr(kraken_runtime, "_kraken_call", fake_call)
 
     # A CATALOG model id, not a filesystem path.
     text = kraken_transcribe_page(str(tmp_path / "img.png"), "kraken-mccatmus")
 
     assert text == "línea uno"
-    assert captured["argv"][0] == str(venv_kraken)  # app runtime, not system CLI
-    assert str(model_file) in captured["argv"]  # resolved from the catalog id
+    assert captured["called"] is True
 
 
 def test_kraken_catalog_id_not_downloaded_says_install_it(tmp_path: Path, monkeypatch):

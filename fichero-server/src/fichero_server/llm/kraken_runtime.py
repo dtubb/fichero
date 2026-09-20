@@ -9,35 +9,69 @@ cursive the two agree closely and Apple is faster, so this is not a better
 engine; it is the engine that still works on the material an archive is made
 of.
 
-Two rules this module exists to keep:
+## #4959 (2026-09-20): Kraken ships INSIDE the engine bundle, not a runtime
+## install, and runs IN-PROCESS, not a child process
 
-* It is a USER-CHOSEN install (Daniel, 2026-09-04). torch alone is 596 MB
-  installed and the smallest working set is 996 MB, so nothing here is
-  provisioned automatically or bundled. A runtime that is not installed says
-  so with a typed error; it never returns an empty result that reads as "this
-  page has no lines".
+There used to be a separate venv, built and pip-installed the first time
+someone asked for it. Two things killed that design:
+
+* Building it with `venv.EnvBuilder` copied or symlinked `sys.executable` —
+  inside the sandboxed app that IS the signed `Fichero Server` stub, and the
+  sandbox refuses the copy outright (`[Errno 1] Operation not permitted`).
+* Even a venv that avoided that would fail one step later: a sandboxed app's
+  own write is quarantined, and macOS refuses to `dlopen` a quarantined
+  native library. Kraken's missing dependencies (scikit-image, shapely,
+  coremltools, lxml) are native code. `fichero-server/pyproject.toml`
+  already records this exact lesson for `libpdfium.dylib`.
+* It is also forbidden outright on the Mac App Store tier (Guideline 2.5.2:
+  no downloading/installing/executing code that changes the app's
+  functionality — model WEIGHTS are data and are fine; Kraken's own code is
+  not).
+
+So Kraken is installed at BUILD time — `scripts/install_kraken_into_engine_
+bundle.py`, called from `scripts/release-all.sh` after the engine bundle
+stages and before signing, reading its pinned version and missing-package
+list from `pyproject.toml`'s `[tool.fichero.kraken_bundle]` table (ONE place)
+— and ships signed and notarized with the app, same as torch (already in the
+bundle via pykeen). `is_installed()` now means exactly "is `kraken`
+importable" — there is nothing left to provision.
+
+A SECOND design also fell, one ruling later: routing every call through a
+`kraken_worker.py` child process, spawned by re-executing the app's own
+signed stub via `FICHERO_RUN_MODULE`. Proven broken (2026-09-20, live test)
+before it shipped: that re-exec is a subprocess of the ALREADY
+sandboxed-inherit-child engine process — the exact shape `_libsecinit_
+appsandbox` hangs on (#4555, `kreuzberg_cache.py::_fork_worker`'s docstring:
+a second-level `com.apple.security.inherit` grandchild can never establish
+its own sandbox). `fork()` was considered and rejected too: this engine
+process already has torch loaded (via pykeen), and forking that and then
+importing lightning/torch again in the child is the textbook unsafe case.
+
+So Kraken runs IN-PROCESS, through the ONE seam below (`_kraken_call`) — the
+old isolation bought nothing once torch was already loaded in this same
+process anyway. Two rules this module still keeps:
+
 * Its output speaks the existing ``OCRGeometryResult`` vocabulary — normalized
   top-left boxes, a named pixel frame, a carried ``rendition_id`` — so nothing
   downstream can tell a Kraken box from an Apple one.
-
-The segmenter runs in its own venv via subprocess, exactly as the MLX runtime
-does. It never enters the engine process: it would drag torch, lightning and
-coremltools into an env that deliberately excludes them.
+* `import kraken` (and `htrmopo`) happens LAZILY, only inside `_kraken_call`'s
+  own callees — never at module import — so importing this module never pays
+  the cost and never requires Kraken to be installed (engine start-up time,
+  and the packaging import test, are unaffected).
 """
 
 from __future__ import annotations
 
-import asyncio
-from dataclasses import asdict, dataclass
+import importlib.metadata
+import importlib.util
 import json
 import logging
 import os
+import threading
 from pathlib import Path
-import shutil
-import subprocess
-import uuid
-import venv
+from typing import Callable, TypeVar
 
+from fichero_server.core.background_compute import embed_threads, set_utility_qos
 from fichero_server.db.paths import server_state_dir
 from fichero_server.media.ocr_geometry import (
     OCRGeometryBox,
@@ -49,23 +83,15 @@ from fichero_server.media.ocr_geometry import (
 
 logger = logging.getLogger(__name__)
 
-KRAKEN_VERSION = "7.1.1"
+_T = TypeVar("_T")
 
-#: kraken pins ``scipy~=1.15.3``, and that build's PROPACK extension is
-#: rejected by this OS's dyld ("__DATA/__thread_bss has a zero-fill section
-#: type, but offset field is not zero"), so `import kraken` fails outright on
-#: macOS 26/27. Overriding an upstream pin is a cost we own deliberately
-#: rather than a workaround we hide: it is recorded here, in the install
-#: command, and in the runtime metadata, so the next person to see a kraken
-#: dependency warning knows it was a decision.
-KRAKEN_SCIPY_OVERRIDE = "scipy>=1.16"
+#: Kraken's pinned version and its missing-package list live in
+#: `pyproject.toml`'s `[tool.fichero.kraken_bundle]` table -- the build step
+#: and the packaging test read that table directly. This module deliberately
+#: does NOT duplicate it: `runtime_status()` below reports whatever is
+#: ACTUALLY importable (`importlib.metadata`), so a status report can never
+#: drift from what really shipped in a given build.
 
-_RUNTIME_DIRNAME = "kraken-runtime"
-_METADATA_FILENAME = "runtime.json"
-#: The import that must succeed for the runtime to count as installed. Both
-#: modules dlopen scipy transitively, so this is what actually proves the scipy
-#: override took and the PROPACK dlopen failure is gone (not just that pip ran).
-_RUNTIME_VERIFY_SCRIPT = "import scipy; from kraken import blla, vgsl"
 _PROVIDER = "kraken"
 _MODEL = "blla"
 
@@ -77,8 +103,8 @@ _MODEL = "blla"
 #
 # * SEGMENTATION — finding the lines. `blla` is Kraken's built-in neural
 #   segmenter and ships INSIDE the package, so it needs no separate download;
-#   it is "installed" exactly when the runtime venv is. This is what Fichero's
-#   OCR-geometry seam uses today.
+#   it is "installed" exactly when Kraken itself is importable. This is what
+#   Fichero's OCR-geometry seam uses today.
 #
 # * RECOGNITION (HTR/OCR) — reading the lines. These are separate `.mlmodel`
 #   files retrieved by DOI with `kraken get <DOI>` (stored under
@@ -110,10 +136,22 @@ KRAKEN_RECOGNITION_MODELS: dict[str, dict[str, object]] = {
     },
 }
 
+_MODEL_DATA_DIRNAME = "kraken-models"
+
+
+def _kraken_data_dir(home: Path | None = None) -> Path:
+    """Where HTR model downloads and their markers live -- DATA, unlike the
+    old `kraken-runtime`: this directory holds nothing that needs to be
+    signed or notarized, so it stays an ordinary app-state directory."""
+    override = os.environ.get("FICHERO_KRAKEN_DATA_DIR")
+    if override:
+        return Path(override).expanduser()
+    return server_state_dir(home) / _MODEL_DATA_DIRNAME
+
 
 def recognition_model_dir(home: Path | None = None) -> Path:
     """Where completed recognition-model installs are recorded (our markers)."""
-    return kraken_runtime_dir(home) / "recognition"
+    return _kraken_data_dir(home) / "recognition"
 
 
 def recognition_data_home(home: Path | None = None) -> Path:
@@ -124,18 +162,7 @@ def recognition_data_home(home: Path | None = None) -> Path:
     own, then scan it for the fetched ``.mlmodel`` — a deterministic path under
     the app's control instead of the user's global ``~/.local/share``.
     """
-    return kraken_runtime_dir(home) / "htr-data"
-
-
-def kraken_bin(home: Path | None = None) -> Path | None:
-    """The runtime venv's `kraken` CLI, or None when the runtime is absent.
-
-    economy_htr's kraken backend must run the app's OWN kraken (the one this
-    runtime installed), not a system `kraken` that may not exist — the two
-    kraken worlds that used to never meet.
-    """
-    candidate = kraken_runtime_dir(home) / "bin" / "kraken"
-    return candidate if candidate.exists() else None
+    return _kraken_data_dir(home) / "htr-data"
 
 
 def _marker_path(model_id: str, home: Path | None = None) -> Path:
@@ -193,84 +220,6 @@ def resolve_recognition_model(model_ref: str) -> tuple[str, str | None]:
     return model_ref, None
 
 
-def _default_run_get(argv: list[str]) -> str:
-    result = subprocess.run(argv, check=True, capture_output=True, text=True)
-    return result.stdout or ""
-
-
-def _locate_downloaded_mlmodel(data_home: Path) -> str | None:
-    """Newest ``.mlmodel`` under the data-home htrmopo tree, or None."""
-    if not data_home.exists():
-        return None
-    models = sorted(
-        data_home.rglob("*.mlmodel"),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-    return str(models[0]) if models else None
-
-
-def download_recognition_model(
-    model_id: str,
-    home: Path | None = None,
-    run_command=None,
-) -> None:
-    """Fetch a recognition model with `kraken get <DOI>` and record its path.
-
-    Requires the runtime venv (kraken lives in it). Raises rather than
-    half-succeeding: without the venv there is no `kraken` to run, and a fetch
-    that quietly does nothing is the shape a user reads as success. The fetched
-    ``.mlmodel`` path is recorded so economy_htr can run against it.
-
-    NOTE: `kraken get`'s on-disk layout is verified LIVE — pointing XDG_DATA_HOME
-    at our own tree and scanning for the newest ``.mlmodel`` is robust to the
-    opaque UUID dir, but the exact CLI behaviour needs a real ~1 GB fetch to
-    confirm end to end (flagged for Daniel's live check).
-    """
-    spec = KRAKEN_RECOGNITION_MODELS.get(model_id)
-    if spec is None:
-        raise ValueError(f"Unknown Kraken recognition model: {model_id}")
-    if not is_installed(home):
-        raise KrakenRuntimeMissingError(
-            "Install the Kraken runtime before downloading recognition models."
-        )
-    runner = run_command or _default_run_get
-    data_home = recognition_data_home(home)
-    data_home.mkdir(parents=True, exist_ok=True)
-    interpreter = kraken_runtime_dir(home) / "bin" / "kraken"
-    # HTRMoPo reads XDG_DATA_HOME for where to place the model, so setting it in
-    # the environment routes the download into our tree.
-    prior = os.environ.get("XDG_DATA_HOME")
-    os.environ["XDG_DATA_HOME"] = str(data_home)
-    # TOLERATE a non-zero exit from `kraken get` (same failure mode as install):
-    # the fetch can land the .mlmodel and then trip kraken's scipy dlopen on a
-    # post-fetch import, exiting non-zero after the model is already on disk. The
-    # material result is the file; record the marker when it landed, and fail
-    # loud only when it truly did not (never write a marker for a missing model).
-    get_error: Exception | None = None
-    try:
-        runner([str(interpreter), "get", str(spec["doi"])])
-    except Exception as exc:  # noqa: BLE001 — presence of the .mlmodel is the gate
-        get_error = exc
-    finally:
-        if prior is None:
-            os.environ.pop("XDG_DATA_HOME", None)
-        else:
-            os.environ["XDG_DATA_HOME"] = prior
-    model_path = _locate_downloaded_mlmodel(data_home)
-    if not model_path:
-        raise RuntimeError(
-            f"kraken get produced no .mlmodel for {model_id} (DOI {spec['doi']})"
-            + (f": {get_error}" if get_error else "")
-        )
-    marker_dir = recognition_model_dir(home)
-    marker_dir.mkdir(parents=True, exist_ok=True)
-    _marker_path(model_id, home).write_text(
-        json.dumps({"doi": str(spec["doi"]), "model_path": model_path}),
-        encoding="utf-8",
-    )
-
-
 def remove_recognition_model(model_id: str, home: Path | None = None) -> None:
     """Forget a recognition model (drops our marker; htrmopo cache is kraken's)."""
     marker = _marker_path(model_id, home)
@@ -279,197 +228,243 @@ def remove_recognition_model(model_id: str, home: Path | None = None) -> None:
 
 
 class KrakenRuntimeMissingError(RuntimeError):
-    """Raised when Kraken segmentation is asked of a runtime without Kraken."""
+    """Raised when Kraken segmentation is asked of a build without Kraken.
+
+    Should be unreachable in a real release (Kraken is bundled, always
+    importable) — this is a genuine "something is wrong with this build"
+    signal, not a "go install it" prompt any more.
+    """
 
 
 class KrakenSegmentationError(RuntimeError):
     """Raised when the segmenter ran and did not return usable geometry."""
 
 
-@dataclass(frozen=True)
-class KrakenLine:
-    """One segmented line, in the pixels of the image it was measured on."""
+def is_installed() -> bool:
+    """Whether Kraken can actually segment: is it importable at all.
 
-    polygon: tuple[tuple[float, float], ...]
-    baseline: tuple[tuple[float, float], ...]
-
-
-def kraken_runtime_dir(home: Path | None = None) -> Path:
-    override = os.environ.get("FICHERO_KRAKEN_RUNTIME_DIR")
-    if override:
-        return Path(override).expanduser()
-    return server_state_dir(home) / _RUNTIME_DIRNAME
-
-
-def python_path(home: Path | None = None) -> Path:
-    return kraken_runtime_dir(home) / "bin" / "python"
-
-
-def _metadata(home: Path | None = None) -> dict[str, object]:
-    path = kraken_runtime_dir(home) / _METADATA_FILENAME
-    if not path.exists():
-        return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-
-
-def is_installed(home: Path | None = None) -> bool:
-    """Whether Kraken can actually segment.
-
-    The metadata file is written LAST, after the packages land, so its presence
-    is the honest signal — the same rule the MLX runtime learned when a venv
-    that existed but held no mlx-lm reported itself ready (#4504).
+    #4959: there is nothing left to "install" at runtime -- Kraken ships in
+    the bundle or it does not. `find_spec` (not a real import) so checking
+    status never pays torch/lightning's import cost.
     """
-    return python_path(home).exists() and bool(_metadata(home).get("kraken_version"))
+    return importlib.util.find_spec("kraken") is not None
 
 
-def runtime_status(home: Path | None = None) -> dict[str, object]:
-    installed = is_installed(home)
+def runtime_status() -> dict[str, object]:
+    installed = is_installed()
+    version: str | None = None
+    if installed:
+        try:
+            version = importlib.metadata.version("kraken")
+        except importlib.metadata.PackageNotFoundError:
+            version = None
     return {
         "installed": installed,
-        "kraken_version": _metadata(home).get("kraken_version"),
-        "scipy_override": _metadata(home).get("scipy_override"),
-        "runtime_dir": str(kraken_runtime_dir(home)),
-        "disk_usage_bytes": _disk_usage_bytes(kraken_runtime_dir(home)),
+        "kraken_version": version,
         "reason": None
         if installed
         else (
-            "Kraken is not installed. Install it from Settings -> AI -> Local "
-            "Inference to segment historical hands; it is a ~1 GB download and "
-            "is never installed automatically."
+            "Kraken is not bundled in this build — this is a packaging problem, "
+            "not something to install from Settings."
         ),
     }
 
 
-def require_python_path(home: Path | None = None) -> Path:
-    if is_installed(home):
-        return python_path(home)
-    raise KrakenRuntimeMissingError(str(runtime_status(home)["reason"]))
+def require_installed() -> None:
+    if not is_installed():
+        raise KrakenRuntimeMissingError(str(runtime_status()["reason"]))
 
 
-def install(home: Path | None = None, run_command=None, create_venv=None) -> dict[str, object]:
-    """Create the Kraken venv and install it. Blocking; caller owns threading.
+# =============================================================================
+# THE SEAM (#4959) — every actual Kraken call passes through here, and only
+# here. See the module docstring for why in-process, not a subprocess.
+# =============================================================================
 
-    ``create_venv`` is injectable so a test can assert the install ORDER — which
-    is load-bearing here — without spending two minutes building a real venv.
+_INFERENCE_LOCK = threading.Lock()
+
+
+def _kraken_call(op: Callable[[], _T]) -> _T:
+    """Run one Kraken operation in-process, one at a time, off the main
+    thread (callers already dispatch through `asyncio.to_thread`, same as
+    every other CPU-bound provider in this engine — see `vision_base.py`).
+
+    ponytail: this exists — kraken (with the torch/lightning/coremltools it
+    drags in) shares this process with the rest of the engine now, guarded
+    by ONE lock so two pages can never double the memory. If a crash or a
+    memory blow-up ever shows up here, move `op()` into a worker process;
+    this is the one place to change it.
     """
-    runner = run_command or _default_run_command
-    builder = create_venv or _default_create_venv
-    target = kraken_runtime_dir(home)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    builder(target)
-    interpreter = str(python_path(home))
-    # Step 2 — install kraken. TOLERATE a non-zero exit here: kraken pins
-    # scipy~=1.15.3, whose PROPACK extension fails to dlopen on macOS 26
-    # (Darwin 27), and kraken's own post-install import trips that at the END of
-    # this step — the packages land (~1 GB on disk), but pip exits non-zero. The
-    # scipy override immediately below is EXACTLY the fix, so this failure must
-    # not skip it (the install job used to die here, leaving a venv that reports
-    # installed:false forever, 2026-09-06). A genuine kraken-install failure is
-    # not lost: the verification step below imports kraken and fails loud.
-    kraken_error: Exception | None = None
+    require_installed()
+    outcome: list[object] = []
+
+    def _throttled() -> None:
+        # The throttle is set on a thread this seam OWNS and that ends with the
+        # call. Callers arrive on `asyncio.to_thread`'s POOLED workers; a QoS
+        # class set on one of those would outlive this call and slow whatever
+        # unrelated request that worker serves next.
+        # UTILITY, not background: someone is waiting for this page. Measured:
+        # 23 s at utility against 426 s at background for one page (#4959).
+        set_utility_qos()
+        try:
+            import torch
+
+            # Same balanced-throttle knob the embedder uses (`embed_threads`,
+            # `FICHERO_EMBED_THREADS`-overridable); no second preference.
+            # Process-wide in torch, which is the point: never peg the machine.
+            torch.set_num_threads(max(1, embed_threads()))
+        except (ImportError, RuntimeError):
+            # Narrow on purpose: a throttle that crashes the work is worse than
+            # an unthrottled page, but nothing else may be hidden here.
+            logger.warning("could not cap torch threads for kraken", exc_info=True)
+        try:
+            outcome.append((True, op()))
+        except BaseException as exc:  # noqa: BLE001 — re-raised on the caller's thread
+            outcome.append((False, exc))
+
+    with _INFERENCE_LOCK:
+        worker = threading.Thread(target=_throttled, name="kraken-inference", daemon=True)
+        worker.start()
+        worker.join()
+    ok, value = outcome[0]  # type: ignore[misc]
+    if not ok:
+        raise value  # type: ignore[misc]
+    return value  # type: ignore[return-value]
+
+
+def _raw_lines(segmentation: object) -> list[dict[str, object]]:
+    raw = getattr(segmentation, "lines", None)
+    if raw is None and isinstance(segmentation, dict):
+        raw = segmentation.get("lines", [])
+    out: list[dict[str, object]] = []
+    for line in raw or []:
+        if isinstance(line, dict):
+            baseline, boundary = line.get("baseline"), line.get("boundary")
+        else:
+            baseline = getattr(line, "baseline", None)
+            boundary = getattr(line, "boundary", None)
+        out.append(
+            {
+                "baseline": [[float(x), float(y)] for x, y in (baseline or [])],
+                "polygon": [[float(x), float(y)] for x, y in (boundary or [])],
+            }
+        )
+    return out
+
+
+def _segment_raw(image_path: str | Path) -> dict[str, object]:
+    from PIL import Image
+    from kraken import blla
+
+    with Image.open(image_path) as image:
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+        segmentation = blla.segment(image)
+        width, height = image.width, image.height
+    return {"width": width, "height": height, "lines": _raw_lines(segmentation)}
+
+
+def _recognize_raw(image_path: str | Path, model_path: str) -> dict[str, object]:
+    from PIL import Image
+    from kraken import blla, rpred
+    from kraken.lib import models
+
+    with Image.open(image_path) as image:
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+        segmentation = blla.segment(image)
+        net = models.load_any(model_path)
+        # blla's neural baseline segmentation gives us the lines; rpred reads
+        # each one with the recognition model, in the SAME order -- so
+        # prediction i belongs to segmented line i, and every line keeps its
+        # own baseline/polygon geometry.
+        predictions = list(rpred.rpred(net, image, segmentation))
+        width, height = image.width, image.height
+    lines = _raw_lines(segmentation)
+    for index, line in enumerate(lines):
+        record = predictions[index] if index < len(predictions) else None
+        line["text"] = "" if record is None else str(getattr(record, "prediction", record) or "")
+    return {"width": width, "height": height, "lines": lines}
+
+
+def segment_lines(
+    image_path: str | Path, *, run_call: Callable[[Callable[[], _T]], _T] | None = None
+) -> dict[str, object]:
+    """Run the segmenter and return raw pixel geometry plus its frame."""
+    caller = run_call or _kraken_call
     try:
-        runner([interpreter, "-m", "pip", "install", f"kraken=={KRAKEN_VERSION}"])
-    except Exception as exc:  # noqa: BLE001 — verification is the real gate
-        kraken_error = exc
-    # Step 3 — replace kraken's broken scipy pin. AFTER kraken, deliberately
-    # (kraken pulls its own pinned scipy first and this replaces it), and it MUST
-    # run even when step 2 reported a failure, because that failure IS the broken
-    # pin being replaced here.
-    runner([interpreter, "-m", "pip", "install", "--upgrade", KRAKEN_SCIPY_OVERRIDE])
-    # Verify the runtime actually imports BEFORE recording it as installed.
-    # runtime.json is the is_installed() signal, so writing it for a half-built
-    # venv is what let a broken runtime read as "ready". This confirms a working
-    # runtime or fails loud — it never half-succeeds.
-    try:
-        runner([interpreter, "-c", _RUNTIME_VERIFY_SCRIPT])
+        return caller(lambda: _segment_raw(image_path))
+    except KrakenRuntimeMissingError:
+        raise
     except Exception as exc:
-        raise RuntimeError(
-            "Kraken runtime did not import after install "
-            f"(scipy override {KRAKEN_SCIPY_OVERRIDE})"
-            + (f"; the kraken step also errored: {kraken_error}" if kraken_error else "")
-            + f": {exc}"
-        ) from exc
-    # Step 4 — record the runtime as installed. Only now, after verification.
-    (target / _METADATA_FILENAME).write_text(
-        json.dumps(
-            {"kraken_version": KRAKEN_VERSION, "scipy_override": KRAKEN_SCIPY_OVERRIDE},
-            indent=2,
-            sort_keys=True,
-        ),
+        raise KrakenSegmentationError(f"Kraken segmentation failed: {exc}") from exc
+
+
+def recognize_lines(
+    image_path: str | Path,
+    model_path: str,
+    *,
+    run_call: Callable[[Callable[[], _T]], _T] | None = None,
+) -> dict[str, object]:
+    """Segment + RECOGNISE one image; raw per-line text plus pixel geometry."""
+    caller = run_call or _kraken_call
+    try:
+        return caller(lambda: _recognize_raw(image_path, model_path))
+    except KrakenRuntimeMissingError:
+        raise
+    except Exception as exc:
+        raise KrakenSegmentationError(f"Kraken recognition failed: {exc}") from exc
+
+
+def download_recognition_model(
+    model_id: str,
+    home: Path | None = None,
+    *,
+    run_call: Callable[[Callable[[], object]], object] | None = None,
+) -> None:
+    """Fetch a recognition model and record its path. Raises rather than
+    half-succeeding: a fetch that quietly does nothing is the shape a user
+    reads as success.
+
+    In-process, via htrmopo's own library API (`get_model`) — NOT the
+    `kraken get` CLI (there is no CLI process to shell out to; see the
+    module docstring). `get_model(doi, path=...)` writes into the given
+    directory itself (no XDG_DATA_HOME juggling needed) and returns that
+    same directory; we then find the newest `.mlmodel` under it exactly as
+    the old CLI-driven path did, since the exact filename is htrmopo's own
+    choice, not documented as stable.
+    """
+    spec = KRAKEN_RECOGNITION_MODELS.get(model_id)
+    if spec is None:
+        raise ValueError(f"Unknown Kraken recognition model: {model_id}")
+    data_home = recognition_data_home(home)
+    data_home.mkdir(parents=True, exist_ok=True)
+
+    def _fetch() -> object:
+        from htrmopo import get_model
+
+        return get_model(str(spec["doi"]), path=str(data_home))
+
+    caller = run_call or _kraken_call
+    caller(_fetch)
+
+    models = sorted(
+        data_home.rglob("*.mlmodel"), key=lambda p: p.stat().st_mtime, reverse=True,
+    )
+    model_path = str(models[0]) if models else None
+    if not model_path:
+        raise RuntimeError(f"model fetch produced no .mlmodel for {model_id} (DOI {spec['doi']})")
+    marker_dir = recognition_model_dir(home)
+    marker_dir.mkdir(parents=True, exist_ok=True)
+    _marker_path(model_id, home).write_text(
+        json.dumps({"doi": str(spec["doi"]), "model_path": model_path}),
         encoding="utf-8",
     )
-    return runtime_status(home)
-
-
-def remove(home: Path | None = None) -> dict[str, object]:
-    target = kraken_runtime_dir(home).resolve()
-    if target.name != _RUNTIME_DIRNAME:
-        raise RuntimeError(f"Refusing to remove unexpected runtime dir: {target}")
-    if target.exists():
-        shutil.rmtree(target)
-    return runtime_status(home)
-
-
-_SEGMENT_SCRIPT = """
-import json, sys
-from PIL import Image
-from kraken import blla
-image = Image.open(sys.argv[1])
-if image.mode != "RGB":
-    image = image.convert("RGB")
-segmentation = blla.segment(image)
-lines = []
-raw = getattr(segmentation, "lines", None)
-if raw is None and isinstance(segmentation, dict):
-    raw = segmentation.get("lines", [])
-for line in raw or []:
-    if isinstance(line, dict):
-        baseline, boundary = line.get("baseline"), line.get("boundary")
-    else:
-        baseline = getattr(line, "baseline", None)
-        boundary = getattr(line, "boundary", None)
-    lines.append({
-        "baseline": [[float(x), float(y)] for x, y in (baseline or [])],
-        "polygon": [[float(x), float(y)] for x, y in (boundary or [])],
-    })
-sys.stdout.write("__FICHERO_KRAKEN__" + json.dumps(
-    {"width": image.width, "height": image.height, "lines": lines}
-))
-"""
-
-
-def segment_lines(image_path: str | Path, home: Path | None = None) -> dict[str, object]:
-    """Run the segmenter and return raw pixel geometry plus its frame."""
-    interpreter = require_python_path(home)
-    try:
-        completed = subprocess.run(
-            [str(interpreter), "-c", _SEGMENT_SCRIPT, str(image_path)],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except subprocess.CalledProcessError as exc:
-        tail = (exc.stderr or exc.stdout or "").strip().splitlines()
-        raise KrakenSegmentationError(
-            f"Kraken segmentation failed: {tail[-1] if tail else exc.returncode}"
-        ) from exc
-    marker = "__FICHERO_KRAKEN__"
-    if marker not in completed.stdout:
-        raise KrakenSegmentationError(
-            "The segmenter produced no geometry payload; "
-            f"stderr: {(completed.stderr or '').strip()[-400:]}"
-        )
-    return json.loads(completed.stdout.split(marker, 1)[1])
 
 
 def segment_to_geometry(
     image_path: str | Path,
     *,
     rendition_id: str | None = None,
-    home: Path | None = None,
 ) -> OCRGeometryResult:
     """Segment one image into the shared OCR geometry vocabulary.
 
@@ -479,11 +474,11 @@ def segment_to_geometry(
     than one rendition (the bbox program's root cause). It is carried through
     unchanged, never inferred.
 
-    A runtime that is not installed raises rather than returning an empty
-    result: "no lines found" and "no segmenter installed" are different facts,
-    and only one of them is about the page.
+    A build without Kraken raises rather than returning an empty result:
+    "no lines found" and "not bundled" are different facts, and only one
+    of them is about the page.
     """
-    payload = segment_lines(image_path, home=home)
+    payload = segment_lines(image_path)
     width = float(payload.get("width") or 0)
     height = float(payload.get("height") or 0)
     if width <= 0 or height <= 0:
@@ -548,85 +543,12 @@ def segment_to_geometry(
     )
 
 
-_RECOGNIZE_SCRIPT = """
-import json, sys
-from PIL import Image
-from kraken import blla, rpred
-from kraken.lib import models
-image_path, model_path = sys.argv[1], sys.argv[2]
-image = Image.open(image_path)
-if image.mode != "RGB":
-    image = image.convert("RGB")
-# blla's neural baseline segmentation gives us the lines; rpred reads each one
-# with the recognition model, in the SAME order — so prediction i belongs to
-# segmented line i, and every line keeps its own baseline/polygon geometry.
-segmentation = blla.segment(image)
-net = models.load_any(model_path)
-seg_lines = getattr(segmentation, "lines", None)
-if seg_lines is None and isinstance(segmentation, dict):
-    seg_lines = segmentation.get("lines", [])
-predictions = list(rpred.rpred(net, image, segmentation))
-lines = []
-for index, line in enumerate(seg_lines or []):
-    if isinstance(line, dict):
-        baseline, boundary = line.get("baseline"), line.get("boundary")
-    else:
-        baseline = getattr(line, "baseline", None)
-        boundary = getattr(line, "boundary", None)
-    record = predictions[index] if index < len(predictions) else None
-    text = "" if record is None else str(getattr(record, "prediction", record) or "")
-    lines.append({
-        "text": text,
-        "baseline": [[float(x), float(y)] for x, y in (baseline or [])],
-        "polygon": [[float(x), float(y)] for x, y in (boundary or [])],
-    })
-sys.stdout.write("__FICHERO_KRAKEN__" + json.dumps(
-    {"width": image.width, "height": image.height, "lines": lines}
-))
-"""
-
-
-def recognize_lines(
-    image_path: str | Path,
-    model_path: str,
-    home: Path | None = None,
-) -> dict[str, object]:
-    """Segment + RECOGNISE one image; raw per-line text plus pixel geometry.
-
-    Unlike :func:`segment_lines` (baselines only, no reading), this runs the
-    recognition model over each segmented line so every line comes back with
-    the text Kraken read AND the baseline/polygon it read it from. Runs in the
-    Kraken venv, same subprocess/marker protocol as the segmenter.
-    """
-    interpreter = require_python_path(home)
-    try:
-        completed = subprocess.run(
-            [str(interpreter), "-c", _RECOGNIZE_SCRIPT, str(image_path), str(model_path)],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except subprocess.CalledProcessError as exc:
-        tail = (exc.stderr or exc.stdout or "").strip().splitlines()
-        raise KrakenSegmentationError(
-            f"Kraken recognition failed: {tail[-1] if tail else exc.returncode}"
-        ) from exc
-    marker = "__FICHERO_KRAKEN__"
-    if marker not in completed.stdout:
-        raise KrakenSegmentationError(
-            "The recogniser produced no payload; "
-            f"stderr: {(completed.stderr or '').strip()[-400:]}"
-        )
-    return json.loads(completed.stdout.split(marker, 1)[1])
-
-
 def recognize_to_geometry(
     image_path: str | Path,
     model_path: str,
     *,
     model_id: str | None = None,
     rendition_id: str | None = None,
-    home: Path | None = None,
 ) -> OCRGeometryResult:
     """Segment + recognise one image into the shared OCR geometry vocabulary.
 
@@ -640,7 +562,7 @@ def recognize_to_geometry(
     ``model_id`` is the catalog id to stamp on the boxes (e.g. "kraken-mccatmus")
     when ``model_path`` is a resolved filesystem path; falls back to the path.
     """
-    payload = recognize_lines(image_path, model_path, home=home)
+    payload = recognize_lines(image_path, model_path)
     width = float(payload.get("width") or 0)
     height = float(payload.get("height") or 0)
     if width <= 0 or height <= 0:
@@ -712,197 +634,21 @@ def recognize_to_geometry(
     )
 
 
-@dataclass
-class KrakenInstallJob:
-    """One background Kraken install, with coarse but real progress.
-
-    Kraken is a ~1 GB download, so the UI needs something to poll. The steps
-    are the load-bearing ones ``install()`` already performs — create the venv,
-    install kraken, override its scipy pin — counted as they happen rather than
-    guessed, so a stalled pip is visible as a job stuck on that step.
-    """
-
-    job_id: str
-    state: str  # queued | running | completed | failed
-    current: int
-    total: int
-    message: str
-    error: str | None = None
-
-    @property
-    def percent(self) -> float:
-        if self.total <= 0:
-            return 0.0
-        return (self.current / self.total) * 100
-
-    def to_dict(self) -> dict[str, object]:
-        data = asdict(self)
-        data["percent"] = self.percent
-        return data
-
-
-class KrakenRuntimeManager:
-    """Own the Kraken install as a coalesced background job with status.
-
-    Mirrors ``MLXRuntime``: one install runs at a time, ``status()`` merges the
-    on-disk runtime facts with the live job, and provisioning NEVER starts on
-    its own — only an explicit ``start_install`` (the POST endpoint) begins it,
-    keeping Daniel's "never automatic" rule true at the process layer too.
-    """
-
-    #: create venv, install kraken, override scipy, write metadata.
-    _TOTAL_STEPS = 4
-
-    def __init__(
-        self,
-        home: Path | None = None,
-        *,
-        create_venv=None,
-        run_command=None,
-    ) -> None:
-        self._home = home
-        # Injectable so a test can drive an install to completion without
-        # spending minutes building a real venv (the same seam install() has).
-        self._create_venv = create_venv or _default_create_venv
-        self._run_command = run_command or _default_run_command
-        self._job_lock = asyncio.Lock()
-        self._install_task: asyncio.Task[None] | None = None
-        self._job: KrakenInstallJob | None = None
-
-    def runtime_dir(self) -> Path:
-        return kraken_runtime_dir(self._home)
-
-    def status(self) -> dict[str, object]:
-        payload = dict(runtime_status(self._home))
-        payload["job"] = self._job.to_dict() if self._job is not None else None
-        return payload
-
-    async def start_install(self) -> dict[str, object]:
-        async with self._job_lock:
-            if self._install_task is not None and not self._install_task.done():
-                return self.status()
-            if is_installed(self._home):
-                # Already there — do not rebuild a 1 GB venv for a no-op.
-                self._job = KrakenInstallJob(
-                    job_id=str(uuid.uuid4()),
-                    state="completed",
-                    current=self._TOTAL_STEPS,
-                    total=self._TOTAL_STEPS,
-                    message="Kraken already installed",
-                )
-                return self.status()
-            job = KrakenInstallJob(
-                job_id=str(uuid.uuid4()),
-                state="running",
-                current=0,
-                total=self._TOTAL_STEPS,
-                message="Creating Kraken runtime",
-            )
-            self._job = job
-            self._install_task = asyncio.create_task(self._install(job))
-            return self.status()
-
-    async def wait_for_current_job(self) -> None:
-        task = self._install_task
-        if task is not None:
-            await task
-
-    async def _install(self, job: KrakenInstallJob) -> None:
-        def bump_venv(target: Path) -> None:
-            job.current = 1
-            job.message = "Creating Kraken virtual environment"
-            self._create_venv(target)
-
-        def bump_run(argv: list[str]) -> None:
-            # The install commands, named by what they are rather than a counter,
-            # so the runtime-import verification (a third call) reads correctly
-            # instead of duplicating the scipy message.
-            joined = " ".join(argv)
-            if f"kraken=={KRAKEN_VERSION}" in joined:
-                job.current = 2
-                job.message = f"Installing kraken=={KRAKEN_VERSION}"
-            elif KRAKEN_SCIPY_OVERRIDE in joined:
-                job.current = 3
-                job.message = f"Overriding scipy pin ({KRAKEN_SCIPY_OVERRIDE})"
-            else:
-                job.current = 3
-                job.message = "Verifying Kraken runtime"
-            self._run_command(argv)
-
-        try:
-            await asyncio.to_thread(
-                install,
-                self._home,
-                run_command=bump_run,
-                create_venv=bump_venv,
-            )
-            job.current = self._TOTAL_STEPS
-            job.state = "completed"
-            job.message = "Kraken runtime ready"
-        except Exception as exc:  # noqa: BLE001 — surfaced on the job, not raised
-            job.state = "failed"
-            job.error = str(exc)
-            job.message = "Kraken install failed"
-
-    def remove(self) -> dict[str, object]:
-        if self._install_task is not None and not self._install_task.done():
-            raise RuntimeError("Kraken install is still running")
-        remove(self._home)
-        self._job = None
-        return self.status()
-
-
-_RUNTIME_MANAGER: KrakenRuntimeManager | None = None
-
-
-def get_kraken_runtime() -> KrakenRuntimeManager:
-    """Process-wide Kraken install manager, rebound if the runtime dir moves."""
-    global _RUNTIME_MANAGER
-    target = kraken_runtime_dir()
-    if _RUNTIME_MANAGER is None or _RUNTIME_MANAGER.runtime_dir() != target:
-        _RUNTIME_MANAGER = KrakenRuntimeManager()
-    return _RUNTIME_MANAGER
-
-
-def _disk_usage_bytes(path: Path) -> int:
-    if not path.exists():
-        return 0
-    return sum(file.stat().st_size for file in path.rglob("*") if file.is_file())
-
-
-def _default_create_venv(target: Path) -> None:
-    venv.EnvBuilder(with_pip=True, clear=False, upgrade=False).create(target)
-
-
-def _default_run_command(argv: list[str]) -> None:
-    subprocess.run(argv, check=True, capture_output=True, text=True)
-
-
 __all__ = [
     "KRAKEN_RECOGNITION_MODELS",
-    "KRAKEN_SCIPY_OVERRIDE",
-    "KRAKEN_VERSION",
     "download_recognition_model",
+    "is_installed",
     "is_recognition_model_installed",
-    "kraken_bin",
     "recognition_data_home",
     "recognition_model_dir",
     "recognition_model_path",
     "resolve_recognition_model",
     "remove_recognition_model",
-    "KrakenInstallJob",
-    "KrakenRuntimeManager",
+    "require_installed",
     "KrakenRuntimeMissingError",
     "KrakenSegmentationError",
-    "get_kraken_runtime",
-    "install",
-    "is_installed",
-    "kraken_runtime_dir",
-    "python_path",
     "recognize_lines",
     "recognize_to_geometry",
-    "remove",
-    "require_python_path",
     "runtime_status",
     "segment_lines",
     "segment_to_geometry",

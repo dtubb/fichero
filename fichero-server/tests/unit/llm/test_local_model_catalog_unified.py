@@ -56,9 +56,10 @@ class TestCatalog:
     def test_a_row_carries_installed_and_size(self):
         for e in cat.catalog_entries():
             assert isinstance(e.installed, bool)
-            # download_size_bytes may be None for user-configured, but every
-            # curated row here declares one.
-            assert e.download_size_bytes is None or e.download_size_bytes > 0
+            # download_size_bytes may be None for user-configured, 0 for a
+            # BUNDLED row that downloads nothing (#4959: the Kraken segmenter
+            # itself), but every other curated row here declares a real size.
+            assert e.download_size_bytes is None or e.download_size_bytes >= 0
 
 
 class TestOwnership:
@@ -123,26 +124,30 @@ class TestInstallDispatch:
         assert "no runtime" in failed.error
 
     @pytest.mark.asyncio
-    async def test_kraken_install_dispatches_to_its_manager(self, monkeypatch):
+    async def test_kraken_install_reports_bundled_status_synchronously(self, monkeypatch):
+        """#4959: Kraken is bundled at build time, not installed on demand —
+        "install" just answers whether the bundle actually carries it, with
+        no job to await."""
         from fichero_server.llm import kraken_runtime
 
-        # Inject a Kraken manager with fake venv/pip so NO real ~1 GB install
-        # runs — the coordinator delegates to whatever get_kraken_runtime()
-        # returns, so patch that.
-        def _fake_venv(target):
-            (target / "bin").mkdir(parents=True, exist_ok=True)
-            (target / "bin" / "python").write_text("#!/usr/bin/env python3\n", encoding="utf-8")
-
-        fake = kraken_runtime.KrakenRuntimeManager(
-            create_venv=_fake_venv, run_command=lambda argv: None
-        )
-        monkeypatch.setattr(kraken_runtime, "get_kraken_runtime", lambda: fake)
+        monkeypatch.setattr(kraken_runtime, "is_installed", lambda: True)
 
         job = await cat.get_local_model_coordinator().start_install(cat.KRAKEN_MODEL_ID)
-        await fake.wait_for_current_job()
-        # The job id is namespaced so the poll route can route it back.
+
         assert job.job_id.startswith("kraken:")
         assert job.model_id == cat.KRAKEN_MODEL_ID
+        assert job.state == "completed"
+
+    @pytest.mark.asyncio
+    async def test_kraken_install_reports_a_packaging_problem_when_absent(self, monkeypatch):
+        from fichero_server.llm import kraken_runtime
+
+        monkeypatch.setattr(kraken_runtime, "is_installed", lambda: False)
+
+        job = await cat.get_local_model_coordinator().start_install(cat.KRAKEN_MODEL_ID)
+
+        assert job.state == "failed"
+        assert "not bundled" in job.error.lower()
 
 
 class TestDelete:
@@ -157,14 +162,8 @@ class TestDelete:
         )
         assert cat.get_local_model_coordinator().delete("turbo") == 123
 
-    def test_kraken_delete_removes_the_runtime(self, monkeypatch):
-        removed = {}
-        from fichero_server.llm import kraken_runtime
-
-        monkeypatch.setattr(
-            kraken_runtime.KrakenRuntimeManager,
-            "remove",
-            lambda self: removed.setdefault("done", True),
-        )
-        cat.get_local_model_coordinator().delete(cat.KRAKEN_MODEL_ID)
-        assert removed["done"] is True
+    def test_kraken_delete_refuses_its_bundled_with_the_app(self):
+        """#4959: Kraken ships INSIDE the signed bundle — there is nothing a
+        runtime delete could remove, so this must refuse, not silently no-op."""
+        with pytest.raises(RuntimeError, match="bundled with the app"):
+            cat.get_local_model_coordinator().delete(cat.KRAKEN_MODEL_ID)

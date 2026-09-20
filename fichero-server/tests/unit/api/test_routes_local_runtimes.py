@@ -21,14 +21,14 @@ def _mlx(provisioned: bool) -> MagicMock:
     return m
 
 
-def _kraken(installed: bool) -> MagicMock:
-    m = MagicMock()
-    m.status.return_value = {
+def _kraken_status(installed: bool) -> dict:
+    # #4959: Kraken is bundled at build time — status is a plain dict from
+    # `runtime_status()`, not a manager object with its own `.status()`.
+    return {
         "installed": installed,
-        "runtime_dir": "/tmp/kraken-runtime",
-        "reason": None if installed else "Kraken is not installed. ~1 GB.",
+        "kraken_version": "7.1.1" if installed else None,
+        "reason": None if installed else "Kraken is not bundled in this build — this is a packaging problem, not something to install from Settings.",
     }
-    return m
 
 
 def _spacy_row(model_id: str, available: bool, downloaded: bool) -> MagicMock:
@@ -66,7 +66,7 @@ def _patch_all(
     ]
     return [
         patch("fichero_server.llm.mlx_runtime.get_mlx_runtime", return_value=_mlx(mlx_provisioned)),
-        patch("fichero_server.llm.kraken_runtime.get_kraken_runtime", return_value=_kraken(kraken_installed)),
+        patch("fichero_server.llm.kraken_runtime.runtime_status", return_value=_kraken_status(kraken_installed)),
         patch("fichero_server.llm.local_models.LocalModelManager", spacy_mgr),
         patch(
             "fichero_server.llm.whisper_runtime.audio_runtime_status",
@@ -95,7 +95,9 @@ class TestUnifiedList:
             "whisper",
         ]
 
-    def test_kraken_row_carries_its_install_and_status_paths(self, client):
+    def test_kraken_row_is_bundled_with_no_install_action(self, client):
+        """#4959: Kraken ships inside the signed bundle — there is nothing
+        for the user to POST to install, only a status to read."""
         patches = _patch_all(kraken_installed=False)
         for p in patches:
             p.start()
@@ -106,10 +108,9 @@ class TestUnifiedList:
                 p.stop()
         kraken = next(x for x in r.json()["items"] if x["provider_type"] == "kraken")
         assert kraken["installed"] is False
-        assert kraken["install_action"]["method"] == "POST"
-        assert kraken["install_action"]["path"] == "/api/local-models/kraken/install"
+        assert kraken["install_action"] is None
         assert kraken["status_path"] == "/api/local-models/kraken/status"
-        assert "GB" in kraken["size_note"]
+        assert kraken["size_note"] == "bundled with the app"
 
     def test_bundled_spacy_has_no_provider_level_install(self, client):
         patches = _patch_all(spacy_downloaded=True)

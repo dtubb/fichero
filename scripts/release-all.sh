@@ -422,6 +422,28 @@ if [ -d "$ENGINE_APP_STAGE" ]; then
       echo "       PDFs would import with no searchable text. Refusing to ship that." >&2
       exit 1
     }
+  # Kraken ships INSIDE the bundle now (#4959, 2026-09-20 ruling): a
+  # runtime-installed venv can never load its native libraries in the
+  # sandbox (same quarantine lesson as libpdfium above, one step further —
+  # kraken's dependencies include native code: scikit-image, shapely,
+  # coremltools, lxml). Same seam as pdfium: after the bundle stages,
+  # before signing, so the added files are covered by the same codesign
+  # pass as everything else.
+  #
+  # The PROJECT python, not a bare `python3` (2026-09-20, same lesson as the
+  # docs-readiness check above): this script pip-installs WHEELS into the
+  # bundle's app_packages, and a wheel's ABI tag must match the bundle's own
+  # Python (3.12) — the system `python3` here is 3.14 and would fill a cp312
+  # bundle with cp314 wheels that fail to import. The script also refuses on
+  # its own if the interpreter it's actually run with doesn't match, as a
+  # second line of defense.
+  KRAKEN_INSTALL_PY="$("$ROOT_DIR/scripts/find_project_python.sh" "$ROOT_DIR")"
+  "$KRAKEN_INSTALL_PY" "$ROOT_DIR/scripts/install_kraken_into_engine_bundle.py" \
+    "$ENGINE_APP_STAGE/Contents/Resources/app_packages" || {
+      echo "error: could not install Kraken into the engine bundle." >&2
+      echo "       Kraken segmentation and HTR would be unusable. Refusing to ship that." >&2
+      exit 1
+    }
 else
   echo "error: no engine bundle at $ENGINE_APP_STAGE after the rebuild" >&2
   exit 1

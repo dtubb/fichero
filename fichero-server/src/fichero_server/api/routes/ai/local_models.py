@@ -20,14 +20,28 @@ router = APIRouter(prefix="/local-models")
 
 
 # =============================================================================
-# Kraken line-segmentation runtime (~1 GB, USER-CHOSEN install)
+# Kraken line-segmentation — BUNDLED at build time (#4959, 2026-09-20)
 # =============================================================================
 #
-# Kraken is not a downloadable model file like Whisper or a pip model like
-# spaCy — it is a whole venv the app builds on demand (torch + kraken + a
-# scipy override). It gets its own install/status pair rather than being forced
-# through the model download route, and it NEVER provisions on its own: only a
-# POST here starts it, mirroring Daniel's "never automatic" rule.
+# Kraken used to be a runtime-provisioned venv; it ships inside the signed
+# engine bundle now (see `kraken_runtime.py`'s module docstring for why: a
+# sandboxed app can neither copy its own executable into a venv nor load a
+# quarantined native library, and runtime code install is forbidden outright
+# on the Mac App Store tier). `GET /kraken/status` answers "bundled,
+# installed" from `kraken_runtime.runtime_status()` — a build problem now,
+# never something to fix from Settings.
+#
+# `POST /kraken/install` and `DELETE /kraken` STAY — the MCP server's
+# `fichero_kraken_install` tool still POSTs the install route
+# (fichero-mcp/src/fichero_mcp/server.py) and the generated CLI surface
+# lists both (openapi_surface_generated.py). Breaking the OpenAPI contract
+# silently is worse than a route that does nothing: install is now a no-op
+# that just reports bundled status (idempotent, no job — there is nothing to
+# install), and remove always refuses, honestly, with 409.
+#
+# `KrakenRuntimeStatusResponse`/`KrakenInstallJobResponse` keep their ORIGINAL
+# fields (not trimmed) so the response schema — and anything generated from
+# it — does not change shape underneath a caller that reads them.
 
 
 class KrakenInstallJobResponse(BaseModel):
@@ -44,64 +58,52 @@ class KrakenRuntimeStatusResponse(BaseModel):
     installed: bool
     available: bool
     kraken_version: str | None = None
-    scipy_override: str | None = None
-    runtime_dir: str
-    disk_usage_bytes: int = 0
-    size_note: str = "~1 GB download"
+    scipy_override: str | None = None  # #4959: always None — bundled, no override step any more
+    runtime_dir: str = ""  # #4959: always "" — bundled inside the app, no separate runtime directory
+    disk_usage_bytes: int = 0  # #4959: always 0 — nothing separate on disk to report
+    size_note: str = "bundled with the app"
     reason: str | None = None
-    job: KrakenInstallJobResponse | None = None
+    job: KrakenInstallJobResponse | None = None  # #4959: always None — no install job runs any more
 
 
 def _kraken_status_response() -> KrakenRuntimeStatusResponse:
-    from fichero_server.llm.kraken_runtime import get_kraken_runtime
+    from fichero_server.llm.kraken_runtime import runtime_status
 
-    payload = get_kraken_runtime().status()
-    job = payload.get("job")
+    payload = runtime_status()
     return KrakenRuntimeStatusResponse(
         installed=bool(payload["installed"]),
-        # "available" here means the app can act on this row: it can be
-        # installed (or already is). Kraken runs in its own subprocess venv, so
-        # there is no host-capability gate the way audio has one.
+        # "available" here means the app can act on this row at all — always
+        # true now: Kraken is either bundled or it is a packaging bug, never
+        # something the user can install from here.
         available=True,
         kraken_version=payload.get("kraken_version"),
-        scipy_override=payload.get("scipy_override"),
-        runtime_dir=str(payload["runtime_dir"]),
-        disk_usage_bytes=int(payload.get("disk_usage_bytes", 0)),
         reason=payload.get("reason"),
-        job=KrakenInstallJobResponse(**job) if isinstance(job, dict) else None,
     )
 
 
 @router.get("/kraken/status", response_model=KrakenRuntimeStatusResponse)
 async def kraken_status() -> KrakenRuntimeStatusResponse:
-    """Report whether Kraken is installed, plus any in-flight install job."""
+    """Report whether Kraken is bundled (importable) in this build."""
     return _kraken_status_response()
 
 
 @router.post("/kraken/install", response_model=KrakenRuntimeStatusResponse)
 async def install_kraken() -> KrakenRuntimeStatusResponse:
-    """Start (or reuse) the coalesced background Kraken install job.
+    """#4959: nothing to install — Kraken ships inside the signed bundle.
 
-    Returns immediately with the job so the UI can poll ``/kraken/status``.
-    Idempotent: a second call while one runs returns the same job, and a call
-    when Kraken is already installed completes without rebuilding the venv.
-    """
-    from fichero_server.llm.kraken_runtime import get_kraken_runtime
-
-    await get_kraken_runtime().start_install()
+    Kept for the MCP tool and the generated CLI: idempotent, no job, just
+    reports whether the bundle actually carries it (a packaging problem if
+    not, never something this call can fix)."""
     return _kraken_status_response()
 
 
 @router.delete("/kraken", response_model=KrakenRuntimeStatusResponse)
 async def remove_kraken() -> KrakenRuntimeStatusResponse:
-    """Remove the Kraken venv when no install is running."""
-    from fichero_server.llm.kraken_runtime import get_kraken_runtime
-
-    try:
-        get_kraken_runtime().remove()
-    except RuntimeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return _kraken_status_response()
+    """#4959: refuses — Kraken is bundled with the app and cannot be removed
+    (there is no separate runtime to delete)."""
+    raise HTTPException(
+        status_code=409, detail="Kraken is bundled with the app and cannot be removed."
+    )
 
 
 # =============================================================================

@@ -23,7 +23,7 @@ project_name = "Fichero"
 # Contents/Helpers/Fichero Server.app, so `com.fichero.*` was never a valid
 # identity for it — the DMG path never checks, only App Store Connect does.
 bundle = "app.fichero.fichero"
-version = "2026.9.19"
+version = "2026.9.20"
 url = "https://www.tubb.ca/fichero/"
 license.file = "LICENSE"
 author = "Daniel Tubb"
@@ -222,6 +222,56 @@ entitlement."com.apple.security.network.client" = true
 # Hide backend from Dock (background-only app)
 info."LSUIElement" = true
 
+# =============================================================================
+# Kraken bundling (#4959, 2026-09-20) — installed at BUILD time, never at
+# runtime. Kraken cannot go in `requires` above: it pins scipy~=1.15.3,
+# click<8.3, rich<14.1.0 and scikit-learn~=1.7.2, all OLDER than what this
+# bundle already carries (torch/scipy arrive via pykeen), so a single
+# resolve refuses (`pip install --dry-run`, 2026-09-20: "kraken 7.1.1
+# depends on scipy~=1.15.3"). `scripts/install_kraken_into_engine_bundle.py`
+# reads THIS table (not a copy) after `briefcase update -r`, installing
+# kraken itself with `--no-deps` (so its own pins are never consulted — the
+# bundle's newer scipy/click/rich/scikit-learn resolve instead) and
+# `missing_packages` normally (their transitive leaves are wanted).
+# `kraken_runtime.py` never reads this table — its `runtime_status()` asks
+# `importlib.metadata` for whatever is ACTUALLY importable, so a report can
+# never drift from what really shipped. The packaging test
+# (tests/unit/packaging/test_engine_starts_without_unbundled_packages.py)
+# reads this same table so a kraken import counts as bundled only because
+# this list says so, and asserts it never repeats a name `requires` already
+# resolves.
+[tool.fichero.kraken_bundle]
+version = "7.1.1"
+# Packages genuinely ABSENT from the engine bundle — checked package-by-
+# package against `app_packages`'s own dist-info on the 2026.09.20 build,
+# resolved cleanly on their own in a real `pip install --dry-run` scratch
+# venv (2026-09-20). Installed WITHOUT --no-deps (their own transitive
+# leaves are wanted).
+missing_packages = [
+    "scikit-image~=0.25.2",
+    "lightning==2.6.1",
+    "coremltools~=9.0",
+    "shapely~=2.1.2",
+    "safetensors~=0.7.0",
+    "htrmopo~=0.6",
+    "iso639-lang",
+    "lxml",
+    "platformdirs",
+]
+# Packages that need --no-deps AND a hand pin because their OWN dependency
+# resolution would try to move an already-pinned bundle package. A
+# scratch-venv `pip install --dry-run` cannot find these: kraken installs
+# `--no-deps`, which hides its OWN transitive pins (e.g. torchvision>=0.5.0)
+# from pip entirely — this list was found only by importing from a REAL
+# built bundle copy (manager's trial, 2026-09-20): "No module named
+# 'torchvision'". torchvision MUST be pinned to match the bundle's own torch
+# exactly (torch arrives via pykeen in `requires` above) — bump the two
+# together, never one alone, or `import torchvision` will try to reinstall
+# torch to satisfy its own pin.
+no_deps_packages = [
+    "torchvision==0.29.0",  # matches torch==2.14.0, the bundle's torch at the 2026-09-20 trial
+]
+
 # Build system requirements
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
@@ -254,7 +304,7 @@ fichero_server = [
 
 [project]
 name = "fichero-server"
-version = "2026.9.19"
+version = "2026.9.20"
 description = "Headless server for Fichero — embedded FastAPI service that powers document processing, AI workflows, and data storage."
 readme = "README.md"
 requires-python = ">=3.10"
