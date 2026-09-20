@@ -183,6 +183,11 @@ The editor
   selects it in the others.
 - `source.editor.edits-are-actions` — **[GAP]** (#4941) every edit is one audited, reversible engine action; the
   editor updates only the changed segments.
+- `source.editor.redo-works` — **[GAP]** (#4957) after undoing a segment edit, Redo (⇧⌘Z) does it again;
+  redo is worked out afresh as the undo of the undo, so it succeeds although the segment's
+  version has moved on; it is refused only if something else has changed the segment since.
+  (Today a redo of a segment edit is refused as stale: the shared undo route replays the
+  original request. The editor cannot ship without this.)
 - `source.editor.system-undo` — **[GAP]** (#4941) ⌘Z and ⇧⌘Z undo and redo editor actions through the action
   pass.
 - `source.editor.agent-parity` — **[GAP]** (#4941) every edit the editor can make can be made over MCP and the

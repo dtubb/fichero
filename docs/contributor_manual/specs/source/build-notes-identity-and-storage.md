@@ -466,6 +466,17 @@ undoing an undo. (`undelete` needs no expected version: a deleted segment cannot
 update, merge, split and carry all refuse it, so "is it deleted" is its whole precondition;
 its inverse carries the versions from **after** the undelete.)
 
+**Redo is refused until the shared undo route changes (→ #4957).** The generic undo route's redo
+leg replays the **original** action's recorded params, `expected_version` included. With
+versions only going up, the action and then its undo have each bumped the version by the
+time of a redo, so the replayed number is stale and the redo gets a clean 409. That is tested
+as the truth (it must not be papered over with a false success), and the answer is **not** to
+weaken "versions only go up". The fix is for redo to be **the inverse of the inverse**, worked
+out from the undo's own `after` at that moment, never a replay of stored params. That is a
+change to the shared registry's redo leg (`api/routes/system/actions_registry.py`), for every
+domain at once, with its own tests; it is not to be done inside the segments router. No other
+domain combines an expected version with undo today, so segments are the first to need it.
+
 **Typed notes are short.** `reason` and `note` are capped at 200 characters, are an operator's
 note, and must not quote a source: they are recorded inside the tamper-evident chain. Whether
 any typed words belong there is the maintainer's question (morning file).
