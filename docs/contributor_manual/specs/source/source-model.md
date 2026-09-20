@@ -522,6 +522,10 @@ build notes for slice 6).
     ALTO; then YOLO labels. TEI after those, with its own reader and writer.
 12. The editor's performance trial: a hard gate.
 13. The editor: one overlay, one input seam, every edit an action.
+13b. Editing a page by its text (direction given 2026-09-20; design in `segment-editor.md`,
+    `source.textedit.*`): the lines' readings as editable text beside a linked Source view;
+    Return splits, Backspace joins, typing is a new reading, whole lines move in the reading
+    order. Needs 8, 10, 12 and 13. Recommended home: the Reader; the choice is open.
 14. Hands, campaigns, certainty and damage, letterforms, declared signs: independent of each
     other, any order, after 8.
 15. Recordings; maps and control points; the canvas: self-contained, any time after 7.
@@ -619,7 +623,10 @@ The maintainer answered the set's open questions one by one on 2026-09-19. Parap
 9. **Automatic work is allowed after a first yes** for each project. What it makes follows the
    project's rule in 4.
 10. **A folder inside a project can carry its own settings**, through the cascade, set in the
-    Inspector. No second settings window.
+    Inspector. No second settings window. **Ruled in direction 2026-09-20, detail open:** a
+    project settings window holds the project-wide defaults; the Inspector edits the values of
+    a project, a document and anything below; and every value shows where it came from. One
+    resolver underneath both (the cascade's), so the two places can never disagree.
 11. **Levels of normalisation.** Three sensible defaults (as written, expanded, normalised),
     and the list is open: a project can define its own.
 12. **A sign with no character is a declared sign** (a name and a picture from a real page,

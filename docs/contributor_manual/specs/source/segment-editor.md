@@ -50,7 +50,125 @@ other, it can sit **beside** a Reader (type the reading of the selected line), b
 Inspector (the facts of the selected segment), beside the Library, or beside a second Source
 view on another pass, another image of the same page, or another source altogether.
 
-**A Segments pane: ruled in direction, and BLOCKED on the maintainer.** On 2026-09-19 the
+**A text-first segment editor: direction given 2026-09-20, design below, not built.** The
+earlier request for a Segments pane was answered with a clearer one: **edit a page's segments
+by editing its text.** The comparison offered was the kind of audio editor where you cut the
+recording by cutting its transcript. You work as in a word processor, the segments change as
+you type, and a Source view beside it shows the page with all its boxes. Asked where it lives,
+the answer was a new kind of pane, and in the same breath that it could well live in the
+Reader. So this is a direction to design. Both ways are written out, with a recommendation;
+the choice is the maintainer's.
+
+### Editing a page by its text (design; recommended home: the Reader)
+
+**Option 1, recommended: the Reader.** For a source whose segments have readings, the Reader's
+text IS those readings, in the page's named reading order, and it is editable. Not a mode to
+switch on: it is what the Reader shows for such a source (nodes, not modes). The Source view
+beside it is linked to it, as panes already link. When no Source view is visible, the Reader
+shows each line's picture above its text, so the ink is never out of sight; when one is, it
+does not, and nothing has to be toggled.
+- Keeps three surfaces three: the Source view is the page, the Reader is the words, the
+  Inspector is the facts. Words are already typed in the Reader.
+- Keeps one navigator. Stepping through a source's lines is moving the caret; reordering is
+  cut and paste; a list of segments as rows stays a Library listing
+  (`source.editor.library-lists-segments`); moving a segment to another pass stays a Source
+  view verb. Nothing the Segments pane was asked for is left without a home.
+- No new pane plumbing: no sixth entry in the kind switcher, the workspaces, the saved pane
+  lists and the per-pane state, which is where duplicate code paths have come from before.
+
+**Option 2: a sixth kind of pane.** A pane made for this one job: line pictures and text in a
+fixed two-column layout, its own toolbar. What the modes-to-panes ruling would have to give
+up: that the Library is always the navigator (this pane would be a second way to move through
+a source's contents); that there is no browser kind of pane; and, in practice, that the
+Source view, the Reader and the Inspector are the three surfaces, because words would now be
+typed in two places with two sets of editing rules to keep the same. It buys a layout tuned
+for transcription. Option 1 gets the same layout from the Reader's line pictures.
+
+**Whichever home it has, the rules below hold.** Every edit is one of the segment, reading
+and reading-order actions that already exist or are already specified; the text surface adds
+no action and no second path. Where an edit touches both a shape and words (a split, a
+join), it is ONE action whose existing parameters carry both, never two.
+
+**Which text it shows.** One level: the lines of the page's working pass, in its named reading
+order, grouped by region; a region that reads in another direction is its own block. Words
+and characters are not units of their own here: they are positions inside a line's reading.
+A page with 20,000 segments is a page with a few hundred lines and many words, and the text
+still shows the lines. A page with no line level shows its lowest level that has readings, in
+order. Only the blocks near what is on screen are laid out, and reads stay bounded by kind
+and area. It is part of the editor's speed trial (slice 12).
+
+**Typing.** Typing in a line corrects the reading of the segment under the caret. A correction
+is a new reading, never an overwrite (`source.reading.corrections-are-new`): its maker is the
+person, set by the engine; it records what it was corrected from; the machine's reading
+stays. Which reading then counts follows the project's rule.
+
+**Return inside a line splits that line's segment at the caret.** The reading divides at the
+caret. Where the cut falls on the page, in order of preference:
+1. Between the word before and the word after the caret, when the line has word segments or
+   the reading carries positions for its characters: the cut crosses the baseline at the
+   middle of the gap, at right angles to the baseline there.
+2. Otherwise by proportion: the caret's share of the reading's length, measured along the
+   baseline in the line's own direction, and the cut is marked **estimated**. The Source view
+   shows an estimated cut differently, with a handle, and dragging it is an ordinary reshape.
+3. A caret inside a word is allowed: the same two rules, within the word.
+Return is never refused for want of word boxes; it is honest that the cut is a guess. The
+first part keeps the line's id; the second is new; both go into the reading order where the
+line was.
+
+**Backspace at the start of a line joins it to the line before it in the reading order** (the
+line before in the order, not the line above on the page). The earlier line is kept and keeps
+its id; the shape becomes both shapes; the readings join, with the separator the script calls
+for (a space, or nothing). Refused, with the reason, when the two lines are in different
+regions or passes: move the line first.
+
+**Deleting words deletes words, never ink.** Removing text is a correction of the reading:
+the person is saying the word is not there. The earlier reading keeps it. If that word has a
+segment of its own, the segment stays, is shown in the Source view as having no reading in
+this reading, and is not deleted. Emptying a whole line leaves the line's segment in place,
+marked as having no reading. Deleting a SEGMENT is a command of its own, said out loud
+(Delete Segment), and is the undoable delete the Source view already has.
+
+**Cut and paste of whole lines edits the named reading order**, and nothing else: the lines'
+shapes and places on the page do not change. Pasted text that is not lines just cut from this
+source is typing; line breaks in it become spaces, so a paste can never set off a run of
+estimated splits.
+
+**One selection, both ways.** The caret's line is the selected segment in the Source view, and
+the word under it when there are word segments; selecting boxes in the Source view selects
+their text. One shared selection, the one the rest of the app already uses, so a command
+acts on what is visibly selected.
+
+**A run of keystrokes is one action.** Typing in one line gathers into one edit, committed
+when the caret leaves the line, when a structural key is pressed (Return, a joining
+Backspace, cut, paste), when the pane loses focus, on Save, or after two seconds without a
+keystroke. One committed edit is one new reading, one audit record and one undo step. While
+an edit is still gathering, Undo is the text field's own; once committed, Undo goes through
+the record like any other action. A split, a join, a cut or a paste is always its own action,
+at once. By the ruling of 2026-09-20 the audit record's chained part holds ids, version
+numbers and a keyed fingerprint; the typed words go in the content part.
+
+**Someone else got there first.** A committed edit names the version it was made against. If
+the line or its reading has changed since, it is refused, and **the typed words are not
+thrown away**: the line shows both and asks, keep mine, take theirs, or compare. Out of reach
+of the engine the text is read-only and says why (ruled 2026-09-20); an edit still gathering
+when the connection drops is kept and committed, with its version check, when it returns.
+
+**Every direction of writing.** Each block is laid out in its own direction from the cascade:
+left to right, right to left, top to bottom. The caret moves in reading order; "the start of
+a line" is its start in reading order; a cut runs along the baseline in the line's own
+direction, from the right for right-to-left, downward for vertical. A page with two scripts
+in two directions is two blocks. Where the platform cannot lay a direction out properly, the
+block is shown horizontally with a plain label saying so; it is never silently reordered.
+
+**Before readings are on segments there is nothing to show.** This surface is the readings of
+segments in a reading order. It depends on slice 8 (readings on segments), slice 10 (named
+reading orders, for cut and paste), the speed trial (12) and the one store, selection and
+input seam of the editor (13). It is placed as **slice 13b, after 13**; typing, splitting and
+joining could come before cut and paste if 10 is late.
+
+### The earlier Segments pane record (kept for the history; superseded by the direction above)
+
+On 2026-09-19 the
 maintainer asked for a surface of its own for getting to a source's segments: to see them with
 their pictures and readings, step through them, reorder them, move them between regions or
 passes, and edit them, with a reading beside. An earlier ruling (`ui/modes-to-panes.md`) says
@@ -167,7 +285,42 @@ Reading before editing (the app's first step: it draws from the seam, and edits 
 The editor
 - `source.editor.segment-focus` — **[GAP]** (#4941) the Source view has a segment focus in which the editing
   tools appear; it can sit beside a Reader, an Inspector, the Library or another Source view.
-- `source.segments-pane.exists` — **[GAP]** (#4942) **BLOCKED on the maintainer** (a Segments pane, or a view of
+- `source.textedit.reader-shows-segments` — **[GAP]** (#4942) for a source whose segments have readings, the text
+  surface shows the lines of the working pass in the named reading order, one block for each
+  region and direction, and is editable; with no Source view in sight each line shows its
+  picture. (Home recommended: the Reader; a sixth pane kind is the other option; the
+  maintainer's to choose.)
+- `source.textedit.typing-is-a-new-reading` — **[GAP]** (#4942) typing corrects the reading of the segment under the
+  caret as a new reading whose maker is the person, set by the engine; the earlier reading
+  stays.
+- `source.textedit.return-splits-the-line` — **[GAP]** (#4942) Return inside a line splits that segment at the caret
+  in one action: the reading divides at the caret; the cut falls between words when their
+  places are known, otherwise by proportion along the baseline and marked estimated; the
+  first part keeps the id.
+- `source.textedit.backspace-joins-in-reading-order` — **[GAP]** (#4942) Backspace at a line's start joins it to the line
+  before it in the reading order, in one action, keeping the earlier line's id; refused with
+  the reason across regions or passes.
+- `source.textedit.deleting-words-keeps-ink` — **[GAP]** (#4942) removing text is a new reading without those words;
+  no segment is deleted by it; a word segment left without a reading, or an emptied line, is
+  shown as such; deleting a segment is a separate, named command.
+- `source.textedit.lines-move-in-the-order` — **[GAP]** (#4942) cutting and pasting whole lines changes the named
+  reading order and nothing on the page; other pasted text is typing, its line breaks
+  turned to spaces.
+- `source.textedit.one-selection` — **[GAP]** (#4942) the caret's line (and word) is the selection in the Source
+  view, and a selection there selects the text; one shared selection.
+- `source.textedit.a-run-of-keys-is-one-action` — **[GAP]** (#4942) typing in one line commits as one reading, one
+  audit record and one undo step, on leaving the line, a structural key, loss of focus, Save,
+  or two seconds' pause; structural edits are their own action at once.
+- `source.textedit.stale-keeps-your-words` — **[GAP]** (#4942) an edit against a version that has moved on is refused
+  and the typed words are kept and offered: keep mine, take theirs, compare; out of reach of
+  the engine the text is read-only.
+- `source.textedit.every-direction` — **[GAP]** (#4942) each block is laid out and edited in its own direction;
+  line starts, joins and cuts follow reading order and the baseline; a direction the platform
+  cannot lay out is labelled, never reordered.
+- `source.textedit.no-second-path` — **[GAP]** (#4942) every change made from the text is one of the existing
+  segment, reading and reading-order actions; the text surface defines none of its own.
+- `source.segments-pane.exists` — **[GAP]** (#4942) **Superseded in direction 2026-09-20 by `source.textedit.*`;
+  still not to be built** (a Segments pane, or a view of
   the Library): a surface shows a source's segments with their pictures and readings, and lets
   them be stepped through, reordered and moved. Not to be built or tested until ruled.
 - `source.segments-pane.same-actions` — **[GAP]** (#4942) **BLOCKED with the one above**: whatever that surface

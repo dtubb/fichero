@@ -295,8 +295,9 @@ copy.
 An edit names the version of the segment it was made against. If the segment has changed
 since (someone else reshaped it; an iPad was offline), the edit is refused and Fichero shows
 what changed. Edits are never silently merged or silently lost. Editing while out of reach of
-the engine (an iPad offline) is **not supported** in this work: a queue of stale edits
-refused one by one is no way to work, and reconciling them is a design of its own.
+the engine (an iPad offline) is **not supported: ruled 2026-09-20.** A device must be connected
+to the engine to edit; out of reach, the editors are read-only and say why. A queue of stale
+edits refused one by one is no way to work.
 
 ### What is worked out from a segment
 
@@ -628,27 +629,27 @@ Storage
   only by the running app's engine, a page at a time.)
 
 Converting a whole project (ruled 2026-09-20; built after readings are on segments)
-- `source.convert.starts-when-a-project-opens` — **[GAP]** (#4924) conversion starts by itself after a project
+- `source.convert.starts-when-a-project-opens` — **[GAP]** (#4998) conversion starts by itself after a project
   opens and never delays the opening; the project is fully usable while it runs.
-- `source.convert.only-the-running-engine` — **[GAP]** (#4924) the only thing that converts a project is the
+- `source.convert.only-the-running-engine` — **[GAP]** (#4998) the only thing that converts a project is the
   engine of the running app that has it open.
-- `source.convert.snapshot-first-and-proved` — **[GAP]** (#4924) no page converts until a snapshot of the project
+- `source.convert.snapshot-first-and-proved` — **[GAP]** (#4998) no page converts until a snapshot of the project
   exists and has been read back and checked; that snapshot is kept out of the ordinary
   tidy-up until the conversion is finished and its report has been seen.
-- `source.convert.refused-when-disk-is-short` — **[GAP]** (#4924) with too little free disk nothing starts and
+- `source.convert.refused-when-disk-is-short` — **[GAP]** (#4998) with too little free disk nothing starts and
   nothing is half done; the report says how much is needed; it tries again at the next open.
-- `source.convert.the-machine-stays-usable` — **[GAP]** (#4924) it runs at background priority, a page at a time,
+- `source.convert.the-machine-stays-usable` — **[GAP]** (#4998) it runs at background priority, a page at a time,
   and gives way to a person's work; measured, not assumed.
-- `source.convert.a-page-is-all-or-nothing` — **[GAP]** (#4924) each page converts in one transaction or not at
+- `source.convert.a-page-is-all-or-nothing` — **[GAP]** (#4998) each page converts in one transaction or not at
   all; a page that cannot convert is recorded with its reason, skipped, and still reads from
   its block as before; the rest carry on.
-- `source.convert.stops-starts-and-repeats-safely` — **[GAP]** (#4924) quitting part-way loses nothing; the next
+- `source.convert.stops-starts-and-repeats-safely` — **[GAP]** (#4998) quitting part-way loses nothing; the next
   open carries on; running it again over a converted project writes nothing.
-- `source.convert.half-done-reads-the-same` — **[GAP]** (#4924) at every moment of a conversion, every reader gets
+- `source.convert.half-done-reads-the-same` — **[GAP]** (#4998) at every moment of a conversion, every reader gets
   the same answer for every page as before it started, but for the ids.
-- `source.convert.report` — **[GAP]** (#4924) each project has a kept report: what converted, what could not and
+- `source.convert.report` — **[GAP]** (#4998) each project has a kept report: what converted, what could not and
   why, where the snapshot is, how long it took.
-- `source.convert.words-move-with-the-boxes` — **[GAP]** (#4924) once readings are on segments, converting a page
+- `source.convert.words-move-with-the-boxes` — **[GAP]** (#4998) once readings are on segments, converting a page
   also gives each segment its words as a reading with its maker, so the old block is no longer
   the only home of the text and a converted result can be deleted again.
 

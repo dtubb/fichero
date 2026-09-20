@@ -23,6 +23,15 @@ segment id lives in the anchor, `SourceAnchor.segment_id`, one shape for reading
 supports and claims; it is built HERE, under #4932, with `resolve_anchor`; see "Where a
 lasting segment reference lives" in the identity and storage notes.)
 
+**Owed by this slice to the text editor (13b), so it is not retrofitted:** once a segment has
+readings, `segment.split` and `segment.merge` must say what happens to them, in the SAME
+action. Split: each part may name the stretch of the reading it takes (a character offset);
+with none given, the reading stays on the kept part and the new parts have none. Merge: the
+kept segment's reading becomes the members' readings joined in reading order, as a new
+reading whose maker is the person who merged; the members' readings stay on their (soft
+deleted) segments and come back with an unmerge. Undo of either puts the readings back
+exactly. These are parameters of the existing actions, never new actions.
+
 **What exists.** `ContentRepresentation` (`models/__init__.py`): `id`, `document_id`, `kind`
 (a **closed** enum: transcription, normalized_text, translation, transliteration, markdown,
 html, svg), `content`, `language`, `script`, `source_anchor`, `parent_representation_id`,

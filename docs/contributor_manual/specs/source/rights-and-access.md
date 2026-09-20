@@ -67,8 +67,8 @@ against their sources before approval.)
   it; a record lower down may restrict further, never loosen what is above it.
 - **Who may do what** (ruled 2026-09-19). **Owners and editors** can set rights records,
   restrict and redact. **Only the owner can purge.** A **viewer** never sees restricted
-  material. (Whether every editor sees it, or only those a record names, is an open
-  question.)
+  material. **Ruled 2026-09-20: only the people a rights record names see restricted
+  material**; being an editor is not enough.
 - **Restricted** means those not allowed do not see a segment's picture, readings, marks or
   statements. For them it is **hidden, and the fact that something is hidden is shown** ("one
   passage on this page is restricted"). It is never silently dropped.
@@ -109,8 +109,8 @@ against their sources before approval.)
   and never loosen.
 - `source.rights.who-acts` — **[GAP]** (#4953) owners and editors set rights records, restrict and redact; only
   the owner can purge.
-- `source.rights.restricted-is-said` — **[GAP]** (#4953) for anyone not allowed to see it (always a viewer; which
-  editors is an open question), a restricted segment's content is hidden, and the page says
+- `source.rights.restricted-is-said` — **[GAP]** (#4953) for anyone not allowed to see it (always a viewer, and any editor or owner the
+  rights record does not name: ruled 2026-09-20), a restricted segment's content is hidden, and the page says
   that something is hidden.
 - `source.rights.citation-does-not-leak` — **[GAP]** (#4953) a reference to a restricted segment opens to
   "restricted" for someone not allowed.
