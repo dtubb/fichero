@@ -236,15 +236,22 @@ async def test_segments_hard_gate_same_ids_and_rects_everywhere(mcp_server, cli_
         # 1. The route, direct.
         route_body = http.get(f"/api/segments/document/{doc['id']}").json()
 
-    def _ids_and_rects(segments: list[dict]) -> list[tuple[str, list[float]]]:
-        return [(s["id"], s["anchor"]["rect"]) for s in segments]
+    def _ids_and_rects(segments: list[dict]) -> list[tuple[str, list[float], object]]:
+        # page_index (slice 1b, #4919) rides in this tuple too: unset here
+        # (the live regions-edit route has no page_index field to set), but
+        # the three paths must still agree it is unset the same way.
+        return [(s["id"], s["anchor"]["rect"], s["page_index"]) for s in segments]
 
     route_pairs = _ids_and_rects(route_body["segments"])
-    assert route_pairs == [("legacy:" + artifact["id"] + ":0", [0.1, 0.2, 0.3, 0.1])]
+    assert route_pairs == [
+        ("legacy:" + artifact["id"] + ":0", [0.1, 0.2, 0.3, 0.1], None)
+    ]
+    route_pass_text = route_body["passes"][0]["text"]
 
     # 2. The MCP tool, in-process against the same live engine.
     mcp_result = await call(mcp_server, "fichero_segments", {"doc_id": doc["id"]})
     assert _ids_and_rects(mcp_result["segments"]) == route_pairs
+    assert mcp_result["passes"][0]["text"] == route_pass_text
 
     # 3. The generated CLI command, against the same live engine.
     runner = CliRunner()
@@ -259,6 +266,7 @@ async def test_segments_hard_gate_same_ids_and_rects_everywhere(mcp_server, cli_
     assert result.exit_code == 0, result.output
     cli_body = json.loads(result.output)
     assert _ids_and_rects(cli_body["segments"]) == route_pairs
+    assert cli_body["passes"][0]["text"] == route_pass_text
 
 
 @pytest.mark.asyncio

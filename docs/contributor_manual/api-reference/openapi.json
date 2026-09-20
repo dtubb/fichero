@@ -57315,6 +57315,11 @@
             "nullable": true,
             "title": "Created At"
           },
+          "text": {
+            "type": "string",
+            "nullable": true,
+            "title": "Text"
+          },
           "source_artifact_id": {
             "type": "string",
             "nullable": true,
@@ -63409,6 +63414,11 @@
             "type": "integer",
             "nullable": true,
             "title": "Box Index"
+          },
+          "page_index": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Page Index"
           },
           "metadata": {
             "additionalProperties": true,

@@ -661,3 +661,77 @@ class TestSegmentProvenanceKind:
         segments = _get(client, doc.id).json()["segments"]
         by_text = {s["text"]: s["provenance_kind"] for s in segments}
         assert by_text == {"machine": "workflow", "curated": "human"}
+
+
+class TestSlice1bAdditions:
+    """SegmentRead.page_index, PassRead.text, PassRead.provider (#4919,
+    slice 1b -- build-notes-identity-and-storage.md)."""
+
+    def test_each_segment_carries_its_page_index_and_filtering_isolates_pages(
+        self, client, db,
+    ):
+        """A two-page PDF fixture: every segment carries its page's index,
+        and filtering by it (client-side -- there is no page query param in
+        this slice) gives each page only its own boxes."""
+        doc = _make_doc(db)
+        boxes = [
+            OCRGeometryBox(text="p0 word", bbox=[0.1, 0.1, 0.1, 0.1], level="word", page_index=0),
+            OCRGeometryBox(text="p0 word2", bbox=[0.2, 0.2, 0.1, 0.1], level="word", page_index=0),
+            OCRGeometryBox(text="p1 word", bbox=[0.1, 0.1, 0.1, 0.1], level="word", page_index=1),
+        ]
+        _make_regions_artifact(db, doc.id, boxes=boxes)
+
+        segments = _get(client, doc.id).json()["segments"]
+        assert [s["page_index"] for s in segments] == [0, 0, 1]
+
+        page_0 = [s for s in segments if s["page_index"] == 0]
+        page_1 = [s for s in segments if s["page_index"] == 1]
+        assert {s["text"] for s in page_0} == {"p0 word", "p0 word2"}
+        assert {s["text"] for s in page_1} == {"p1 word"}
+
+    def test_pass_text_indexes_correctly_and_is_never_a_join_of_box_texts(
+        self, client, db,
+    ):
+        """PassRead.text is the result's OWN text; a box's char_start/char_end
+        index into THAT text. A naive join of box texts with spaces would
+        NOT equal it here (the source has irregular spacing), so the test
+        fails if anything rebuilds pass.text from the boxes."""
+        result_text = "Alpha,  Beta -- Gamma"  # NOT "Alpha Beta Gamma"
+        naive_join = " ".join(["Alpha", "Beta", "Gamma"])
+        assert result_text != naive_join
+
+        boxes = [
+            OCRGeometryBox(text="Alpha", bbox=[0.1, 0.1, 0.1, 0.1], level="word",
+                            char_start=0, char_end=5),
+            OCRGeometryBox(text="Beta", bbox=[0.2, 0.2, 0.1, 0.1], level="word",
+                            char_start=8, char_end=12),
+            OCRGeometryBox(text="Gamma", bbox=[0.3, 0.3, 0.1, 0.1], level="word",
+                            char_start=16, char_end=21),
+        ]
+        doc = _make_doc(db)
+        _make_regions_artifact(db, doc.id, boxes=boxes)
+        # Override the fixture's own text with our irregularly-spaced one.
+        stored = db.query(Artifact, document_id=doc.id)[0]
+        stored.ocr_geometry = stored.ocr_geometry.model_copy(update={"text": result_text})
+        db.save(stored)
+
+        body = _get(client, doc.id).json()
+        pass_text = body["passes"][0]["text"]
+        assert pass_text == result_text
+        assert pass_text != naive_join
+
+        for segment in body["segments"]:
+            char_start = segment["anchor"]["char_start"]
+            char_end = segment["anchor"]["char_end"]
+            assert pass_text[char_start:char_end] == segment["text"]
+
+    def test_pass_provider_is_the_artifacts_provider_not_its_type(self, client, db):
+        """PassRead.provider is the ARTIFACT's provider; `name` stays a
+        display name (the artifact's type)."""
+        doc = _make_doc(db)
+        _make_regions_artifact(db, doc.id, provider="apple_vision")
+
+        pass_read = _get(client, doc.id).json()["passes"][0]
+        assert pass_read["provider"] == "apple_vision"
+        assert pass_read["name"] == "regions"  # the artifact_type, a display name
+        assert pass_read["name"] != pass_read["provider"]

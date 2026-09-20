@@ -110,6 +110,10 @@ class SegmentRead(BaseModel):
     #: Position inside the owning artifact's ``ocr_geometry.boxes`` -- only
     #: meaningful (and only ever set) for a provisional segment.
     box_index: int | None = None
+    #: Copied from ``OCRGeometryBox.page_index`` (slice 1b, #4919). The PDF
+    #: page view filters boxes by it (``PDFPageWithToolbar.boxesForDisplayedPage``);
+    #: without it every page of a multi-page PDF would show every page's boxes.
+    page_index: int | None = None
     #: Anything that does not belong ON the anchor (which slices 3 and 6
     #: STORE, so it must stay clean): raw pixel values from a tool
     #: (``raw_polygon_px``, ``raw_baseline_px``, ``raw_pixel_frame``), and
@@ -126,10 +130,18 @@ class PassRead(BaseModel):
     document_id: str
     name: str
     provenance_kind: ProvenanceKind
+    #: The ARTIFACT's provider (slice 1b, #4919) -- the app's
+    #: `OCRGeometry.provider` is filled from this, never from ``name``
+    #: (which holds the artifact's TYPE, a display name, not a provider).
     provider: str | None = None
     model: str | None = None
     run_id: str | None = None
     created_at: datetime | None = None
+    #: The result's OWN text (``OCRGeometryResult.text``, slice 1b, #4919).
+    #: A box's ``char_start``/``char_end`` index into THIS text -- never
+    #: rebuild it by joining box texts, which is not the same string when a
+    #: box was skipped, reordered, or the source had inter-box whitespace.
+    text: str | None = None
     #: The app ranks passes by these without looking the artifact up
     #: (additive; slice 3's ``SegmentPass`` already has ``source_artifact_id``).
     source_artifact_id: str | None = None
@@ -384,6 +396,7 @@ def segment_from_box(
         confidence=box.confidence,
         source_artifact_id=artifact_id,
         box_index=box_index,
+        page_index=box.page_index,
         metadata=metadata,
     )
 
@@ -429,5 +442,6 @@ def segments_from_result(
         created_at=created_at,
         source_artifact_id=artifact_id,
         artifact_type=artifact_type,
+        text=result.text or None,
     )
     return pass_read, segments
