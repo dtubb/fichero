@@ -144,6 +144,18 @@ added in this slice (there is no segment store yet).
 `source.segment.open-kinds`, `source.segment.lasting-id`, `source.segment.box-is-derived`,
 `source.segment.rerun-is-new-pass`.
 
+**The two tables arrive when a library opens, not when someone first looks.** Both models are
+registered in `Database._all_schema_models()`, so `_materialize_schema()` makes the empty
+tables and their indexes at open, with every other table (this is the ruled default: schema on
+open, data on first edit). A read therefore creates nothing, and slice 1's test keeps its
+strong form: reading twice changes neither the list of tables nor any row count. (If a
+read-only way of opening a library is ever added, it must skip `_materialize_schema`, and the
+seam must treat "no such table" as "no rows". The engine has no such path today.)
+
+**Bulk writes are one audited action like any other.** `Database.transaction()` is re-entrant;
+`save_many` must join it (not issue its own `BEGIN`), so that `segment.create_many` is
+registered `atomic=True` and its rows and its audit row commit together or not at all.
+
 **How tables come to be.** A pydantic model saved through `Database.save()` gets its table on
 first save (`_ensure_table`: table name is the class name lower-cased plus `s`; lists, dicts
 and nested models are stored as JSON; missing columns are added on open). So the models below
@@ -223,8 +235,8 @@ and index that, and say so in the commit.
 
 **Migration and old libraries.** No data moves. `migrate_segment_indices` is the only new
 migration. Test in the shape of `tests/unit/db/test_catalogue_chunk_artifact_type_migration.py`:
-hand-build a library database with today's `artifacts` table and **no** `segments` table; open
-it; run the migration **twice**; assert nothing raised, no `segments` rows exist, the artifact
+make a library database **file** with today's `artifacts` table and **no** `segments` or
+`segment_passes` table; close it; **open it through `Database` twice**; assert nothing raised, no `segments` rows exist, the artifact
 rows are byte-for-byte unchanged, and a first `Segment` save then creates the table and the
 indexes.
 
@@ -265,9 +277,18 @@ whose `document_id` is not the segment's.
   first (row count, `updated_at`).
 - `source.store.record-per-segment`: "the lines of this document in this pass" and "the
   children of this region" are single filtered queries.
-- `source.store.bounded-reads`: with 200,000 segments in one source (made with `save_many` in
-  a temporary library; marked `slow`), one page at one kind returns in under 200 ms; a read
-  with no `document_id` is refused.
+- `source.store.bounded-reads`: **the bound is the route's answer as a client receives it.**
+  With 200,000 segments in one source, spread as a real source is (500 page documents of 400;
+  made with `save_many` in a temporary library; marked `slow`), `GET
+  /api/segments/document/{doc_id}?kind=` for one page returns in under 200 ms. Separately, a
+  dense page (20,000 segments on **one** page): a read by kind **and by area** (`tile=`, a new
+  query parameter) returns in under 200 ms; a whole dense page in one read is measured and
+  **reported, not asserted**. Timing the SQL alone does not pin this behaviour. A read with
+  no `document_id` is refused. (A lean read path, raw rows to the read shape with no
+  intermediate model, is **slice 3b**, needed before the editor's trial, not now.)
+- `segment.create_many` is atomic: force the audit write to fail and assert no segment row
+  remains.
+- No audit row written by these actions contains a `content` or `text` key.
 - Old-library test above, twice.
 - The seam returns rows for a converted document and boxes for an unconverted one, in the
   same response shape.
