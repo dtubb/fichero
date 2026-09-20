@@ -106,11 +106,11 @@ Reading a network
   settings give the same picture.
 
 Out
-- `explore.network.gexf-and-graphml-out` — **[GAP]** (#5032) the network of any set leaves as
+- `explore.network.gexf-and-graphml-out` — **[GAP]** (#5034) the network of any set leaves as
   GEXF (with the dates on nodes and edges, which GEXF supports natively) and as GraphML. Every
   node and edge carries its kind, dates, confidence, asserter, the rule that made it, and the
   citable references of its evidence. Rights are applied.
-- `explore.network.export-is-the-first-slice` — **[GAP]** (#5032) the exporter ships BEFORE any
+- `explore.network.export-is-the-first-slice` — **[GAP]** (#5034) the exporter ships BEFORE any
   new network drawing, so that Gephi and Retina are usable at once.
 - `explore.network.rdf-out-carries-authorship` — **[PARTIAL]** (#5032) the existing RDF export
   is the linked-open-data form of the same network. It is built; claim authorship is absent

@@ -104,7 +104,7 @@ The ground
   modern ground; places labelled on it lead to their place entities.
 
 Out
-- `explore.place.geojson-out` — **[GAP]** (#5032) the places of any set leave as GeoJSON (and,
+- `explore.place.geojson-out` — **[GAP]** (#5034) the places of any set leave as GeoJSON (and,
   where places change over time, Linked Places format), each feature carrying its dates, basis,
   confidence, asserter and the citable reference of its evidence, so the work continues in
   QGIS. Rights are applied (`explore.care.rights-apply-everywhere`).

@@ -121,7 +121,7 @@ The hermeneutic layers
   carry a source anchor.
 
 Out
-- `explore.table.csv-and-parquet-of-what-is-showing` — **[PARTIAL]** (#5032) one command exports
+- `explore.table.csv-and-parquet-of-what-is-showing` — **[PARTIAL]** (#5034) one command exports
   the current set, as narrowed, with the columns showing, as CSV or Parquet, in tidy long form,
   with a citable reference to the source in every row. Parquet export of a whole project is
   built (`export.one-stream-feeds-every-record-emitter`); CSV, "what is showing", and an app

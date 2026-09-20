@@ -107,7 +107,7 @@ Keeping, comparing
   with the same kind of project can run it. This follows the ruling that recipes are files.
 
 In and out
-- `explore.out.export-what-is-showing` — **[GAP]** (#5032) one command exports the current view:
+- `explore.out.export-what-is-showing` — **[GAP]** (#5034) one command exports the current view:
   its table (CSV, Parquet), its network (GEXF, GraphML), its places (GeoJSON), its vectors and
   positions (Parquet), and a picture (PDF or PNG), each with a small file saying how it was
   made and from what. Through the existing export stream.

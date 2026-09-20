@@ -15,8 +15,10 @@
 > **[GAP]** intended, never built · **[BROKEN]** code contradicts the rule.
 >
 > **One milestone for the whole set**: every file in this folder declares `Milestone: explore`.
-> The milestone does not exist yet; until it does, every [GAP] cites the epic, #5032 (and #5030
-> where the map by meaning is meant). Issues are to be cut from the build order below.
+> GitHub milestone 323. Slices 1 to 4 of the build order have their own issues (#5033 more like
+> this, #5034 export what I see, #5035 group my search results, #5036 map by meaning for search
+> results; #5038 declares scikit-learn); every other [GAP] cites the epic, #5032, or #5030 for
+> the map by meaning, until its slice is cut.
 > What the maintainer has ruled is marked RULED. Everything else is PROPOSED until ruled; the
 > open decisions are collected in `agent-work/dh-layer/questions-for-the-maintainer.md` and
 > summarised at the foot of each file.
@@ -159,7 +161,8 @@ then, views work one pane at a time (question 2, blocking for linked views only)
 A second thing found: `m2p.kg-graph-retires-as-library-takeover` says the knowledge-graph
 timeline and map are already Library view modes on the Entities collection. On disk they are
 mounted only in the Reader, for one document (`Views/Reader/Knowledge/DocumentKGSurface.swift`);
-entities and claims in the Library are tables only. This set treats the ruling as the intent
+entities and claims in the Library are tables only (#5037; that spec file is not edited on this
+branch, so its line keeps its tag until #5037 is worked). This set treats the ruling as the intent
 and the code as not there yet.
 
 ## How it is drawn (PROPOSED; question 3 is blocking)
