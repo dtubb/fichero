@@ -309,6 +309,11 @@ extension ContentView {
                         paneListDidChange()
                     }
                 ),
+                // ONE CODE PATH (2026-09-20 ruling, slice B): the pane's OWN id — a leaf's or a
+                // split's, both cases of `PaneNode.id` — not this column's array offset. This is
+                // what lets `WorkspaceSplitStack` tell "pane X moved to a new position" apart
+                // from "pane X closed and a different pane Y is now here" (#4976).
+                id: node.id,
                 sizing: extents[index]
             )
         }
@@ -442,6 +447,8 @@ extension ContentView {
                     secondaryIDs: secondaryIDs, closeLeaf: closeLeaf, changeKind: changeKind,
                     changeContentKind: changeContentKind, splitLeaf: splitLeaf
                 ),
+                // Same as `paneListRow`: the child's own `PaneNode.id`, not its array index.
+                id: child.id,
                 sizing: extents[idx]
             )
         }

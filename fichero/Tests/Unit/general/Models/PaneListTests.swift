@@ -140,89 +140,10 @@ struct PaneListTests {
         #expect(after.nodes.reduce(0) { $0 + $1.leafCount } == 4)  // exactly one more pane
     }
 
-    /// The ONE CODE PATH ruling's own test (2026-09-20, source-model panes
-    /// recon, slice A / #4967 / #4878): the isolation `splittingLeavesOthersUntouched`
-    /// already pins for a SINGLE split now holds when the tree is ALREADY
-    /// split and the SECOND operation lands on one of the two children — the
-    /// exact shape of #4967's repro ("split a pane, then split ONE of the
-    /// two resulting panes") — and that changing ONE resulting child's KIND
-    /// afterward still touches only that one leaf (#4878's shape).
-    @Test("splitting one leaf of an already-split pair, in each direction, then changing one child's kind, leaves every other leaf untouched and the leaf count rises by exactly one")
-    func splittingAnAlreadySplitPairThenChangingOneChildsKindIsIsolated() {
-        for axis in [SplitAxis.horizontal, .vertical] {
-            let paneA = UUID()
-            let paneB = UUID()
-            // Already split: A and B side by side under one top-level node —
-            // the starting shape of #4967's repro ("split a pane").
-            let list = PaneList([
-                .split(.horizontal, [
-                    .leaf(id: paneA, kind: .library, scope: .current, config: .none),
-                    .leaf(id: paneB, kind: .preview, scope: .current, config: .none)
-                ])
-            ])
-            #expect(list.leafCount == 2)
-
-            // Split ONE of the two halves (B) again, along `axis`.
-            let afterSplit = list.splittingLeaf(paneB, axis: axis)
-            #expect(
-                afterSplit.leafCount == 3,
-                Comment(rawValue: "splitting one already-split half (axis \(axis)) must add exactly one pane")
-            )
-
-            guard case let .split(_, _, outerChildren) = afterSplit.nodes[0] else {
-                Issue.record("expected the outer split to survive"); continue
-            }
-            guard case let .leaf(idA, kindA, _, _) = outerChildren[0] else {
-                Issue.record("expected leaf A first, untouched"); continue
-            }
-            #expect(idA == paneA)
-            #expect(kindA == .library)
-
-            guard case let .split(_, innerAxis, innerChildren) = outerChildren[1] else {
-                Issue.record("expected B's position to now be its own split"); continue
-            }
-            #expect(innerAxis == axis)
-            #expect(innerChildren.count == 2)
-            guard case let .leaf(bOriginalId, bOriginalKind, _, _) = innerChildren[0] else {
-                Issue.record("expected B's original leaf first"); continue
-            }
-            #expect(bOriginalId == paneB)
-            #expect(bOriginalKind == .preview)
-            guard case let .leaf(bNewId, bNewKind, _, _) = innerChildren[1] else {
-                Issue.record("expected B's fresh duplicate second"); continue
-            }
-            #expect(bNewKind == .preview)
-            #expect(bNewId != paneB, "the duplicate must be a genuinely NEW leaf id, not a second view of the same leaf")
-
-            // Now change the kind of ONLY the fresh duplicate — #4878's shape.
-            let afterKindChange = afterSplit.changingLeafKind(bNewId, to: .reading)
-            #expect(afterKindChange.leafCount == 3)
-            guard case let .split(_, _, outerChildren2) = afterKindChange.nodes[0] else {
-                Issue.record("expected the outer split to survive the kind change"); continue
-            }
-            guard case let .leaf(idA2, kindA2, _, _) = outerChildren2[0] else {
-                Issue.record("expected leaf A still first, still untouched"); continue
-            }
-            #expect(idA2 == paneA)
-            #expect(kindA2 == .library, "A must be untouched by a kind change addressed to B's duplicate")
-            guard case let .split(_, _, innerChildren2) = outerChildren2[1] else {
-                Issue.record("expected B's split to survive"); continue
-            }
-            guard case let .leaf(bOriginalId2, bOriginalKind2, _, _) = innerChildren2[0] else {
-                Issue.record("expected B's original leaf still first"); continue
-            }
-            #expect(bOriginalId2 == paneB)
-            #expect(
-                bOriginalKind2 == .preview,
-                "B's ORIGINAL leaf must keep its kind — only its duplicate was targeted"
-            )
-            guard case let .leaf(bNewId2, bNewKind2, _, _) = innerChildren2[1] else {
-                Issue.record("expected the duplicate still second"); continue
-            }
-            #expect(bNewId2 == bNewId)
-            #expect(bNewKind2 == .reading, "the targeted duplicate's kind actually changed")
-        }
-    }
+    // The slice-A "split an already-split pair, then change one child's kind" test
+    // (#4967/#4878) moved to `PaneListIdentityTests.swift` (2026-09-20, slice B/C prep):
+    // this file was over the lint size limits and team-lead asked for new cases to go in
+    // a new suite rather than growing this one — the long test was split into two there.
 
     @Test("removing or splitting an id that isn't present is a no-op")
     func missingIdIsNoOp() {

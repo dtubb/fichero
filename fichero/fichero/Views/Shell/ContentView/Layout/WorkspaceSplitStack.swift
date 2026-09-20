@@ -38,12 +38,24 @@ struct WorkspaceSplitStack: View {
         }
     }
 
-    /// One child of the stack.
+    /// One child of the stack. `id` is REQUIRED, not defaulted (2026-09-20, slice B/C: identity
+    /// by pane id, not array position) — a silent default would make "forgot to pass the real
+    /// pane id" compile clean and fail only at runtime, the exact class of bug this change
+    /// exists to close. Production call sites (`ContentView.paneListRow`/`.paneSplitView`) pass
+    /// `PaneNode.id` — stable for a leaf OR a split (both cases of `PaneNode.id`,
+    /// `PaneList.swift:147-152`); a split node's own id is deterministic for built-in workspaces
+    /// (`UUID(stableName:)`) and, for a runtime-created split, lives IN `activePaneList` and so
+    /// stays fixed across re-renders until the model itself changes it — either way it is a
+    /// value the MODEL owns, never re-derived from tree position. `#Preview` blocks below pass a
+    /// fresh literal id inline; they render once and never reshuffle, so identity stability
+    /// doesn't matter there.
     struct Child {
+        let id: UUID
         let view: AnyView
         let sizing: Sizing
 
-        init(_ view: AnyView, sizing: Sizing = .flex) {
+        init(_ view: AnyView, id: UUID, sizing: Sizing = .flex) {
+            self.id = id
             self.view = view
             self.sizing = sizing
         }
@@ -52,40 +64,37 @@ struct WorkspaceSplitStack: View {
     let axis: SplitAxis
     let children: [Child]
 
-    // Up to THREE sized (proportional/resizable) child slots persist their extent per split
-    // position (#4849, grown from two). A split of up to four peers needs at most three
-    // resizable columns — `PaneSpec.childSizings` gives exactly ONE peer `.flex` (it needs no
-    // slot) and the rest `.fraction`, so a 4-peer split needs 3 slots, a 3-peer split needs 2,
-    // and the five built-ins (never more than one resizable-and-un-pinned peer per split today)
-    // still fit in the original two. Growing this is additive, not a migration: each slot is
-    // its OWN `@SceneStorage` key (`"wsplit.<key>.0"`/`.1`/`.2`), so an existing stored layout's
-    // `.0`/`.1` drags are read exactly as before — a workspace that gains a third resizable
-    // peer just starts that ONE new column undragged (`.unset`, below) until the user drags it
-    // once, the same first-appearance behavior every resizable column already has.
-    // ponytail: three @SceneStorage slots, not an array — @SceneStorage needs fixed properties.
-    // A 5th-or-beyond peer (this app's built-ins top out at four) would fall back to resolving
-    // fresh from its fraction every render rather than persisting a drag — grow again if that
-    // ever ships.
-    @SceneStorage private var extent0: Double
-    @SceneStorage private var extent1: Double
-    @SceneStorage private var extent2: Double
-
-    /// Sentinel meaning "never dragged" — @SceneStorage needs a concrete `Double` at init, before
-    /// the `GeometryReader` below knows the stack's actual `total`. NOTHING ever seeds this to a
-    /// resolved points value (SF3 review finding, fixed): converting a fraction to absolute
-    /// points on first appear meant a 0.4-fraction column, seeded once at a 1000pt window, stayed
-    /// pinned to 400pt forever — even after moving to a 2000pt display. `resolvedExtents` treats
-    /// `unset` as "use the fraction of `total`", recomputed fresh every render, so the display
-    /// value always tracks the CURRENT window size until an actual drag writes a real value here
-    /// (the `.fraction` case's `Binding` setter in `arranged`, below — never its getter).
-    private static let unset: Double = -1
+    /// Per-pane-id fractions (0...1) of the stack's own extent, for every RESIZABLE
+    /// (`.fraction`) child — replaces the three positional `extent0/1/2` slots (#4972, source-
+    /// model panes recon slice C, 2026-09-20): a value keyed by ARRAY POSITION silently
+    /// reattached to whichever pane now occupies that slot after a close, leaving the closed
+    /// pane's old width as a gap and the survivors never growing into it. Keyed by `Child.id`
+    /// instead: a closed pane's id is simply never looked up again (nothing prunes the JSON
+    /// entry, nothing needs to — `storedOverrides` only ever reads the CURRENT children's own
+    /// ids), and the survivors' stored shares are renormalized (`renormalizedFractions`, below)
+    /// so they again sum to what their own DEFAULT fractions would have — the "grow into the
+    /// freed space" contract. A single JSON-encoded string, not a per-id `@SceneStorage`
+    /// property (which needs FIXED properties, per the old three-slot comment this replaces) —
+    /// this is why it can hold any number of ids without another #4849-style slot cap.
+    ///
+    /// Stored as FRACTIONS, not the old absolute points: a fraction naturally re-scales with
+    /// `total` (a window resize) and is what `renormalizedFractions` needs to redistribute
+    /// after a close — an absolute point value carries no notion of "share of the whole" to
+    /// redistribute.
+    ///
+    /// A DIFFERENT `@SceneStorage` key name than the old `"wsplit.<key>.0/1/2"` (`"wsplit.<key>.
+    /// fractions"` — see `init`) — old positional values are simply never read into this path,
+    /// same as slice A's "stale keys must be harmless" rule: a pre-migration window resets ONCE,
+    /// landing on the workspace's own DEFAULT proportions (Browse still opens 15/60/25), not on
+    /// equal thirds — `storedOverrides` returns `nil` for every id absent from a fresh `"{}"`,
+    /// and `resolvedExtents`'s existing `nil` fallback is `fraction * total`, i.e. each child's
+    /// own configured default share.
+    @SceneStorage private var storedFractionsJSON: String
 
     init(axis: SplitAxis, storageKey: String, children: [Child]) {
         self.axis = axis
         self.children = children
-        self._extent0 = SceneStorage(wrappedValue: Self.unset, "wsplit.\(storageKey).0")
-        self._extent1 = SceneStorage(wrappedValue: Self.unset, "wsplit.\(storageKey).1")
-        self._extent2 = SceneStorage(wrappedValue: Self.unset, "wsplit.\(storageKey).2")
+        self._storedFractionsJSON = SceneStorage(wrappedValue: "{}", "wsplit.\(storageKey).fractions")
     }
 
     /// A workspace-unique storage-key component (#4688): `keyPath` alone is a tree POSITION
@@ -117,29 +126,98 @@ struct WorkspaceSplitStack: View {
         }
     }
 
-    /// Read one of the three `@SceneStorage` slots by index — the ONE place that maps a slot
-    /// number to its concrete property, so `storedOverrides()` and the drag-write binding in
-    /// `arranged()` can never disagree about which slot is which (#4849).
-    private func slotValue(_ slot: Int) -> Double {
-        switch slot {
-        case 0: extent0
-        case 1: extent1
-        case 2: extent2
-        default: Self.unset
+    /// Decode the stored per-id fractions. Malformed/empty JSON decodes to an empty map — never
+    /// throws, never crashes the layout on a corrupted default (the same "read back what
+    /// actually landed" discipline the rest of this file follows for @SceneStorage sentinels).
+    /// An unrecognised/malformed key (not a `UUID`) is silently ignored, never crashed on.
+    ///
+    /// Pure, `nonisolated`, directly unit-testable without a view or a real `@SceneStorage`
+    /// (which needs a hosting scene to persist at all) — this is the encode/decode LOGIC only;
+    /// `storedFractionsById()`/`writeStoredFraction(_:for:)` below are the thin instance-side
+    /// wrappers that actually read/write `storedFractionsJSON`.
+    nonisolated static func decodeStoredFractions(_ json: String) -> [UUID: Double] {
+        guard let data = json.data(using: .utf8),
+              let raw = try? JSONDecoder().decode([String: Double].self, from: data)
+        else { return [:] }
+        var out: [UUID: Double] = [:]
+        for (key, value) in raw {
+            guard let id = UUID(uuidString: key) else { continue }
+            out[id] = value
+        }
+        return out
+    }
+
+    /// The inverse of `decodeStoredFractions` — `nil` (never a crash) if encoding somehow fails.
+    nonisolated static func encodeStoredFractions(_ fractions: [UUID: Double]) -> String? {
+        var raw: [String: Double] = [:]
+        for (id, value) in fractions { raw[id.uuidString] = value }
+        guard let data = try? JSONEncoder().encode(raw) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private func storedFractionsById() -> [UUID: Double] {
+        Self.decodeStoredFractions(storedFractionsJSON)
+    }
+
+    /// Persist ONE child's dragged fraction by its pane id, leaving every other stored id
+    /// untouched (including one for a pane not currently in `children` — a pane that closes and
+    /// later reopens with the SAME id, e.g. undo, gets its old width back; nothing here ever
+    /// prunes an id, since nothing needs to: a closed pane's id is simply never looked up again).
+    private func writeStoredFraction(_ fraction: Double, for id: UUID) {
+        var current = storedFractionsById()
+        current[id] = fraction
+        guard let json = Self.encodeStoredFractions(current) else { return }
+        storedFractionsJSON = json
+    }
+
+    /// Renormalizes STORED per-child fractions so their collective share matches what their own
+    /// DEFAULT fractions (`child.sizing`'s `.fraction` value, freshly computed every render by
+    /// `PaneSpec.childSizings` from the CURRENT sibling set — unchanged, already correct) would
+    /// have summed to. `PaneSpec.childSizings` already handles "how much do the fraction-sized
+    /// children collectively get vs. the flex sibling" correctly per render; this only
+    /// redistributes the STORED, user-dragged PROPORTION of that same collective share among
+    /// whichever of them have one — so closing a peer whose OWN fraction disappears from
+    /// `defaults` leaves the survivors' stored shares summing to the survivors' own fresh
+    /// collective share, i.e. they grow into the freed space instead of leaving a gap. A child
+    /// with no stored value keeps `nil` — the caller's existing "fall back to its own default ×
+    /// total" rule, unchanged.
+    ///
+    /// Pure, `nonisolated`, directly unit-testable without a view.
+    nonisolated static func renormalizedFractions(
+        defaults: [Double?], stored: [Double?]
+    ) -> [Double?] {
+        guard defaults.count == stored.count else { return stored }
+        let presentIndices = stored.indices.filter { stored[$0] != nil }
+        guard !presentIndices.isEmpty else { return stored }
+        let presentSum = presentIndices.reduce(0.0) { $0 + stored[$1]! }
+        guard presentSum > 0 else { return stored }
+        let defaultSumForPresent = presentIndices.reduce(0.0) { $0 + (defaults[$1] ?? 0) }
+        return stored.indices.map { index in
+            guard let value = stored[index] else { return nil }
+            return (value / presentSum) * defaultSumForPresent
         }
     }
 
-    /// The stored slot value for each `.fraction` child, in child order — `nil` for a slot never
-    /// seeded/dragged yet (so `resolvedExtents` falls back to its fraction of `total`), and `nil`
-    /// for every non-`.fraction` child (fixed/flex have no stored slot).
-    private func storedOverrides() -> [Double?] {
-        var slot = 0
-        return children.map { child in
-            guard case .fraction = child.sizing else { return nil }
-            defer { slot += 1 }
-            let raw = slotValue(slot)
-            return raw == Self.unset ? nil : raw
+    /// The stored override for each `.fraction` child, in child order, as ABSOLUTE POINTS
+    /// (`resolvedExtents`'s existing contract, unchanged) — `nil` for a child never dragged (so
+    /// `resolvedExtents` falls back to its own fraction of `total`), and `nil` for every
+    /// non-`.fraction` child (fixed/flex have no stored value). Looks each `.fraction` child up
+    /// BY ITS OWN ID, then renormalizes the present ones (`renormalizedFractions`) before
+    /// converting to points — the two steps `storedFractionsById`/`renormalizedFractions` above
+    /// exist to make each independently testable.
+    private func storedOverrides(total: Double) -> [Double?] {
+        let storedById = storedFractionsById()
+        var defaults: [Double?] = []
+        var stored: [Double?] = []
+        for child in children {
+            guard case let .fraction(fraction) = child.sizing else {
+                defaults.append(nil); stored.append(nil); continue
+            }
+            defaults.append(fraction)
+            stored.append(storedById[child.id])
         }
+        let normalized = Self.renormalizedFractions(defaults: defaults, stored: stored)
+        return normalized.map { $0.map { $0 * total } }
     }
 
     /// The children interleaved with dividers. A divider sits between a resizable child and the
@@ -149,50 +227,48 @@ struct WorkspaceSplitStack: View {
     /// leading to grow). A HARD-pinned child (the film strip) never gets a divider — it's fixed,
     /// full stop (#4688).
     @ViewBuilder private func arranged(total: CGFloat) -> some View {
-        let resolved = Self.resolvedExtents(children.map(\.sizing), storedOverrides: storedOverrides(), total: Double(total))
+        let resolved = Self.resolvedExtents(
+            children.map(\.sizing), storedOverrides: storedOverrides(total: Double(total)), total: Double(total)
+        )
         let flexIndex = children.firstIndex { child in
             if case .flex = child.sizing { return true }
             return false
         } ?? max(0, children.count - 1)
 
-        var slot = 0
         let plans: [ChildPlan] = children.enumerated().map { index, child in
             switch child.sizing {
             case .flex:
-                return ChildPlan(view: child.view, layout: .flex)
+                return ChildPlan(id: child.id, view: child.view, layout: .flex)
             case .fixed:
-                return ChildPlan(view: child.view, layout: .fixed(resolved[index] ?? 0))
+                return ChildPlan(id: child.id, view: child.view, layout: .fixed(resolved[index] ?? 0))
             case .fraction:
-                // SF3 review finding: this used to be `$extent0`/`$extent1` directly — a plain
-                // pass-through to the raw @SceneStorage slot, which is WHY something had to seed
-                // that slot with an absolute-points value before the divider had anything sane to
-                // show or drag from. A COMPUTED binding instead: its getter is the already-resolved
-                // display value (the fraction of `total` until a real drag has written a stored
-                // override, per `resolvedExtents`/`storedOverrides` above), so nothing is ever
-                // seeded — the fraction re-resolves fresh against whatever `total` is THIS render.
-                // The setter is the only path that ever writes `extent0`/`extent1`, and it only
-                // fires from `ResizableDivider`'s own drag handler — never from a mere appearance.
+                // SF3 review finding: this used to be a plain pass-through to a raw @SceneStorage
+                // slot, which is WHY something had to seed it with an absolute-points value before
+                // the divider had anything sane to show or drag from. A COMPUTED binding instead:
+                // its getter is the already-resolved display value (the fraction of `total` until
+                // a real drag has written a stored override, per `resolvedExtents`/`storedOverrides`
+                // above), so nothing is ever seeded — the fraction re-resolves fresh against
+                // whatever `total` is THIS render. The setter is the only path that ever writes
+                // `storedFractionsJSON`, and it only fires from `ResizableDivider`'s own drag
+                // handler — never from a mere appearance. Writes a FRACTION (`newValue / total`),
+                // keyed by THIS child's own id (slice C, 2026-09-20) — never a position.
                 let displayValue = resolved[index] ?? 0
-                let thisSlot = slot
+                let childId = child.id
+                let stackTotal = Double(total)
                 let binding = Binding<Double>(
                     get: { displayValue },
                     set: { newValue in
-                        switch thisSlot {
-                        case 0: extent0 = newValue
-                        case 1: extent1 = newValue
-                        case 2: extent2 = newValue
-                        default: break // #4849: a 4th+ resizable peer has no slot; see the type doc comment.
-                        }
+                        guard stackTotal > 0 else { return }
+                        writeStoredFraction(newValue / stackTotal, for: childId)
                     }
                 )
-                slot += 1
                 return ChildPlan(
-                    view: child.view,
+                    id: child.id, view: child.view,
                     layout: .resizable(binding, display: displayValue, dividerBefore: index > flexIndex)
                 )
             }
         }
-        ForEach(Array(plans.enumerated()), id: \.offset) { _, plan in
+        ForEach(plans, id: \.id) { plan in
             switch plan.layout {
             case .flex:
                 plan.view.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -218,6 +294,7 @@ struct WorkspaceSplitStack: View {
     }
 
     private struct ChildPlan {
+        let id: UUID
         let view: AnyView
         let layout: ChildLayout
     }
@@ -309,8 +386,8 @@ private func previewPane(_ label: String, _ tint: Color) -> AnyView {
         axis: .horizontal,
         storageKey: "preview.horizontal",
         children: [
-            .init(previewPane("Library", .blue), sizing: .fraction(0.4)),
-            .init(previewPane("Reader", .green))
+            .init(previewPane("Library", .blue), id: UUID(), sizing: .fraction(0.4)),
+            .init(previewPane("Reader", .green), id: UUID())
         ]
     )
     .frame(width: 900, height: 500)
@@ -321,8 +398,8 @@ private func previewPane(_ label: String, _ tint: Color) -> AnyView {
         axis: .vertical,
         storageKey: "preview.filmstrip",
         children: [
-            .init(previewPane("Transcribe", .green)),
-            .init(previewPane("Film strip", .orange), sizing: .fixed(72))
+            .init(previewPane("Transcribe", .green), id: UUID()),
+            .init(previewPane("Film strip", .orange), id: UUID(), sizing: .fixed(72))
         ]
     )
     .frame(width: 900, height: 500)
@@ -342,12 +419,12 @@ private func previewPane(_ label: String, _ tint: Color) -> AnyView {
                     axis: .horizontal,
                     storageKey: "preview.nested.inner",
                     children: [
-                        .init(previewPane("Page A", .blue), sizing: .fraction(0.4)),
-                        .init(previewPane("Page B", .purple))
+                        .init(previewPane("Page A", .blue), id: UUID(), sizing: .fraction(0.4)),
+                        .init(previewPane("Page B", .purple), id: UUID())
                     ]
                 )
-            )),
-            .init(previewPane("Film strip", .orange), sizing: .fixed(72))
+            ), id: UUID()),
+            .init(previewPane("Film strip", .orange), id: UUID(), sizing: .fixed(72))
         ]
     )
     .frame(width: 900, height: 500)
