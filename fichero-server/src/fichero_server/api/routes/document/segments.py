@@ -209,10 +209,16 @@ def _assert_not_provisional_http(id_value: str | None, *, what: str) -> None:
 def _provenance_kind_from_ctx(ctx: ActionContext) -> ProvenanceKind:
     """Same posture as `_new_pass_provenance_kind` below, without a
     provider/model (matches/merges have neither): a run behind the call
-    means a machine did it; a real actor with no run means a person did;
-    nothing given is honestly unknown -- never a trusting default."""
+    means a machine did it; the MCP surface means an agent did it (test-audit
+    F15, 2026-09-20: the SAME rule `annotation.promote_to_claim` and
+    `claims.py` already apply for `human` vs `agent`, #4868/#4869 --
+    `ctx.via_mcp`, never a second copy of it); a real actor with neither
+    means a person did; nothing given is honestly unknown -- never a
+    trusting default."""
     if ctx.run_id:
         return ProvenanceKind.workflow
+    if ctx.via_mcp:
+        return ProvenanceKind.agent
     if ctx.actor and ctx.actor not in {"", "system"}:
         return ProvenanceKind.human
     return ProvenanceKind.unknown
@@ -641,14 +647,17 @@ def _action_segment_create(db: Database, params: SegmentCreateParams, ctx: Actio
     except (SegmentPassMismatchError, SegmentParentMismatchError, SegmentAnchorMismatchError) as exc:
         raise _as_http_error(exc) from exc
 
-    pass_row = db.get(SegmentPass, params.pass_id)
     spec_obj = SegmentSpec(
         kind=params.kind, anchor=params.anchor, baseline=params.baseline,
         parent_segment_id=params.parent_segment_id, kind_raw=params.kind_raw,
     )
+    # test-audit F14, 2026-09-20: the maker is set by the engine from WHO
+    # ACTED, never inherited from the pass's own provenance -- a person
+    # creating inside a machine pass (or a workflow run creating inside a
+    # human pass) must be stored as what it actually is.
     segment = _build_segment_row(
         document_id=params.document_id, pass_id=params.pass_id, spec=spec_obj,
-        actor=ctx.actor, provenance_kind=pass_row.provenance_kind,
+        actor=ctx.actor, provenance_kind=_provenance_kind_from_ctx(ctx),
     )
     db.save(segment)
     change_spec = ChangeSpec(
@@ -688,7 +697,9 @@ def _action_segment_create_many(db: Database, params: SegmentCreateManyParams, c
     _assert_not_provisional_http(params.document_id, what="document_id")
     _assert_not_provisional_http(params.pass_id, what="pass_id")
 
-    pass_row = db.get(SegmentPass, params.pass_id)
+    # test-audit F14, 2026-09-20: the maker is set by the engine from WHO
+    # ACTED, never inherited from the pass -- same rule as `segment.create`.
+    provenance_kind = _provenance_kind_from_ctx(ctx)
     rows: list[Segment] = []
     for spec in params.segments:
         if spec.parent_segment_id:
@@ -703,7 +714,7 @@ def _action_segment_create_many(db: Database, params: SegmentCreateManyParams, c
         rows.append(
             _build_segment_row(
                 document_id=params.document_id, pass_id=params.pass_id, spec=spec,
-                actor=ctx.actor, provenance_kind=pass_row.provenance_kind,
+                actor=ctx.actor, provenance_kind=provenance_kind,
             )
         )
     db.save_many(rows)

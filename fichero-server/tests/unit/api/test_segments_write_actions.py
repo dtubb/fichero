@@ -166,6 +166,92 @@ class TestPassesNamedAuthoredNeverOverwrite:
         assert seg_1["id"] != seg_2["id"]
 
 
+class TestSegmentMakerIsWhoActed:
+    """test-audit F14, 2026-09-20 -- LIKELY DEFECT, confirmed then fixed:
+    `_action_segment_create`/`_action_segment_create_many` used to set a new
+    segment's `provenance_kind` from `pass_row.provenance_kind` (the PASS's
+    maker), not from who actually acted. The rule slice 1 set (and the
+    agent surface already applies for claims/annotations, #4868/#4869):
+    the maker is set by the engine from WHO ACTED -- a real actor with no
+    run behind it is a person, a run behind it is a workflow, nothing
+    given is honestly unknown -- never inherited from the container, never
+    client-supplied. `segments.py`'s own `_provenance_kind_from_ctx` is
+    that ONE derivation for this domain (already used for match
+    proposals); `segment.create`/`.create_many` now call it too, instead
+    of a second copy of the rule."""
+
+    def test_a_person_creating_inside_a_machine_pass_is_stored_as_human(self, client, db):
+        from fichero_server.actions.registry import ActionContext, registry
+
+        doc = _make_doc(db)
+        machine_pass = _create_pass(client, doc.id, run_id="run-abc")
+        assert db.get(SegmentPass, machine_pass["id"]).provenance_kind == "workflow"
+
+        ctx = ActionContext(actor="daniel", library_path=str(db.path.parent))
+        result = registry.invoke(
+            db, "segment.create",
+            {
+                "document_id": doc.id, "pass_id": machine_pass["id"], "kind": "word",
+                "anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]},
+            },
+            ctx,
+        )
+        segment_id = result.result["segment_ids"][0]
+        assert db.get(Segment, segment_id).provenance_kind == "human"
+
+    def test_a_workflow_run_creating_inside_a_human_pass_is_stored_as_workflow(self, client, db):
+        from fichero_server.actions.registry import ActionContext, registry
+
+        doc = _make_doc(db)
+        human_pass = _create_pass(client, doc.id)
+        assert db.get(SegmentPass, human_pass["id"]).provenance_kind == "human"
+
+        ctx = ActionContext(actor="worker", run_id="run-xyz", library_path=str(db.path.parent))
+        result = registry.invoke(
+            db, "segment.create_many",
+            {
+                "document_id": doc.id, "pass_id": human_pass["id"],
+                "segments": [
+                    {"kind": "word", "anchor": {"document_id": doc.id, "rect": [0.2, 0.2, 0.1, 0.1]}},
+                ],
+            },
+            ctx,
+        )
+        segment_id = result.result["segment_ids"][0]
+        assert db.get(Segment, segment_id).provenance_kind == "workflow"
+
+    def test_a_bystander_with_no_run_and_no_real_actor_is_stored_as_unknown(self, client, db):
+        """Neither a run nor a real actor behind the write: honestly
+        `unknown`, never a trusting default of either kind -- same posture
+        as `_provenance_kind_from_ctx` everywhere else in this file."""
+        from fichero_server.actions.registry import ActionContext, registry
+
+        doc = _make_doc(db)
+        machine_pass = _create_pass(client, doc.id, run_id="run-abc")
+
+        ctx = ActionContext(actor="", library_path=str(db.path.parent))
+        result = registry.invoke(
+            db, "segment.create",
+            {
+                "document_id": doc.id, "pass_id": machine_pass["id"], "kind": "word",
+                "anchor": {"document_id": doc.id, "rect": [0.3, 0.3, 0.1, 0.1]},
+            },
+            ctx,
+        )
+        segment_id = result.result["segment_ids"][0]
+        assert db.get(Segment, segment_id).provenance_kind == "unknown"
+
+    def test_a_caller_cannot_supply_provenance_kind_directly(self, client, db):
+        doc = _make_doc(db)
+        pass_body = _create_pass(client, doc.id)
+        r = client.post("/api/segments", json={
+            "document_id": doc.id, "pass_id": pass_body["id"], "kind": "word",
+            "anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]},
+            "provenance_kind": "workflow",
+        })
+        assert r.status_code == 422
+
+
 class TestRecordPerSegment:
     def test_lines_of_this_pass_and_children_of_this_region_are_single_filtered_queries(
         self, client, db,

@@ -364,6 +364,83 @@ class TestOldLibraryWithRealResearchData:
         finally:
             db2.close()
 
+    def test_a_real_pre_migration_library_with_real_data_migrates_clean(self, tmp_path):
+        """test-audit B3, strengthened, 2026-09-20: the case that protects
+        real research data is a library from BEFORE the segment tables
+        existed, not one that already has them. Built at ONE path (the
+        anchor problem above still applies), the SAME way today's code
+        makes a library, then -- through a raw connection on that same
+        file -- every table/index/sequence slices 3-5 added is DROPPED
+        (the list comes from `Database._all_schema_models()` itself, never
+        hand-typed, so a new segment-domain model is covered automatically).
+        Reopening through `Database` TWICE must bring them all back empty,
+        leave every pre-existing row byte-identical, and the audit chain
+        must still verify after each open."""
+        from fichero_server.actions.audit_chain import verify_audit_chain
+        from fichero_server.models.segments import (
+            Segment,
+            SegmentCarry,
+            SegmentForwarding,
+            SegmentMatch,
+            SegmentPass,
+            SegmentVersion,
+        )
+
+        db_path = tmp_path / "pre_segments_real_library.duckdb"
+        self._build_library(db_path)
+
+        probe = Database(db_path)
+        segment_models = (Segment, SegmentPass, SegmentMatch, SegmentForwarding, SegmentCarry, SegmentVersion)
+        segment_tables = {probe._table_name(model) for model in segment_models}
+        probe.close()
+        assert segment_tables == {
+            "segments", "segment_passes", "segmentmatchs",
+            "segmentforwardings", "segmentcarrys", "segmentversions",
+        }
+
+        conn = duckdb.connect(str(db_path))
+        segment_indexes = _segment_index_names(conn)
+        assert segment_indexes, "expected segment indexes to exist before dropping"
+        before_snapshot = self._snapshot(conn)
+        for table in self._CARRIED_TABLES:
+            assert before_snapshot[table]
+        for index_name in segment_indexes:
+            conn.execute(f'DROP INDEX "{index_name}"')
+        for table in segment_tables:
+            conn.execute(f'DROP TABLE "{table}"')
+        conn.execute("DROP SEQUENCE IF EXISTS segment_forwarding_seq")
+        tables_before_reopen = _table_names(conn)
+        assert not (tables_before_reopen & segment_tables), "segment tables must actually be gone"
+        conn.close()
+
+        db1 = Database(db_path)
+        try:
+            tables_after = _table_names(db1.conn)
+            assert segment_tables <= tables_after
+            for table in segment_tables:
+                assert db1.conn.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0] == 0
+            assert _segment_index_names(db1.conn) == segment_indexes
+            after_first_reopen = self._snapshot(db1.conn)
+            assert after_first_reopen == before_snapshot
+            assert verify_audit_chain(db1).ok
+            first_seq_value = db1.conn.execute(
+                "SELECT nextval('segment_forwarding_seq')"
+            ).fetchone()[0]
+        finally:
+            db1.close()
+
+        db2 = Database(db_path)
+        try:
+            after_second_reopen = self._snapshot(db2.conn)
+            assert after_second_reopen == before_snapshot
+            assert verify_audit_chain(db2).ok
+            second_seq_value = db2.conn.execute(
+                "SELECT nextval('segment_forwarding_seq')"
+            ).fetchone()[0]
+            assert second_seq_value > first_seq_value
+        finally:
+            db2.close()
+
 
 class TestSequenceMigrationOnAnExistingForwardingTable:
     """#4922 second look: a library already carrying `segmentforwardings`

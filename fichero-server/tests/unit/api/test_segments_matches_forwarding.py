@@ -8,7 +8,9 @@ pins.
 
 from __future__ import annotations
 
+import inspect
 import json
+import sys
 from typing import Any
 
 import pytest
@@ -29,6 +31,8 @@ from fichero_server.models import (
     SegmentPass,
     SegmentVersion,
     Status,
+    forwards_to,
+    primary_live_segment_id,
     resolve_segment,
 )
 from fichero_server.models.anchors import SourceAnchor
@@ -106,6 +110,78 @@ class TestMatchRecord:
         assert db.get(Segment, b.id).anchor.rect == b.anchor.rect
 
 
+class TestMatchAcceptProvenanceRealActorShapes:
+    """test-audit F15, 2026-09-20: `MatchNeedsAPerson` ("only a person
+    accepts a match") is enforced by `_provenance_kind_from_ctx(ctx) ==
+    ProvenanceKind.human`. That function used to check only `run_id` and
+    `actor`, so a call arriving through the MCP tool surface -- REAL shape:
+    `ActionContext(actor=<the authenticated user's own name>, via_mcp=True)`,
+    no `run_id` (`api/routes/mcp/tools.py`) -- fell through to `human`,
+    exactly like a literal UI click by that same person, letting an
+    autonomous MCP-driven accept through a gate meant for a person. The
+    established rule for this SAME distinction already exists for claims
+    and annotations (#4868/#4869): `ProvenanceKind.agent if ctx.via_mcp
+    else ProvenanceKind.human`. `_provenance_kind_from_ctx` now applies
+    that ONE rule too, so an MCP-shaped accept is refused the same way a
+    tool/workflow accept already was."""
+
+    def test_an_mcp_shaped_context_with_a_real_users_own_name_is_refused(self, db):
+        """The MCP surface's REAL shape (api/routes/mcp/tools.py): the
+        actor is the caller's own authenticated username -- not "system",
+        not empty -- and `via_mcp=True`, no `run_id`. Before the fix this
+        actor shape satisfied `_provenance_kind_from_ctx`'s old `human`
+        branch (a real actor, no run) exactly like a genuine person's
+        click; it must not."""
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        a = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        person_ctx = _ctx(db, actor="daniel")
+        result = registry.invoke(
+            db, "segment.match_propose",
+            {"from_segment_id": a.id, "to_segment_id": b.id}, person_ctx,
+        )
+        match_id = result.result["match_id"]
+
+        from fichero_server.actions.registry import ActionContext as _ActionContext
+
+        mcp_ctx = _ActionContext(actor="daniel", library_path=str(db.path.parent), via_mcp=True)
+        with pytest.raises(Exception):
+            registry.invoke(db, "segment.match_accept", {"match_id": match_id}, mcp_ctx)
+        assert db.get(SegmentMatch, match_id).state == "proposed"
+
+        # The SAME actor, through the ordinary (non-MCP) surface, succeeds --
+        # proving the refusal above is about the SURFACE, not the name.
+        registry.invoke(db, "segment.match_accept", {"match_id": match_id}, person_ctx)
+        assert db.get(SegmentMatch, match_id).state == "accepted"
+
+    def test_a_chat_dispatched_context_with_a_real_users_own_name_still_accepts(self, db):
+        """The chat surface's REAL shape (`actions/chat_tools.py`'s
+        `dispatch_tool_call`): actor is the real user, `via_mcp` is never
+        set there (stays `False`), `run_id` is whatever the surrounding
+        chat turn's `ActionContext.run_id` was -- `None` for an ordinary
+        interactive turn. This is DELIBERATELY still `human` here: chat
+        isn't flagged `via_mcp` by the established claims/annotations rule
+        either (#4868/#4869 only branches on `via_mcp`), so extending that
+        to chat would be a SECOND, invented rule, not the one asked for."""
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        a = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        person_ctx = _ctx(db, actor="daniel")
+        result = registry.invoke(
+            db, "segment.match_propose",
+            {"from_segment_id": a.id, "to_segment_id": b.id}, person_ctx,
+        )
+        match_id = result.result["match_id"]
+
+        from fichero_server.actions.registry import ActionContext as _ActionContext
+
+        chat_ctx = _ActionContext(actor="daniel", run_id=None, library_path=str(db.path.parent))
+        registry.invoke(db, "segment.match_accept", {"match_id": match_id}, chat_ctx)
+        assert db.get(SegmentMatch, match_id).state == "accepted"
+
+
 class TestForwardingNotes:
     def test_merge_split_delete_chain_resolves_in_one_call(self, db):
         """source.segment.forwarding-notes: merge A into B, split B into C
@@ -149,6 +225,72 @@ class TestForwardingNotes:
         assert deleted_entries[0].actor == "daniel"
         assert deleted_entries[0].created_at is not None
 
+    def test_primary_live_id_after_a_split_is_the_requested_id_itself(self, db):
+        """test-audit F2, 2026-09-20: after a split, `_forwarding_walk`
+        processes the REQUESTED id at depth 1 of its breadth-first walk --
+        before any sibling can be discovered at depth >= 2 -- so whenever
+        the requested id is itself still live, it is unconditionally
+        `live_segment_ids[0]` by construction (the split's own new parts
+        are only reachable one hop later). `primary_live_segment_id`'s
+        "prefer the requested id" branch and its "else element zero"
+        branch can therefore never disagree for any input reachable
+        through today's actions -- this pins that invariant explicitly
+        rather than leaving it untested."""
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.2, 0.2])
+        ctx = _ctx(db, actor="daniel")
+
+        registry.invoke(
+            db, "segment.split",
+            {
+                "segment_id": seg.id,
+                "parts": [
+                    {"anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]}},
+                    {"anchor": {"document_id": doc.id, "rect": [0.2, 0.2, 0.1, 0.1]}},
+                ],
+            },
+            ctx,
+        )
+
+        resolved = resolve_segment(db, seg.id)
+        assert seg.id in resolved.live_segment_ids
+        assert len(resolved.live_segment_ids) > 1, "fixture must exercise the multi-id case"
+        assert resolved.live_segment_ids[0] == seg.id
+        assert primary_live_segment_id(resolved) == seg.id
+
+    def test_primary_live_id_is_the_first_part_listed_when_the_split_was_made(self, db):
+        """test-audit F2, 2026-09-20: when the REQUESTED id is not itself
+        live (merged away), `primary_live_segment_id` falls back to "the
+        first part listed when the split was made" -- pinned here by
+        actually making the requested id's own trail pass through a split
+        with a stated, non-alphabetical/non-random part order."""
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg_a = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.1, 0.1])
+        seg_b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.3, 0.3, 0.1, 0.1])
+        ctx = _ctx(db, actor="daniel")
+
+        registry.invoke(db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx)
+        split_result = registry.invoke(
+            db, "segment.split",
+            {
+                "segment_id": seg_b.id,
+                "parts": [
+                    {"anchor": {"document_id": doc.id, "rect": [0.3, 0.3, 0.1, 0.1]}},
+                    {"anchor": {"document_id": doc.id, "rect": [0.5, 0.5, 0.1, 0.1]}},
+                ],
+            },
+            ctx,
+        )
+        seg_c = seg_b.id  # "its id stays on one part" -- listed FIRST
+        seg_d = split_result.result["new_segment_ids"][0]  # listed SECOND
+
+        resolved = resolve_segment(db, seg_a.id)
+        assert seg_a.id not in resolved.live_segment_ids  # A was merged away
+        assert resolved.live_segment_ids == [seg_c, seg_d]
+        assert primary_live_segment_id(resolved) == seg_c
+
     def test_hand_made_chain_of_65_raises_too_deep(self, db):
         doc = _make_doc(db)
         ids = [f"seg-{i}" for i in range(66)]
@@ -161,9 +303,56 @@ class TestForwardingNotes:
         with pytest.raises(SegmentForwardingTooDeep):
             resolve_segment(db, ids[0])
 
+    def test_a_chain_of_exactly_64_hops_resolves_cleanly(self, db):
+        """test-audit F4, 2026-09-20: the sibling of the 65-raises test,
+        AT the cap boundary -- `_forwarding_walk`'s `depth` counts NODES
+        visited (checked BEFORE each node is processed), so a chain needs
+        `edges + 1` depth-units to reach its terminal, live id: 63 `merged`
+        edges (64 ids total) reaches depth exactly 64 -- the cap -- and
+        resolves; one more edge (64 edges / 65 ids, needing depth 65)
+        raises, proven directly below so the boundary itself is pinned,
+        not just a comfortably-over-it case."""
+        doc = _make_doc(db)
+        ids = [f"seg-{i}" for i in range(64)]
+        audit_id = "test-audit-64"
+        for i in range(63):
+            db.save(SegmentForwarding(
+                document_id=doc.id, old_segment_id=ids[i], kind="merged",
+                new_segment_ids=[ids[i + 1]], actor="daniel", audit_id=audit_id,
+            ))
+        resolved = resolve_segment(db, ids[0])
+        assert resolved.live_segment_ids == [ids[63]]
+        assert not resolved.ended_in_delete
+
+    def test_one_more_hop_past_the_boundary_raises(self, db):
+        """The exact tight boundary for the raise: 64 edges (65 ids) --
+        one more than the resolving case above -- is already too many."""
+        doc = _make_doc(db)
+        ids = [f"seg-{i}" for i in range(65)]
+        audit_id = "test-audit-64-plus-one"
+        for i in range(64):
+            db.save(SegmentForwarding(
+                document_id=doc.id, old_segment_id=ids[i], kind="merged",
+                new_segment_ids=[ids[i + 1]], actor="daniel", audit_id=audit_id,
+            ))
+        with pytest.raises(SegmentForwardingTooDeep):
+            resolve_segment(db, ids[0])
+
     def test_merge_a_into_b_then_b_into_a_is_a_real_loop_and_is_refused(self, db):
         """A genuine cycle of undone merges IS still refused -- the third
-        look's fix (a diamond is not a loop) must not weaken this."""
+        look's fix (a diamond is not a loop) must not weaken this.
+
+        test-audit F4, 2026-09-20: this is now REFUSED BY THE LIVENESS
+        CHECK, not by `forwards_to` -- once A is merged into B, A is not
+        live, so `_action_merge`'s own liveness loop (which runs BEFORE
+        `forwards_to` is ever called) refuses this exact case first. The
+        production code says so itself (the comment above `forwards_to`'s
+        call site: "with every participant now confirmed live, above,
+        this can only ever be true for keep_id == absorbed_id"). This
+        test still pins the OBSERVABLE behaviour (refused), but
+        `TestForwardsToSafetyNet` below tests the cycle-detection logic
+        directly, since no route can reach the state that would exercise
+        it."""
         doc = _make_doc(db)
         pass_row = _make_pass(db, doc.id)
         seg_a = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.1, 0.1])
@@ -375,6 +564,228 @@ class TestForwardingNotes:
         assert undo.status_code == 200, undo.text
 
         assert db.get(Segment, original.id).version > version_before_split
+
+
+class TestForwardsToSafetyNet:
+    """test-audit F4, 2026-09-20: `forwards_to` is the SAFETY NET behind
+    `_action_merge`'s liveness gate (its own docstring and the call site's
+    comment both say the liveness check now refuses every cycle-closing
+    merge first). No route can build the state needed to reach
+    `forwards_to`'s cycle branch through the merge action any more, so
+    these tests call it directly, with hand-built `SegmentForwarding` rows
+    -- a genuine unit test of the safety net, not of anything a caller can
+    trigger today."""
+
+    def test_a_direct_undone_merge_edge_closes_a_cycle(self, db):
+        """One hand-built `merged` row X->Y is enough: does adding the
+        edge Y->X (absorbing Y into X) close a cycle? Yes -- X already
+        forwards to Y."""
+        doc = _make_doc(db)
+        db.save(SegmentForwarding(
+            document_id=doc.id, old_segment_id="seg-x", kind="merged",
+            new_segment_ids=["seg-y"], actor="daniel", audit_id="a1",
+        ))
+        assert forwards_to(db, "seg-x", "seg-y") is True
+
+    def test_a_multi_hop_undone_merge_chain_still_closes_a_cycle(self, db):
+        doc = _make_doc(db)
+        db.save(SegmentForwarding(
+            document_id=doc.id, old_segment_id="seg-x", kind="merged",
+            new_segment_ids=["seg-y"], actor="daniel", audit_id="a1",
+        ))
+        db.save(SegmentForwarding(
+            document_id=doc.id, old_segment_id="seg-y", kind="merged",
+            new_segment_ids=["seg-z"], actor="daniel", audit_id="a2",
+        ))
+        assert forwards_to(db, "seg-x", "seg-z") is True
+        assert forwards_to(db, "seg-x", "seg-w") is False
+
+    def test_unrelated_ids_do_not_close_a_cycle(self, db):
+        doc = _make_doc(db)
+        db.save(SegmentForwarding(
+            document_id=doc.id, old_segment_id="seg-x", kind="merged",
+            new_segment_ids=["seg-y"], actor="daniel", audit_id="a1",
+        ))
+        assert forwards_to(db, "seg-x", "seg-nowhere") is False
+
+    def test_the_same_id_trivially_closes_a_cycle(self, db):
+        assert forwards_to(db, "seg-x", "seg-x") is True
+
+    def test_a_restored_merge_no_longer_forwards(self, db):
+        """An UNDONE merge (a later `restored` row) means the id is live
+        again -- `_merged_chain_target` returns `None` for it, so a fresh
+        merge attempt reusing that id closes no cycle."""
+        doc = _make_doc(db)
+        db.save(SegmentForwarding(
+            document_id=doc.id, old_segment_id="seg-x", kind="merged",
+            new_segment_ids=["seg-y"], actor="daniel", audit_id="a1",
+            sequence=db.next_forwarding_sequence(),
+        ))
+        db.save(SegmentForwarding(
+            document_id=doc.id, old_segment_id="seg-x", kind="restored",
+            new_segment_ids=[], actor="daniel", audit_id="a2",
+            sequence=db.next_forwarding_sequence(),
+        ))
+        assert forwards_to(db, "seg-x", "seg-y") is False
+
+
+class TestEveryEmitTypeCarriesItsIdLists:
+    """test-audit F7, 2026-09-20: `segments.py` emits 9 DISTINCT
+    `emit_type`s (grep: pass.created, pass.deleted, segment.created,
+    .deleted, .restored, .updated, .matched, .merged, .split); only 3 were
+    checked by any test (proven by mutation M2d: dropping `segment_ids=`
+    from merge's `ChangeSpec` passed every test). One representative
+    action per emit_type, captured through the REAL `emit_change` call
+    (not just the action's own return), asserting `segment_ids`/
+    `pass_ids`/`document_ids` are non-empty and name the right rows."""
+
+    @pytest.fixture
+    def captured(self, monkeypatch):
+        calls: list[dict] = []
+
+        def spy(*args, **kwargs):
+            calls.append(kwargs)
+
+        monkeypatch.setattr("fichero_server.api.change_stream.emit_change", spy)
+        return calls
+
+    def test_pass_created(self, db, captured):
+        doc = _make_doc(db)
+        ctx = _ctx(db, actor="daniel")
+        registry.invoke(db, "segment.pass_create", {"document_id": doc.id, "name": "p"}, ctx)
+        call = captured[-1]
+        assert call["type"] == "pass.created"
+        assert call["document_ids"] == [doc.id]
+        assert call["pass_ids"], "pass_ids must not be empty"
+
+    def test_pass_deleted(self, db, captured):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        ctx = _ctx(db, actor="daniel")
+        registry.invoke(db, "segment.pass_delete", {"pass_id": pass_row.id}, ctx)
+        call = captured[-1]
+        assert call["type"] == "pass.deleted"
+        assert call["pass_ids"] == [pass_row.id]
+        assert call["document_ids"] == [doc.id]
+
+    def test_segment_created(self, db, captured):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        ctx = _ctx(db, actor="daniel")
+        registry.invoke(
+            db, "segment.create",
+            {"document_id": doc.id, "pass_id": pass_row.id, "kind": "word",
+             "anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]}}, ctx,
+        )
+        call = captured[-1]
+        assert call["type"] == "segment.created"
+        assert call["pass_ids"] == [pass_row.id]
+        assert call["document_ids"] == [doc.id]
+        assert call["segment_ids"], "segment_ids must not be empty"
+
+    def test_segment_deleted(self, db, captured):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        ctx = _ctx(db, actor="daniel")
+        registry.invoke(
+            db, "segment.delete",
+            {"segment_ids": [seg.id], "expected_versions": {seg.id: seg.version}}, ctx,
+        )
+        call = captured[-1]
+        assert call["type"] == "segment.deleted"
+        assert call["segment_ids"] == [seg.id]
+        assert call["document_ids"] == [doc.id]
+
+    def test_segment_restored(self, db, captured):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        ctx = _ctx(db, actor="daniel")
+        registry.invoke(
+            db, "segment.delete",
+            {"segment_ids": [seg.id], "expected_versions": {seg.id: seg.version}}, ctx,
+        )
+        registry.invoke(db, "segment.undelete", {"segment_ids": [seg.id]}, ctx)
+        call = captured[-1]
+        assert call["type"] == "segment.restored"
+        assert call["segment_ids"] == [seg.id]
+
+    def test_segment_updated(self, db, captured):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        ctx = _ctx(db, actor="daniel")
+        registry.invoke(
+            db, "segment.update",
+            {"segment_id": seg.id, "expected_version": seg.version,
+             "anchor": {"document_id": doc.id, "rect": [0.2, 0.2, 0.1, 0.1]}}, ctx,
+        )
+        call = captured[-1]
+        assert call["type"] == "segment.updated"
+        assert call["segment_ids"] == [seg.id]
+
+    def test_segment_matched(self, db, captured):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        a = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        ctx = _ctx(db, actor="daniel")
+        registry.invoke(
+            db, "segment.match_propose",
+            {"from_segment_id": a.id, "to_segment_id": b.id}, ctx,
+        )
+        call = captured[-1]
+        assert call["type"] == "segment.matched"
+        assert set(call["segment_ids"]) == {a.id, b.id}
+        assert call["document_ids"] == [doc.id]
+
+    def test_segment_merged(self, db, captured):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        a = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        ctx = _ctx(db, actor="daniel")
+        registry.invoke(db, "segment.merge", {"segment_ids": [a.id, b.id], "keep_id": b.id}, ctx)
+        call = captured[-1]
+        assert call["type"] == "segment.merged"
+        assert set(call["segment_ids"]) == {a.id, b.id}, (
+            "M2d: dropping segment_ids from merge's event survived every "
+            "existing test before this one"
+        )
+
+    def test_segment_split(self, db, captured):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.2, 0.2])
+        ctx = _ctx(db, actor="daniel")
+        registry.invoke(
+            db, "segment.split",
+            {"segment_id": seg.id, "parts": [
+                {"anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]}},
+                {"anchor": {"document_id": doc.id, "rect": [0.2, 0.2, 0.1, 0.1]}},
+            ]}, ctx,
+        )
+        call = captured[-1]
+        assert call["type"] == "segment.split"
+        assert seg.id in call["segment_ids"]
+        assert len(call["segment_ids"]) == 2
+
+    def test_every_distinct_emit_type_in_the_file_has_a_test_above(self):
+        """Fails loudly if a new `emit_type=` string is added to
+        `segments.py` without a matching test here -- the registry-driven
+        guarantee F7 asked for, at the emit_type granularity (the unit
+        `emit_change` actually broadcasts on)."""
+        import re
+
+        src = inspect.getsource(sys.modules["fichero_server.api.routes.document.segments"])
+        found = set(re.findall(r'emit_type="([a-z_.]+)"', src))
+        tested = {
+            "pass.created", "pass.deleted", "segment.created", "segment.deleted",
+            "segment.restored", "segment.updated", "segment.matched",
+            "segment.merged", "segment.split",
+        }
+        assert found == tested, f"untested emit_type(s): {found - tested}; stale test(s): {tested - found}"
 
 
 class TestCarryAcrossAMatch:
