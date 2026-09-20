@@ -135,6 +135,65 @@ class TestDeleteIsUndoable:
         kinds = sorted(r.kind for r in rows)
         assert kinds == ["deleted", "restored"]
 
+    def test_delete_then_undo_leaves_children_a_match_and_a_carry_intact(self, db, client):
+        """test-audit F13, 2026-09-20: the test above was vacuous -- the
+        annotation it checks is never touched by delete/undo at all (its
+        anchor is a rect the join reads, not a reference to the segment's
+        id), so it would pass even if delete corrupted every real
+        reference. This builds the REAL scenario: a parent with two
+        children (`parent_segment_id`), an accepted match, and a carried
+        reading -- deletes the PARENT, and confirms every one of these
+        still resolves to the same id/state, both right after the delete
+        and again after undo."""
+        from fichero_server.models import ContentRepresentation, ContentRepresentationKind, SegmentCarry, SegmentMatch
+
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        parent = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.2, 0.2])
+        child_1 = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.1, 0.1])
+        child_1.parent_segment_id = parent.id
+        db.save(child_1)
+        child_2 = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        child_2.parent_segment_id = parent.id
+        db.save(child_2)
+
+        other = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.5, 0.5, 0.1, 0.1])
+        ctx = _ctx(db)
+        match_id = registry.invoke(
+            db, "segment.match_propose",
+            {"from_segment_id": parent.id, "to_segment_id": other.id}, ctx,
+        ).result["match_id"]
+        registry.invoke(db, "segment.match_accept", {"match_id": match_id}, ctx)
+
+        reading = ContentRepresentation(
+            document_id=doc.id, kind=ContentRepresentationKind.transcription,
+            content="carried text", source_anchor=parent.anchor,
+        )
+        db.save(reading)
+        registry.invoke(db, "segment.carry", {"match_id": match_id, "kinds": ["reading"]}, ctx)
+        carry_ids_before = {c.id for c in db.query(SegmentCarry, match_id=match_id)}
+        assert carry_ids_before, "fixture must actually produce a carry"
+
+        def _assert_everything_still_points_at_parent():
+            assert db.get(Segment, child_1.id).parent_segment_id == parent.id
+            assert db.get(Segment, child_2.id).parent_segment_id == parent.id
+            match = db.get(SegmentMatch, match_id)
+            assert match.state == "accepted"
+            assert {match.from_segment_id, match.to_segment_id} == {parent.id, other.id}
+            assert {c.id for c in db.query(SegmentCarry, match_id=match_id)} == carry_ids_before
+
+        delete_result = registry.invoke(
+            db, "segment.delete",
+            {"segment_ids": [parent.id], "expected_versions": {parent.id: parent.version}}, ctx,
+        )
+        assert db.get(Segment, parent.id).deleted_at is not None
+        _assert_everything_still_points_at_parent()
+
+        undo = client.post(f"/api/actions/audit/{delete_result.audit_id}/undo")
+        assert undo.status_code == 200, undo.text
+        assert db.get(Segment, parent.id).deleted_at is None
+        _assert_everything_still_points_at_parent()
+
     def test_undelete_is_directly_callable(self, db):
         doc = _make_doc(db)
         pass_row = _make_pass(db, doc.id)
@@ -147,12 +206,16 @@ class TestDeleteIsUndoable:
         assert db.get(Segment, seg.id).deleted_at is None
 
     def test_undelete_of_a_live_segment_is_refused(self, db):
+        from fastapi import HTTPException
+
         doc = _make_doc(db)
         pass_row = _make_pass(db, doc.id)
         seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
         ctx = _ctx(db)
-        with pytest.raises(Exception):
+        with pytest.raises(HTTPException) as excinfo:
             registry.invoke(db, "segment.undelete", {"segment_ids": [seg.id]}, ctx)
+        assert excinfo.value.status_code == 409
+        assert excinfo.value.detail == f"segment {seg.id!r} is not deleted"
 
 
 class TestUndoOfAnUndoSucceeds:
@@ -325,7 +388,57 @@ class TestStaleIsRefused:
         assert r3.status_code == 200, r3.text
         assert db.get(Segment, seg.id).anchor.rect == [0.3, 0.3, 0.1, 0.1]
 
+    def test_two_threads_racing_the_same_expected_version_exactly_one_wins(self, db, client):
+        """test-audit F16, 2026-09-20: proves the version check and the
+        write happen inside the SAME transaction, not as two separate
+        steps a second writer could slip between. Two threads, both
+        holding version 1, released together by a barrier; exactly one
+        gets 200, the other gets 409 with `current_version` naming the
+        winner's new version -- never both succeeding, never both
+        failing. Daemon threads, joined with a timeout so a hang here
+        cannot hang the suite."""
+        import threading
+
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+
+        barrier = threading.Barrier(2)
+        results: list = [None, None]
+
+        def _attempt(index: int, rect: list[float]) -> None:
+            barrier.wait(timeout=5)
+            results[index] = client.request("PUT", f"/api/segments/{seg.id}", json={
+                "segment_id": seg.id, "expected_version": 1,
+                "anchor": {"document_id": doc.id, "rect": rect},
+            })
+
+        threads = [
+            threading.Thread(target=_attempt, args=(0, [0.2, 0.2, 0.1, 0.1]), daemon=True),
+            threading.Thread(target=_attempt, args=(1, [0.3, 0.3, 0.1, 0.1]), daemon=True),
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+            assert not t.is_alive(), "a racing update thread hung"
+
+        statuses = sorted(r.status_code for r in results)
+        assert statuses == [200, 409], statuses
+        winner = next(r for r in results if r.status_code == 200)
+        loser = next(r for r in results if r.status_code == 409)
+        assert loser.json()["detail"]["current_version"] == 2
+
+        final = db.get(Segment, seg.id)
+        assert final.version == 2
+        assert final.anchor.rect == winner.json()["anchor"]["rect"]
+        # Exactly one new SegmentVersion row was written by this race --
+        # the pre-existing version-1 snapshot from the write itself, not two.
+        assert len(db.query(SegmentVersion, segment_id=seg.id, version=1)) == 1
+
     def test_updating_a_deleted_segment_is_refused(self, db):
+        from fichero_server.models.segments import SegmentDeleted
+
         doc = _make_doc(db)
         pass_row = _make_pass(db, doc.id)
         seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
@@ -333,32 +446,76 @@ class TestStaleIsRefused:
         registry.invoke(
             db, "segment.delete", {"segment_ids": [seg.id], "expected_versions": {seg.id: seg.version}}, ctx,
         )
-        with pytest.raises(Exception):
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as excinfo:
             registry.invoke(
                 db, "segment.update",
                 {"segment_id": seg.id, "expected_version": seg.version + 1,
                  "anchor": {"document_id": doc.id, "rect": [0.2, 0.2, 0.1, 0.1]}},
                 ctx,
             )
+        assert excinfo.value.status_code == 409
+        assert excinfo.value.detail == str(SegmentDeleted(seg.id))
 
-    def test_restoring_a_version_of_another_segment_is_refused(self, db):
+    def test_restoring_a_nonexistent_version_is_a_404_not_a_cross_segment_hit(self, db):
+        """test-audit F9, 2026-09-20: renamed and re-shaped -- the original
+        name ('a version of ANOTHER segment') claimed a cross-segment
+        protection this scenario never actually exercised: segment B here
+        simply has no version-1 row at all, so this only proved "no such
+        version exists", a 404. The second test below is the REAL
+        cross-segment case: a version-1 row exists, but for segment A, and
+        B's restore_version call (scoped by `(segment_id, version)`
+        together) must not find it."""
+        from fastapi import HTTPException
+
         doc = _make_doc(db)
         pass_row = _make_pass(db, doc.id)
         seg_a = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
         seg_b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.5, 0.5, 0.1, 0.1])
         ctx = _ctx(db)
-        # Give A a version-1 history row (an update bumps it to 2).
         registry.invoke(
             db, "segment.update",
             {"segment_id": seg_a.id, "expected_version": 1,
              "anchor": {"document_id": doc.id, "rect": [0.15, 0.15, 0.1, 0.1]}}, ctx,
         )
         # B has never been touched -- no version-1 row exists FOR B.
-        with pytest.raises(Exception):
+        with pytest.raises(HTTPException) as excinfo:
             registry.invoke(
                 db, "segment.restore_version",
                 {"segment_id": seg_b.id, "version": 1, "expected_version": seg_b.version}, ctx,
             )
+        assert excinfo.value.status_code == 404
+        assert excinfo.value.detail == f"segment {seg_b.id!r} has no version 1"
+
+    def test_restoring_segment_bs_version_number_against_segment_a_is_refused(self, db):
+        """The REAL cross-segment case: A genuinely has a version-1 row.
+        Asking to restore B to "version 1" must not silently find A's row
+        -- `(segment_id, version)` scoping means this is ALSO a 404, not a
+        wrong-segment success."""
+        from fastapi import HTTPException
+
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg_a = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        seg_b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.5, 0.5, 0.1, 0.1])
+        ctx = _ctx(db)
+        registry.invoke(
+            db, "segment.update",
+            {"segment_id": seg_a.id, "expected_version": 1,
+             "anchor": {"document_id": doc.id, "rect": [0.15, 0.15, 0.1, 0.1]}}, ctx,
+        )
+        assert db.query(SegmentVersion, segment_id=seg_a.id, version=1), "A must genuinely have version 1"
+
+        with pytest.raises(HTTPException) as excinfo:
+            registry.invoke(
+                db, "segment.restore_version",
+                {"segment_id": seg_b.id, "version": 1, "expected_version": seg_b.version}, ctx,
+            )
+        assert excinfo.value.status_code == 404
+        assert excinfo.value.detail == f"segment {seg_b.id!r} has no version 1"
+        # Confirm B was genuinely untouched -- not silently restored from A's row.
+        assert db.get(Segment, seg_b.id).anchor.rect == [0.5, 0.5, 0.1, 0.1]
 
     def test_changing_document_id_or_pass_id_is_not_accepted_by_the_params_model(self, db, client):
         doc = _make_doc(db)
@@ -466,6 +623,8 @@ class TestUndoRestoresFromOrdinaryData:
 
 class TestCrossPassAndDocumentRefusalOnDelete:
     def test_bulk_delete_across_documents_is_refused(self, db):
+        from fastapi import HTTPException
+
         doc_1 = _make_doc(db, "doc1.jpg")
         doc_2 = _make_doc(db, "doc2.jpg")
         pass_1 = _make_pass(db, doc_1.id)
@@ -473,26 +632,32 @@ class TestCrossPassAndDocumentRefusalOnDelete:
         seg_1 = _make_segment(db, document_id=doc_1.id, pass_id=pass_1.id, rect=[0.1, 0.1, 0.1, 0.1])
         seg_2 = _make_segment(db, document_id=doc_2.id, pass_id=pass_2.id, rect=[0.1, 0.1, 0.1, 0.1])
         ctx = _ctx(db)
-        with pytest.raises(Exception):
+        with pytest.raises(HTTPException) as excinfo:
             registry.invoke(
                 db, "segment.delete",
                 {"segment_ids": [seg_1.id, seg_2.id],
                  "expected_versions": {seg_1.id: 1, seg_2.id: 1}}, ctx,
             )
+        assert excinfo.value.status_code == 409
+        assert excinfo.value.detail == "segments are not all in the same pass and document"
 
     def test_bulk_delete_across_passes_same_document_is_refused(self, db):
+        from fastapi import HTTPException
+
         doc = _make_doc(db)
         pass_1 = _make_pass(db, doc.id)
         pass_2 = _make_pass(db, doc.id)
         seg_1 = _make_segment(db, document_id=doc.id, pass_id=pass_1.id, rect=[0.1, 0.1, 0.1, 0.1])
         seg_2 = _make_segment(db, document_id=doc.id, pass_id=pass_2.id, rect=[0.5, 0.5, 0.1, 0.1])
         ctx = _ctx(db)
-        with pytest.raises(Exception):
+        with pytest.raises(HTTPException) as excinfo:
             registry.invoke(
                 db, "segment.delete",
                 {"segment_ids": [seg_1.id, seg_2.id],
                  "expected_versions": {seg_1.id: 1, seg_2.id: 1}}, ctx,
             )
+        assert excinfo.value.status_code == 409
+        assert excinfo.value.detail == "segments are not all in the same pass and document"
 
 
 class TestReads:
@@ -609,14 +774,20 @@ class TestNotesAreCapped:
         ),
     ])
     def test_a_note_over_200_characters_is_refused(self, db, action_name, build_params, field):
+        from pydantic import ValidationError
+
         doc = _make_doc(db)
         pass_row = _make_pass(db, doc.id)
         seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
         other = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.5, 0.5, 0.1, 0.1])
         ctx = _ctx(db)
         too_long = "x" * 201
-        with pytest.raises(Exception):
+        # `params_model.model_validate` (inside `registry.invoke`, before
+        # the action even runs) rejects this -- a pydantic `ValidationError`,
+        # never an `HTTPException` (this path never reaches `_as_http_error`).
+        with pytest.raises(ValidationError) as excinfo:
             registry.invoke(db, action_name, build_params(seg, other, too_long), ctx)
+        assert excinfo.value.errors()[0]["loc"] == (field,)
 
     @pytest.mark.parametrize("action_name,build_params,field", [
         (

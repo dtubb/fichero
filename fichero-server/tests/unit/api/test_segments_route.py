@@ -199,8 +199,14 @@ class TestOpeningWritesNothing:
         before_doc = db.get(Document, doc.id).model_dump(mode="json")
         before_artifact = db.get(Artifact, artifact.id).model_dump(mode="json")
 
-        _get(client, doc.id)
-        _get(client, doc.id)
+        # test-audit F10, 2026-09-20: "a route that fails writes nothing
+        # too" was the unstated premise -- a route that 500s before ever
+        # reaching the write path would trivially pass every assertion
+        # below. Assert the reads actually succeeded first.
+        r1 = _get(client, doc.id)
+        r2 = _get(client, doc.id)
+        assert r1.status_code == 200, r1.text
+        assert r2.status_code == 200, r2.text
 
         assert _table_names(db) == before_tables
         assert _table_row_counts(db) == before_counts
@@ -453,7 +459,15 @@ class TestOneBadBoxNeverFailsThePage:
 
         r = _get(client, doc.id)
         assert r.status_code == 200
-        for segment in r.json()["segments"]:
+        segments = r.json()["segments"]
+        # test-audit F12, 2026-09-20: `if value is not None: assert ...`
+        # silently skips a "good" box whose baseline/polygon computation
+        # regressed to `None` -- assert the good box actually HAS content
+        # first, so that regression cannot hide behind an empty guard.
+        good_segment = next(s for s in segments if s["text"] == "good")
+        assert good_segment["baseline"], "the good box's baseline must have real content"
+        assert good_segment["anchor"].get("polygon"), "the good box's polygon must have real content"
+        for segment in segments:
             for numeric_list_name in ("baseline",):
                 value = segment.get(numeric_list_name)
                 if value is not None:
@@ -547,6 +561,12 @@ class TestQueryFilters:
         assert {s["text"] for s in by_pass["segments"]} == {"delta"}
 
         by_kind = _get(client, doc.id, kind="word").json()
+        # test-audit F12, 2026-09-20: `all(...)` over a possibly-empty list
+        # is vacuously true -- assert the word segment is actually present
+        # AND the fixture's region/line segments are actually excluded,
+        # not just "whatever came back happens to be word-kind".
+        assert by_kind["segments"], "expected at least one word segment"
+        assert {s["text"] for s in by_kind["segments"]} == {"delta"}
         assert all(s["kind"] == "word" for s in by_kind["segments"])
 
 
@@ -599,6 +619,16 @@ class TestDeniedViewer:
             f"/api/segments/document/{doc.id}", headers=login("viewer"),
         )
         assert response.status_code == 403
+
+        # test-audit F11, 2026-09-20: the positive control -- a route that
+        # refused EVERYONE would pass the assertion above too. The SAME
+        # viewer, on a document they are NOT denied, must get 200.
+        other_doc = _make_doc(db, name="allowed-segments.jpg")
+        _make_regions_artifact(db, other_doc.id)
+        allowed_response = client.get(
+            f"/api/segments/document/{other_doc.id}", headers=login("viewer"),
+        )
+        assert allowed_response.status_code == 200
 
 
 class TestHandDrawnAndPassProvenanceSingleSignals:

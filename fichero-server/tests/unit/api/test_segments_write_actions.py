@@ -346,6 +346,31 @@ class TestPassDeleteAndRestore:
         assert after["passes"] == []
         assert after["segments"] == []
 
+    def test_pass_delete_undo_calls_pass_restore_and_brings_it_back(self, client, db):
+        """test-audit F17, 2026-09-20: `segment.pass_restore` was never
+        invoked by any test -- `pass_delete`'s own inverse names it
+        (`_invert_pass_delete`), so this exercises it through the real
+        undo path, not by calling the action directly."""
+        doc = _make_doc(db)
+        pass_body = _create_pass(client, doc.id)
+        _create_segment(client, document_id=doc.id, pass_id=pass_body["id"])
+
+        r = client.delete(f"/api/segments/passes/{pass_body['id']}")
+        assert r.status_code == 200, r.text
+        assert db.get(SegmentPass, pass_body["id"]).deleted_at is not None
+
+        delete_audit = [a for a in db.query(ActionAudit) if a.action_name == "segment.pass_delete"][-1]
+        undo = client.post(f"/api/actions/audit/{delete_audit.id}/undo")
+        assert undo.status_code == 200, undo.text
+
+        undo_audit = db.get(ActionAudit, undo.json()["audit_id"])
+        assert undo_audit.action_name == "segment.pass_restore"
+        assert db.get(SegmentPass, pass_body["id"]).deleted_at is None
+
+        after = client.get(f"/api/segments/document/{doc.id}").json()
+        assert len(after["passes"]) == 1
+        assert len(after["segments"]) == 1
+
 
 class TestCreateMany:
     def test_create_many_uses_save_many_and_returns_every_segment(self, client, db):
@@ -414,6 +439,38 @@ class TestUndo:
         assert r.status_code == 200, r.text
         assert db.get(Segment, segment["id"]).deleted_at is not None
 
+    def test_undoing_segment_create_many_removes_exactly_those_segments(self, client, db):
+        """test-audit F17, 2026-09-20: only `segment.create`'s undo was
+        ever exercised -- `create_many`'s inverse (the SAME
+        `_invert_segment_create`) is a separate code path (`segment_ids`
+        plural) never actually run through undo."""
+        doc = _make_doc(db)
+        pass_body = _create_pass(client, doc.id)
+        other = _create_segment(client, document_id=doc.id, pass_id=pass_body["id"]).json()
+        r = client.post(
+            "/api/segments/bulk",
+            json={
+                "document_id": doc.id, "pass_id": pass_body["id"],
+                "segments": [
+                    {"kind": "word", "anchor": {"document_id": doc.id, "rect": [0.5, 0.5, 0.1, 0.1]}},
+                    {"kind": "word", "anchor": {"document_id": doc.id, "rect": [0.6, 0.6, 0.1, 0.1]}},
+                ],
+            },
+        )
+        assert r.status_code == 200, r.text
+        created_ids = [s["id"] for s in r.json()["segments"]]
+        assert len(created_ids) == 2
+
+        create_many_audit = [a for a in db.query(ActionAudit) if a.action_name == "segment.create_many"][-1]
+        undo = client.post(f"/api/actions/audit/{create_many_audit.id}/undo")
+        assert undo.status_code == 200, undo.text
+
+        for segment_id in created_ids:
+            assert db.get(Segment, segment_id).deleted_at is not None
+        # The unrelated, earlier segment (created by a DIFFERENT action)
+        # is untouched -- undo removes exactly the batch, not everything.
+        assert db.get(Segment, other["id"]).deleted_at is None
+
 
 class TestAuditPayloadsCarryNoText:
     def test_no_audit_row_of_these_actions_contains_a_content_or_text_key(self, client, db):
@@ -445,6 +502,23 @@ class TestAuditPayloadsCarryNoText:
                 assert "content" not in payload, (audit.action_name, payload)
                 assert "text" not in payload, (audit.action_name, payload)
 
+    def test_none_of_these_actions_params_models_can_ever_carry_reading_text(self):
+        """test-audit F12, 2026-09-20: the test above only proves the
+        FIXTURE (which never sends real text) leaked nothing -- it would
+        pass even if a params model grew a `content`/`text` field tomorrow,
+        as long as no test happened to populate it. This asserts the
+        stronger, fixture-independent claim directly against the SCHEMA:
+        none of `segment.create`/`.create_many`/`.pass_create`/
+        `.pass_delete`'s params models declare a free-text reading field at
+        all, so there is structurally nothing for a leak to carry."""
+        from fichero_server.actions.registry import registry
+
+        forbidden = {"content", "text", "ocr_text", "transcription"}
+        for name in ("segment.create", "segment.create_many", "segment.pass_create", "segment.pass_delete"):
+            model = registry.get(name).params_model
+            fields = set(model.model_fields)
+            assert not (fields & forbidden), f"{name} params carry {fields & forbidden}"
+
 
 class TestTheSeamReadsBothRealAndLegacy:
     def test_seam_returns_rows_for_a_converted_document_and_boxes_for_an_unconverted_one(
@@ -475,6 +549,179 @@ class TestTheSeamReadsBothRealAndLegacy:
         # Same response shape either way.
         assert set(legacy_body.keys()) == set(real_body.keys())
         assert set(legacy_body["segments"][0].keys()) == set(real_body["segments"][0].keys())
+
+
+class TestBboxAndTileRecomputedAfterEveryAction:
+    """test-audit F3, 2026-09-20: `bbox_x/y/w/h`/`tile` are DERIVED from
+    `anchor` (`source.segment.box-is-derived`) but only `segment.create`
+    was ever tested for it. The auditor proved a mutation that stops
+    `segment.update` recomputing these columns passes every existing
+    test, and a stale bbox/tile silently drops the segment from every
+    by-area read (`source.store.bounded-reads`) without erroring -- a
+    real, silent-corruption risk. Each test here changes a segment's
+    position, reads by an area that only the NEW position intersects and
+    one that only the OLD position did, and asserts the stored columns
+    equal `bbox_and_tile_from_anchor` of the CURRENT anchor. The code
+    already recomputes correctly in all four actions (confirmed by
+    mutation-testing `segment.update` here: removing its recompute left
+    all four action files' suites green) -- this closes the coverage gap,
+    no production fix was needed."""
+
+    _OLD_RECT = [0.02, 0.02, 0.05, 0.05]
+    _NEW_RECT = [0.9, 0.9, 0.05, 0.05]
+    _AREA_OLD = "0.0,0.0,0.15,0.15"
+    _AREA_NEW = "0.85,0.85,0.15,0.15"
+
+    def _assert_only_found_at(self, client, doc_id, segment_id, *, area, found: bool):
+        body = client.get(f"/api/segments/document/{doc_id}", params={"area": area}).json()
+        ids = {s["id"] for s in body["segments"]}
+        assert (segment_id in ids) == found, (area, found, ids)
+
+    def test_update_recomputes_bbox_and_tile(self, client, db):
+        from fichero_server.models.segments import bbox_and_tile_from_anchor
+
+        doc = _make_doc(db)
+        pass_body = _create_pass(client, doc.id)
+        segment = _create_segment(
+            client, document_id=doc.id, pass_id=pass_body["id"],
+            anchor={"document_id": doc.id, "rect": self._OLD_RECT},
+        ).json()
+
+        r = client.request("PUT", f"/api/segments/{segment['id']}", json={
+            "segment_id": segment["id"], "expected_version": 1,
+            "anchor": {"document_id": doc.id, "rect": self._NEW_RECT},
+        })
+        assert r.status_code == 200, r.text
+
+        row = db.get(Segment, segment["id"])
+        x, y, w, h, tile = bbox_and_tile_from_anchor(row.anchor)
+        assert (row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile) == (x, y, w, h, tile)
+        self._assert_only_found_at(client, doc.id, segment["id"], area=self._AREA_NEW, found=True)
+        self._assert_only_found_at(client, doc.id, segment["id"], area=self._AREA_OLD, found=False)
+
+    def test_restore_version_recomputes_bbox_and_tile(self, client, db):
+        from fichero_server.models.segments import bbox_and_tile_from_anchor
+
+        doc = _make_doc(db)
+        pass_body = _create_pass(client, doc.id)
+        segment = _create_segment(
+            client, document_id=doc.id, pass_id=pass_body["id"],
+            anchor={"document_id": doc.id, "rect": self._OLD_RECT},
+        ).json()
+        r = client.request("PUT", f"/api/segments/{segment['id']}", json={
+            "segment_id": segment["id"], "expected_version": 1,
+            "anchor": {"document_id": doc.id, "rect": self._NEW_RECT},
+        })
+        assert r.status_code == 200, r.text
+        self._assert_only_found_at(client, doc.id, segment["id"], area=self._AREA_NEW, found=True)
+
+        from fichero_server.actions.registry import ActionContext, registry
+        ctx = ActionContext(actor="daniel", library_path=str(db.path.parent))
+        registry.invoke(
+            db, "segment.restore_version",
+            {"segment_id": segment["id"], "version": 1, "expected_version": 2}, ctx,
+        )
+
+        row = db.get(Segment, segment["id"])
+        assert row.anchor.rect == self._OLD_RECT
+        x, y, w, h, tile = bbox_and_tile_from_anchor(row.anchor)
+        assert (row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile) == (x, y, w, h, tile)
+        self._assert_only_found_at(client, doc.id, segment["id"], area=self._AREA_OLD, found=True)
+        self._assert_only_found_at(client, doc.id, segment["id"], area=self._AREA_NEW, found=False)
+
+    def test_unsplit_recomputes_bbox_and_tile(self, client, db):
+        """A split moves the KEPT id's own anchor to the first part's rect
+        (a real geometry move); unsplit restores the pre-split anchor from
+        the version snapshot `segment.split` wrote."""
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.models import SegmentVersion
+        from fichero_server.models.segments import bbox_and_tile_from_anchor
+
+        doc = _make_doc(db)
+        pass_body = _create_pass(client, doc.id)
+        segment = _create_segment(
+            client, document_id=doc.id, pass_id=pass_body["id"],
+            anchor={"document_id": doc.id, "rect": self._OLD_RECT},
+        ).json()
+        ctx = ActionContext(actor="daniel", library_path=str(db.path.parent))
+        split_result = registry.invoke(
+            db, "segment.split",
+            {
+                "segment_id": segment["id"],
+                "parts": [
+                    {"anchor": {"document_id": doc.id, "rect": self._NEW_RECT}},
+                    {"anchor": {"document_id": doc.id, "rect": [0.5, 0.5, 0.05, 0.05]}},
+                ],
+            },
+            ctx,
+        )
+        pre_split_version = db.query(SegmentVersion, segment_id=segment["id"])[0].version
+        self._assert_only_found_at(client, doc.id, segment["id"], area=self._AREA_NEW, found=True)
+        self._assert_only_found_at(client, doc.id, segment["id"], area=self._AREA_OLD, found=False)
+
+        registry.invoke(
+            db, "segment.unsplit",
+            {
+                "segment_id": segment["id"], "version": pre_split_version,
+                "new_segment_ids": split_result.result["new_segment_ids"],
+            },
+            ctx,
+        )
+
+        row = db.get(Segment, segment["id"])
+        assert row.anchor.rect == self._OLD_RECT
+        x, y, w, h, tile = bbox_and_tile_from_anchor(row.anchor)
+        assert (row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile) == (x, y, w, h, tile)
+        self._assert_only_found_at(client, doc.id, segment["id"], area=self._AREA_OLD, found=True)
+        self._assert_only_found_at(client, doc.id, segment["id"], area=self._AREA_NEW, found=False)
+
+    def test_unmerge_recomputes_bbox_and_tile_even_if_the_row_went_stale_while_deleted(self, client, db):
+        """Merge never touches the absorbed segment's geometry -- it just
+        marks it deleted -- so there is no NATURAL bbox/anchor mismatch to
+        exercise. This proves the stronger claim the audit actually cares
+        about: unmerge derives its columns from the VERSION SNAPSHOT, never
+        trusts whatever the row's own (deleted, could be stale) columns
+        say -- by deliberately corrupting them in between and confirming
+        unmerge overwrites the corruption rather than preserving it."""
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.models import SegmentVersion
+        from fichero_server.models.segments import bbox_and_tile_from_anchor
+
+        doc = _make_doc(db)
+        pass_body = _create_pass(client, doc.id)
+        absorbed = _create_segment(
+            client, document_id=doc.id, pass_id=pass_body["id"],
+            anchor={"document_id": doc.id, "rect": self._OLD_RECT},
+        ).json()
+        keeper = _create_segment(
+            client, document_id=doc.id, pass_id=pass_body["id"],
+            anchor={"document_id": doc.id, "rect": self._OLD_RECT},
+        ).json()
+        ctx = ActionContext(actor="daniel", library_path=str(db.path.parent))
+        registry.invoke(
+            db, "segment.merge",
+            {"segment_ids": [absorbed["id"], keeper["id"]], "keep_id": keeper["id"]}, ctx,
+        )
+
+        # Corrupt the absorbed (now soft-deleted) row's bbox columns directly --
+        # bypassing every action -- to prove unmerge does not just leave them.
+        row = db.get(Segment, absorbed["id"])
+        row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = 0.999, 0.999, 0.001, 0.001, "corrupt"
+        db.save(row)
+
+        pre_merge_version = db.query(SegmentVersion, segment_id=absorbed["id"])[0].version
+        registry.invoke(
+            db, "segment.unmerge",
+            {"versions": {absorbed["id"]: pre_merge_version}}, ctx,
+        )
+
+        restored = db.get(Segment, absorbed["id"])
+        assert restored.deleted_at is None
+        x, y, w, h, tile = bbox_and_tile_from_anchor(restored.anchor)
+        assert (restored.bbox_x, restored.bbox_y, restored.bbox_w, restored.bbox_h, restored.tile) == (
+            x, y, w, h, tile,
+        )
+        self._assert_only_found_at(client, doc.id, absorbed["id"], area=self._AREA_OLD, found=True)
 
 
 class TestRealPassIsDrawable:

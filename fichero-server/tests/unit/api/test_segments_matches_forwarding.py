@@ -92,8 +92,12 @@ class TestMatchRecord:
         assert match.proposed_by_kind == ProvenanceKind.workflow
 
         # A tool's accept is refused.
-        with pytest.raises(Exception):
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as excinfo:
             registry.invoke(db, "segment.match_accept", {"match_id": match_id}, tool_ctx)
+        assert excinfo.value.status_code == 422
+        assert excinfo.value.detail == "only a person can accept a match"
         assert db.get(SegmentMatch, match_id).state == "proposed"
 
         # A person's accept succeeds.
@@ -146,8 +150,12 @@ class TestMatchAcceptProvenanceRealActorShapes:
         from fichero_server.actions.registry import ActionContext as _ActionContext
 
         mcp_ctx = _ActionContext(actor="daniel", library_path=str(db.path.parent), via_mcp=True)
-        with pytest.raises(Exception):
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as excinfo:
             registry.invoke(db, "segment.match_accept", {"match_id": match_id}, mcp_ctx)
+        assert excinfo.value.status_code == 422
+        assert excinfo.value.detail == "only a person can accept a match"
         assert db.get(SegmentMatch, match_id).state == "proposed"
 
         # The SAME actor, through the ordinary (non-MCP) surface, succeeds --
@@ -361,11 +369,15 @@ class TestForwardingNotes:
 
         registry.invoke(db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx)
 
-        with pytest.raises(Exception):
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as excinfo:
             registry.invoke(
                 db, "segment.merge",
                 {"segment_ids": [seg_b.id, seg_a.id], "keep_id": seg_a.id}, ctx,
             )
+        assert excinfo.value.status_code == 409
+        assert "is not live" in excinfo.value.detail
 
     def test_cross_pass_and_cross_document_merge_is_refused(self, db):
         """A forward across passes or documents is refused
@@ -378,21 +390,26 @@ class TestForwardingNotes:
         seg_1 = _make_segment(db, document_id=doc_1.id, pass_id=pass_1.id, rect=[0.0, 0.0, 0.1, 0.1])
         seg_2 = _make_segment(db, document_id=doc_2.id, pass_id=pass_2.id, rect=[0.0, 0.0, 0.1, 0.1])
         ctx = _ctx(db, actor="daniel")
+        from fastapi import HTTPException
 
-        with pytest.raises(Exception):
+        with pytest.raises(HTTPException) as excinfo:
             registry.invoke(
                 db, "segment.merge",
                 {"segment_ids": [seg_1.id, seg_2.id], "keep_id": seg_1.id}, ctx,
             )
+        assert excinfo.value.status_code == 409
+        assert excinfo.value.detail == "segments being merged are not all in the same pass and document"
 
         # Same document, different passes.
         pass_3 = _make_pass(db, doc_1.id)
         seg_3 = _make_segment(db, document_id=doc_1.id, pass_id=pass_3.id, rect=[0.5, 0.5, 0.1, 0.1])
-        with pytest.raises(Exception):
+        with pytest.raises(HTTPException) as excinfo2:
             registry.invoke(
                 db, "segment.merge",
                 {"segment_ids": [seg_1.id, seg_3.id], "keep_id": seg_1.id}, ctx,
             )
+        assert excinfo2.value.status_code == 409
+        assert excinfo2.value.detail == "segments being merged are not all in the same pass and document"
 
     def _split_then_merge_back(self, db, ctx, *, keep_first: bool):
         """One fresh segment, split in two, then the parts merged back
@@ -969,8 +986,12 @@ class TestCarryNeverCopiesAStatement:
         from fichero_server.models import KnowledgeClaim
 
         claims_before = len(db.all(KnowledgeClaim))
-        with pytest.raises(Exception):
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as excinfo:
             registry.invoke(db, "segment.carry", {"match_id": match_id, "kinds": ["claim_evidence"]}, ctx)
+        assert excinfo.value.status_code == 422
+        assert "claim_evidence" in excinfo.value.detail and "statements step" in excinfo.value.detail
         assert len(db.all(KnowledgeClaim)) == claims_before
 
     def test_carried_reading_keeps_its_character_span(self, db):
@@ -1014,8 +1035,12 @@ class TestCarryNeverCopiesAStatement:
             {"from_segment_id": seg_from.id, "to_segment_id": seg_to.id}, ctx,
         ).result["match_id"]
         # Never accepted.
-        with pytest.raises(Exception):
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as excinfo:
             registry.invoke(db, "segment.carry", {"match_id": match_id, "kinds": ["reading"]}, ctx)
+        assert excinfo.value.status_code == 422
+        assert excinfo.value.detail == f"match {match_id!r} is not accepted (state: 'proposed')"
 
     def test_uncarry_removes_exactly_the_copies_never_an_original(self, db):
         doc = _make_doc(db)
@@ -1124,30 +1149,44 @@ class TestMoreRefusals:
         a = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
         b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.3, 0.3, 0.1, 0.1])
         ctx = _ctx(db, actor="daniel")
-        with pytest.raises(Exception):
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as excinfo:
             registry.invoke(
                 db, "segment.merge",
                 {"segment_ids": [a.id, b.id], "keep_id": "not-a-real-id"}, ctx,
             )
+        assert excinfo.value.status_code == 422
+        assert excinfo.value.detail == "keep_id 'not-a-real-id' is not among segment_ids"
 
     def test_split_with_fewer_than_two_parts_is_refused(self, db):
+        from fastapi import HTTPException
+
         doc = _make_doc(db)
         pass_row = _make_pass(db, doc.id)
         original = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.2, 0.2])
         ctx = _ctx(db, actor="daniel")
-        with pytest.raises(Exception):
+        with pytest.raises(HTTPException) as excinfo:
             registry.invoke(
                 db, "segment.split",
                 {"segment_id": original.id, "parts": [{"anchor": {"document_id": doc.id, "rect": [0.0, 0.0, 0.1, 0.1]}}]},
                 ctx,
             )
+        assert excinfo.value.status_code == 422
+        assert excinfo.value.detail == "split needs two or more parts"
 
     def test_split_with_a_part_outside_the_image_is_refused(self, db):
+        """The part's anchor is rejected by `SourceAnchor`'s own pydantic
+        validation, inside `registry.invoke`'s `params_model.model_validate`
+        -- BEFORE the action runs, so this is a `ValidationError`, never an
+        `HTTPException` (there is nothing yet to route through `_as_http_error`)."""
+        from pydantic import ValidationError
+
         doc = _make_doc(db)
         pass_row = _make_pass(db, doc.id)
         original = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.2, 0.2])
         ctx = _ctx(db, actor="daniel")
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             registry.invoke(
                 db, "segment.split",
                 {
@@ -1169,13 +1208,25 @@ class TestMoreRefusals:
         ]}),
     ])
     def test_a_legacy_id_is_refused_on_each_action(self, db, action_name, build_params):
+        """test-audit F9, 2026-09-20: asserts the SPECIFIC reason -- a 422
+        whose detail names the id as provisional -- not just "some
+        exception happened", which `split`'s bogus `document_id: "d"`
+        anchor could otherwise mask (it would fail placement validation
+        for an unrelated reason regardless of the provisional check).
+        Confirmed empirically all three land on the provisional check
+        FIRST (`_assert_not_provisional_http` runs before any anchor
+        validation in every one of these actions)."""
+        from fastapi import HTTPException
+
         doc = _make_doc(db)
         pass_row = _make_pass(db, doc.id)
         a = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
         b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.3, 0.3, 0.1, 0.1])
         ctx = _ctx(db, actor="daniel")
-        with pytest.raises(Exception):
+        with pytest.raises(HTTPException) as excinfo:
             registry.invoke(db, action_name, build_params(a, b), ctx)
+        assert excinfo.value.status_code == 422
+        assert "legacy:x" in excinfo.value.detail and "provisional" in excinfo.value.detail
 
     def test_a_legacy_id_is_refused_on_segment_reference_route(self, db, client):
         r = client.get("/api/segments/legacy:some-artifact:0/reference")
@@ -1214,11 +1265,15 @@ class TestSegmentNotLive:
             self._deleted_segment(db, doc, pass_row) if reason == "deleted"
             else self._merged_away_segment(db, doc, pass_row, ctx)
         )
-        with pytest.raises(Exception):
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as excinfo:
             registry.invoke(
                 db, "segment.merge",
                 {"segment_ids": [live.id, not_live.id], "keep_id": live.id}, ctx,
             )
+        assert excinfo.value.status_code == 409
+        assert "is not live" in excinfo.value.detail and reason in excinfo.value.detail
 
     @pytest.mark.parametrize("reason", ["deleted", "merged"])
     def test_merge_refuses_a_not_live_keep_id(self, db, reason):
@@ -1230,11 +1285,15 @@ class TestSegmentNotLive:
             self._deleted_segment(db, doc, pass_row) if reason == "deleted"
             else self._merged_away_segment(db, doc, pass_row, ctx)
         )
-        with pytest.raises(Exception):
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as excinfo:
             registry.invoke(
                 db, "segment.merge",
                 {"segment_ids": [live.id, not_live.id], "keep_id": not_live.id}, ctx,
             )
+        assert excinfo.value.status_code == 409
+        assert "is not live" in excinfo.value.detail and reason in excinfo.value.detail
 
     @pytest.mark.parametrize("reason", ["deleted", "merged"])
     def test_split_refuses_a_not_live_segment(self, db, reason):
@@ -1245,7 +1304,9 @@ class TestSegmentNotLive:
             self._deleted_segment(db, doc, pass_row) if reason == "deleted"
             else self._merged_away_segment(db, doc, pass_row, ctx)
         )
-        with pytest.raises(Exception):
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as excinfo:
             registry.invoke(
                 db, "segment.split",
                 {
@@ -1257,6 +1318,8 @@ class TestSegmentNotLive:
                 },
                 ctx,
             )
+        assert excinfo.value.status_code == 409
+        assert "is not live" in excinfo.value.detail and reason in excinfo.value.detail
 
     @pytest.mark.parametrize("reason", ["deleted", "merged"])
     @pytest.mark.parametrize("end", ["from", "to"])
@@ -1278,8 +1341,12 @@ class TestSegmentNotLive:
             db, "segment.match_propose", {"from_segment_id": from_id, "to_segment_id": to_id}, ctx,
         ).result["match_id"]
         registry.invoke(db, "segment.match_accept", {"match_id": match_id}, ctx)
-        with pytest.raises(Exception):
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as excinfo:
             registry.invoke(db, "segment.carry", {"match_id": match_id, "kinds": ["annotation"]}, ctx)
+        assert excinfo.value.status_code == 409
+        assert "is not live" in excinfo.value.detail and reason in excinfo.value.detail
 
 
 class TestSegmentReferenceRouteAlone:
