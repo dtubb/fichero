@@ -199,6 +199,96 @@ pairing two readings of different segments.
 **For the maintainer:** nothing new. (Question 8, on words in the audit chain, already covers
 the default taken here.)
 
+## Slice 8b — converting a whole project (#4924 until it has its own issue). After slice 8; nothing reaches the app until the programme is done.
+
+Ruled 2026-09-20. Rules in `segments-and-geometry.md` ("Converting a whole project: the rules").
+**Pins:** `source.convert.starts-when-a-project-opens`, `.only-the-running-engine`,
+`.snapshot-first-and-proved`, `.refused-when-disk-is-short`, `.the-machine-stays-usable`,
+`.a-page-is-all-or-nothing`, `.stops-starts-and-repeats-safely`, `.half-done-reads-the-same`,
+`.report`, `.words-move-with-the-boxes`; and `source.store.never-converted-by-a-migration`.
+
+**What exists to build on (VERIFIED on disk 2026-09-20; use these, do not write second ones).**
+- The page action: `segment.convert_and_edit` with no `edit` (slice 6). One document, one
+  transaction, all of the page's results or none, repeatable ids, a real second guard, typed
+  refusals. With no edit it has no inverse, which is right here.
+- Snapshots: `db/storage_snapshots.py`: `snapshot_library(...)`,
+  `auto_snapshot_before_risky_operation(...)`, `restore_snapshot(...)`, and a retention rule
+  (`max_snapshots`, `_enforce_retention`) **that would delete the pre-conversion snapshot if
+  nothing stops it.**
+- Background priority: `core/background_compute.py::set_background_qos()`.
+- One seam for every reader: `GET /api/segments/document/{doc_id}` and `live_geometry`.
+
+**The runner: one function, `convert_project(db, library_path)`, started by the engine after
+the project has opened.** Not at open, not in a migration, not from the CLI.
+1. **Anything to do?** Count unconverted results with boxes (one query). None: write nothing,
+   not even a report. This is what makes every later open free.
+2. **Disk.** `shutil.disk_usage` against the snapshot's likely size (the last snapshot's size,
+   or the project file's) plus the new records, times a stated margin. Short: record
+   `refused_disk` with the numbers in the report, stop, try again at the next open.
+3. **Snapshot**, `initiator="system"`, a reason that names the conversion, and **pinned**: a
+   snapshot the conversion depends on is exempt from retention until the run is finished and
+   the report has been seen. Then **prove it**: read it back (open its exported tables) and
+   compare row counts, table by table, with the project's. A mismatch is `refused_snapshot`.
+4. **Pages**, oldest first, at background priority: for each document with an unconverted
+   result, invoke the page action as the system actor with the run's id as `run_id`. After
+   each page: yield, and stop at once if the engine is shutting down or a person's request is
+   waiting (measure that it does; see tests). `AlreadyConverted` and `NothingToConvert` are
+   not failures (an edit got there first). Any other refusal or error: record document, result
+   and reason, carry on.
+5. **Report**, one kept record for each run: started, finished, snapshot id and place, pages
+   converted, pages skipped with reasons, pages failed with reasons, seconds. The app shows it
+   once. Where the record lives (its own small table, or the existing activity record) is the
+   build lane's first question; one home, not both.
+
+**Progress is the markers, not a counter.** "What is left" is always "results with boxes and no
+marker", asked of the database. A quit, a crash or a second run cannot make it wrong. Do not
+store a cursor.
+
+**One audit row for each page**, by the system actor, counts and ids only (slice 6 already
+holds it under 10 kB). A project of 20,000 pages adds 20,000 small rows to the record; say so
+in the report, and measure the chain check afterwards.
+
+**With readings on segments (why 8 comes first).** The page action gains one step: each
+converted segment's words become a reading on that segment, maker and all, from the same
+`segments_from_result` answer; the pass's whole text becomes the pass's reading. From then
+the block is no longer the only home of the words, `ArtifactHoldsTheOnlyWords` has nothing
+left to protect and goes, and `live_geometry`'s text fill reads from readings. The master test
+still holds: before equals after, but for ids.
+
+**New results after conversion.** Until the tools write segment records themselves, a result
+saved with boxes is converted by the page action as soon as it is saved (default taken; in the
+questions file). `vision_base`'s in-place update of a converted result must make a NEW result,
+not fail the run (slice 6 step 5 review).
+
+**Multi-user and a remote engine.** The engine converts, whoever connects, once: a project has
+one engine, so one runner; guard it with a lock in the project's own database so two openings
+cannot start two. It acts as the system actor; people's permissions are untouched, and
+conversion changes nothing a reader sees, so nobody is shown anything new.
+
+**Tests** (temporary projects only, built the way `tests/conftest.py` builds one).
+- The master test, for a whole project: every page's seam answer before equals after, but for
+  ids; and **at every point in between** (convert half, compare all; convert the rest, compare
+  all). Same for `GET /api/artifacts/{id}`, the artifact lists, search, a claim's reveal, an
+  export.
+- Stop after page *n* (kill the runner), start again: the final state equals an uninterrupted
+  run's, row for row and id for id; run a third time: zero writes, no report.
+- A page made to fail (a result whose boxes cannot convert): it is in the report, it still
+  reads from its block, every other page converted.
+- An edit during the run, on a page not yet reached and on one already done: both land, same
+  ids as an untouched run gives.
+- Snapshot missing, snapshot unreadable, snapshot with a wrong count: nothing converts. The
+  pinned snapshot survives `max_snapshots` worth of later snapshots.
+- Disk short (patched `disk_usage`): nothing converts, the report has the numbers, the next
+  open tries again.
+- Opening is not delayed: the open call returns before the runner's first page (assert on
+  order, and measure the open).
+- Usable machine: with the runner busy on a large temporary project, a person's read and a
+  person's edit each finish within a stated bound. A measured number, not a comment.
+- A migration-shaped guard: the guardrail from slice 6 still fails on a fixture migration that
+  writes segments; and a test that the CLI has no command that converts a project file itself.
+- Restore: restore the pinned snapshot into a temporary place and show the project reads as it
+  did before the run. Never exercised on a real project.
+
 ## Slice 9 — the cascade: language, script and direction, with where each came from (#4938)
 
 **Pins:** `source.lang.cascade`, `.says-where-from`, `.reading-overrides`, `.three-facts`,

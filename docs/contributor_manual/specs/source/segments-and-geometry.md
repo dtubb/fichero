@@ -338,24 +338,78 @@ asked for and may be cached; they are never the record.
 
 Today all the boxes of a result are one block of data. This design needs **one record per
 segment**, so the store can answer "the lines of this page", "this word's history", "every
-segment in this hand". Existing projects are never converted by
-batch: a page's boxes become segments on that page's first edit (ruled 2026-09-19; rules
-below).
+segment in this hand". **How an existing project gets there was ruled again on 2026-09-20,
+and the new ruling replaces the one of 2026-09-19:** a whole project is converted at once, in
+the background, started by itself when the project opens, after a snapshot. The words move
+onto segments FIRST (readings on segments, slice 8), and only then is the whole-project
+conversion built, so that deleting a transcription keeps working. Converting one page as part
+of its first edit (built as slice 6) stays as the engine's mechanism: it is the unit the
+whole-project conversion runs for each page, and the way an edit gets ahead of it. Nothing of
+this reaches the app until the whole programme is done.
 
-### First-edit conversion: the rules
+### Converting a whole project: the rules (ruled 2026-09-20; design, not built)
+
+- **It starts by itself when a project opens, and never holds the opening up.** The project
+  opens and is fully usable at once; conversion runs behind it.
+- **Only the running app's engine converts.** Never a migration at open (a migration still
+  only adds empty tables and columns), never a script, never a second engine started for the
+  job, never the command line acting on the file itself. One writer, the one that already has
+  the project open.
+- **Snapshot first, and proved restorable.** Before the first page converts, the engine takes a
+  snapshot of the project through the snapshot code that already exists
+  (`db/storage_snapshots.py`), and checks it can be read back (it opens, and its row counts
+  equal the project's). No snapshot, or one that fails the check: no conversion, and the
+  report says why. That snapshot is kept out of the ordinary "keep the last N" tidy-up until
+  the conversion has finished and a person has seen the report.
+- **Refused when the disk is short.** The engine works out what the snapshot and the new
+  records need, with room to spare; if the disk cannot hold it, nothing starts, nothing is
+  half done, the report says how much is needed, and it tries again at the next open.
+- **The machine stays usable.** Background priority through the helper that already exists
+  (`core/background_compute.py`), one page at a time, pauses between pages, gives way at once
+  to anything a person is doing. Never a whole project in one transaction.
+- **A page at a time, each page all or nothing.** Each page is one audited action (the slice
+  6 action with no edit), in one transaction: all of that page's results become passes, or
+  none do. A page that cannot convert is recorded with its reason and skipped; it does not stop
+  the others, and it still reads, from its block, exactly as before.
+- **It can be stopped and started, and running it twice changes nothing.** Quit the app in
+  the middle and the next open carries on. Progress is not a counter that can be wrong: a
+  result is converted when its marker says so, and a converted box's id follows from its result
+  and its position, so converting again could only ever make the same records.
+- **An edit gets ahead of the queue.** Editing a page the background work has not reached
+  converts that page there and then, as part of the edit, with the same ids the background
+  work would have given it.
+- **A half-converted project reads the same as any other.** Every reader goes through the one
+  seam (and `live_geometry`), which answers for each result from whichever store it is in. No
+  reader, export, search, claim or workflow may be able to tell which pages are done.
+- **A report for each project.** What converted, what could not and why, where the snapshot
+  is, how long it took. Shown once, kept.
+- **It is not undone; it is restored.** A converted page with no edit has nothing to undo.
+  The way back from a conversion that went wrong is the snapshot, and restoring it discards
+  whatever was done since: it is a safety net for a failed conversion, not an undo.
+- **New results.** A machine run after conversion still writes a block today. It is converted
+  by the same page action as soon as it is saved (default taken; in the questions file), until
+  the tools write segment records themselves.
+- **Building and testing it never touches a real project.** Every test runs on a temporary
+  project made for the test. This rule is about the work, not the feature: the finished
+  feature converts real projects by design, and only once the maintainer has tried the whole
+  programme.
+
+### Converting one page: the rules (built as slice 6; the unit of the above)
 
 - **What counts as an edit.** Any action that changes a box's shape, kind, membership or order:
   what `artifact.regions_edit` does today. Adding a reading, a mark or a claim to a box does
   **not** convert its page. A new machine run does **not** convert the old boxes: it writes
   segment records for itself, and the old block stays as it is until someone edits it.
-- **One action, one audit record.** The conversion happens inside the edit's own action; there
-  is never a page with converted records nobody asked for.
+- **One action, one audit record.** When an edit converts its page, the conversion happens
+  inside the edit's own action. (The earlier rule "never a page with converted records nobody
+  asked for" went with the ruling of 2026-09-20: the background conversion converts every
+  page.)
 - **One page for each conversion.** No action converts more than one document's boxes, and no
-  migration ever writes segment records.
+  migration ever writes segment records. The whole-project conversion is this action, run for
+  each page.
 - **Every result with boxes becomes its own pass**, so nothing is lost and they can be compared
-  (default taken; in the morning file).
-- **Undo undoes the edit and keeps the conversion** (changed 2026-09-20; design, default taken,
-  in the morning file). A converted page with no edit reads exactly as it did before, so
+  (ruled 2026-09-20, confirming the default).
+- **Undo undoes the edit and keeps the conversion** (ruled 2026-09-20, confirming the default). A converted page with no edit reads exactly as it did before, so
   keeping the records costs nothing a person can see, and it needs no hard delete and no test
   of "has anything depended on these since", which, when it said yes, would have left a
   person's first edit impossible to undo. (Today's inverse for a region edit restores the
@@ -535,8 +589,8 @@ The read seam and events
   window updates those and nothing else.
 
 Storage
-- `source.store.one-page-per-conversion` — **[GAP]** (#4924) no action converts more than one document's boxes,
-  and no migration writes segment records.
+- `source.store.one-page-per-conversion` — **[GAP]** (#4924) no action converts more than one document's boxes;
+  a whole project is converted by running that action once for each page.
 - `source.store.undo-first-edit-keeps-conversion` — **[GAP]** (#4924) undoing the first edit undoes the edit
   and keeps the page's segment records; the old block is never restored over them, and the old
   region action is unreachable on a converted result. (Replaces
@@ -557,16 +611,46 @@ Storage
   mark, support and claim whose rectangle matches a converted box exactly, with the segment id
   it would take, and changes none of them. (Replaces `…conversion-repoints-exact-matches`,
   2026-09-20: there is nowhere lawful to write the id until `source.point.anchor-names-its-segment`.)
-- `source.store.ids-on-first-edit` — **[GAP]** (#4924) opening a page with old geometry shows its segments
-  without writing anything; the first edit writes that page's segments once, as one audited
-  action that can be undone. (Ruled 2026-09-19.)
+- `source.store.edit-converts-its-page-first` — **[GAP]** (#4924) reading a page never converts it; editing a page
+  that is not yet converted converts it as part of that edit, one audited action, with the
+  same ids the whole-project conversion would give it; undo takes back the edit and keeps the
+  records. (Replaces `source.store.ids-on-first-edit`: by the ruling of 2026-09-20 this is no
+  longer how a project is converted, it is how an edit gets ahead of the conversion.)
 - `source.store.bounded-reads` — **[GAP]** (#4921) a page's segments come back by kind and by area, never "all
   of a project"; one page at one kind returns in under 200 ms with 200,000 segment records in
   the source (threshold in the morning file).
 - `source.store.record-per-segment` — **[GAP]** (#4921) the store can answer questions about single segments
   (the lines of a page; a word's history; all segments in a hand).
-- `source.store.no-batch-rewrite` — **[GAP]** (#4924) an existing project's geometry is never converted by
-  batch.
+- `source.store.never-converted-by-a-migration` — **[GAP]** (#4924) no migration, script, second engine or
+  command-line process ever writes a segment record into an existing project; opening a
+  project adds empty tables and columns and nothing else. (Replaces
+  `source.store.no-batch-rewrite`, overturned 2026-09-20: a whole project IS converted, but
+  only by the running app's engine, a page at a time.)
+
+Converting a whole project (ruled 2026-09-20; built after readings are on segments)
+- `source.convert.starts-when-a-project-opens` — **[GAP]** (#4924) conversion starts by itself after a project
+  opens and never delays the opening; the project is fully usable while it runs.
+- `source.convert.only-the-running-engine` — **[GAP]** (#4924) the only thing that converts a project is the
+  engine of the running app that has it open.
+- `source.convert.snapshot-first-and-proved` — **[GAP]** (#4924) no page converts until a snapshot of the project
+  exists and has been read back and checked; that snapshot is kept out of the ordinary
+  tidy-up until the conversion is finished and its report has been seen.
+- `source.convert.refused-when-disk-is-short` — **[GAP]** (#4924) with too little free disk nothing starts and
+  nothing is half done; the report says how much is needed; it tries again at the next open.
+- `source.convert.the-machine-stays-usable` — **[GAP]** (#4924) it runs at background priority, a page at a time,
+  and gives way to a person's work; measured, not assumed.
+- `source.convert.a-page-is-all-or-nothing` — **[GAP]** (#4924) each page converts in one transaction or not at
+  all; a page that cannot convert is recorded with its reason, skipped, and still reads from
+  its block as before; the rest carry on.
+- `source.convert.stops-starts-and-repeats-safely` — **[GAP]** (#4924) quitting part-way loses nothing; the next
+  open carries on; running it again over a converted project writes nothing.
+- `source.convert.half-done-reads-the-same` — **[GAP]** (#4924) at every moment of a conversion, every reader gets
+  the same answer for every page as before it started, but for the ids.
+- `source.convert.report` — **[GAP]** (#4924) each project has a kept report: what converted, what could not and
+  why, where the snapshot is, how long it took.
+- `source.convert.words-move-with-the-boxes` — **[GAP]** (#4924) once readings are on segments, converting a page
+  also gives each segment its words as a reading with its maker, so the old block is no longer
+  the only home of the text and a converted result can be deleted again.
 
 ## Test matrix
 

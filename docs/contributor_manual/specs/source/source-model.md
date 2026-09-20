@@ -371,8 +371,10 @@ routes in the OpenAPI contract (the command line is generated from it, and the S
 too: no hand-written URLs); a change event for every write; stores update one item in place;
 tests pin behaviour ids; **temporary libraries only**. How an existing library reaches the
 new model: the **schema** arrives when a library opens (new empty tables and columns, added
-idempotently, safe to run twice, nothing rewritten); the **data** converts one page at a time
-on that page's first edit, as one undoable step; every existing artifact, claim and highlight
+idempotently, safe to run twice, nothing rewritten); the **data** is converted a whole project
+at once, in the background, by the running app's engine, after a snapshot, a page at a time
+(ruled 2026-09-20, replacing "on each page's first edit"; an edit to a page not yet reached
+converts that page there and then); every existing artifact, claim and highlight
 stays resolvable; each slice that changes stored shape has a test that opens a library made
 before the change.
 
@@ -384,7 +386,8 @@ nothing, it cannot harm a library.
 
 - **Behaviours:** `source.seam.read-either-store`, `source.seam.provisional-ids-refused`,
   `source.segment.names-its-image`, the "opening writes nothing" half of
-  `source.store.ids-on-first-edit`, and the engine half of `source.one-store`.
+  `source.store.edit-converts-its-page-first` (was `…ids-on-first-edit`), and the engine half of
+  `source.one-store`.
 - **Route:** `GET /api/segments/document/{doc_id}` (a new router registered at `/api/segments`,
   in `api/routes/document/segments.py`, following `content_representations.py`). Query:
   `artifact_id` (optional: one result's boxes), `pass_id` (optional), `kind` (optional: region,
@@ -485,12 +488,15 @@ A version column; compare-and-set inside the transaction; a typed refusal that s
 changed. Behaviours: `source.segment.versioned-alone`, `source.segment.delete-is-undoable`,
 `source.edit.stale-is-refused`.
 
-### Slice 6 — first-edit conversion (do not start before slices 1 to 5 are in)
+### Slice 6 — converting one page (built; the unit of the whole-project conversion)
 
-One action converts one page's boxes into segment records as part of the first edit, and its
-inverse deletes exactly the records it made. The rules are in `segments-and-geometry.md`
-("First-edit conversion: the rules"). Behaviours: `source.store.ids-on-first-edit`,
-`source.store.no-batch-rewrite`, `source.store.one-page-per-conversion`,
+One action converts one page's boxes into segment records, with or without an edit; undo takes
+back the edit and keeps the records. By the ruling of 2026-09-20 this is no longer how a
+project is converted; it **survives** as two things: the action the whole-project conversion
+runs once for each page, and the way an edit to a page not yet reached converts it at once.
+Nothing built for it is thrown away. The rules are in `segments-and-geometry.md` ("Converting
+one page: the rules"). Behaviours: `source.store.edit-converts-its-page-first`,
+`source.store.never-converted-by-a-migration`, `source.store.one-page-per-conversion`,
 `source.store.undo-first-edit-keeps-conversion` (and four more added 2026-09-20; see the
 build notes for slice 6).
 
@@ -499,7 +505,16 @@ build notes for slice 6).
 7. Shapes beyond the rectangle on `SourceAnchor` (point, open path, several shapes, curved
    baseline), the derived box, polygon crops and straightened line pictures.
 8. Readings on segments: `ContentRepresentation` gains a segment id; the list of kinds opens;
-   "which counts" is worked out, never stored as a flag.
+   "which counts" is worked out, never stored as a flag. **Ruled 2026-09-20 to come before any
+   whole-project conversion**, so that a page's words live on its segments and deleting a
+   transcription keeps working.
+8b. **Converting a whole project** (ruled 2026-09-20): started by itself when a project opens,
+   in the background, by the running app's engine, after a snapshot that has been read back
+   and checked; a page at a time with slice 6's action; safe to stop, start and repeat; refused
+   when the disk is short; a report for each project. Rules and behaviours
+   (`source.convert.*`) in `segments-and-geometry.md`; build notes in
+   `build-notes-readings-cascade-orders.md`. **Nothing of slices 6 to 8b reaches the app until
+   the whole programme is done.**
 9. The cascade (language, script, direction), extending `language_policy.resolve_language`,
    answering with where each value came from.
 10. Reading orders, flows and typed links.
@@ -585,7 +600,9 @@ The maintainer answered the set's open questions one by one on 2026-09-19. Parap
 1. **Identity.** An id never moves. "This new line is that old line" is a separate match
    record. Merge, split and delete leave forwarding notes.
 2. **Existing projects.** Opening a page writes nothing. The first edit writes that page's
-   segments once, undoably.
+   segments once, undoably. **Replaced on 2026-09-20** (see below): a whole project is
+   converted at once in the background; the first-edit path stays as the unit and as the way
+   an edit gets ahead.
 3. **The words.** *Pass* and *campaign* replace the two kinds of "layer". *Profile* has one
    meaning. What the Library pane is called once a library is a project is **left for the
    app-wide rename spec**.
@@ -633,7 +650,30 @@ The maintainer answered the set's open questions one by one on 2026-09-19. Parap
     editor trial means sixty frames a second with twenty thousand shapes on the oldest
     supported iPhone.
 
-### Agreed with the safety set, 2026-09-20 (undo, Trash, the record; branch `spec/undo-trash`, not merged)
+### Rulings of 2026-09-20
+
+Paraphrased; each replaces or confirms what the set said before.
+
+1. **How an existing project is converted: all at once, by itself, when it opens, after a
+   snapshot.** This replaces ruling 2 of 2026-09-19 as the behaviour people will meet. The
+   order is ruled too: readings on segments first (slice 8), then the whole-project
+   conversion (8b), so deleting a transcription never stops working. Converting on first edit
+   stays as the engine's mechanism meanwhile. None of it reaches the app until the programme
+   is done; it is to be built steadily, not hurried.
+2. **Every result with boxes becomes its own pass.** Confirmed.
+3. **Undoing a page's first edit undoes the edit and keeps the records.** Confirmed.
+4. **Deleting a converted result stays refused until readings are on segments.** Confirmed;
+   the refusal ends with slice 8 (`source.convert.words-move-with-the-boxes`).
+5. **Each audit record is split in two**: a chained part (who, what, when, ids, version
+   numbers, a keyed fingerprint of any content) and a content part outside the chain that a
+   purge can blank, leaving the chain checkable. The fingerprint is keyed with a random value
+   kept in the content part and blanked with it (this set's condition, accepted). This answers
+   the set's questions 8, 17 and 23, and removes one of the two blocks on purge in
+   `rights-and-access.md`. The parked safety set proposed the same split; it stays parked.
+6. **A deleted pass goes to the Trash; a single deleted segment does not** (it is undone, or
+   restored from its own history).
+
+### Agreed with the safety set, 2026-09-20 (undo, Trash, the record; branch `spec/undo-trash`, not merged; since PARKED)
 
 Answers to that set's requests. Each is this set's position; where it is the maintainer's to
 rule it says so, and the manager carries any difference to the maintainer as one list.
@@ -650,11 +690,12 @@ rule it says so, and the manager carries any difference to the maintainer as one
   general table. Version rows are outside the record's chain, so a purge can reach them.
 - **A deleted segment is "undo only", not a Trash item**: **agreed.** It is soft-deleted, still
   resolves through its forwarding note, and comes back by undo or from its own history in the
-  editor. A deleted **pass** is a body of work a person might go looking for; whether that
-  belongs in the Trash is **for the maintainer**.
+  editor. A deleted **pass** is a body of work a person might go looking for: **ruled
+  2026-09-20, it goes to the Trash.**
 - **Words in the record** (this set's questions 8, 17 and 23): the joint proposal, a chained
   part (who, what, when, ids, version numbers, a fingerprint) and a content part outside the
-  hash that a purge can blank, is **agreed as the proposal, and for the maintainer to rule.**
+  hash that a purge can blank, was agreed as the proposal and **ruled 2026-09-20: adopted**, with
+  this set's condition.
   It would unblock purge in `rights-and-access.md`. One condition from this set: the
   fingerprint must be keyed with a random value kept in the content part and blanked with it.
   A plain fingerprint of a short reason or a single word can be found by trying every likely

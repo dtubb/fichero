@@ -517,6 +517,17 @@ edits is refused one by one; there is no merge. (Foundation, morning question 15
 
 ## Slice 6 — first-edit conversion (#4924). Do not start before #4957 (redo) reports.
 
+> **Ruled 2026-09-20, after this was built:** a project is no longer converted page by page as
+> people edit. It is converted whole, in the background, when it opens, after a snapshot, and
+> only once readings are on segments (slice 8, then 8b). **Everything below survives.** The
+> action here, run with no edit, is the unit the whole-project conversion runs for each page;
+> run with an edit, it is how an edit to a page not yet reached converts it at once.
+> Assumption A1 below is therefore no longer an assumption about the future: the "eager form"
+> IS the shipped path, which is why repeatable ids and "converting twice changes nothing" are
+> load-bearing. A2 (every result its own pass) and the undo rule are confirmed. Nothing here
+> reaches the app until the programme is done. The notes for 8b are in
+> `build-notes-readings-cascade-orders.md`.
+
 Rewritten 2026-09-20 against the code of slices 1 to 5 as committed on `spec/page-model`.
 Claims about existing code are graded VERIFIED (read on disk) or INFERRED.
 
@@ -971,12 +982,12 @@ All tests in a temporary library built as `tests/conftest.py` builds one. Never 
 
 | Behaviour | Data | Existing data | Test |
 | --- | --- | --- | --- |
-| `source.store.ids-on-first-edit` | rows + marker appear at first edit | reading ten times writes nothing; the artifact row's dump is byte-equal (`Artifact` has no `updated_at`) | one move → a pass for every result with boxes; ids real; second move converts nothing |
+| `source.store.edit-converts-its-page-first` (was `…ids-on-first-edit`) | rows + marker appear at first edit | reading ten times writes nothing; the artifact row's dump is byte-equal (`Artifact` has no `updated_at`) | one move → a pass for every result with boxes; ids real; second move converts nothing |
 | `source.store.conversion-changes-nothing-seen` (new) | none beyond the above | the master test, run over every awkward input below | seam before == seam after, but for `id`, `pass_id`, `provisional` |
 | `source.store.conversion-ids-repeatable` (new) | uuid5 ids | eager and lazy agree | convert a copy of the same fixture twice in two libraries: identical ids; a provisional id resolves to the real one on reads, is refused on writes |
 | `source.store.converted-boxes-keep-their-maker` (new) | `provenance_kind`, `created_by`; no version rows at conversion | a hand-drawn box inside a machine result stays the person's | the 50-box probe in 4 |
 | `source.store.undo-first-edit-keeps-conversion` (replaces `…conversion-undo-leaves-nothing`) | inverse from `after.edit` | block never restored | move, undo: geometry back, version 3, rows and marker remain, block byte-equal; `artifact.regions_edit` refused on a converted artifact |
-| `source.store.one-page-per-conversion`, `.no-batch-rewrite` | one `document_id` | document B untouched | guardrail script as in the older draft, plus: params model has no list of documents |
+| `source.store.one-page-per-conversion`, `.never-converted-by-a-migration` (was `.no-batch-rewrite`) | one `document_id` | document B untouched | guardrail script as in the older draft, plus: params model has no list of documents |
 | `source.store.conversion-reports-exact-matches` (replaces `…repoints…`) | none written | every record left byte-equal | an exact match is listed with the segment id it would take; one off by 0.01 is not; all four record kinds byte-equal after |
 | `source.store.old-app-still-works` (new) | projection + index translation | the app's positions | move, delete, then move "index 3": the box moved is the one the projection listed fourth |
 

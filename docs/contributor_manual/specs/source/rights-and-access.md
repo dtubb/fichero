@@ -30,9 +30,13 @@
 > beside the one that exists. The reviewers recommend: **the existing permission layer
 > enforces; a rights record says what is meant and why** (and is turned into grants and denies
 > on a segment id, one check). That is the maintainer's to rule; it is in the morning file.
-> **Nothing here is built until then.** A second blocking question sits under purge: every
-> action's record lives in a tamper-evident chain, so a purge cannot reach words stored there
-> (see `readings-and-apparatus.md`).
+> **Nothing here is built until then.** A second blocking question sat under purge: every
+> action's record lives in a tamper-evident chain, so a purge could not reach words stored
+> there. **That one was ruled on 2026-09-20:** each record is split into a chained part (who,
+> what, when, ids, version numbers, a keyed fingerprint) and a content part outside the chain
+> that a purge can blank, so the chain still checks out and the words are gone (see "Rulings
+> of 2026-09-20" in `source-model.md`). Purge still waits on the first question, and on that
+> split being built, which belongs to the audited-action layer, not to this set.
 
 ## Intent
 
