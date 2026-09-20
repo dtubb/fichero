@@ -474,14 +474,19 @@ Pointing and statements
 - `source.statement.on-segment` — **[GAP]** (#4932) a claim or mention points at a segment id, keeps a copy of
   its anchor beside it, and survives re-segmentation and re-transcription; a claim on an
   unconverted page points by its anchor alone.
-- `source.point.anchor-names-its-segment` — **[GAP]** (#4932) the one anchor every reading, mark, support and
-  claim already carries gains an optional lasting segment id; the id is the pointer and the
+- `source.point.anchor-names-its-segment` — **[GAP]** (#4932) the one anchor every reading, mark and claim
+  carries (three stored kinds), and every supporting source embedded in a claim or an entity,
+  gains an optional lasting segment id; the id is the pointer and the
   stored shape is the record of where the ink was; one resolver answers with the live
   segment's current shape, or the stored shape when the segment was deleted. One shape for
   all four, no new column on any of them; an old record reads as having none.
 - `source.point.unpointed-anchor-follows-its-box` — **[GAP]** (#4932) an anchor with no segment id, whose
   rectangle equals a box of a converted result, is resolved through that box's segment at
   read time, storing nothing, so a mark drawn before conversion follows its box when it moves.
+  The match is made against the result's kept block, whose boxes never move, so it can still
+  be found after the box has moved. The read carries the resolved shape beside the stored
+  one, and the app's one accessor for a mark's rectangle uses it (today every mark is drawn
+  from its stored rectangle and stays behind when its box moves, before or after conversion).
 - `source.statement.old-segment-field-left-alone` — **[GAP]** (#4932) the claim field `source_segment_id`, which
   predates this model and names an entry in a segmentation artifact, keeps its meaning and
   its data, is described as such in the contract, and is never given a segment record's id.

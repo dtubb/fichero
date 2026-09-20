@@ -791,7 +791,13 @@ Until readings hang on segments (slice 8), a box's words have one home: the kept
 
 VERIFIED on disk: four models carry a `SourceAnchor`: `ContentRepresentation.source_anchor`
 (a reading), `Annotation.anchor` (a mark), `SourceSupport.source_anchor`,
-`KnowledgeClaim.source_anchor`. Only one has anywhere to put a segment id today,
+`KnowledgeClaim.source_anchor`. **Corrected 2026-09-20 (slice 6 lane, checked in code): that is
+three stored kinds and one embedded model.** Readings, marks and claims are tables. A
+supporting source is not a record of its own: it is embedded in claims and in entities, has no
+id, and draws nothing today. "One shape" covers it all the same, which is the advantage of
+putting the id in the anchor: wherever an anchor is embedded, the id goes with it, and nothing
+has to walk entities (scoped by a list column, so finding them means scanning the project) to
+convert a page. Only one has anywhere to put a segment id today,
 `KnowledgeClaim.source_segment_id`, and it means something else: it is supplied by the client
 on claim create and patch (`api/routes/claim/claims.py`), published in the contract, produced
 by nothing in the engine, and historically names an entry in a segmentation artifact's
@@ -829,6 +835,28 @@ by nothing in the engine, and historically names an entry in a segmentation arti
   embedding code reads geometry), and a span finds its pixels through `live_geometry`, so it
   follows a moved box as soon as slice 6 lands. The cost falls on anchors that carry a
   rectangle: marks a person drew, and any reading or claim saved with a box.
+- **What a person actually sees, by kind** (slice 6 lane, checked in the app's code and pinned
+  by three tests; recorded on #4932). After a box is moved: a **mark** stays where the box
+  used to be, because every rectangle a mark draws (wash, underline, strike, star, check, note
+  glyph, the note editor's place, the hit test) comes from its stored rectangle through one
+  accessor, `AnnotationService.regionRect`, and the crop popover's picture is cut by the engine
+  from the stored rectangle too. A **claim** follows the move by character span and not by
+  stored rectangle, and on a PDF the page view draws the rectangle and returns before the span
+  branch, so a claim carrying both draws at the old place. A **supporting source** and a
+  **reading** draw nothing yet. **This is not new with conversion**: today's move changes the
+  block's box and leaves the mark's rectangle alone in exactly the same way. Conversion makes
+  it matter, because curating boxes becomes ordinary. Also corrected: `/region` and
+  `/text-regions` have no call site in the app; it resolves spans itself from the artifact
+  route (now live). Those two routes stay live for MCP and later callers.
+- **The link is NOT lost when a box moves** (a point on which the lane's note and this ruling
+  differ, and the difference is the whole value of the interim). Matched against the LIVE row,
+  an old rectangle matches nothing the moment the box moves, and nothing can recover it. The
+  interim below does not match against the live row. It matches against the **kept block**,
+  whose boxes never move, and the block box's position gives the repeatable id. So the link
+  from "the rectangle this mark was made from" to "that box's segment" can be found at any
+  later time, for good. It follows that the list of matches reported at conversion is a
+  convenience, not the only evidence, which is one more reason it does not belong in the
+  permanent record (slice 6 review, FIX FIRST 3).
 - **A cheap interim that stores nothing (recommended; can follow slice 6 directly).** The kept
   block never changes, so it is a permanent table from "the rectangle a box had" to "the box's
   position", and position gives the repeatable id. In `resolve_anchor`, for an anchor with no
@@ -836,6 +864,22 @@ by nothing in the engine, and historically names an entry in a segmentation arti
   by slice 4's one rule, take its repeatable id, and resolve that. A pure function; nothing
   written; and when #4932 later stores the id it stores the same one. It only helps anchors
   that matched a box exactly, which is the only case slice 6 would have re-pointed anyway.
+- **Does the interim rescue marks? The engine half does; the app must ask.** Proposed as its
+  own small slice, **6b, under #4932, straight after slice 6 and ahead of slice 8**, because a
+  mark in the wrong place is the one thing here a person can see. It is NOT app stage 2 (that
+  is the overlays drawing from the store, held, and much larger).
+  - Engine: `resolve_anchor`; the annotation and claim reads gain a `resolved_anchor` beside
+    the stored one (the stored one is never rewritten); the crop popover's cut uses the
+    resolved rectangle. Tests: mark a line, convert, move the line → the read's resolved
+    rectangle is the new place and the stored one is unchanged; a free rectangle that matches
+    no box resolves to itself; a mark on a deleted segment resolves to its stored rectangle
+    and says the segment is gone.
+  - App, one accessor: `AnnotationService.regionRect` returns the resolved rectangle when the
+    read carries one, else the stored one. Every mark drawing already goes through it. And
+    the PDF page view prefers the resolved anchor over the stored rectangle before returning.
+    Mounted tests, not source scans: the wash is drawn at the new place after a move.
+  - A mark a person drew free, matching no box, stays where they drew it. That is right: it
+    was about a place, not about a line.
 
 ### 4. Who made what
 
