@@ -21494,6 +21494,142 @@
         }
       }
     },
+    "/api/workflow-execution/runs": {
+      "get": {
+        "tags": [
+          "workflow-execution"
+        ],
+        "summary": "List Workflow Runs Route",
+        "description": "List workflow runs from the runs table (#4960).\n\nThe SAME record the toolbar popover already reads (``/activity/jobs``\ncalls this store's ``list_workflow_runs`` too) \u2014 not the lossy event\nlog ``GET /activity`` reads, which is why the popover and the Activity\nwindow disagreed (verified: `agent-work/reviews/\nactivity-system-review-2026-09-20.md` \u00a72). A run with no ``activities``\nrows at all still appears here, and paging/sorting/filtering are all\npushed to SQL (``ORDER BY started_at DESC, thread_id DESC LIMIT ...\nOFFSET ...`` in ``ActivityStore.list_workflow_runs``), so listing cost\ndoes not grow with the total number of runs in the library.",
+        "operationId": "list_workflow_runs_route_api_workflow_execution_runs_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "nullable": true,
+              "description": "Filter to these statuses (e.g. ?status=failed). Omit for every non-deleted run, newest first.",
+              "title": "Status"
+            },
+            "description": "Filter to these statuses (e.g. ?status=failed). Omit for every non-deleted run, newest first."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRunListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflow-execution/runs/delete": {
+      "post": {
+        "tags": [
+          "workflow-execution"
+        ],
+        "summary": "Delete Workflow Runs Route",
+        "description": "Bulk-delete workflow runs, or \"Clear Failed\" via a status filter \u2014\nthe SAME audited action either way (#4960). Checkpoints are untouched;\ndelete one thread's checkpoint too via ``DELETE /threads/{thread_id}``.",
+        "operationId": "delete_workflow_runs_route_api_workflow_execution_runs_delete_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowRunDeleteParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRunDeleteResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workflow-execution/threads/{thread_id}/episodes": {
       "get": {
         "tags": [
@@ -21555,7 +21691,7 @@
           "workflow-execution"
         ],
         "summary": "Delete Thread",
-        "description": "Delete a workflow execution thread and its checkpoints.\n\nRemoves all checkpoint data for the specified thread.\n\nArgs:\n    thread_id: Thread ID to delete\n\nReturns:\n    Success message\n\nRaises:\n    404: Thread not found",
+        "description": "Delete a workflow execution thread and its checkpoints.\n\nRemoves all checkpoint data for the specified thread, and the run\nRECORD (``workflow_runs`` row + its events) through the SAME audited\n``workflow_run.delete`` action the bulk route uses (#4960) \u2014 a single\ndelete was, before this, the one run operation NOT recorded by the\naction layer. The checkpoint-specific work (cancellation signal,\ncheckpoint deletion) stays here; it is a thread/execution-engine\nconcern the bulk action deliberately does not touch.\n\nArgs:\n    thread_id: Thread ID to delete\n\nReturns:\n    Success message\n\nRaises:\n    404: Thread not found",
         "operationId": "delete_thread_api_workflow_execution_threads__thread_id__delete",
         "parameters": [
           {
@@ -21565,6 +21701,26 @@
             "schema": {
               "type": "string",
               "title": "Thread Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -23080,28 +23236,6 @@
               "text/html": {
                 "schema": {
                   "type": "string"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/kg/reset": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Wipe all KG rows so extraction can run fresh",
-        "description": "Deletes every KnowledgeEntity, KnowledgeClaim, and KnowledgeClaimLink row in the library. Documents and Artifacts are not touched. Use before re-running Catalogue/Extract workflows to get a clean slate.",
-        "operationId": "reset_kg_api_kg_reset_post",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/KGResetResponse"
                 }
               }
             }
@@ -33095,7 +33229,7 @@
           "local-models"
         ],
         "summary": "Kraken Status",
-        "description": "Report whether Kraken is installed, plus any in-flight install job.",
+        "description": "Report whether Kraken is bundled (importable) in this build.",
         "operationId": "kraken_status_api_local_models_kraken_status_get",
         "responses": {
           "200": {
@@ -33117,7 +33251,7 @@
           "local-models"
         ],
         "summary": "Install Kraken",
-        "description": "Start (or reuse) the coalesced background Kraken install job.\n\nReturns immediately with the job so the UI can poll ``/kraken/status``.\nIdempotent: a second call while one runs returns the same job, and a call\nwhen Kraken is already installed completes without rebuilding the venv.",
+        "description": "#4959: nothing to install \u2014 Kraken ships inside the signed bundle.\n\nKept for the MCP tool and the generated CLI: idempotent, no job, just\nreports whether the bundle actually carries it (a packaging problem if\nnot, never something this call can fix).",
         "operationId": "install_kraken_api_local_models_kraken_install_post",
         "responses": {
           "200": {
@@ -33139,7 +33273,7 @@
           "local-models"
         ],
         "summary": "Remove Kraken",
-        "description": "Remove the Kraken venv when no install is running.",
+        "description": "#4959: refuses \u2014 Kraken is bundled with the app and cannot be removed\n(there is no separate runtime to delete).",
         "operationId": "remove_kraken_api_local_models_kraken_delete",
         "responses": {
           "200": {
@@ -48888,6 +49022,13 @@
             },
             "type": "object",
             "title": "Dependencies"
+          },
+          "migration_failures": {
+            "items": {
+              "$ref": "#/components/schemas/MigrationFailureResponse"
+            },
+            "type": "array",
+            "title": "Migration Failures"
           }
         },
         "type": "object",
@@ -50783,30 +50924,6 @@
         "title": "KGPredictionListResponse",
         "description": "Standardized envelope for GET /api/kg-predictions list endpoints."
       },
-      "KGResetResponse": {
-        "properties": {
-          "entities_deleted": {
-            "type": "integer",
-            "title": "Entities Deleted"
-          },
-          "claims_deleted": {
-            "type": "integer",
-            "title": "Claims Deleted"
-          },
-          "links_deleted": {
-            "type": "integer",
-            "title": "Links Deleted"
-          }
-        },
-        "type": "object",
-        "required": [
-          "entities_deleted",
-          "claims_deleted",
-          "links_deleted"
-        ],
-        "title": "KGResetResponse",
-        "description": "Counts of rows deleted by a KG reset."
-      },
       "KGSearchHit": {
         "properties": {
           "hit_type": {
@@ -52043,7 +52160,8 @@
           },
           "runtime_dir": {
             "type": "string",
-            "title": "Runtime Dir"
+            "title": "Runtime Dir",
+            "default": ""
           },
           "disk_usage_bytes": {
             "type": "integer",
@@ -52053,7 +52171,7 @@
           "size_note": {
             "type": "string",
             "title": "Size Note",
-            "default": "~1 GB download"
+            "default": "bundled with the app"
           },
           "reason": {
             "type": "string",
@@ -52068,8 +52186,7 @@
         "type": "object",
         "required": [
           "installed",
-          "available",
-          "runtime_dir"
+          "available"
         ],
         "title": "KrakenRuntimeStatusResponse"
       },
@@ -54414,6 +54531,36 @@
         ],
         "title": "MigrationCommand",
         "description": "Available migration commands."
+      },
+      "MigrationFailureResponse": {
+        "properties": {
+          "migration": {
+            "type": "string",
+            "title": "Migration"
+          },
+          "error_type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "migration",
+          "error_type",
+          "message",
+          "occurred_at"
+        ],
+        "title": "MigrationFailureResponse",
+        "description": "One recorded schema-migration failure, surfaced at ``GET /api/health``\n(#4983 phase 1). Mirrors ``db.migrations.schema.MigrationFailure`` \u2014 the\npersistence-layer record \u2014 as an API shape."
       },
       "MigrationInfo": {
         "properties": {
@@ -67727,6 +67874,82 @@
         "title": "WorkflowRunArtifactResponse",
         "description": "Artifact produced by a workflow run, with navigation targets.\n\nCarries the whole provenance chain (#4284): which run, which step, which\nworkflow, which document it was derived from, and which provider/model\nproduced it. An artifact that cannot be traced back to all of those is a\nfile, not a record."
       },
+      "WorkflowRunDeleteParams": {
+        "properties": {
+          "thread_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Thread Ids",
+            "description": "Explicit run ids to delete"
+          },
+          "statuses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Statuses",
+            "description": "Delete every non-deleted run whose status is one of these (e.g. ['failed'] for 'Clear Failed')"
+          }
+        },
+        "type": "object",
+        "title": "WorkflowRunDeleteParams",
+        "description": "``workflow_run.delete`` \u2014 delete by explicit ids, or by a status\nfilter. #4960's \"Clear Failed\" is this SAME action with\n``statuses=[\"failed\"]``, never a second action. Exactly one of the two\nmust be given."
+      },
+      "WorkflowRunDeleteResult": {
+        "properties": {
+          "deleted_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Deleted Ids"
+          },
+          "skipped_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skipped Ids"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted_ids",
+          "skipped_ids",
+          "count"
+        ],
+        "title": "WorkflowRunDeleteResult",
+        "description": "Response of the bulk delete \u2014 names what happened, not just a count.\n\n``skipped_ids`` are ids that were requested (by id or matched by the\nstatus filter) but not removed: a still-RUNNING run is never deleted\nout from under itself, and an unknown/already-deleted id has nothing to\ndo. Neither is an error; the caller sees exactly what did and didn't\nhappen."
+      },
+      "WorkflowRunListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowRunSummary"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "WorkflowRunListResponse"
+      },
       "WorkflowRunProvenanceListResponse": {
         "properties": {
           "document_id": {
@@ -68029,6 +68252,72 @@
         ],
         "title": "WorkflowRunStepResponse",
         "description": "One step of a run: planned, observed, and what it produced (#4284)."
+      },
+      "WorkflowRunSummary": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "workflow_name": {
+            "type": "string",
+            "title": "Workflow Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "started_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Started At"
+          },
+          "completed_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Completed At"
+          },
+          "duration_ms": {
+            "type": "number",
+            "nullable": true,
+            "title": "Duration Ms"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Error"
+          },
+          "document_count": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Document Count"
+          },
+          "cost_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Usd"
+          },
+          "models_used": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Models Used"
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id",
+          "workflow_id",
+          "workflow_name",
+          "status"
+        ],
+        "title": "WorkflowRunSummary",
+        "description": "One row of ``GET /workflow-execution/runs`` \u2014 slim, for a list/table.\n\n#4960: the single source both the toolbar popover (``/activity/jobs``)\nand the Activity window should read, so a run that never got an\n``activities`` event (the \"recovered on startup\" rows, #4384) still\nshows up correctly instead of being missing or stuck \"running\". The\nfull per-step payload (log, snapshot, steps) stays on the existing\n``GET /threads/{id}/run`` \u2014 this is deliberately thin so listing\nhundreds of runs for a table stays cheap."
       },
       "WorkflowSelection": {
         "properties": {
