@@ -8840,9 +8840,10 @@ def register_generated_openapi_commands(
         bbox: Optional[str] = typer.Option(None, "--bbox", help="Request field: bbox."),
         charRange: Optional[str] = typer.Option(None, "--charRange", help="Request field: charRange."),
         claimId: Optional[str] = typer.Option(None, "--claimId", help="Request field: claimId."),
-        documentId: str = typer.Option(..., "--documentId", help="Request field: documentId."),
+        documentId: Optional[str] = typer.Option(None, "--documentId", help="Request field: documentId."),
         entityId: Optional[str] = typer.Option(None, "--entityId", help="Request field: entityId."),
         page: Optional[int] = typer.Option(None, "--page", help="Request field: page."),
+        segmentId: Optional[str] = typer.Option(None, "--segmentId", help="Request field: segmentId."),
         surface: Optional[str] = typer.Option(None, "--surface", help="Request field: surface."),
     ) -> None:
         """Resolve Location (POST /api/locations/resolve)."""
@@ -8856,14 +8857,16 @@ def register_generated_openapi_commands(
                 "documentId": documentId,
                 "entityId": entityId,
                 "page": page,
+                "segmentId": segmentId,
                 "surface": surface,
             }, {
                 "bbox": {'items': {'type': 'number'}, 'type': 'array', 'maxItems': 4, 'minItems': 4, 'nullable': True, 'title': 'Bbox', 'x-cli-required': False},
                 "charRange": {'properties': {'start': {'type': 'integer', 'minimum': 0.0, 'title': 'Start'}, 'end': {'type': 'integer', 'minimum': 0.0, 'title': 'End'}}, 'type': 'object', 'required': ['start', 'end'], 'title': 'CharacterRange', 'x-cli-required': False},
                 "claimId": {'type': 'string', 'nullable': True, 'title': 'Claimid', 'x-cli-required': False},
-                "documentId": {'type': 'string', 'minLength': 1, 'title': 'Documentid', 'x-cli-required': True},
+                "documentId": {'type': 'string', 'minLength': 1, 'nullable': True, 'title': 'Documentid', 'x-cli-required': False},
                 "entityId": {'type': 'string', 'nullable': True, 'title': 'Entityid', 'x-cli-required': False},
                 "page": {'type': 'integer', 'minimum': 1.0, 'nullable': True, 'title': 'Page', 'x-cli-required': False},
+                "segmentId": {'type': 'string', 'nullable': True, 'title': 'Segmentid', 'x-cli-required': False},
                 "surface": {'type': 'string', 'enum': ['preview', 'reader', 'inspector', 'both'], 'title': 'LocationSurface', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
@@ -12614,6 +12617,26 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("carry-across-match")
+    def segments_carry_across_match_post(
+        ctx: typer.Context,
+        kinds: str = typer.Option(..., "--kinds", help="Request field: kinds."),
+        match_id: str = typer.Option(..., "--match-id", help="Request field: match_id."),
+    ) -> None:
+        """Carry Across Match (POST /api/segments/carry)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/carry"
+            params = None
+            payload = _build_json_payload({
+                "kinds": kinds,
+                "match_id": match_id,
+            }, {
+                "kinds": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Kinds', 'x-cli-required': True},
+                "match_id": {'type': 'string', 'title': 'Match Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-document")
     def segments_list_document_get(
         ctx: typer.Context,
@@ -12633,6 +12656,76 @@ def register_generated_openapi_commands(
                 "pass_id": pass_id,
             }
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("propose-match")
+    def segments_propose_match_post(
+        ctx: typer.Context,
+        certainty: Optional[float] = typer.Option(None, "--certainty", help="Request field: certainty."),
+        from_segment_id: str = typer.Option(..., "--from-segment-id", help="Request field: from_segment_id."),
+        note: Optional[str] = typer.Option(None, "--note", help="Request field: note."),
+        to_segment_id: str = typer.Option(..., "--to-segment-id", help="Request field: to_segment_id."),
+    ) -> None:
+        """Propose Match (POST /api/segments/matches)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/matches"
+            params = None
+            payload = _build_json_payload({
+                "certainty": certainty,
+                "from_segment_id": from_segment_id,
+                "note": note,
+                "to_segment_id": to_segment_id,
+            }, {
+                "certainty": {'type': 'number', 'nullable': True, 'title': 'Certainty', 'x-cli-required': False},
+                "from_segment_id": {'type': 'string', 'title': 'From Segment Id', 'x-cli-required': True},
+                "note": {'type': 'string', 'nullable': True, 'title': 'Note', 'x-cli-required': False},
+                "to_segment_id": {'type': 'string', 'title': 'To Segment Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("accept-match")
+    def segments_accept_match_post(
+        ctx: typer.Context,
+        match_id: str = typer.Argument(..., help="Path parameter: match_id."),
+    ) -> None:
+        """Accept Match (POST /api/segments/matches/{match_id}/accept)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/matches/{match_id}/accept"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("reject-match")
+    def segments_reject_match_post(
+        ctx: typer.Context,
+        match_id: str = typer.Argument(..., help="Path parameter: match_id."),
+    ) -> None:
+        """Reject Match (POST /api/segments/matches/{match_id}/reject)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/matches/{match_id}/reject"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("merge")
+    def segments_merge_post(
+        ctx: typer.Context,
+        keep_id: str = typer.Option(..., "--keep-id", help="Request field: keep_id."),
+        segment_ids: str = typer.Option(..., "--segment-ids", help="Request field: segment_ids."),
+    ) -> None:
+        """Merge Segments (POST /api/segments/merge)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/merge"
+            params = None
+            payload = _build_json_payload({
+                "keep_id": keep_id,
+                "segment_ids": segment_ids,
+            }, {
+                "keep_id": {'type': 'string', 'title': 'Keep Id', 'x-cli-required': True},
+                "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Segment Ids', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("create-pass")
@@ -12674,6 +12767,38 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/segments/passes/{pass_id}"
             params = None
             return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("split")
+    def segments_split_post(
+        ctx: typer.Context,
+        parts: str = typer.Option(..., "--parts", help="Request field: parts."),
+        segment_id: str = typer.Option(..., "--segment-id", help="Request field: segment_id."),
+    ) -> None:
+        """Split Segment (POST /api/segments/split)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/split"
+            params = None
+            payload = _build_json_payload({
+                "parts": parts,
+                "segment_id": segment_id,
+            }, {
+                "parts": {'items': {'$ref': '#/components/schemas/SegmentSplitPart'}, 'type': 'array', 'title': 'Parts', 'x-cli-required': True},
+                "segment_id": {'type': 'string', 'title': 'Segment Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("reference")
+    def segments_reference_get(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+    ) -> None:
+        """Segment Reference (GET /api/segments/{segment_id}/reference)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/{segment_id}/reference"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('settings')

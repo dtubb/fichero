@@ -8585,6 +8585,16 @@
         "response_model": null
       },
       {
+        "method": "POST",
+        "path": "/segments/carry",
+        "operation_id": "carry_across_match_api_segments_carry_post",
+        "summary": "Carry Across Match",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentCarryParams",
+        "response_model": null
+      },
+      {
         "method": "GET",
         "path": "/segments/document/{doc_id}",
         "operation_id": "list_document_segments_api_segments_document__doc_id__get",
@@ -8619,6 +8629,50 @@
       },
       {
         "method": "POST",
+        "path": "/segments/matches",
+        "operation_id": "propose_match_api_segments_matches_post",
+        "summary": "Propose Match",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentMatchProposeParams",
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/segments/matches/{match_id}/accept",
+        "operation_id": "accept_match_api_segments_matches__match_id__accept_post",
+        "summary": "Accept Match",
+        "path_params": [
+          "match_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/segments/matches/{match_id}/reject",
+        "operation_id": "reject_match_api_segments_matches__match_id__reject_post",
+        "summary": "Reject Match",
+        "path_params": [
+          "match_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/segments/merge",
+        "operation_id": "merge_segments_api_segments_merge_post",
+        "summary": "Merge Segments",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentMergeParams",
+        "response_model": null
+      },
+      {
+        "method": "POST",
         "path": "/segments/passes",
         "operation_id": "create_pass_api_segments_passes_post",
         "summary": "Create Pass",
@@ -8638,6 +8692,28 @@
         "query_params": [],
         "request_model": null,
         "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/segments/split",
+        "operation_id": "split_segment_api_segments_split_post",
+        "summary": "Split Segment",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentSplitParams",
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/segments/{segment_id}/reference",
+        "operation_id": "segment_reference_api_segments__segment_id__reference_get",
+        "summary": "Segment Reference",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SegmentReferenceResponse"
       }
     ],
     "settings": [

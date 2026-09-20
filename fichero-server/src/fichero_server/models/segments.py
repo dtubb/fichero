@@ -655,6 +655,339 @@ def segment_read_from_row(row: Segment) -> SegmentRead:
     )
 
 
+# ---------------------------------------------------------------------------
+# Slice 4 -- matches, forwarding notes, a citable reference (#4922)
+#
+# An id NEVER MOVES. "This new line is that old line" is a separate MATCH
+# record, never an id reassignment. Merge, split and delete leave
+# FORWARDING notes (append-only) so an old reference can always be
+# followed. `resolve_segment` is the one function everything that follows
+# an id uses.
+# ---------------------------------------------------------------------------
+
+
+class SegmentMatch(BaseModel):
+    """"This new segment is that old one" -- a record of its own, never an
+    id reassignment (`source.segment.match-record`). Many to many is
+    allowed (one old line became two)."""
+
+    id: str = Field(default_factory=_new_id)
+    document_id: str
+    from_segment_id: str  # the older
+    to_segment_id: str  # the newer
+    state: str = "proposed"  # proposed | accepted | rejected
+    proposed_by_kind: ProvenanceKind
+    proposed_by: str | None = None
+    accepted_by: str | None = None
+    accepted_at: datetime | None = None
+    certainty: float | None = None
+    #: A short reason -- NEVER source text (`source.segment.match-record`'s
+    #: audit-payload rule: an action's payload carries ids, kinds and
+    #: versions, never a reading's typed text).
+    note: str | None = None
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class SegmentForwarding(BaseModel):
+    """Append-only forwarding note left by a merge, split, delete or
+    restore (`source.segment.forwarding-notes`). No action ever updates or
+    deletes a row here; undoing a merge writes a NEW `restored` row beside
+    the original."""
+
+    id: str = Field(default_factory=_new_id)
+    document_id: str
+    old_segment_id: str
+    kind: str  # merged | split | deleted | restored
+    #: Empty for `deleted`. For `split`, includes the id that "stays on one
+    #: part" (`resolve_segment` treats a self-reference here as live, never
+    #: as a hop to follow -- see its docstring).
+    new_segment_ids: list[str] = Field(default_factory=list)
+    actor: str | None = None
+    #: The action invocation that wrote this row. Minted by the writing
+    #: action itself (`_new_id()`) -- the generic `ActionAudit` row is only
+    #: constructed by the registry AFTER `execute()` returns, so it cannot
+    #: be known yet when this row is written; every forwarding row one
+    #: action call produces shares the same `audit_id`, which is enough to
+    #: group them.
+    audit_id: str
+    reason: str | None = None
+    created_at: datetime = Field(default_factory=utc_now)
+    #: Append order (#4922 third look): two notes for one id written in the
+    #: same microsecond have no defined order by `created_at` alone. Every
+    #: writer sets this from `Database.next_forwarding_sequence()`
+    #: (a native DuckDB sequence -- monotonic, persists across restarts);
+    #: `_forwarding_walk`'s "newest wins" now orders by this, not by
+    #: timestamp. `None` for a row written before this column existed (an
+    #: `ALTER TABLE ADD COLUMN` with no backfill) -- treated as older than
+    #: any real sequence number, never as newer (`_sequence_key` below).
+    sequence: int | None = None
+
+
+class SegmentCarry(BaseModel):
+    """One record copied across an accepted match
+    (`source.segment.carry-across-a-match`). What makes a carry undoable:
+    the copies it lists are exactly what the inverse removes. The original
+    stays where it was -- a carry copies, it never moves. NEVER a claim
+    (#4922 review): a statement is carried by giving the SAME claim one
+    more place it rests on, in the statements step (slice 8) -- copying a
+    claim would say the same statement twice in the graph."""
+
+    id: str = Field(default_factory=_new_id)
+    match_id: str
+    carried_kind: str  # reading | annotation
+    original_id: str
+    copy_id: str
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+#: Past this many hops, `resolve_segment` raises rather than keep walking
+#: (`source.segment.forwarding-notes`): a loop-free graph should never need
+#: this many, so it is a safety net, not a normal path.
+FORWARDING_DEPTH_CAP = 64
+
+
+class SegmentForwardingTooDeep(RuntimeError):
+    """A forwarding chain exceeded `FORWARDING_DEPTH_CAP` hops without
+    resolving. Never a partial answer -- the caller gets this instead."""
+
+    def __init__(self, segment_id: str, depth: int) -> None:
+        self.segment_id = segment_id
+        self.depth = depth
+        super().__init__(
+            f"forwarding chain for {segment_id!r} exceeded {depth} hops "
+            "without resolving; this should be unreachable if merges are "
+            "refused correctly -- treat as a data problem"
+        )
+
+
+class SegmentForwardingLoop(RuntimeError):
+    """A forwarding chain revisited an id -- a cycle exists. Should be
+    unreachable (the merge refusal below prevents loops at write time);
+    this is the safety net."""
+
+    def __init__(self, segment_id: str) -> None:
+        self.segment_id = segment_id
+        super().__init__(
+            f"forwarding chain revisited {segment_id!r} -- a cycle exists "
+            "in the forwarding graph, which should be unreachable"
+        )
+
+
+class ResolvedSegment(BaseModel):
+    """What following an id all the way through returns. `live_segment_ids`
+    is empty exactly when every branch ended in a delete
+    (`ended_in_delete=True`); a MIXED result (some branches deleted, some
+    live) is not "ended in delete" -- `trail` carries the deleted branch's
+    own forwarding row (kind, actor, created_at) for a caller that wants
+    to say which of several ids was lost along the way."""
+
+    requested_id: str
+    live_segment_ids: list[str] = Field(default_factory=list)
+    trail: list[SegmentForwarding] = Field(default_factory=list)
+    ended_in_delete: bool = False
+    deleted_by: str | None = None
+    deleted_at: datetime | None = None
+
+
+def _sequence_key(row: SegmentForwarding) -> tuple[int, int]:
+    """Sortable append order: `(1, sequence)` for a row that has one,
+    `(0, 0)` for a row written before the column existed -- a `None`
+    sequence always sorts OLDER than any real one, never newer (#4922
+    second look), and rows without one fall back to a stable, if
+    arbitrary, relative order among themselves."""
+    return (1, row.sequence) if row.sequence is not None else (0, 0)
+
+
+def _newest(rows: list[SegmentForwarding]) -> SegmentForwarding:
+    """The most recently APPENDED of several rows about one id -- ordered
+    by `sequence`, not `created_at` alone (#4922 third look: two notes
+    written in the same microsecond have no defined order by timestamp)."""
+    return max(rows, key=_sequence_key)
+
+
+def _forwarding_walk(
+    db: Any, segment_id: str,
+) -> tuple[list[str], list[SegmentForwarding], set[str]]:
+    """The one iterative walk `resolve_segment` is built on:
+    `(live_ids, trail, every_id_visited)`.
+
+    Two kinds of forwarding note about one id are kept SEPARATE, never
+    collapsed by a single "newest row wins" rule -- a split's kept id can
+    be split off in one row and later deleted in another, and the second
+    must not erase the first's sibling (a bug caught by
+    `test_merge_split_delete_chain_resolves_in_one_call`, where the split
+    and the delete both file under the same `old_segment_id`):
+
+    - **Liveness rows** (`merged`, `deleted`, `restored`) each say whether
+      THIS id's own identity is still live. Only the NEWEST of these
+      matters (a later `restored` overrides an older `merged`/`deleted` --
+      `test_undo_of_merge_leaves_old_row_beside_a_restored_row`). `merged`
+      also names where to keep looking (`new_segment_ids`); `deleted` is
+      terminal; `restored` means "live again", nothing further to follow
+      from a liveness row alone.
+    - **`split` rows** are independent of the above and never superseded:
+      they name SIBLINGS to explore (`new_segment_ids`, minus a
+      self-reference for "its id stays on one part") regardless of what
+      later happens to this id's own liveness.
+
+    **A DIAMOND IS NOT A LOOP** (#4922 third look): splitting a line and
+    later merging the parts back together, or splitting into two and
+    merging both into a third, reaches one id by more than one path. An id
+    reached again is SKIPPED, not an error -- each live id is still
+    collected exactly once, and the walk still ends (the depth cap still
+    guards a genuinely long chain). A cycle of undone MERGES is a
+    different, real problem, refused at WRITE time by `forwards_to`
+    (below), on merged edges only -- never detected here.
+    """
+    visited: set[str] = set()
+    trail: list[SegmentForwarding] = []
+    live: list[str] = []
+    frontier = [segment_id]
+    depth = 0
+    while frontier:
+        depth += 1
+        if depth > FORWARDING_DEPTH_CAP:
+            raise SegmentForwardingTooDeep(segment_id, FORWARDING_DEPTH_CAP)
+        next_frontier: list[str] = []
+        for current_id in frontier:
+            if current_id in visited:
+                continue  # a diamond, not a loop -- already resolved once
+            visited.add(current_id)
+            rows = db.query(SegmentForwarding, old_segment_id=current_id)
+            liveness_rows = [r for r in rows if r.kind in ("merged", "deleted", "restored")]
+            split_rows = [r for r in rows if r.kind == "split"]
+
+            is_live = True
+            if liveness_rows:
+                newest = _newest(liveness_rows)
+                trail.append(newest)
+                is_live = newest.kind == "restored"
+                if newest.kind == "merged":
+                    next_frontier.extend(newest.new_segment_ids)
+
+            # Deterministic order (#4922 second look): when an id has more
+            # than one split row (rare -- a part split again later), the
+            # EARLIEST split's siblings come first, by `sequence`; within
+            # one row, the order its parts were listed in stays as given.
+            # This is what makes `primary_live_segment_id`'s "first part
+            # listed when the split was made" an actual, reproducible
+            # order rather than an accident of dict/set iteration.
+            for row in sorted(split_rows, key=_sequence_key):
+                trail.append(row)
+                next_frontier.extend(t for t in row.new_segment_ids if t != current_id)
+
+            if is_live:
+                live.append(current_id)
+        frontier = next_frontier
+    return live, trail, visited
+
+
+def resolve_segment(db: Any, segment_id: str) -> ResolvedSegment:
+    """Follow `segment_id` through every merge/split/delete/restore note
+    (`source.segment.forwarding-notes`), used by everything that follows an
+    id: the citable reference, and (later slices) any reader handed a
+    possibly-stale id. One call, however many hops. After a split,
+    `live_segment_ids` names EVERY live part, in the order the parts were
+    listed when the split was made (earliest split first when an id was
+    split more than once; a row's own listed order within each split) --
+    never quietly picks one (#4922 third look)."""
+    live, trail, _visited = _forwarding_walk(db, segment_id)
+    ended_in_delete = not live
+    deleted_row = None
+    if ended_in_delete:
+        deleted_rows = [row for row in trail if row.kind == "deleted"]
+        if deleted_rows:
+            deleted_row = _newest(deleted_rows)
+    return ResolvedSegment(
+        requested_id=segment_id,
+        live_segment_ids=live,
+        trail=trail,
+        ended_in_delete=ended_in_delete,
+        deleted_by=deleted_row.actor if deleted_row else None,
+        deleted_at=deleted_row.created_at if deleted_row else None,
+    )
+
+
+def primary_live_segment_id(resolved: ResolvedSegment) -> str | None:
+    """Which of `resolved.live_segment_ids` is "the" answer, for a caller
+    that wants exactly one (#4922 second look): the part that kept the
+    REQUESTED id, when it is still live, else the first part listed when
+    the split was made (`_forwarding_walk` orders `live_segment_ids` by
+    each split note's `sequence`, then by position within it -- a stated,
+    reproducible order, never mere discovery order). `None` when nothing
+    is live."""
+    if not resolved.live_segment_ids:
+        return None
+    if resolved.requested_id in resolved.live_segment_ids:
+        return resolved.requested_id
+    return resolved.live_segment_ids[0]
+
+
+def segment_liveness_reason(db: Any, segment_id: str) -> str | None:
+    """`None` when `segment_id` is live; otherwise why it is not
+    (`"deleted"`, or `"merged into <id>"`) -- used to refuse a not-live
+    participant in a merge, split or carry (#4922 second look: otherwise a
+    soft-deleted segment could be "merged", writing a `merged` note NEWER
+    than its `deleted` one and quietly turning a delete into a merge).
+    Looks at the newest LIVENESS row only (`merged`/`deleted`/`restored`,
+    by `sequence`) -- exactly what `_forwarding_walk` itself uses to
+    decide "is this id live", so this can never disagree with a resolve.
+    """
+    rows = db.query(SegmentForwarding, old_segment_id=segment_id)
+    liveness_rows = [r for r in rows if r.kind in ("merged", "deleted", "restored")]
+    if not liveness_rows:
+        return None
+    newest = _newest(liveness_rows)
+    if newest.kind == "restored":
+        return None
+    if newest.kind == "deleted":
+        return "deleted"
+    target = newest.new_segment_ids[0] if newest.new_segment_ids else "an unknown id"
+    return f"merged into {target!r}"
+
+
+def _merged_chain_target(db: Any, current_id: str) -> str | None:
+    """The single id `current_id` currently forwards to via an UNDONE
+    merge, or `None` when it is live or was later `restored`. One hop of
+    the narrow, merged-only walk `forwards_to` uses."""
+    rows = db.query(SegmentForwarding, old_segment_id=current_id)
+    liveness_rows = [r for r in rows if r.kind in ("merged", "deleted", "restored")]
+    if not liveness_rows:
+        return None
+    newest = _newest(liveness_rows)
+    if newest.kind != "merged":
+        return None
+    return newest.new_segment_ids[0] if newest.new_segment_ids else None
+
+
+def forwards_to(db: Any, from_id: str, target_id: str) -> bool:
+    """True when adding a new `merged` edge `target_id -> from_id` would
+    CLOSE A CYCLE -- i.e. `from_id` already reaches `target_id` by
+    following only MERGED liveness edges among ids that are not live
+    (#4922 third look: the earlier version walked the WHOLE graph,
+    including `split`'s siblings, and called an ordinary diamond a loop;
+    a real loop is a cycle of undone merges only). Raises
+    `SegmentForwardingLoop` if this narrow walk itself revisits an id --
+    defensive: should be unreachable, since this same check refuses the
+    write that would create one."""
+    if from_id == target_id:
+        return True
+    seen: set[str] = set()
+    current: str | None = from_id
+    depth = 0
+    while current is not None:
+        depth += 1
+        if depth > FORWARDING_DEPTH_CAP:
+            raise SegmentForwardingTooDeep(from_id, FORWARDING_DEPTH_CAP)
+        if current == target_id:
+            return True
+        if current in seen:
+            raise SegmentForwardingLoop(current)
+        seen.add(current)
+        current = _merged_chain_target(db, current)
+    return False
+
+
 def pass_read_from_row(row: SegmentPass) -> PassRead:
     """The real-row twin of the pass half of `segments_from_result`."""
     return PassRead(

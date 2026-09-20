@@ -127,10 +127,24 @@ class TestSchemaArrivesAtOpen:
                 "idx_segments_parent_segment_id", "idx_segments_kind",
                 "idx_segments_tile", "idx_segments_doc_kind",
                 "idx_segment_passes_document_id", "idx_segment_passes_run_id",
+                "idx_segmentmatchs_from_segment_id", "idx_segmentmatchs_to_segment_id",
+                "idx_segmentforwardings_old_segment_id", "idx_segmentcarrys_match_id",
             ):
                 assert expected in indexes_after_first_open, expected
             assert _row(db1.conn, "documents", doc_id) == before_doc_row
             assert _row(db1.conn, "artifacts", artifact_id) == before_artifact_row
+
+            # #4922 second look: the append sequence (a native DuckDB
+            # sequence, created at open alongside the indexes) exists,
+            # works and is monotonic; `segmentforwardings` carries the
+            # `sequence` column.
+            first_value = db1.conn.execute("SELECT nextval('segment_forwarding_seq')").fetchone()[0]
+            second_value = db1.conn.execute("SELECT nextval('segment_forwarding_seq')").fetchone()[0]
+            assert second_value > first_value
+            forwarding_cols = {
+                r[0] for r in db1.conn.execute("DESCRIBE segmentforwardings").fetchall()
+            }
+            assert "sequence" in forwarding_cols
         finally:
             db1.close()
 
@@ -145,6 +159,11 @@ class TestSchemaArrivesAtOpen:
             assert _segment_index_names(db2.conn) == indexes_after_first_open
             assert _row(db2.conn, "documents", doc_id) == before_doc_row
             assert _row(db2.conn, "artifacts", artifact_id) == before_artifact_row
+
+            # The sequence survives a close/reopen and keeps counting up --
+            # never resets, never repeats a value already given out.
+            third_value = db2.conn.execute("SELECT nextval('segment_forwarding_seq')").fetchone()[0]
+            assert third_value > second_value
         finally:
             db2.close()
 
@@ -194,3 +213,73 @@ class TestSchemaArrivesAtOpen:
 
         after = client.get(f"/api/segments/document/{doc.id}").json()
         assert after == before, "an unconverted document's seam answer changed"
+
+
+class TestSequenceMigrationOnAnExistingForwardingTable:
+    """#4922 second look: a library already carrying `segmentforwardings`
+    rows written BEFORE the `sequence` column existed (this branch, one
+    round ago) must open cleanly, backfill nothing, and still order those
+    rows correctly against new ones."""
+
+    def test_a_pre_sequence_note_has_a_null_sequence_after_open(self, tmp_path):
+        from fichero_server.models.segments import SegmentForwarding
+
+        db_path = tmp_path / "pre_sequence.duckdb"
+
+        # A library already upgraded to segmentforwardings, but from BEFORE
+        # the sequence column existed: build the table by hand, without it.
+        conn = duckdb.connect(str(db_path))
+        conn.execute(_DDL)
+        conn.execute(
+            "CREATE TABLE segmentforwardings (id VARCHAR PRIMARY KEY, document_id VARCHAR, "
+            "old_segment_id VARCHAR, kind VARCHAR, new_segment_ids JSON, actor VARCHAR, "
+            "audit_id VARCHAR, reason VARCHAR, created_at TIMESTAMP)"
+        )
+        old_note_id = uuid.uuid4().hex
+        old_segment_id = uuid.uuid4().hex
+        target_id = uuid.uuid4().hex
+        conn.execute(
+            "INSERT INTO segmentforwardings "
+            "(id, document_id, old_segment_id, kind, new_segment_ids, actor, audit_id, reason, created_at) "
+            "VALUES (?, 'doc-1', ?, 'merged', ?, 'daniel', 'old-audit', NULL, now())",
+            [old_note_id, old_segment_id, f'["{target_id}"]'],
+        )
+        conn.close()
+
+        db = Database(db_path)
+        try:
+            forwarding_cols = {r[0] for r in db.conn.execute("DESCRIBE segmentforwardings").fetchall()}
+            assert "sequence" in forwarding_cols
+            old_row = db.get(SegmentForwarding, old_note_id)
+            assert old_row is not None
+            assert old_row.sequence is None
+            # Opening at all does not crash, and no backfill invents a value.
+            assert db.conn.execute(
+                "SELECT sequence FROM segmentforwardings WHERE id = ?", [old_note_id],
+            ).fetchone()[0] is None
+        finally:
+            db.close()
+
+    def test_a_new_note_outranks_a_null_sequence_note_for_the_same_id(self):
+        """A `SegmentForwarding` row read back with `sequence=None` (as a
+        pre-migration row would) is treated as OLDER than one with a real
+        sequence, regardless of what `created_at` alone would say."""
+        from datetime import timedelta
+
+        from fichero_server.core.timeutil import utc_now
+        from fichero_server.models.segments import SegmentForwarding, _newest
+
+        now = utc_now()
+        old_note = SegmentForwarding(
+            document_id="doc-1", old_segment_id="seg-1", kind="merged",
+            new_segment_ids=["seg-2"], actor="daniel", audit_id="a1",
+            created_at=now + timedelta(hours=1),  # LATER by clock time
+            sequence=None,  # but pre-dates the column
+        )
+        new_note = SegmentForwarding(
+            document_id="doc-1", old_segment_id="seg-1", kind="restored",
+            new_segment_ids=[], actor="daniel", audit_id="a2",
+            created_at=now,  # EARLIER by clock time
+            sequence=1,  # but written after (a null sequence is always oldest)
+        )
+        assert _newest([old_note, new_note]) is new_note

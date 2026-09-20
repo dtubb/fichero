@@ -384,8 +384,9 @@ twice creates no row. The response is `SegmentListResponse` (`document_id`,
 not an error, and an unknown `doc_id` returns `404`. Optional query
 parameters `artifact_id` (restrict to one artifact's boxes, or one real
 pass's source artifact), `pass_id` (restrict to one pass — a `legacy:` one
-or a real pass id), and `kind` (restrict to one segment kind — region, line,
-word) narrow the result.
+or a real pass id), `kind` (restrict to one segment kind — region, line,
+word), and `area` (a rectangle, `x,y,w,h` in image fractions — every real
+segment whose box intersects it) narrow the result.
 
 A segment read from today's blob is **provisional**:
 `legacy:<artifact_id>:<box_index>` and its pass `legacy:<artifact_id>`, both
@@ -419,6 +420,45 @@ declare none of them, so `extra="forbid"` rejects the request outright; the
 four box columns are always engine-derived from `anchor`. Update and delete
 of a segment as a user-facing feature, with version compare-and-set, arrive
 in a later slice.
+
+**Matches, forwarding notes, a citable reference (slice 4).** An id never
+moves: "this new segment is that old one" is a `SegmentMatch` record, and a
+merge/split/delete leaves an append-only `SegmentForwarding` note so an old
+id can always be followed (`resolve_segment`, used by the citable reference
+below).
+
+`POST /api/segments/matches` proposes a match (body: `from_segment_id`,
+`to_segment_id`, optional `certainty`, `note`), one typed audited action
+(`segment.match_propose`/`.match_withdraw`). `POST
+/api/segments/matches/{match_id}/accept` and `POST
+/api/segments/matches/{match_id}/reject` change its state; only a person
+may accept — a machine caller gets `422` (`MatchNeedsAPerson`).
+
+`POST /api/segments/merge` absorbs two or more segments (one pass) into
+`keep_id` (body: `segment_ids`, `keep_id`); the absorbed rows are
+soft-deleted and each gets a `merged` forwarding note. Merging into a
+segment that already forwards to the one being absorbed is refused (`409`,
+`SegmentForwardingWouldLoop`) — this is what stops a merge cycle. `POST
+/api/segments/split` splits one segment into two or more `parts` (each an
+`anchor` and optional `baseline`); the original id stays on the first
+part, and a `split` forwarding note names every resulting id.
+
+`POST /api/segments/carry` copies readings/annotations/claim-evidence
+across an **accepted** match (body: `match_id`, `kinds` — any of
+`reading`, `annotation`, `claim_evidence`); the original is never moved.
+A `reading` is carried only across a **one-to-one** match (accepted
+matches only) — a many-to-many match carries no reading and reports why in
+`not_carried`. Its inverse, `segment.uncarry`, removes exactly the copies.
+
+`GET /api/segments/{segment_id}/reference` returns a citable string,
+`fichero:segment/<library_uuid>/<document_id>/<segment_id>`, worked out on
+request (never stored). It resolves through the EXISTING `POST
+/api/locations/resolve` — never a second resolver — which gains an
+optional `segmentId` (a bare id or the citable string form): the route
+follows any forwarding first (`resolve_segment`), so a merged, split or
+deleted id still resolves to where its content lives today, and the
+response's `resolvedSegmentId`, `segmentForwarding` (the trail followed)
+and `segmentDeleted` say what happened along the way.
 
 Access follows the same rule as every other library-scoped route today (a
 valid token bound to the library, write-checked per target id; no

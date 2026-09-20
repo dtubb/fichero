@@ -927,7 +927,8 @@ def read_library_uuid(conn) -> str | None:
 
 def migrate_segment_indices(conn) -> None:
     """Add indices on ``segments`` and ``segment_passes`` (source-model
-    slice 3, #4921).
+    slice 3, #4921), and ``segmentmatchs``/``segmentforwardings``/
+    ``segmentcarrys`` (slice 4, #4922).
 
     Both tables are created by ``_ensure_table`` (a `Segment`/`SegmentPass`
     pydantic model saved through ``Database.save()``), never by this
@@ -990,6 +991,38 @@ def migrate_segment_indices(conn) -> None:
             "CREATE INDEX IF NOT EXISTS idx_segment_passes_run_id "
             "ON segment_passes(run_id)",
             "grouping passes by run",
+        ),
+        # Source-model slice 4 (#4922): matches, forwarding notes.
+        (
+            "idx_segmentmatchs_from_segment_id",
+            "CREATE INDEX IF NOT EXISTS idx_segmentmatchs_from_segment_id "
+            "ON segmentmatchs(from_segment_id)",
+            "the matches proposed FROM this segment",
+        ),
+        (
+            "idx_segmentmatchs_to_segment_id",
+            "CREATE INDEX IF NOT EXISTS idx_segmentmatchs_to_segment_id "
+            "ON segmentmatchs(to_segment_id)",
+            "the matches proposed TO this segment; carry's one-to-one check",
+        ),
+        (
+            "idx_segmentforwardings_old_segment_id",
+            "CREATE INDEX IF NOT EXISTS idx_segmentforwardings_old_segment_id "
+            "ON segmentforwardings(old_segment_id)",
+            "resolve_segment's walk -- one indexed lookup per hop",
+        ),
+        (
+            "idx_segmentcarrys_match_id",
+            "CREATE INDEX IF NOT EXISTS idx_segmentcarrys_match_id "
+            "ON segmentcarrys(match_id)",
+            "the copies carried across one match",
+        ),
+        (
+            "seq_segment_forwarding",
+            "CREATE SEQUENCE IF NOT EXISTS segment_forwarding_seq START 1",
+            "SegmentForwarding.sequence -- the append order two notes for "
+            "one id in the same microsecond otherwise have no defined "
+            "order by created_at alone (#4922 third look)",
         ),
     ]
     created = 0

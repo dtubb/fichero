@@ -1127,6 +1127,33 @@ class Database(DatabaseEmbeddingMixin):
             )
         self._materialize_schema()
 
+    def library_uuid(self) -> str | None:
+        """The library's stable sync UUID, or ``None`` if not yet minted.
+
+        Typed wrapper over `read_library_uuid` (#1876 architecture rule:
+        raw `.conn` access belongs only inside the persistence layer,
+        behind a typed method) -- used by the citable-reference route
+        (source-model slice 4, #4922) so it never touches `db.conn`
+        directly.
+        """
+        from fichero_server.db.migrations.schema import read_library_uuid
+
+        return read_library_uuid(self.conn)
+
+    def next_forwarding_sequence(self) -> int:
+        """The next value of `segment_forwarding_seq`, a native DuckDB
+        sequence (#4922 third look): monotonic and persists across
+        restarts, so `SegmentForwarding.sequence` orders notes about one
+        id correctly even when two are written in the same microsecond --
+        `created_at` alone cannot. Under the shared lock like any other
+        statement (`_execute`), so two concurrent writers never get the
+        same value.
+        """
+        row = self._execute(
+            "SELECT nextval('segment_forwarding_seq')", fetch="one",
+        )
+        return int(row[0])
+
     def _all_schema_models(self) -> tuple[type[BaseModel], ...]:
         from fichero_server.models.hermeneutics import (
             HermeneuticCircleState,
@@ -1170,6 +1197,9 @@ class Database(DatabaseEmbeddingMixin):
             Run,
             SavedSearch,
             Segment,
+            SegmentCarry,
+            SegmentForwarding,
+            SegmentMatch,
             SegmentPass,
             Trace,
             Workflow,
@@ -1238,11 +1268,14 @@ class Database(DatabaseEmbeddingMixin):
             Run,
             SavedSearch,
             SearchSource,
-            # Source-model slice 3 (#4921): registered here so the empty
-            # tables and their indexes arrive at OPEN (`_materialize_schema`)
-            # with every other table -- schema on open, data on first edit,
-            # never a side effect of a GET.
+            # Source-model slice 3 (#4921) and slice 4 (#4922): registered
+            # here so the empty tables and their indexes arrive at OPEN
+            # (`_materialize_schema`) with every other table -- schema on
+            # open, data on first edit, never a side effect of a GET.
             Segment,
+            SegmentCarry,
+            SegmentForwarding,
+            SegmentMatch,
             SegmentPass,
             SpatialConnection,
             SpatialNode,

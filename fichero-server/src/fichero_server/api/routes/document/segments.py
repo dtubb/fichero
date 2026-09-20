@@ -17,6 +17,7 @@ own body.
 
 from __future__ import annotations
 
+import uuid
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
@@ -26,27 +27,36 @@ from fichero_server.actions.registry import ActionContext, ChangeSpec, action, r
 from fichero_server.api.auth import request_actor
 from fichero_server.api.library_header import optional_library_path
 from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.core.timeutil import utc_now
 from fichero_server.db import Database
 from fichero_server.models import (
     Artifact,
+    ContentRepresentation,
     Document,
     Segment,
+    SegmentCarry,
+    SegmentForwarding,
     SegmentListResponse,
+    SegmentMatch,
     SegmentPass,
 )
 from fichero_server.models.anchors import SourceAnchor, validate_rect
-from fichero_server.models.knowledge import ProvenanceKind
+from fichero_server.models.knowledge import Annotation, ProvenanceKind
 from fichero_server.models.segments import (
     TILE_SIZE,
     PassRead,
     ProvisionalSegmentIdError,
+    SegmentForwardingLoop,
+    SegmentForwardingTooDeep,
     SegmentRead,
     assert_not_provisional,
     bbox_and_tile_from_anchor,
+    forwards_to,
     grow_rect_by_half_tile,
     legacy_pass_id,
     pass_read_from_row,
     rects_intersect,
+    segment_liveness_reason,
     segment_read_from_row,
     segments_from_result,
     tiles_for_rect,
@@ -118,14 +128,76 @@ class SegmentAnchorMismatchError(ValueError):
     """An anchor's `document_id` does not match the segment's own."""
 
 
+class SegmentForwardingWouldLoop(ValueError):
+    """Merging would close a cycle: `keep_id` already forwards (directly or
+    transitively) to the segment being absorbed."""
+
+    def __init__(self, keep_id: str, absorbed_id: str) -> None:
+        self.keep_id = keep_id
+        self.absorbed_id = absorbed_id
+        super().__init__(
+            f"cannot merge {absorbed_id!r} into {keep_id!r}: {keep_id!r} "
+            f"already forwards to {absorbed_id!r} -- this would close a cycle"
+        )
+
+
+class MatchNeedsAPerson(ValueError):
+    """Only a person accepts a match -- a machine's accept is refused."""
+
+
+class MatchNotAccepted(ValueError):
+    """`segment.carry` requires an `accepted` match."""
+
+
+class SegmentNotLive(ValueError):
+    """A merge, split or carry participant has already been deleted or
+    merged away (#4922 second look): otherwise merging a deleted segment
+    writes a `merged` note newer than its `deleted` one, and a delete
+    quietly becomes a merge."""
+
+    def __init__(self, segment_id: str, reason: str) -> None:
+        self.segment_id = segment_id
+        self.reason = reason
+        super().__init__(
+            f"segment {segment_id!r} is not live ({reason}) and cannot "
+            "take part in this action"
+        )
+
+
 def _as_http_error(exc: Exception) -> HTTPException:
     if isinstance(exc, ProvisionalSegmentIdError):
         return HTTPException(status_code=422, detail=str(exc))
-    if isinstance(exc, (SegmentPassMismatchError, SegmentParentMismatchError)):
+    if isinstance(exc, (SegmentPassMismatchError, SegmentParentMismatchError, SegmentForwardingWouldLoop, SegmentNotLive)):
         return HTTPException(status_code=409, detail=str(exc))
-    if isinstance(exc, SegmentAnchorMismatchError):
+    if isinstance(exc, (SegmentAnchorMismatchError, MatchNeedsAPerson, MatchNotAccepted, StatementsCarriedInStatementsStep)):
         return HTTPException(status_code=422, detail=str(exc))
+    if isinstance(exc, (SegmentForwardingTooDeep, SegmentForwardingLoop)):
+        return HTTPException(status_code=409, detail=str(exc))
     raise exc
+
+
+def _assert_not_provisional_http(id_value: str | None, *, what: str) -> None:
+    """`assert_not_provisional`, converted to a 422 immediately (#4922
+    third look: "a legacy: id refused on EVERY action" -- a BARE
+    `assert_not_provisional` call raises `ProvisionalSegmentIdError`
+    uncaught, which every slice 4 action here used to do, and which
+    crashes as a 500 rather than answering 422)."""
+    try:
+        assert_not_provisional(id_value, what=what)
+    except ProvisionalSegmentIdError as exc:
+        raise _as_http_error(exc) from exc
+
+
+def _provenance_kind_from_ctx(ctx: ActionContext) -> ProvenanceKind:
+    """Same posture as `_new_pass_provenance_kind` below, without a
+    provider/model (matches/merges have neither): a run behind the call
+    means a machine did it; a real actor with no run means a person did;
+    nothing given is honestly unknown -- never a trusting default."""
+    if ctx.run_id:
+        return ProvenanceKind.workflow
+    if ctx.actor and ctx.actor not in {"", "system"}:
+        return ProvenanceKind.human
+    return ProvenanceKind.unknown
 
 
 # ---------------------------------------------------------------------------
@@ -394,7 +466,7 @@ def _invert_pass_delete(before, after, ctx: ActionContext):
     invert=_invert_pass_delete,
 )
 def _action_pass_delete(db: Database, params: SegmentPassDeleteParams, ctx: ActionContext):
-    assert_not_provisional(params.pass_id, what="pass_id")
+    _assert_not_provisional_http(params.pass_id, what="pass_id")
     pass_row = db.get(SegmentPass, params.pass_id)
     if not pass_row:
         raise HTTPException(status_code=404, detail=f"Pass not found: {params.pass_id}")
@@ -422,7 +494,7 @@ class SegmentPassRestoreParams(BaseModel):
 
 @action("segment.pass_restore", SegmentPassRestoreParams, domains=["segment"], undoable=False)
 def _action_pass_restore(db: Database, params: SegmentPassRestoreParams, ctx: ActionContext):
-    assert_not_provisional(params.pass_id, what="pass_id")
+    _assert_not_provisional_http(params.pass_id, what="pass_id")
     pass_row = db.get(SegmentPass, params.pass_id)
     if not pass_row:
         raise HTTPException(status_code=404, detail=f"Pass not found: {params.pass_id}")
@@ -522,10 +594,10 @@ def _invert_segment_create(before, after, ctx: ActionContext):
     invert=_invert_segment_create,
 )
 def _action_segment_create(db: Database, params: SegmentCreateParams, ctx: ActionContext):
-    assert_not_provisional(params.document_id, what="document_id")
-    assert_not_provisional(params.pass_id, what="pass_id")
+    _assert_not_provisional_http(params.document_id, what="document_id")
+    _assert_not_provisional_http(params.pass_id, what="pass_id")
     if params.parent_segment_id:
-        assert_not_provisional(params.parent_segment_id, what="parent_segment_id")
+        _assert_not_provisional_http(params.parent_segment_id, what="parent_segment_id")
     try:
         _validate_segment_placement(
             db, document_id=params.document_id, pass_id=params.pass_id,
@@ -578,14 +650,14 @@ class SegmentCreateManyParams(BaseModel):
     invert=_invert_segment_create,
 )
 def _action_segment_create_many(db: Database, params: SegmentCreateManyParams, ctx: ActionContext):
-    assert_not_provisional(params.document_id, what="document_id")
-    assert_not_provisional(params.pass_id, what="pass_id")
+    _assert_not_provisional_http(params.document_id, what="document_id")
+    _assert_not_provisional_http(params.pass_id, what="pass_id")
 
     pass_row = db.get(SegmentPass, params.pass_id)
     rows: list[Segment] = []
     for spec in params.segments:
         if spec.parent_segment_id:
-            assert_not_provisional(spec.parent_segment_id, what="parent_segment_id")
+            _assert_not_provisional_http(spec.parent_segment_id, what="parent_segment_id")
         try:
             _validate_segment_placement(
                 db, document_id=params.document_id, pass_id=params.pass_id,
@@ -632,7 +704,7 @@ def _action_segment_delete(db: Database, params: SegmentDeleteParams, ctx: Actio
     document_ids: set[str] = set()
     pass_ids: set[str] = set()
     for segment_id in params.segment_ids:
-        assert_not_provisional(segment_id, what="segment_id")
+        _assert_not_provisional_http(segment_id, what="segment_id")
         row = db.get(Segment, segment_id)
         if not row:
             # Never silently skip and still list it in `after`/the event
@@ -656,6 +728,748 @@ def _action_segment_delete(db: Database, params: SegmentDeleteParams, ctx: Actio
         document_ids=list(document_ids),
     )
     return {"segment_ids": params.segment_ids}, spec
+
+
+# ---------------------------------------------------------------------------
+# Slice 4 (#4922) -- matches, forwarding notes, a citable reference
+# ---------------------------------------------------------------------------
+
+
+class SegmentMatchProposeParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    from_segment_id: str
+    to_segment_id: str
+    certainty: Optional[float] = None
+    note: Optional[str] = None
+
+
+def _invert_match_propose(before, after, ctx: ActionContext):
+    if not after:
+        return None
+    match_id = after.get("match_id")
+    if not match_id:
+        return None
+    return ("segment.match_withdraw", {"match_id": match_id})
+
+
+@action(
+    "segment.match_propose",
+    SegmentMatchProposeParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_match_propose,
+)
+def _action_match_propose(db: Database, params: SegmentMatchProposeParams, ctx: ActionContext):
+    _assert_not_provisional_http(params.from_segment_id, what="from_segment_id")
+    _assert_not_provisional_http(params.to_segment_id, what="to_segment_id")
+    from_row = db.get(Segment, params.from_segment_id)
+    to_row = db.get(Segment, params.to_segment_id)
+    if not from_row:
+        raise HTTPException(status_code=404, detail=f"Segment not found: {params.from_segment_id}")
+    if not to_row:
+        raise HTTPException(status_code=404, detail=f"Segment not found: {params.to_segment_id}")
+
+    match = SegmentMatch(
+        document_id=from_row.document_id,
+        from_segment_id=params.from_segment_id,
+        to_segment_id=params.to_segment_id,
+        state="proposed",
+        proposed_by_kind=_provenance_kind_from_ctx(ctx),
+        proposed_by=ctx.actor,
+        certainty=params.certainty,
+        note=params.note,
+    )
+    db.save(match)
+    spec = ChangeSpec(
+        domains=["segment"],
+        target_ids=[match.id],
+        before=None,
+        after={"match_id": match.id},
+        emit_type="segment.matched",
+        segment_ids=[params.from_segment_id, params.to_segment_id],
+        document_ids=[from_row.document_id],
+    )
+    return {"match_id": match.id}, spec
+
+
+class SegmentMatchWithdrawParams(BaseModel):
+    """Internal: `segment.match_propose`'s inverse only."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    match_id: str
+
+
+@action("segment.match_withdraw", SegmentMatchWithdrawParams, domains=["segment"], undoable=False)
+def _action_match_withdraw(db: Database, params: SegmentMatchWithdrawParams, ctx: ActionContext):
+    match = db.get(SegmentMatch, params.match_id)
+    if not match:
+        raise HTTPException(status_code=404, detail=f"Match not found: {params.match_id}")
+    db.delete(match)
+    spec = ChangeSpec(
+        domains=["segment"],
+        target_ids=[params.match_id],
+        before={"match_id": params.match_id},
+        after=None,
+        emit_type="segment.matched",
+        segment_ids=[match.from_segment_id, match.to_segment_id],
+        document_ids=[match.document_id],
+    )
+    return {"match_id": params.match_id}, spec
+
+
+class SegmentMatchIdParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    match_id: str
+
+
+def _invert_match_state_change(before, after, ctx: ActionContext):
+    if not before or not after:
+        return None
+    return (
+        "segment.match_set_state",
+        {"match_id": after.get("match_id"), "state": before.get("state")},
+    )
+
+
+@action(
+    "segment.match_accept",
+    SegmentMatchIdParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_match_state_change,
+)
+def _action_match_accept(db: Database, params: SegmentMatchIdParams, ctx: ActionContext):
+    match = db.get(SegmentMatch, params.match_id)
+    if not match:
+        raise HTTPException(status_code=404, detail=f"Match not found: {params.match_id}")
+    if _provenance_kind_from_ctx(ctx) != ProvenanceKind.human:
+        raise _as_http_error(MatchNeedsAPerson("only a person can accept a match"))
+    before_state = match.state
+    match.state = "accepted"
+    match.accepted_by = ctx.actor
+    match.accepted_at = utc_now()
+    db.save(match)
+    spec = ChangeSpec(
+        domains=["segment"],
+        target_ids=[match.id],
+        before={"match_id": match.id, "state": before_state},
+        after={"match_id": match.id, "state": match.state},
+        emit_type="segment.matched",
+        segment_ids=[match.from_segment_id, match.to_segment_id],
+        document_ids=[match.document_id],
+    )
+    return {"match_id": match.id, "state": match.state}, spec
+
+
+@action(
+    "segment.match_reject",
+    SegmentMatchIdParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_match_state_change,
+)
+def _action_match_reject(db: Database, params: SegmentMatchIdParams, ctx: ActionContext):
+    match = db.get(SegmentMatch, params.match_id)
+    if not match:
+        raise HTTPException(status_code=404, detail=f"Match not found: {params.match_id}")
+    before_state = match.state
+    match.state = "rejected"
+    db.save(match)
+    spec = ChangeSpec(
+        domains=["segment"],
+        target_ids=[match.id],
+        before={"match_id": match.id, "state": before_state},
+        after={"match_id": match.id, "state": match.state},
+        emit_type="segment.matched",
+        segment_ids=[match.from_segment_id, match.to_segment_id],
+        document_ids=[match.document_id],
+    )
+    return {"match_id": match.id, "state": match.state}, spec
+
+
+class SegmentMatchSetStateParams(BaseModel):
+    """Internal: `segment.match_accept`/`.match_reject`'s inverse only."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    match_id: str
+    state: str
+
+
+@action("segment.match_set_state", SegmentMatchSetStateParams, domains=["segment"], undoable=False)
+def _action_match_set_state(db: Database, params: SegmentMatchSetStateParams, ctx: ActionContext):
+    match = db.get(SegmentMatch, params.match_id)
+    if not match:
+        raise HTTPException(status_code=404, detail=f"Match not found: {params.match_id}")
+    match.state = params.state
+    if params.state != "accepted":
+        match.accepted_by = None
+        match.accepted_at = None
+    db.save(match)
+    spec = ChangeSpec(
+        domains=["segment"],
+        target_ids=[match.id],
+        before=None,
+        after={"match_id": match.id, "state": match.state},
+        emit_type="segment.matched",
+        segment_ids=[match.from_segment_id, match.to_segment_id],
+        document_ids=[match.document_id],
+    )
+    return {"match_id": match.id, "state": match.state}, spec
+
+
+# --- merge / unmerge ---------------------------------------------------
+
+
+class SegmentMergeParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str]
+    keep_id: str
+
+
+def _invert_merge(before, after, ctx: ActionContext):
+    if not before:
+        return None
+    absorbed = before.get("absorbed")
+    if not absorbed:
+        return None
+    return ("segment.unmerge", {"absorbed": absorbed})
+
+
+@action(
+    "segment.merge",
+    SegmentMergeParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_merge,
+)
+def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
+    if len(params.segment_ids) < 2:
+        raise HTTPException(status_code=422, detail="merge needs two or more segment_ids")
+    for segment_id in params.segment_ids:
+        _assert_not_provisional_http(segment_id, what="segment_id")
+    _assert_not_provisional_http(params.keep_id, what="keep_id")
+    if params.keep_id not in params.segment_ids:
+        raise HTTPException(
+            status_code=422, detail=f"keep_id {params.keep_id!r} is not among segment_ids"
+        )
+
+    rows: dict[str, Segment] = {}
+    for segment_id in params.segment_ids:
+        row = db.get(Segment, segment_id)
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Segment not found: {segment_id}")
+        rows[segment_id] = row
+    keep_row = rows[params.keep_id]
+    first = next(iter(rows.values()))
+    for row in rows.values():
+        if row.pass_id != first.pass_id or row.document_id != first.document_id:
+            raise _as_http_error(
+                SegmentPassMismatchError(
+                    "segments being merged are not all in the same pass and document"
+                )
+            )
+
+    # #4922 second look: EVERY participant, including keep_id, must be
+    # LIVE -- otherwise a soft-deleted segment could be "merged", writing
+    # a `merged` note NEWER than its `deleted` one, quietly turning a
+    # delete into a merge.
+    for segment_id in params.segment_ids:
+        reason = segment_liveness_reason(db, segment_id)
+        if reason is not None:
+            raise _as_http_error(SegmentNotLive(segment_id, reason))
+
+    absorbed_ids = [sid for sid in params.segment_ids if sid != params.keep_id]
+    for absorbed_id in absorbed_ids:
+        # #4922 review: merging into a segment that ALREADY FORWARDS TO the
+        # one being absorbed would close a cycle -- refused before anything
+        # is written. With every participant now confirmed live, above,
+        # this can only ever be true for keep_id == absorbed_id (a live id
+        # forwards nowhere) -- the safety net its docstring says it is.
+        if forwards_to(db, params.keep_id, absorbed_id):
+            raise _as_http_error(SegmentForwardingWouldLoop(params.keep_id, absorbed_id))
+
+    audit_id = uuid.uuid4().hex
+    before_absorbed = []
+    forwarding_ids = []
+    now = utc_now()
+    for absorbed_id in absorbed_ids:
+        row = rows[absorbed_id]
+        before_absorbed.append({
+            "segment_id": row.id,
+            "anchor": row.anchor.model_dump(mode="json"),
+            "kind": row.kind,
+            "parent_segment_id": row.parent_segment_id,
+            "version": row.version,
+        })
+        row.deleted_at = now
+        row.deleted_by = ctx.actor
+        db.save(row)
+        forwarding = SegmentForwarding(
+            document_id=row.document_id,
+            old_segment_id=absorbed_id,
+            kind="merged",
+            new_segment_ids=[params.keep_id],
+            actor=ctx.actor,
+            audit_id=audit_id,
+            sequence=db.next_forwarding_sequence(),
+        )
+        db.save(forwarding)
+        forwarding_ids.append(forwarding.id)
+
+    spec = ChangeSpec(
+        domains=["segment"],
+        target_ids=[params.keep_id, *absorbed_ids],
+        before={"absorbed": before_absorbed},
+        after={"kept_id": params.keep_id, "forwarding_ids": forwarding_ids},
+        emit_type="segment.merged",
+        segment_ids=[params.keep_id, *absorbed_ids],
+        pass_ids=[keep_row.pass_id],
+        document_ids=[keep_row.document_id],
+    )
+    return {"kept_id": params.keep_id, "forwarding_ids": forwarding_ids}, spec
+
+
+class SegmentUnmergeParams(BaseModel):
+    """Internal: `segment.merge`'s inverse only."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    absorbed: list[dict]
+
+
+@action("segment.unmerge", SegmentUnmergeParams, domains=["segment"], undoable=False)
+def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionContext):
+    audit_id = uuid.uuid4().hex
+    restored_ids = []
+    document_ids: set[str] = set()
+    pass_ids: set[str] = set()
+    for item in params.absorbed:
+        segment_id = item["segment_id"]
+        _assert_not_provisional_http(segment_id, what="segment_id")
+        row = db.get(Segment, segment_id)
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Segment not found: {segment_id}")
+        row.anchor = SourceAnchor.model_validate(item["anchor"])
+        row.kind = item["kind"]
+        row.parent_segment_id = item.get("parent_segment_id")
+        row.version = item["version"]
+        row.deleted_at = None
+        row.deleted_by = None
+        bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
+        row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
+        row.doc_kind = f"{row.document_id}:{row.kind}"
+        db.save(row)
+        db.save(SegmentForwarding(
+            document_id=row.document_id,
+            old_segment_id=segment_id,
+            kind="restored",
+            new_segment_ids=[],
+            actor=ctx.actor,
+            audit_id=audit_id,
+            sequence=db.next_forwarding_sequence(),
+        ))
+        restored_ids.append(segment_id)
+        document_ids.add(row.document_id)
+        pass_ids.add(row.pass_id)
+    spec = ChangeSpec(
+        domains=["segment"],
+        target_ids=restored_ids,
+        before=None,
+        after={"segment_ids": restored_ids},
+        emit_type="segment.merged",
+        segment_ids=restored_ids,
+        pass_ids=list(pass_ids),
+        document_ids=list(document_ids),
+    )
+    return {"segment_ids": restored_ids}, spec
+
+
+# --- split / unsplit -----------------------------------------------------
+
+
+class SegmentSplitPart(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    anchor: SourceAnchor
+    baseline: Optional[list[list[float]]] = None
+
+
+class SegmentSplitParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    segment_id: str
+    parts: list[SegmentSplitPart]
+
+
+def _invert_split(before, after, ctx: ActionContext):
+    if not before or not after:
+        return None
+    return (
+        "segment.unsplit",
+        {**before, "new_segment_ids": after.get("new_segment_ids", [])},
+    )
+
+
+@action(
+    "segment.split",
+    SegmentSplitParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_split,
+)
+def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
+    if len(params.parts) < 2:
+        raise HTTPException(status_code=422, detail="split needs two or more parts")
+    _assert_not_provisional_http(params.segment_id, what="segment_id")
+    original = db.get(Segment, params.segment_id)
+    if not original:
+        raise HTTPException(status_code=404, detail=f"Segment not found: {params.segment_id}")
+    reason = segment_liveness_reason(db, params.segment_id)
+    if reason is not None:
+        raise _as_http_error(SegmentNotLive(params.segment_id, reason))
+    for part in params.parts:
+        if part.anchor.document_id != original.document_id:
+            raise _as_http_error(SegmentAnchorMismatchError(
+                f"part anchor's document_id {part.anchor.document_id!r} does not "
+                f"match the segment's document_id {original.document_id!r}"
+            ))
+
+    before = {
+        "segment_id": original.id,
+        "anchor": original.anchor.model_dump(mode="json"),
+        "kind": original.kind,
+        "parent_segment_id": original.parent_segment_id,
+        "version": original.version,
+    }
+
+    first_part, *rest_parts = params.parts
+    original.anchor = first_part.anchor
+    original.baseline = first_part.baseline
+    original.version += 1
+    bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(original.anchor)
+    original.bbox_x, original.bbox_y, original.bbox_w, original.bbox_h, original.tile = (
+        bbox_x, bbox_y, bbox_w, bbox_h, tile,
+    )
+    db.save(original)
+
+    new_ids: list[str] = []
+    new_rows: list[Segment] = []
+    for part in rest_parts:
+        spec_obj = SegmentSpec(
+            kind=original.kind, anchor=part.anchor, baseline=part.baseline,
+            parent_segment_id=original.parent_segment_id,
+        )
+        row = _build_segment_row(
+            document_id=original.document_id, pass_id=original.pass_id, spec=spec_obj,
+            actor=ctx.actor, provenance_kind=original.provenance_kind,
+        )
+        new_rows.append(row)
+        new_ids.append(row.id)
+    if new_rows:
+        db.save_many(new_rows)
+
+    audit_id = uuid.uuid4().hex
+    forwarding = SegmentForwarding(
+        document_id=original.document_id,
+        old_segment_id=params.segment_id,
+        kind="split",
+        # The original id "stays on one part" -- included here so a caller
+        # resolving the pre-split id sees every resulting id, including its
+        # own (`resolve_segment`/`_forwarding_walk` treat a self-reference
+        # as live, never as a hop).
+        new_segment_ids=[params.segment_id, *new_ids],
+        actor=ctx.actor,
+        audit_id=audit_id,
+        sequence=db.next_forwarding_sequence(),
+    )
+    db.save(forwarding)
+
+    change_spec = ChangeSpec(
+        domains=["segment"],
+        target_ids=[params.segment_id, *new_ids],
+        before=before,
+        after={"kept_id": params.segment_id, "new_segment_ids": new_ids, "forwarding_id": forwarding.id},
+        emit_type="segment.split",
+        segment_ids=[params.segment_id, *new_ids],
+        pass_ids=[original.pass_id],
+        document_ids=[original.document_id],
+    )
+    return (
+        {"kept_id": params.segment_id, "new_segment_ids": new_ids, "forwarding_id": forwarding.id},
+        change_spec,
+    )
+
+
+class SegmentUnsplitParams(BaseModel):
+    """Internal: `segment.split`'s inverse only."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    segment_id: str
+    anchor: dict
+    kind: str
+    parent_segment_id: Optional[str] = None
+    version: int
+    new_segment_ids: list[str] = []
+
+
+@action("segment.unsplit", SegmentUnsplitParams, domains=["segment"], undoable=False)
+def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionContext):
+    _assert_not_provisional_http(params.segment_id, what="segment_id")
+    row = db.get(Segment, params.segment_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Segment not found: {params.segment_id}")
+
+    deleted_ids = []
+    for new_id in params.new_segment_ids:
+        new_row = db.get(Segment, new_id)
+        if new_row is not None:
+            db.delete(new_row)
+            deleted_ids.append(new_id)
+
+    row.anchor = SourceAnchor.model_validate(params.anchor)
+    row.kind = params.kind
+    row.parent_segment_id = params.parent_segment_id
+    row.version = params.version
+    bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
+    row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
+    row.doc_kind = f"{row.document_id}:{row.kind}"
+    db.save(row)
+    db.save(SegmentForwarding(
+        document_id=row.document_id,
+        old_segment_id=params.segment_id,
+        kind="restored",
+        new_segment_ids=[],
+        actor=ctx.actor,
+        audit_id=uuid.uuid4().hex,
+        sequence=db.next_forwarding_sequence(),
+    ))
+    spec = ChangeSpec(
+        domains=["segment"],
+        target_ids=[params.segment_id, *deleted_ids],
+        before=None,
+        after={"segment_id": params.segment_id},
+        emit_type="segment.split",
+        segment_ids=[params.segment_id, *deleted_ids],
+        pass_ids=[row.pass_id],
+        document_ids=[row.document_id],
+    )
+    return {"segment_id": params.segment_id}, spec
+
+
+# --- carry / uncarry -----------------------------------------------------
+
+#: kind name -> (model, its anchor field, its document-id field). NEVER a
+#: claim (#4922 review): a claim is knowledge, not a mark on a page --
+#: copying one would say the same statement twice in the graph, seen twice
+#: by every table, export, count, biography and embedding. `kinds` that
+#: name a statement are refused by `StatementsCarriedInStatementsStep`
+#: below, never silently accepted here.
+_CARRY_MODELS: dict[str, tuple[type[BaseModel], str, str]] = {
+    "reading": (ContentRepresentation, "source_anchor", "document_id"),
+    "annotation": (Annotation, "anchor", "document_id"),
+}
+
+
+class StatementsCarriedInStatementsStep(ValueError):
+    """`claim_evidence`/`claim`/`statement` is refused from `segment.carry`
+    (#4922 review, corrected from the spec's own earlier mistake): a claim
+    is knowledge, never a page mark, so it is carried by giving the SAME
+    claim one more place it rests on (a `SourceSupport`) -- the statements
+    step, with slice 8, once a claim can carry a `segment_id`. Never a
+    second claim row."""
+
+    def __init__(self, kind: str) -> None:
+        self.kind = kind
+        super().__init__(
+            f"{kind!r} cannot be carried by segment.carry -- statements are "
+            "carried in the statements step (slice 8), by giving the same "
+            "claim one more place it rests on, never a second claim"
+        )
+
+
+#: Named kinds that are refused outright (never silently treated as
+#: "unknown") because they name a STATEMENT, not a mark on a page.
+_STATEMENT_CARRY_KINDS = frozenset({"claim_evidence", "claim", "statement"})
+
+
+def _anchor_matches_segment(anchor: SourceAnchor | None, segment: Segment) -> bool:
+    """Exact match, same tolerance as slice 6's planned re-pointing (1e-6 on
+    all four rect numbers, same `rendition_id`) -- never by overlap or
+    nearness."""
+    if anchor is None or anchor.rect is None or segment.anchor.rect is None:
+        return False
+    if anchor.document_id != segment.document_id:
+        return False
+    if anchor.rendition_id != segment.anchor.rendition_id:
+        return False
+    return all(abs(a - b) <= 1e-6 for a, b in zip(anchor.rect, segment.anchor.rect))
+
+
+def _records_anchored_to(db: Database, carried_kind: str, segment: Segment) -> list[BaseModel]:
+    model, anchor_field, doc_field = _CARRY_MODELS[carried_kind]
+    candidates = db.query(model, **{doc_field: segment.document_id})
+    return [row for row in candidates if _anchor_matches_segment(getattr(row, anchor_field, None), segment)]
+
+
+def _carried_anchor(original_anchor: SourceAnchor | None, to_segment: Segment) -> SourceAnchor:
+    """`to_segment`'s own anchor, but keeping the ORIGINAL's character span
+    (#4922 review): a wholesale anchor replacement drops
+    `char_start`/`char_end` even when the carried text is the same string,
+    which is real information a caller may still need (e.g. a highlight
+    over a specific run of characters, not just the whole segment)."""
+    anchor = to_segment.anchor
+    if original_anchor is not None and (original_anchor.char_start is not None or original_anchor.char_end is not None):
+        anchor = anchor.model_copy(update={
+            "char_start": original_anchor.char_start,
+            "char_end": original_anchor.char_end,
+        })
+    return anchor
+
+
+def _copy_record_to_segment(carried_kind: str, original: BaseModel, to_segment: Segment) -> BaseModel:
+    """One copy of `original`, re-anchored to `to_segment`'s own place --
+    NEVER a move (`source.segment.carry-across-a-match`: the original stays
+    where it was). Every OTHER field is carried across unchanged via
+    `model_copy` (including its maker -- `producer_tool`/`producer_model`/
+    `review_state` for a reading -- so it does not look hand-made), so
+    nothing this slice does not know about is silently dropped."""
+    if carried_kind == "reading":
+        original_anchor = getattr(original, "source_anchor", None)
+        return original.model_copy(update={
+            "id": uuid.uuid4().hex,
+            "document_id": to_segment.document_id,
+            "source_anchor": _carried_anchor(original_anchor, to_segment),
+            "created_at": utc_now(),
+        })
+    if carried_kind == "annotation":
+        original_anchor = getattr(original, "anchor", None)
+        return original.model_copy(update={
+            "id": uuid.uuid4().hex,
+            "document_id": to_segment.document_id,
+            "anchor": _carried_anchor(original_anchor, to_segment),
+        })
+    raise ValueError(f"unknown carried_kind: {carried_kind!r}")  # unreachable: params model validates
+
+
+class SegmentCarryParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    match_id: str
+    kinds: list[str]
+
+
+def _invert_carry(before, after, ctx: ActionContext):
+    if not after:
+        return None
+    carry_ids = after.get("carry_ids")
+    if not carry_ids:
+        return None
+    return ("segment.uncarry", {"carry_ids": carry_ids})
+
+
+@action("segment.carry", SegmentCarryParams, domains=["segment"], undoable=True, invert=_invert_carry)
+def _action_carry(db: Database, params: SegmentCarryParams, ctx: ActionContext):
+    match = db.get(SegmentMatch, params.match_id)
+    if not match:
+        raise HTTPException(status_code=404, detail=f"Match not found: {params.match_id}")
+    if match.state != "accepted":
+        raise _as_http_error(MatchNotAccepted(
+            f"match {params.match_id!r} is not accepted (state: {match.state!r})"
+        ))
+    for kind in params.kinds:
+        if kind in _STATEMENT_CARRY_KINDS:
+            raise _as_http_error(StatementsCarriedInStatementsStep(kind))
+        if kind not in _CARRY_MODELS:
+            raise HTTPException(status_code=422, detail=f"unknown carried kind: {kind!r}")
+
+    from_row = db.get(Segment, match.from_segment_id)
+    to_row = db.get(Segment, match.to_segment_id)
+    if not from_row or not to_row:
+        raise HTTPException(status_code=404, detail="matched segment not found")
+
+    # #4922 second look: both ends of the match must be LIVE -- carrying
+    # onto (or from) a segment that has since been deleted or merged away
+    # makes no sense and would anchor the copy nowhere real.
+    for segment_id in (match.from_segment_id, match.to_segment_id):
+        reason = segment_liveness_reason(db, segment_id)
+        if reason is not None:
+            raise _as_http_error(SegmentNotLive(segment_id, reason))
+
+    # `source.segment.carry-across-a-match`: "one to one" across ACCEPTED
+    # matches only -- one old line became two (many-to-many) is exactly the
+    # case a reading must not be silently duplicated across.
+    from_count = len(db.query(SegmentMatch, from_segment_id=match.from_segment_id, state="accepted"))
+    to_count = len(db.query(SegmentMatch, to_segment_id=match.to_segment_id, state="accepted"))
+    one_to_one = from_count == 1 and to_count == 1
+
+    carry_ids: list[str] = []
+    copy_ids: list[str] = []
+    not_carried: list[dict] = []
+    for kind in params.kinds:
+        if kind == "reading" and not one_to_one:
+            not_carried.append({"kind": kind, "reason": "match is not one-to-one"})
+            continue
+        for original in _records_anchored_to(db, kind, from_row):
+            copy = _copy_record_to_segment(kind, original, to_row)
+            db.save(copy)
+            carry = SegmentCarry(
+                match_id=match.id, carried_kind=kind, original_id=original.id, copy_id=copy.id,
+            )
+            db.save(carry)
+            carry_ids.append(carry.id)
+            copy_ids.append(copy.id)
+
+    spec = ChangeSpec(
+        domains=["segment"],
+        target_ids=[match.id, *carry_ids],
+        before=None,
+        after={"carry_ids": carry_ids, "copy_ids": copy_ids, "not_carried": not_carried},
+        emit_type="segment.matched",
+        segment_ids=[match.from_segment_id, match.to_segment_id],
+        pass_ids=[from_row.pass_id, to_row.pass_id],
+        document_ids=[from_row.document_id, to_row.document_id],
+    )
+    return {"carry_ids": carry_ids, "copy_ids": copy_ids, "not_carried": not_carried}, spec
+
+
+class SegmentUncarryParams(BaseModel):
+    """Internal: `segment.carry`'s inverse only. Removes exactly the
+    copies it lists -- never the originals."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    carry_ids: list[str]
+
+
+@action("segment.uncarry", SegmentUncarryParams, domains=["segment"], undoable=False)
+def _action_uncarry(db: Database, params: SegmentUncarryParams, ctx: ActionContext):
+    removed_carry_ids: list[str] = []
+    removed_copy_ids: list[str] = []
+    for carry_id in params.carry_ids:
+        carry = db.get(SegmentCarry, carry_id)
+        if not carry:
+            continue
+        model, _anchor_field, _doc_field = _CARRY_MODELS[carry.carried_kind]
+        copy_row = db.get(model, carry.copy_id)
+        if copy_row is not None:
+            db.delete(copy_row)
+            removed_copy_ids.append(carry.copy_id)
+        db.delete(carry)
+        removed_carry_ids.append(carry_id)
+    spec = ChangeSpec(
+        domains=["segment"],
+        target_ids=removed_carry_ids,
+        before=None,
+        after={"carry_ids": removed_carry_ids, "copy_ids": removed_copy_ids},
+        emit_type="segment.matched",
+    )
+    return {"carry_ids": removed_carry_ids, "copy_ids": removed_copy_ids}, spec
 
 
 # ---------------------------------------------------------------------------
@@ -732,3 +1546,129 @@ async def create_segments_bulk(
             for segment_id in segment_ids
         ]
     }
+
+
+# ---------------------------------------------------------------------------
+# Slice 4 (#4922) routes
+# ---------------------------------------------------------------------------
+
+
+@router.post("/matches")
+async def propose_match(
+    params: SegmentMatchProposeParams,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(default=None, alias="X-Fichero-Origin-Window"),
+    actor: str = Depends(request_actor),
+) -> dict[str, Any]:
+    ctx = _resolve_action_ctx(
+        actor=actor, library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window, db=db,
+    )
+    result = registry.invoke(db, "segment.match_propose", params.model_dump(mode="json"), ctx)
+    match = db.get(SegmentMatch, result.result["match_id"])
+    return match.model_dump(mode="json") if match else result.result
+
+
+@router.post("/matches/{match_id}/accept")
+async def accept_match(
+    match_id: str,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(default=None, alias="X-Fichero-Origin-Window"),
+    actor: str = Depends(request_actor),
+) -> dict[str, Any]:
+    ctx = _resolve_action_ctx(
+        actor=actor, library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window, db=db,
+    )
+    result = registry.invoke(db, "segment.match_accept", {"match_id": match_id}, ctx)
+    return result.result
+
+
+@router.post("/matches/{match_id}/reject")
+async def reject_match(
+    match_id: str,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(default=None, alias="X-Fichero-Origin-Window"),
+    actor: str = Depends(request_actor),
+) -> dict[str, Any]:
+    ctx = _resolve_action_ctx(
+        actor=actor, library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window, db=db,
+    )
+    result = registry.invoke(db, "segment.match_reject", {"match_id": match_id}, ctx)
+    return result.result
+
+
+@router.post("/merge")
+async def merge_segments(
+    params: SegmentMergeParams,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(default=None, alias="X-Fichero-Origin-Window"),
+    actor: str = Depends(request_actor),
+) -> dict[str, Any]:
+    ctx = _resolve_action_ctx(
+        actor=actor, library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window, db=db,
+    )
+    result = registry.invoke(db, "segment.merge", params.model_dump(mode="json"), ctx)
+    return result.result
+
+
+@router.post("/split")
+async def split_segment(
+    params: SegmentSplitParams,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(default=None, alias="X-Fichero-Origin-Window"),
+    actor: str = Depends(request_actor),
+) -> dict[str, Any]:
+    ctx = _resolve_action_ctx(
+        actor=actor, library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window, db=db,
+    )
+    result = registry.invoke(db, "segment.split", params.model_dump(mode="json"), ctx)
+    return result.result
+
+
+@router.post("/carry")
+async def carry_across_match(
+    params: SegmentCarryParams,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(default=None, alias="X-Fichero-Origin-Window"),
+    actor: str = Depends(request_actor),
+) -> dict[str, Any]:
+    ctx = _resolve_action_ctx(
+        actor=actor, library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window, db=db,
+    )
+    result = registry.invoke(db, "segment.carry", params.model_dump(mode="json"), ctx)
+    return result.result
+
+
+class SegmentReferenceResponse(BaseModel):
+    reference: str
+    segment_id: str
+
+
+@router.get("/{segment_id}/reference", response_model=SegmentReferenceResponse)
+async def segment_reference(
+    segment_id: str,
+    db: Database = Depends(get_library_database),
+) -> SegmentReferenceResponse:
+    """`source.segment.citable`: a plain, stable string
+    (`fichero:segment/<library_uuid>/<document_id>/<segment_id>`) worked
+    out on request, never stored -- `library_uuid` from the existing
+    `library_identity` table. Resolving it (following any forwarding) is
+    `POST /api/locations/resolve`'s job, not this route's."""
+    _assert_not_provisional_http(segment_id, what="segment_id")
+    row = db.get(Segment, segment_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Segment not found: {segment_id}")
+    library_uuid = db.library_uuid() or "unknown"
+    reference = f"fichero:segment/{library_uuid}/{row.document_id}/{segment_id}"
+    return SegmentReferenceResponse(reference=reference, segment_id=segment_id)
