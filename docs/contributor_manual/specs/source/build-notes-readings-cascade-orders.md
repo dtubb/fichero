@@ -278,3 +278,134 @@ one); a direction outside the list; setting a value on a `legacy:` segment.
 
 **For the maintainer:** nothing. (That a folder can carry settings, set in the Inspector, was
 ruled on 2026-09-19.)
+
+## Slice 10 — named reading orders, flows, and the one typed-link record (#4930, #4931)
+
+**Pins:** `source.order.named-multiple`, `source.order.next-previous`, `source.segment.flow`;
+`source.link.typed`, `source.link.any-depth`, `source.link.both-ways`. (`source.canvas.*` is app
+work and waits for the canvas's own spec, → #3085.)
+
+### Reading orders
+
+**What exists.** No stored order. The region-edit code sorts boxes by character span, else top
+then left (`_reading_order` in `api/routes/document/artifacts.py`). After slice 6 a converted
+segment remembers its old place as `metadata.box_index`.
+
+**Models.** `ReadingOrder` (table `readingorders`): `id`; `document_id`; `pass_id` (an order
+belongs to one pass); `name` (`as-written` is made with every pass; others are free);
+`kind: str` (`as-written` | `imposed` | `commentary` | `flow` | project terms);
+`provenance_kind` (engine-set); `created_by`; `certainty: float | None`; `created_at`;
+`deleted_at`. `ReadingOrderEntry` (table `readingorderentrys`): `id`; `order_id`; `segment_id`;
+`position: float`; `parent_entry_id: str | None` (orders nest: regions in order, lines in order
+inside each); `version: int`.
+
+**Positions are fractions.** Putting an entry between two others writes **one** row (the
+midpoint). When two neighbours come closer than 1e-9, the action refuses with
+`OrderNeedsRenumbering`, and a separate, rare, audited `reading_order.renumber` rewrites that
+order's positions as 1.0, 2.0, 3.0 (the only action that touches many rows of one order, and
+never more than one order). The app never renumbers.
+
+**The `as-written` order** is made by `segment.pass_create` and by conversion: entries in
+`metadata.box_index` order for converted boxes (which already carries today's sort), else in
+creation order. It is a machine's order (`provenance_kind` from the pass) until a person
+edits it.
+
+**A flow** is a `ReadingOrder` of kind `flow` whose entries may be segments of **different
+pages of one document group** (`document_id` is then the group's node id, and each entry's
+segment names its own page). That is the one place an order crosses pages.
+
+**Indexes:** `readingorders(document_id)`, `readingorders(pass_id)`,
+`readingorderentrys(order_id)`, `readingorderentrys(segment_id)`.
+
+**Actions.** `reading_order.create` (`document_id`, `pass_id`, `name`, `kind`);
+`reading_order.place` (`order_id`, `segment_id`, `after_entry_id | None`, `parent_entry_id?`,
+`expected_version?`): records `before: {entry_id, position, parent_entry_id} | null`, `after:
+{entry_id, position}`; inverse places it back or removes it; `reading_order.remove`;
+`reading_order.renumber`; `reading_order.delete` (soft). Ids and numbers only in the audit.
+
+**Reads.** `GET /api/reading-orders/document/{doc_id}` (orders, no entries);
+`GET /api/reading-orders/{order_id}/entries?parent_entry_id=` (bounded: one level at a time);
+`GET /api/reading-orders/{order_id}/neighbours?segment_id=` →
+`{previous_segment_id, next_segment_id}`, **always of a named order**; there is no "next
+segment" call without one. The derived page text of slice 8 takes its order from here.
+
+**Refusals** (typed, tested): an entry for a segment of another pass (`OrderPassMismatch`),
+except in a `flow`; a segment placed twice in one order (`AlreadyInOrder`); `neighbours` with
+no order named (422); `OrderNeedsRenumbering`; a `legacy:` id.
+
+**Tests, by behaviour.**
+- `source.order.named-multiple`: one page, its `as-written` order and an `imposed` order over
+  the same word segments in a different sequence; both read back; deleting one leaves the
+  other.
+- `source.order.next-previous`: neighbours differ between the two orders for the same word;
+  the call without an order is refused.
+- `source.segment.flow`: a flow over the last lines of page 1 and the first of page 2 yields
+  derived text that reads straight through, furniture left out.
+- Moving one entry writes one row (count the rows whose `version` changed); a forced
+  renumber is its own audit row.
+- A converted page's `as-written` order equals today's `_reading_order` of the same boxes.
+
+### One typed-link record
+
+**What exists (four link records, four vocabularies).** `NoteLink` (`models/knowledge.py`:
+`source_note_id`, `target_note_id`, `link_type` follows | references | contradicts | supports |
+free, `annotation`); `SpatialConnection` (`models/canvas.py`: `room_id`, `source_node_id`,
+`target_node_id`, `connection_type`, `link_subtype`, `created_by`, `metadata`); `CanvasItem` of
+kind link (`source_item_id`, `target_item_id`); and `PredictionLink` (a value inside a
+prediction's metadata: `target_claim_id`, `link_type` next_logical | supports | contradicts |
+refines).
+
+**This slice makes the one record and puts segments on it. It does not move the other four.**
+
+`TypedLink` (table `typedlinks`): `id`; `from_kind`, `from_id`; `to_kind`, `to_id` (kinds:
+`segment`, and later `note`, `document`, `claim`, `canvas_item`); `link_type: str` (from the
+vocabulary below); `directed: bool`; `provenance_kind` (engine-set); `created_by`;
+`certainty: float | None`; `note: str | None` (a short reason, not source text); `created_at`;
+`deleted_at`. Indexes on `(from_id)` and `(to_id)`, which is what makes a link reachable from
+either end.
+
+**Vocabulary:** table `librarylinktypes` (`key`, `label`, `inverse_label`, `builtin`), seeded on
+open with the design's list (glosses, comments-on, answers, quotes, expands, reorders, marks,
+captions, labels, continues, translates, same-as, names) **and** the existing four records'
+words (follows, references, contradicts, supports, free, next_logical, refines,
+derived_from, interprets), so that when the other records converge no word is lost. A project
+can add keys.
+
+**Convergence is routed, not done here** (each is its own later slice, with its own tests and
+its owner's spec): notes (`NoteLink` rows read through a view of `TypedLink`, then written
+there); the canvas (`ui/library-view-modes.md`, → #3085: a connector is a `TypedLink` plus a
+position); predictions (the metadata value stays a value; its `link_type` words are already in
+the vocabulary). Until then the four keep working untouched, and **no new code may add a fifth
+link record**: a guardrail greps models for a new class with `source_*_id` and `target_*_id`
+fields outside the allowlist.
+
+**Actions.** `link.create` (`from_kind`, `from_id`, `to_kind`, `to_id`, `link_type`,
+`directed?`, `certainty?`, `note?`); `link.delete` (soft); `link.restore`. Inverses of each
+other. Audit: ids, kinds, type.
+
+**Reads.** `GET /api/links?kind=segment&id=<segment_id>&direction=out|in|both&depth=1`
+(`depth` up to 8; a walk with a visited set, so a ring of links ends; past 8 it **says** it
+stopped, with `truncated: true` and the frontier ids, which is honest for a browse call and
+different from forwarding, where stopping short would be wrong).
+
+**ChangeSpec.** `domains=["link","segment"]`; `segment_ids` = both ends when they are segments;
+event types `link.created`, `link.deleted`.
+
+**Refusals** (typed, tested): an unknown `link_type` (`UnknownLinkType`, naming the list); a
+link from a thing to itself; an end that does not exist or is a `legacy:` id; a segment end
+that has been forwarded (the action resolves it through `resolve_segment` and links the live
+segment, saying so in its result).
+
+**Tests, by behaviour.**
+- `source.link.typed`: a gloss linked to its word with type, direction, maker and certainty;
+  a project-added type works; an unknown one is refused.
+- `source.link.any-depth`: a comment on a comment on a line is reached at depth 3; a ring of
+  three returns three and ends; depth 9 is refused.
+- `source.link.both-ways`: from the word, the gloss is found (`direction=in`); from the gloss,
+  the word (`out`); a link whose segment was merged is found from the kept segment.
+- A link across two documents works.
+- The four existing link records' tests still pass untouched.
+
+**For the maintainer:** nothing new. (That there is to be one typed-link record, with the
+canvas's connector converging on it, came out of the reviews and is in the spec; the canvas
+half belongs to the canvas's own spec.)
