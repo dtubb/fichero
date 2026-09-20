@@ -79,10 +79,16 @@ from fichero_server.models.segments import (
     LEGACY_ID_PREFIX,
     PassRead,
     ProvisionalSegmentIdError,
+    Segment,
     SegmentListResponse,
+    SegmentPass,
     SegmentRead,
     assert_not_provisional,
+    bbox_and_tile_from_anchor,
+    grow_rect_by_half_tile,
+    rects_intersect,
     segments_from_result,
+    tiles_for_rect,
 )
 
 # Forward refs — routes import from this file, so we can't import back. The
@@ -2559,6 +2565,13 @@ __all__ = [
     "SegmentRead",
     "assert_not_provisional",
     "segments_from_result",
+    # Source-model slice 3 — Segment and SegmentPass records (models/segments.py).
+    "Segment",
+    "SegmentPass",
+    "bbox_and_tile_from_anchor",
+    "grow_rect_by_half_tile",
+    "rects_intersect",
+    "tiles_for_rect",
     "Rendition",
     "RenditionListResponse",
     "ANCHOR_GRANULARITIES",

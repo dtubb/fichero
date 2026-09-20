@@ -23,13 +23,24 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
+from fichero_server.core.timeutil import utc_now
 from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryResult
 from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.knowledge import ProvenanceKind
 
 logger = logging.getLogger(__name__)
+
+
+def _new_id() -> str:
+    """Same minting as every other model (``uuid4().hex``) -- kept as a
+    thin local wrapper so this module does not import the whole
+    ``fichero_server.models`` package (see the module docstring: this file
+    sits BELOW that package)."""
+    import uuid
+
+    return uuid.uuid4().hex
 
 #: Prefix marking an id read out of today's blob storage rather than a real
 #: ``Segment``/``Pass`` row. `source.seam.provisional-ids-refused`: a
@@ -445,3 +456,218 @@ def segments_from_result(
         text=result.text or None,
     )
     return pass_read, segments
+
+
+# ---------------------------------------------------------------------------
+# Slice 3 -- Segment and SegmentPass records (#4921)
+#
+# Real, persisted rows: a pydantic model saved through Database.save() gets
+# its table on first save (models ARE the schema). Additive only: no old
+# table changes, nothing converts the ocr_geometry blob (slice 6's job).
+# ---------------------------------------------------------------------------
+
+
+class SegmentPass(BaseModel):
+    """One named, authored pass over a source (`source.pass.named-authored`).
+
+    Table name is set to ``segment_passes`` in ``Database._table_name``
+    (the bare ``_ensure_table`` rule would give ``segmentpasss``, which
+    reads badly -- same override CanvasLayout already gets).
+    """
+
+    id: str = Field(default_factory=_new_id)
+    document_id: str
+    #: Defaults to the run's or the tool's name; a display name, never a
+    #: provider (`provider` below is that).
+    name: str
+    provenance_kind: ProvenanceKind
+    actor: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    run_id: str | None = None
+    source_artifact_id: str | None = None
+    import_file: str | None = None
+    import_checksum: str | None = None
+    created_at: datetime = Field(default_factory=utc_now)
+    #: Soft delete -- a pass is never removed (`segment.pass_delete`'s
+    #: inverse, `segment.pass_restore`, clears this).
+    deleted_at: datetime | None = None
+
+
+class Segment(BaseModel):
+    """One segment: a lasting id whose place is an anchor
+    (`source.segment.lasting-id`, `source.builds-on-the-anchor`).
+
+    ``bbox_x/y/w/h`` and ``tile`` are engine-derived from ``anchor`` and
+    ``anchor`` alone is authoritative -- no params model accepts them
+    (`source.segment.box-is-derived`).
+    """
+
+    id: str = Field(default_factory=_new_id)
+    document_id: str
+    #: Exactly one pass (`source.pass.never-overwrites`): a segment does not
+    #: move between passes; a re-segmentation is a new pass, new segments.
+    pass_id: str
+    #: The ladder; membership only, no order (order is a named reading
+    #: order, a later slice).
+    parent_segment_id: str | None = None
+    #: Open list (`source.segment.open-kinds`): the anchor's granularity
+    #: words plus the non-text kinds; a project can add its own.
+    kind: str
+    #: A model's own label, kept beside the tidy `kind` above. None until a
+    #: tool records one (mirrors `SegmentRead.kind_raw`'s note).
+    kind_raw: str | None = None
+    #: The place. Authoritative -- bbox_* below is derived FROM this, never
+    #: the reverse.
+    anchor: SourceAnchor
+    #: Normalized to the anchor's image; None when the tool gave none.
+    baseline: list[list[float]] | None = None
+    #: Engine-written only, worked out from `anchor` in `_bbox_and_tile`.
+    #: Range-query columns (`source.store.bounded-reads`): DuckDB's ART
+    #: indexes are single-column, so "segments in this rectangle" is a
+    #: `document_id` + `tile` lookup, not a JSON-anchor scan.
+    bbox_x: float
+    bbox_y: float
+    bbox_w: float
+    bbox_h: float
+    #: Coarse 8x8 tile key over the image (`"x3y5"`); a segment crossing
+    #: tiles takes the tile of its centre. Serves reads by area.
+    tile: str
+    #: Composite key `"<document_id>:<kind>"`, engine-written -- the
+    #: single-column-index fallback the notes name for "one page's segments
+    #: at one level": DuckDB's ART indexes are single-column, so a filter on
+    #: BOTH `document_id` and `kind` cannot use one index for both at once.
+    doc_kind: str
+    #: Machine confidence of the SHAPE (not a reading), if the tool gave one.
+    confidence: float | None = None
+    is_furniture: bool = False
+    provenance_kind: ProvenanceKind
+    created_by: str | None = None
+    #: Starts at 1; compare-and-set and stale-edit refusal arrive in slice 5.
+    version: int = 1
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+    #: Soft delete -- the row is never removed.
+    deleted_at: datetime | None = None
+    deleted_by: str | None = None
+    #: Whatever an import or a tool gave that has no field here yet.
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+#: 8x8 grid over the normalized [0, 1] image -- coarse enough that a page's
+#: segments land in a handful of tiles (cheap index), fine enough that "the
+#: segments in this region" is not a full per-document scan.
+_TILE_GRID = 8
+
+
+def _tile_key(x: float, y: float, w: float, h: float) -> str:
+    """The tile of a rect's CENTRE, clamped into the grid (a rect flush with
+    the 1.0 edge would otherwise compute an out-of-range tile index)."""
+    cx, cy = x + w / 2, y + h / 2
+    tile_x = min(_TILE_GRID - 1, max(0, int(cx * _TILE_GRID)))
+    tile_y = min(_TILE_GRID - 1, max(0, int(cy * _TILE_GRID)))
+    return f"x{tile_x}y{tile_y}"
+
+
+def bbox_and_tile_from_anchor(anchor: SourceAnchor) -> tuple[float, float, float, float, str]:
+    """``(bbox_x, bbox_y, bbox_w, bbox_h, tile)`` derived from an anchor's
+    rect, or its polygon's bounds when there is no rect
+    (`source.segment.box-is-derived`). Raises when the anchor has neither --
+    every accepted `segment.create`/`segment.create_many` anchor has at
+    least one, so this is a defensive backstop, not a normal path."""
+    if anchor.rect is not None:
+        x, y, w, h = anchor.rect
+    elif anchor.polygon:
+        xs = [point[0] for point in anchor.polygon]
+        ys = [point[1] for point in anchor.polygon]
+        x, y = min(xs), min(ys)
+        w, h = max(xs) - x, max(ys) - y
+    else:
+        raise ValueError("a segment's anchor needs a rect or a polygon to derive its box from")
+    return x, y, w, h, _tile_key(x, y, w, h)
+
+
+#: The size of one tile edge -- a segment bigger than this on either axis
+#: cannot be reliably found by tile membership alone (see `tiles_for_rect`).
+TILE_SIZE = 1.0 / _TILE_GRID
+
+
+def tiles_for_rect(x: float, y: float, w: float, h: float) -> list[str]:
+    """Every tile key a query rectangle overlaps (its own bounding box in
+    tile-grid coordinates, inclusive) -- the engine detail behind "by area"
+    (#4921 review: the public parameter is a rectangle, never a grid key)."""
+    x0 = min(_TILE_GRID - 1, max(0, int(x * _TILE_GRID)))
+    y0 = min(_TILE_GRID - 1, max(0, int(y * _TILE_GRID)))
+    x1 = min(_TILE_GRID - 1, max(0, int((x + w) * _TILE_GRID)))
+    y1 = min(_TILE_GRID - 1, max(0, int((y + h) * _TILE_GRID)))
+    return [f"x{tx}y{ty}" for tx in range(x0, x1 + 1) for ty in range(y0, y1 + 1)]
+
+
+def grow_rect_by_half_tile(x: float, y: float, w: float, h: float) -> tuple[float, float, float, float]:
+    """A query rectangle grown by half a tile on every side, clamped to the
+    image (#4921 third look). A segment is filed under the tile of its
+    CENTRE only, so one no larger than a tile can straddle a tile edge --
+    its box reaching into the rectangle while its centre, and so its tile,
+    sits just outside every tile the bare rectangle touches. Any such
+    segment's centre is within half a tile of the rectangle on each axis,
+    so its tile is one `tiles_for_rect` finds on the GROWN rectangle;
+    anything bigger than a tile is already caught by the oversize clause
+    in the candidate query, and `rects_intersect` removes the extras this
+    growth admits."""
+    half = TILE_SIZE / 2
+    gx = max(0.0, x - half)
+    gy = max(0.0, y - half)
+    gx2 = min(1.0, x + w + half)
+    gy2 = min(1.0, y + h + half)
+    return gx, gy, gx2 - gx, gy2 - gy
+
+
+def rects_intersect(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> bool:
+    """Standard axis-aligned-rectangle intersection test, ``(x, y, w, h)``
+    each. "By area" means every segment whose BOX intersects the queried
+    rectangle (#4921 review), not merely one that shares its tile."""
+    ax, ay, aw, ah = a
+    bx, by, bw, bh = b
+    return ax < bx + bw and bx < ax + aw and ay < by + bh and by < ay + ah
+
+
+def segment_read_from_row(row: Segment) -> SegmentRead:
+    """The real-row twin of `segment_from_box` -- same `SegmentRead` shape,
+    `provisional=False`. The seam (`api/routes/document/segments.py`) is the
+    ONE place that resolves either this or the blob path, never both for the
+    same pass."""
+    return SegmentRead(
+        id=row.id,
+        provisional=False,
+        document_id=row.document_id,
+        pass_id=row.pass_id,
+        kind=row.kind,
+        kind_raw=row.kind_raw,
+        provenance_kind=row.provenance_kind,
+        anchor=row.anchor,
+        baseline=row.baseline,
+        text=None,  # readings on segments arrive in a later slice
+        confidence=row.confidence,
+        source_artifact_id=None,  # a real segment is not backed by one artifact
+        box_index=None,
+        page_index=None,  # not stored on Segment until its own slice
+        metadata=dict(row.metadata),
+    )
+
+
+def pass_read_from_row(row: SegmentPass) -> PassRead:
+    """The real-row twin of the pass half of `segments_from_result`."""
+    return PassRead(
+        id=row.id,
+        provisional=False,
+        document_id=row.document_id,
+        name=row.name,
+        provenance_kind=row.provenance_kind,
+        provider=row.provider,
+        model=row.model,
+        run_id=row.run_id,
+        created_at=row.created_at,
+        source_artifact_id=row.source_artifact_id,
+        artifact_type=None,
+        text=None,  # readings on passes arrive in a later slice
+    )

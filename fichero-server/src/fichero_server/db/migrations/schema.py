@@ -923,3 +923,92 @@ def read_library_uuid(conn) -> str | None:
         return str(row[0]) if row and row[0] else None
     except Exception:
         return None
+
+
+def migrate_segment_indices(conn) -> None:
+    """Add indices on ``segments`` and ``segment_passes`` (source-model
+    slice 3, #4921).
+
+    Both tables are created by ``_ensure_table`` (a `Segment`/`SegmentPass`
+    pydantic model saved through ``Database.save()``), never by this
+    function — this ADDS indexes only. Each ``CREATE INDEX IF NOT EXISTS``
+    is wrapped in its own try/except: a missing table (no segment has been
+    saved in this library yet) is the common, harmless case, and the next
+    call after the first save picks it up — same shape as
+    ``migrate_knowledge_indices``. IF NOT EXISTS makes every statement safe
+    to re-run, including on a library made before this slice, which has
+    neither table.
+
+    DuckDB's indexes are single-column; a composite need (e.g. "this kind on
+    this document") is met by filtering on ``document_id`` first, which the
+    query planner combines with the second index.
+    """
+    statements: list[tuple[str, str, str]] = [
+        # name, ddl, the query it serves
+        (
+            "idx_segments_document_id",
+            "CREATE INDEX IF NOT EXISTS idx_segments_document_id ON segments(document_id)",
+            "the segments of this source (slice 1's seam; conversion's "
+            "'is this page converted')",
+        ),
+        (
+            "idx_segments_pass_id",
+            "CREATE INDEX IF NOT EXISTS idx_segments_pass_id ON segments(pass_id)",
+            "the segments of this pass; pass comparison",
+        ),
+        (
+            "idx_segments_parent_segment_id",
+            "CREATE INDEX IF NOT EXISTS idx_segments_parent_segment_id "
+            "ON segments(parent_segment_id)",
+            "the children of a region or line",
+        ),
+        (
+            "idx_segments_kind",
+            "CREATE INDEX IF NOT EXISTS idx_segments_kind ON segments(kind)",
+            "reads by kind; the planner combines this with document_id",
+        ),
+        (
+            "idx_segments_tile",
+            "CREATE INDEX IF NOT EXISTS idx_segments_tile ON segments(tile)",
+            "reads by area, combined with document_id",
+        ),
+        (
+            "idx_segments_doc_kind",
+            "CREATE INDEX IF NOT EXISTS idx_segments_doc_kind ON segments(doc_kind)",
+            "'one page's segments at one level' in one indexed lookup -- "
+            "DuckDB's single-column indexes cannot serve document_id AND "
+            "kind together, so this composite key does (source.store.bounded-reads)",
+        ),
+        (
+            "idx_segment_passes_document_id",
+            "CREATE INDEX IF NOT EXISTS idx_segment_passes_document_id "
+            "ON segment_passes(document_id)",
+            "the passes of this source",
+        ),
+        (
+            "idx_segment_passes_run_id",
+            "CREATE INDEX IF NOT EXISTS idx_segment_passes_run_id "
+            "ON segment_passes(run_id)",
+            "grouping passes by run",
+        ),
+    ]
+    created = 0
+    for name, ddl, serves in statements:
+        try:
+            conn.execute(ddl)
+            created += 1
+        except Exception as exc:
+            # Most common cause: the table doesn't exist yet -- the next
+            # call after the first Segment/SegmentPass save picks it up
+            # (called from `_ensure_table`, same as knowledge indices). Still
+            # a warning, not debug: an index that fails to build for any
+            # OTHER reason is invisible otherwise, and the query it serves
+            # silently falls back to a table scan.
+            logger.warning(
+                "Segment index %s (%s) not built -- %s will be slow: %s",
+                name, ddl, serves, exc,
+            )
+    if created:
+        logger.info(
+            "Segment indices migration: %d/%d indices ensured", created, len(statements)
+        )

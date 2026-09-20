@@ -81,6 +81,7 @@ db/migrations/schema.py::migrate_provider_refs_table 1
 db/migrations/schema.py::migrate_reference_provenance_table 1
 db/migrations/schema.py::migrate_references_table 1
 db/migrations/schema.py::migrate_saved_search_table 1
+db/migrations/schema.py::migrate_segment_indices 1
 db/migrations/schema.py::migrate_spatial_node_layout_fields 1
 db/storage.py::_generate_image 1
 db/storage.py::_generate_text_thumbnail 2

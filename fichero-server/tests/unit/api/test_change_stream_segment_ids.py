@@ -229,19 +229,133 @@ class TestSegmentIdsAloneDoNotPopulateDocumentIds:
         assert captured[0].document_ids == []
 
 
-class TestNothingEmitsASegmentEventYet:
-    def test_no_action_in_the_registry_emits_segment_or_pass_ids(self):
-        """Stated plainly rather than invented: no segment action exists
-        until slice 4, so nothing in the registry emits `segment.*`/`pass.*`
-        events today. This test is the honest negative -- it will start
-        failing (correctly) the day slice 4 registers one, which is the
-        point at which this test should be deleted, not patched."""
-        emitting_actions = [
-            reg.name
-            for reg in registry._actions.values()
-            if reg.name.startswith(("segment.", "pass."))
-        ]
-        assert emitting_actions == []
+class TestSegmentEventsSeenWorking:
+    """The honest POSITIVE (source.events.segment-ids): slice 3's actions
+    now emit real segment/pass ids, through both the direct stream and the
+    activity fold -- replacing the prior honest negative, which correctly
+    started failing the day `segment.create` began emitting, exactly as its
+    own docstring said it would."""
+
+    def _make_doc(self, db):
+        from fichero_server.models import Document, DocType, FileType, Status
+
+        doc = Document(
+            name="p.jpg", doc_type=DocType.file, file_type=FileType.image,
+            path="/p.jpg", status=Status.completed,
+        )
+        db.save(doc)
+        return doc
+
+    def test_pass_create_emits_pass_ids_and_document_ids(self, client, db, monkeypatch):
+        doc = self._make_doc(db)
+        captured: list[ChangeEvent] = []
+        monkeypatch.setattr(
+            change_stream._change_hub, "emit",
+            lambda lib, event: captured.append(event) or 1,
+        )
+
+        r = client.post("/api/segments/passes", json={"document_id": doc.id, "name": "n"})
+        assert r.status_code == 200, r.text
+        pass_id = r.json()["id"]
+
+        events = [e for e in captured if e.type == "pass.created"]
+        assert len(events) == 1
+        assert events[0].pass_ids == [pass_id]
+        assert events[0].document_ids == [doc.id]
+        assert events[0].segment_ids == []
+
+        activity = _change_event_to_activity_response(events[0])
+        assert json.loads(activity.metadata["pass_ids"]) == [pass_id]
+        assert json.loads(activity.metadata["document_ids"]) == [doc.id]
+
+    def test_segment_create_emits_segment_and_pass_ids(self, client, db, monkeypatch):
+        doc = self._make_doc(db)
+        captured: list[ChangeEvent] = []
+        monkeypatch.setattr(
+            change_stream._change_hub, "emit",
+            lambda lib, event: captured.append(event) or 1,
+        )
+
+        pass_id = client.post(
+            "/api/segments/passes", json={"document_id": doc.id, "name": "n"},
+        ).json()["id"]
+        r = client.post("/api/segments", json={
+            "document_id": doc.id, "pass_id": pass_id, "kind": "word",
+            "anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]},
+        })
+        assert r.status_code == 200, r.text
+        segment_id = r.json()["id"]
+
+        events = [e for e in captured if e.type == "segment.created"]
+        assert len(events) == 1
+        assert events[0].segment_ids == [segment_id]
+        assert events[0].pass_ids == [pass_id]
+        assert events[0].document_ids == [doc.id]
+
+        activity = _change_event_to_activity_response(events[0])
+        assert json.loads(activity.metadata["segment_ids"]) == [segment_id]
+        assert json.loads(activity.metadata["pass_ids"]) == [pass_id]
+
+    def test_segment_create_many_emits_every_id_deduplicated_in_order(self, client, db, monkeypatch):
+        doc = self._make_doc(db)
+        captured: list[ChangeEvent] = []
+        monkeypatch.setattr(
+            change_stream._change_hub, "emit",
+            lambda lib, event: captured.append(event) or 1,
+        )
+
+        pass_id = client.post(
+            "/api/segments/passes", json={"document_id": doc.id, "name": "n"},
+        ).json()["id"]
+        r = client.post("/api/segments/bulk", json={
+            "document_id": doc.id, "pass_id": pass_id,
+            "segments": [
+                {"kind": "word", "anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]}},
+                {"kind": "word", "anchor": {"document_id": doc.id, "rect": [0.3, 0.3, 0.1, 0.1]}},
+            ],
+        })
+        assert r.status_code == 200, r.text
+        segment_ids = [s["id"] for s in r.json()["segments"]]
+        assert len(segment_ids) == 2
+
+        events = [e for e in captured if e.type == "segment.created"]
+        assert len(events) == 1
+        assert events[0].segment_ids == segment_ids  # order preserved, both unique
+        assert events[0].pass_ids == [pass_id]
+        assert events[0].document_ids == [doc.id]
+
+    def test_pass_delete_emits_pass_ids(self, client, db, monkeypatch):
+        doc = self._make_doc(db)
+        pass_id = client.post(
+            "/api/segments/passes", json={"document_id": doc.id, "name": "n"},
+        ).json()["id"]
+
+        captured: list[ChangeEvent] = []
+        monkeypatch.setattr(
+            change_stream._change_hub, "emit",
+            lambda lib, event: captured.append(event) or 1,
+        )
+        r = client.delete(f"/api/segments/passes/{pass_id}")
+        assert r.status_code == 200, r.text
+
+        events = [e for e in captured if e.type == "pass.deleted"]
+        assert len(events) == 1
+        assert events[0].pass_ids == [pass_id]
+        assert events[0].document_ids == [doc.id]
+
+    def test_reading_the_seam_emits_nothing(self, client, db, monkeypatch):
+        """The smaller negative kept alongside the positives: a READ emits
+        no change event at all."""
+        doc = self._make_doc(db)
+        captured: list[ChangeEvent] = []
+        monkeypatch.setattr(
+            change_stream._change_hub, "emit",
+            lambda lib, event: captured.append(event) or 1,
+        )
+
+        r = client.get(f"/api/segments/document/{doc.id}")
+        assert r.status_code == 200
+        assert captured == []
 
 
 class TestCrossLanguageContractFixture:

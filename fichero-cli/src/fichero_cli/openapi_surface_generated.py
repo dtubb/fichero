@@ -12556,10 +12556,69 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='segments')
         existing_apps['segments'] = target_app
 
+    @target_app.command("create")
+    def segments_create_post(
+        ctx: typer.Context,
+        anchor: str = typer.Option(..., "--anchor", help="Request field: anchor."),
+        baseline: Optional[str] = typer.Option(None, "--baseline", help="Request field: baseline."),
+        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
+        kind: str = typer.Option(..., "--kind", help="Request field: kind."),
+        kind_raw: Optional[str] = typer.Option(None, "--kind-raw", help="Request field: kind_raw."),
+        parent_segment_id: Optional[str] = typer.Option(None, "--parent-segment-id", help="Request field: parent_segment_id."),
+        pass_id: str = typer.Option(..., "--pass-id", help="Request field: pass_id."),
+    ) -> None:
+        """Create Segment (POST /api/segments)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments"
+            params = None
+            payload = _build_json_payload({
+                "anchor": anchor,
+                "baseline": baseline,
+                "document_id": document_id,
+                "kind": kind,
+                "kind_raw": kind_raw,
+                "parent_segment_id": parent_segment_id,
+                "pass_id": pass_id,
+            }, {
+                "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': True},
+                "baseline": {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Baseline', 'x-cli-required': False},
+                "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
+                "kind": {'type': 'string', 'title': 'Kind', 'x-cli-required': True},
+                "kind_raw": {'type': 'string', 'nullable': True, 'title': 'Kind Raw', 'x-cli-required': False},
+                "parent_segment_id": {'type': 'string', 'nullable': True, 'title': 'Parent Segment Id', 'x-cli-required': False},
+                "pass_id": {'type': 'string', 'title': 'Pass Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("create-bulk")
+    def segments_create_bulk_post(
+        ctx: typer.Context,
+        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
+        pass_id: str = typer.Option(..., "--pass-id", help="Request field: pass_id."),
+        segments: str = typer.Option(..., "--segments", help="Request field: segments."),
+    ) -> None:
+        """Create Segments Bulk (POST /api/segments/bulk)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/bulk"
+            params = None
+            payload = _build_json_payload({
+                "document_id": document_id,
+                "pass_id": pass_id,
+                "segments": segments,
+            }, {
+                "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
+                "pass_id": {'type': 'string', 'title': 'Pass Id', 'x-cli-required': True},
+                "segments": {'items': {'$ref': '#/components/schemas/SegmentSpec'}, 'type': 'array', 'title': 'Segments', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-document")
     def segments_list_document_get(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        area: Optional[str] = typer.Option(None, "--area", help="Query parameter: area."),
         artifact_id: Optional[str] = typer.Option(None, "--artifact-id", help="Query parameter: artifact_id."),
         kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
         pass_id: Optional[str] = typer.Option(None, "--pass-id", help="Query parameter: pass_id."),
@@ -12568,11 +12627,53 @@ def register_generated_openapi_commands(
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/segments/document/{doc_id}"
             params = {
+                "area": area,
                 "artifact_id": artifact_id,
                 "kind": kind,
                 "pass_id": pass_id,
             }
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("create-pass")
+    def segments_create_pass_post(
+        ctx: typer.Context,
+        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        run_id: Optional[str] = typer.Option(None, "--run-id", help="Request field: run_id."),
+        source_artifact_id: Optional[str] = typer.Option(None, "--source-artifact-id", help="Request field: source_artifact_id."),
+    ) -> None:
+        """Create Pass (POST /api/segments/passes)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/passes"
+            params = None
+            payload = _build_json_payload({
+                "document_id": document_id,
+                "name": name,
+                "run_id": run_id,
+                "source_artifact_id": source_artifact_id,
+            }, {
+                "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
+                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
+                "run_id": {'type': 'string', 'nullable': True, 'title': 'Run Id', 'x-cli-required': False},
+                "source_artifact_id": {'type': 'string', 'nullable': True, 'title': 'Source Artifact Id', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("delete-pass")
+    def segments_delete_pass_delete(
+        ctx: typer.Context,
+        pass_id: str = typer.Argument(..., help="Path parameter: pass_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Delete Pass (DELETE /api/segments/passes/{pass_id})."""
+        if not yes:
+            typer.confirm("Delete segments?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/passes/{pass_id}"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('settings')

@@ -372,34 +372,58 @@ history travels with the artifact. The response is `ArtifactResponse` with
 geometry included, so the caller re-renders its overlay from the reply rather
 than re-fetching.
 
-### Segments (read-only, source-model slice 1)
+### Segments (source model)
 
 `GET /api/segments/document/{doc_id}` returns a source page's segments —
-region, line and word boxes — read from whichever of its artifacts carry
-`ocr_geometry`. It writes nothing: reading a page's segments this way never
-creates rows, and calling it twice leaves the artifact and its `version`
-untouched. The response is `SegmentListResponse` (`document_id`, `passes`,
-`segments`); a document with no geometry yet returns an empty list, not an
-error, and an unknown `doc_id` returns `404`. Optional query parameters
-`artifact_id` (restrict to one artifact's boxes), `pass_id` (restrict to one
-pass), and `kind` (restrict to one segment kind — region, line, word) narrow
-the result.
+region, line and word boxes — resolved from whichever of its artifacts carry
+`ocr_geometry` (the old blob) AND from real `Segment`/`SegmentPass` rows
+where they exist (slice 3): the caller cannot tell which store a segment
+came from. Reading a page's segments this way writes nothing: calling it
+twice creates no row. The response is `SegmentListResponse` (`document_id`,
+`passes`, `segments`); a document with neither yet returns an empty list,
+not an error, and an unknown `doc_id` returns `404`. Optional query
+parameters `artifact_id` (restrict to one artifact's boxes, or one real
+pass's source artifact), `pass_id` (restrict to one pass — a `legacy:` one
+or a real pass id), and `kind` (restrict to one segment kind — region, line,
+word) narrow the result.
 
-Every id is **provisional**: a segment read from today's blob gets
+A segment read from today's blob is **provisional**:
 `legacy:<artifact_id>:<box_index>` and its pass `legacy:<artifact_id>`, both
 marked `provisional: true`. A provisional id is refused on write — the
-regions-edit route (`PUT /api/artifacts/{artifact_id}/regions` above) returns
-`422` if handed one, rather than resolving it as a real artifact id.
+regions-edit route (`PUT /api/artifacts/{artifact_id}/regions` above) and
+every segment-write route below return `422` if handed one.
 
 Each segment's `anchor` is a `SourceAnchor` (rect always; a polygon only when
 the source box's metadata carries one — a Kraken line's polygon and baseline
-are normalized from pixels to the anchor's fractional top-left convention,
-with the raw pixel values kept in the anchor's own extra fields, never
-thrown away).
+are normalized from pixels to the anchor's fractional top-left convention).
+Raw pixel values, and why a box's geometry could not be held, ride in the
+segment's own `metadata` (`raw_polygon_px`, `raw_baseline_px`,
+`raw_pixel_frame`, `geometry_problem`) — never on the anchor, which slices 3
+and 6 store.
 
-Access follows the same rule as every other library-scoped read route today
-(a valid token bound to the library; no finer-grained per-document check yet
-— see #4917 for the known gap in that check for artifact-scoped reads).
+`POST /api/segments/passes` creates a `SegmentPass` (body:
+`SegmentPassCreateParams` — `document_id`, `name`, optional `run_id` and
+`source_artifact_id`), one typed audited action
+(`segment.pass_create`/`.pass_delete`/`.pass_restore`). `DELETE
+/api/segments/passes/{pass_id}` soft-deletes it (the row is never removed;
+its segments stop appearing in the seam).
+
+`POST /api/segments` creates one `Segment` in an existing pass (body:
+`SegmentCreateParams` — `document_id`, `pass_id`, `kind`, `anchor`, optional
+`baseline`, `parent_segment_id`, `kind_raw`); `POST /api/segments/bulk`
+creates several in one `save_many` transaction (`SegmentCreateManyParams`).
+Both refuse (`409`) a `pass_id` from another document or a
+`parent_segment_id` in another pass/document, and (`422`) a client-supplied
+`id`, `bbox_*`, `tile`, `version` or `provenance_kind` — the params models
+declare none of them, so `extra="forbid"` rejects the request outright; the
+four box columns are always engine-derived from `anchor`. Update and delete
+of a segment as a user-facing feature, with version compare-and-set, arrive
+in a later slice.
+
+Access follows the same rule as every other library-scoped route today (a
+valid token bound to the library, write-checked per target id; no
+finer-grained per-document read check yet — see #4917 for the known gap in
+that check for artifact-scoped reads).
 
 ### Workflow folder presentation
 

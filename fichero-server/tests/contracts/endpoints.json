@@ -8565,6 +8565,26 @@
     ],
     "segments": [
       {
+        "method": "POST",
+        "path": "/segments",
+        "operation_id": "create_segment_api_segments_post",
+        "summary": "Create Segment",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentCreateParams",
+        "response_model": "SegmentRead"
+      },
+      {
+        "method": "POST",
+        "path": "/segments/bulk",
+        "operation_id": "create_segments_bulk_api_segments_bulk_post",
+        "summary": "Create Segments Bulk",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentCreateManyParams",
+        "response_model": null
+      },
+      {
         "method": "GET",
         "path": "/segments/document/{doc_id}",
         "operation_id": "list_document_segments_api_segments_document__doc_id__get",
@@ -8573,6 +8593,11 @@
           "doc_id"
         ],
         "query_params": [
+          {
+            "name": "area",
+            "required": false,
+            "type": "string"
+          },
           {
             "name": "artifact_id",
             "required": false,
@@ -8591,6 +8616,28 @@
         ],
         "request_model": null,
         "response_model": "SegmentListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/segments/passes",
+        "operation_id": "create_pass_api_segments_passes_post",
+        "summary": "Create Pass",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentPassCreateParams",
+        "response_model": "SegmentPass"
+      },
+      {
+        "method": "DELETE",
+        "path": "/segments/passes/{pass_id}",
+        "operation_id": "delete_pass_api_segments_passes__pass_id__delete",
+        "summary": "Delete Pass",
+        "path_params": [
+          "pass_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
       }
     ],
     "settings": [

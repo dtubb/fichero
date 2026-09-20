@@ -2731,7 +2731,7 @@
           "segments"
         ],
         "summary": "List Document Segments",
-        "description": "The segments of one source page, across whichever of its artifacts\ncarry geometry. Opening a page this way writes nothing \u2014 the \"opening a\npage writes nothing\" half of `source.store.ids-on-first-edit` \u2014 and a\ndocument with no geometry yet returns an empty list, not an error.\n\n**Order.** Passes come back sorted by `(created_at, id)`; segments stay\nin box order within their pass \u2014 the order the app's index mapping and\nthe route/MCP/CLI parity test both rely on, not \"whatever the store\nhappened to return\".\n\n**A bad box never fails the page** (`source.seam.read-either-store`):\na box the anchor cannot hold still comes back as a segment, with its\nrect/polygon unset and the reason in `metadata[\"geometry_problem\"]`\n(`models/segments.py::_build_anchor`).",
+        "description": "The segments of one source page: real `Segment`/`SegmentPass` rows\nwhere they exist for this document, PLUS the old boxes for artifacts\nthat have not been converted (`source.one-store`,\n`source.seam.read-either-store`) \u2014 additive, never a replacement; slice 6\nis what converts a page, and nothing does that yet. Opening a page this\nway writes nothing, and a document with neither yet returns an empty\nlist, not an error.\n\nReads a page's segments **by kind and by area** (`source.store.bounded-reads`):\n`kind` and `area` (a rectangle, `x,y,w,h` in image fractions -- the\n8x8 tile grid a segment is filed under stays an engine detail) both\nnarrow the query, together or separately, scoped to one pass at a time\nvia its indexed `pass_id` -- never a whole-project scan. \"By area\" means\nevery segment whose box INTERSECTS the rectangle, including a wide\nsegment centred outside it.\n\n**Order.** Passes come back sorted by `(created_at, id)`; a pass's real\nsegments are ordered by `metadata[\"box_index\"]` when a converted box\nrecorded one, else `(created_at, id)` \u2014 never by the bare (random) `id`.\nLegacy segments stay in the artifact's own box order.\n\n**A bad box never fails the page** (`source.seam.read-either-store`):\na box the anchor cannot hold still comes back as a segment, with its\nrect/polygon unset and the reason in `metadata[\"geometry_problem\"]`\n(`models/segments.py::_build_anchor`).",
         "operationId": "list_document_segments_api_segments_document__doc_id__get",
         "parameters": [
           {
@@ -2750,10 +2750,10 @@
             "schema": {
               "type": "string",
               "nullable": true,
-              "description": "Restrict to one artifact's boxes",
+              "description": "Restrict to one artifact's boxes, or one real pass's source artifact",
               "title": "Artifact Id"
             },
-            "description": "Restrict to one artifact's boxes"
+            "description": "Restrict to one artifact's boxes, or one real pass's source artifact"
           },
           {
             "name": "pass_id",
@@ -2762,10 +2762,10 @@
             "schema": {
               "type": "string",
               "nullable": true,
-              "description": "Restrict to one pass (today: legacy:<artifact_id>)",
+              "description": "Restrict to one pass (legacy:<artifact_id>, or a real pass id)",
               "title": "Pass Id"
             },
-            "description": "Restrict to one pass (today: legacy:<artifact_id>)"
+            "description": "Restrict to one pass (legacy:<artifact_id>, or a real pass id)"
           },
           {
             "name": "kind",
@@ -2778,6 +2778,18 @@
               "title": "Kind"
             },
             "description": "Restrict to one segment kind (region, line, word, ...)"
+          },
+          {
+            "name": "area",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Restrict to a rectangle, 'x,y,w,h' in image fractions (an anchor's rect form) -- every segment whose box intersects it comes back.",
+              "title": "Area"
+            },
+            "description": "Restrict to a rectangle, 'x,y,w,h' in image fractions (an anchor's rect form) -- every segment whose box intersects it comes back."
           }
         ],
         "responses": {
@@ -2787,6 +2799,221 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SegmentListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/segments/passes": {
+      "post": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Create Pass",
+        "operationId": "create_pass_api_segments_passes_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SegmentPassCreateParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentPass"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/segments/passes/{pass_id}": {
+      "delete": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Delete Pass",
+        "operationId": "delete_pass_api_segments_passes__pass_id__delete",
+        "parameters": [
+          {
+            "name": "pass_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pass Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Pass Api Segments Passes  Pass Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/segments": {
+      "post": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Create Segment",
+        "operationId": "create_segment_api_segments_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SegmentCreateParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/segments/bulk": {
+      "post": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Create Segments Bulk",
+        "operationId": "create_segments_bulk_api_segments_bulk_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SegmentCreateManyParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Create Segments Bulk Api Segments Bulk Post"
                 }
               }
             }
@@ -63284,6 +63511,82 @@
         "title": "SecurityScopedAccessResponse",
         "description": "Whether the engine can now read the library."
       },
+      "SegmentCreateManyParams": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "pass_id": {
+            "type": "string",
+            "title": "Pass Id"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentSpec"
+            },
+            "type": "array",
+            "title": "Segments"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "document_id",
+          "pass_id",
+          "segments"
+        ],
+        "title": "SegmentCreateManyParams"
+      },
+      "SegmentCreateParams": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "pass_id": {
+            "type": "string",
+            "title": "Pass Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Input"
+          },
+          "baseline": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Baseline"
+          },
+          "parent_segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Segment Id"
+          },
+          "kind_raw": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kind Raw"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "document_id",
+          "pass_id",
+          "kind",
+          "anchor"
+        ],
+        "title": "SegmentCreateParams"
+      },
       "SegmentListResponse": {
         "properties": {
           "document_id": {
@@ -63350,6 +63653,108 @@
         },
         "type": "object",
         "title": "SegmentOperationRequest"
+      },
+      "SegmentPass": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind"
+          },
+          "actor": {
+            "type": "string",
+            "nullable": true,
+            "title": "Actor"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Run Id"
+          },
+          "source_artifact_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Artifact Id"
+          },
+          "import_file": {
+            "type": "string",
+            "nullable": true,
+            "title": "Import File"
+          },
+          "import_checksum": {
+            "type": "string",
+            "nullable": true,
+            "title": "Import Checksum"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "deleted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Deleted At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "name",
+          "provenance_kind"
+        ],
+        "title": "SegmentPass",
+        "description": "One named, authored pass over a source (`source.pass.named-authored`).\n\nTable name is set to ``segment_passes`` in ``Database._table_name``\n(the bare ``_ensure_table`` rule would give ``segmentpasss``, which\nreads badly -- same override CanvasLayout already gets)."
+      },
+      "SegmentPassCreateParams": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Run Id"
+          },
+          "source_artifact_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Artifact Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "document_id",
+          "name"
+        ],
+        "title": "SegmentPassCreateParams"
       },
       "SegmentRead": {
         "properties": {
@@ -63439,6 +63844,45 @@
         ],
         "title": "SegmentRead",
         "description": "One segment, read either from today's blob or (later) a real row.\n\nThe caller cannot tell which store it came from -- `source.one-store`."
+      },
+      "SegmentSpec": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Input"
+          },
+          "baseline": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Baseline"
+          },
+          "parent_segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Segment Id"
+          },
+          "kind_raw": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kind Raw"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "anchor"
+        ],
+        "title": "SegmentSpec"
       },
       "SelectionKind": {
         "type": "string",

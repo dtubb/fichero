@@ -172,6 +172,10 @@ class TestNamesItsImage:
             assert segment["anchor"]["rendition_id"] == "rendition-xyz"
 
 
+def _table_names(db) -> set[str]:
+    return {t[0] for t in db.conn.execute("SHOW TABLES").fetchall()}
+
+
 def _table_row_counts(db) -> dict[str, int]:
     tables = [t[0] for t in db.conn.execute("SHOW TABLES").fetchall()]
     return {t: db.conn.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0] for t in tables}
@@ -182,10 +186,15 @@ class TestOpeningWritesNothing:
         """The 'opening a page writes nothing' half of
         source.store.ids-on-first-edit. Pinned wide, not just version/audit
         count: every table's row count, and the document's and artifact's
-        full JSON, before and after two reads."""
+        full JSON, before and after two reads. Strong form restored (#4921
+        review): `Segment`/`SegmentPass` are registered in
+        `Database._all_schema_models()`, so their tables exist (empty) from
+        the moment this library opened -- a read has nothing left to create,
+        so reading twice changes neither the table LIST nor any row count."""
         doc = _make_doc(db)
         artifact = _make_regions_artifact(db, doc.id)
 
+        before_tables = _table_names(db)
         before_counts = _table_row_counts(db)
         before_doc = db.get(Document, doc.id).model_dump(mode="json")
         before_artifact = db.get(Artifact, artifact.id).model_dump(mode="json")
@@ -193,11 +202,10 @@ class TestOpeningWritesNothing:
         _get(client, doc.id)
         _get(client, doc.id)
 
+        assert _table_names(db) == before_tables
         assert _table_row_counts(db) == before_counts
         assert db.get(Document, doc.id).model_dump(mode="json") == before_doc
         assert db.get(Artifact, artifact.id).model_dump(mode="json") == before_artifact
-        # No segments table exists yet — this slice reads the blob only.
-        assert "segment" not in before_counts and "segments" not in before_counts
 
 
 class TestKrakenPolygonAndBaseline:

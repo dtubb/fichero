@@ -119,6 +119,80 @@ def test_save_many_bad_batch_raises_no_silent_partial(temp_db):
     assert ids == {"doc-1"}
 
 
+def test_save_many_does_not_deadlock_against_an_ambient_transaction_on_another_thread(temp_db):
+    """#4921 review: the old `save_many` took `_lock` BEFORE entering the
+    transaction (which acquires `_transaction_gate` via
+    `_ensure_transaction_started`) -- lock, then gate, the reverse of the
+    house order (`_execute`: gate, then lock). A transaction holds the gate
+    for its WHOLE life; a standalone `save_many` on one thread taking the
+    lock while another thread's ambient transaction holds the gate between
+    two statements deadlocks each waiting on what the other holds.
+
+    A TIMEOUT is the failure here, never a hang: `join(timeout=...)` and
+    assert the thread finished, so a regression fails the test instead of
+    hanging the suite.
+    """
+    import threading
+    import time as time_module
+
+    proceed = threading.Event()
+
+    def _hold_a_transaction_between_two_statements():
+        with temp_db.transaction():
+            temp_db.save(_doc(100))  # starts the transaction, takes the gate
+            proceed.set()  # let thread B try save_many while we're still OPEN
+            # Give save_many a real chance to reach (and block on, if the
+            # deadlock bug is present) the gate before our second statement.
+            # This must NOT wait on anything thread B sets after it finishes
+            # save_many -- that would make the test itself circular.
+            time_module.sleep(0.3)
+            temp_db.save(_doc(101))
+
+    # daemon=True (#4921 third look): if the deadlock bug ever returns, two
+    # non-daemon threads stuck forever is exactly the hang this test's own
+    # docstring promises to turn into a timeout instead -- pytest itself
+    # would then never exit. A daemon thread lets the process end even if
+    # the thread never finishes; the `is_alive()` assertions below still
+    # catch the regression.
+    thread_a = threading.Thread(target=_hold_a_transaction_between_two_statements, daemon=True)
+    thread_a.start()
+    assert proceed.wait(timeout=5), "thread A never reached its open transaction"
+    time_module.sleep(0.05)  # thread A is now between its two statements
+
+    thread_b = threading.Thread(target=lambda: temp_db.save_many([_doc(200)]), daemon=True)
+    thread_b.start()
+
+    thread_a.join(timeout=5)
+    thread_b.join(timeout=5)
+
+    assert not thread_a.is_alive(), "the ambient transaction never completed"
+    assert not thread_b.is_alive(), "save_many deadlocked against the ambient transaction"
+    ids = {d.id for d in temp_db.all(Document)}
+    assert {"doc-100", "doc-101", "doc-200"} <= ids
+
+
+def test_nested_transaction_failure_marks_rollback_only_even_if_caught(temp_db):
+    """#4921 review: an inner `with db.transaction():` failure re-raises
+    without rolling back (only the outermost commits/rolls back) -- so a
+    caller that CATCHES that error inside its OWN ambient transaction and
+    carries on must not be able to commit a partial batch. Slice 6's
+    conversion wraps several steps in one transaction; this is the case it
+    will hit the day one of those steps fails."""
+    with pytest.raises(RuntimeError, match="rollback-only"):
+        with temp_db.transaction():
+            temp_db.save(_doc(1))
+            try:
+                with temp_db.transaction():
+                    temp_db.save(_doc(2))
+                    raise ValueError("a nested step failed")
+            except ValueError:
+                pass  # caught and carried on -- exactly the case that must not commit
+            temp_db.save(_doc(3))
+
+    # NOTHING committed: not doc-1, not doc-2, not doc-3.
+    assert temp_db.all(Document) == []
+
+
 def test_ensure_table_cache_skips_reconcile_until_invalidated(temp_db, monkeypatch):
     """Repeated saves avoid schema DDL; the existing discard seam restores it."""
     table = temp_db._table_name(Document)

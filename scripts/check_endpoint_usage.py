@@ -37,6 +37,9 @@ HTTP_METHODS = {"get", "put", "post", "delete", "patch", "head", "options", "tra
 # Current baseline. The script exits 0 while every unused/asymmetric endpoint is
 # listed here and exits 1 when a new gap appears.
 KNOWN_GAPS: dict[str, str] = {
+    'POST /api/segments/passes': "2026-09-20 source-model slice 3 (#4921) - engine first; the app writes passes with the segment editor (#4941)",
+    'DELETE /api/segments/passes/{pass_id}': "2026-09-20 source-model slice 3 (#4921) - engine first; the app deletes passes with the segment editor (#4941)",
+    'POST /api/segments/bulk': "2026-09-20 source-model slice 3 (#4921) - engine first; used by first-edit conversion (#4924) and the segment editor (#4941)",
     'POST /api/kg/claims/dedupe': "CLI-first KG dedupe (2026-09-02) - cli-only",
     'POST /api/kg/entity-curation/dedupe': "CLI-first KG dedupe (2026-09-02) - cli-only",
     'POST /api/entities/bulk': "2026-08-18 bulk entity upsert - engine+importer path; Swift wiring queued with #4118",
