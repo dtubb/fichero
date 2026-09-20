@@ -278,8 +278,10 @@ def _configured_embedding_space() -> EmbeddingSpaceSpec:
         # (Sanskrit, Ge'ez, early-modern Spanish) and discriminates better on
         # short OCR fragments than e5 did (the compressed 0.91-0.93 band the
         # 'gold' probe measured). Existing e5-stamped libraries refuse mixed
-        # semantic search until migrated: POST /api/search/reindex with
-        # migrate_embedding_space=true rebuilds them; set
+        # semantic search until migrated: the `search.reindex` ACTION (not
+        # the plain POST /api/search/reindex route, which takes no such
+        # parameter — #4962) with migrate_embedding_space=true and
+        # confirm_embedding_migration=true rebuilds them; set
         # FICHERO_EMBED_MODEL=intfloat/multilingual-e5-large to stay on e5.
         return BGE_M3_EMBEDDING_SPACE
 
