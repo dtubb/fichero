@@ -450,3 +450,108 @@ one; never a real library).
   rows; its first region edit converts.
 - A claim whose evidence anchor was not re-pointed still reveals its source after conversion
   (the span resolver is on the permitted-readers list).
+
+## App slice A — the app reads the seam into one store and draws from it (#4954)
+
+Starts when engine slices 1 and 2 are committed. App only. **Nothing new is editable**; a page
+must look the same before and after.
+
+**Pins:** `source.app.one-segment-store`, `source.app.overlays-draw-from-the-seam`,
+`source.app.segment-events-patch-in-place`, and the app half of `source.one-store`.
+
+**What exists (read on disk 2026-09-19 by a code worker; re-read before editing).**
+- **No store owns geometry today.** `OCRGeometrySelection` (`Models/OCRGeometrySelection.swift`)
+  decides which artifact's boxes are shown (`loadSelected(documentId:using:)`, ranking
+  hand-curated over `text_geometry` over transcription, aligned transcript and regions) and
+  fetches them itself through `ArtifactService`, bypassing `ArtifactStore`. `ArtifactEntityStore`
+  holds only a per-document `revisions` counter that makes overlay `.task(id:)` keys re-fire
+  (→ #4890).
+- **Two drawing paths, one decision.** Over an image: `OCRGeometryOverlay` (one `Canvas`), called
+  from one site (`ZoomableImagePreviewMac+Overlays.swift`), behind the frame gate
+  `geometryFrameMatchesDisplay` (`+Renditions.swift`). Over a PDF: `PDFPageWithToolbar` keeps
+  its own `@State ocrGeometry`, filters by page index (`boxesForDisplayedPage`), and has no
+  frame gate. Both call `OCRGeometrySelection.loadSelected`.
+- **The draw model** is the hand-written `OCRGeometry` / `OCRGeometryBox`
+  (`Models/OCRGeometry.swift`), mapped from the generated type in `OCRGeometry.init(generated:)`.
+  Views never touch `Components.Schemas.*`. Selection is by index into the full box list
+  (`RegionSelection`: artifact id, document id, indices).
+- **The service shape to copy:** `ArtifactService.getArtifact(id:)` (generated client call,
+  exhaustive switch on the typed response, map to an app model).
+- **Events:** `ChangeEventConsumer` (`Services/LibraryChangeStream.swift`: `changeDomains`,
+  `apply(_:)`, `resync()`), registered with `LibraryChangeStream.register`. The one store that
+  patches by id today is `DocumentStore+ChangeStream.swift` (pending ids, debounced per-id
+  patch; delete splices by id). `ArtifactStore` and `AnnotationStore` reload a whole scope.
+- **Platforms:** the image overlay's only call site is inside `#if os(macOS)`; iOS and iPadOS
+  draw no boxes over images today. `PDFPageWithToolbar` is not gated. `Models/OCRGeometry*.swift`
+  import no AppKit.
+- **Tests:** every geometry test is a pure unit test. **Nothing mounts a view**: there is no
+  ViewInspector, hosting-controller, snapshot or UI test on this path, and no harness for
+  "render with fixture data and assert on what is drawn".
+
+**The design.**
+
+1. `Services/SegmentService.swift` — `listDocumentSegments(documentId:artifactId:kind:)` calling
+   the generated operation for `GET /api/segments/document/{doc_id}` (name from the regenerated
+   client), switching exhaustively on the response, returning app models. No URL is written by
+   hand (`check_swift_hand_rolled_urls.py`).
+2. `Models/Segment.swift` — hand-written app models `Segment` and `SegmentPass`, mapped in one
+   place (`Segment.init(generated:)`), following `OCRGeometry.init(generated:)`. **Every field of
+   the generated type is mapped or named as deliberately dropped** in that one function, with a
+   test that fails when the generated type gains a field (the known defect on this seam is a
+   hand mapping that silently loses a field). `SourceAnchor` is generated as two types (input
+   and output); the app gets one hand-written `SourceAnchorValue` mapped from the output type.
+3. `Models/SegmentStore.swift` — `@Observable`, the **single owner**: `segmentsByDocument:
+   [String: [Segment]]`, `passesByDocument: [String: [SegmentPass]]`, a load state for each
+   document, `load(documentId:)`, `segments(documentId:passId:)`. It is the only caller of
+   `SegmentService`. It is not a second store: nothing owns geometry today, and
+   `OCRGeometrySelection` stops fetching.
+4. **`OCRGeometrySelection` keeps the policy and loses the fetch.** Its ranking becomes a pure
+   function over `[SegmentPass]` (a pass made from an artifact carries that artifact's type and
+   curation state; if slice 1's `PassRead` lacks a field the ranking needs, the engine adds it
+   to `PassRead`, the app does not look the artifact up). One answer to "which pass is shown",
+   as today.
+5. **One shared function** — `SegmentDisplay.geometry(for documentId:, store:, selection:) ->
+   OCRGeometry?`: picks the pass, maps its segments to today's `OCRGeometry` / `OCRGeometryBox`
+   draw model (rect from `anchor.rect`; `pageIndex`, text, level from kind, confidence; order by
+   `boxIndex` so **index-based selection keeps working unchanged**; `renditionId` from the
+   anchors, which the frame gate reads exactly as before). `OCRGeometryOverlay`,
+   `RegionInteractionLayer` and `PDFPageWithToolbar` all take their geometry from it. **No
+   drawing code changes and no new overlay view.** The PDF path keeps its page-index filter
+   (whether it should gain the frame gate is a question below, not this slice).
+6. **Events.** `SegmentStore: ChangeEventConsumer`, `changeDomains = ["segment", "artifact"]`.
+   `segment.*` with `segmentIds`: re-read that document and **replace only the items whose id
+   is in the list** (insert new ones, remove ones now absent), never reassign the whole array.
+   `artifact.*` with `documentIds` (segments still come from artifacts until a page converts):
+   re-read each named document that is loaded, and replace that document's entry only.
+   `ArtifactEntityStore.revisions` stays as it is until the overlays' task keys move to the
+   store (then it is removed, in this slice, so there are not two refresh signals).
+7. **Provisional ids** are carried on `Segment` and shown nowhere. No visual change.
+8. **iOS and iPadOS:** `SegmentService`, `Segment`, `SegmentStore` and `SegmentDisplay` are pure
+   Swift and compile everywhere; the PDF path uses them on every platform; the image overlay
+   stays Mac-only in this slice (giving iOS an overlay is the editor's work).
+
+**Tests.**
+- Pure, unit (Swift Testing, tags `.paleography` and `.models`; each test names the behaviour
+  id): the mapping keeps every field; a fixture response maps to the same `OCRGeometry` the old
+  artifact path produced for the same boxes (rects, order, page index, rendition id); the
+  ranking picks the same winner for passes as it did for artifacts, case by case from
+  `OCRGeometrySelectionTests`; `apply(_:)` with `segmentIds` replaces exactly those items (the
+  other items are the same instances and the array is not reassigned); an `artifact.updated`
+  for a document that is not loaded fetches nothing; an event from before slice 2 (no
+  `segment_ids` key) still decodes.
+- Engine-backed, integration: against a temporary library, the store's segments for a document
+  equal the route's.
+- **On screen.** No harness mounts these views, and a source scan is not a behaviour test. So
+  this slice is reported as **"not seen working"** until someone has looked: the manager's
+  build-and-verify run opens the same document before and after the switch, over an image and
+  over a PDF, and compares the boxes (count, position, the frame gate refusing a re-framed
+  image, selection by click). If a mounted check is wanted as a test, it is an XCUITest in the
+  existing UI session harness that opens a seeded library and asserts on the overlay's
+  accessibility value (box count); that needs the overlay to expose one, which is a small,
+  honest addition.
+- Guardrails: `check_swift_hand_rolled_urls.py`, the OpenAPI client parity check.
+
+**For the maintainer** (morning file): whether the app keeps showing **one** winning pass
+(default: yes, today's ranking, unchanged); whether PDF pages take the image path's frame gate
+(default: no change in this slice); what, if anything, "provisional" should look like
+(default: nothing).

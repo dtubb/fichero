@@ -143,6 +143,18 @@ export.
 
 ## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
 
+Reading before editing (the app's first step: it draws from the seam, and edits nothing new)
+- `source.app.one-segment-store` — **[GAP]** (#4954) one store in the app holds a document's
+  segments and passes, read from the engine's one segments call; it is the only caller of that
+  call, and nothing else in the app keeps segments.
+- `source.app.overlays-draw-from-the-seam` — **[GAP]** (#4954) the boxes drawn over an image and
+  over a PDF page both come from that store through one shared function, with the same
+  drawing code as today and no new overlay; a page looks the same before and after the switch.
+- `source.app.segment-events-patch-in-place` — **[GAP]** (#4954) when the engine says which
+  segments changed, the store replaces those items and no others; when it says only that a
+  document's results changed, the store re-reads that one document.
+
+The editor
 - `source.editor.segment-focus` — **[GAP]** (#4941) the Source view has a segment focus in which the editing
   tools appear; it can sit beside a Reader, an Inspector, the Library or another Source view.
 - `source.segments-pane.exists` — **[GAP]** (#4942) **BLOCKED on the maintainer** (a Segments pane, or a view of
