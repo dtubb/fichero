@@ -506,6 +506,11 @@ The read seam and events
   who made it, in the one maker vocabulary, set by the engine: a person when the box itself
   proves a person drew it, otherwise its pass's maker; never supplied by a caller, never
   defaulting to a person; a pass may hold segments by different makers.
+- `source.seam.area-applies-to-either-store` — **[GAP]** (#4955) asking for a page's segments by area narrows
+  them the same way whether they come from segment records or from a result's block of boxes.
+  (Today the block branch ignores `area` and applies only `kind`; found by the slice 6 recon,
+  2026-09-20. Until it is fixed, "the page reads the same before and after conversion" cannot
+  be tested with an area.)
 - `source.seam.provisional-ids-refused` — **[GAP]** (#4919) an id read from a block of boxes is marked
   provisional, and every write path refuses one with a typed error.
 - `source.events.segment-ids` — **[GAP]** (#4920) a change event names the segments and passes that changed, so a
