@@ -126,6 +126,15 @@ extension LibraryView {
         } message: {
             Text(importErrorMessage ?? "")
         }
+        // #4966: ONE popover presenter for the KG filter, attached to the
+        // bar's own outer container so it survives whichever `ViewThatFits`
+        // rung (condensed button or overflow-menu row) actually triggered
+        // it — attaching it to either trigger individually would vanish
+        // along with that trigger the moment the OTHER rung renders instead.
+        .popover(isPresented: $showingKgFilterPopover) {
+            HStack(spacing: 6) { kgContentFilterControls }
+                .padding(10)
+        }
     }
 
     /// #4856: ONE add control, content-aware — a folder in Documents, an
@@ -170,6 +179,12 @@ extension LibraryView {
     /// view still owns the filter's MEANING (it reports `onAvailableTypesChanged`
     /// and reads `filterText`/`filterType` back) — only where the controls
     /// DRAW has moved.
+    ///
+    /// #4966: moved OUT of the always-inline essential tier — a 220pt
+    /// `TextField` cannot shrink, so leaving it essential would make it the
+    /// one thing in this bar that still overflows a narrow pane. It now
+    /// lives in the secondary/condensed/overflow rungs below, the same
+    /// ladder `entityFilterMenu` already rode for list mode.
     @ViewBuilder
     private var kgContentFilterControls: some View {
         Image(systemName: "line.3.horizontal.decrease.circle")
@@ -193,6 +208,34 @@ extension LibraryView {
         .fixedSize()
     }
 
+    /// #4966: the filter's CONDENSED coat — a live `TextField` cannot fold
+    /// into an icon (nothing to show) or a menu row (AppKit doesn't host an
+    /// editable field inside a `Menu`'s content the way it hosts a `Menu`
+    /// inside one), so this rung and the overflow rung both collapse to ONE
+    /// button that opens the exact same `kgContentFilterControls` in a
+    /// popover — the "a filter button that opens a popover" shape, reusing
+    /// the ladder's existing `condensed`/`overflowMenu` slots rather than a
+    /// second collapse mechanism.
+    private var kgContentFilterPopoverButton: some View {
+        Button {
+            showingKgFilterPopover = true
+        } label: {
+            Image(systemName: "line.3.horizontal.decrease.circle")
+                .accessibilityLabel(effectiveContentKind == .claims ? "Filter claims" : "Filter entities")
+        }
+        .buttonStyle(.borderless)
+        .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
+        .contentShape(Rectangle())
+        .help(effectiveContentKind == .claims ? "Filter claims" : "Filter entities")
+        // The popover itself is NOT attached here (#4966): `ViewThatFits`
+        // mounts only ONE ladder rung at a time, so a `.popover` on a
+        // condensed-only button would vanish from the tree — and with it,
+        // its anchor — the moment the overflow rung renders instead. It is
+        // attached once, on the bar's own outer container in
+        // `libraryBottomActionBar`, which is mounted regardless of which
+        // rung is showing.
+    }
+
     /// Essential verbs — always inline (#3057): the add control, Delete, Import.
     /// The trailing Spacer keeps them left-aligned with the secondary/overflow on
     /// the right, preserving the bar's existing Finder-style layout.
@@ -202,10 +245,6 @@ extension LibraryView {
         // Delete/Export/Run-Workflow's existing content-aware `.disabled`
         // rules below) should HIDE rather than grey for a KG content kind
         // they don't apply to — left exactly as they behave today.
-        if effectiveContentKind != .documents {
-            kgContentFilterControls
-        }
-
         Button {
             performAdd()
         } label: {
@@ -252,9 +291,14 @@ extension LibraryView {
     }
 
     /// Secondary verbs — inline on Mac when they fit, else the `…` menu; menu-only
-    /// on compact (#3057): entity filter (list mode), Export BibTeX, Run Workflow.
+    /// on compact (#3057): the KG content filter (Entities/Claims), the
+    /// entity filter (list mode), Export BibTeX, Run Workflow.
     @ViewBuilder
     private var secondaryBarButtons: some View {
+        if effectiveContentKind != .documents {
+            kgContentFilterControls
+        }
+
         if displayMode == .list {
             entityFilterMenu
         }
@@ -265,11 +309,17 @@ extension LibraryView {
     }
 
     /// The condensed mirror of the secondary tier — the SAME buttons, with the
-    /// entity filter's words dropped. The export/workflow verbs are already
-    /// icon-only, so they are shared outright rather than copied: one action,
-    /// one definition (#3057's rule, kept).
+    /// entity filter's words dropped and the KG filter folded to its popover
+    /// button (#4966: a `TextField` has no icon-only coat to drop into). The
+    /// export/workflow verbs are already icon-only, so they are shared
+    /// outright rather than copied: one action, one definition (#3057's rule,
+    /// kept).
     @ViewBuilder
     private var condensedBarButtons: some View {
+        if effectiveContentKind != .documents {
+            kgContentFilterPopoverButton
+        }
+
         if displayMode == .list {
             entityFilterMenu
                 .labelStyle(.iconOnly)
@@ -311,9 +361,25 @@ extension LibraryView {
     }
 
     /// `Label`-based mirror of the secondary verbs for the overflow `…` menu
-    /// (#3057) — same actions + disabled logic, menu-item presentation.
+    /// (#3057) — same actions + disabled logic, menu-item presentation. The
+    /// KG filter survives here too (#4856's "we want them there" for the
+    /// sort/filter cluster, and #4966's own note that a live `TextField`
+    /// cannot live inside a `Menu`'s content the way `entityFilterMenu`,
+    /// itself a `Menu`, can) — as the same popover-opening button the
+    /// condensed rung uses, not a menu row.
     @ViewBuilder
     private var bottomBarOverflowMenu: some View {
+        if effectiveContentKind != .documents {
+            Button {
+                showingKgFilterPopover = true
+            } label: {
+                Label(
+                    effectiveContentKind == .claims ? "Filter Claims" : "Filter Entities",
+                    systemImage: "line.3.horizontal.decrease.circle"
+                )
+            }
+        }
+
         if displayMode == .list {
             entityFilterMenu
         }

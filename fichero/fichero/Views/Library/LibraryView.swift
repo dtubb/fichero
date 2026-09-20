@@ -200,6 +200,10 @@ struct LibraryView: View {
     /// read by whichever content view is mounted to open ITS OWN create
     /// sheet, the same `NewEntitySheet`/`NewClaimSheet` each already used.
     @State var kgContentAddRequested = false
+    /// #4966: true while the narrow-pane filter popover is open — the shared
+    /// footer's condensed/overflow rungs both open the SAME popover (a live
+    /// `TextField` has no icon-only or menu-row coat to collapse into).
+    @State var showingKgFilterPopover = false
 
     /// Document pending presentation in the Add-to-Workspace picker (#1494).
     /// Non-nil drives the `.sheet(item:)` below.
