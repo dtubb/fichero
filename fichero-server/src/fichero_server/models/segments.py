@@ -310,6 +310,14 @@ _ANCHOR_ATTEMPTS: list[tuple[str, dict[str, Any]]] = [
 ]
 
 
+def _short_validation_reason(exc: ValidationError) -> str:
+    """Each error's own message, first line only (#4955: pydantic's ``str()``
+    echoes the WHOLE rejected input dict plus a help URL per error -- 700 to
+    2,200 characters for one box -- and a page with a few thousand degenerate
+    boxes would carry that in every segment's ``metadata``)."""
+    return "; ".join(err["msg"].splitlines()[0] for err in exc.errors())
+
+
 def _build_anchor(
     *,
     document_id: str,
@@ -345,7 +353,7 @@ def _build_anchor(
         try:
             anchor = SourceAnchor(**{**full, **drop})
         except ValidationError as exc:
-            reasons.append(f"{label} attempt failed: {exc}")
+            reasons.append(f"{label} attempt failed: {_short_validation_reason(exc)}")
             continue
         if not reasons:
             return anchor, None
@@ -711,12 +719,15 @@ class SegmentForwarding(BaseModel):
     #: as a hop to follow -- see its docstring).
     new_segment_ids: list[str] = Field(default_factory=list)
     actor: str | None = None
-    #: The action invocation that wrote this row. Minted by the writing
-    #: action itself (`_new_id()`) -- the generic `ActionAudit` row is only
-    #: constructed by the registry AFTER `execute()` returns, so it cannot
-    #: be known yet when this row is written; every forwarding row one
-    #: action call produces shares the same `audit_id`, which is enough to
-    #: group them.
+    #: The action invocation that wrote this row -- resolves to a real
+    #: `ActionAudit.id`. Minted by the writing action itself (`uuid.uuid4()`)
+    #: BEFORE the generic `ActionAudit` row exists (the registry only
+    #: constructs it AFTER `execute()` returns), so the action passes the
+    #: SAME id back out via `ChangeSpec.audit_id`, which `ActionRegistry.
+    #: invoke` uses as `ActionAudit.id` instead of minting its own (#4955:
+    #: before this, the two ids never matched -- every row here was an
+    #: orphan). Every forwarding row one action call produces shares the
+    #: same `audit_id`, which is enough to group them.
     audit_id: str
     reason: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
@@ -783,9 +794,10 @@ class SegmentVersion(BaseModel):
     deleted: bool = False
     actor: str | None = None
     provenance_kind: ProvenanceKind
-    #: The action invocation that wrote this row -- same minted-locally
-    #: convention as `SegmentForwarding.audit_id` (the generic `ActionAudit`
-    #: id is not known yet when this is written).
+    #: The action invocation that wrote this row -- resolves to a real
+    #: `ActionAudit.id`, same minted-locally-then-handed-back-via-
+    #: `ChangeSpec.audit_id` convention as `SegmentForwarding.audit_id`
+    #: (#4955).
     audit_id: str
     reason: str | None = None
     created_at: datetime = Field(default_factory=utc_now)

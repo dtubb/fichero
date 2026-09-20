@@ -183,6 +183,47 @@ async def list_registered_actions() -> RegisteredActionsResponse:
     return RegisteredActionsResponse(items=items, count=len(items))
 
 
+def _refresh_replay_expected_versions(params: dict, after: dict | None) -> dict:
+    """Freshen any optimistic-concurrency token(s) in a redo's replayed
+    params using the CURRENT state the undo's OWN execution just recorded
+    (#4957: "redo is the inverse of the inverse, worked out from the undo's
+    own `after`, never a replay of recorded params").
+
+    Redo replays the ORIGINAL forward action by name, but that action's
+    recorded ``expected_version``/``expected_versions`` are however-old they
+    were when it first ran. "Versions only go up" (the constitution segments
+    hold to): the undo itself bumped the version at least once since then,
+    so a byte-for-byte replay of the recorded params is refused as stale
+    even with no other writer in between. ``after`` is the ``ChangeSpec``
+    the undo action's OWN ``execute`` returned -- always the freshest known
+    state, because versions only go up -- so it, not the ancient recorded
+    params, is the source of truth for what to compare against. A
+    genuinely stale redo (another writer touched the row after the undo)
+    still compares the invoked action's live row against this refreshed
+    value and is still correctly refused.
+
+    Convention-keyed, not per-action: only ``expected_version``/
+    ``expected_versions`` params paired with an ``after`` carrying
+    ``version``/``versions`` are touched, so actions with no such field
+    (create/delete/merge/etc., identified purely by id) pass through
+    unchanged.
+    """
+    if not after or not isinstance(params, dict):
+        return params
+    refreshed = dict(params)
+    current_version = after.get("version")
+    if "expected_version" in refreshed and isinstance(current_version, int):
+        refreshed["expected_version"] = current_version
+    current_versions = after.get("versions")
+    if "expected_versions" in refreshed and isinstance(current_versions, dict):
+        merged = dict(refreshed["expected_versions"])
+        for target_id, version in current_versions.items():
+            if target_id in merged:
+                merged[target_id] = version
+        refreshed["expected_versions"] = merged
+    return refreshed
+
+
 def _audit_is_reversible(audit: ActionAudit) -> bool:
     """Can this audit row be reversed (forward → undo) or redone (inverse → replay)?
 
@@ -251,11 +292,17 @@ async def undo_action(
     * **Undo a forward action** (``inverse_of is None``): look the action up in the
       registry, call its ``invert(before, after, ctx) -> (name, params)``, and
       ``invoke`` that inverse, tagged ``inverse_of=this audit`` so it can be redone.
-    * **Undo an inverse / redo** (``inverse_of`` set): replay the ORIGINAL forward
-      action with its recorded ``action_name`` + ``params``. This is correct for
-      *any* action regardless of how its inverse was implemented — no per-action
-      redo logic and no need for inverse actions (restore/unmerge) to be
-      independently ``undoable``.
+    * **Undo an inverse / redo** (``inverse_of`` set): by default, replay the
+      ORIGINAL forward action's ``action_name``, with its recorded ``params``
+      freshened by :func:`_refresh_replay_expected_versions` (#4957) so a
+      versioned action's ``expected_version``/``expected_versions`` compare
+      against the state the undo just left, not the value recorded back when
+      the action first ran. No per-action redo logic and no need for inverse
+      actions (restore/unmerge/unsplit/uncarry) to be independently
+      ``undoable``. When THIS row's own action opts in via
+      ``redo_via_own_invert`` (segment actions that mint a new id/row on a
+      plain replay), undo it through its OWN ``invert(before, after, ctx)``
+      instead — see :attr:`fichero_server.actions.registry.ActionRegistration.redo_via_own_invert`.
     """
     audit = db.get(ActionAudit, audit_id)
     if audit is None:
@@ -273,14 +320,47 @@ async def undo_action(
         )
 
     if audit.inverse_of is not None:
-        # Redo: this row is an inverse → replay the original forward action.
-        original = db.get(ActionAudit, audit.inverse_of)
-        if original is None:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Original audit gone, cannot redo: {audit.inverse_of}",
-            )
-        replay_name, replay_params = original.action_name, original.params
+        # Redo: this row is an inverse. Two strategies, per THIS row's OWN
+        # action registration (#4957):
+        acting_reg = None
+        try:
+            acting_reg = registry.get(audit.action_name)
+        except ActionNotFoundError:
+            pass
+        if acting_reg is not None and acting_reg.redo_via_own_invert and acting_reg.invert is not None:
+            # Opt-in (segment actions that MINT a new id/row on a plain
+            # replay -- create, merge, split, carry, pass_create's inverse
+            # pass_delete, match_propose): undo THIS row through its OWN
+            # invert, computed from ITS OWN recorded `after`, never from an
+            # earlier row's now-stale params. This is what makes redoing a
+            # create come back as an undelete of the SAME id, and what stops
+            # a second undo of a redone merge/split/carry from acting on
+            # ids/versions an intervening redo already replaced.
+            derived = acting_reg.invert(audit.before, audit.after, ctx)
+            if derived is None:
+                raise HTTPException(
+                    status_code=409, detail="Action did not yield a redo to apply"
+                )
+            replay_name, replay_params = derived
+        else:
+            # Default: replay the ORIGINAL forward action's action_name, with
+            # its recorded params freshened by
+            # `_refresh_replay_expected_versions` (#4957) so a versioned
+            # action's `expected_version`/`expected_versions` compare
+            # against the state the undo just left, not the value recorded
+            # back when the action first ran. Correct for update/delete/
+            # undelete/restore_version (traced across arbitrarily many
+            # undo/redo laps) and for every non-segment action, with no
+            # need for inverse actions (restore/unmerge/unsplit/uncarry) to
+            # be independently `undoable`.
+            original = db.get(ActionAudit, audit.inverse_of)
+            if original is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Original audit gone, cannot redo: {audit.inverse_of}",
+                )
+            replay_name = original.action_name
+            replay_params = _refresh_replay_expected_versions(original.params, audit.after)
     else:
         # Undo: derive the inverse action from the forward action's invert().
         try:

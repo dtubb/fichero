@@ -44,7 +44,7 @@ import fichero_server.api.routes.kg_entity_curation  # noqa: F401
 from fichero_server.api.routes.system.actions_registry import list_audit_log, undo_action
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
-from fichero_server.models import ActionAudit, DocType, Document
+from fichero_server.models import ActionAudit, DocType, Document, Segment
 
 LIB = "/lib/test.fichero"
 
@@ -477,6 +477,165 @@ class TestEntityDeleteUndoRedo:
 
 # ===========================================================================
 # Endpoint contract — 404 / 409 guards
+# ===========================================================================
+# Domain 7 — segment.update : redo must be the inverse of the inverse (#4957)
+# ===========================================================================
+#
+# `segment.update`'s own invert is `segment.restore_version`, which shares
+# ONE invert function (`_invert_via_previous_version`) with `segment.update`
+# itself -- both read ONLY the acting audit row's own `after`. Before #4957,
+# redo replayed `segment.update`'s ORIGINAL recorded params verbatim,
+# including its now long-stale `expected_version`: "versions only go up", so
+# by redo time the row has bumped past it at least twice (the edit, then its
+# undo) and the compare-and-set always 409s, even with no other writer.
+
+
+import fichero_server.api.routes.document.segments  # noqa: F401,E402
+
+
+def _make_source_doc(db, name: str = "page.jpg"):
+    from fichero_server.models import DocType, FileType, Status
+
+    doc = Document(
+        name=name, doc_type=DocType.file, file_type=FileType.image,
+        path=f"/path/{name}", status=Status.completed,
+    )
+    db.save(doc)
+    return doc
+
+
+class TestSegmentUpdateUndoRedo:
+    """source.editor.redo-works."""
+
+    def _segment(self, client, doc_id: str) -> dict:
+        pass_body = client.post(
+            "/api/segments/passes", json={"document_id": doc_id, "name": "test-pass"}
+        ).json()
+        r = client.post(
+            "/api/segments",
+            json={
+                "document_id": doc_id,
+                "pass_id": pass_body["id"],
+                "kind": "word",
+                "anchor": {"document_id": doc_id, "rect": [0.1, 0.1, 0.2, 0.1]},
+            },
+        )
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    def test_redo_reapplies_update_without_a_stale_expected_version(self, client, db, spy_emit):
+        doc = _make_source_doc(db)
+        segment = self._segment(client, doc.id)
+
+        r = client.request(
+            "PUT", f"/api/segments/{segment['id']}",
+            json={
+                "segment_id": segment["id"], "expected_version": 1,
+                "kind_raw": "edited-once",
+            },
+        )
+        assert r.status_code == 200, r.text
+        forward = [a for a in db.query(ActionAudit) if a.action_name == "segment.update"][-1]
+
+        inverse = _undo(db, forward.id)  # undo -> segment.restore_version
+        assert db.get(Segment, segment["id"]).kind_raw != "edited-once"
+
+        # Redo would 409 as stale here before #4957 (it would replay
+        # expected_version=1, but the undo already bumped the row past it).
+        redo = _undo(db, inverse.audit_id)
+        row = db.get(Segment, segment["id"])
+        assert row.kind_raw == "edited-once"          # the edit is back
+        redo_audit = _audit(db, redo.audit_id)
+        assert redo_audit.action_name == "segment.update"  # replayed forward, fresh version
+        assert redo_audit.inverse_of == inverse.audit_id
+
+    def test_undo_redo_undo_round_trips(self, client, db, spy_emit):
+        doc = _make_source_doc(db)
+        segment = self._segment(client, doc.id)
+        client.request(
+            "PUT", f"/api/segments/{segment['id']}",
+            json={"segment_id": segment["id"], "expected_version": 1, "kind_raw": "v2"},
+        )
+        forward = [a for a in db.query(ActionAudit) if a.action_name == "segment.update"][-1]
+
+        first_undo = _undo(db, forward.id)
+        assert db.get(Segment, segment["id"]).kind_raw != "v2"
+
+        redo = _undo(db, first_undo.audit_id)
+        assert db.get(Segment, segment["id"]).kind_raw == "v2"
+
+        second_undo = _undo(db, redo.audit_id)
+        assert db.get(Segment, segment["id"]).kind_raw != "v2"
+        assert _audit(db, second_undo.audit_id).inverse_of == redo.audit_id
+
+    def test_redo_still_refused_when_another_writer_bumped_the_version_since(
+        self, client, db, spy_emit
+    ):
+        """The compare-and-set must still catch a GENUINELY stale redo: a
+        third writer touches the row in between the undo and the redo."""
+        doc = _make_source_doc(db)
+        segment = self._segment(client, doc.id)
+        client.request(
+            "PUT", f"/api/segments/{segment['id']}",
+            json={"segment_id": segment["id"], "expected_version": 1, "kind_raw": "v2"},
+        )
+        forward = [a for a in db.query(ActionAudit) if a.action_name == "segment.update"][-1]
+        inverse = _undo(db, forward.id)
+
+        # Another writer edits the segment after the undo, bumping the
+        # version again independently of the undo/redo chain.
+        current = db.get(Segment, segment["id"])
+        other_writer = client.request(
+            "PUT", f"/api/segments/{segment['id']}",
+            json={
+                "segment_id": segment["id"], "expected_version": current.version,
+                "kind_raw": "someone-else-edited-this",
+            },
+        )
+        assert other_writer.status_code == 200, other_writer.text
+
+        with pytest.raises(HTTPException) as exc:
+            _undo(db, inverse.audit_id)  # redo: genuinely stale now
+        assert exc.value.status_code == 409
+
+
+class TestRedoViaOwnInvertIsSegmentOnlyOptIn:
+    """#4957 addendum: `ActionRegistration.redo_via_own_invert` is a
+    per-action opt-in, default False, declared explicitly on the segment
+    actions that need it -- never a name-prefix test, never a global
+    switch. Every shipped (non-segment) action stays False and keeps
+    replaying its redo byte-for-byte as before; `TestClaimDeleteUndoRedo`,
+    `TestDocumentUpdateUndoRedo` and `TestEntityMergeUndoRedo` above
+    already pin that behaviour end to end -- this pins the DECLARATION
+    itself, so a future edit that flips the default cannot silently change
+    what redo means for claims/documents/entities without breaking a test
+    that says so directly."""
+
+    @pytest.mark.parametrize("action_name", [
+        "claim.delete", "claim.restore",
+        "document.update", "document.delete", "document.restore",
+        "entity.create", "entity.update", "entity.delete", "entity.restore",
+        "entity.merge", "entity.unmerge",
+    ])
+    def test_shipped_action_does_not_opt_in(self, action_name):
+        assert registry.get(action_name).redo_via_own_invert is False
+
+    def test_document_update_redo_still_replays_the_original_action_name(self, db, spy_emit):
+        """Re-affirms `TestDocumentUpdateUndoRedo.test_redo_reapplies_update_
+        does_not_delete` under the new branch in `undo_action`: with the
+        opt-in False, redo takes the SAME replay-with-refresh path as
+        before this addendum."""
+        doc = Document(name="old name", doc_type=DocType.file)
+        db.save(doc)
+        forward = registry.invoke(
+            db, "document.update", {"doc_id": doc.id, "update": {"name": "new name"}}, _ctx()
+        )
+        inverse = _undo(db, forward.audit_id)
+        redo = _undo(db, inverse.audit_id)
+        assert db.get(Document, doc.id).name == "new name"
+        assert _audit(db, redo.audit_id).action_name == "document.update"
+
+
 # ===========================================================================
 
 

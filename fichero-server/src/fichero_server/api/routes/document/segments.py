@@ -498,6 +498,11 @@ def _invert_pass_delete(before, after, ctx: ActionContext):
     domains=["segment"],
     undoable=True,
     invert=_invert_pass_delete,
+    # #4957: undoing a `pass_create` invokes THIS action as the inverse; a
+    # plain replay of `pass_create` on redo would mint a SECOND pass with a
+    # new id and strand the first. Own-invert redoes THIS row's own
+    # `pass_restore` (same pass id, soft-restored) instead.
+    redo_via_own_invert=True,
 )
 def _action_pass_delete(db: Database, params: SegmentPassDeleteParams, ctx: ActionContext):
     _assert_not_provisional_http(params.pass_id, what="pass_id")
@@ -633,6 +638,12 @@ def _invert_segment_create(before, after, ctx: ActionContext):
     domains=["segment"],
     undoable=True,
     invert=_invert_segment_create,
+    # #4957: this action's OWN invert is `segment.delete` (opted in above),
+    # so undoing a REDONE create acts on that redo's own fresh version, not
+    # a stale one. Set for symmetry with `segment.create_many`; consulted
+    # only if `segment.create` itself is ever produced as another action's
+    # inverse (not the case today).
+    redo_via_own_invert=True,
 )
 def _action_segment_create(db: Database, params: SegmentCreateParams, ctx: ActionContext):
     _assert_not_provisional_http(params.document_id, what="document_id")
@@ -692,6 +703,10 @@ class SegmentCreateManyParams(BaseModel):
     # BEGIN, so the rows and the audit row commit or roll back together --
     # a failed audit write can no longer leave segment rows with no record.
     invert=_invert_segment_create,
+    # #4957: same reasoning as `segment.create` -- its inverse is
+    # `segment.delete` (opted in), which redoes via undelete under the
+    # same ids.
+    redo_via_own_invert=True,
 )
 def _action_segment_create_many(db: Database, params: SegmentCreateManyParams, ctx: ActionContext):
     _assert_not_provisional_http(params.document_id, what="document_id")
@@ -802,6 +817,14 @@ def _invert_segment_delete(before, after, ctx: ActionContext):
     domains=["segment"],
     undoable=True,
     invert=_invert_segment_delete,
+    # #4957: undoing a `segment.create` invokes THIS action as the inverse;
+    # a plain replay of `segment.create` on redo would mint a BRAND NEW
+    # segment id and strand the first. Own-invert redoes THIS row's own
+    # `segment.undelete` (same segment id, soft-undeleted) instead. Does
+    # NOT change `segment.delete`'s OWN undo/redo chain -- that chain's
+    # acting row on redo is `segment.undelete`, a separate flag, left off
+    # (replay-with-refresh already proven correct for it).
+    redo_via_own_invert=True,
 )
 def _action_segment_delete(db: Database, params: SegmentDeleteParams, ctx: ActionContext):
     for segment_id in params.segment_ids:
@@ -844,6 +867,7 @@ def _action_segment_delete(db: Database, params: SegmentDeleteParams, ctx: Actio
         document_ids.add(row.document_id)
         pass_ids.add(row.pass_id)
     spec = ChangeSpec(
+        audit_id=audit_id,
         domains=["segment"],
         target_ids=list(params.segment_ids),
         before=before_versions,
@@ -919,6 +943,7 @@ def _action_segment_undelete(db: Database, params: SegmentUndeleteParams, ctx: A
         document_ids.add(row.document_id)
         pass_ids.add(row.pass_id)
     spec = ChangeSpec(
+        audit_id=audit_id,
         domains=["segment"],
         target_ids=list(params.segment_ids),
         before=before_versions,
@@ -1028,6 +1053,7 @@ def _action_segment_update(db: Database, params: SegmentUpdateParams, ctx: Actio
     db.save(row)
 
     spec = ChangeSpec(
+        audit_id=audit_id,
         domains=["segment"],
         target_ids=[row.id],
         before={"segment_id": row.id, "version": before_version},
@@ -1099,6 +1125,7 @@ def _action_segment_restore_version(db: Database, params: SegmentRestoreVersionP
     db.save(row)
 
     spec = ChangeSpec(
+        audit_id=audit_id,
         domains=["segment"],
         target_ids=[row.id],
         before={"segment_id": row.id, "version": before_version},
@@ -1145,6 +1172,13 @@ def _invert_match_propose(before, after, ctx: ActionContext):
     domains=["segment"],
     undoable=True,
     invert=_invert_match_propose,
+    # #4957: `match_withdraw` (this action's inverse) has no `invert` of its
+    # own, so the FIRST redo still mints a new match id -- but a second
+    # undo (lap 2) previously replayed the withdraw of the FIRST, already-
+    # gone match id, refusing and stranding the redo's own match forever.
+    # Own-invert on THIS row (when it is itself the redo, i.e. a second
+    # `match_propose` produced as an inverse) withdraws ITS OWN match id.
+    redo_via_own_invert=True,
 )
 def _action_match_propose(db: Database, params: SegmentMatchProposeParams, ctx: ActionContext):
     _assert_not_provisional_http(params.from_segment_id, what="from_segment_id")
@@ -1338,6 +1372,17 @@ def _invert_merge(before, after, ctx: ActionContext):
     domains=["segment"],
     undoable=True,
     invert=_invert_merge,
+    # #4957: `unmerge` (this action's inverse) has no `invert` of its own,
+    # so a second undo (lap 2, undoing a REDONE merge) previously replayed
+    # the FIRST unmerge's recorded pre-merge versions -- silently discarding
+    # any edit another writer made to an absorbed segment between the undo
+    # and the redo. Own-invert on THIS row (when it is itself the redo)
+    # re-derives `absorbed_versions` from ITS OWN fresh `after`, which
+    # `_action_merge` always snapshots from the absorbed segment's CURRENT
+    # row right before merging -- so the other writer's edit is what gets
+    # preserved, not the stale, months-earlier snapshot. No separate
+    # version token needed for merge; the snapshot IS the token.
+    redo_via_own_invert=True,
 )
 def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
     if len(params.segment_ids) < 2:
@@ -1415,6 +1460,7 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
         forwarding_ids.append(forwarding.id)
 
     spec = ChangeSpec(
+        audit_id=audit_id,
         domains=["segment"],
         target_ids=[params.keep_id, *absorbed_ids],
         before=None,
@@ -1493,6 +1539,7 @@ def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionConte
         document_ids.add(row.document_id)
         pass_ids.add(row.pass_id)
     spec = ChangeSpec(
+        audit_id=audit_id,
         domains=["segment"],
         target_ids=restored_ids,
         before=None,
@@ -1547,6 +1594,15 @@ def _invert_split(before, after, ctx: ActionContext):
     domains=["segment"],
     undoable=True,
     invert=_invert_split,
+    # #4957: `unsplit` (this action's inverse) has no `invert` of its own,
+    # so a second undo (lap 2, undoing a REDONE split) previously replayed
+    # the FIRST unsplit's recorded params, naming the FIRST split's now-gone
+    # part ids -- silently skipped, restoring the kept segment to full size
+    # while the redo's OWN new parts stayed live on top of it (silent
+    # corruption). Own-invert on THIS row (when it is itself the redo)
+    # derives the unsplit from ITS OWN fresh `after`, naming the parts and
+    # version this split actually made.
+    redo_via_own_invert=True,
 )
 def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     if len(params.parts) < 2:
@@ -1615,6 +1671,7 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     db.save(forwarding)
 
     change_spec = ChangeSpec(
+        audit_id=audit_id,
         domains=["segment"],
         target_ids=[params.segment_id, *new_ids],
         before=None,
@@ -1693,6 +1750,7 @@ def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionConte
         sequence=db.next_forwarding_sequence(),
     ))
     spec = ChangeSpec(
+        audit_id=audit_id,
         domains=["segment"],
         target_ids=[params.segment_id, *deleted_ids],
         before=None,
@@ -1816,7 +1874,19 @@ def _invert_carry(before, after, ctx: ActionContext):
     return ("segment.uncarry", {"carry_ids": carry_ids})
 
 
-@action("segment.carry", SegmentCarryParams, domains=["segment"], undoable=True, invert=_invert_carry)
+@action(
+    "segment.carry",
+    SegmentCarryParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_carry,
+    # #4957: `uncarry` (this action's inverse) has no `invert` of its own,
+    # so a second undo (lap 2, undoing a REDONE carry) previously replayed
+    # the FIRST uncarry's recorded carry_ids, which no longer exist -- the
+    # redo's OWN copies were left stray, live forever. Own-invert on THIS
+    # row (when it is itself the redo) uncarries ITS OWN fresh carry_ids.
+    redo_via_own_invert=True,
+)
 def _action_carry(db: Database, params: SegmentCarryParams, ctx: ActionContext):
     match = db.get(SegmentMatch, params.match_id)
     if not match:

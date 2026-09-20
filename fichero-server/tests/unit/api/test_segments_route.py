@@ -150,6 +150,28 @@ class TestReadEitherStore:
             assert segment["anchor"]["rect"] == box.bbox
             assert segment["text"] == box.text
 
+    def test_deleted_artifact_boxes_are_excluded(self, client, db):
+        """#4955 open question, VERIFIED: `Artifact` has no soft-delete field
+        at all (`models/__init__.py::Artifact`) and `artifact.delete`
+        (`api/routes/document/artifacts.py::_delete_artifact_impl`) is a
+        HARD `db.delete` — there is no soft-deleted-but-still-queryable
+        Artifact row for the seam to accidentally include. Undo restores it
+        by re-creating the row from the delete's own snapshot, not by
+        flipping a flag, so this needs no seam-query filter."""
+        from fichero_server.actions.registry import ActionContext, registry
+
+        doc = _make_doc(db)
+        artifact = _make_regions_artifact(db, doc.id)
+        assert len(_get(client, doc.id).json()["segments"]) == 2
+
+        registry.invoke(
+            db, "artifact.delete", {"artifact_id": artifact.id},
+            ActionContext(actor="owner", library_path=str(db.path.parent)),
+        )
+
+        assert db.get(Artifact, artifact.id) is None  # hard-deleted, not flagged
+        assert _get(client, doc.id).json()["segments"] == []
+
     def test_document_with_no_geometry_returns_empty_list_not_an_error(self, client, db):
         doc = _make_doc(db)
         r = _get(client, doc.id)
@@ -281,6 +303,26 @@ class TestOneBadBoxNeverFailsThePage:
         assert len(segments) == 1
         assert segments[0]["anchor"]["rect"] is None
         assert "geometry_problem" in segments[0]["metadata"]
+
+    def test_geometry_problem_is_short_no_echoed_input_no_help_url(self, client, db):
+        """#4955: pydantic's own `str(ValidationError)` echoes the WHOLE
+        rejected input dict plus a help URL per error -- 700 to 2,200
+        characters measured for ONE degenerate box. `geometry_problem` must
+        carry only each error's own short message."""
+        box = OCRGeometryBox(text="zero-width", bbox=[0.1, 0.1, 0.0, 0.05], level="word")
+        doc = _make_doc(db)
+        _make_regions_artifact(db, doc.id, boxes=[box])
+
+        r = _get(client, doc.id)
+        reason = r.json()["segments"][0]["metadata"]["geometry_problem"]
+        # Several attempts stack their own short reasons (by design: each
+        # says exactly what an earlier, more-complete attempt could not
+        # keep) -- bounded here at roughly 8x ONE error's own short message,
+        # nowhere near the 700-2,200 chars pydantic's OWN str() produced for
+        # a single error before this fix.
+        assert len(reason) < 500, reason
+        assert "errors.pydantic.dev" not in reason
+        assert "input_value" not in reason
 
     def test_polygon_point_outside_its_pixel_frame_still_returns_a_segment(self, client, db):
         doc = _make_doc(db)

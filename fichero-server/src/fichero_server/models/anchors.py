@@ -250,8 +250,15 @@ class SourceAnchor(BaseModel):
                     raise ValueError(
                         f"polygon[{index}] must be [x, y], got {len(point)} values"
                     )
+                # #4955: the SAME `_EDGE_TOLERANCE` `validate_rect` allows past
+                # the image edge (float drift only, e.g. 1/3 + 2/3 landing at
+                # 1.0000000000000002) -- a polygon point drifting the same way
+                # used to drop the WHOLE polygon while the same drift in a
+                # rect or a baseline (`segments.py::_COORD_TOLERANCE`) was
+                # kept. One tolerance for every edge-of-image check.
                 if self.space is AnchorSpace.normalized and not all(
-                    0 <= component <= 1 for component in point
+                    -_EDGE_TOLERANCE <= component <= 1 + _EDGE_TOLERANCE
+                    for component in point
                 ):
                     raise ValueError(
                         f"polygon[{index}] must be in [0, 1] for a normalized anchor, got {point}"

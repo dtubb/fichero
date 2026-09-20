@@ -1736,3 +1736,204 @@ def test_a_legacy_id_is_refused_with_422_on_every_write_route_field(
     r = client.request(method, url, json=json_body)
     assert r.status_code == 422, f"{route_key} field {field_name!r}: expected 422, got {r.status_code}: {r.text}"
     assert "provisional" in r.text, f"{route_key} field {field_name!r}: 422 detail did not name 'provisional'"
+
+
+class TestRedoOfAMintingActionComesBackUnderTheSameId:
+    """#4957 addendum, per the spec author's review
+    (agent-work/source-model/reviews/redo-4957-review.md): a redo row has
+    `inverse_of` set exactly like a genuine undo row, so a SECOND undo (lap
+    2, undoing a REDONE action) used to replay the FIRST undo's now-stale
+    params -- for split, silent corruption (the redo's own new parts stay
+    live, duplicated, on top of the restored kept line); for carry, stray
+    copies; for create/pass_create/match_propose, the redo's own new row
+    was stranded (its own undo/redo permanently refused). Fixed by
+    `ActionRegistration.redo_via_own_invert`, opted in on the segment
+    actions that mint a new id/row (`source.editor.redo-works`). Mounted
+    through the real undo ROUTE (`client.post(.../undo)`); asserted on
+    ROWS, not just status codes."""
+
+    def test_split_do_undo_redo_undo_leaves_exactly_one_live_line_and_no_stray_parts(
+        self, db, client,
+    ):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.2, 0.2])
+        ctx = _ctx(db, actor="daniel")
+
+        do = registry.invoke(
+            db, "segment.split",
+            {
+                "segment_id": seg.id,
+                "parts": [
+                    {"anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]}},
+                    {"anchor": {"document_id": doc.id, "rect": [0.2, 0.2, 0.1, 0.1]}},
+                ],
+            },
+            ctx,
+        )
+        first_new_id = do.result["new_segment_ids"][0]
+
+        undo = client.post(f"/api/actions/audit/{do.audit_id}/undo")
+        assert undo.status_code == 200, undo.text
+
+        redo = client.post(f"/api/actions/audit/{undo.json()['audit_id']}/undo")
+        assert redo.status_code == 200, redo.text
+        second_new_id = redo.json()["result"]["new_segment_ids"][0]
+        assert second_new_id != first_new_id  # redo mints its OWN new parts
+
+        undo_again = client.post(f"/api/actions/audit/{redo.json()['audit_id']}/undo")
+        assert undo_again.status_code == 200, undo_again.text
+
+        # Exactly the kept line is live; BOTH the first split's part (long
+        # gone) and the second (redo's own, this undo's real target) are
+        # gone -- nothing stray survives the round trip. `_action_unsplit`
+        # HARD-deletes the new parts it retires (not a soft delete).
+        live = [s for s in db.query(Segment, document_id=doc.id) if s.deleted_at is None]
+        assert [s.id for s in live] == [seg.id]
+        assert db.get(Segment, first_new_id) is None
+        assert db.get(Segment, second_new_id) is None
+
+    def test_carry_do_undo_redo_undo_leaves_zero_copies(self, db, client):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg_from = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.2, 0.1])
+        seg_to = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.5, 0.5, 0.2, 0.1])
+        reading = ContentRepresentation(
+            document_id=doc.id, kind=ContentRepresentationKind.transcription,
+            content="hello", source_anchor=seg_from.anchor,
+        )
+        db.save(reading)
+        ctx = _ctx(db, actor="daniel")
+        match_id = registry.invoke(
+            db, "segment.match_propose",
+            {"from_segment_id": seg_from.id, "to_segment_id": seg_to.id}, ctx,
+        ).result["match_id"]
+        registry.invoke(db, "segment.match_accept", {"match_id": match_id}, ctx)
+
+        do = registry.invoke(db, "segment.carry", {"match_id": match_id, "kinds": ["reading"]}, ctx)
+
+        undo = client.post(f"/api/actions/audit/{do.audit_id}/undo")
+        assert undo.status_code == 200, undo.text
+
+        redo = client.post(f"/api/actions/audit/{undo.json()['audit_id']}/undo")
+        assert redo.status_code == 200, redo.text
+
+        undo_again = client.post(f"/api/actions/audit/{redo.json()['audit_id']}/undo")
+        assert undo_again.status_code == 200, undo_again.text
+        assert db.query(SegmentCarry, match_id=match_id) == []
+        remaining = db.query(ContentRepresentation, document_id=doc.id)
+        assert len(remaining) == 1
+        assert remaining[0].id == reading.id  # only the original -- no stray copy
+
+    def test_create_do_undo_redo_undo_comes_back_under_the_same_id(self, db, client):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        ctx = _ctx(db, actor="daniel")
+
+        do = registry.invoke(
+            db, "segment.create",
+            {
+                "document_id": doc.id, "pass_id": pass_row.id, "kind": "word",
+                "anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]},
+            },
+            ctx,
+        )
+        segment_id = do.result["segment_ids"][0]
+
+        undo = client.post(f"/api/actions/audit/{do.audit_id}/undo")
+        assert undo.status_code == 200, undo.text
+        assert db.get(Segment, segment_id).deleted_at is not None
+
+        redo = client.post(f"/api/actions/audit/{undo.json()['audit_id']}/undo")
+        assert redo.status_code == 200, redo.text
+        # Own-invert redoes via undelete of the SAME id -- ids never move.
+        assert db.get(Segment, segment_id).deleted_at is None
+        assert len(db.query(Segment, document_id=doc.id)) == 1
+
+        undo_again = client.post(f"/api/actions/audit/{redo.json()['audit_id']}/undo")
+        assert undo_again.status_code == 200, undo_again.text
+        assert db.get(Segment, segment_id).deleted_at is not None
+        assert len(db.query(Segment, document_id=doc.id)) == 1  # still one row, never a second
+
+    def test_pass_create_do_undo_redo_undo_comes_back_under_the_same_id(self, db, client):
+        from fichero_server.models import SegmentPass
+
+        doc = _make_doc(db)
+        ctx = _ctx(db, actor="daniel")
+
+        do = registry.invoke(db, "segment.pass_create", {"document_id": doc.id, "name": "p"}, ctx)
+        pass_id = do.result["id"]
+
+        undo = client.post(f"/api/actions/audit/{do.audit_id}/undo")
+        assert undo.status_code == 200, undo.text
+        assert db.get(SegmentPass, pass_id).deleted_at is not None
+
+        redo = client.post(f"/api/actions/audit/{undo.json()['audit_id']}/undo")
+        assert redo.status_code == 200, redo.text
+        assert db.get(SegmentPass, pass_id).deleted_at is None
+        assert len(db.query(SegmentPass, document_id=doc.id)) == 1
+
+        undo_again = client.post(f"/api/actions/audit/{redo.json()['audit_id']}/undo")
+        assert undo_again.status_code == 200, undo_again.text
+        assert db.get(SegmentPass, pass_id).deleted_at is not None
+        assert len(db.query(SegmentPass, document_id=doc.id)) == 1  # still one row
+
+    def test_match_propose_do_undo_redo_undo_leaves_zero_stray_matches(self, db, client):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg_from = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        seg_to = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.5, 0.5, 0.1, 0.1])
+        ctx = _ctx(db, actor="daniel")
+
+        do = registry.invoke(
+            db, "segment.match_propose",
+            {"from_segment_id": seg_from.id, "to_segment_id": seg_to.id}, ctx,
+        )
+        first_match_id = do.result["match_id"]
+
+        undo = client.post(f"/api/actions/audit/{do.audit_id}/undo")
+        assert undo.status_code == 200, undo.text
+
+        redo = client.post(f"/api/actions/audit/{undo.json()['audit_id']}/undo")
+        assert redo.status_code == 200, redo.text
+        second_match_id = redo.json()["result"]["match_id"]
+        assert second_match_id != first_match_id  # redo made its own, fresh match
+
+        undo_again = client.post(f"/api/actions/audit/{redo.json()['audit_id']}/undo")
+        assert undo_again.status_code == 200, undo_again.text
+        assert db.get(SegmentMatch, first_match_id) is None
+        assert db.get(SegmentMatch, second_match_id) is None  # not stranded
+
+    def test_merge_redo_with_an_intervening_edit_preserves_the_edit(self, db, client):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg_a = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.1, 0.1])
+        seg_b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.3, 0.3, 0.1, 0.1])
+        ctx = _ctx(db, actor="daniel")
+
+        do = registry.invoke(
+            db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx,
+        )
+        undo = client.post(f"/api/actions/audit/{do.audit_id}/undo")
+        assert undo.status_code == 200, undo.text
+        assert db.get(Segment, seg_a.id).deleted_at is None  # restored, live again
+
+        # Another writer edits A in between the undo and the redo.
+        a_version = db.get(Segment, seg_a.id).version
+        other_writer = client.request("PUT", f"/api/segments/{seg_a.id}", json={
+            "segment_id": seg_a.id, "expected_version": a_version,
+            "kind_raw": "someone-else-edited-this",
+        })
+        assert other_writer.status_code == 200, other_writer.text
+
+        redo = client.post(f"/api/actions/audit/{undo.json()['audit_id']}/undo")
+        assert redo.status_code == 200, redo.text
+        assert db.get(Segment, seg_a.id).deleted_at is not None  # re-merged (absorbed)
+
+        undo_again = client.post(f"/api/actions/audit/{redo.json()['audit_id']}/undo")
+        assert undo_again.status_code == 200, undo_again.text
+        # The other writer's edit survives the round trip: own-invert
+        # restored from THIS merge's own fresh snapshot, never the
+        # ORIGINAL, months-earlier pre-merge one.
+        assert db.get(Segment, seg_a.id).deleted_at is None
+        assert db.get(Segment, seg_a.id).kind_raw == "someone-else-edited-this"

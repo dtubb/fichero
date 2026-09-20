@@ -105,6 +105,15 @@ class ChangeSpec:
     target_ids: list[str] = field(default_factory=list)
     before: dict | None = None
     after: dict | None = None
+    #: #4955 addendum: set this to the SAME id an ``execute`` already minted
+    #: for its OWN child rows (e.g. a segment action's `SegmentVersion`/
+    #: `SegmentForwarding.audit_id`) so ``invoke`` uses it as the
+    #: `ActionAudit.id` it writes for this call, instead of a second,
+    #: unrelated default id -- the two must be the SAME id for a child row's
+    #: `audit_id` to ever resolve to a real audit row. ``None`` (the
+    #: default) leaves `ActionAudit`'s own default factory in charge, so
+    #: every action that does not mint its own child-row id is unaffected.
+    audit_id: str | None = None
     emit_type: str | None = None
     entity_ids: list[str] = field(default_factory=list)
     claim_ids: list[str] = field(default_factory=list)
@@ -159,6 +168,21 @@ class ActionRegistration:
     # gated behind a later write-policy review (EPIC #1848). Default False =
     # mutating, so existing actions are untouched and fail safe.
     read_only: bool = False
+    # #4957: when THIS action is the one being undone (i.e. it is itself an
+    # inverse/redo row with `inverse_of` set) and it has its OWN `invert`,
+    # compute the next step from ITS OWN recorded `after` instead of
+    # replaying the row it points at. Declared per action, opt-in, default
+    # False -- every action that does not set this keeps today's replay
+    # behaviour byte-for-byte (`actions_registry.undo_action`'s redo leg).
+    # Segment actions that MINT a new id/physical row on redo (create,
+    # pass_create's inverse `pass_delete`, merge, split, carry, match_propose)
+    # set this so redoing them undoes/redoes the SAME id every time, never a
+    # replay of an earlier, now-stale row's params; segment actions with a
+    # working compare-and-set token (update, delete, undelete,
+    # restore_version) do NOT set it -- replay-with-a-refreshed-token is
+    # already provably correct for them (see `_refresh_replay_expected_versions`)
+    # and stays their behaviour. Never a name-prefix test, never global.
+    redo_via_own_invert: bool = False
 
 
 class ActionNotFoundError(KeyError):
@@ -235,6 +259,7 @@ class ActionRegistry:
                 # Audit write is NOT best-effort: if it fails the action fails. The
                 # before/after captured by execute ARE the undo payload.
                 audit = ActionAudit(
+                    **({"id": spec.audit_id} if spec.audit_id else {}),
                     action_name=name,
                     actor=ctx.actor,
                     client=ctx.client,
@@ -249,6 +274,7 @@ class ActionRegistry:
         else:
             result, spec = reg.execute(db, params, ctx)
             audit = ActionAudit(
+                **({"id": spec.audit_id} if spec.audit_id else {}),
                 action_name=name,
                 actor=ctx.actor,
                 client=ctx.client,
@@ -318,6 +344,7 @@ def action(
     invert: InvertFn | None = None,
     atomic: bool = True,
     read_only: bool = False,
+    redo_via_own_invert: bool = False,
 ) -> Callable[[ExecuteFn], ExecuteFn]:
     """Decorator: register ``fn`` as the action ``name``.
 
@@ -325,6 +352,10 @@ def action(
 
     ``read_only=True`` marks an action that only reads state; the chat-tools
     agent loop (#1847) only exposes/dispatches these while mutations stay gated.
+
+    ``redo_via_own_invert=True`` -- see :attr:`ActionRegistration.redo_via_own_invert`
+    (#4957). Opt-in, per action; default False leaves every action's redo
+    behaviour exactly as it is today.
     """
 
     def decorator(fn: ExecuteFn) -> ExecuteFn:
@@ -338,6 +369,7 @@ def action(
                 invert=invert,
                 atomic=atomic,
                 read_only=read_only,
+                redo_via_own_invert=redo_via_own_invert,
             )
         )
         return fn

@@ -263,23 +263,25 @@ class TestUndoOfAnUndoSucceeds:
         assert db.get(Segment, seg.id).deleted_at is None
 
 
-class TestRedoReplaysOriginalParamsAndIsCorrectlyRefusedWhenStale:
-    """#4923 second look asked for "delete, undo, undo-the-undo" through
-    the generic route. Traced precisely: the second call is a REDO (the
-    generic route's `inverse_of` path), which replays the FIRST call's own
-    RECORDED params verbatim -- including ITS `expected_version`/
-    `expected_versions`. Two version bumps happen between the original
-    call and the redo attempt (one for the action, one for its undo), and
-    "a version number is never set back" [fix 2] means those bumps cannot
-    cancel out. So the replayed, now-doubly-stale `expected_version`
-    correctly meets `SegmentStale`, refused with a clean 409 -- consistent
-    with, not an exception to, "undoing a change that is no longer the
-    latest is refused." This is a general property of ANY
-    compare-and-set action combined with the generic redo mechanism (no
-    other domain in this codebase combines the two), not specific to one
-    action here; both delete and update are tested."""
+class TestRedoOfASegmentEditWorks:
+    """`source.editor.redo-works` (#4957). #4923 second look originally
+    found "delete, undo, undo-the-undo" (redo) refused as stale here and
+    read that as correct: the generic route's redo leg replayed the FIRST
+    call's own RECORDED params verbatim -- including ITS
+    `expected_version`/`expected_versions` -- and two version bumps happen
+    between the original call and the redo attempt (one for the action,
+    one for its undo), which a verbatim replay could never see coming.
+    #4957 corrected the reading: that is not "undoing a change that is no
+    longer the latest," it is redo refusing to work AT ALL, even the very
+    first time, with no other writer involved. The shared registry's redo
+    leg (`actions_registry._refresh_replay_expected_versions`) now works
+    the replayed `expected_version`/`expected_versions` out from the
+    undo's OWN `after` (the freshest known state) instead of the ancient
+    recorded params, so redo succeeds here -- while a GENUINELY stale redo
+    (another writer in between) is still correctly refused, see
+    `TestRedoStillRefusedWhenAnotherWriterIntervenes` below."""
 
-    def test_delete_undo_redo_is_refused_as_stale(self, db, client):
+    def test_delete_undo_redo_succeeds(self, db, client):
         doc = _make_doc(db)
         pass_row = _make_pass(db, doc.id)
         seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
@@ -291,12 +293,13 @@ class TestRedoReplaysOriginalParamsAndIsCorrectlyRefusedWhenStale:
         )
         undo = client.post(f"/api/actions/audit/{delete_result.audit_id}/undo")
         assert undo.status_code == 200, undo.text
+        assert db.get(Segment, seg.id).deleted_at is None  # restored by the undo
 
         redo = client.post(f"/api/actions/audit/{undo.json()['audit_id']}/undo")
-        assert redo.status_code == 409, redo.text
-        assert db.get(Segment, seg.id).deleted_at is None  # unchanged by the refused redo
+        assert redo.status_code == 200, redo.text
+        assert db.get(Segment, seg.id).deleted_at is not None  # re-deleted by the redo
 
-    def test_update_undo_redo_is_refused_as_stale(self, db, client):
+    def test_update_undo_redo_succeeds(self, db, client):
         doc = _make_doc(db)
         pass_row = _make_pass(db, doc.id)
         seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
@@ -314,9 +317,43 @@ class TestRedoReplaysOriginalParamsAndIsCorrectlyRefusedWhenStale:
         assert db.get(Segment, seg.id).anchor.rect == [0.1, 0.1, 0.1, 0.1]
 
         redo = client.post(f"/api/actions/audit/{undo.json()['audit_id']}/undo")
+        assert redo.status_code == 200, redo.text
+        assert db.get(Segment, seg.id).anchor.rect == [0.2, 0.2, 0.1, 0.1]  # re-applied
+
+
+class TestRedoStillRefusedWhenAnotherWriterIntervenes:
+    """The compare-and-set must still catch a GENUINELY stale redo: a
+    third writer touches the row between the undo and the redo attempt."""
+
+    def test_update_redo_refused_after_another_writer_edits_in_between(self, db, client):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        from fichero_server.models import ActionAudit
+
+        r = client.request("PUT", f"/api/segments/{seg.id}", json={
+            "segment_id": seg.id, "expected_version": 1,
+            "anchor": {"document_id": doc.id, "rect": [0.2, 0.2, 0.1, 0.1]},
+        })
+        assert r.status_code == 200, r.text
+        audit = next(a for a in db.all(ActionAudit) if a.action_name == "segment.update")
+
+        undo = client.post(f"/api/actions/audit/{audit.id}/undo")
+        assert undo.status_code == 200, undo.text
+
+        # Another writer edits the segment after the undo, independently
+        # of the undo/redo chain, bumping the version again.
+        current_version = db.get(Segment, seg.id).version
+        other_writer = client.request("PUT", f"/api/segments/{seg.id}", json={
+            "segment_id": seg.id, "expected_version": current_version,
+            "anchor": {"document_id": doc.id, "rect": [0.5, 0.5, 0.1, 0.1]},
+        })
+        assert other_writer.status_code == 200, other_writer.text
+
+        redo = client.post(f"/api/actions/audit/{undo.json()['audit_id']}/undo")
         assert redo.status_code == 409, redo.text
-        # Unchanged by the refused redo -- still the undone (original) state.
-        assert db.get(Segment, seg.id).anchor.rect == [0.1, 0.1, 0.1, 0.1]
+        # Unchanged by the refused redo -- still the other writer's edit.
+        assert db.get(Segment, seg.id).anchor.rect == [0.5, 0.5, 0.1, 0.1]
 
 
 class TestUndoOfANonLatestChangeIsRefused:
@@ -814,3 +851,173 @@ class TestNotesAreCapped:
         exactly_200 = "x" * 200
         result = registry.invoke(db, action_name, build_params(seg, other, exactly_200), ctx)
         assert result.ok
+
+
+class TestAuditIdResolvesToARealAuditRow:
+    """#4955 addendum, VERIFIED on disk by the spec author: every slice 4/5
+    segment action mints its OWN `uuid.uuid4()` for `SegmentVersion.
+    audit_id`/`SegmentForwarding.audit_id` BEFORE the generic `ActionAudit`
+    row exists (the registry only builds it AFTER `execute()` returns), and
+    `ActionRegistry.invoke` used to give that `ActionAudit` a SEPARATE
+    default id -- the two ids never met, so every version/forwarding row's
+    `audit_id` was an orphan pointing at nothing. Fixed via
+    `ChangeSpec.audit_id`: the action hands its own minted id back out, and
+    `invoke` uses it as `ActionAudit.id`. One case per action that writes a
+    version or forwarding row."""
+
+    def test_update_writes_a_version_whose_audit_id_resolves(self, db):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        ctx = _ctx(db)
+
+        result = registry.invoke(
+            db, "segment.update", {"segment_id": seg.id, "expected_version": 1, "kind_raw": "x"}, ctx,
+        )
+        version_row = db.query(SegmentVersion, segment_id=seg.id)[0]
+        audit = db.get(ActionAudit, version_row.audit_id)
+        assert audit is not None, f"orphan audit_id {version_row.audit_id!r}"
+        assert audit.id == result.audit_id
+        assert audit.action_name == "segment.update"
+
+    def test_restore_version_writes_a_version_whose_audit_id_resolves(self, db):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        ctx = _ctx(db)
+        registry.invoke(db, "segment.update", {"segment_id": seg.id, "expected_version": 1, "kind_raw": "x"}, ctx)
+
+        result = registry.invoke(
+            db, "segment.restore_version",
+            {"segment_id": seg.id, "version": 1, "expected_version": 2}, ctx,
+        )
+        newest = max(db.query(SegmentVersion, segment_id=seg.id), key=lambda v: v.version)
+        audit = db.get(ActionAudit, newest.audit_id)
+        assert audit is not None, f"orphan audit_id {newest.audit_id!r}"
+        assert audit.id == result.audit_id
+        assert audit.action_name == "segment.restore_version"
+
+    def test_delete_writes_a_version_and_forwarding_whose_audit_ids_resolve(self, db):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        ctx = _ctx(db)
+
+        result = registry.invoke(
+            db, "segment.delete", {"segment_ids": [seg.id], "expected_versions": {seg.id: 1}}, ctx,
+        )
+        version_row = db.query(SegmentVersion, segment_id=seg.id)[0]
+        forwarding_row = db.query(SegmentForwarding, old_segment_id=seg.id)[0]
+        for row in (version_row, forwarding_row):
+            audit = db.get(ActionAudit, row.audit_id)
+            assert audit is not None, f"orphan audit_id {row.audit_id!r}"
+            assert audit.id == result.audit_id
+            assert audit.action_name == "segment.delete"
+
+    def test_undelete_writes_a_version_and_forwarding_whose_audit_ids_resolve(self, db):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        ctx = _ctx(db)
+        registry.invoke(db, "segment.delete", {"segment_ids": [seg.id], "expected_versions": {seg.id: 1}}, ctx)
+
+        result = registry.invoke(db, "segment.undelete", {"segment_ids": [seg.id]}, ctx)
+        newest = max(db.query(SegmentVersion, segment_id=seg.id), key=lambda v: v.version)
+        newest_forwarding = max(
+            db.query(SegmentForwarding, old_segment_id=seg.id), key=lambda f: f.sequence
+        )
+        for row in (newest, newest_forwarding):
+            audit = db.get(ActionAudit, row.audit_id)
+            assert audit is not None, f"orphan audit_id {row.audit_id!r}"
+            assert audit.id == result.audit_id
+            assert audit.action_name == "segment.undelete"
+
+    def test_merge_writes_forwarding_rows_whose_audit_id_resolves(self, db):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg_a = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.1, 0.1])
+        seg_b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.3, 0.3, 0.1, 0.1])
+        ctx = _ctx(db)
+
+        result = registry.invoke(
+            db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx,
+        )
+        forwarding_row = db.query(SegmentForwarding, old_segment_id=seg_a.id)[0]
+        audit = db.get(ActionAudit, forwarding_row.audit_id)
+        assert audit is not None, f"orphan audit_id {forwarding_row.audit_id!r}"
+        assert audit.id == result.audit_id
+        assert audit.action_name == "segment.merge"
+
+    def test_unmerge_writes_a_forwarding_row_whose_audit_id_resolves(self, db):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg_a = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.1, 0.1])
+        seg_b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.3, 0.3, 0.1, 0.1])
+        ctx = _ctx(db)
+        registry.invoke(db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx)
+        pre_merge_version = db.query(SegmentVersion, segment_id=seg_a.id)[0].version
+
+        result = registry.invoke(
+            db, "segment.unmerge", {"versions": {seg_a.id: pre_merge_version}}, ctx,
+        )
+        newest_forwarding = max(
+            db.query(SegmentForwarding, old_segment_id=seg_a.id), key=lambda f: f.sequence
+        )
+        audit = db.get(ActionAudit, newest_forwarding.audit_id)
+        assert audit is not None, f"orphan audit_id {newest_forwarding.audit_id!r}"
+        assert audit.id == result.audit_id
+        assert audit.action_name == "segment.unmerge"
+
+    def test_split_writes_a_forwarding_row_whose_audit_id_resolves(self, db):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.2, 0.2])
+        ctx = _ctx(db)
+
+        result = registry.invoke(
+            db, "segment.split",
+            {
+                "segment_id": seg.id,
+                "parts": [
+                    {"anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]}},
+                    {"anchor": {"document_id": doc.id, "rect": [0.2, 0.2, 0.1, 0.1]}},
+                ],
+            },
+            ctx,
+        )
+        forwarding_row = db.query(SegmentForwarding, old_segment_id=seg.id)[0]
+        audit = db.get(ActionAudit, forwarding_row.audit_id)
+        assert audit is not None, f"orphan audit_id {forwarding_row.audit_id!r}"
+        assert audit.id == result.audit_id
+        assert audit.action_name == "segment.split"
+
+    def test_unsplit_writes_a_forwarding_row_whose_audit_id_resolves(self, db):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.2, 0.2])
+        ctx = _ctx(db)
+        pre_split_version = seg.version
+        split_result = registry.invoke(
+            db, "segment.split",
+            {
+                "segment_id": seg.id,
+                "parts": [
+                    {"anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]}},
+                    {"anchor": {"document_id": doc.id, "rect": [0.2, 0.2, 0.1, 0.1]}},
+                ],
+            },
+            ctx,
+        )
+        new_ids = split_result.result["new_segment_ids"]
+
+        result = registry.invoke(
+            db, "segment.unsplit",
+            {"segment_id": seg.id, "version": pre_split_version, "new_segment_ids": new_ids}, ctx,
+        )
+        newest_forwarding = max(
+            db.query(SegmentForwarding, old_segment_id=seg.id), key=lambda f: f.sequence
+        )
+        audit = db.get(ActionAudit, newest_forwarding.audit_id)
+        assert audit is not None, f"orphan audit_id {newest_forwarding.audit_id!r}"
+        assert audit.id == result.audit_id
+        assert audit.action_name == "segment.unsplit"
