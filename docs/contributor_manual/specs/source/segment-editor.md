@@ -150,6 +150,10 @@ Reading before editing (the app's first step: it draws from the seam, and edits 
 - `source.app.index-is-the-engines` — **[GAP]** (#4954) a box on screen is addressed by the engine's
   own index for it, never by its position in what happens to be drawn; leaving an undrawable
   box out of the drawing changes no other box's address.
+- `source.app.edits-name-the-chosen-pass` — **[GAP]** (#4954) an edit made on the page is sent to the
+  result the shown pass came from, and to no other; when what is shown changes (another pass
+  wins; an artifact is chosen in the Inspector), the next edit follows it; with nothing shown,
+  no edit is sent.
 - `source.app.curated-pass-stays-on-top` — **[GAP]** (#4954) a pass that a person made, or that
   carries any segment a person made, is shown ahead of every machine pass, as today; a newer
   machine run never covers a person's region.

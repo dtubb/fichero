@@ -666,6 +666,23 @@ image overlay, `RegionInteractionLayer` and `PDFPageWithToolbar` take their geom
    synthesised equality today, which makes the same boxes unequal across the two paths).
    Addressing by id, not index, arrives with the editor, when converted pages stop having a
    box index.
+4a. **Says where `ocrGeometryArtifactId` comes from, because nothing else will.** Every curation
+   verb (move, delete, combine, promote) sends its edit to the artifact named by
+   `ocrGeometryArtifactId`. Today that value is set by `loadSelected`'s fetch
+   (`selected?.artifactId`). When the fetch goes, **it is the chosen pass's
+   `source_artifact_id`** (slice 1's `PassRead` carries it for this), set in the same place the
+   chosen pass is decided, and nowhere else. It is a plain optional string: a wrong value
+   compiles, and sends a person's edit to the wrong result **without any error**. So it has a
+   behaviour and a test of its own (below).
+4b. **Two one-line guards for zero-size boxes**: `RegionHitTesting.pick` and
+   `OCRGeometryOverlay.hoveredBox` skip a box with no area, so a placeholder can never be hit
+   or hovered. Nothing depends on hitting a zero-width box today.
+4c. **The readers that address a box by position: ten, confirmed by the app lane's reading**
+   (`agent-work/source-model/recon-app-slice-A-stage-2.md`), none of which needs to change
+   under point 4. They include `AnnotationMarkRendering.wordIndices` and
+   `promoteSelectedWords`. `ArtifactPanel+Regions.swift` is **out of scope**: it is the
+   Inspector's view of one artifact's own boxes, not a view of a source's segments, and stays
+   on the artifact.
 5. **Gives the draw model the hand-drawn fact directly.** `OCRGeometryBox.isHandDrawn` becomes a
    stored value set from `segment.isHandCurated`; the rebuild of `provider: "user"` and
    `source: "manual"` goes. (On decode from an artifact, it is still worked out from those two
@@ -678,6 +695,27 @@ image overlay, `RegionInteractionLayer` and `PDFPageWithToolbar` take their geom
    each loaded document, the chosen pass and its `OCRGeometry`, recomputed when that
    document's entry (or the preferred artifact) changes. Views read the stored value.
 8. **Uses the pass's own text and the segment's page index** (slice 1b), and `pass.provider`.
+
+**Which document the PDF page asks for, and whether the seam answers (checked on disk,
+2026-09-20).** `PDFPageWithToolbar` asks for `effectiveGeometryDocumentId`: the **page child's**
+id when the pane is on its own page (then every box is shown: `isPageScoped`), otherwise the
+**parent PDF's** id (then boxes are filtered by `pageIndex`). Today's fetch is strictly for
+that one document (`OCRGeometrySelection.loadSelected` calls `getArtifacts(forDocumentId:,
+includeDescendants: false)`), and the seam's query is the same rule (`db.query(Artifact,
+document_id=doc_id)` in `api/routes/document/segments.py`: that document's own artifacts, no
+children, no parent). **So the seam returns for either id exactly the artifacts today's path
+would consider, and there is no slice 1 gap here.** With slice 1b's `page_index`, the parent
+case filters as it does today. Stage 2 must pass the same `effectiveGeometryDocumentId` to the
+store, not the rendered document's id.
+
+**One case will look different, on purpose, and should be looked at.** Today's ranking works on
+a lean list of artifacts that has no boxes in it, so it **cannot see** a hand-drawn box inside
+a machine result; the code says so, and says why (looking would cost a fetch for each
+candidate). So today a newer machine run does cover a person's region that was drawn into an
+older machine result. With every segment already in hand, the ranking can see it, and the
+2026-09-03 rule is at last honoured in that case: the curated pass stays on top. "A page looks
+the same" is therefore true **except** where today's behaviour falls short of the ruled one.
+The verify run should include this case and expect the curated result.
 
 **Events.** `SegmentStore: ChangeEventConsumer`, `changeDomains = ["segment", "artifact"]`.
 `segment.*` with `segmentIds`: re-read that document and replace only the items whose id is in
@@ -699,7 +737,15 @@ has the same fault with zero-width boxes (noted on → #4955).
   boxes, **including `text`, `pageIndex` and `isHandDrawn`**; `apply(_:)` with `segmentIds`
   replaces exactly those items; twenty thousand segments: the display geometry is computed
   once for each change, not for each read (count the computations).
-- Engine-backed: against a temporary library, a two-page PDF shows each page its own boxes.
+- **An edit goes to the chosen pass's artifact** (`source.app.edits-name-the-chosen-pass`): after
+  the switch, perform a region move through the same code path a drag takes; assert the
+  artifact id sent to the engine equals the chosen pass's `source_artifact_id`; and again with
+  an artifact preferred from the Inspector (the id follows the preference); and with no pass
+  chosen (no id, and the verbs are disabled, not sent with a stale one).
+- A zero-size placeholder is never returned by `RegionHitTesting.pick` or `hoveredBox`.
+- Engine-backed: against a temporary library, a two-page PDF shows each page its own boxes; a
+  parent PDF id and a page-child id each return what today's strict fetch for that one
+  document would.
 - **On screen: "not seen working" until looked at.** Nothing on this path mounts a view. The
   manager's build-and-verify run opens the same documents before and after: an image with
   regions (count and position of boxes; the frame gate refusing a re-framed image), a
