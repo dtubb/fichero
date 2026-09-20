@@ -63,6 +63,7 @@ from fichero_server.api.library_header import optional_library_path, require_lib
 from fichero_server.api.feature_tiers_generated import CUMULATIVE_ROUTE_PREFIXES, ROUTE_PREFIX_TIERS
 from fichero_server.api.routes.ai.local_inference import shutdown_managed_local_inference_services
 from fichero_server.db import Database, db_manager
+from fichero_server.security import authz
 from fichero_server.security.discovery import start_bonjour_advertiser
 from fichero_server.models import (
     EmbeddingStatsResponse,
@@ -1167,6 +1168,46 @@ async def _handle_library_access_denied(
     exc: LibraryAccessDeniedError,
 ):
     return JSONResponse(exc.payload, status_code=403)
+
+
+@app.exception_handler(authz.AuthorizationError)
+async def _handle_bare_authorization_error(request: Request, exc: authz.AuthorizationError):
+    """#4917: `ActionRegistry.invoke` checks EVERY id an audited write
+    names (`authz.target_ids_from_params`) and raises a bare
+    `AuthorizationError` directly on a deny -- unlike the library-path
+    DEPENDENCY's own pre-check (`assert_library_write_authorized`, which
+    only has a target id when the route names one in the URL, never in a
+    JSON body, and wraps its denial in `LibraryAccessDeniedError`). Before
+    this handler, that bare exception was UNHANDLED: a 500 on every
+    audited write route, for an editor or owner with a per-target deny,
+    not a segments-only problem. One handler, at the ASGI boundary, so
+    every route gets the fix at once -- never a per-route try/except
+    (that would have to be repeated at every write route and inevitably
+    miss one), and never caught inside the registry itself (a caller that
+    invokes it directly -- workflows, chat tools, their own tests -- must
+    keep seeing the real exception).
+
+    Same payload SHAPE as `LibraryAccessDeniedError` (`library_access_denial_payload`),
+    read from the request the same way the dependency check does.
+    `required` (F4, 2026-09-20 review) comes from `exc.required` -- this
+    SAME exception class is also raised for "read access denied", "owner
+    access required" and "cannot revoke your own library role", not only
+    writes, and each raise site now names what it actually required
+    (default "write"); never parsed out of the message string. A library
+    path unreachable from the request (should not happen -- every route
+    this fires on already required one) falls back to a minimal payload
+    with the same two keys rather than a raw 500.
+    """
+    from fichero_server.api.auth import library_access_denial_payload
+
+    library_path = optional_library_path(request)
+    if library_path:
+        payload = library_access_denial_payload(
+            request, library_path, required=exc.required, detail=str(exc),
+        )
+    else:
+        payload = {"detail": str(exc), "code": "library_access_denied"}
+    return JSONResponse(payload, status_code=403)
 
 
 # Local-host shared-secret authentication (#742). The middleware is attached at

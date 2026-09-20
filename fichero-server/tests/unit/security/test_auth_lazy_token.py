@@ -233,6 +233,13 @@ def test_sync_app_bootstrap_token_stays_scoped_to_requested_app_id(monkeypatch, 
     import fichero_server.api.auth as auth_module
 
     monkeypatch.setenv("HOME", str(tmp_path))
+    # This test asserts the REAL macOS sandbox-container path shape
+    # (~/Library/Containers/<app_id>/...), which FICHERO_TOKEN_DIR
+    # legitimately overrides for test engines (_sandbox_token_file_path).
+    # A gate/CI run that sets it for isolation must not change what this
+    # test is checking -- force the real shape regardless of the ambient
+    # environment.
+    monkeypatch.delenv("FICHERO_TOKEN_DIR", raising=False)
 
     token = "fresh-bootstrap-token"
     synced = auth_module.sync_app_bootstrap_token(
