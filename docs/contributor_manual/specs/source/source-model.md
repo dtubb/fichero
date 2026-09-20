@@ -280,7 +280,11 @@ Citations are to `fichero-server/src/fichero_server/` (engine) and `fichero/fich
   a parallel of it.
 - **Readings with provenance**: `ContentRepresentation` (`models/__init__.py`) is an immutable,
   anchored transcription, translation, transliteration, or SVG, with language, script,
-  producing tool and model, a review state, and a revisions table for human edits.
+  producing tool and model, a review state, and a revisions table for human edits. **But
+  nothing in the engine creates one today**: every transcription and translation a workflow
+  makes is an `Artifact` row with its text in `content`. The record is the right shape and the
+  data is elsewhere, so readings are reached through one read seam over both, and writers move
+  one at a time (see `build-notes-readings-cascade-orders.md`, slice 8).
 - **Several images per page**: `Rendition` records the alternative images of one node, with
   pixel size and a `frame_status`; a geometry result names the image it was measured on (once
   for the whole result, not for each box). The overlay refuses to draw boxes over an image

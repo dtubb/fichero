@@ -29,6 +29,36 @@ person's revision, with `reviewer: str = "human"` **as a default the caller can 
 Routes in `api/routes/document/content_representations.py`: list for a document, list
 revisions, and one action, `representation.revise`.
 
+**Where readings actually live today (VERIFIED by search on disk, 2026-09-19): in artifacts,
+not here.** Nothing in the engine ever *creates* a `ContentRepresentation`: the only code that
+touches it is its own route file (list, list revisions, revise), and two files in the app.
+Every transcription, translation and cleaned text a workflow makes is an **`Artifact`** row
+(`artifact_type`, `content`, `provider`, `model`, `run_id`, `source_artifact_id`, `version`).
+So the type exists and is well shaped, and the data is somewhere else. Built naively, this
+slice would make a **second store of readings** beside artifacts: the exact fault this whole
+programme exists to remove.
+
+**So readings get the same treatment segments got in slices 1 and 6: one read seam, then
+writers move one at a time.**
+
+- The readings call below answers from **either** store and the caller cannot tell: real
+  `ContentRepresentation` rows, and, for text that still lives in an artifact, a **provisional
+  reading** (`id: legacy-reading:<artifact_id>`, `provisional: true`, kind from the artifact's
+  type, maker from the artifact's provider and model, `document_id`, no `segment_id` unless
+  the page is converted and the artifact's boxes carry character spans, in which case each
+  line's stretch of the artifact's text is offered as that line's provisional reading).
+  `assert_not_provisional` refuses these ids on every write, as it does `legacy:` ones.
+- **Nothing copies artifact text into readings, ever, in bulk.** A person's correction of a
+  provisional reading writes one real reading (through `representation.create`, naming the
+  artifact it corrects in `derived_from_artifact_id`, a new optional field). Workflow tools
+  move to writing readings **tool by tool, in later slices**, each in its own commit, and an
+  artifact stays the record of a *run's output*.
+- Which of the two is "the transcription" for a page is answered by the one counting function
+  below, over both kinds of candidate.
+
+This is put to the maintainer (morning file) only as a fact to know; the approach is the
+reversible one, and it is the pattern already accepted for segments.
+
 **A reading IS this record, grown. No second record.**
 
 `ContentRepresentation` gains (all optional, added on open; no data migration):
