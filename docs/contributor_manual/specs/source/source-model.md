@@ -9,7 +9,7 @@
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
 > code makes them pass. **Status: DRAFT — third pass, 2026-09-19. This is the FOUNDATION of the
 > source model: the intent, the rulings, the words, and the map of the other files. Nothing is
-> approved. Behaviour ids are in the slices, untagged until approval.**
+> approved. Behaviour ids are in the slices, each tagged [GAP] with its issue on milestone 322.**
 > Tags (when behaviours arrive): **[OK]** built and tested · **[PARTIAL]** built, partly proven
 > · **[GAP]** intended, never built · **[BROKEN]** code contradicts the rule.
 >

@@ -264,7 +264,7 @@ rather than defaulting to the pessimistic prior.
   on 2026-09-19: entity recognition and the subject-verb-object reader now decline a language
   they have no model for, by name, and the import draft records why; tests in
   `tests/unit/kg/test_spacy_ner.py`, `tests/unit/knowledge/test_spacy_svo_validator.py` and
-  `tests/unit/api/test_nlp_draft_import.py`. The issue stays open for one loose end:
+  `tests/unit/api/test_nlp_draft_import.py`. The issue stays open for one loose end, filed as #4918:
   `is_pipeline_available` in `knowledge/spacy_ner.py` still falls back to the English list
   when asked about a language it does not know; it only answers "is a model installed", and no
   extraction reaches it.) What was found, VERIFIED on disk
