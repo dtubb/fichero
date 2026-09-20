@@ -222,6 +222,15 @@ All untagged and unbuilt unless stated. "Data" names what the behaviour reads or
   that PyTorch can use, and its row says "No GPU" (CITED, S16). *Test:* the click-around leg in
   `targets-and-connection.md` (`compute.target.add-local-container`).
 
+### No second way to install the engine
+
+- `compute.image.the-image-is-the-only-install` — on a target, the engine is only ever the
+  published image (run by Docker, or as an Apptainer file). Fichero never builds a Python
+  environment on a target from a list of packages. *Why:* a cluster's own package builds differ
+  from cluster to cluster (CITED, S5) and cannot be tested by the project's automation.
+  *Test:* a guardrail: no `pip install` or `virtualenv` appears in any command Fichero sends to
+  a target.
+
 ## Test matrix
 
 | Leg | This slice? | Pins | File |

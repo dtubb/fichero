@@ -152,24 +152,36 @@ chose "remove everything when done" on the sheet. Then it lists the folder to co
 plainly what it cannot vouch for: a cluster's own snapshots and backups, and an operator's
 access while the data was there (CITED, S6).
 
-### Results: a list of proposed actions
+### Results: the same records a local run makes
 
-The target writes a **result package**: new objects (a model file, a Parquet file of new
-readings) under their sha256, and `results.jsonl`: one line for each change it proposes, in the
-vocabulary of the audited action layer ("add a pass to source S", "add these readings to
-segment G in that pass"), each naming the id and the **version** of the thing it was computed
-from.
+A local run writes into the collection's database as it goes, and appends one line for each
+model call to the episode ledger, which is JSONL inside the collection's folder (VERIFIED
+`execution/runner.py:842-850`, `workflows/completion.py:230-243`,
+`observability/episodes.py:10-14`). To keep **one runner**, the far side does the same thing
+into a **scratch collection**: a small `.fichero` package made from the work package, holding
+only the chosen sources, with their ids unchanged. The unchanged runner runs against it. Then
+the engine's one export stream (`iter_export_records`, `export_service.py:124`) writes what the
+run added as JSONL records.
+
+So a **result package** holds: `records.jsonl` (the exporter's records for what is new, each
+naming the id and the **version** of the source it was computed from); `episodes.jsonl` (the
+ledger lines the run appended); and new objects (a model file, line pictures) under their
+sha256. The scratch collection itself never comes back and is deleted with the job's folder.
 
 The Mac fetches it with the same transfer core, and **lands** it:
 
-- Each line becomes one audited action, run by the Mac's own server. The far side never writes
+- Each record becomes one audited action, run by the Mac's own server. Nothing in the engine
+  reads these records back in today (VERIFIED by search), so this is new code, and the only
+  new code on the results side.
+- Ledger lines are appended to the Mac's own ledger. Each has its own `episode_id`
+  (VERIFIED `observability/episodes.py:97`), so appending the same lines twice is detected. The far side never writes
   to the collection, so the rule that the engine is the only writer holds.
 - The server stamps each as **made by a machine**, with the job, the target, the model card and
   its version, and the person who sent the job as the one responsible. The package cannot claim
   otherwise. This is what `source.making.recorded` (#4949) reads later.
 - Output arrives as a **new pass** or **new readings** and never replaces a person's
   (`source.chain.output-never-overwrites`, #4949; `source.train.output-is-pass`, #4947).
-- Landing is **idempotent**: each line carries an id made from the job and its position;
+- Landing is **idempotent**: each record carries an id made from the job and its position;
   landing the same package twice adds nothing.
 - Landing is **all of a source or none of it**: a failure half-way through one source undoes
   that source's lines and reports it; other sources stand.
@@ -307,6 +319,16 @@ All untagged and unbuilt unless stated.
 
 ### Landing
 
+- `compute.land.same-records-as-a-local-run` — a job's `records.jsonl` is written by the one
+  export stream from a scratch collection the unchanged runner wrote into; no second writer of
+  run output exists. *Data:* `iter_export_records`; the scratch package under the job's folder.
+  *Test:* the same three-page workflow run on this Mac directly, and as a job on the `this-mac`
+  target, leaves identical readings and identical ledger lines apart from ids and times.
+- `compute.land.ledger-lines-merge` — a job's `episodes.jsonl` lines are appended to the
+  collection's ledger under their own `episode_id`s; a line whose id is already present is
+  skipped. *Existing data:* the ledger is append-only and is never rewritten. *Test:* land
+  twice; line count unchanged the second time; the training export
+  (`episodes.export_training_pairs`) sees the remote calls.
 - `compute.land.only-the-mac-writes` — the far side produces a result package and never writes
   to a collection; every change is an audited action run by the Mac's server. *Test:* a result
   package that tries to name an action outside the allowed list for its job kind is refused

@@ -45,6 +45,67 @@ The maintainer asked for this, and asked whether it is doable:
 **The answer: yes in substance. Not exactly as described. Three parts of the description
 have to change, and one part is better than it sounds.**
 
+### The two ways it could work, and which comes first
+
+The maintainer described two possibilities for a cluster such as ACENET's, where a person logs
+in to a login computer and launches a Slurm job from there, and was not sure which is right:
+
+- **A. The engine manages Slurm.** Fichero's engine, on the Mac, logs in to the cluster, sends
+  it a properly made piece of work, asks Slurm to run it, waits, and fetches the result.
+- **B. The engine runs on the cluster.** Start `fichero-server` there and work through it.
+
+**A is the first thing built, and it is the only way of working on a cluster.** This set calls
+it *send a job*. **B is later, and only on machines we control** (a lab machine, a rented GPU),
+because a cluster will not let a server stay up: it would be a job with a time limit, behind a
+queue. His reasoning is right and the spec follows it: a workflow already runs the same way
+every time through LangGraph, so the same run can happen under Slurm, and the Mac fetches what
+it made.
+
+**What is sent is "a Python project done properly", and the proper form of it is the image.**
+A Python project done properly means the engine's own code, its exact dependencies, and one
+command to run it. That is what the Linux image is: the same engine code as the Mac, the same
+workflow runner, the same records out, with nothing written a second time for the cluster.
+A cluster does not run Docker, so the image is converted once into a single Apptainer file.
+Compute nodes are cut off from the internet, so **nothing is fetched by the job itself**: the
+login node, which has the internet, fetches the Apptainer file and any models beforehand, and
+the Mac sends the pages. If a cluster's login node will not fetch the image, the Mac uploads
+the file instead.
+
+*A plain Python environment on the cluster, without the image, is possible but is not
+proposed.* Alliance clusters have their own way of installing Python packages (their own
+builds, no downloads from the usual index on compute nodes; CITED, S5). The engine needs about
+a hundred packages, some of which those clusters may not carry, and Kraken pins its own
+versions. It would be a second way of installing the engine, different on every cluster, that
+the project's automation cannot test. It stays a last resort for a cluster with no Apptainer,
+and none is known.
+
+**What comes back, traced against the code.** A local run today does **not** write one result
+file. It writes in two places: straight into the collection's database, as it goes (VERIFIED:
+the runner is handed the open database, `execution/runner.py:842-850`; documents and artifacts
+are saved at the run's boundary, `workflows/completion.py:230-243`, `:305`); and one line for
+each model call into the **episode ledger**, which *is* JSONL, append-only, inside the
+collection's own folder (VERIFIED `observability/episodes.py:10-14`, `:65-78`). So the one code
+path is kept like this: on the cluster the package is unpacked into a **small scratch
+collection** holding only the chosen sources; the **unchanged** runner runs against it exactly
+as it does on the Mac, writing the same database rows and the same ledger lines; then the
+engine's existing export stream (`export_service.py:124`, `iter_export_records`, the one the
+JSONL and Parquet exports already use) writes what is new as JSONL. The Mac fetches those
+files. Ledger lines are appended to the Mac's ledger (each has its own id, so a second fetch
+adds nothing). The exported records are landed through audited actions. **The run side is one
+code path (INFERRED: nothing in the runner needs the Mac; not yet tried). The landing side is
+new code: nothing in the engine reads those JSONL records back in today (VERIFIED by search).**
+That is the honest size of the work.
+
+**Who manages Slurm, and what survives.** The **Mac's engine** holds the one SSH connection to
+the login node and asks Slurm for the state of the person's jobs about once a minute. It must
+be the Mac, because the second factor stays with the person. Once a job is submitted it belongs
+to the cluster: it waits, runs and finishes **whether or not the Mac is awake or Fichero is
+open**. Its results sit in the job's folder on the cluster. When Fichero next runs and the
+person has signed in again, one check catches up, and fetching and landing carry on from the
+checkpoint. What does not happen while the Mac sleeps: new pieces are not sent, results are not
+fetched, and nothing lands. With a cluster's unattended "automation" path (by request), sending
+and fetching need no person, but still need the Mac awake.
+
 ### What is straightforward
 
 1. **One Linux image.** A Docker image of `fichero-server` for Linux is ordinary work. A seed of
@@ -212,7 +273,7 @@ The reasoning is in `jobs-and-fine-tuning.md`; the choice is question 6.
 | **job** | work that is sent, runs unattended and comes back. It has a kind, a work package, a state and a result package. | a workflow run (a job *carries* a workflow run, or a training run) |
 | **session** | a model served on a target for a limited time, reached through a tunnel, shown with its time left. | a server (which stays up) |
 | **work package** | what a job needs and nothing more: a job description plus a content-addressed list of objects. A **projection** in the source-model sense: made when wanted, never the record. | a whole collection; an export |
-| **result package** | what a job made: new objects, plus a list of the audited actions that would land them. | a database; a changed copy of the collection |
+| **result package** | what a job made: the engine's own export records for what is new (JSONL), the episode-ledger lines the run appended (JSONL), and new objects. | a database; a changed copy of the collection |
 | **landing** | replaying a result package into the collection through the audited action layer, so history stays whole. | copying files back |
 | **carrier** | the way bytes travel: HTTPS to a running Fichero server, or files over SSH. The transfer core is the same over both. | transport (the app-to-engine connection in `transport/`) |
 | **adapter** | the small file a LoRA fine-tune produces; useless without its base model. | a merged model (base plus adapter, a full-size file) |
