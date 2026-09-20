@@ -33,7 +33,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Iterable
 
-from fastapi import Request
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -42,6 +41,38 @@ _SUBSCRIBER_QUEUE_MAXSIZE = 1000
 _REPLAY_BUFFER_SIZE = 1000
 _REPLAY_LIBRARY_CAP = 1024
 _sse_shutdown_events: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+
+#: Every typed id-list a `ChangeEvent` carries, in declaration order. THE ONE
+#: place a new kind is added (source-model slice 2, #4920): `ChangeEvent`,
+#: `emit_change`, `ActionRegistry._emit` (`actions/registry.py`) and the
+#: activity fold (`api/routes/system/activity.py::_change_event_to_activity_response`)
+#: all iterate this tuple instead of each naming its own hand-written list —
+#: the four-site silent-omission risk this closes is written up in
+#: `agent-work/source-model/recon-slice-2.md`.
+CHANGE_ID_LISTS: tuple[str, ...] = (
+    "entity_ids",
+    "claim_ids",
+    "document_ids",
+    "artifact_ids",
+    "citation_ids",
+    "reference_ids",
+    "interpretation_ids",
+    "segment_ids",
+    "pass_ids",
+)
+
+
+def _dedupe_keep_order(values: Iterable[str]) -> list[str]:
+    """First occurrence wins, never sorted (ruled 2026-09-20, source-model
+    slice 2): a store that patches items in place gains nothing from a
+    duplicate, and the order things changed in can carry meaning."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for value in values:
+        if value not in seen:
+            seen.add(value)
+            out.append(value)
+    return out
 
 
 def sse_shutdown_event() -> asyncio.Event:
@@ -87,6 +118,11 @@ class ChangeEvent(BaseModel):
     citation_ids: list[str] = Field(default_factory=list)
     reference_ids: list[str] = Field(default_factory=list)
     interpretation_ids: list[str] = Field(default_factory=list)
+    #: Source-model slice 2 (#4920). Nothing emits these yet -- no segment
+    #: action exists until slice 4 -- so every event today carries `[]` for
+    #: both. Added now so `CHANGE_ID_LISTS` is complete from the start.
+    segment_ids: list[str] = Field(default_factory=list)
+    pass_ids: list[str] = Field(default_factory=list)
     run_id: str | None = None
     actor: str = "system"  # ui | chat | workflow | import | system
     document_parents: dict[str, str] = Field(
@@ -467,6 +503,8 @@ def emit_change(
     citation_ids: Iterable[str] = (),
     reference_ids: Iterable[str] = (),
     interpretation_ids: Iterable[str] = (),
+    segment_ids: Iterable[str] = (),
+    pass_ids: Iterable[str] = (),
     run_id: str | None = None,
     actor: str = "system",
     metadata: dict[str, str] | None = None,
@@ -478,29 +516,45 @@ def emit_change(
 
     Best-effort: never raises. Call at the end of a mutating route so a failure
     here can never roll back or break the mutation itself.
+
+    Every id list named in `CHANGE_ID_LISTS` is de-duplicated, keeping the
+    order it was given (first occurrence wins) -- never sorted (source-model
+    slice 2, #4920).
     """
     if not library_path:
         return
     try:
+        given = {
+            "entity_ids": entity_ids,
+            "claim_ids": claim_ids,
+            "document_ids": document_ids,
+            "artifact_ids": artifact_ids,
+            "citation_ids": citation_ids,
+            "reference_ids": reference_ids,
+            "interpretation_ids": interpretation_ids,
+            "segment_ids": segment_ids,
+            "pass_ids": pass_ids,
+        }
+        deduped = {name: _dedupe_keep_order(given[name]) for name in CHANGE_ID_LISTS}
         event = ChangeEvent(
             type=type,
-            entity_ids=list(entity_ids),
-            claim_ids=list(claim_ids),
-            document_ids=list(document_ids),
-            artifact_ids=list(artifact_ids),
-            citation_ids=list(citation_ids),
-            reference_ids=list(reference_ids),
-            interpretation_ids=list(interpretation_ids),
             run_id=run_id,
             actor=actor,
             metadata=dict(metadata or {}),
             origin_window=origin_window,
             origin_user=origin_user,
             document_parents=dict(document_parents or {}),
+            **deduped,
         )
         _change_hub.emit(library_path, event)
     except Exception as exc:  # pragma: no cover - defensive
-        logger.debug("emit_change failed (best-effort, ignored): %s", exc)
+        # warning, not debug: a mismatch between CHANGE_ID_LISTS and `given`
+        # (or ChangeEvent's fields) raises HERE and silently stops EVERY
+        # change event -- the exact silent failure the project forbids. A
+        # test pins the alignment directly (test_change_stream_segment_ids.py)
+        # so this branch should never fire in practice; if it does, it must
+        # be loud.
+        logger.warning("emit_change failed (best-effort, ignored): %s", exc)
 
 
 def emit_change_all_libraries(
@@ -532,39 +586,3 @@ def emit_change_all_libraries(
     return reached
 
 
-def emit_request_change(
-    request: Request,
-    library_path: str,
-    *,
-    type: str,
-    entity_ids: Iterable[str] = (),
-    claim_ids: Iterable[str] = (),
-    document_ids: Iterable[str] = (),
-    artifact_ids: Iterable[str] = (),
-    citation_ids: Iterable[str] = (),
-    reference_ids: Iterable[str] = (),
-    interpretation_ids: Iterable[str] = (),
-    run_id: str | None = None,
-    metadata: dict[str, str] | None = None,
-    origin_window: str | None = None,
-) -> None:
-    """Emit a user-initiated change with a request-state-derived actor."""
-    from fichero_server.api.auth import actor_from_request  # local: avoid import cycle
-
-    actor = actor_from_request(request)
-    emit_change(
-        library_path,
-        type=type,
-        entity_ids=entity_ids,
-        claim_ids=claim_ids,
-        document_ids=document_ids,
-        artifact_ids=artifact_ids,
-        citation_ids=citation_ids,
-        reference_ids=reference_ids,
-        interpretation_ids=interpretation_ids,
-        run_id=run_id,
-        actor=actor,
-        metadata=metadata,
-        origin_window=origin_window,
-        origin_user=actor,
-    )

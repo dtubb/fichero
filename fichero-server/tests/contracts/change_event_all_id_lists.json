@@ -1,0 +1,44 @@
+{
+  "type": "test.contract_fixture",
+  "entity_ids": [
+    "entity_ids-fixture"
+  ],
+  "claim_ids": [
+    "claim_ids-fixture"
+  ],
+  "document_ids": [
+    "document_ids-fixture"
+  ],
+  "artifact_ids": [
+    "artifact_ids-fixture"
+  ],
+  "citation_ids": [
+    "citation_ids-fixture"
+  ],
+  "reference_ids": [
+    "reference_ids-fixture"
+  ],
+  "interpretation_ids": [
+    "interpretation_ids-fixture"
+  ],
+  "segment_ids": [
+    "segment_ids-fixture"
+  ],
+  "pass_ids": [
+    "pass_ids-fixture"
+  ],
+  "run_id": null,
+  "actor": "system",
+  "document_parents": {},
+  "metadata": {},
+  "origin_window": null,
+  "origin_user": null,
+  "event_id": null,
+  "replay_required": false,
+  "gap_reason": null,
+  "dropped_event_count": 0,
+  "last_event_id": null,
+  "oldest_available_event_id": null,
+  "latest_available_event_id": null,
+  "ts": "2026-01-01T00:00:00+00:00"
+}

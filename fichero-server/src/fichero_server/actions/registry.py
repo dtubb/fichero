@@ -113,6 +113,10 @@ class ChangeSpec:
     citation_ids: list[str] = field(default_factory=list)
     reference_ids: list[str] = field(default_factory=list)
     interpretation_ids: list[str] = field(default_factory=list)
+    #: Source-model slice 2 (#4920). Nothing emits these yet -- no segment
+    #: action exists until slice 4.
+    segment_ids: list[str] = field(default_factory=list)
+    pass_ids: list[str] = field(default_factory=list)
     # #4205: document id -> parent id, for ids in ``document_ids``. Absent
     # means "parent unknown, fetch it" and NEVER "root", so bulk actions
     # that only have ids may leave it empty without misleading a client.
@@ -277,25 +281,25 @@ class ActionRegistry:
         if not ctx.library_path or not spec.emit_type:
             return
         from fichero_server.api.change_stream import (
+            CHANGE_ID_LISTS,
             emit_change,
         )  # local: avoid cycle at module load
 
         try:
+            # Iterates the one declared tuple (source-model slice 2, #4920)
+            # rather than naming each id list here by hand -- a kind added
+            # to CHANGE_ID_LISTS and to ChangeSpec reaches emit_change with
+            # no third edit needed.
+            id_list_kwargs = {name: getattr(spec, name) for name in CHANGE_ID_LISTS}
             emit_change(
                 ctx.library_path,
                 type=spec.emit_type,
-                entity_ids=spec.entity_ids,
-                claim_ids=spec.claim_ids,
-                document_ids=spec.document_ids,
-                artifact_ids=spec.artifact_ids,
-                citation_ids=spec.citation_ids,
-                reference_ids=spec.reference_ids,
-                interpretation_ids=spec.interpretation_ids,
                 document_parents=spec.document_parents,
                 run_id=ctx.run_id,
                 actor=ctx.actor,
                 origin_window=ctx.origin_window,
                 origin_user=ctx.actor,
+                **id_list_kwargs,
             )
         except Exception as exc:  # pragma: no cover - emit is already best-effort
             logger.debug("action emit_change failed (ignored): %s", exc)
