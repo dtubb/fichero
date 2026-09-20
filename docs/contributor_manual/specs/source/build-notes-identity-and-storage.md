@@ -22,6 +22,26 @@
 > So segment actions record **ids, kinds, versions and geometry**, and **never a reading's typed
 > text**. Nothing in slices 2 to 6 writes reading text at all.
 
+## Slice 1b — three additions to slice 1's read shapes (#4919; after engine slice 2 reports)
+
+Found by the review of the app's first stage: the engine's answer lacks two things the app
+cannot rebuild, and fills one field from the wrong place. All additive; one contract sync.
+
+- **`SegmentRead.page_index: int | None`**, copied from `OCRGeometryBox.page_index`. The PDF
+  page view filters boxes by it (`PDFPageWithToolbar.boxesForDisplayedPage`); without it every
+  page of a multi-page PDF would show every page's boxes.
+- **`PassRead.text: str | None`**, the result's own text (`OCRGeometryResult.text`). A box's
+  `char_start` and `char_end` index into **that** text. The app must never rebuild it by
+  joining box texts.
+- **`PassRead.provider` is the artifact's provider**, and the app's `OCRGeometry.provider` is
+  filled from it, not from `name` (which holds the artifact's type).
+
+**Tests.** A two-page PDF fixture: each segment carries its page's index, and filtering by page
+gives each page only its own. For every segment with a character span,
+`pass.text[char_start:char_end]` equals the segment's `text` (a fixture whose box texts joined
+with spaces would **not** equal the pass's text, so the test fails if anything rebuilds it).
+The three-way parity test (route, MCP, generated command) covers the two new fields.
+
 ## Slice 2 — the change stream names segments and passes (#4920)
 
 **Pins:** `source.events.segment-ids`.
@@ -600,3 +620,75 @@ must look the same before and after.
 (default: yes, today's ranking, unchanged); whether PDF pages take the image path's frame gate
 (default: no change in this slice); what, if anything, "provisional" should look like
 (default: nothing).
+
+## App slice A, stage 2 — the overlays draw from the store (#4954)
+
+Starts when engine slice 2 (segment ids on events), slice 1b (above) and stage 1's fixes are
+committed. **A page must look and behave the same before and after.**
+
+**Pins:** `source.app.overlays-draw-from-the-seam`, `source.app.segment-events-patch-in-place`,
+`source.app.index-is-the-engines`, `source.app.curated-pass-stays-on-top`, and the app half of
+`source.one-store`.
+
+**One commit wires the store in and removes what it replaces.** The same commit that makes the
+image overlay, `RegionInteractionLayer` and `PDFPageWithToolbar` take their geometry from
+`SegmentDisplay` also:
+
+1. **Removes `OCRGeometrySelection.loadSelected`'s own fetch** through `ArtifactService`. After
+   it, `SegmentStore` is the only thing that fetches geometry. Two owners, even for one
+   commit, is the fault this slice exists to prevent.
+2. **Removes `ArtifactEntityStore.revisions`** as the overlays' refresh signal; their
+   `.task(id:)` keys move to the store's entry for the document. One refresh signal.
+3. **Takes a preferred `source_artifact_id`.** Today an artifact selected in the Inspector
+   (`FocusedArtifact`) outranks the ranking, unless it is known to be empty.
+   `SegmentDisplay.geometry(for:store:preferring:)` takes that artifact's id and shows its pass
+   first when it has drawable segments. Without this the Inspector's selection silently stops
+   choosing what is drawn.
+4. **Carries the engine's index.** The draw model's box gains `engineIndex: Int?`, filled from
+   `segment.boxIndex`. `OCRGeometry.displayIndexedBoxes` yields that index where present (the
+   array offset only on the old artifact path, which this commit leaves with no callers), and
+   `RegionSelection` stores it. A segment that cannot be drawn is left out of what is **drawn**
+   and changes no other box's address. Two segments of one pass with the same `boxIndex` is a
+   reported error, not a silent sort.
+5. **Gives the draw model the hand-drawn fact directly.** `OCRGeometryBox.isHandDrawn` becomes a
+   stored value set from `segment.isHandCurated`; the rebuild of `provider: "user"` and
+   `source: "manual"` goes. (On decode from an artifact, it is still worked out from those two
+   strings, in one place.)
+6. **One ranking.** `ranked` and `rankedPasses` share one core over `(type, isHandCurated,
+   createdAt)`. A pass is hand-curated when its own maker is a person **or any of its segments'
+   is**, which needs the segments, so the ranking is worked out in the store when a document's
+   entry changes.
+7. **Works out display geometry on change, never in a view's `body`.** `SegmentStore` keeps, for
+   each loaded document, the chosen pass and its `OCRGeometry`, recomputed when that
+   document's entry (or the preferred artifact) changes. Views read the stored value.
+8. **Uses the pass's own text and the segment's page index** (slice 1b), and `pass.provider`.
+
+**Events.** `SegmentStore: ChangeEventConsumer`, `changeDomains = ["segment", "artifact"]`.
+`segment.*` with `segmentIds`: re-read that document and replace only the items whose id is in
+the list (insert new ones; remove ones now absent); the other items stay the same values in
+the same positions. `artifact.*` with `documentIds`: re-read each **loaded** document named,
+and replace that document's entry only. An event for a document that is not loaded fetches
+nothing. Both of `ChangeEvent`'s init paths deliver the lists (slice 2).
+
+**Follow-up carried, not fixed here:** a pass whose segments all have unset rects is not empty,
+can win the ranking, and draws nothing, covering a lower pass with good boxes. Today's path
+has the same fault with zero-width boxes (noted on → #4955).
+
+**Tests.**
+- Pure: the index test (a pass with an unset-rect segment in the middle; select the box after
+  it; the index handed to the edit call is that box's `boxIndex`); duplicate `boxIndex` is
+  reported; a machine pass carrying one human segment ranks ahead of a newer machine pass (the
+  2026-09-03 case); the preferred artifact's pass wins over the ranking, and does not when it
+  has nothing drawable; the mapped `OCRGeometry` equals the old artifact path's for the same
+  boxes, **including `text`, `pageIndex` and `isHandDrawn`**; `apply(_:)` with `segmentIds`
+  replaces exactly those items; twenty thousand segments: the display geometry is computed
+  once for each change, not for each read (count the computations).
+- Engine-backed: against a temporary library, a two-page PDF shows each page its own boxes.
+- **On screen: "not seen working" until looked at.** Nothing on this path mounts a view. The
+  manager's build-and-verify run opens the same documents before and after: an image with
+  regions (count and position of boxes; the frame gate refusing a re-framed image), a
+  multi-page PDF (each page its own boxes), a page with a hand-drawn region under a newer
+  machine run (the region still shows), an artifact selected in the Inspector (its boxes
+  show), and **one region edit on a page that has a zero-width box before the edited one**
+  (the right box moves). That last check is the one that would have caught stage 1's index
+  fault.
