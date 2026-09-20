@@ -83,8 +83,11 @@ from a duplicate, and order can carry meaning (the order things were changed in)
 **Engine.**
 - One declared tuple, `CHANGE_ID_LISTS = ("entity_ids", "claim_ids", "document_ids",
   "artifact_ids", "citation_ids", "reference_ids", "interpretation_ids", "segment_ids",
-  "pass_ids")`, in `api/change_stream.py`. **A new kind of id list is added there and nowhere
-  else in the engine.**
+  "pass_ids")`, in `api/change_stream.py`. **`_emit` and the activity fold read it, so neither needs an
+  edit for a new kind.** (A new kind still needs its field on `ChangeEvent` and `ChangeSpec`
+  and its keyword on `emit_change`; one test asserts that those four agree with the tuple,
+  because a mismatch would otherwise drop every event behind `emit_change`'s catch-all, logged
+  only at debug.)
 - `ChangeEvent` gains `segment_ids: list[str] = []` and `pass_ids: list[str] = []`;
   `emit_change(...)` gains the two keyword arguments; de-duplication (order kept) is applied to
   every name in the tuple, in one loop.
@@ -122,6 +125,12 @@ added in this slice (there is no segment store yet).
   `.models`, app side, **for each of Swift's two init paths**.
 - Swift decodes `artifactIds` and `interpretationIds` from a recorded engine event, through
   both init paths (the gap that is open today).
+- **The fixture is compared, never written, in a normal test run**: the engine test builds the
+  expected fixture from the tuple with a fixed timestamp and fails, naming the command that
+  regenerates it, when the committed file differs. A test run never dirties the tree.
+- `emit_request_change` (a hand-written wrapper with the seven old lists, called by nothing) is
+  deleted, or made to forward every declared list: a fourth hand-written site is how a
+  whole-page refresh creeps back in.
 - A contract test holds the Swift side to the engine's tuple: a fixture file of one event
   carrying every declared list, written by an engine test from `CHANGE_ID_LISTS`, is decoded
   by a Swift test that asserts every list is non-empty. A kind added in the engine and not in
