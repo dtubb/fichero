@@ -157,8 +157,15 @@ image, the form an anchor's rect has), never a grid key: the tile grid is the en
 detail and can change. "By area" means **every segment whose box intersects the rectangle**.
 A segment is filed under the tile of its centre, so the engine must also return a wide
 segment that covers the area and is centred outside it (file it under every tile it covers,
-or keep a short list of segments larger than a tile). Test: a region as wide as the page,
-centred outside the asked-for area, comes back.
+or treat segments larger than a tile as always candidates). **And a small segment can straddle
+a tile edge**: its centre, and so its tile, just outside the tiles the rectangle touches, its
+box reaching in. So candidate tiles are those of the rectangle **grown by half a tile on every
+side**; with the larger-than-a-tile clause that is complete, and a true intersection test then
+removes the extras. Tests: a region as wide as the page, centred outside the asked-for area,
+comes back; a small segment centred in the next tile whose box crosses into the area comes
+back; the same segment wholly outside does not. Any raw SQL fragment used for this is a
+**constant** with every value bound (tiles as one list parameter), so that rule can be
+checked by a guardrail.
 
 **Locks are taken in the house order: the transaction gate, then the connection lock.**
 `_execute` does gate then lock, and a transaction holds the gate for its whole life. `save_many`
