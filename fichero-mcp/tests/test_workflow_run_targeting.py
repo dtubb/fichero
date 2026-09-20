@@ -27,4 +27,17 @@ def test_workflow_run_sends_selected_doc_ids():
         "targets must ride under selected_doc_ids — inputs['files'] is read "
         "by nothing and the run completes green on zero documents (#4467)"
     )
-    assert kwargs == {"force_new": True, "skip_cache": False}
+    # #4983-adjacent fix: `fichero_workflow_run` gained `provider`/`model`
+    # run-level overrides on 2026-08-27 (`e90907d0f`), always forwarded as
+    # `provider_override`/`model_override` (None when the agent doesn't ask
+    # for one) — this test predates that and was never updated. Unrelated
+    # to #4961/#4963 (those are Swift app-side bugs: the Library's workflow-
+    # row selection and the workflow bar always sending a model override;
+    # this MCP tool already does the SAFE thing #4963 wants from the app —
+    # no override unless explicitly requested).
+    assert kwargs == {
+        "force_new": True,
+        "skip_cache": False,
+        "provider_override": None,
+        "model_override": None,
+    }

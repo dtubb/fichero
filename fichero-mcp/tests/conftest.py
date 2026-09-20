@@ -49,6 +49,18 @@ def isolated_mcp_env(monkeypatch, tmp_path):
     monkeypatch.setattr(
         client_module, "_CLI_SESSION_PATH", token_path.with_name("cli-session.json")
     )
+    # `_read_token` also checks `_CONTAINER_TOKEN_PATH` — the SANDBOXED app's
+    # own container copy of the same file, a real path under
+    # ~/Library/Containers/app.fichero.fichero/... this fixture's docstring
+    # promised isolation from but did not patch. On a machine that has ever
+    # run the real sandboxed app (every dev machine, including this one,
+    # verified: a real `.api-key` sits there right now), a test asserting
+    # "no credential" silently picked up that REAL local secret instead —
+    # a mocked transport meant no actual leak occurred, but the test's
+    # pass/fail depended on host state it never should have touched.
+    monkeypatch.setattr(
+        client_module, "_CONTAINER_TOKEN_PATH", token_path.with_name("container-.api-key")
+    )
     # _CONFIG is module-global and mutated by each surface's main(); restore it
     # so test order cannot leak a base URL from one module into another.
     for module in (mcp_server, mcp_simple, mcp_full):
