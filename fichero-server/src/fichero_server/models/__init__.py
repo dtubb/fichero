@@ -740,6 +740,23 @@ class Artifact(BaseModel):
     content: str | None = None  # Text output
     data: dict[str, Any] | None = None  # Structured output
     ocr_geometry: OCRGeometryResult | None = None  # Typed OCR/transcription boxes
+    #: Source-model slice 6 (#4924). Set ONCE, at this artifact's first
+    #: edit, to the id of the `SegmentPass` its boxes became. THIS FIELD IS
+    #: WHAT "CONVERTED" MEANS -- a pass merely naming this artifact does
+    #: not, because `POST /api/segments/passes` lets any caller make one by
+    #: hand. While it is None the seam reads `ocr_geometry` above; once it
+    #: is set the seam skips the block and reads the rows, and every API
+    #: response that shows this artifact's boxes shows an ordered
+    #: projection of them instead (`live_geometry`).
+    #:
+    #: `ocr_geometry` itself is then KEPT, UNTOUCHED, FOR GOOD: it is the
+    #: record of what the machine produced, and until readings hang on
+    #: segments (slice 8) it is still the home of each box's words. A
+    #: marker set with no live pass behind it RAISES
+    #: (`ConversionMarkerDangling`) -- never a silent fall back to stale
+    #: boxes. Additive: `_ensure_table` adds the column to an existing
+    #: library with a plain idempotent ALTER, and an old row reads None.
+    geometry_superseded_by_pass_id: str | None = None
 
     # Provenance
     source_document_id: str | None = None  # Source document this was extracted from (for page docs, parent PDF)

@@ -1009,6 +1009,22 @@ def boxes_for_span(
     return sorted(matches, key=lambda box: (box.char_start or 0, box.char_end or 0))
 
 
+def reading_order(
+    pairs: list[tuple[int, "OCRGeometryBox"]],
+) -> list[tuple[int, "OCRGeometryBox"]]:
+    """Reading order: char spans when every member has one (the transcript
+    IS the reading order), else top-then-left by bbox.
+
+    Lives here, beside `union_bbox`, because both the OLD store's combine
+    (`artifacts.py::_edit_regions_impl`) and the NEW store's joined text
+    for a combined segment need it, and a second copy of this rule is how
+    two combines would start disagreeing about word order (#4924).
+    """
+    if all(b.char_start is not None for _, b in pairs):
+        return sorted(pairs, key=lambda p: (p[1].char_start or 0, p[1].char_end or 0))
+    return sorted(pairs, key=lambda p: (p[1].bbox[1], p[1].bbox[0]))
+
+
 def union_bbox(boxes: list[OCRGeometryBox]) -> list[float] | None:
     """Smallest normalized rect containing every box, or ``None`` if empty."""
     if not boxes:

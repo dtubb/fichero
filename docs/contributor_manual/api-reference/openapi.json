@@ -3702,11 +3702,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SegmentVersion"
-                  },
-                  "title": "Response List Segment Versions Api Segments  Segment Id  Versions Get"
+                  "$ref": "#/components/schemas/SegmentVersionListResponse"
                 }
               }
             }
@@ -5482,7 +5478,7 @@
           "artifacts"
         ],
         "summary": "Edit Artifact Regions",
-        "description": "Curate an artifact's regions: move, delete, add, or combine boxes.\n\nCuration-grade: one audited, undoable action per edit (full before\nsnapshot \u2014 nothing is ever lost), plus a `curation_log` entry inside the\ngeometry itself so the history travels with the artifact.",
+        "description": "Curate an artifact's regions: move, delete, add, or combine boxes.\n\nCuration-grade: one audited, undoable action per edit \u2014 nothing is ever\nlost.\n\nBefore a page's first edit, each edit is also appended to the block's\n`curation_log`. The first edit converts the page to segment records;\nfrom then on the block is never written, and the history is each\nsegment's versions and the audit record (#4924).",
         "operationId": "edit_artifact_regions_api_artifacts__artifact_id__regions_put",
         "parameters": [
           {
@@ -32008,7 +32004,7 @@
           "actions"
         ],
         "summary": "Undo Action",
-        "description": "Reverse an action \u2014 or redo, when the target audit is itself an inverse.\n\nTwo paths, both registry-driven and both producing a fresh audit row so the\nchain stays reversible indefinitely:\n\n* **Undo a forward action** (``inverse_of is None``): look the action up in the\n  registry, call its ``invert(before, after, ctx) -> (name, params)``, and\n  ``invoke`` that inverse, tagged ``inverse_of=this audit`` so it can be redone.\n* **Undo an inverse / redo** (``inverse_of`` set): replay the ORIGINAL forward\n  action with its recorded ``action_name`` + ``params``. This is correct for\n  *any* action regardless of how its inverse was implemented \u2014 no per-action\n  redo logic and no need for inverse actions (restore/unmerge) to be\n  independently ``undoable``.",
+        "description": "Reverse an action \u2014 or redo, when the target audit is itself an inverse.\n\nTwo paths, both registry-driven and both producing a fresh audit row so the\nchain stays reversible indefinitely:\n\n* **Undo a forward action** (``inverse_of is None``): look the action up in the\n  registry, call its ``invert(before, after, ctx) -> (name, params)``, and\n  ``invoke`` that inverse, tagged ``inverse_of=this audit`` so it can be redone.\n* **Undo an inverse / redo** (``inverse_of`` set): by default, replay the\n  ORIGINAL forward action's ``action_name``, with its recorded ``params``\n  freshened by :func:`_refresh_replay_expected_versions` (#4957) so a\n  versioned action's ``expected_version``/``expected_versions`` compare\n  against the state the undo just left, not the value recorded back when\n  the action first ran. No per-action redo logic and no need for inverse\n  actions (restore/unmerge/unsplit/uncarry) to be independently\n  ``undoable``. When THIS row's own action opts in via\n  ``redo_via_own_invert`` (segment actions that mint a new id/row on a\n  plain replay), undo it through its OWN ``invert(before, after, ctx)``\n  instead \u2014 see :attr:`fichero_server.actions.registry.ActionRegistration.redo_via_own_invert`.",
         "operationId": "undo_action_api_actions_audit__audit_id__undo_post",
         "parameters": [
           {
@@ -38515,6 +38511,11 @@
             "$ref": "#/components/schemas/OCRGeometryResult",
             "nullable": true
           },
+          "geometry_superseded_by_pass_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Geometry Superseded By Pass Id"
+          },
           "source_document_id": {
             "type": "string",
             "nullable": true,
@@ -38818,6 +38819,7 @@
           "text": {
             "type": "string",
             "title": "Text",
+            "description": "Text for the new box on `add`. REFUSED on add until readings attach to segments (422, `TextNeedsReadings`): once a page's boxes are segment records there is nowhere lawful to keep typed words, and a page's first edit converts it (#4924). Draw the region, then transcribe it. Ignored by the other ops.",
             "default": ""
           },
           "level": {
@@ -64248,13 +64250,21 @@
             },
             "type": "array",
             "title": "Kinds"
+          },
+          "expected_versions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Expected Versions"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "match_id",
-          "kinds"
+          "kinds",
+          "expected_versions"
         ],
         "title": "SegmentCarryParams"
       },
@@ -64332,7 +64342,8 @@
           "kind",
           "anchor"
         ],
-        "title": "SegmentCreateParams"
+        "title": "SegmentCreateParams",
+        "description": "No `id` field, on purpose (#4957 review 3): a client can reach this\naction through `POST /api/actions/invoke` or the chat-tools path, not\nonly `POST /api/segments` -- an `id` field on THIS model would be\nreachable through all three, no matter what any ONE route refuses.\nA specific, precomputed id (slice 6's repeatable-on-purpose ids) is a\nkeyword on `_create_segment_impl` below, for in-process callers that\nnever go through `registry.invoke` at all."
       },
       "SegmentDeleteParams": {
         "properties": {
@@ -64522,13 +64533,21 @@
           "keep_id": {
             "type": "string",
             "title": "Keep Id"
+          },
+          "expected_versions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Expected Versions"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "segment_ids",
-          "keep_id"
+          "keep_id",
+          "expected_versions"
         ],
         "title": "SegmentMergeParams"
       },
@@ -64849,13 +64868,18 @@
             },
             "type": "array",
             "title": "Parts"
+          },
+          "expected_version": {
+            "type": "integer",
+            "title": "Expected Version"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "segment_id",
-          "parts"
+          "parts",
+          "expected_version"
         ],
         "title": "SegmentSplitParams"
       },
@@ -65052,6 +65076,28 @@
         ],
         "title": "SegmentVersion",
         "description": "Append-only: a full copy of one segment's own fields AT ONE OF ITS\nversions (`source.segment.versioned-alone`), so undo restores from\nORDINARY DATA, never from the audit chain. Written as a PREIMAGE --\nthe row's state right BEFORE the change that bumped `Segment.version`\npast the number this row carries -- by every action that changes a\nsegment (`segment.update`/`.delete`/`.undelete`/`.restore_version`,\nand slice 4's `segment.merge`/`.split`): `segment.update`'s own\n`before: {segment_id, version}` names exactly the version number a\nversion row was written under, so `segment.restore_version(version=N)`\nfinds it directly. No row is written at creation (version 1 has none\nuntil the segment's first change)."
+      },
+      "SegmentVersionListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentVersion"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "SegmentVersionListResponse",
+        "description": "Typed version-list envelope for the OpenAPI client.\n\n`{items, count}`, never a bare array: a bare list endpoint is the\nshape `test_no_new_bare_array_get_endpoint` exists to keep out (#1075,\nwhere a bare list and an envelope for the same idea drifted apart)."
       },
       "SelectionKind": {
         "type": "string",

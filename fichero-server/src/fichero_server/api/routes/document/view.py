@@ -95,7 +95,7 @@ def _ancestor_rows(db: Database, anchor: Document) -> list[Document]:
 def _anchor_attachments(db: Database, doc_id: str) -> DocumentViewAttachments:
     renditions = order_renditions(db.query(Rendition, document_id=doc_id))
     artifacts = [
-        _artifact_response(a) for a in db.query(Artifact, document_id=doc_id)
+        _artifact_response(db, a) for a in db.query(Artifact, document_id=doc_id)
     ]
     annotation_count = len(db.query(Annotation, document_id=doc_id))
     # Entities record the pages they were extracted from

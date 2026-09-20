@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from fastapi import HTTPException
 
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models import (
@@ -170,7 +171,14 @@ class TestDeleteIsUndoable:
             content="carried text", source_anchor=parent.anchor,
         )
         db.save(reading)
-        registry.invoke(db, "segment.carry", {"match_id": match_id, "kinds": ["reading"]}, ctx)
+        registry.invoke(
+            db, "segment.carry",
+            {
+                "match_id": match_id, "kinds": ["reading"],
+                "expected_versions": {parent.id: parent.version, other.id: other.version},
+            },
+            ctx,
+        )
         carry_ids_before = {c.id for c in db.query(SegmentCarry, match_id=match_id)}
         assert carry_ids_before, "fixture must actually produce a carry"
 
@@ -711,9 +719,12 @@ class TestReads:
         r = client.get(f"/api/segments/{seg.id}/versions")
         assert r.status_code == 200, r.text
         body = r.json()
-        assert len(body) == 1
-        assert body[0]["version"] == 1
-        assert body[0]["segment_id"] == seg.id
+        # `{items, count}`, not a bare array (#1075's rule for every list
+        # endpoint; `test_no_new_bare_array_get_endpoint` enforces it).
+        assert body["count"] == 1
+        assert len(body["items"]) == 1
+        assert body["items"][0]["version"] == 1
+        assert body["items"][0]["segment_id"] == seg.id
 
     def test_get_segment_resolves_through_forwarding_and_says_so(self, db, client):
         doc = _make_doc(db)
@@ -721,7 +732,14 @@ class TestReads:
         seg_a = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
         seg_b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.5, 0.5, 0.1, 0.1])
         ctx = _ctx(db)
-        registry.invoke(db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx)
+        registry.invoke(
+            db, "segment.merge",
+            {
+                "segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id,
+                "expected_versions": {seg_a.id: seg_a.version, seg_b.id: seg_b.version},
+            },
+            ctx,
+        )
 
         live = client.get(f"/api/segments/{seg_b.id}")
         assert live.status_code == 200, live.text
@@ -940,7 +958,12 @@ class TestAuditIdResolvesToARealAuditRow:
         ctx = _ctx(db)
 
         result = registry.invoke(
-            db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx,
+            db, "segment.merge",
+            {
+                "segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id,
+                "expected_versions": {seg_a.id: seg_a.version, seg_b.id: seg_b.version},
+            },
+            ctx,
         )
         forwarding_row = db.query(SegmentForwarding, old_segment_id=seg_a.id)[0]
         audit = db.get(ActionAudit, forwarding_row.audit_id)
@@ -954,11 +977,24 @@ class TestAuditIdResolvesToARealAuditRow:
         seg_a = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.1, 0.1])
         seg_b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.3, 0.3, 0.1, 0.1])
         ctx = _ctx(db)
-        registry.invoke(db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx)
+        registry.invoke(
+            db, "segment.merge",
+            {
+                "segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id,
+                "expected_versions": {seg_a.id: seg_a.version, seg_b.id: seg_b.version},
+            },
+            ctx,
+        )
         pre_merge_version = db.query(SegmentVersion, segment_id=seg_a.id)[0].version
+        current_a_version = db.get(Segment, seg_a.id).version
 
         result = registry.invoke(
-            db, "segment.unmerge", {"versions": {seg_a.id: pre_merge_version}}, ctx,
+            db, "segment.unmerge",
+            {
+                "versions": {seg_a.id: pre_merge_version},
+                "expected_versions": {seg_a.id: current_a_version},
+            },
+            ctx,
         )
         newest_forwarding = max(
             db.query(SegmentForwarding, old_segment_id=seg_a.id), key=lambda f: f.sequence
@@ -977,7 +1013,7 @@ class TestAuditIdResolvesToARealAuditRow:
         result = registry.invoke(
             db, "segment.split",
             {
-                "segment_id": seg.id,
+                "segment_id": seg.id, "expected_version": seg.version,
                 "parts": [
                     {"anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]}},
                     {"anchor": {"document_id": doc.id, "rect": [0.2, 0.2, 0.1, 0.1]}},
@@ -1000,7 +1036,7 @@ class TestAuditIdResolvesToARealAuditRow:
         split_result = registry.invoke(
             db, "segment.split",
             {
-                "segment_id": seg.id,
+                "segment_id": seg.id, "expected_version": seg.version,
                 "parts": [
                     {"anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]}},
                     {"anchor": {"document_id": doc.id, "rect": [0.2, 0.2, 0.1, 0.1]}},
@@ -1009,10 +1045,17 @@ class TestAuditIdResolvesToARealAuditRow:
             ctx,
         )
         new_ids = split_result.result["new_segment_ids"]
+        current_kept_version = db.get(Segment, seg.id).version
 
         result = registry.invoke(
             db, "segment.unsplit",
-            {"segment_id": seg.id, "version": pre_split_version, "new_segment_ids": new_ids}, ctx,
+            {
+                "segment_id": seg.id, "version": pre_split_version,
+                "expected_version": current_kept_version,
+                "new_segment_ids": new_ids,
+                "expected_versions": {nid: db.get(Segment, nid).version for nid in new_ids},
+            },
+            ctx,
         )
         newest_forwarding = max(
             db.query(SegmentForwarding, old_segment_id=seg.id), key=lambda f: f.sequence
@@ -1021,3 +1064,192 @@ class TestAuditIdResolvesToARealAuditRow:
         assert audit is not None, f"orphan audit_id {newest_forwarding.audit_id!r}"
         assert audit.id == result.audit_id
         assert audit.action_name == "segment.unsplit"
+
+
+class TestUnsplitRefusesAPartTouchedMeanwhile:
+    """#4957 follow-up 1: "an inverse must never hard-delete something a
+    later step touched" -- `unsplit` used to `db.delete` every part it was
+    given unconditionally, even one someone else had since edited. Now it
+    is refused, with a typed reason, and NOTHING is deleted (not even the
+    other, untouched parts) -- the whole action rolls back."""
+
+    def test_unsplit_refuses_when_a_part_was_edited_meanwhile_nothing_deleted(self, db):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.2, 0.2])
+        ctx = _ctx(db)
+        pre_split_version = seg.version
+
+        split_result = registry.invoke(
+            db, "segment.split",
+            {
+                "segment_id": seg.id, "expected_version": pre_split_version,
+                "parts": [
+                    {"anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]}},
+                    {"anchor": {"document_id": doc.id, "rect": [0.2, 0.2, 0.1, 0.1]}},
+                ],
+            },
+            ctx,
+        )
+        new_ids = split_result.result["new_segment_ids"]
+        part_id = new_ids[0]
+        stale_expected_versions = {nid: db.get(Segment, nid).version for nid in new_ids}
+
+        # Someone else edits the part in between the split and the unsplit.
+        part_before_edit = db.get(Segment, part_id).version
+        edited = registry.invoke(
+            db, "segment.update",
+            {"segment_id": part_id, "expected_version": part_before_edit, "kind_raw": "someone-else-edited-this"},
+            ctx,
+        )
+        assert edited.ok
+
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db, "segment.unsplit",
+                {
+                    "segment_id": seg.id, "version": pre_split_version,
+                    "expected_version": db.get(Segment, seg.id).version,
+                    "new_segment_ids": new_ids,
+                    "expected_versions": stale_expected_versions,
+                },
+                ctx,
+            )
+        assert exc.value.status_code == 409
+
+        # NOTHING was deleted -- not the touched part, not the untouched one.
+        for nid in new_ids:
+            row = db.get(Segment, nid)
+            assert row is not None, f"{nid} was deleted despite the refusal"
+            assert row.deleted_at is None
+        assert db.get(Segment, part_id).kind_raw == "someone-else-edited-this"
+        # The kept segment was never restored either -- refused BEFORE any write.
+        assert db.get(Segment, seg.id).anchor.rect == [0.1, 0.1, 0.1, 0.1]
+
+
+class TestRestoreRefusesADeadPassOrParent:
+    """#4957 follow-up 2: `undelete`, `unmerge` and `unsplit` refuse to
+    bring a segment back into a pass or under a parent that is no longer
+    live -- otherwise an undo/redo could restore it into a place the read
+    seam or the reader treats as gone (a soft-deleted pass is skipped
+    entirely by `list_document_segments`)."""
+
+    def test_undelete_refuses_into_a_deleted_pass(self, db, client):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        ctx = _ctx(db)
+
+        registry.invoke(
+            db, "segment.delete", {"segment_ids": [seg.id], "expected_versions": {seg.id: 1}}, ctx,
+        )
+        # The pass is deleted AFTER the segment, while it is still soft-deleted.
+        delete_pass_response = client.delete(f"/api/segments/passes/{pass_row.id}")
+        assert delete_pass_response.status_code == 200, delete_pass_response.text
+        assert db.get(SegmentPass, pass_row.id).deleted_at is not None
+
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db, "segment.undelete",
+                {"segment_ids": [seg.id]}, ctx,
+            )
+        assert exc.value.status_code == 409
+        assert db.get(Segment, seg.id).deleted_at is not None  # still deleted, unchanged
+
+    def test_undelete_refuses_under_a_deleted_parent(self, db):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        parent = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.3, 0.3])
+        child = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        child.parent_segment_id = parent.id
+        db.save(child)
+        ctx = _ctx(db)
+
+        registry.invoke(
+            db, "segment.delete", {"segment_ids": [child.id], "expected_versions": {child.id: 1}}, ctx,
+        )
+        # The parent is deleted AFTER the child, while the child is still
+        # soft-deleted -- merge is the real way a segment becomes not-live
+        # without a pass delete; a plain delete on the parent segment is
+        # simplest to set up here and exercises the SAME liveness check.
+        registry.invoke(
+            db, "segment.delete", {"segment_ids": [parent.id], "expected_versions": {parent.id: 1}}, ctx,
+        )
+
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(db, "segment.undelete", {"segment_ids": [child.id]}, ctx)
+        assert exc.value.status_code == 409
+        assert db.get(Segment, child.id).deleted_at is not None
+
+    def test_unmerge_refuses_into_a_deleted_pass(self, db, client):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        keep = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.5, 0.5, 0.1, 0.1])
+        absorbed = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        ctx = _ctx(db)
+
+        registry.invoke(
+            db, "segment.merge",
+            {
+                "segment_ids": [keep.id, absorbed.id], "keep_id": keep.id,
+                "expected_versions": {keep.id: 1, absorbed.id: 1},
+            },
+            ctx,
+        )
+        pre_merge_version = db.query(SegmentVersion, segment_id=absorbed.id)[0].version
+        absorbed_current_version = db.get(Segment, absorbed.id).version
+
+        delete_pass_response = client.delete(f"/api/segments/passes/{pass_row.id}")
+        assert delete_pass_response.status_code == 200, delete_pass_response.text
+
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db, "segment.unmerge",
+                {
+                    "versions": {absorbed.id: pre_merge_version},
+                    "expected_versions": {absorbed.id: absorbed_current_version},
+                },
+                ctx,
+            )
+        assert exc.value.status_code == 409
+        assert db.get(Segment, absorbed.id).deleted_at is not None  # still merged away
+
+    def test_unsplit_refuses_into_a_deleted_pass(self, db, client):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.2, 0.2])
+        ctx = _ctx(db)
+        pre_split_version = seg.version
+
+        split_result = registry.invoke(
+            db, "segment.split",
+            {
+                "segment_id": seg.id, "expected_version": pre_split_version,
+                "parts": [
+                    {"anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]}},
+                    {"anchor": {"document_id": doc.id, "rect": [0.2, 0.2, 0.1, 0.1]}},
+                ],
+            },
+            ctx,
+        )
+        new_ids = split_result.result["new_segment_ids"]
+        current_kept_version = db.get(Segment, seg.id).version
+
+        delete_pass_response = client.delete(f"/api/segments/passes/{pass_row.id}")
+        assert delete_pass_response.status_code == 200, delete_pass_response.text
+
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db, "segment.unsplit",
+                {
+                    "segment_id": seg.id, "version": pre_split_version,
+                    "expected_version": current_kept_version,
+                    "new_segment_ids": new_ids,
+                    "expected_versions": {nid: db.get(Segment, nid).version for nid in new_ids},
+                },
+                ctx,
+            )
+        assert exc.value.status_code == 409
+        # Nothing deleted -- refused before the hard-delete of the parts.
+        for nid in new_ids:
+            assert db.get(Segment, nid) is not None

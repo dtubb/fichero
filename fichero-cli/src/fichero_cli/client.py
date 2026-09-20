@@ -1162,7 +1162,11 @@ class FicheroClient:
         """
         path = f"/api/segments/{segment_id}/versions"
         raw = self.request("GET", path)
-        return [SegmentVersion.model_validate(v) for v in _expect_list(raw, path)]
+        # `{items, count}`, like every other list route (#1075's rule).
+        return [
+            SegmentVersion.model_validate(v)
+            for v in _expect_list(raw.get("items"), path)
+        ]
 
     def segment_reference(self, segment_id: str) -> "SegmentReferenceResponse":
         """A segment's citable, stable reference string

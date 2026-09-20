@@ -2,15 +2,51 @@
 
 Regions became first-class objects: a box inside an artifact's
 ``ocr_geometry.boxes`` can be moved, deleted, added, and combined, each edit
-one audited, undoable action that also writes a ``curation_log`` entry into
-the geometry's own metadata. These tests pin the semantics, the edge cases,
-and the side effects (audit row, undo restores the before-snapshot).
+one audited, undoable action.
+
+REWRITTEN for #4924 slice 6 step 5. The ROUTE and its answers are unchanged
+-- that is the point, and it is what the app depends on -- but WHERE the
+edit lands moved. A page's first edit now converts its boxes into segment
+rows and applies the edit to them, as one audited action; the artifact's
+``ocr_geometry`` block becomes the record of what the MACHINE produced and
+is never written again.
+
+So every assertion below that used to read the stored block now reads one
+of two things instead:
+
+* the RESPONSE, which is the app-facing contract and has not changed; or
+* the ROWS, which are where the edit actually landed.
+
+And the block is asserted BYTE-EQUAL, which is the new invariant. One
+casualty, ruled 2026-09-20: the ``curation_log`` inside the geometry stops
+growing at conversion, because the geometry stops being written. Nothing in
+the engine or the app ever read it; the history lives in the audit chain and
+the segment version rows, which do not travel with an exported artifact.
 """
 
 import pytest
 
 from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryResult
 from fichero_server.models import ActionAudit, Artifact, Document, DocType, FileType, Status
+from fichero_server.models.segments import Segment
+
+
+def _rows(db, artifact_id: str, *, live_only: bool = True):
+    """The artifact's segment rows, in the one order the app is given them.
+
+    `live_only=False` includes soft-deleted rows, which is how a delete's
+    "what was removed" is now answered: the rows are still there.
+    """
+    from fichero_server.api.routes.document.segment_conversion import live_rows_in_order
+    from fichero_server.models.segments import converted_pass_id
+
+    pass_id = converted_pass_id(artifact_id)
+    if live_only:
+        return live_rows_in_order(db, pass_id)
+    return sorted(
+        db.query(Segment, pass_id=pass_id),
+        key=lambda r: (r.metadata.get("box_index", 0), r.created_at.isoformat()),
+    )
 
 
 def _make_doc(db, name: str = "page.jpg") -> Document:
@@ -64,6 +100,7 @@ class TestMove:
     def test_move_updates_bbox_and_persists(self, client, db):
         doc = _make_doc(db)
         a = _make_regions_artifact(db, doc.id)
+        block_before = db.get(Artifact, a.id).ocr_geometry.model_dump(mode="json")
 
         r = _edit(client, a.id, {"op": "move", "indices": [1], "bbox": [0.4, 0.4, 0.2, 0.05]})
         assert r.status_code == 200
@@ -73,19 +110,22 @@ class TestMove:
         assert body["ocr_geometry"]["boxes"][1]["text"] == "beta"
         assert body["region_count"] == 3
 
-        stored = db.get(Artifact, a.id)
-        assert stored.ocr_geometry.boxes[1].bbox == [0.4, 0.4, 0.2, 0.05]
-        log = stored.ocr_geometry.metadata["curation_log"]
-        assert log[-1]["op"] == "move"
-        assert log[-1]["from_bbox"] == [0.1, 0.3, 0.2, 0.05]
+        # The edit landed on the ROW, and the block is untouched (#4924).
+        rows = _rows(db, a.id)
+        assert rows[1].anchor.rect == [0.4, 0.4, 0.2, 0.05]
+        assert rows[1].version == 2, "a move is a versioned change"
+        assert db.get(Artifact, a.id).ocr_geometry.model_dump(mode="json") == block_before
 
     def test_move_rejects_out_of_bounds_bbox(self, client, db):
         doc = _make_doc(db)
         a = _make_regions_artifact(db, doc.id)
         r = _edit(client, a.id, {"op": "move", "indices": [0], "bbox": [0.9, 0.9, 0.5, 0.5]})
         assert r.status_code == 422
-        # And nothing changed — a refused edit must not half-land.
+        # And nothing changed — a refused edit must not half-land. Since the
+        # whole thing is one transaction, that now means no rows either.
         assert db.get(Artifact, a.id).ocr_geometry.boxes[0].bbox == [0.1, 0.1, 0.2, 0.05]
+        assert db.get(Artifact, a.id).geometry_superseded_by_pass_id is None
+        assert db.query(Segment, document_id=doc.id) == []
 
     def test_move_needs_exactly_one_index(self, client, db):
         doc = _make_doc(db)
@@ -107,10 +147,13 @@ class TestDelete:
         assert body["region_count"] == 1
         assert [b["text"] for b in body["ocr_geometry"]["boxes"]] == ["beta"]
 
-        # Curation-grade: the removed boxes are in the geometry's own log.
-        stored = db.get(Artifact, a.id)
-        removed = stored.ocr_geometry.metadata["curation_log"][-1]["removed"]
-        assert [b["text"] for b in removed] == ["alpha", "gamma"]
+        # Curation-grade: the removed boxes are SOFT-deleted rows, so what
+        # was removed is still there to be undone, and the block still
+        # holds all three (#4924).
+        rows = _rows(db, a.id, live_only=False)
+        assert len(rows) == 3
+        assert sum(1 for row in rows if row.deleted_at is not None) == 2
+        assert len(db.get(Artifact, a.id).ocr_geometry.boxes) == 3
 
     def test_delete_index_out_of_range(self, client, db):
         doc = _make_doc(db)
@@ -138,18 +181,21 @@ class TestDelete:
         r = _edit(client, a.id, {"op": "delete", "indices": [0]})
         assert r.status_code == 200
 
+        # ONE audited action for the conversion AND the edit -- one undo
+        # step, which is the whole point (#4924).
         audits = [
             row for row in db.all(ActionAudit)
-            if row.action_name == "artifact.regions_edit"
+            if row.action_name == "segment.convert_and_edit"
         ]
         assert len(audits) == 1
         audit = audits[-1]
-        assert audit.target_ids == [a.id]
-        # The before-snapshot carries the FULL artifact (all 3 boxes): the
-        # invert derives artifact.restore from it, so the edit is never lossy.
-        assert len(audit.before["ocr_geometry"]["boxes"]) == 3
-        # Other clients hear about the edit without a refresh.
-        assert calls[-1][1]["type"] == "artifact.updated"
+        assert a.id in audit.target_ids and doc.id in audit.target_ids
+        # The edit is recorded as the segment action that carried it, which
+        # is what the inverse is worked out from.
+        assert audit.after["edit"]["action"] == "segment.delete"
+        assert audit.after["segment_count"] == 3
+        # Other clients hear about it without a refresh.
+        assert calls[-1][1]["type"] == "segment.converted"
         assert calls[-1][1]["artifact_ids"] == [a.id]
 
 
@@ -158,18 +204,41 @@ class TestAdd:
         doc = _make_doc(db)
         a = _make_regions_artifact(db, doc.id)
 
-        r = _edit(
-            client, a.id,
-            {"op": "add", "bbox": [0.2, 0.7, 0.1, 0.1], "text": "drawn"},
-        )
+        r = _edit(client, a.id, {"op": "add", "bbox": [0.2, 0.7, 0.1, 0.1]})
         assert r.status_code == 200
         boxes = r.json()["ocr_geometry"]["boxes"]
         assert len(boxes) == 4
-        assert boxes[-1]["text"] == "drawn"
         assert boxes[-1]["bbox"] == [0.2, 0.7, 0.1, 0.1]
         assert boxes[-1]["level"] == "region"
         assert boxes[-1]["provider"] == "user"
         assert boxes[-1]["source"] == "manual"
+        assert boxes[-1]["text"] == ""
+
+    def test_an_add_carrying_typed_text_is_refused_until_readings_exist(
+        self, client, db
+    ):
+        """RULED (#4924, the stop point). Once a page's boxes are rows,
+        there is nowhere lawful to keep typed text: not the block, which is
+        the machine's record and is never written again; not the audit
+        chain; and not a `metadata["text"]`, which would be a second home
+        for words that the readings slice then has to move row by row.
+
+        This refuses nothing a person can do in the app: both `addRegion`
+        call sites send the empty default, and the one region text field
+        names a child document, not a box. It IS a change for a CLI or MCP
+        caller that passed text, which is why it is pinned here.
+        """
+        doc = _make_doc(db)
+        a = _make_regions_artifact(db, doc.id)
+        r = _edit(
+            client, a.id,
+            {"op": "add", "bbox": [0.2, 0.7, 0.1, 0.1], "text": "drawn"},
+        )
+        assert r.status_code == 422, r.text
+        assert "readings" in r.text
+        # Refused whole: no rows, no marker, nothing half-landed.
+        assert db.get(Artifact, a.id).geometry_superseded_by_pass_id is None
+        assert db.query(Segment, document_id=doc.id) == []
 
     def test_add_bootstraps_missing_geometry(self, client, db):
         doc = _make_doc(db)
@@ -270,12 +339,38 @@ class TestContract:
         r = _edit(client, a.id, {"op": "explode", "indices": [0]})
         assert r.status_code == 422
 
-    def test_every_edit_appends_to_curation_log(self, client, db):
+    def test_the_curation_log_stops_at_the_first_edit(self, client, db):
+        """RULED 2026-09-20, and the one visible casualty of freezing the
+        block: the `curation_log` inside the geometry stops growing,
+        because the geometry stops being written.
+
+        Nothing in the engine or the app ever read it. The history moves to
+        the audit chain and the segment version rows, which is where undo
+        already reads from -- but unlike the log it does NOT travel with an
+        exported artifact, and the route's docstring no longer promises
+        that it does.
+        """
         doc = _make_doc(db)
         a = _make_regions_artifact(db, doc.id)
-        _edit(client, a.id, {"op": "add", "bbox": [0.0, 0.9, 0.1, 0.1]})
-        _edit(client, a.id, {"op": "move", "indices": [3], "bbox": [0.1, 0.8, 0.1, 0.1]})
-        _edit(client, a.id, {"op": "delete", "indices": [3]})
-        log = db.get(Artifact, a.id).ocr_geometry.metadata["curation_log"]
-        assert [e["op"] for e in log] == ["add", "move", "delete"]
-        assert all("at" in e and "actor" in e for e in log)
+        for payload in (
+            {"op": "add", "bbox": [0.0, 0.9, 0.1, 0.1]},
+            {"op": "move", "indices": [3], "bbox": [0.1, 0.8, 0.1, 0.1]},
+            {"op": "delete", "indices": [3]},
+        ):
+            assert _edit(client, a.id, payload).status_code == 200
+
+        # The block never gained a log, because it was never written.
+        block = db.get(Artifact, a.id).ocr_geometry
+        assert "curation_log" not in block.metadata
+        assert len(block.boxes) == 3, "and the machine's own boxes are all still there"
+
+        # The history is in the chain instead: one audited action per edit.
+        edits = [
+            row.after["edit"]["action"] for row in db.all(ActionAudit)
+            if row.action_name == "segment.convert_and_edit" and row.after.get("edit")
+        ]
+        assert edits == ["segment.create", "segment.update", "segment.delete"]
+
+        # And in the version rows, which is what undo reads.
+        rows = _rows(db, a.id, live_only=False)
+        assert any(row.version > 1 for row in rows)

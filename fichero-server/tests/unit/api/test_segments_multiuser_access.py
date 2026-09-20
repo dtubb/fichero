@@ -25,14 +25,18 @@ from urllib.parse import quote
 import pytest
 from fastapi.testclient import TestClient
 
+from fastapi import HTTPException
+
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.api.routes.document import segments as segments_route_module
 from fichero_server.models import (
+    Artifact,
     ContentRepresentation,
     ContentRepresentationKind,
     Document,
     DocType,
     Segment,
+    SegmentMatch,
     SegmentPass,
     Status,
 )
@@ -205,14 +209,21 @@ def _build_merge(db, doc_id):
     pass_row = _make_pass(db, doc_id)
     a = _make_segment(db, document_id=doc_id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
     b = _make_segment(db, document_id=doc_id, pass_id=pass_row.id, rect=[0.3, 0.3, 0.1, 0.1])
-    return "POST", "/api/segments/merge", {"segment_ids": [a.id, b.id], "keep_id": b.id}
+    return "POST", "/api/segments/merge", {
+        "segment_ids": [a.id, b.id], "keep_id": b.id,
+        # #4957 follow-up 1: now a required field -- irrelevant to what
+        # this test checks (authz denial runs before the action's own
+        # compare-and-set), but its ABSENCE would 422 before ever
+        # reaching the authz check this test exists to exercise.
+        "expected_versions": {a.id: a.version, b.id: b.version},
+    }
 
 
 def _build_split(db, doc_id):
     pass_row = _make_pass(db, doc_id)
     seg = _make_segment(db, document_id=doc_id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.2, 0.2])
     return "POST", "/api/segments/split", {
-        "segment_id": seg.id,
+        "segment_id": seg.id, "expected_version": seg.version,
         "parts": [
             {"anchor": {"document_id": doc_id, "rect": [0.0, 0.0, 0.1, 0.1]}},
             {"anchor": {"document_id": doc_id, "rect": [0.1, 0.1, 0.1, 0.1]}},
@@ -221,14 +232,17 @@ def _build_split(db, doc_id):
 
 
 def _build_carry(db, doc_id):
-    match_id, a, _b = _propose_match(db, doc_id)
+    match_id, a, b = _propose_match(db, doc_id)
     registry.invoke(db, "segment.match_accept", {"match_id": match_id}, _sys_ctx(db))
     reading = ContentRepresentation(
         document_id=doc_id, kind=ContentRepresentationKind.transcription,
         content="x", source_anchor=a.anchor,
     )
     db.save(reading)
-    return "POST", "/api/segments/carry", {"match_id": match_id, "kinds": ["reading"]}
+    return "POST", "/api/segments/carry", {
+        "match_id": match_id, "kinds": ["reading"],
+        "expected_versions": {a.id: a.version, b.id: b.version},
+    }
 
 
 def _build_update(db, doc_id):
@@ -668,3 +682,129 @@ class TestHandlerReportsTheRealRequiredKindPerRaiseSite:
         body = response.json()
         assert body["required"] == required
         assert body["detail"] == message
+
+
+class TestArtifactAndMatchCrossDocumentRefusal:
+    """#4958: `segment.pass_create` never checked that `source_artifact_id`
+    belonged to `document_id` (or a descendant page), and silently
+    accepted a nonexistent one; `segment.match_propose` never checked its
+    two segments shared a document. Slice 6 fills a converted pass's text
+    from its source block, so either gap would show one document's words
+    on another's page. Refused by the ACTION ITSELF, not by authz -- an
+    editor who CAN write to document A is still refused from making A's
+    pass name document B's artifact, because this is the segment's own
+    document-scope rule, not a permission check."""
+
+    def test_pass_create_refuses_an_artifact_from_a_different_document(self, db):
+        doc_a = _make_doc(db, "a.jpg")
+        doc_b = _make_doc(db, "b.jpg")
+        artifact_b = Artifact(document_id=doc_b.id, artifact_type="regions")
+        db.save(artifact_b)
+
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db, "segment.pass_create",
+                {"document_id": doc_a.id, "name": "p", "source_artifact_id": artifact_b.id},
+                _sys_ctx(db),
+            )
+        assert exc.value.status_code == 409
+        assert db.query(SegmentPass, document_id=doc_a.id) == []
+
+    def test_pass_create_refuses_a_nonexistent_artifact(self, db):
+        doc = _make_doc(db, "a.jpg")
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db, "segment.pass_create",
+                {"document_id": doc.id, "name": "p", "source_artifact_id": "no-such-artifact"},
+                _sys_ctx(db),
+            )
+        assert exc.value.status_code == 404
+        assert db.query(SegmentPass, document_id=doc.id) == []
+
+    def test_pass_create_accepts_an_artifact_from_a_descendant_page(self, db):
+        """Same scope `GET /api/artifacts/document/{doc_id}?include_
+        descendants=true` uses: the document itself, a direct child page,
+        or its parent -- not a stricter, new rule."""
+        parent = _make_doc(db, "parent.pdf")
+        page = _make_doc(db, "page1.jpg")
+        page.parent_id = parent.id
+        db.save(page)
+        artifact = Artifact(document_id=page.id, artifact_type="regions")
+        db.save(artifact)
+
+        result = registry.invoke(
+            db, "segment.pass_create",
+            {"document_id": parent.id, "name": "p", "source_artifact_id": artifact.id},
+            _sys_ctx(db),
+        )
+        assert result.ok
+
+    def test_match_propose_refuses_segments_on_different_documents(self, db):
+        doc_a = _make_doc(db, "a.jpg")
+        doc_b = _make_doc(db, "b.jpg")
+        pass_a = _make_pass(db, doc_a.id)
+        pass_b = _make_pass(db, doc_b.id)
+        seg_a = _make_segment(db, document_id=doc_a.id, pass_id=pass_a.id, rect=[0.1, 0.1, 0.1, 0.1])
+        seg_b = _make_segment(db, document_id=doc_b.id, pass_id=pass_b.id, rect=[0.1, 0.1, 0.1, 0.1])
+
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db, "segment.match_propose",
+                {"from_segment_id": seg_a.id, "to_segment_id": seg_b.id}, _sys_ctx(db),
+            )
+        assert exc.value.status_code == 409
+        assert db.all(SegmentMatch) == []
+
+    def test_editor_denied_b_is_blocked_by_authz_before_the_4958_check_even_runs(
+        self, multiuser_client, app_db, users, db,
+    ):
+        """`authz.target_ids_from_params` is a BLANKET extractor -- any
+        field ending `_id` (here `source_artifact_id`) becomes a checked
+        write target -- so an editor DENIED document B is already refused
+        with 403 by the registry's OWN authz gate, before `_action_
+        pass_create` (and #4958's new check inside it) ever runs. This is
+        the FIRST line of defense; the next test shows why #4958's check
+        is still needed as a second one."""
+        client, login, library_path = multiuser_client
+        _grant_role(app_db, users.editor, library_path, "editor")
+
+        doc_a = _make_doc(db, "a.jpg")
+        doc_b = _make_doc(db, "b.jpg")
+        _override(app_db, users.editor, library_path, doc_b.id, "deny")
+        artifact_b = Artifact(document_id=doc_b.id, artifact_type="regions")
+        db.save(artifact_b)
+
+        response = client.post(
+            "/api/segments/passes",
+            json={"document_id": doc_a.id, "name": "p", "source_artifact_id": artifact_b.id},
+            headers=login("editor"),
+        )
+        assert response.status_code == 403, response.text
+        assert db.query(SegmentPass, document_id=doc_a.id) == []
+
+    def test_editor_with_broad_access_to_both_still_cannot_make_as_pass_name_bs_artifact(
+        self, multiuser_client, app_db, users, db,
+    ):
+        """The case authz alone does NOT catch: an editor whose role
+        covers every document (no per-document deny anywhere -- the
+        common, unrestricted "editor" grant) can write to A and, per
+        authz, "write" `source_artifact_id`=B's artifact too (the same
+        blanket `_id` extraction that blocked the denied case above says
+        yes here, since nothing denies B). #4958's own document-scope
+        check is what still refuses A's pass from naming B's artifact --
+        independent of, and a second line of defense beyond, authz."""
+        client, login, library_path = multiuser_client
+        _grant_role(app_db, users.editor, library_path, "editor")
+
+        doc_a = _make_doc(db, "a.jpg")
+        doc_b = _make_doc(db, "b.jpg")
+        artifact_b = Artifact(document_id=doc_b.id, artifact_type="regions")
+        db.save(artifact_b)
+
+        response = client.post(
+            "/api/segments/passes",
+            json={"document_id": doc_a.id, "name": "p", "source_artifact_id": artifact_b.id},
+            headers=login("editor"),
+        )
+        assert response.status_code == 409, response.text
+        assert db.query(SegmentPass, document_id=doc_a.id) == []

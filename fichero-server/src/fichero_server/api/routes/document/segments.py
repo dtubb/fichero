@@ -17,6 +17,8 @@ own body.
 
 from __future__ import annotations
 
+import logging
+import re
 import uuid
 from typing import Any, Optional
 
@@ -25,6 +27,15 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import request_actor
+# Slice 6 (#4924). The seam's ONE import hunk for conversion; everything
+# else slice 6 adds to this file lives inside `list_document_segments`.
+# (`logging` above and `logger` below belong to this hunk too: the module
+# had no logger, and the seam's #4958 refusal must be logged, not silent.)
+from fichero_server.api.routes.document.segment_conversion import (
+    ConversionMarkerDangling,
+    converted_pass_of,
+    is_converted,
+)
 from fichero_server.api.library_header import optional_library_path
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.core.timeutil import utc_now
@@ -68,6 +79,8 @@ from fichero_server.models.segments import (
     snapshot_segment_version,
     tiles_for_rect,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/segments")
 
@@ -171,6 +184,121 @@ class SegmentNotLive(ValueError):
         )
 
 
+class SegmentPassIsConversionTarget(ValueError):
+    """#4958-class trap the slice 6 review found: deleting a pass a LIVE
+    artifact's marker (`Artifact.geometry_superseded_by_pass_id`) names
+    would make that marker dangling. `converted_pass_of` (`segment_
+    conversion.py`) then correctly raises `ConversionMarkerDangling` on
+    every read of that artifact's geometry, turning an ordinary, permitted,
+    undoable pass-delete into a 500 on the artifact list and the document
+    view -- the very page a person would open to put it right. This stops
+    it at the source: an ordinary pass-delete is unaffected; only a pass a
+    live artifact still points to is refused. What deleting a converted
+    result's boxes should MEAN is a later slice's editor question -- this
+    only stops the trap."""
+
+    def __init__(self, pass_id: str, artifact_id: str) -> None:
+        self.pass_id = pass_id
+        self.artifact_id = artifact_id
+        super().__init__(
+            f"pass {pass_id!r} cannot be deleted: artifact {artifact_id!r} was "
+            "converted to it and still points at it"
+        )
+
+
+class SegmentPassNotLive(ValueError):
+    """#4957 review 3, item 1: a segment cannot be created into a pass
+    that is already soft-deleted -- same class as `SegmentRestoreTargetGone`
+    below (a restore into a dead container), for the forward CREATE path.
+    A freshly made pass is always live, so this never refuses a legitimate
+    create (including slice 6's conversion, which creates its own pass)."""
+
+    def __init__(self, pass_id: str) -> None:
+        self.pass_id = pass_id
+        super().__init__(f"pass {pass_id!r} is deleted and cannot take new segments")
+
+
+class SegmentMatchCrossDocument(ValueError):
+    """#4958, same class as the pass/artifact leak: `segment.match_propose`
+    set `SegmentMatch.document_id` from `from_segment_id` alone and never
+    checked that `to_segment_id` belongs to the SAME document -- a carry
+    across such a match would copy one document's reading onto another's
+    segment. Refused outright; a match links two segments on ONE source,
+    like `segment.merge`/`.split`/`.carry` already require."""
+
+    def __init__(self, from_segment_id: str, from_document_id: str, to_segment_id: str, to_document_id: str) -> None:
+        self.from_segment_id = from_segment_id
+        self.to_segment_id = to_segment_id
+        super().__init__(
+            f"segment {from_segment_id!r} (document {from_document_id!r}) and "
+            f"{to_segment_id!r} (document {to_document_id!r}) are not on the same document"
+        )
+
+
+class ArtifactNotInDocumentScope(ValueError):
+    """#4958: an artifact named as a pass's `source_artifact_id`, or a
+    segment's owning document, must belong to the SAME document scope --
+    the document itself, a direct child page, or its parent (the exact
+    aggregation `GET /api/artifacts/document/{doc_id}?include_descendants=
+    true` already uses). Refuses a cross-document reference outright,
+    rather than silently reading (or later rendering) one document's words
+    on another's page to someone who may not have access to the source."""
+
+    def __init__(self, artifact_id: str, *, artifact_document_id: str, requested_document_id: str) -> None:
+        self.artifact_id = artifact_id
+        self.artifact_document_id = artifact_document_id
+        self.requested_document_id = requested_document_id
+        super().__init__(
+            f"artifact {artifact_id!r} belongs to document {artifact_document_id!r}, "
+            f"not {requested_document_id!r} (or one of its pages/parent)"
+        )
+
+
+def _artifact_in_document_scope(db: Database, artifact: Artifact, document_id: str) -> bool:
+    """Same scope `GET /api/artifacts/document/{doc_id}` uses with
+    `include_descendants=True` (the seam's own "legacy aggregation"): the
+    document itself, its direct children (pages), and its parent -- the
+    ONE rule for "does this artifact belong here", never a second one
+    (#4958)."""
+    if artifact.document_id == document_id:
+        return True
+    doc = db.get(Document, document_id)
+    if doc is not None and artifact.document_id == doc.parent_id:
+        return True
+    return any(
+        artifact.document_id == child.id for child in db.query(Document, parent_id=document_id)
+    )
+
+
+class SegmentPartGone(ValueError):
+    """#4957 review 3: under own-invert, `unsplit` derives `new_segment_ids`
+    from its OWN redo's fresh `after`, so a named part should always
+    exist. If it does not (a bug, or a hand-built replay), refuse loudly
+    rather than silently treating a surprise as "nothing to do"."""
+
+    def __init__(self, segment_id: str) -> None:
+        self.segment_id = segment_id
+        super().__init__(f"segment {segment_id!r} named in new_segment_ids does not exist")
+
+
+class SegmentRestoreTargetGone(ValueError):
+    """Undelete, unmerge and unsplit refuse to restore a segment into a
+    pass or under a parent that is no longer live (#4957 follow-up 2):
+    without this check, an undo or a redo could bring a segment back
+    live and yet invisible -- the read seam skips a soft-deleted pass
+    entirely, and a segment under a deleted parent reads as orphaned."""
+
+    def __init__(self, segment_id: str, *, container: str, container_id: str, reason: str) -> None:
+        self.segment_id = segment_id
+        self.container = container
+        self.container_id = container_id
+        self.reason = reason
+        super().__init__(
+            f"cannot restore segment {segment_id!r}: its {container} "
+            f"{container_id!r} is not live ({reason})"
+        )
+
+
 def _as_http_error(exc: Exception) -> HTTPException:
     if isinstance(exc, ProvisionalSegmentIdError):
         return HTTPException(status_code=422, detail=str(exc))
@@ -185,7 +313,7 @@ def _as_http_error(exc: Exception) -> HTTPException:
             "current_version": exc.current_version,
             "changed": exc.changed,
         })
-    if isinstance(exc, (SegmentPassMismatchError, SegmentParentMismatchError, SegmentForwardingWouldLoop, SegmentNotLive, SegmentDeleted)):
+    if isinstance(exc, (SegmentPassMismatchError, SegmentParentMismatchError, SegmentForwardingWouldLoop, SegmentNotLive, SegmentDeleted, SegmentRestoreTargetGone, ArtifactNotInDocumentScope, SegmentMatchCrossDocument, SegmentPartGone, SegmentPassNotLive, SegmentPassIsConversionTarget)):
         return HTTPException(status_code=409, detail=str(exc))
     if isinstance(exc, (SegmentAnchorMismatchError, MatchNeedsAPerson, MatchNotAccepted, StatementsCarriedInStatementsStep)):
         return HTTPException(status_code=422, detail=str(exc))
@@ -287,6 +415,22 @@ async def list_document_segments(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    # This document's artifacts, loaded ONCE (#4924). Both loops below need
+    # them -- the rows loop for a pass's type and its boxes' words, the block
+    # loop for the boxes themselves -- and hydrating an `Artifact` parses and
+    # VALIDATES every box in its `ocr_geometry`. Measured on a converted
+    # 20,000-box page: two loads cost 405 ms of `_validate_bbox` alone, for a
+    # read that returned 72 rows. One load halves it.
+    #
+    # Scoped to THIS document on purpose, and the rows loop uses membership of
+    # this map as its answer to "may this artifact supply the words?" (#4958):
+    # `segment.pass_create` does not check that `source_artifact_id` belongs to
+    # `document_id`, so a pass here can name another document's artifact, and
+    # filling text from it would be a read leak.
+    artifacts_by_id: dict[str, Artifact] = {
+        a.id: a for a in db.query(Artifact, document_id=doc_id)
+    }
+
     by_pass: list[tuple[PassRead, list[SegmentRead]]] = []
 
     # Real rows first (slice 3). Each pass's OWN `pass_id` is the scope
@@ -333,26 +477,70 @@ async def list_document_segments(
         # else `(created_at, id)` -- never the bare `id`, which is random and
         # meaningless for the app's index mapping.
         rows.sort(key=_segment_row_sort_key)
-        pass_segments = [
-            segment_read_from_row(row, box_index=index) for index, row in enumerate(rows)
-        ]
         # A pass made from an artifact carries that artifact's type (test-audit
         # B2, App slice A stage 2's notes) -- looked up here, since
-        # `pass_read_from_row` has no `db` of its own.
+        # `pass_read_from_row` has no `db` of its own. Slice 6 (#4924) reads
+        # the SAME artifact once more for the words: until readings hang on
+        # segments (slice 8), a converted box's text and its pass's text still
+        # live in the artifact's kept `ocr_geometry` block.
         pass_artifact_type = None
+        source_block = None
         if pass_row.source_artifact_id:
-            source_artifact = db.get(Artifact, pass_row.source_artifact_id)
-            if source_artifact:
+            # Membership of `artifacts_by_id` IS the #4958 check: the map holds
+            # only THIS document's artifacts, so a pass naming another
+            # document's artifact simply is not in it, and gets no words.
+            source_artifact = artifacts_by_id.get(pass_row.source_artifact_id)
+            if source_artifact is not None:
                 pass_artifact_type = source_artifact.artifact_type
-        by_pass.append((pass_read_from_row(pass_row, artifact_type=pass_artifact_type), pass_segments))
+                source_block = source_artifact.ocr_geometry  # raw-geometry-ok: the words' one home until slice 8
+            elif db.get(Artifact, pass_row.source_artifact_id) is not None:
+                # It exists, it just belongs to somebody else's page. No text
+                # is the honest answer, and it is logged, never silent.
+                logger.warning(
+                    "pass %s on document %s names artifact %s, which belongs to a "
+                    "different document; serving its segments without text rather "
+                    "than another document's words (#4958)",
+                    pass_row.id, doc_id, pass_row.source_artifact_id,
+                )
+        pass_segments = [
+            segment_read_from_row(
+                row,
+                box_index=index,
+                source_block=source_block,
+                source_artifact_id=pass_row.source_artifact_id,
+            )
+            for index, row in enumerate(rows)
+        ]
+        by_pass.append((
+            pass_read_from_row(
+                pass_row, artifact_type=pass_artifact_type, source_block=source_block
+            ),
+            pass_segments,
+        ))
 
     # Then the old boxes, for whichever artifacts still carry them
     # (unconverted — every artifact, today, since nothing converts yet).
-    query_kwargs: dict = {"document_id": doc_id}
-    if artifact_id:
-        query_kwargs["id"] = artifact_id
-    artifacts = [a for a in db.query(Artifact, **query_kwargs) if a.ocr_geometry]
+    artifacts = [
+        a for a in artifacts_by_id.values()
+        if a.ocr_geometry and (not artifact_id or a.id == artifact_id)
+    ]
     for artifact in artifacts:
+        # Slice 6 (#4924): an artifact whose boxes have BECOME rows is served
+        # by the loop above, never here. Without this one `if`, a converted
+        # page comes back with every box twice -- once as a real segment and
+        # once as the provisional one it replaced.
+        if is_converted(artifact):
+            # Raises when the marker names no live pass. NEVER a quiet fall
+            # back to the block: the block is the page as it was BEFORE its
+            # owner's first edit, so serving it here would undo their work on
+            # screen and look entirely correct doing it. Mapped to a 409 with
+            # the artifact and pass named, because a person meeting this needs
+            # to know WHICH page needs repair, not a bare 500.
+            try:
+                converted_pass_of(db, artifact)
+            except ConversionMarkerDangling as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
+            continue
         this_pass_id = legacy_pass_id(artifact.id)
         if pass_id and pass_id != this_pass_id:
             continue
@@ -424,9 +612,24 @@ def _create_pass_impl(db: Database, params: SegmentPassCreateParams, ctx: Action
 
     provider = model = None
     if params.source_artifact_id:
+        # #4958: refuse a nonexistent artifact (previously silently
+        # accepted -- `provider`/`model` just stayed `None`) and refuse
+        # one from OUTSIDE this document's scope. Slice 6 fills a
+        # converted pass's text from its source block, so a pass on
+        # document A naming document B's artifact would show B's words
+        # on A's page to someone who may not have access to B.
         source_artifact = db.get(Artifact, params.source_artifact_id)
-        if source_artifact:
-            provider, model = source_artifact.provider, source_artifact.model
+        if source_artifact is None:
+            raise HTTPException(
+                status_code=404, detail=f"Artifact not found: {params.source_artifact_id}"
+            )
+        if not _artifact_in_document_scope(db, source_artifact, params.document_id):
+            raise _as_http_error(ArtifactNotInDocumentScope(
+                source_artifact.id,
+                artifact_document_id=source_artifact.document_id,
+                requested_document_id=params.document_id,
+            ))
+        provider, model = source_artifact.provider, source_artifact.model
 
     pass_row = SegmentPass(
         document_id=params.document_id,
@@ -509,6 +712,19 @@ def _action_pass_delete(db: Database, params: SegmentPassDeleteParams, ctx: Acti
     pass_row = db.get(SegmentPass, params.pass_id)
     if not pass_row:
         raise HTTPException(status_code=404, detail=f"Pass not found: {params.pass_id}")
+    # #4957/#4958-class trap (slice 6 review): a LIVE artifact's own
+    # conversion marker (`Artifact.geometry_superseded_by_pass_id`) may
+    # name this pass -- deleting it would leave that marker dangling
+    # (`segment_conversion.py::converted_pass_of` correctly raises
+    # `ConversionMarkerDangling` on every later read of that artifact's
+    # geometry). The persistence layer's own field-equality query, not a
+    # second lookup of theirs: at most one artifact converts to any one
+    # pass, so this is exact, not a scan-and-guess.
+    converting_artifacts = db.query(Artifact, geometry_superseded_by_pass_id=params.pass_id)
+    if converting_artifacts:
+        raise _as_http_error(
+            SegmentPassIsConversionTarget(params.pass_id, converting_artifacts[0].id)
+        )
     from fichero_server.core.timeutil import utc_now
 
     pass_row.deleted_at = utc_now()
@@ -560,6 +776,14 @@ def _validate_segment_placement(
         raise SegmentPassMismatchError(
             f"pass {pass_id!r} is not a pass over document {document_id!r}"
         )
+    # #4957 review 3, item 1: same class as follow-up 2's restore-target-
+    # liveness check, on the forward CREATE path -- a segment born into an
+    # already soft-deleted pass would be invisible from the moment it is
+    # created (the read seam skips a deleted pass entirely). A freshly
+    # made pass (slice 6's conversion path included) is always live, so
+    # this never refuses a legitimate create.
+    if pass_row.deleted_at is not None:
+        raise SegmentPassNotLive(pass_id)
     if parent_segment_id:
         parent = db.get(Segment, parent_segment_id)
         if not parent or parent.pass_id != pass_id or parent.document_id != document_id:
@@ -567,6 +791,12 @@ def _validate_segment_placement(
                 f"parent segment {parent_segment_id!r} is not in pass {pass_id!r} "
                 f"of document {document_id!r}"
             )
+        # Same reasoning as the pass check above: a child born under a
+        # parent that is already deleted or merged away would be
+        # unreachable from that parent from the moment it is created.
+        reason = segment_liveness_reason(db, parent_segment_id)
+        if reason is not None:
+            raise SegmentNotLive(parent_segment_id, reason)
     if anchor.document_id != document_id:
         raise SegmentAnchorMismatchError(
             f"anchor's document_id {anchor.document_id!r} does not match "
@@ -584,12 +814,29 @@ class SegmentSpec(BaseModel):
     kind_raw: Optional[str] = None
 
 
+#: Every id minted in this store is `uuid.uuid4().hex` (`_new_id()` in
+#: `models/segments.py`) -- 32 lowercase hex characters, no dashes. A
+#: caller-supplied id (#4957 slice-6 prep) must be the SAME shape, never a
+#: `legacy:` id (refused separately, earlier) and never an arbitrary
+#: string a client could use to encode something outside this system.
+_WELL_FORMED_ID = re.compile(r"[0-9a-f]{32}")
+
+
+def _assert_well_formed_id_http(id_value: str, *, what: str) -> None:
+    if not _WELL_FORMED_ID.fullmatch(id_value):
+        raise HTTPException(
+            status_code=422,
+            detail=f"{what} {id_value!r} is not a well-formed id (expected 32 lowercase hex characters)",
+        )
+
+
 def _build_segment_row(
     *, document_id: str, pass_id: str, spec: SegmentSpec, actor: str,
-    provenance_kind: ProvenanceKind,
+    provenance_kind: ProvenanceKind, id: str | None = None,
 ) -> Segment:
     bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(spec.anchor)
     return Segment(
+        **({"id": id} if id else {}),
         document_id=document_id,
         pass_id=pass_id,
         parent_segment_id=spec.parent_segment_id,
@@ -605,6 +852,14 @@ def _build_segment_row(
 
 
 class SegmentCreateParams(BaseModel):
+    """No `id` field, on purpose (#4957 review 3): a client can reach this
+    action through `POST /api/actions/invoke` or the chat-tools path, not
+    only `POST /api/segments` -- an `id` field on THIS model would be
+    reachable through all three, no matter what any ONE route refuses.
+    A specific, precomputed id (slice 6's repeatable-on-purpose ids) is a
+    keyword on `_create_segment_impl` below, for in-process callers that
+    never go through `registry.invoke` at all."""
+
     model_config = ConfigDict(extra="forbid")
 
     document_id: str
@@ -632,30 +887,41 @@ def _invert_segment_create(before, after, ctx: ActionContext):
     )
 
 
-@action(
-    "segment.create",
-    SegmentCreateParams,
-    domains=["segment"],
-    undoable=True,
-    invert=_invert_segment_create,
-    # #4957: this action's OWN invert is `segment.delete` (opted in above),
-    # so undoing a REDONE create acts on that redo's own fresh version, not
-    # a stale one. Set for symmetry with `segment.create_many`; consulted
-    # only if `segment.create` itself is ever produced as another action's
-    # inverse (not the case today).
-    redo_via_own_invert=True,
-)
-def _action_segment_create(db: Database, params: SegmentCreateParams, ctx: ActionContext):
+def _create_segment_impl(
+    db: Database, params: SegmentCreateParams, ctx: ActionContext, *, segment_id: str | None = None,
+) -> Segment:
+    """The one path `segment.create` and any future IN-PROCESS caller
+    (slice 6's conversion-on-first-edit, applying its own edit directly --
+    build notes step 5 -- never through a nested `registry.invoke`) share
+    to make a segment. `segment_id`, when given, is a keyword ONLY this
+    Python function accepts -- never a field on `SegmentCreateParams`
+    (#4957 review 3): that model is reachable by ANY caller through
+    `POST /api/actions/invoke` or the chat-tools path, not only
+    `POST /api/segments`, so a field on it can never be "in-process only"
+    no matter what one route refuses. Refused (422) unless it is the SAME
+    shape every id in this store already is, and refused (409, NEVER
+    silently overwritten) if it is already in use by ANY segment, live or
+    soft-deleted -- `Database.save` is `INSERT ... ON CONFLICT DO UPDATE`,
+    so a colliding id would otherwise merge into that other row instead of
+    creating a new one. This matters because slice 6's ids are repeatable
+    ON PURPOSE (derived from the artifact and a position, in an open-source
+    file): anyone with ordinary write access could work out a future
+    converted box's id and claim it first."""
     _assert_not_provisional_http(params.document_id, what="document_id")
     _assert_not_provisional_http(params.pass_id, what="pass_id")
     if params.parent_segment_id:
         _assert_not_provisional_http(params.parent_segment_id, what="parent_segment_id")
+    if segment_id is not None:
+        _assert_not_provisional_http(segment_id, what="id")
+        _assert_well_formed_id_http(segment_id, what="id")
+        if db.get(Segment, segment_id) is not None:
+            raise HTTPException(status_code=409, detail=f"segment id {segment_id!r} is already in use")
     try:
         _validate_segment_placement(
             db, document_id=params.document_id, pass_id=params.pass_id,
             parent_segment_id=params.parent_segment_id, anchor=params.anchor,
         )
-    except (SegmentPassMismatchError, SegmentParentMismatchError, SegmentAnchorMismatchError) as exc:
+    except (SegmentPassMismatchError, SegmentParentMismatchError, SegmentAnchorMismatchError, SegmentPassNotLive, SegmentNotLive) as exc:
         raise _as_http_error(exc) from exc
 
     spec_obj = SegmentSpec(
@@ -668,9 +934,27 @@ def _action_segment_create(db: Database, params: SegmentCreateParams, ctx: Actio
     # human pass) must be stored as what it actually is.
     segment = _build_segment_row(
         document_id=params.document_id, pass_id=params.pass_id, spec=spec_obj,
-        actor=ctx.actor, provenance_kind=_provenance_kind_from_ctx(ctx),
+        actor=ctx.actor, provenance_kind=_provenance_kind_from_ctx(ctx), id=segment_id,
     )
     db.save(segment)
+    return segment
+
+
+@action(
+    "segment.create",
+    SegmentCreateParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_segment_create,
+    # #4957 review 2: NOT `redo_via_own_invert` -- unreachable by
+    # construction. A `segment.create` audit row only ever gets
+    # `inverse_of` set when create itself is being REPLAYED, and the row
+    # that would replay it is `segment.delete` (opted in), which restores
+    # via `segment.undelete` instead of ever reaching a second create. The
+    # flag would be dead weight here, checked but never taken.
+)
+def _action_segment_create(db: Database, params: SegmentCreateParams, ctx: ActionContext):
+    segment = _create_segment_impl(db, params, ctx)
     change_spec = ChangeSpec(
         domains=["segment"],
         target_ids=[segment.id],
@@ -703,10 +987,8 @@ class SegmentCreateManyParams(BaseModel):
     # BEGIN, so the rows and the audit row commit or roll back together --
     # a failed audit write can no longer leave segment rows with no record.
     invert=_invert_segment_create,
-    # #4957: same reasoning as `segment.create` -- its inverse is
-    # `segment.delete` (opted in), which redoes via undelete under the
-    # same ids.
-    redo_via_own_invert=True,
+    # #4957 review 2: NOT `redo_via_own_invert`, same reasoning as
+    # `segment.create` -- unreachable by construction.
 )
 def _action_segment_create_many(db: Database, params: SegmentCreateManyParams, ctx: ActionContext):
     _assert_not_provisional_http(params.document_id, what="document_id")
@@ -724,7 +1006,7 @@ def _action_segment_create_many(db: Database, params: SegmentCreateManyParams, c
                 db, document_id=params.document_id, pass_id=params.pass_id,
                 parent_segment_id=spec.parent_segment_id, anchor=spec.anchor,
             )
-        except (SegmentPassMismatchError, SegmentParentMismatchError, SegmentAnchorMismatchError) as exc:
+        except (SegmentPassMismatchError, SegmentParentMismatchError, SegmentAnchorMismatchError, SegmentPassNotLive, SegmentNotLive) as exc:
             raise _as_http_error(exc) from exc
         rows.append(
             _build_segment_row(
@@ -757,6 +1039,47 @@ def _stale_changed_fields(db: Database, segment_id: str, expected_version: int, 
     if not candidates:
         return []
     return changed_fields(candidates[0], current_row)
+
+
+def _require_expected_version(expected_versions: dict[str, int], segment_id: str) -> int:
+    """#4957 review 3, item 2: the SAME "expected_versions is missing
+    segment_id" 422 was hand-copied in `merge`/`unmerge`/`carry`/`unsplit`
+    -- one helper, one message, used by all four."""
+    if segment_id not in expected_versions:
+        raise HTTPException(
+            status_code=422, detail=f"expected_versions is missing segment_id {segment_id!r}"
+        )
+    return expected_versions[segment_id]
+
+
+def _assert_restore_target_live(db: Database, row: Segment) -> None:
+    """#4957 follow-up 2: refuse `undelete`/`unmerge`/`unsplit` when the
+    segment's OWN pass or parent is no longer live, before restoring it.
+    Without this, an undo or a redo can bring a segment back live and yet
+    invisible: the read seam (`list_document_segments`) skips a
+    soft-deleted pass entirely, and a segment whose parent has since been
+    deleted or merged away reads as orphaned. Checked LAST, after every
+    other refusal, so a caller sees the more specific reason first when
+    several apply."""
+    pass_row = db.get(SegmentPass, row.pass_id)
+    if pass_row is None:
+        # #4957 review 3: a `SegmentPass` row is only ever SOFT-deleted
+        # (`segment.pass_delete` never hard-deletes) -- a segment naming
+        # one that plain does not exist is a data problem, not a business
+        # refusal a caller can act on. Never silently treated as "live".
+        raise RuntimeError(
+            f"segment {row.id!r} names pass {row.pass_id!r}, which does not exist"
+        )
+    if pass_row.deleted_at is not None:
+        raise _as_http_error(SegmentRestoreTargetGone(
+            row.id, container="pass", container_id=row.pass_id, reason="deleted",
+        ))
+    if row.parent_segment_id:
+        reason = segment_liveness_reason(db, row.parent_segment_id)
+        if reason is not None:
+            raise _as_http_error(SegmentRestoreTargetGone(
+                row.id, container="parent", container_id=row.parent_segment_id, reason=reason,
+            ))
 
 
 def _same_pass_and_document(db: Database, segment_ids: list[str]) -> dict[str, Segment]:
@@ -929,6 +1252,7 @@ def _action_segment_undelete(db: Database, params: SegmentUndeleteParams, ctx: A
         row = rows[segment_id]
         if row.deleted_at is None:
             raise HTTPException(status_code=409, detail=f"segment {segment_id!r} is not deleted")
+        _assert_restore_target_live(db, row)
         before_versions[segment_id] = row.version
         snapshot_segment_version(db, row, deleted=True, actor=ctx.actor, audit_id=audit_id)
         row.deleted_at = None
@@ -1189,6 +1513,13 @@ def _action_match_propose(db: Database, params: SegmentMatchProposeParams, ctx: 
         raise HTTPException(status_code=404, detail=f"Segment not found: {params.from_segment_id}")
     if not to_row:
         raise HTTPException(status_code=404, detail=f"Segment not found: {params.to_segment_id}")
+    # #4958, same class as the pass/artifact leak: a match must link two
+    # segments on ONE document, never silently span two.
+    if from_row.document_id != to_row.document_id:
+        raise _as_http_error(SegmentMatchCrossDocument(
+            params.from_segment_id, from_row.document_id,
+            params.to_segment_id, to_row.document_id,
+        ))
 
     match = SegmentMatch(
         document_id=from_row.document_id,
@@ -1342,6 +1673,16 @@ def _action_match_set_state(db: Database, params: SegmentMatchSetStateParams, ct
 
 
 # --- merge / unmerge ---------------------------------------------------
+#
+# #4957 review 3, item 3: `expected_versions`/`expected_version` is REQUIRED
+# (no default) on the three actions a CLIENT calls directly -- `segment.
+# merge`, `.split`, `.carry` -- and defaults to empty on their three
+# inverses -- `.unmerge`, `.unsplit`, `.uncarry` -- which are reached only
+# through the undo route's own invert (always supplies it fully, computed
+# fresh from the acting row's own `after`) or a hand-built direct call
+# (which then fails closed on the missing/mismatched token, never silently).
+# One deliberate split across all six, not an inconsistency to fix in one
+# and not the others.
 
 
 class SegmentMergeParams(BaseModel):
@@ -1349,6 +1690,15 @@ class SegmentMergeParams(BaseModel):
 
     segment_ids: list[str]
     keep_id: str
+    #: Compare-and-set, one entry per id in `segment_ids` (#4957 follow-up
+    #: 1: "a redo is refused when something else changed the segment since"
+    #: -- previously merge took no token at all, so a redo silently merged
+    #: away a member someone had just reshaped). Checked against every
+    #: participant's CURRENT `Segment.version` before anything is written,
+    #: `keep_id` included even though merge itself never bumps it -- a
+    #: concurrent edit to the kept segment is still something that changed
+    #: since the caller last read it.
+    expected_versions: dict[str, int]
 
 
 def _invert_merge(before, after, ctx: ActionContext):
@@ -1357,13 +1707,26 @@ def _invert_merge(before, after, ctx: ActionContext):
     from after") -- `after["absorbed_versions"]` names each absorbed
     segment's PRE-merge version, which `segment.unmerge` restores FROM THE
     SNAPSHOT `segment.merge` already wrote (never from this dict's own
-    content -- it carries no geometry)."""
+    content -- it carries no geometry). `after["versions"]` (#4957 follow-up
+    1) names each absorbed segment's version AS LEFT BY THIS MERGE CALL --
+    unmerge's own compare-and-set token, always fresh because it is worked
+    out from the ACTING row's own `after`, never a replay of an earlier
+    call's recorded params."""
     if not after:
         return None
     absorbed_versions = after.get("absorbed_versions")
-    if not absorbed_versions:
+    current_versions = after.get("versions")
+    if not absorbed_versions or not current_versions:
         return None
-    return ("segment.unmerge", {"versions": absorbed_versions})
+    return (
+        "segment.unmerge",
+        {
+            "versions": absorbed_versions,
+            "expected_versions": {
+                sid: current_versions[sid] for sid in absorbed_versions if sid in current_versions
+            },
+        },
+    )
 
 
 @action(
@@ -1380,8 +1743,7 @@ def _invert_merge(before, after, ctx: ActionContext):
     # re-derives `absorbed_versions` from ITS OWN fresh `after`, which
     # `_action_merge` always snapshots from the absorbed segment's CURRENT
     # row right before merging -- so the other writer's edit is what gets
-    # preserved, not the stale, months-earlier snapshot. No separate
-    # version token needed for merge; the snapshot IS the token.
+    # preserved, not the stale, months-earlier snapshot.
     redo_via_own_invert=True,
 )
 def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
@@ -1414,11 +1776,26 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
     # #4922 second look: EVERY participant, including keep_id, must be
     # LIVE -- otherwise a soft-deleted segment could be "merged", writing
     # a `merged` note NEWER than its `deleted` one, quietly turning a
-    # delete into a merge.
+    # delete into a merge. Checked BEFORE the version compare-and-set
+    # (#4957 review 3: same order `segment.update` uses) so a member
+    # someone else DELETED is reported as "deleted", the more useful
+    # reason, rather than "stale".
     for segment_id in params.segment_ids:
         reason = segment_liveness_reason(db, segment_id)
         if reason is not None:
             raise _as_http_error(SegmentNotLive(segment_id, reason))
+
+    # #4957 follow-up 1: compare-and-set BEFORE anything is written, one id
+    # at a time so the FIRST mismatch's own reason is the one reported --
+    # never a partial merge.
+    for segment_id in params.segment_ids:
+        expected = _require_expected_version(params.expected_versions, segment_id)
+        row = rows[segment_id]
+        if row.version != expected:
+            raise _as_http_error(SegmentStale(
+                segment_id, expected, row.version,
+                _stale_changed_fields(db, segment_id, expected, row),
+            ))
 
     absorbed_ids = [sid for sid in params.segment_ids if sid != params.keep_id]
     for absorbed_id in absorbed_ids:
@@ -1430,8 +1807,16 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
         if forwards_to(db, params.keep_id, absorbed_id):
             raise _as_http_error(SegmentForwardingWouldLoop(params.keep_id, absorbed_id))
 
+    # #4957 slice-6 prep (item 4b), CORRECTED by the manager: `_action_merge`
+    # makes no new segment -- it keeps `keep_id` and soft-deletes the
+    # others, so there is nothing to re-derive for ordering here. The
+    # kept row's own `box_index`/position is left exactly as it was, and
+    # `keep_id` is taken as given, never re-chosen by this action; slice
+    # 6's route is what picks the lowest-position member as `keep_id`.
+
     audit_id = uuid.uuid4().hex
     absorbed_versions: dict[str, int] = {}
+    after_versions: dict[str, int] = {params.keep_id: keep_row.version}
     forwarding_ids = []
     now = utc_now()
     for absorbed_id in absorbed_ids:
@@ -1447,6 +1832,7 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
         row.deleted_by = ctx.actor
         db.save(row)
         absorbed_versions[absorbed_id] = pre_merge_version
+        after_versions[absorbed_id] = row.version
         forwarding = SegmentForwarding(
             document_id=row.document_id,
             old_segment_id=absorbed_id,
@@ -1467,6 +1853,11 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
         after={
             "kept_id": params.keep_id, "forwarding_ids": forwarding_ids,
             "absorbed_versions": absorbed_versions,
+            # #4957 follow-up 1: EVERY touched id's version as this call
+            # left it -- `_refresh_replay_expected_versions` reads this to
+            # freshen a replayed merge's `expected_versions` on redo, and
+            # `_invert_merge` reads it to give `unmerge` a live token.
+            "versions": after_versions,
         },
         emit_type="segment.merged",
         segment_ids=[params.keep_id, *absorbed_ids],
@@ -1488,19 +1879,40 @@ class SegmentUnmergeParams(BaseModel):
     #: segment_id -> the version to restore it to (its own pre-merge
     #: version; the snapshot at that number is what merge itself wrote).
     versions: dict[str, int]
+    #: Compare-and-set, one entry per id in `versions` (#4957 follow-up 1):
+    #: the segment's CURRENT `Segment.version`, as `segment.merge` (or a
+    #: later redo of it) left it. Refuses a genuinely stale restore --
+    #: someone reshaped the absorbed segment again since -- the same
+    #: guarantee `segment.update`'s own compare-and-set gives a live edit.
+    expected_versions: dict[str, int]
 
 
 @action("segment.unmerge", SegmentUnmergeParams, domains=["segment"], undoable=False)
 def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionContext):
     audit_id = uuid.uuid4().hex
     restored_ids = []
+    after_versions: dict[str, int] = {}
     document_ids: set[str] = set()
     pass_ids: set[str] = set()
+
+    # Check EVERY segment first, write none of them yet -- explicit,
+    # rather than relying on the action's atomicity alone to make a
+    # check-then-write-per-id loop safe (#4957 review 3: matches
+    # `_action_unsplit`'s own shape).
+    rows: dict[str, Segment] = {}
+    targets: dict[str, SegmentVersion] = {}
     for segment_id, version in params.versions.items():
         _assert_not_provisional_http(segment_id, what="segment_id")
         row = db.get(Segment, segment_id)
         if not row:
             raise HTTPException(status_code=404, detail=f"Segment not found: {segment_id}")
+        expected = _require_expected_version(params.expected_versions, segment_id)
+        if row.version != expected:
+            raise _as_http_error(SegmentStale(
+                segment_id, expected, row.version,
+                _stale_changed_fields(db, segment_id, expected, row),
+            ))
+        _assert_restore_target_live(db, row)
         # #4923 second look: restore FROM THE SNAPSHOT merge itself wrote --
         # the SAME path `segment.restore_version` uses, never a second
         # restore path built from the audit's own params.
@@ -1509,7 +1921,11 @@ def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionConte
             raise HTTPException(
                 status_code=404, detail=f"segment {segment_id!r} has no version {version}"
             )
-        target = candidates[0]
+        rows[segment_id] = row
+        targets[segment_id] = candidates[0]
+
+    for segment_id, row in rows.items():
+        target = targets[segment_id]
         # The version only ever goes UP: a fresh preimage of the CURRENT
         # (still merged-away) state, then apply the target's fields --
         # never `row.version = version` (that would move it BACKWARDS).
@@ -1536,6 +1952,7 @@ def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionConte
             sequence=db.next_forwarding_sequence(),
         ))
         restored_ids.append(segment_id)
+        after_versions[segment_id] = row.version
         document_ids.add(row.document_id)
         pass_ids.add(row.pass_id)
     spec = ChangeSpec(
@@ -1543,7 +1960,7 @@ def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionConte
         domains=["segment"],
         target_ids=restored_ids,
         before=None,
-        after={"segment_ids": restored_ids},
+        after={"segment_ids": restored_ids, "versions": after_versions},
         emit_type="segment.merged",
         segment_ids=restored_ids,
         pass_ids=list(pass_ids),
@@ -1567,23 +1984,37 @@ class SegmentSplitParams(BaseModel):
 
     segment_id: str
     parts: list[SegmentSplitPart]
+    #: Compare-and-set on the segment being split (#4957 follow-up 1) --
+    #: the new parts are brand-new rows with nothing to compare yet, so
+    #: only the one EXISTING id needs a token, the same shape
+    #: `segment.update` already takes.
+    expected_version: int
 
 
 def _invert_split(before, after, ctx: ActionContext):
     """Reads ONLY `after` (#4923 second look) -- `pre_split_version` names
     the snapshot `segment.split` itself wrote for the kept id; `unsplit`
-    restores FROM IT, never from geometry carried here."""
+    restores FROM IT, never from geometry carried here. `after["versions"]`
+    (#4957 follow-up 1) gives `unsplit` a live compare-and-set token for
+    the kept id AND every new part, worked out from THIS call's own
+    `after` -- always fresh, whichever lap it is."""
     if not after:
         return None
     segment_id = after.get("kept_id")
     pre_split_version = after.get("pre_split_version")
-    if not segment_id or pre_split_version is None:
+    current_versions = after.get("versions")
+    if not segment_id or pre_split_version is None or not current_versions:
         return None
+    new_segment_ids = after.get("new_segment_ids", [])
     return (
         "segment.unsplit",
         {
             "segment_id": segment_id, "version": pre_split_version,
-            "new_segment_ids": after.get("new_segment_ids", []),
+            "expected_version": current_versions.get(segment_id),
+            "new_segment_ids": new_segment_ids,
+            "expected_versions": {
+                new_id: current_versions[new_id] for new_id in new_segment_ids if new_id in current_versions
+            },
         },
     )
 
@@ -1614,6 +2045,11 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     reason = segment_liveness_reason(db, params.segment_id)
     if reason is not None:
         raise _as_http_error(SegmentNotLive(params.segment_id, reason))
+    if original.version != params.expected_version:
+        raise _as_http_error(SegmentStale(
+            params.segment_id, params.expected_version, original.version,
+            _stale_changed_fields(db, params.segment_id, params.expected_version, original),
+        ))
     for part in params.parts:
         if part.anchor.document_id != original.document_id:
             raise _as_http_error(SegmentAnchorMismatchError(
@@ -1639,6 +2075,14 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     )
     db.save(original)
 
+    # #4957 slice-6 prep (item 4b, "check split... for the same ordering
+    # question"): a converted page's read order comes from `metadata
+    # ["box_index"]`. A new part carved out of `original` has none of its
+    # own -- inheriting `original`'s keeps every part sorted together near
+    # where the source line was, instead of the newer parts falling to the
+    # end of a converted page's order (today's fallback for "no index").
+    original_box_index = original.metadata.get("box_index")
+
     new_ids: list[str] = []
     new_rows: list[Segment] = []
     for part in rest_parts:
@@ -1650,6 +2094,8 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
             document_id=original.document_id, pass_id=original.pass_id, spec=spec_obj,
             actor=ctx.actor, provenance_kind=original.provenance_kind,
         )
+        if isinstance(original_box_index, int):
+            row.metadata = {**row.metadata, "box_index": original_box_index}
         new_rows.append(row)
         new_ids.append(row.id)
     if new_rows:
@@ -1678,6 +2124,11 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
         after={
             "kept_id": params.segment_id, "new_segment_ids": new_ids,
             "forwarding_id": forwarding.id, "pre_split_version": pre_split_version,
+            # #4957 follow-up 1: every touched id's version as THIS call
+            # left it -- the kept id (bumped) and every new part (starts
+            # at 1) -- so `_invert_split`/`_refresh_replay_expected_versions`
+            # always have a live token to hand `unsplit`.
+            "versions": {params.segment_id: original.version, **{new_id: 1 for new_id in new_ids}},
         },
         emit_type="segment.split",
         segment_ids=[params.segment_id, *new_ids],
@@ -1701,7 +2152,17 @@ class SegmentUnsplitParams(BaseModel):
     segment_id: str
     #: The pre-split version to restore the kept segment to.
     version: int
+    #: Compare-and-set on the kept segment's CURRENT `Segment.version`
+    #: (#4957 follow-up 1) -- distinct from `version` above, which names
+    #: the OLD snapshot being restored TO.
+    expected_version: int
     new_segment_ids: list[str] = []
+    #: Compare-and-set, one entry per id in `new_segment_ids` (#4957
+    #: follow-up 1): "an inverse must never hard-delete something a later
+    #: step touched" -- a part someone has since edited or restored from a
+    #: version is refused, not silently skipped, so the caller is told
+    #: instead of the edit vanishing with the delete.
+    expected_versions: dict[str, int] = {}
 
 
 @action("segment.unsplit", SegmentUnsplitParams, domains=["segment"], undoable=False)
@@ -1710,6 +2171,12 @@ def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionConte
     row = db.get(Segment, params.segment_id)
     if not row:
         raise HTTPException(status_code=404, detail=f"Segment not found: {params.segment_id}")
+    if row.version != params.expected_version:
+        raise _as_http_error(SegmentStale(
+            params.segment_id, params.expected_version, row.version,
+            _stale_changed_fields(db, params.segment_id, params.expected_version, row),
+        ))
+    _assert_restore_target_live(db, row)
     candidates = db.query(SegmentVersion, segment_id=params.segment_id, version=params.version)
     if not candidates:
         raise HTTPException(
@@ -1718,12 +2185,30 @@ def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionConte
         )
     target = candidates[0]
 
-    deleted_ids = []
+    # Compare-and-set EVERY part BEFORE deleting any of them -- "an inverse
+    # must never hard-delete something a later step touched" (#4957 follow-
+    # up 1). #4957 review 3: under own-invert `new_segment_ids` is always
+    # derived from THIS split's own fresh `after`, so a named part should
+    # always exist and always have a token -- either surprise is refused
+    # loudly now, never silently treated as "nothing to do" or as an
+    # ordinary stale compare-and-set.
+    live_new_rows: dict[str, Segment] = {}
     for new_id in params.new_segment_ids:
         new_row = db.get(Segment, new_id)
-        if new_row is not None:
-            db.delete(new_row)
-            deleted_ids.append(new_id)
+        if new_row is None:
+            raise _as_http_error(SegmentPartGone(new_id))
+        expected = _require_expected_version(params.expected_versions, new_id)
+        if new_row.version != expected:
+            raise _as_http_error(SegmentStale(
+                new_id, expected, new_row.version,
+                _stale_changed_fields(db, new_id, expected, new_row),
+            ))
+        live_new_rows[new_id] = new_row
+
+    deleted_ids = []
+    for new_id, new_row in live_new_rows.items():
+        db.delete(new_row)
+        deleted_ids.append(new_id)
 
     audit_id = uuid.uuid4().hex
     # The version only ever goes UP: a fresh preimage of the CURRENT
@@ -1754,7 +2239,13 @@ def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionConte
         domains=["segment"],
         target_ids=[params.segment_id, *deleted_ids],
         before=None,
-        after={"segment_id": params.segment_id},
+        # #4957 follow-up 1: singular `version` (not `versions`), matching
+        # `segment.update`/`.restore_version`'s own shared convention --
+        # `_refresh_replay_expected_versions` reads THIS key to freshen
+        # `segment.split`'s own singular `expected_version` when split is
+        # replayed for the FIRST redo (`unsplit` has no `invert` of its
+        # own, so that redo always takes the replay path, never own-invert).
+        after={"segment_id": params.segment_id, "version": row.version},
         emit_type="segment.split",
         segment_ids=[params.segment_id, *deleted_ids],
         pass_ids=[row.pass_id],
@@ -1863,15 +2354,28 @@ class SegmentCarryParams(BaseModel):
 
     match_id: str
     kinds: list[str]
+    #: Compare-and-set on the matched segments (#4957 follow-up 1), keyed
+    #: by `SegmentMatch.from_segment_id`/`.to_segment_id` -- carry itself
+    #: never bumps either segment's version (it only copies readings/
+    #: annotations across), but the caller's view of the match can still
+    #: be stale if either end was reshaped since it was read.
+    expected_versions: dict[str, int]
 
 
 def _invert_carry(before, after, ctx: ActionContext):
+    """`after["versions"]` (#4957 follow-up 1) gives `uncarry` a live
+    compare-and-set token for the matched segments, worked out from THIS
+    call's own `after` -- always fresh, whichever lap it is."""
     if not after:
         return None
     carry_ids = after.get("carry_ids")
-    if not carry_ids:
+    current_versions = after.get("versions")
+    if not carry_ids or not current_versions:
         return None
-    return ("segment.uncarry", {"carry_ids": carry_ids})
+    return (
+        "segment.uncarry",
+        {"carry_ids": carry_ids, "expected_versions": current_versions},
+    )
 
 
 @action(
@@ -1914,6 +2418,16 @@ def _action_carry(db: Database, params: SegmentCarryParams, ctx: ActionContext):
         if reason is not None:
             raise _as_http_error(SegmentNotLive(segment_id, reason))
 
+    # #4957 follow-up 1: compare-and-set on both matched segments BEFORE
+    # anything is written.
+    for segment_id, row in ((match.from_segment_id, from_row), (match.to_segment_id, to_row)):
+        expected = _require_expected_version(params.expected_versions, segment_id)
+        if row.version != expected:
+            raise _as_http_error(SegmentStale(
+                segment_id, expected, row.version,
+                _stale_changed_fields(db, segment_id, expected, row),
+            ))
+
     # `source.segment.carry-across-a-match`: "one to one" across ACCEPTED
     # matches only -- one old line became two (many-to-many) is exactly the
     # case a reading must not be silently duplicated across.
@@ -1942,7 +2456,13 @@ def _action_carry(db: Database, params: SegmentCarryParams, ctx: ActionContext):
         domains=["segment"],
         target_ids=[match.id, *carry_ids],
         before=None,
-        after={"carry_ids": carry_ids, "copy_ids": copy_ids, "not_carried": not_carried},
+        after={
+            "carry_ids": carry_ids, "copy_ids": copy_ids, "not_carried": not_carried,
+            # #4957 follow-up 1: the matched segments' CURRENT versions --
+            # unchanged by carry itself, but recorded here so `_invert_carry`
+            # can hand `uncarry` a live token instead of a replay's stale one.
+            "versions": {match.from_segment_id: from_row.version, match.to_segment_id: to_row.version},
+        },
         emit_type="segment.matched",
         segment_ids=[match.from_segment_id, match.to_segment_id],
         pass_ids=[from_row.pass_id, to_row.pass_id],
@@ -1958,28 +2478,69 @@ class SegmentUncarryParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     carry_ids: list[str]
+    #: Compare-and-set on the matched segments the named carries came from
+    #: (#4957 follow-up 1), keyed by segment id -- derived from each
+    #: carry's own `SegmentMatch`, since carry itself does not carry
+    #: segment ids in its own params.
+    #:
+    #: #4957 review 3 note (no code change): the token guards the MATCHED
+    #: segments, not the copies uncarry actually removes -- so an
+    #: unrelated reshape of the to-segment AFTER a carry blocks undoing
+    #: that carry, even though the copy itself was never touched. Fails
+    #: CLOSED and says why (a `SegmentStale` on the to-segment), which is
+    #: the safe default; the more precise guard would be a token on each
+    #: copy itself, not the segment it was carried onto.
+    expected_versions: dict[str, int] = {}
 
 
 @action("segment.uncarry", SegmentUncarryParams, domains=["segment"], undoable=False)
 def _action_uncarry(db: Database, params: SegmentUncarryParams, ctx: ActionContext):
-    removed_carry_ids: list[str] = []
-    removed_copy_ids: list[str] = []
+    # Gather every carry row and the matched segments it touches BEFORE
+    # deleting anything -- #4957 follow-up 1: "an inverse must never
+    # hard-delete something a later step touched", refuse instead. A carry
+    # id already gone (some other, legitimate action already removed it)
+    # is still silently skipped, unchanged from before this follow-up.
+    carries: list[SegmentCarry] = []
+    segment_ids: set[str] = set()
     for carry_id in params.carry_ids:
         carry = db.get(SegmentCarry, carry_id)
-        if not carry:
+        if carry is None:
             continue
+        carries.append(carry)
+        match = db.get(SegmentMatch, carry.match_id)
+        if match is not None:
+            segment_ids.add(match.from_segment_id)
+            segment_ids.add(match.to_segment_id)
+
+    for segment_id in segment_ids:
+        row = db.get(Segment, segment_id)
+        if row is None:
+            continue
+        expected = params.expected_versions.get(segment_id)
+        if expected is None or row.version != expected:
+            raise _as_http_error(SegmentStale(
+                segment_id, expected if expected is not None else -1, row.version,
+                _stale_changed_fields(db, segment_id, expected if expected is not None else -1, row),
+            ))
+
+    removed_carry_ids: list[str] = []
+    removed_copy_ids: list[str] = []
+    for carry in carries:
         model, _anchor_field, _doc_field = _CARRY_MODELS[carry.carried_kind]
         copy_row = db.get(model, carry.copy_id)
         if copy_row is not None:
             db.delete(copy_row)
             removed_copy_ids.append(carry.copy_id)
         db.delete(carry)
-        removed_carry_ids.append(carry_id)
+        removed_carry_ids.append(carry.id)
     spec = ChangeSpec(
         domains=["segment"],
         target_ids=removed_carry_ids,
         before=None,
-        after={"carry_ids": removed_carry_ids, "copy_ids": removed_copy_ids},
+        after={
+            "carry_ids": removed_carry_ids, "copy_ids": removed_copy_ids,
+            "versions": {sid: v.version for sid in segment_ids if (v := db.get(Segment, sid)) is not None},
+        },
         emit_type="segment.matched",
     )
     return {"carry_ids": removed_carry_ids, "copy_ids": removed_copy_ids}, spec
@@ -2273,17 +2834,29 @@ async def restore_segment_version(
     return segment_read_from_row(db.get(Segment, segment_id))
 
 
-@router.get("/{segment_id}/versions", response_model=list[SegmentVersion])
+class SegmentVersionListResponse(BaseModel):
+    """Typed version-list envelope for the OpenAPI client.
+
+    `{items, count}`, never a bare array: a bare list endpoint is the
+    shape `test_no_new_bare_array_get_endpoint` exists to keep out (#1075,
+    where a bare list and an envelope for the same idea drifted apart).
+    """
+
+    items: list[SegmentVersion]
+    count: int
+
+
+@router.get("/{segment_id}/versions", response_model=SegmentVersionListResponse)
 async def list_segment_versions(
     segment_id: str,
     db: Database = Depends(get_library_database),
-) -> list[SegmentVersion]:
+) -> SegmentVersionListResponse:
     """`source.segment.versioned-alone`: one segment's own history, read
     without touching any other segment's rows."""
     _assert_not_provisional_http(segment_id, what="segment_id")
     rows = db.query(SegmentVersion, segment_id=segment_id)
     rows.sort(key=lambda r: r.version)
-    return rows
+    return SegmentVersionListResponse(items=rows, count=len(rows))
 
 
 class SegmentDetailResponse(BaseModel):

@@ -20,13 +20,18 @@ themselves know nothing about segments.
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
 
 from fichero_server.core.timeutil import utc_now
-from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryResult
+from fichero_server.media.ocr_geometry import (
+    OCRGeometryBox,
+    OCRGeometryResult,
+    reading_order,
+)
 from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.knowledge import ProvenanceKind
 
@@ -38,8 +43,6 @@ def _new_id() -> str:
     thin local wrapper so this module does not import the whole
     ``fichero_server.models`` package (see the module docstring: this file
     sits BELOW that package)."""
-    import uuid
-
     return uuid.uuid4().hex
 
 #: Prefix marking an id read out of today's blob storage rather than a real
@@ -639,7 +642,61 @@ def rects_intersect(a: tuple[float, float, float, float], b: tuple[float, float,
     return ax < bx + bw and bx < ax + aw and ay < by + bh and by < ay + ah
 
 
-def segment_read_from_row(row: Segment, *, box_index: int | None = None) -> SegmentRead:
+def words_for_row(
+    source_block: OCRGeometryResult | None, metadata: dict[str, Any]
+) -> str | None:
+    """The words a converted row shows, from the kept block.
+
+    Two shapes. An ordinary converted box has one `box_index` and shows
+    that box's text. A COMBINED one has `member_box_indexes` -- every box
+    it absorbed -- and shows their texts joined in reading order, exactly
+    as today's combine joins them, using the one `reading_order` rule they
+    both share. Computed at read; nothing new is stored, which is what
+    keeps the block the single home of the words until slice 8.
+
+    Combining an already combined segment joins the union of both lists,
+    because the merge carries the members forward.
+    """
+    if source_block is None:
+        return None
+    members = metadata.get("member_box_indexes")
+    if isinstance(members, list) and members:
+        pairs = []
+        for index in members:
+            box = _box_at(source_block, index)
+            if box is not None:
+                pairs.append((index, box))
+        if not pairs:
+            return None
+        # Newline-joined, as today: regions read as passages, and a newline
+        # keeps two lines' worth of text from running together.
+        return "\n".join(box.text for _, box in reading_order(pairs) if box.text) or None
+    box = _box_at(source_block, metadata.get("box_index"))
+    return (box.text or None) if box is not None else None
+
+
+def _box_at(source_block: OCRGeometryResult | None, box_index: Any) -> OCRGeometryBox | None:
+    """The box a converted row came from, or ``None``.
+
+    Tolerant on purpose: a row's `metadata["box_index"]` is data that has
+    been through a database, and the block may be gone entirely (an
+    artifact is hard-deleted -- `Artifact` has no soft-delete field). Every
+    caller must read "no box" as "no text", never as an error: a page must
+    not stop rendering because one row lost its source."""
+    if source_block is None or not isinstance(box_index, int) or isinstance(box_index, bool):
+        return None
+    if 0 <= box_index < len(source_block.boxes):
+        return source_block.boxes[box_index]
+    return None
+
+
+def segment_read_from_row(
+    row: Segment,
+    *,
+    box_index: int | None = None,
+    source_block: OCRGeometryResult | None = None,
+    source_artifact_id: str | None = None,
+) -> SegmentRead:
     """The real-row twin of `segment_from_box` -- same `SegmentRead` shape,
     `provisional=False`. The seam (`api/routes/document/segments.py`) is the
     ONE place that resolves either this or the blob path, never both for the
@@ -651,7 +708,29 @@ def segment_read_from_row(row: Segment, *, box_index: int | None = None) -> Segm
     when a converted box recorded one, else `created_at` then `id`), so the
     app's "boxIndex must be exactly 0..count" rule has something dense to
     read. A caller with no such order (a single-segment lookup, not a page
-    read) passes nothing and gets `None`, same as before."""
+    read) passes nothing and gets `None`, same as before.
+
+    `source_artifact_id` (#4924 review): the artifact this row's PASS was
+    converted from. Passed in because a `Segment` does not store one -- a
+    segment belongs to a pass, and the pass names the artifact. Without it
+    a converted segment read `None` where the provisional one named its
+    artifact, which is a difference the master test was hiding by popping
+    the field.
+
+    `source_block` (slice 6, #4924): until readings hang on segments
+    (slice 8) a box's WORDS have one home -- the kept `ocr_geometry` block
+    of the artifact this row was converted from. A row that recorded
+    `metadata["box_index"]` reads its text back from that block's box;
+    `page_index` comes from `metadata` (STORED at conversion, not read
+    back), so a multi-page PDF's rows still filter by page even after the
+    artifact is gone. Passing nothing keeps the old answer, `text=None`.
+
+    A MERGED segment's text -- joined from `metadata["member_box_indexes"]`
+    -- is deliberately NOT here yet: nothing writes that key until the
+    merge internals learn it, and a read path with no writer cannot be
+    tested (#4924 step 5)."""
+    words = words_for_row(source_block, row.metadata)
+    stored_page_index = row.metadata.get("page_index")
     return SegmentRead(
         id=row.id,
         provisional=False,
@@ -662,11 +741,22 @@ def segment_read_from_row(row: Segment, *, box_index: int | None = None) -> Segm
         provenance_kind=row.provenance_kind,
         anchor=row.anchor,
         baseline=row.baseline,
-        text=None,  # readings on segments arrive in a later slice
+        # Readings of their own arrive in slice 8; until then a converted
+        # row's words come from the box or boxes it was made from.
+        text=words,
         confidence=row.confidence,
-        source_artifact_id=None,  # a real segment is not backed by one artifact
+        # The artifact this row's PASS was converted from, when the caller
+        # knows it (#4924 review). A segment made from scratch has none and
+        # still reads `None`; a converted one reports the same artifact the
+        # provisional read reported, so conversion does not silently drop a
+        # field the app can see.
+        source_artifact_id=source_artifact_id,
         box_index=box_index,
-        page_index=None,  # not stored on Segment until its own slice
+        page_index=(
+            stored_page_index
+            if isinstance(stored_page_index, int) and not isinstance(stored_page_index, bool)
+            else None
+        ),
         metadata=dict(row.metadata),
     )
 
@@ -1116,7 +1206,12 @@ def forwards_to(db: Any, from_id: str, target_id: str) -> bool:
     return False
 
 
-def pass_read_from_row(row: SegmentPass, *, artifact_type: str | None = None) -> PassRead:
+def pass_read_from_row(
+    row: SegmentPass,
+    *,
+    artifact_type: str | None = None,
+    source_block: OCRGeometryResult | None = None,
+) -> PassRead:
     """The real-row twin of the pass half of `segments_from_result`.
 
     `artifact_type` (test-audit B2, 2026-09-20): App slice A stage 2's notes
@@ -1125,7 +1220,15 @@ def pass_read_from_row(row: SegmentPass, *, artifact_type: str | None = None) ->
     here (the caller looks it up; this function has no `db`), never a
     guess. A from-scratch pass (no `source_artifact_id`) has nothing to
     carry and stays `None` -- the notes say nothing about that case, so
-    nothing is invented for it."""
+    nothing is invented for it.
+
+    `source_block` (slice 6, #4924): `PassRead.text` is the RESULT's own
+    text, and a box's `char_start`/`char_end` index into exactly that
+    string (see `PassRead.text`'s own note: never rebuild it by joining
+    box texts). `SegmentPass` has no text column, so a converted pass
+    reads it back from the block it was converted from. Without this,
+    conversion would silently leave every char span on the page indexing
+    into nothing. Passing nothing keeps the old answer, `None`."""
     return PassRead(
         id=row.id,
         provisional=False,
@@ -1138,5 +1241,270 @@ def pass_read_from_row(row: SegmentPass, *, artifact_type: str | None = None) ->
         created_at=row.created_at,
         source_artifact_id=row.source_artifact_id,
         artifact_type=artifact_type,
-        text=None,  # readings on passes arrive in a later slice
+        # Readings of their own arrive in slice 8; until then a converted
+        # pass's text is the block's own (`source_block`).
+        text=(source_block.text or None) if source_block is not None else None,
     )
+
+
+# ---------------------------------------------------------------------------
+# Slice 6 -- first-edit conversion (#4924)
+#
+# Conversion stores EXACTLY what the seam already returns: `segments_from_result`
+# is still the one mapping from a block of boxes to reads, and `rows_from_reads`
+# below is the whole translation from those reads to rows. There is no second
+# mapping and nothing here reads `Artifact.ocr_geometry` itself.
+#
+# Ids are REPEATABLE (name-based uuid5, not uuid4), which is what makes a lazy
+# conversion and an eager one produce byte-identical rows, keeps the audit
+# payload to counts and ids, and lets redo land on the same row every lap.
+# ---------------------------------------------------------------------------
+
+#: The one namespace converted ids are minted under. NEVER CHANGED: every
+#: converted segment's identity is `uuid5(this, f"{artifact_id}:{box_index}")`,
+#: so changing it would silently re-identify every already-converted box in
+#: every library. Itself a uuid5 of the fixed name below under the standard
+#: DNS namespace, so it is reproducible from this file alone rather than a
+#: magic literal someone might "tidy".
+#: Written as a LITERAL, not computed, so it cannot drift: it is
+#: `uuid5(NAMESPACE_DNS, "segments.conversion.fichero")`, and
+#: `test_the_conversion_namespace_never_changes` pins both the value and
+#: that derivation.
+SEGMENT_CONVERSION_NAMESPACE = uuid.UUID("6fd743f7-2111-514c-89f6-dfd308363dd5")
+
+
+def converted_segment_id(artifact_id: str, box_index: int) -> str:
+    """The lasting id box `box_index` of `artifact_id` takes at conversion.
+
+    `source.store.conversion-ids-repeatable`. The id belongs to THAT box of
+    THAT result forever: an id is never handed to another segment, and a
+    second conversion of the same artifact (which cannot happen, but the
+    guard is free) writes the same row rather than a duplicate."""
+    return uuid.uuid5(SEGMENT_CONVERSION_NAMESPACE, f"{artifact_id}:{box_index}").hex
+
+
+def converted_pass_id(artifact_id: str) -> str:
+    """The lasting id the pass converted from `artifact_id` takes.
+
+    Prefixed `pass:` so a pass and box 0 of the same artifact can never
+    collide."""
+    return uuid.uuid5(SEGMENT_CONVERSION_NAMESPACE, f"pass:{artifact_id}").hex
+
+
+def real_id_for_provisional(provisional_id: str) -> str | None:
+    """The lasting id a provisional (``legacy:``) id becomes at conversion,
+    or ``None`` when the id is not a provisional one.
+
+    NO FORWARDING ROWS ARE WRITTEN AT CONVERSION, and this function is why.
+    A forwarding note records that one LASTING id gave way to another; a
+    provisional id was never lasting -- it names a position in a blob. Twenty
+    thousand notes for a dense page would be twenty thousand rows saying what
+    this function says in a line.
+
+    Says NOTHING about whether the row exists: a caller that wants to answer
+    "this provisional id is now that segment" must look the row up and only
+    then claim it (`source.seam.provisional-ids-refused` still holds on every
+    write path -- this is for READS).
+
+    Both shapes round-trip their minting function:
+    `legacy_segment_id(a, n)` -> `converted_segment_id(a, n)`,
+    `legacy_pass_id(a)` -> `converted_pass_id(a)`.
+    """
+    if not provisional_id.startswith(LEGACY_ID_PREFIX):
+        return None
+    body = provisional_id[len(LEGACY_ID_PREFIX):]
+    if not body:
+        return None
+    # An artifact id is a bare uuid hex with no colon of its own, so the LAST
+    # colon (if any) separates the box index -- `rsplit`, never `split`.
+    artifact_id, _, tail = body.rpartition(":")
+    if not artifact_id:
+        # No colon: the whole body is the artifact id, so this is a PASS id.
+        return converted_pass_id(body)
+    try:
+        box_index = int(tail)
+    except ValueError:
+        return None
+    if box_index < 0 or tail != str(box_index):
+        # Refuse "-0", "007", " 3" and friends: a provisional id is minted by
+        # `legacy_segment_id`, which always renders the plain decimal, so
+        # anything else did not come from us and must not be mapped.
+        return None
+    return converted_segment_id(artifact_id, box_index)
+
+
+class BoxIndexesNotContiguous(ValueError):
+    """`rows_from_reads` was handed reads whose box indexes are not exactly
+    ``0..n-1``.
+
+    Cannot arise from `segments_from_result` (the index IS the list
+    position), so this is a guard against a future caller, not a case in the
+    wild -- and it REFUSES THE WHOLE PASS rather than convert part of a page,
+    because the app addresses a box by its position and a gap would silently
+    shift every box after it."""
+
+    def __init__(self, artifact_id: str, indexes: list[int | None]) -> None:
+        self.artifact_id = artifact_id
+        self.indexes = indexes
+        super().__init__(
+            f"artifact {artifact_id!r} gave box indexes {indexes!r}, which are "
+            "not exactly 0..n-1; refusing to convert a page whose positions would shift"
+        )
+
+
+def _converted_box_columns(read: SegmentRead) -> tuple[float, float, float, float, str]:
+    """The bbox columns for ONE converted box, tolerating a box whose shape
+    the anchor could not hold.
+
+    `bbox_and_tile_from_anchor` RAISES for an anchor with neither rect nor
+    polygon, and it is right to: `segment.create` only ever accepts an
+    anchor that has one, so there a missing shape is a bug. CONVERSION IS
+    DIFFERENT. A real page can carry a degenerate box (`_build_anchor`
+    drops a zero-size rect and records the reason in
+    `metadata["geometry_problem"]`), and such a box MUST still become a
+    row: the app draws a zero-size placeholder for it, and if it vanished
+    every later box would shift up by one position -- silently moving
+    somebody's regions. So the columns go to zero and the row keeps its
+    place.
+
+    Consequence worth knowing: a zero box files under tile `x0y0`, so a
+    read by area over the top-left corner will return it. It has to be
+    filed somewhere, and `metadata["geometry_problem"]` says why it is
+    there.
+    """
+    try:
+        return bbox_and_tile_from_anchor(read.anchor)
+    except ValueError:
+        logger.debug(
+            "converted box %s has no drawable shape (%s); storing zero columns",
+            read.box_index, read.metadata.get("geometry_problem"),
+        )
+        return 0.0, 0.0, 0.0, 0.0, _tile_key(0.0, 0.0, 0.0, 0.0)
+
+
+def rows_from_reads(
+    pass_read: PassRead, segment_reads: list[SegmentRead]
+) -> tuple[SegmentPass, list[Segment]]:
+    """The WHOLE translation from what the seam returns to what is stored.
+
+    `source.store.conversion-changes-nothing-seen`: every field here is
+    copied from the read, never re-derived, so a converted page comes back
+    through `pass_read_from_row`/`segment_read_from_row` equal to the
+    provisional page it replaced but for `id`, `pass_id` and `provisional`.
+
+    Three fields are set from the READ rather than from "now", and each is
+    load-bearing:
+
+    * ``SegmentPass.created_at`` is the ARTIFACT's `created_at`, not
+      `utc_now()`. The seam sorts passes by `(created_at, id)`, so a pass
+      stamped at conversion time would reorder a page that has two results
+      -- a difference a person can see, which the master test forbids.
+    * ``SegmentPass.actor`` is ALWAYS ``None``. Nothing here is the
+      converting person's work; only the edit that triggered the conversion
+      is theirs, and that edit is recorded on its own segment's version.
+    * ``created_by`` is the artifact's provider (or ``None``), NEVER
+      ``ctx.actor`` -- `source.store.converted-boxes-keep-their-maker`. A
+      box a person hand-drew into a machine result keeps
+      ``provenance_kind=human`` but gets ``created_by=None``: the block
+      records THAT a person drew it, never WHICH person, and inventing the
+      converting actor there would credit one historian with another's work.
+
+    No `SegmentVersion` rows are written. Version rows are PREIMAGES (see
+    `SegmentVersion`'s docstring: "no row is written at creation"), and
+    `snapshot_segment_version` bumps `version` in place, so writing one here
+    would leave every converted row at version 2 with a snapshot of a state
+    nothing ever superseded.
+    """
+    artifact_id = pass_read.source_artifact_id
+    if not artifact_id:
+        raise ValueError(
+            "rows_from_reads needs a pass that names its source artifact; "
+            f"got pass {pass_read.id!r} with source_artifact_id=None"
+        )
+
+    indexes = [read.box_index for read in segment_reads]
+    if indexes != list(range(len(segment_reads))):
+        raise BoxIndexesNotContiguous(artifact_id, indexes)
+
+    pass_row = SegmentPass(
+        id=converted_pass_id(artifact_id),
+        document_id=pass_read.document_id,
+        name=pass_read.name,
+        provenance_kind=pass_read.provenance_kind,
+        actor=None,
+        provider=pass_read.provider,
+        model=pass_read.model,
+        run_id=pass_read.run_id,
+        source_artifact_id=artifact_id,
+        created_at=pass_read.created_at or utc_now(),
+    )
+
+    rows: list[Segment] = []
+    for read in segment_reads:
+        bbox_x, bbox_y, bbox_w, bbox_h, tile = _converted_box_columns(read)
+        metadata = dict(read.metadata)
+        # The sort key the seam already reads (`_segment_row_sort_key`), so a
+        # converted page keeps the order the app was last given, and the
+        # source of a row's words (`segment_read_from_row`'s `source_block`).
+        metadata["box_index"] = read.box_index
+        if read.page_index is not None:
+            # STORED, not read back: it must survive the artifact being gone.
+            metadata["page_index"] = read.page_index
+        rows.append(
+            Segment(
+                id=converted_segment_id(artifact_id, read.box_index),
+                document_id=read.document_id,
+                pass_id=pass_row.id,
+                kind=read.kind,
+                kind_raw=read.kind_raw,
+                anchor=read.anchor,
+                baseline=read.baseline,
+                bbox_x=bbox_x,
+                bbox_y=bbox_y,
+                bbox_w=bbox_w,
+                bbox_h=bbox_h,
+                tile=tile,
+                doc_kind=f"{read.document_id}:{read.kind}",
+                confidence=read.confidence,
+                provenance_kind=read.provenance_kind,
+                created_by=(
+                    None
+                    if read.provenance_kind is ProvenanceKind.human
+                    else pass_read.provider
+                ),
+                created_at=pass_read.created_at or utc_now(),
+                updated_at=pass_read.created_at or utc_now(),
+                metadata=metadata,
+            )
+        )
+    return pass_row, rows
+
+
+class SegmentPassChoice(BaseModel):
+    """"This is the pass I am working on" -- a person's choice, recorded.
+
+    Table `segmentpasschoices`. Slice 6 (#4924) only WRITES these: the edit
+    that converted a page says which result the Source view was showing,
+    and that is a fact worth keeping, because a page accumulates passes (a
+    machine run after conversion adds another) and "which one am I looking
+    at" is otherwise guessed from dates.
+
+    Rows are NEVER DELETED. A later choice supersedes an earlier one by
+    stamping `superseded_at` on it, so the history of what somebody was
+    working on stays readable -- the same shape `ReadingChoice` takes in
+    the readings slice, deliberately, since the two are read together.
+
+    The RANKING that decides which pass is shown when there is no live
+    choice (`resolve_working_pass`) belongs to the readings-and-cascade
+    slice, not here. This record is its first input, not its replacement.
+    """
+
+    id: str = Field(default_factory=_new_id)
+    document_id: str
+    pass_id: str
+    #: Who chose it. A choice is always a person's -- a machine does not
+    #: decide which pass a historian is working on.
+    chosen_by: str | None = None
+    chosen_at: datetime = Field(default_factory=utc_now)
+    #: Set when a later choice replaces this one. Never deleted.
+    superseded_at: datetime | None = None

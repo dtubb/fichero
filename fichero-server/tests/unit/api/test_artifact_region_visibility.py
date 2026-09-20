@@ -13,6 +13,13 @@ list response carries.
 from __future__ import annotations
 
 from fichero_server.api.routes.document.artifacts import _artifact_response
+
+#: `_artifact_response` needs a database only to project a CONVERTED
+#: artifact's boxes from its segment rows (#4924). Every artifact built here
+#: is unconverted, so `live_geometry` returns the stored block without a
+#: single query -- and passing `None` says that out loud, where a mock would
+#: quietly hide a query that should not be happening.
+UNCONVERTED_NEEDS_NO_DB = None
 from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryResult
 from fichero_server.models import Artifact
 
@@ -42,13 +49,13 @@ def _artifact(boxes=2, rendition_id=None) -> Artifact:
 class TestTheListCanSayHowMany:
     def test_the_count_survives_the_lean_list_response(self):
         """The whole point: geometry is stripped, the count is not."""
-        response = _artifact_response(_artifact(boxes=12), include_geometry=False)
+        response = _artifact_response(UNCONVERTED_NEEDS_NO_DB, _artifact(boxes=12), include_geometry=False)
 
         assert response.ocr_geometry is None
         assert response.region_count == 12
 
     def test_the_count_is_also_right_on_the_full_response(self):
-        response = _artifact_response(_artifact(boxes=12), include_geometry=True)
+        response = _artifact_response(UNCONVERTED_NEEDS_NO_DB, _artifact(boxes=12), include_geometry=True)
 
         assert response.ocr_geometry is not None
         assert response.region_count == 12
@@ -58,7 +65,7 @@ class TestTheListCanSayHowMany:
             document_id="doc-1", artifact_type="transcription",
             content="text", version=1, reviewed=False,
         )
-        assert _artifact_response(plain).region_count == 0
+        assert _artifact_response(UNCONVERTED_NEEDS_NO_DB, plain).region_count == 0
 
     def test_an_empty_box_set_reports_zero_not_absent(self):
         """A regions run that found nothing is a real outcome and must be
@@ -68,7 +75,7 @@ class TestTheListCanSayHowMany:
             document_id="doc-1", artifact_type="regions", version=1, reviewed=False,
             ocr_geometry=OCRGeometryResult(provider="apple", boxes=[]),
         )
-        assert _artifact_response(empty).region_count == 0
+        assert _artifact_response(UNCONVERTED_NEEDS_NO_DB, empty).region_count == 0
 
 
 class TestTheListCanSayWHICHPicture:
@@ -77,15 +84,15 @@ class TestTheListCanSayWHICHPicture:
 
     def test_the_frame_rides_on_the_lean_response(self):
         response = _artifact_response(
-            _artifact(rendition_id="rend-crop"), include_geometry=False
+            UNCONVERTED_NEEDS_NO_DB, _artifact(rendition_id="rend-crop"), include_geometry=False
         )
         assert response.geometry_rendition_id == "rend-crop"
 
     def test_the_documents_own_frame_is_None(self):
-        assert _artifact_response(_artifact()).geometry_rendition_id is None
+        assert _artifact_response(UNCONVERTED_NEEDS_NO_DB, _artifact()).geometry_rendition_id is None
 
     def test_it_mirrors_the_geometry_when_geometry_is_present(self):
         response = _artifact_response(
-            _artifact(rendition_id="rend-crop"), include_geometry=True
+            UNCONVERTED_NEEDS_NO_DB, _artifact(rendition_id="rend-crop"), include_geometry=True
         )
         assert response.geometry_rendition_id == response.ocr_geometry.rendition_id

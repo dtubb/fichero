@@ -1422,7 +1422,7 @@ def register_generated_openapi_commands(
                 "indices": {'items': {'type': 'integer'}, 'type': 'array', 'title': 'Indices', 'description': 'Positions into ocr_geometry.boxes (order irrelevant)', 'x-cli-required': False},
                 "level": {'type': 'string', 'enum': ['page', 'block', 'line', 'word', 'region'], 'title': 'OCRGeometryLevel', 'x-cli-required': False},
                 "op": {'type': 'string', 'enum': ['move', 'delete', 'add', 'combine'], 'title': 'RegionEditOp', 'description': 'A closed vocabulary — an enum in the schema, never a bare str (rule 4).', 'x-cli-required': True},
-                "text": {'type': 'string', 'title': 'Text', 'default': '', 'x-cli-required': False},
+                "text": {'type': 'string', 'title': 'Text', 'description': "Text for the new box on `add`. REFUSED on add until readings attach to segments (422, `TextNeedsReadings`): once a page's boxes are segment records there is nowhere lawful to keep typed words, and a page's first edit converts it (#4924). Draw the region, then transcribe it. Ignored by the other ops.", 'default': '', 'x-cli-required': False},
             }, required=True)
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -12620,6 +12620,7 @@ def register_generated_openapi_commands(
     @target_app.command("carry-across-match")
     def segments_carry_across_match_post(
         ctx: typer.Context,
+        expected_versions: str = typer.Option(..., "--expected-versions", help="Request field: expected_versions."),
         kinds: str = typer.Option(..., "--kinds", help="Request field: kinds."),
         match_id: str = typer.Option(..., "--match-id", help="Request field: match_id."),
     ) -> None:
@@ -12628,9 +12629,11 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/segments/carry"
             params = None
             payload = _build_json_payload({
+                "expected_versions": expected_versions,
                 "kinds": kinds,
                 "match_id": match_id,
             }, {
+                "expected_versions": {'additionalProperties': {'type': 'integer'}, 'type': 'object', 'title': 'Expected Versions', 'x-cli-required': True},
                 "kinds": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Kinds', 'x-cli-required': True},
                 "match_id": {'type': 'string', 'title': 'Match Id', 'x-cli-required': True},
             }, required=True)
@@ -12734,6 +12737,7 @@ def register_generated_openapi_commands(
     @target_app.command("merge")
     def segments_merge_post(
         ctx: typer.Context,
+        expected_versions: str = typer.Option(..., "--expected-versions", help="Request field: expected_versions."),
         keep_id: str = typer.Option(..., "--keep-id", help="Request field: keep_id."),
         segment_ids: str = typer.Option(..., "--segment-ids", help="Request field: segment_ids."),
     ) -> None:
@@ -12742,9 +12746,11 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/segments/merge"
             params = None
             payload = _build_json_payload({
+                "expected_versions": expected_versions,
                 "keep_id": keep_id,
                 "segment_ids": segment_ids,
             }, {
+                "expected_versions": {'additionalProperties': {'type': 'integer'}, 'type': 'object', 'title': 'Expected Versions', 'x-cli-required': True},
                 "keep_id": {'type': 'string', 'title': 'Keep Id', 'x-cli-required': True},
                 "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Segment Ids', 'x-cli-required': True},
             }, required=True)
@@ -12795,6 +12801,7 @@ def register_generated_openapi_commands(
     @target_app.command("split")
     def segments_split_post(
         ctx: typer.Context,
+        expected_version: int = typer.Option(..., "--expected-version", help="Request field: expected_version."),
         parts: str = typer.Option(..., "--parts", help="Request field: parts."),
         segment_id: str = typer.Option(..., "--segment-id", help="Request field: segment_id."),
     ) -> None:
@@ -12803,9 +12810,11 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/segments/split"
             params = None
             payload = _build_json_payload({
+                "expected_version": expected_version,
                 "parts": parts,
                 "segment_id": segment_id,
             }, {
+                "expected_version": {'type': 'integer', 'title': 'Expected Version', 'x-cli-required': True},
                 "parts": {'items': {'$ref': '#/components/schemas/SegmentSplitPart'}, 'type': 'array', 'title': 'Parts', 'x-cli-required': True},
                 "segment_id": {'type': 'string', 'title': 'Segment Id', 'x-cli-required': True},
             }, required=True)

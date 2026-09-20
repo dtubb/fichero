@@ -418,9 +418,19 @@ def fichero_segment(segment_id: str) -> Any:
 @mcp.tool()
 def fichero_segment_versions(segment_id: str) -> Any:
     """Read one segment's own version history (source-model slice 5,
-    read-only, writes nothing)."""
+    read-only, writes nothing).
+
+    Answers the `{items, count}` envelope the route answers, not a bare
+    list: the three surfaces are pinned to agree byte for byte
+    (`test_segment_detail_versions_and_reference_hard_gate`), so this tool
+    mirrors the route's shape rather than the client helper's typed list.
+    """
     with _client() as client:
-        return client.list_segment_versions(segment_id)
+        rows = client.list_segment_versions(segment_id)
+        return {
+            "items": [row.model_dump(mode="json") for row in rows],
+            "count": len(rows),
+        }
 
 
 @mcp.tool()

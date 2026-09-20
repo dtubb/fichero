@@ -788,15 +788,27 @@ class TestSegmentProvenanceKind:
             provider="apple_vision",
         )
 
+        # No typed text on the add: since #4924 slice 6 a region added to a
+        # converted page cannot carry one (there is nowhere lawful to keep
+        # it until readings hang on segments), and the FIRST edit converts.
+        # The substance of this test is untouched -- it still proves the
+        # maker through the live write path -- so it keys on the box's
+        # RECT, which the row really carries, instead of on its words.
         r = client.put(
             f"/api/artifacts/{artifact.id}/regions",
-            json={"op": "add", "bbox": [0.6, 0.6, 0.1, 0.1], "text": "curated", "level": "word"},
+            json={"op": "add", "bbox": [0.6, 0.6, 0.1, 0.1], "level": "word"},
         )
-        assert r.status_code == 200
+        assert r.status_code == 200, r.text
 
         segments = _get(client, doc.id).json()["segments"]
-        by_text = {s["text"]: s["provenance_kind"] for s in segments}
-        assert by_text == {"machine": "workflow", "curated": "human"}
+        by_rect = {
+            tuple(s["anchor"]["rect"]): s["provenance_kind"]
+            for s in segments if s["anchor"].get("rect")
+        }
+        assert by_rect == {
+            (0.1, 0.1, 0.1, 0.1): "workflow",   # the machine's own box
+            (0.6, 0.6, 0.1, 0.1): "human",      # the one a person drew
+        }
 
 
 class TestSlice1bAdditions:

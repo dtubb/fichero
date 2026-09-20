@@ -143,7 +143,12 @@ async def merge_geometry_tool(
         for rows in (text_rows, geometry_rows):
             rows.sort(key=lambda r: (r.created_at is not None, r.created_at))
         reviewed_text = (text_rows[-1].content or "").strip()
-        raw_geometry = geometry_rows[-1].ocr_geometry
+        # LIVE, not the stored block (#4924): merging a person's reviewed
+        # text onto the boxes as the segmenter first found them would place
+        # it against geometry they have since corrected.
+        from fichero_server.api.routes.document.segment_conversion import live_geometry
+
+        raw_geometry = live_geometry(db, geometry_rows[-1])
         if not reviewed_text or not raw_geometry:
             records.append({"doc_id": doc_id, "merged": False,
                             "reason": "artifact present but empty"})

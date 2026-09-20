@@ -22,6 +22,7 @@ from fichero_server.models import (
     SegmentPass,
     Status,
 )
+from fichero_server.models.knowledge import ProvenanceKind
 
 pytestmark = pytest.mark.source_model
 
@@ -71,8 +72,11 @@ class TestLastingId:
         assert stored is not None
         assert stored.id == segment["id"]
 
-        # A client-supplied id is refused -- the params model has no `id`
-        # field at all, so `extra="forbid"` rejects it.
+        # A client-supplied id is refused (#4957 slice-6 prep): the params
+        # model DOES have an `id` field now, for in-process callers only,
+        # so this route refuses it explicitly, before the action layer
+        # ever sees it -- see `TestServerSuppliedCreateId` below for the
+        # in-process side of this field.
         r2 = client.post(
             "/api/segments",
             json={
@@ -372,6 +376,77 @@ class TestPassDeleteAndRestore:
         assert len(after["segments"]) == 1
 
 
+class TestPassDeleteRefusesAConversionTarget:
+    """Slice 6 review finding, fixed in THIS lane's part of the file: a
+    LIVE artifact's own conversion marker
+    (`Artifact.geometry_superseded_by_pass_id`) may name a pass. Deleting
+    that pass would leave the marker dangling
+    (`segment_conversion.py::converted_pass_of` raises
+    `ConversionMarkerDangling` on every later read of that artifact's
+    geometry) -- turning an ordinary, permitted, undoable pass-delete into
+    a 500 on the artifact list and the document view, the very page a
+    person would open to put it right. Marks the pass a "converted" one by
+    setting the marker directly (slice 6's own conversion action is not
+    wired yet in this worktree) -- the check reads the SAME field either
+    way."""
+
+    def _make_converted_pass(self, client, db, doc_id: str) -> tuple[dict, "Artifact"]:
+        from fichero_server.models import Artifact
+
+        pass_body = _create_pass(client, doc_id)
+        artifact = Artifact(document_id=doc_id, artifact_type="regions")
+        artifact.geometry_superseded_by_pass_id = pass_body["id"]
+        db.save(artifact)
+        return pass_body, artifact
+
+    def test_deleting_a_converted_pass_is_refused(self, client, db):
+        doc = _make_doc(db)
+        pass_body, artifact = self._make_converted_pass(client, db, doc.id)
+
+        r = client.delete(f"/api/segments/passes/{pass_body['id']}")
+        assert r.status_code == 409, r.text
+
+        stored_pass = db.get(SegmentPass, pass_body["id"])
+        assert stored_pass.deleted_at is None  # still live, nothing written
+        stored_artifact = db.get(Artifact, artifact.id)
+        assert stored_artifact.geometry_superseded_by_pass_id == pass_body["id"]  # marker intact
+
+        # The trap this closes: the artifact list / document view must not
+        # 500 reading this artifact's geometry -- the pass it names is
+        # still there.
+        seam = client.get(f"/api/segments/document/{doc.id}")
+        assert seam.status_code == 200, seam.text
+
+    def test_deleting_an_ordinary_pass_is_unaffected(self, client, db):
+        """The new check does not touch an ordinary, unconverted pass."""
+        doc = _make_doc(db)
+        pass_body = _create_pass(client, doc.id)
+        _create_segment(client, document_id=doc.id, pass_id=pass_body["id"])
+
+        r = client.delete(f"/api/segments/passes/{pass_body['id']}")
+        assert r.status_code == 200, r.text
+        assert db.get(SegmentPass, pass_body["id"]).deleted_at is not None
+
+    def test_undoing_a_pass_create_is_refused_once_it_becomes_a_conversion_target(
+        self, client, db,
+    ):
+        """The trap reaches through undo too, for free: undoing
+        `segment.pass_create` invokes `segment.pass_delete` (`_invert_
+        pass_create`) -- the SAME action, the SAME check."""
+        doc = _make_doc(db)
+        pass_body, artifact = self._make_converted_pass(client, db, doc.id)
+        create_audit = [
+            a for a in db.query(ActionAudit) if a.action_name == "segment.pass_create"
+        ][-1]
+        assert db.get(ActionAudit, create_audit.id).params["document_id"] == doc.id
+
+        undo = client.post(f"/api/actions/audit/{create_audit.id}/undo")
+        assert undo.status_code == 409, undo.text
+        assert db.get(SegmentPass, pass_body["id"]).deleted_at is None
+        from fichero_server.models import Artifact
+        assert db.get(Artifact, artifact.id).geometry_superseded_by_pass_id == pass_body["id"]
+
+
 class TestCreateMany:
     def test_create_many_uses_save_many_and_returns_every_segment(self, client, db):
         doc = _make_doc(db)
@@ -647,7 +722,7 @@ class TestBboxAndTileRecomputedAfterEveryAction:
         split_result = registry.invoke(
             db, "segment.split",
             {
-                "segment_id": segment["id"],
+                "segment_id": segment["id"], "expected_version": 1,
                 "parts": [
                     {"anchor": {"document_id": doc.id, "rect": self._NEW_RECT}},
                     {"anchor": {"document_id": doc.id, "rect": [0.5, 0.5, 0.05, 0.05]}},
@@ -659,11 +734,14 @@ class TestBboxAndTileRecomputedAfterEveryAction:
         self._assert_only_found_at(client, doc.id, segment["id"], area=self._AREA_NEW, found=True)
         self._assert_only_found_at(client, doc.id, segment["id"], area=self._AREA_OLD, found=False)
 
+        new_ids = split_result.result["new_segment_ids"]
         registry.invoke(
             db, "segment.unsplit",
             {
                 "segment_id": segment["id"], "version": pre_split_version,
-                "new_segment_ids": split_result.result["new_segment_ids"],
+                "expected_version": db.get(Segment, segment["id"]).version,
+                "new_segment_ids": new_ids,
+                "expected_versions": {nid: db.get(Segment, nid).version for nid in new_ids},
             },
             ctx,
         )
@@ -700,7 +778,11 @@ class TestBboxAndTileRecomputedAfterEveryAction:
         ctx = ActionContext(actor="daniel", library_path=str(db.path.parent))
         registry.invoke(
             db, "segment.merge",
-            {"segment_ids": [absorbed["id"], keeper["id"]], "keep_id": keeper["id"]}, ctx,
+            {
+                "segment_ids": [absorbed["id"], keeper["id"]], "keep_id": keeper["id"],
+                "expected_versions": {absorbed["id"]: 1, keeper["id"]: 1},
+            },
+            ctx,
         )
 
         # Corrupt the absorbed (now soft-deleted) row's bbox columns directly --
@@ -712,7 +794,11 @@ class TestBboxAndTileRecomputedAfterEveryAction:
         pre_merge_version = db.query(SegmentVersion, segment_id=absorbed["id"])[0].version
         registry.invoke(
             db, "segment.unmerge",
-            {"versions": {absorbed["id"]: pre_merge_version}}, ctx,
+            {
+                "versions": {absorbed["id"]: pre_merge_version},
+                "expected_versions": {absorbed["id"]: row.version},
+            },
+            ctx,
         )
 
         restored = db.get(Segment, absorbed["id"])
@@ -1007,3 +1093,421 @@ class TestBoundedReadsPerformance:
         assert r.status_code == 200
         assert len(r.json()["segments"]) == 20_000
         print(f"[bounded-reads] a WHOLE dense page (20,000), no filter: {elapsed_ms:.1f} ms (not asserted)")
+
+
+class TestServerSuppliedCreateId:
+    """#4957 review 3: `SegmentCreateParams` has NO `id` field at all -- a
+    client can reach `segment.create` through `POST /api/actions/invoke`
+    or the chat-tools path, not only `POST /api/segments`, so a field on
+    the params model can never be "in-process only" no matter what one
+    route refuses. A specific, precomputed id is a KEYWORD on
+    `_create_segment_impl` (`segment_id=`), for in-process Python callers
+    that never go through `registry.invoke` at all. A supplied id already
+    in use (live OR deleted) is refused, never overwritten --
+    `Database.save` is `INSERT ... ON CONFLICT DO UPDATE`, so without this
+    check a colliding id would silently merge into the other row."""
+
+    def test_actions_invoke_route_refuses_an_id_field(self, client, db):
+        """`POST /api/actions/invoke` -- the OTHER door #4957 review 3
+        found the field reachable through -- 422s an unknown `id` key for
+        free, via `extra="forbid"`, since the field does not exist at all."""
+        doc = _make_doc(db)
+        pass_body = _create_pass(client, doc.id)
+        r = client.post(
+            "/api/actions/invoke",
+            json={
+                "name": "segment.create",
+                "params": {
+                    "document_id": doc.id, "pass_id": pass_body["id"], "kind": "word",
+                    "anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]},
+                    "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                },
+            },
+        )
+        assert r.status_code == 422, r.text
+        assert db.query(Segment, document_id=doc.id) == []
+
+    def test_chat_tools_path_refuses_an_id_field(self, db):
+        """The chat-agent path (`dispatch_tool_call`) resolves to the SAME
+        `registry.invoke`, so the same `extra="forbid"` validation refuses
+        the field before `_create_segment_impl` is ever reached."""
+        import pydantic
+
+        from fichero_server.actions.chat_tools import dispatch_tool_call
+
+        doc = _make_doc(db)
+        pass_row = SegmentPass(document_id=doc.id, name="p", provenance_kind=ProvenanceKind.workflow)
+        db.save(pass_row)
+
+        with pytest.raises(pydantic.ValidationError):
+            dispatch_tool_call(
+                db, "segment_create",
+                {
+                    "document_id": doc.id, "pass_id": pass_row.id, "kind": "word",
+                    "anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]},
+                    "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                },
+                library_path=str(db.path.parent),
+            )
+        assert db.query(Segment, document_id=doc.id) == []
+
+    def test_in_process_caller_gets_the_exact_id_supplied(self, db):
+        from fichero_server.actions.registry import ActionContext
+        from fichero_server.api.routes.document.segments import SegmentCreateParams, _create_segment_impl
+
+        doc = _make_doc(db)
+        pass_row = SegmentPass(document_id=doc.id, name="p", provenance_kind=ProvenanceKind.workflow)
+        db.save(pass_row)
+        ctx = ActionContext(actor="daniel", library_path=str(db.path.parent))
+        wanted_id = "b" * 32
+
+        params = SegmentCreateParams(
+            document_id=doc.id, pass_id=pass_row.id, kind="word",
+            anchor={"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]},
+        )
+        segment = _create_segment_impl(db, params, ctx, segment_id=wanted_id)
+        assert segment.id == wanted_id
+        assert db.get(Segment, wanted_id) is not None
+
+    def test_in_process_caller_is_refused_a_malformed_id(self, db):
+        from fastapi import HTTPException
+
+        from fichero_server.actions.registry import ActionContext
+        from fichero_server.api.routes.document.segments import SegmentCreateParams, _create_segment_impl
+
+        doc = _make_doc(db)
+        pass_row = SegmentPass(document_id=doc.id, name="p", provenance_kind=ProvenanceKind.workflow)
+        db.save(pass_row)
+        ctx = ActionContext(actor="daniel", library_path=str(db.path.parent))
+        params = SegmentCreateParams(
+            document_id=doc.id, pass_id=pass_row.id, kind="word",
+            anchor={"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]},
+        )
+
+        with pytest.raises(HTTPException) as exc:
+            _create_segment_impl(db, params, ctx, segment_id="not-a-well-formed-id")
+        assert exc.value.status_code == 422
+        assert db.query(Segment, document_id=doc.id) == []
+
+    def test_in_process_caller_cannot_claim_an_id_already_live(self, db):
+        """Refused, never silently overwritten (`Database.save` is
+        `INSERT ... ON CONFLICT DO UPDATE`)."""
+        from fastapi import HTTPException
+
+        from fichero_server.actions.registry import ActionContext
+        from fichero_server.api.routes.document.segments import SegmentCreateParams, _create_segment_impl
+        from fichero_server.models.anchors import SourceAnchor
+        from fichero_server.models.segments import bbox_and_tile_from_anchor
+
+        doc = _make_doc(db)
+        pass_row = SegmentPass(document_id=doc.id, name="p", provenance_kind=ProvenanceKind.workflow)
+        db.save(pass_row)
+        anchor = SourceAnchor(document_id=doc.id, rect=[0.5, 0.5, 0.1, 0.1])
+        x, y, w, h, tile = bbox_and_tile_from_anchor(anchor)
+        existing = Segment(
+            document_id=doc.id, pass_id=pass_row.id, kind="word", anchor=anchor,
+            bbox_x=x, bbox_y=y, bbox_w=w, bbox_h=h, tile=tile,
+            doc_kind=f"{doc.id}:word", provenance_kind=ProvenanceKind.workflow,
+        )
+        db.save(existing)
+        existing_snapshot = existing.model_dump(mode="json")
+        ctx = ActionContext(actor="daniel", library_path=str(db.path.parent))
+        params = SegmentCreateParams(
+            document_id=doc.id, pass_id=pass_row.id, kind="line",
+            anchor={"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]},
+        )
+
+        with pytest.raises(HTTPException) as exc:
+            _create_segment_impl(db, params, ctx, segment_id=existing.id)
+        assert exc.value.status_code == 409
+        # The existing row is completely untouched -- never merged into.
+        assert db.get(Segment, existing.id).model_dump(mode="json") == existing_snapshot
+
+    def test_in_process_caller_cannot_claim_an_id_already_deleted(self, db):
+        from fastapi import HTTPException
+
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.api.routes.document.segments import SegmentCreateParams, _create_segment_impl
+
+        doc = _make_doc(db)
+        pass_row = SegmentPass(document_id=doc.id, name="p", provenance_kind=ProvenanceKind.workflow)
+        db.save(pass_row)
+        ctx = ActionContext(actor="daniel", library_path=str(db.path.parent))
+        created = registry.invoke(
+            db, "segment.create",
+            {
+                "document_id": doc.id, "pass_id": pass_row.id, "kind": "word",
+                "anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]},
+            },
+            ctx,
+        )
+        deleted_id = created.result["segment_ids"][0]
+        registry.invoke(
+            db, "segment.delete",
+            {"segment_ids": [deleted_id], "expected_versions": {deleted_id: 1}}, ctx,
+        )
+        assert db.get(Segment, deleted_id).deleted_at is not None
+
+        params = SegmentCreateParams(
+            document_id=doc.id, pass_id=pass_row.id, kind="line",
+            anchor={"document_id": doc.id, "rect": [0.3, 0.3, 0.1, 0.1]},
+        )
+        with pytest.raises(HTTPException) as exc:
+            _create_segment_impl(db, params, ctx, segment_id=deleted_id)
+        assert exc.value.status_code == 409
+
+
+class TestCreateRefusesADeadPassOrParent:
+    """#4957 review 3, item 1: same class as follow-up 2's restore-target-
+    liveness check, on the forward CREATE path -- a segment born into an
+    already soft-deleted pass, or under an already deleted/merged-away
+    parent, would be invisible from the moment it is created. A freshly
+    made pass (slice 6's conversion path included) is always live, so
+    this never refuses a legitimate create -- confirmed by every OTHER
+    passing test in this file that creates a segment via `_create_pass`
+    immediately beforehand."""
+
+    def test_create_into_a_deleted_pass_is_refused(self, client, db):
+        doc = _make_doc(db)
+        pass_body = _create_pass(client, doc.id)
+        delete_response = client.delete(f"/api/segments/passes/{pass_body['id']}")
+        assert delete_response.status_code == 200, delete_response.text
+
+        r = _create_segment(client, document_id=doc.id, pass_id=pass_body["id"])
+        assert r.status_code == 409, r.text
+        assert db.query(Segment, document_id=doc.id) == []
+
+    def test_create_under_a_deleted_parent_is_refused(self, db):
+        from fichero_server.actions.registry import ActionContext, registry
+
+        doc = _make_doc(db)
+        pass_row = SegmentPass(document_id=doc.id, name="p", provenance_kind=ProvenanceKind.workflow)
+        db.save(pass_row)
+        ctx = ActionContext(actor="daniel", library_path=str(db.path.parent))
+
+        parent = registry.invoke(
+            db, "segment.create",
+            {
+                "document_id": doc.id, "pass_id": pass_row.id, "kind": "region",
+                "anchor": {"document_id": doc.id, "rect": [0.0, 0.0, 0.3, 0.3]},
+            },
+            ctx,
+        )
+        parent_id = parent.result["segment_ids"][0]
+        registry.invoke(
+            db, "segment.delete",
+            {"segment_ids": [parent_id], "expected_versions": {parent_id: 1}}, ctx,
+        )
+
+        from fastapi import HTTPException
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db, "segment.create",
+                {
+                    "document_id": doc.id, "pass_id": pass_row.id, "kind": "word",
+                    "anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]},
+                    "parent_segment_id": parent_id,
+                },
+                ctx,
+            )
+        assert exc.value.status_code == 409
+        assert db.query(Segment, document_id=doc.id, parent_segment_id=parent_id) == []
+
+    def test_create_under_a_merged_away_parent_is_refused(self, db):
+        from fichero_server.actions.registry import ActionContext, registry
+
+        doc = _make_doc(db)
+        pass_row = SegmentPass(document_id=doc.id, name="p", provenance_kind=ProvenanceKind.workflow)
+        db.save(pass_row)
+        ctx = ActionContext(actor="daniel", library_path=str(db.path.parent))
+
+        seg_a = registry.invoke(
+            db, "segment.create",
+            {
+                "document_id": doc.id, "pass_id": pass_row.id, "kind": "region",
+                "anchor": {"document_id": doc.id, "rect": [0.0, 0.0, 0.1, 0.1]},
+            },
+            ctx,
+        ).result["segment_ids"][0]
+        seg_b = registry.invoke(
+            db, "segment.create",
+            {
+                "document_id": doc.id, "pass_id": pass_row.id, "kind": "region",
+                "anchor": {"document_id": doc.id, "rect": [0.3, 0.3, 0.1, 0.1]},
+            },
+            ctx,
+        ).result["segment_ids"][0]
+        registry.invoke(
+            db, "segment.merge",
+            {
+                "segment_ids": [seg_a, seg_b], "keep_id": seg_b,
+                "expected_versions": {seg_a: 1, seg_b: 1},
+            },
+            ctx,
+        )
+        assert db.get(Segment, seg_a).deleted_at is not None  # merged away
+
+        from fastapi import HTTPException
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db, "segment.create",
+                {
+                    "document_id": doc.id, "pass_id": pass_row.id, "kind": "word",
+                    "anchor": {"document_id": doc.id, "rect": [0.05, 0.05, 0.02, 0.02]},
+                    "parent_segment_id": seg_a,
+                },
+                ctx,
+            )
+        assert exc.value.status_code == 409
+        assert db.query(Segment, document_id=doc.id, parent_segment_id=seg_a) == []
+
+    def test_create_many_with_one_bad_item_refuses_the_whole_call_writes_none(self, client, db):
+        doc = _make_doc(db)
+        pass_body = _create_pass(client, doc.id)
+        other_pass = _create_pass(client, doc.id, name="other-pass")
+        delete_response = client.delete(f"/api/segments/passes/{other_pass['id']}")
+        assert delete_response.status_code == 200, delete_response.text
+
+        # Both items would target the SAME pass_id at the route level
+        # (create_many takes one pass_id for the whole call), so set up the
+        # "one bad item" case at the ACTION layer directly: one item's
+        # parent is fine, the call's pass itself is the deleted one.
+        r = client.post(
+            "/api/segments/bulk",
+            json={
+                "document_id": doc.id, "pass_id": other_pass["id"],
+                "segments": [
+                    {"kind": "word", "anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]}},
+                    {"kind": "word", "anchor": {"document_id": doc.id, "rect": [0.3, 0.3, 0.1, 0.1]}},
+                ],
+            },
+        )
+        assert r.status_code == 409, r.text
+        assert db.query(Segment, document_id=doc.id) == []
+
+    def test_create_many_with_one_item_under_a_bad_parent_refuses_the_whole_call(self, db):
+        from fichero_server.actions.registry import ActionContext, registry
+
+        doc = _make_doc(db)
+        pass_row = SegmentPass(document_id=doc.id, name="p", provenance_kind=ProvenanceKind.workflow)
+        db.save(pass_row)
+        ctx = ActionContext(actor="daniel", library_path=str(db.path.parent))
+        parent = registry.invoke(
+            db, "segment.create",
+            {
+                "document_id": doc.id, "pass_id": pass_row.id, "kind": "region",
+                "anchor": {"document_id": doc.id, "rect": [0.0, 0.0, 0.3, 0.3]},
+            },
+            ctx,
+        ).result["segment_ids"][0]
+        registry.invoke(
+            db, "segment.delete",
+            {"segment_ids": [parent], "expected_versions": {parent: 1}}, ctx,
+        )
+
+        from fastapi import HTTPException
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db, "segment.create_many",
+                {
+                    "document_id": doc.id, "pass_id": pass_row.id,
+                    "segments": [
+                        {"kind": "word", "anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]}},
+                        {
+                            "kind": "word", "parent_segment_id": parent,
+                            "anchor": {"document_id": doc.id, "rect": [0.05, 0.05, 0.02, 0.02]},
+                        },
+                    ],
+                },
+                ctx,
+            )
+        assert exc.value.status_code == 409
+        # NEITHER new segment was written -- validation for every item runs
+        # before any row is appended, and `db.save_many` runs only once, at
+        # the very end, after the whole loop succeeds. Only the pre-existing
+        # (deleted) parent is left in the pass.
+        rows = db.query(Segment, document_id=doc.id, pass_id=pass_row.id)
+        assert [row.id for row in rows] == [parent]
+
+
+class TestMergeKeepsTheKeptRowUntouchedForOrdering:
+    """#4957 slice-6 prep, per the manager's correction: `_action_merge`
+    makes no new segment -- it keeps `keep_id` and soft-deletes the
+    others -- so it must leave the kept row's own `box_index`/position
+    exactly as it was, and must accept a caller-chosen `keep_id` without
+    ever re-deriving it."""
+
+    def test_merge_leaves_the_kept_rows_box_index_and_anchor_untouched(self, client, db):
+        from fichero_server.actions.registry import ActionContext, registry
+
+        doc = _make_doc(db)
+        pass_body = _create_pass(client, doc.id)
+        keep = _create_segment(
+            client, document_id=doc.id, pass_id=pass_body["id"],
+            anchor={"document_id": doc.id, "rect": [0.5, 0.5, 0.1, 0.1]},
+        ).json()
+        absorbed = _create_segment(
+            client, document_id=doc.id, pass_id=pass_body["id"],
+            anchor={"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]},
+        ).json()
+
+        # The kept row carries a converted page's box_index; the absorbed
+        # one carries an EARLIER index -- if merge ever re-derived
+        # ordering, this is exactly the case that would change it.
+        keep_row = db.get(Segment, keep["id"])
+        keep_row.metadata = {**keep_row.metadata, "box_index": 5}
+        db.save(keep_row)
+        absorbed_row = db.get(Segment, absorbed["id"])
+        absorbed_row.metadata = {**absorbed_row.metadata, "box_index": 1}
+        db.save(absorbed_row)
+        keep_anchor_before = keep_row.anchor.model_dump(mode="json")
+
+        ctx = ActionContext(actor="daniel", library_path=str(db.path.parent))
+        registry.invoke(
+            db, "segment.merge",
+            {
+                "segment_ids": [keep["id"], absorbed["id"]], "keep_id": keep["id"],
+                "expected_versions": {keep["id"]: 1, absorbed["id"]: 1},
+            },
+            ctx,
+        )
+
+        kept_after = db.get(Segment, keep["id"])
+        assert kept_after.metadata.get("box_index") == 5  # UNCHANGED
+        assert kept_after.anchor.model_dump(mode="json") == keep_anchor_before
+        assert kept_after.deleted_at is None
+        assert db.get(Segment, absorbed["id"]).deleted_at is not None
+
+    def test_merge_accepts_the_caller_chosen_keep_id_verbatim(self, client, db):
+        """`keep_id` is taken as given -- never re-picked by "lowest
+        position" or any other rule inside the action itself."""
+        from fichero_server.actions.registry import ActionContext, registry
+
+        doc = _make_doc(db)
+        pass_body = _create_pass(client, doc.id)
+        # `a` would be "first" by every plausible ordering (created first,
+        # lower box_index) -- the caller still chooses `b` as keep_id.
+        a = _create_segment(
+            client, document_id=doc.id, pass_id=pass_body["id"],
+            anchor={"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]},
+        ).json()
+        b = _create_segment(
+            client, document_id=doc.id, pass_id=pass_body["id"],
+            anchor={"document_id": doc.id, "rect": [0.5, 0.5, 0.1, 0.1]},
+        ).json()
+        a_row = db.get(Segment, a["id"])
+        a_row.metadata = {**a_row.metadata, "box_index": 0}
+        db.save(a_row)
+
+        ctx = ActionContext(actor="daniel", library_path=str(db.path.parent))
+        result = registry.invoke(
+            db, "segment.merge",
+            {
+                "segment_ids": [a["id"], b["id"]], "keep_id": b["id"],
+                "expected_versions": {a["id"]: 1, b["id"]: 1},
+            },
+            ctx,
+        )
+        assert result.result["kept_id"] == b["id"]
+        assert db.get(Segment, b["id"]).deleted_at is None
+        assert db.get(Segment, a["id"]).deleted_at is not None

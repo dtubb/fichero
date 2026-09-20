@@ -74,6 +74,62 @@ def _make_segment(db, *, document_id: str, pass_id: str, rect: list[float], kind
     return row
 
 
+def _invoke_versioned(db, action_name: str, params: dict, ctx: ActionContext):
+    """`registry.invoke`, auto-filling the compare-and-set token(s) #4957
+    follow-up 1 added to `segment.merge`/`.unmerge`/`.split`/`.unsplit`/
+    `.carry`/`.uncarry` from the CURRENT live `Segment` rows the call
+    names -- these tests exercise the action's OWN behaviour, not hand-
+    tracked version bookkeeping across a chain of calls. A named id that
+    does not resolve to a real `Segment` (a deliberately bogus/legacy id
+    in a refusal test) is left out; the action's own checks refuse it for
+    the reason under test, same as before this helper existed."""
+    params = dict(params)
+
+    def _version(segment_id: str) -> int | None:
+        row = db.get(Segment, segment_id)
+        return row.version if row is not None else None
+
+    if action_name == "segment.merge":
+        versions = {sid: v for sid in params.get("segment_ids", []) if (v := _version(sid)) is not None}
+        params.setdefault("expected_versions", versions)
+    elif action_name == "segment.unmerge":
+        versions = {sid: v for sid in params.get("versions", {}) if (v := _version(sid)) is not None}
+        params.setdefault("expected_versions", versions)
+    elif action_name == "segment.split":
+        v = _version(params.get("segment_id", ""))
+        if v is not None:
+            params.setdefault("expected_version", v)
+    elif action_name == "segment.unsplit":
+        v = _version(params.get("segment_id", ""))
+        if v is not None:
+            params.setdefault("expected_version", v)
+        versions = {
+            nid: v for nid in params.get("new_segment_ids", []) if (v := _version(nid)) is not None
+        }
+        params.setdefault("expected_versions", versions)
+    elif action_name == "segment.carry":
+        match = db.get(SegmentMatch, params.get("match_id", ""))
+        if match is not None:
+            versions = {
+                sid: v for sid in (match.from_segment_id, match.to_segment_id)
+                if (v := _version(sid)) is not None
+            }
+            params.setdefault("expected_versions", versions)
+    elif action_name == "segment.uncarry":
+        segment_ids: set[str] = set()
+        for carry_id in params.get("carry_ids", []):
+            carry = db.get(SegmentCarry, carry_id)
+            if carry is None:
+                continue
+            match = db.get(SegmentMatch, carry.match_id)
+            if match is not None:
+                segment_ids.add(match.from_segment_id)
+                segment_ids.add(match.to_segment_id)
+        versions = {sid: v for sid in segment_ids if (v := _version(sid)) is not None}
+        params.setdefault("expected_versions", versions)
+    return registry.invoke(db, action_name, params, ctx)
+
+
 class TestMatchRecord:
     def test_propose_as_tool_accept_as_person_tool_accept_refused(self, db):
         """source.segment.match-record."""
@@ -201,9 +257,9 @@ class TestForwardingNotes:
         seg_b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.3, 0.3, 0.2, 0.2])
         ctx = _ctx(db, actor="daniel")
 
-        registry.invoke(db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx)
+        _invoke_versioned(db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx)
 
-        split_result = registry.invoke(
+        split_result = _invoke_versioned(
             db, "segment.split",
             {
                 "segment_id": seg_b.id,
@@ -249,7 +305,7 @@ class TestForwardingNotes:
         seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.2, 0.2])
         ctx = _ctx(db, actor="daniel")
 
-        registry.invoke(
+        _invoke_versioned(
             db, "segment.split",
             {
                 "segment_id": seg.id,
@@ -279,8 +335,8 @@ class TestForwardingNotes:
         seg_b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.3, 0.3, 0.1, 0.1])
         ctx = _ctx(db, actor="daniel")
 
-        registry.invoke(db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx)
-        split_result = registry.invoke(
+        _invoke_versioned(db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx)
+        split_result = _invoke_versioned(
             db, "segment.split",
             {
                 "segment_id": seg_b.id,
@@ -367,12 +423,12 @@ class TestForwardingNotes:
         seg_b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.2, 0.2, 0.1, 0.1])
         ctx = _ctx(db, actor="daniel")
 
-        registry.invoke(db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx)
+        _invoke_versioned(db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx)
 
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as excinfo:
-            registry.invoke(
+            _invoke_versioned(
                 db, "segment.merge",
                 {"segment_ids": [seg_b.id, seg_a.id], "keep_id": seg_a.id}, ctx,
             )
@@ -393,7 +449,7 @@ class TestForwardingNotes:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as excinfo:
-            registry.invoke(
+            _invoke_versioned(
                 db, "segment.merge",
                 {"segment_ids": [seg_1.id, seg_2.id], "keep_id": seg_1.id}, ctx,
             )
@@ -404,7 +460,7 @@ class TestForwardingNotes:
         pass_3 = _make_pass(db, doc_1.id)
         seg_3 = _make_segment(db, document_id=doc_1.id, pass_id=pass_3.id, rect=[0.5, 0.5, 0.1, 0.1])
         with pytest.raises(HTTPException) as excinfo2:
-            registry.invoke(
+            _invoke_versioned(
                 db, "segment.merge",
                 {"segment_ids": [seg_1.id, seg_3.id], "keep_id": seg_1.id}, ctx,
             )
@@ -418,7 +474,7 @@ class TestForwardingNotes:
         pass_row = _make_pass(db, doc.id)
         original = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.2, 0.2])
 
-        split_result = registry.invoke(
+        split_result = _invoke_versioned(
             db, "segment.split",
             {
                 "segment_id": original.id,
@@ -432,7 +488,7 @@ class TestForwardingNotes:
         sibling_id = split_result.result["new_segment_ids"][0]
 
         keep_id = original.id if keep_first else sibling_id
-        registry.invoke(
+        _invoke_versioned(
             db, "segment.merge",
             {"segment_ids": [original.id, sibling_id], "keep_id": keep_id}, ctx,
         )
@@ -458,7 +514,7 @@ class TestForwardingNotes:
         original = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.2, 0.2])
         ctx = _ctx(db, actor="daniel")
 
-        split_result = registry.invoke(
+        split_result = _invoke_versioned(
             db, "segment.split",
             {
                 "segment_id": original.id,
@@ -473,7 +529,7 @@ class TestForwardingNotes:
 
         # Merge both split parts into the sibling (a fresh survivor id, not
         # the original) -- not refused.
-        registry.invoke(
+        _invoke_versioned(
             db, "segment.merge",
             {"segment_ids": [original.id, sibling_id], "keep_id": sibling_id}, ctx,
         )
@@ -488,7 +544,7 @@ class TestForwardingNotes:
         seg_b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.2, 0.2, 0.1, 0.1])
         ctx = _ctx(db, actor="daniel")
 
-        merge_result = registry.invoke(
+        merge_result = _invoke_versioned(
             db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx,
         )
         audit_id = merge_result.audit_id
@@ -514,7 +570,7 @@ class TestForwardingNotes:
         seg_b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.2, 0.2, 0.1, 0.1])
         ctx = _ctx(db, actor="daniel")
 
-        merge_result = registry.invoke(
+        merge_result = _invoke_versioned(
             db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx,
         )
         audit = db.get(ActionAudit, merge_result.audit_id)
@@ -536,7 +592,7 @@ class TestForwardingNotes:
         original_rect = list(original.anchor.rect)
         ctx = _ctx(db, actor="daniel")
 
-        split_result = registry.invoke(
+        split_result = _invoke_versioned(
             db, "segment.split",
             {
                 "segment_id": original.id,
@@ -566,7 +622,7 @@ class TestForwardingNotes:
         version_before_split = original.version
         ctx = _ctx(db, actor="daniel")
 
-        split_result = registry.invoke(
+        split_result = _invoke_versioned(
             db, "segment.split",
             {
                 "segment_id": original.id,
@@ -763,7 +819,7 @@ class TestEveryEmitTypeCarriesItsIdLists:
         a = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
         b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
         ctx = _ctx(db, actor="daniel")
-        registry.invoke(db, "segment.merge", {"segment_ids": [a.id, b.id], "keep_id": b.id}, ctx)
+        _invoke_versioned(db, "segment.merge", {"segment_ids": [a.id, b.id], "keep_id": b.id}, ctx)
         call = captured[-1]
         assert call["type"] == "segment.merged"
         assert set(call["segment_ids"]) == {a.id, b.id}, (
@@ -776,7 +832,7 @@ class TestEveryEmitTypeCarriesItsIdLists:
         pass_row = _make_pass(db, doc.id)
         seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.2, 0.2])
         ctx = _ctx(db, actor="daniel")
-        registry.invoke(
+        _invoke_versioned(
             db, "segment.split",
             {"segment_id": seg.id, "parts": [
                 {"anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]}},
@@ -830,7 +886,7 @@ class TestCarryAcrossAMatch:
         match_id = propose.result["match_id"]
         registry.invoke(db, "segment.match_accept", {"match_id": match_id}, ctx)
 
-        carry_result = registry.invoke(
+        carry_result = _invoke_versioned(
             db, "segment.carry", {"match_id": match_id, "kinds": ["reading", "annotation"]}, ctx,
         )
         carry_ids = carry_result.result["carry_ids"]
@@ -852,7 +908,7 @@ class TestCarryAcrossAMatch:
         assert db.get(Annotation, annotation_copy_id).anchor.rect == seg_to.anchor.rect
 
         # Uncarry removes exactly the copies.
-        registry.invoke(db, "segment.uncarry", {"carry_ids": carry_ids}, ctx)
+        _invoke_versioned(db, "segment.uncarry", {"carry_ids": carry_ids}, ctx)
         assert db.get(ContentRepresentation, reading_copy_id) is None
         assert db.get(Annotation, annotation_copy_id) is None
         assert db.get(ContentRepresentation, reading.id) is not None
@@ -877,7 +933,7 @@ class TestCarryAcrossAMatch:
         registry.invoke(db, "segment.match_accept", {"match_id": p1}, ctx)
         registry.invoke(db, "segment.match_accept", {"match_id": p2}, ctx)
 
-        carry_result = registry.invoke(db, "segment.carry", {"match_id": p1, "kinds": ["reading"]}, ctx)
+        carry_result = _invoke_versioned(db, "segment.carry", {"match_id": p1, "kinds": ["reading"]}, ctx)
         assert carry_result.result["carry_ids"] == []
         not_carried = carry_result.result["not_carried"]
         assert len(not_carried) == 1
@@ -911,7 +967,7 @@ class TestCitableReference:
         seg_a = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.1, 0.1])
         seg_b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.2, 0.2, 0.1, 0.1])
         ctx = _ctx(db, actor="daniel")
-        registry.invoke(db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx)
+        _invoke_versioned(db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx)
 
         resolved = client.post("/api/locations/resolve", json={"segmentId": seg_a.id})
         assert resolved.status_code == 200, resolved.text
@@ -957,8 +1013,8 @@ class TestAuditPayloadsCarryNoFreeText:
             {"from_segment_id": seg_from.id, "to_segment_id": seg_to.id}, ctx,
         ).result["match_id"]
         registry.invoke(db, "segment.match_accept", {"match_id": match_id}, ctx)
-        registry.invoke(db, "segment.carry", {"match_id": match_id, "kinds": ["reading"]}, ctx)
-        registry.invoke(db, "segment.merge", {"segment_ids": [seg_from.id, seg_to.id], "keep_id": seg_to.id}, ctx)
+        _invoke_versioned(db, "segment.carry", {"match_id": match_id, "kinds": ["reading"]}, ctx)
+        _invoke_versioned(db, "segment.merge", {"segment_ids": [seg_from.id, seg_to.id], "keep_id": seg_to.id}, ctx)
 
         for audit in db.all(ActionAudit):
             if not audit.action_name.startswith("segment."):
@@ -989,7 +1045,7 @@ class TestCarryNeverCopiesAStatement:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as excinfo:
-            registry.invoke(db, "segment.carry", {"match_id": match_id, "kinds": ["claim_evidence"]}, ctx)
+            _invoke_versioned(db, "segment.carry", {"match_id": match_id, "kinds": ["claim_evidence"]}, ctx)
         assert excinfo.value.status_code == 422
         assert "claim_evidence" in excinfo.value.detail and "statements step" in excinfo.value.detail
         assert len(db.all(KnowledgeClaim)) == claims_before
@@ -1016,7 +1072,7 @@ class TestCarryNeverCopiesAStatement:
             {"from_segment_id": seg_from.id, "to_segment_id": seg_to.id}, ctx,
         ).result["match_id"]
         registry.invoke(db, "segment.match_accept", {"match_id": match_id}, ctx)
-        carry_result = registry.invoke(db, "segment.carry", {"match_id": match_id, "kinds": ["reading"]}, ctx)
+        carry_result = _invoke_versioned(db, "segment.carry", {"match_id": match_id, "kinds": ["reading"]}, ctx)
         copy_id = carry_result.result["copy_ids"][0]
 
         copy = db.get(ContentRepresentation, copy_id)
@@ -1038,7 +1094,7 @@ class TestCarryNeverCopiesAStatement:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as excinfo:
-            registry.invoke(db, "segment.carry", {"match_id": match_id, "kinds": ["reading"]}, ctx)
+            _invoke_versioned(db, "segment.carry", {"match_id": match_id, "kinds": ["reading"]}, ctx)
         assert excinfo.value.status_code == 422
         assert excinfo.value.detail == f"match {match_id!r} is not accepted (state: 'proposed')"
 
@@ -1059,11 +1115,11 @@ class TestCarryNeverCopiesAStatement:
             {"from_segment_id": seg_from.id, "to_segment_id": seg_to.id}, ctx,
         ).result["match_id"]
         registry.invoke(db, "segment.match_accept", {"match_id": match_id}, ctx)
-        carry_result = registry.invoke(db, "segment.carry", {"match_id": match_id, "kinds": ["reading"]}, ctx)
+        carry_result = _invoke_versioned(db, "segment.carry", {"match_id": match_id, "kinds": ["reading"]}, ctx)
         copy_id = carry_result.result["copy_ids"][0]
         carry_id = carry_result.result["carry_ids"][0]
 
-        registry.invoke(db, "segment.uncarry", {"carry_ids": [carry_id]}, ctx)
+        _invoke_versioned(db, "segment.uncarry", {"carry_ids": [carry_id]}, ctx)
         assert db.get(ContentRepresentation, copy_id) is None
         assert db.get(ContentRepresentation, reading.id) is not None
         assert db.get(SegmentCarry, carry_id) is None
@@ -1079,7 +1135,7 @@ class TestMissingActionCoverage:
         original = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.2, 0.2])
         original_rect = list(original.anchor.rect)
         ctx = _ctx(db, actor="daniel")
-        split_result = registry.invoke(
+        split_result = _invoke_versioned(
             db, "segment.split",
             {
                 "segment_id": original.id,
@@ -1152,7 +1208,7 @@ class TestMoreRefusals:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as excinfo:
-            registry.invoke(
+            _invoke_versioned(
                 db, "segment.merge",
                 {"segment_ids": [a.id, b.id], "keep_id": "not-a-real-id"}, ctx,
             )
@@ -1167,7 +1223,7 @@ class TestMoreRefusals:
         original = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.2, 0.2])
         ctx = _ctx(db, actor="daniel")
         with pytest.raises(HTTPException) as excinfo:
-            registry.invoke(
+            _invoke_versioned(
                 db, "segment.split",
                 {"segment_id": original.id, "parts": [{"anchor": {"document_id": doc.id, "rect": [0.0, 0.0, 0.1, 0.1]}}]},
                 ctx,
@@ -1187,7 +1243,7 @@ class TestMoreRefusals:
         original = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.2, 0.2])
         ctx = _ctx(db, actor="daniel")
         with pytest.raises(ValidationError):
-            registry.invoke(
+            _invoke_versioned(
                 db, "segment.split",
                 {
                     "segment_id": original.id,
@@ -1201,11 +1257,28 @@ class TestMoreRefusals:
 
     @pytest.mark.parametrize("action_name,build_params", [
         ("segment.match_propose", lambda a, b: {"from_segment_id": "legacy:x", "to_segment_id": b.id}),
-        ("segment.merge", lambda a, b: {"segment_ids": ["legacy:x", b.id], "keep_id": b.id}),
-        ("segment.split", lambda a, b: {"segment_id": "legacy:x", "parts": [
-            {"anchor": {"document_id": "d", "rect": [0, 0, 0.1, 0.1]}},
-            {"anchor": {"document_id": "d", "rect": [0.5, 0.5, 0.1, 0.1]}},
-        ]}),
+        (
+            "segment.merge",
+            lambda a, b: {
+                "segment_ids": ["legacy:x", b.id], "keep_id": b.id,
+                # #4957 follow-up 1: now a required field on the params
+                # model -- irrelevant to what this test checks (the
+                # provisional-id refusal runs first), but its ABSENCE
+                # would fail pydantic validation before ever reaching
+                # `_action_merge`'s own checks.
+                "expected_versions": {"legacy:x": 1, b.id: b.version},
+            },
+        ),
+        (
+            "segment.split",
+            lambda a, b: {
+                "segment_id": "legacy:x", "expected_version": 1,
+                "parts": [
+                    {"anchor": {"document_id": "d", "rect": [0, 0, 0.1, 0.1]}},
+                    {"anchor": {"document_id": "d", "rect": [0.5, 0.5, 0.1, 0.1]}},
+                ],
+            },
+        ),
     ])
     def test_a_legacy_id_is_refused_on_each_action(self, db, action_name, build_params):
         """test-audit F9, 2026-09-20: asserts the SPECIFIC reason -- a 422
@@ -1252,7 +1325,7 @@ class TestSegmentNotLive:
     def _merged_away_segment(self, db, doc, pass_row, ctx):
         seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.8, 0.8, 0.1, 0.1])
         keep = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.85, 0.85, 0.1, 0.1])
-        registry.invoke(db, "segment.merge", {"segment_ids": [seg.id, keep.id], "keep_id": keep.id}, ctx)
+        _invoke_versioned(db, "segment.merge", {"segment_ids": [seg.id, keep.id], "keep_id": keep.id}, ctx)
         return seg
 
     @pytest.mark.parametrize("reason", ["deleted", "merged"])
@@ -1268,7 +1341,7 @@ class TestSegmentNotLive:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as excinfo:
-            registry.invoke(
+            _invoke_versioned(
                 db, "segment.merge",
                 {"segment_ids": [live.id, not_live.id], "keep_id": live.id}, ctx,
             )
@@ -1288,7 +1361,7 @@ class TestSegmentNotLive:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as excinfo:
-            registry.invoke(
+            _invoke_versioned(
                 db, "segment.merge",
                 {"segment_ids": [live.id, not_live.id], "keep_id": not_live.id}, ctx,
             )
@@ -1307,7 +1380,7 @@ class TestSegmentNotLive:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as excinfo:
-            registry.invoke(
+            _invoke_versioned(
                 db, "segment.split",
                 {
                     "segment_id": not_live.id,
@@ -1344,7 +1417,7 @@ class TestSegmentNotLive:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as excinfo:
-            registry.invoke(db, "segment.carry", {"match_id": match_id, "kinds": ["annotation"]}, ctx)
+            _invoke_versioned(db, "segment.carry", {"match_id": match_id, "kinds": ["annotation"]}, ctx)
         assert excinfo.value.status_code == 409
         assert "is not live" in excinfo.value.detail and reason in excinfo.value.detail
 
@@ -1382,7 +1455,7 @@ class TestSplitReturnsAllLiveParts:
         original = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.2, 0.2])
         ctx = _ctx(db, actor="daniel")
 
-        split_result = registry.invoke(
+        split_result = _invoke_versioned(
             db, "segment.split",
             {
                 "segment_id": original.id,
@@ -1432,10 +1505,10 @@ class TestInvariants:
             db, "segment.match_propose", {"from_segment_id": seg_x.id, "to_segment_id": seg_y.id}, ctx,
         ).result["match_id"]
         registry.invoke(db, "segment.match_accept", {"match_id": match_xy}, ctx)
-        carry_ids = registry.invoke(
+        carry_ids = _invoke_versioned(
             db, "segment.carry", {"match_id": match_xy, "kinds": ["reading"]}, ctx,
         ).result["carry_ids"]
-        registry.invoke(db, "segment.uncarry", {"carry_ids": carry_ids}, ctx)
+        _invoke_versioned(db, "segment.uncarry", {"carry_ids": carry_ids}, ctx)
 
         match_to_reject = registry.invoke(
             db, "segment.match_propose", {"from_segment_id": seg_a.id, "to_segment_id": seg_x.id}, ctx,
@@ -1448,14 +1521,14 @@ class TestInvariants:
         registry.invoke(db, "segment.match_withdraw", {"match_id": match_to_withdraw}, ctx)
 
         # merge, then snapshot the forwarding table.
-        merge_result = registry.invoke(
+        merge_result = _invoke_versioned(
             db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx,
         )
         forwarding_after_merge = {r.id: r.model_dump(mode="json") for r in db.all(SegmentForwarding)}
         assert len(forwarding_after_merge) >= 1
 
         # split.
-        registry.invoke(
+        _invoke_versioned(
             db, "segment.split",
             {
                 "segment_id": seg_b.id,
@@ -1550,7 +1623,7 @@ class TestRollbackOnlyInAnger:
         audits_before = len(db.all(ActionAudit))
         forwarding_before = len(db.all(SegmentForwarding))
         with pytest.raises(RuntimeError):
-            registry.invoke(
+            _invoke_versioned(
                 db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx,
             )
 
@@ -1635,16 +1708,25 @@ _ROUTE_ID_CHECKS: dict[tuple[str, str], list[tuple[str, Any]]] = {
     ("POST", "/segments/matches/{match_id}/reject"): [],
     ("POST", "/segments/merge"): [
         ("segment_ids[]", lambda doc_id, pass_id: (
-            "POST", "/api/segments/merge", {"segment_ids": ["legacy:x", "real"], "keep_id": "real"},
+            "POST", "/api/segments/merge",
+            # #4957 follow-up 1: now a required field -- irrelevant to
+            # what this test checks (the provisional-id refusal runs
+            # first), but its ABSENCE would 422 for the wrong reason.
+            {"segment_ids": ["legacy:x", "real"], "keep_id": "real",
+             "expected_versions": {"legacy:x": 1, "real": 1}},
         )),
         ("keep_id", lambda doc_id, pass_id: (
-            "POST", "/api/segments/merge", {"segment_ids": ["real", "real2"], "keep_id": "legacy:x"},
+            "POST", "/api/segments/merge",
+            {"segment_ids": ["real", "real2"], "keep_id": "legacy:x",
+             "expected_versions": {"real": 1, "real2": 1, "legacy:x": 1}},
         )),
     ],
     ("POST", "/segments/split"): [
         ("segment_id", lambda doc_id, pass_id: (
             "POST", "/api/segments/split",
-            {"segment_id": "legacy:x", "parts": [
+            # #4957 follow-up 1: now a required field -- see the merge
+            # entries above for why it is included here regardless.
+            {"segment_id": "legacy:x", "expected_version": 1, "parts": [
                 {"anchor": {"document_id": doc_id, "rect": [0.0, 0.0, 0.1, 0.1]}},
                 {"anchor": {"document_id": doc_id, "rect": [0.5, 0.5, 0.1, 0.1]}},
             ]},
@@ -1760,7 +1842,7 @@ class TestRedoOfAMintingActionComesBackUnderTheSameId:
         seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.2, 0.2])
         ctx = _ctx(db, actor="daniel")
 
-        do = registry.invoke(
+        do = _invoke_versioned(
             db, "segment.split",
             {
                 "segment_id": seg.id,
@@ -1810,7 +1892,7 @@ class TestRedoOfAMintingActionComesBackUnderTheSameId:
         ).result["match_id"]
         registry.invoke(db, "segment.match_accept", {"match_id": match_id}, ctx)
 
-        do = registry.invoke(db, "segment.carry", {"match_id": match_id, "kinds": ["reading"]}, ctx)
+        do = _invoke_versioned(db, "segment.carry", {"match_id": match_id, "kinds": ["reading"]}, ctx)
 
         undo = client.post(f"/api/actions/audit/{do.audit_id}/undo")
         assert undo.status_code == 200, undo.text
@@ -1904,14 +1986,25 @@ class TestRedoOfAMintingActionComesBackUnderTheSameId:
         assert db.get(SegmentMatch, first_match_id) is None
         assert db.get(SegmentMatch, second_match_id) is None  # not stranded
 
-    def test_merge_redo_with_an_intervening_edit_preserves_the_edit(self, db, client):
+    def test_merge_redo_is_refused_after_an_intervening_edit(self, db, client):
+        """#4957 follow-up 1, superseding an earlier version of this test
+        that predates the token: BEFORE the token, this exact redo
+        silently re-merged away a segment someone had just reshaped (the
+        review's own finding) -- "safe" in that no SegmentVersion snapshot
+        was lost, but not what the behaviour promises ("a redo is refused
+        when something else changed the segment since") and the person
+        pressing Redo was never told. Now this first redo attempt (a plain
+        REPLAY of the original merge, refreshed from the UNDO's own
+        `after` -- captured BEFORE the intervening edit) is correctly
+        refused as stale, so the edit survives because the merge never
+        re-ran, not because a snapshot happened to catch it."""
         doc = _make_doc(db)
         pass_row = _make_pass(db, doc.id)
         seg_a = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.1, 0.1])
         seg_b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.3, 0.3, 0.1, 0.1])
         ctx = _ctx(db, actor="daniel")
 
-        do = registry.invoke(
+        do = _invoke_versioned(
             db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx,
         )
         undo = client.post(f"/api/actions/audit/{do.audit_id}/undo")
@@ -1927,13 +2020,38 @@ class TestRedoOfAMintingActionComesBackUnderTheSameId:
         assert other_writer.status_code == 200, other_writer.text
 
         redo = client.post(f"/api/actions/audit/{undo.json()['audit_id']}/undo")
-        assert redo.status_code == 200, redo.text
-        assert db.get(Segment, seg_a.id).deleted_at is not None  # re-merged (absorbed)
+        assert redo.status_code == 409, redo.text
+        # Unchanged by the refused redo: A is still live, still carrying
+        # the other writer's edit, never merged away.
+        restored = db.get(Segment, seg_a.id)
+        assert restored.deleted_at is None
+        assert restored.kind_raw == "someone-else-edited-this"
 
-        undo_again = client.post(f"/api/actions/audit/{redo.json()['audit_id']}/undo")
-        assert undo_again.status_code == 200, undo_again.text
-        # The other writer's edit survives the round trip: own-invert
-        # restored from THIS merge's own fresh snapshot, never the
-        # ORIGINAL, months-earlier pre-merge one.
-        assert db.get(Segment, seg_a.id).deleted_at is None
-        assert db.get(Segment, seg_a.id).kind_raw == "someone-else-edited-this"
+    def test_merge_undo_restores_the_edited_content_not_the_original(self, db, client):
+        """#4957 review 3, item 8: restores a property the rewritten test
+        above no longer pins -- `_action_merge` snapshots the absorbed
+        segment AS IT IS NOW, not as it was when first created. Edit A,
+        THEN merge it away, THEN undo: A must come back with the EDITED
+        content, never the pre-edit original."""
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg_a = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.1, 0.1])
+        seg_b = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.3, 0.3, 0.1, 0.1])
+        ctx = _ctx(db, actor="daniel")
+
+        edit = client.request("PUT", f"/api/segments/{seg_a.id}", json={
+            "segment_id": seg_a.id, "expected_version": 1, "kind_raw": "edited-before-merge",
+        })
+        assert edit.status_code == 200, edit.text
+
+        do = _invoke_versioned(
+            db, "segment.merge", {"segment_ids": [seg_a.id, seg_b.id], "keep_id": seg_b.id}, ctx,
+        )
+        assert db.get(Segment, seg_a.id).deleted_at is not None
+
+        undo = client.post(f"/api/actions/audit/{do.audit_id}/undo")
+        assert undo.status_code == 200, undo.text
+
+        restored = db.get(Segment, seg_a.id)
+        assert restored.deleted_at is None
+        assert restored.kind_raw == "edited-before-merge"  # the EDIT, not the original

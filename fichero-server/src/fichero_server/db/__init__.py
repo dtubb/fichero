@@ -4364,9 +4364,19 @@ class Database(DatabaseEmbeddingMixin):
                 if not _VALID_IDENTIFIER.match(k):
                     raise ValueError(f"Invalid column name: {k}")
 
-            where = " AND ".join(f"{k} = ${k}" for k in filters.keys())
+            # `None` means IS NULL, not `= NULL` (#4924). SQL's `= NULL` is
+            # never true, so without this a soft-delete filter -- the most
+            # natural thing to count by, "how many live rows" -- silently
+            # returns 0 rather than the answer. Safe to add: no caller
+            # passes filters to `count` today, so nothing can change
+            # behaviour underneath.
+            where = " AND ".join(
+                f"{k} IS NULL" if filters[k] is None else f"{k} = ${k}"
+                for k in filters.keys()
+            )
+            params = {k: v for k, v in filters.items() if v is not None}
             result = self._execute(
-                f"SELECT COUNT(*) FROM {sql_table} WHERE {where}", filters
+                f"SELECT COUNT(*) FROM {sql_table} WHERE {where}", params or None
             ).fetchone()
 
         return result[0] if result else 0

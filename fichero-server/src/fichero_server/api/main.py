@@ -63,6 +63,7 @@ from fichero_server.api.library_header import optional_library_path, require_lib
 from fichero_server.api.feature_tiers_generated import CUMULATIVE_ROUTE_PREFIXES, ROUTE_PREFIX_TIERS
 from fichero_server.api.routes.ai.local_inference import shutdown_managed_local_inference_services
 from fichero_server.db import Database, db_manager
+from fichero_server.api.routes.document.segment_conversion import ConversionRefusal
 from fichero_server.security import authz
 from fichero_server.security.discovery import start_bonjour_advertiser
 from fichero_server.models import (
@@ -1168,6 +1169,30 @@ async def _handle_library_access_denied(
     exc: LibraryAccessDeniedError,
 ):
     return JSONResponse(exc.payload, status_code=403)
+
+
+@app.exception_handler(ConversionRefusal)
+async def _handle_conversion_refusal(_request: Request, exc: ConversionRefusal):
+    """#4924: every typed refusal from the source-model conversion, mapped
+    once, at the boundary, for every route that can reach one.
+
+    Two kinds arrive here. Most are ordinary refusals a caller should be
+    told about plainly -- already converted, nothing to convert, that
+    artifact belongs to another document -- and `segment.convert_and_edit`
+    is reachable today through the generic `POST /api/actions/invoke` and
+    the chat tool path, which catch only not-found, validation and
+    authorization, so without this they are 500s.
+
+    The other kind is `ConversionMarkerDangling`, which means the library
+    needs repair. Raising on it is right and deliberate -- never a quiet
+    fall back to the stored block, which is the page as it was BEFORE its
+    owner's first edit. But `_artifact_response` calls `live_geometry` for
+    EVERY artifact in every list response, so one dangling marker would
+    otherwise turn the artifact list and the document VIEW into a 500 --
+    taking out the very page a person would open to put it right. A 409
+    that names the artifact and the pass tells them which page it is.
+    """
+    return JSONResponse({"detail": str(exc)}, status_code=exc.status_code)
 
 
 @app.exception_handler(authz.AuthorizationError)
