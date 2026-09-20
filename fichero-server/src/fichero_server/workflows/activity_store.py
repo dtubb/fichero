@@ -867,6 +867,19 @@ class ActivityStore:
                     conditions.append("message ILIKE ?")
                     params.append(f"%{filter.search}%")
 
+                # #4960: a deleted run's events must not resurrect it in any
+                # Activity surface that derives status from the newest event
+                # for a thread — the exclusion belongs in SQL (an anti-join
+                # against `workflow_runs`), not a Python filter, so listing
+                # cost never grows with how many runs have been deleted.
+                # `thread_id IS NULL` events (batch/import activity with no
+                # run) are never excluded — the subquery only ever matches a
+                # real deleted run's own thread_id.
+                conditions.append(
+                    "(thread_id IS NULL OR thread_id NOT IN "
+                    "(SELECT thread_id FROM workflow_runs WHERE status = 'deleted'))"
+                )
+
                 where_clause = " AND ".join(conditions) if conditions else "1=1"
 
                 query = f"""
@@ -1308,45 +1321,131 @@ class ActivityStore:
 
         return await asyncio.to_thread(_delete)
 
+    def delete_workflow_runs_sync(self, thread_ids: list[str]) -> list[str]:
+        """Soft-delete ``workflow_runs`` rows. Nothing is destroyed.
+
+        #4960, revised: an earlier version of this method also hard-deleted
+        the thread's ``activities`` rows, to stop a deleted run resurrecting
+        via the event log. Reversed on review: the app promises "you can put
+        it back later," and the coming Trash needs a deleted run's history
+        intact to restore. Go slow with anything that destroys rows.
+
+        The resurrection is now stopped on the READ side instead: ``query()``
+        below excludes every event whose ``thread_id`` belongs to a
+        ``status='deleted'`` run, via a SQL anti-join against
+        ``workflow_runs`` — not a Python filter, so it costs nothing extra
+        as deleted runs pile up. Flipping the run's status back (a future
+        "Put Back") makes both the run AND its events reappear, because
+        nothing here ever removed the events.
+
+        Bulk (one UPDATE, not one per id) so a "clear failed" over hundreds
+        of ids costs O(1) queries, not O(n). Sync — for use inside
+        ``registry.invoke`` (one-audited-action-layer rule). Checkpoints are
+        NOT touched here: callers that also want checkpoint rows gone (the
+        single-thread HTTP delete route) do that themselves, as
+        ``delete_thread`` already did before this method existed.
+
+        Returns the thread_ids actually found and soft-deleted (already-
+        deleted, running, or unknown ids are silently absent, never an
+        error — the same "0 means nothing to do" shape ``delete_by_id_sync``
+        uses).
+        """
+        if not thread_ids:
+            return []
+        conn = connect_utc(self.db_path)
+        try:
+            placeholders = ", ".join("?" * len(thread_ids))
+            rows = conn.execute(
+                f"""
+                UPDATE workflow_runs
+                SET status = 'deleted',
+                    completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
+                    execution_log = COALESCE(execution_log, '') || 'Run history deleted\n'
+                WHERE thread_id IN ({placeholders}) AND status != 'running'
+                RETURNING thread_id
+                """,
+                list(thread_ids),
+            ).fetchall()
+            return [row[0] for row in rows if row and row[0]]
+        finally:
+            conn.close()
+
+    def workflow_run_ids_by_status_sync(self, statuses: list[str]) -> list[str]:
+        """Thread ids of every non-deleted run whose status is in ``statuses``.
+
+        Resolves a filter (e.g. "clear failed" -> ``["failed"]``) to concrete
+        ids at invoke time, so the delete action's audit record always names
+        exactly what it removed — never "whatever matched, unlogged."
+        """
+        if not statuses:
+            return []
+        conn = connect_utc(self.db_path)
+        try:
+            placeholders = ", ".join("?" * len(statuses))
+            rows = conn.execute(
+                f"""
+                SELECT thread_id FROM workflow_runs
+                WHERE status IN ({placeholders}) AND status != 'deleted'
+                """,
+                list(statuses),
+            ).fetchall()
+            return [row[0] for row in rows if row and row[0]]
+        finally:
+            conn.close()
+
     async def list_workflow_runs(
         self,
         workflow_id: Optional[str] = None,
         limit: int = 50,
+        *,
+        offset: int = 0,
+        statuses: Optional[list[str]] = None,
+        exclude_deleted: bool = True,
     ) -> list[WorkflowRun]:
-        """List workflow runs, optionally filtered by workflow_id."""
+        """List workflow runs, optionally filtered by workflow_id.
+
+        #4960: ``offset``, ``statuses`` and ``exclude_deleted`` added for the
+        engine "list runs" route the Activity window/table reads — paging and
+        filtering pushed to SQL (``ORDER BY ... LIMIT ... OFFSET``, one
+        query) so the route's cost does not grow with the total run count,
+        the same shape the #4975 fix already applied to the Inspector.
+        Existing callers (unfiltered, no offset) keep their exact prior
+        behaviour: ``exclude_deleted`` defaults True, but every existing
+        caller only ever kept ``running``/``failed`` rows downstream anyway,
+        so this changes nothing observable for them.
+        """
 
         def _list():
             conn = connect_utc(self.db_path)
             try:
+                where = []
+                params: list = []
                 if workflow_id:
-                    result = conn.execute(
-                        """
-                        SELECT thread_id, workflow_id, workflow_name, python_code,
-                               execution_log, status, started_at, completed_at,
-                               duration_ms, error, workflow_snapshot, node_name_map,
-                               progress_timeline, diagram_mermaid, resolved_scope,
-                               run_usage, estimated_cost
-                        FROM workflow_runs
-                        WHERE workflow_id = ?
-                        ORDER BY started_at DESC
-                        LIMIT ?
+                    where.append("workflow_id = ?")
+                    params.append(workflow_id)
+                if statuses:
+                    placeholders = ", ".join("?" * len(statuses))
+                    where.append(f"status IN ({placeholders})")
+                    params.extend(statuses)
+                elif exclude_deleted:
+                    where.append("status != 'deleted'")
+                where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+                params.extend([limit, offset])
+
+                result = conn.execute(
+                    f"""
+                    SELECT thread_id, workflow_id, workflow_name, python_code,
+                           execution_log, status, started_at, completed_at,
+                           duration_ms, error, workflow_snapshot, node_name_map,
+                           progress_timeline, diagram_mermaid, resolved_scope,
+                           run_usage, estimated_cost
+                    FROM workflow_runs
+                    {where_sql}
+                    ORDER BY started_at DESC, thread_id DESC
+                    LIMIT ? OFFSET ?
                     """,
-                        [workflow_id, limit],
-                    ).fetchall()
-                else:
-                    result = conn.execute(
-                        """
-                        SELECT thread_id, workflow_id, workflow_name, python_code,
-                               execution_log, status, started_at, completed_at,
-                               duration_ms, error, workflow_snapshot, node_name_map,
-                               progress_timeline, diagram_mermaid, resolved_scope,
-                               run_usage, estimated_cost
-                        FROM workflow_runs
-                        ORDER BY started_at DESC
-                        LIMIT ?
-                    """,
-                        [limit],
-                    ).fetchall()
+                    params,
+                ).fetchall()
 
                 return [self._row_to_workflow_run(row) for row in result]
             finally:

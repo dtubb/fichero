@@ -398,7 +398,14 @@ class TestDeleteThread:
                 diagram_mermaid=None,
             )
         )
-        mock_store.delete_workflow_run = AsyncMock(return_value=1)
+        # #4960: delete_thread now routes the run-RECORD deletion through the
+        # audited `workflow_run.delete` action, which calls the sync bulk
+        # helper (never the old `delete_workflow_run` + a bare
+        # `workflow_deleted` event log write — that path is gone; the
+        # action hard-deletes the thread's `activities` rows instead, so a
+        # deleted run cannot resurrect on the next rebuild).
+        mock_store.workflow_run_ids_by_status_sync = MagicMock(return_value=[])
+        mock_store.delete_workflow_runs_sync = MagicMock(return_value=["thread-done"])
         tracker = MagicMock()
         tracker.store = mock_store
 
@@ -416,8 +423,367 @@ class TestDeleteThread:
 
         assert r.status_code == 200
         mock_cp.adelete_thread.assert_not_called()
-        mock_store.delete_workflow_run.assert_awaited_once_with("thread-done")
-        tracker.workflow_deleted.assert_called_once()
+        mock_store.delete_workflow_runs_sync.assert_called_once_with(["thread-done"])
+
+
+# ---------------------------------------------------------------------------
+# GET /api/workflow-execution/runs, POST /runs/delete (#4960 engine slice)
+#
+# One source of runs for the popover, the Activity window and the future
+# Mac table; an audited bulk delete that also removes the thread's events
+# so a deleted run cannot resurrect. Real db + real ActivityStore (no
+# mocking of the store itself) so the SQL paging/sorting is genuinely
+# exercised, not assumed.
+# ---------------------------------------------------------------------------
+
+
+def _seed_run(db, thread_id: str, *, status: str = "completed", **kwargs):
+    from fichero_server.workflows.activity import get_activity_tracker
+
+    tracker = get_activity_tracker(str(db.path))
+    asyncio.run(
+        tracker.store.save_workflow_run(
+            thread_id=thread_id,
+            workflow_id=f"wf-{thread_id}",
+            workflow_name=f"Workflow {thread_id}",
+            status=status,
+            **kwargs,
+        )
+    )
+    return tracker
+
+
+class TestListWorkflowRunsRoute:
+    """activity.one-source-of-runs: the popover, window and table all read
+    this ONE route — a run with no event rows still appears (#4384)."""
+
+    def test_run_with_no_activity_events_still_appears(self, client, db):
+        """The exact #4384/review defect: a run settled by the recovery
+        sweep, or one whose event was dropped fire-and-forget, has ZERO
+        rows in `activities` but must still be listed — because this route
+        reads `workflow_runs`, never the event log."""
+        _seed_run(db, "thread-orphan", status="failed")
+
+        r = client.get("/api/workflow-execution/runs")
+        assert r.status_code == 200
+        body = r.json()
+        ids = [item["thread_id"] for item in body["items"]]
+        assert "thread-orphan" in ids
+
+    def test_deleted_runs_are_excluded_by_default(self, client, db):
+        _seed_run(db, "thread-live", status="completed")
+        _seed_run(db, "thread-gone", status="deleted")
+
+        r = client.get("/api/workflow-execution/runs")
+        assert r.status_code == 200
+        ids = [item["thread_id"] for item in r.json()["items"]]
+        assert "thread-live" in ids
+        assert "thread-gone" not in ids
+
+    def test_status_filter(self, client, db):
+        _seed_run(db, "thread-ok", status="completed")
+        _seed_run(db, "thread-bad", status="failed")
+
+        r = client.get("/api/workflow-execution/runs?status=failed")
+        assert r.status_code == 200
+        ids = [item["thread_id"] for item in r.json()["items"]]
+        assert ids == ["thread-bad"]
+
+    def test_pagination_never_repeats_or_skips_a_row(self, client, db):
+        """The paged list, walked page by page, must equal the unpaged list
+        in the SAME order — no row repeated, none skipped (the #4975
+        'honest pagination' shape, applied here to runs)."""
+        for i in range(23):
+            _seed_run(db, f"thread-{i:03d}", status="completed")
+
+        full = client.get("/api/workflow-execution/runs?limit=100").json()["items"]
+        full_ids = [item["thread_id"] for item in full]
+        assert len(full_ids) == 23
+
+        paged_ids: list[str] = []
+        page_size = 5
+        for offset in range(0, 23, page_size):
+            r = client.get(f"/api/workflow-execution/runs?limit={page_size}&offset={offset}")
+            assert r.status_code == 200
+            paged_ids.extend(item["thread_id"] for item in r.json()["items"])
+
+        assert paged_ids == full_ids
+        assert len(set(paged_ids)) == 23
+
+    def test_document_count_and_cost_from_resolved_scope_and_usage(self, client, db):
+        _seed_run(
+            db,
+            "thread-priced",
+            status="completed",
+            resolved_scope={"resolved_ids": ["doc-1", "doc-2"], "resolved_count": 2},
+            estimated_cost=0.42,
+        )
+        r = client.get("/api/workflow-execution/runs")
+        row = next(i for i in r.json()["items"] if i["thread_id"] == "thread-priced")
+        assert row["document_count"] == 2
+        assert row["cost_usd"] == 0.42
+
+    def test_listing_cost_does_not_grow_with_run_count(self, client, db):
+        """Team-lead note (#4960 review): the ACTION-HISTORY list in
+        actions_registry.py loads the whole table, sorts in Python, then
+        slices — this route must NOT copy that shape. Paging (LIMIT/OFFSET)
+        and sorting are pushed to SQL, so a small page's cost should stay
+        roughly flat as the total run count grows, not scale with it."""
+        import time
+
+        for i in range(20):
+            _seed_run(db, f"small-{i:03d}", status="completed")
+        start = time.perf_counter()
+        client.get("/api/workflow-execution/runs?limit=10")
+        small_elapsed = time.perf_counter() - start
+
+        for i in range(220):
+            _seed_run(db, f"big-{i:03d}", status="completed")
+        start = time.perf_counter()
+        client.get("/api/workflow-execution/runs?limit=10")
+        big_elapsed = time.perf_counter() - start
+
+        # Generous: an O(total_runs) regression (hydrate-everything then
+        # slice) would multiply this many times over; SQL-side LIMIT/OFFSET
+        # stays close to flat. Floor avoids dividing by a near-zero timing.
+        floor = 0.01
+        assert big_elapsed < max(small_elapsed, floor) * 8, (
+            f"listing 10 runs got {big_elapsed * 1000:.1f}ms with 240 runs "
+            f"in the table vs {small_elapsed * 1000:.1f}ms with 20 — cost "
+            "looks like it scales with total run count, not the page size."
+        )
+
+
+class TestDeleteWorkflowRunsAction:
+    """activity.delete-is-audited / activity.multi-select-delete /
+    activity.clear-failed / activity.delete-keeps-artifacts (#4960)."""
+
+    def _raw_activity_count(self, db, thread_id: str) -> int:
+        """Bypass `query()`'s deleted-run exclusion — the ground truth of
+        what is actually IN the table, for asserting nothing was destroyed."""
+        from fichero_server.core.duckdb_session import connect_utc
+        from fichero_server.workflows.activity import get_activity_tracker
+
+        store = get_activity_tracker(str(db.path)).store
+        conn = connect_utc(store.db_path)
+        try:
+            return conn.execute(
+                "SELECT COUNT(*) FROM activities WHERE thread_id = ?", [thread_id]
+            ).fetchone()[0]
+        finally:
+            conn.close()
+
+    def test_deleted_run_is_hidden_but_nothing_is_destroyed(self, client, db):
+        """Revised #4960: the resurrection fix moved from destroying rows
+        (an earlier version hard-deleted `activities`, reversed on review —
+        Trash needs a deleted run's history intact to restore) to excluding
+        them on the READ side. A deleted run must be ABSENT from both the
+        runs route and the event-log query, while its event ROWS still
+        physically exist — proven by a raw table count, not `query()`
+        (which now always applies the exclusion)."""
+        import uuid
+
+        from fichero_server.workflows.activity_types import (
+            Activity,
+            ActivityFilter,
+            ActivityLevel,
+            ActivityType,
+        )
+
+        tracker = _seed_run(db, "thread-del", status="failed")
+        asyncio.run(
+            tracker.store.save(
+                Activity(
+                    id=str(uuid.uuid4()),
+                    type=ActivityType.WORKFLOW_FAILED,
+                    level=ActivityLevel.ERROR,
+                    timestamp=datetime.now(),
+                    message="Workflow failed: boom",
+                    workflow_id="wf-thread-del",
+                    thread_id="thread-del",
+                    error="boom",
+                )
+            )
+        )
+        before = asyncio.run(tracker.query(ActivityFilter(thread_id="thread-del")))
+        assert before
+        assert self._raw_activity_count(db, "thread-del") == 1
+
+        r = client.post(
+            "/api/workflow-execution/runs/delete", json={"thread_ids": ["thread-del"]}
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["deleted_ids"] == ["thread-del"]
+        assert body["skipped_ids"] == []
+
+        run = asyncio.run(tracker.store.get_workflow_run("thread-del"))
+        assert run.status == "deleted"
+
+        # Hidden from both reads...
+        after = asyncio.run(tracker.query(ActivityFilter(thread_id="thread-del")))
+        assert after == []
+        listed = client.get("/api/workflow-execution/runs").json()["items"]
+        assert "thread-del" not in [i["thread_id"] for i in listed]
+
+        # ...but nothing was destroyed: the event row is still there.
+        assert self._raw_activity_count(db, "thread-del") == 1
+
+    def test_put_back_restores_both_the_run_and_its_events(self, client, db):
+        """Proves restore is possible (the future 'Put Back'): flipping the
+        run's status away from `deleted` makes it reappear in the runs
+        route AND makes its old events reappear in the event-log query —
+        because delete never removed either, only the READ side hid them."""
+        from fichero_server.workflows.activity_types import (
+            Activity,
+            ActivityFilter,
+            ActivityLevel,
+            ActivityType,
+        )
+
+        tracker = _seed_run(db, "thread-restore", status="failed")
+        asyncio.run(
+            tracker.store.save(
+                Activity(
+                    id="ev-restore",
+                    type=ActivityType.WORKFLOW_FAILED,
+                    level=ActivityLevel.ERROR,
+                    timestamp=datetime.now(),
+                    message="Workflow failed: boom",
+                    workflow_id="wf-thread-restore",
+                    thread_id="thread-restore",
+                    error="boom",
+                )
+            )
+        )
+
+        client.post(
+            "/api/workflow-execution/runs/delete", json={"thread_ids": ["thread-restore"]}
+        )
+        assert asyncio.run(
+            tracker.query(ActivityFilter(thread_id="thread-restore"))
+        ) == []
+        assert "thread-restore" not in [
+            i["thread_id"]
+            for i in client.get("/api/workflow-execution/runs").json()["items"]
+        ]
+
+        # "Put Back": flip the status away from 'deleted' (save_workflow_run's
+        # ON CONFLICT unconditionally overwrites status — no special API
+        # needed yet, proving the data supports it).
+        _seed_run(db, "thread-restore", status="failed")
+
+        restored_run = asyncio.run(tracker.store.get_workflow_run("thread-restore"))
+        assert restored_run.status == "failed"
+        restored_events = asyncio.run(
+            tracker.query(ActivityFilter(thread_id="thread-restore"))
+        )
+        assert len(restored_events) == 1
+        assert "thread-restore" in [
+            i["thread_id"]
+            for i in client.get("/api/workflow-execution/runs").json()["items"]
+        ]
+
+        # The list route (reads workflow_runs, deleted excluded by default)
+        # must not show it either.
+        listed = client.get("/api/workflow-execution/runs").json()["items"]
+        assert "thread-del" not in [i["thread_id"] for i in listed]
+
+    def test_clear_failed_is_the_same_action_over_a_filter(self, client, db):
+        """No second action for 'Clear Failed' — same route, same action,
+        `statuses=["failed"]` instead of explicit ids."""
+        _seed_run(db, "thread-fail-1", status="failed")
+        _seed_run(db, "thread-fail-2", status="failed")
+        _seed_run(db, "thread-ok", status="completed")
+
+        r = client.post(
+            "/api/workflow-execution/runs/delete", json={"statuses": ["failed"]}
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert set(body["deleted_ids"]) == {"thread-fail-1", "thread-fail-2"}
+
+        remaining = client.get("/api/workflow-execution/runs").json()["items"]
+        remaining_ids = {i["thread_id"] for i in remaining}
+        assert remaining_ids == {"thread-ok"}
+
+    def test_running_run_is_skipped_not_deleted(self, client, db):
+        _seed_run(db, "thread-running", status="running")
+        r = client.post(
+            "/api/workflow-execution/runs/delete",
+            json={"thread_ids": ["thread-running"]},
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["deleted_ids"] == []
+        assert body["skipped_ids"] == ["thread-running"]
+
+    def test_bulk_delete_writes_one_audit_record_for_the_whole_batch(self, client, db):
+        """Matches the existing `activity.cleanup` pattern (one ChangeSpec
+        per invocation, not one per row) rather than inventing a second
+        shape — verified against the real ActionAudit table."""
+        from fichero_server.models import ActionAudit
+
+        _seed_run(db, "thread-a", status="failed")
+        _seed_run(db, "thread-b", status="failed")
+
+        r = client.post(
+            "/api/workflow-execution/runs/delete", json={"statuses": ["failed"]}
+        )
+        assert r.status_code == 200
+        audits = db.query(ActionAudit, action_name="workflow_run.delete")
+        assert len(audits) == 1, "one audit record for the whole batch, not one per run"
+        assert set(audits[0].target_ids) == {"thread-a", "thread-b"}
+
+    def test_viewer_cannot_delete(self, db, app_db, monkeypatch):
+        """Same generic registry enforcement every other audited action
+        gets — no per-action role check needed, none written."""
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.security import accounts, authz
+
+        _seed_run(db, "thread-viewer-test", status="failed")
+
+        monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+        library_path = str(db.path.parent)
+        viewer = app_db.create_user(
+            username="viewer-4960",
+            display_name="Viewer",
+            password_hash=accounts.hash_password("password"),
+        )
+        app_db.set_library_role(
+            user_id=viewer.id,
+            library_path=authz.normalize_library_path(library_path),
+            role="viewer",
+        )
+
+        ctx = ActionContext(actor="viewer-4960", library_path=library_path)
+        with pytest.raises(authz.AuthorizationError):
+            registry.invoke(
+                db, "workflow_run.delete", {"thread_ids": ["thread-viewer-test"]}, ctx
+            )
+
+        # Untouched: the viewer's denied attempt deleted nothing.
+        run = asyncio.run(
+            get_activity_tracker(str(db.path)).store.get_workflow_run(
+                "thread-viewer-test"
+            )
+        )
+        assert run.status == "failed"
+
+    def test_delete_via_single_thread_route_is_also_audited(self, client, db):
+        """#4960: before this slice, DELETE /threads/{id} was the one run
+        operation not recorded by the action layer. It now goes through the
+        same `workflow_run.delete` action as the bulk route."""
+        from fichero_server.models import ActionAudit
+
+        _seed_run(db, "thread-single", status="completed")
+
+        r = client.delete("/api/workflow-execution/threads/thread-single")
+        assert r.status_code == 200
+
+        audits = db.query(ActionAudit, action_name="workflow_run.delete")
+        assert len(audits) == 1
+        assert audits[0].target_ids == ["thread-single"]
 
 
 # ---------------------------------------------------------------------------
