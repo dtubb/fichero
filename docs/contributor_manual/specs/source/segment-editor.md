@@ -147,6 +147,12 @@ Reading before editing (the app's first step: it draws from the seam, and edits 
 - `source.app.one-segment-store` — **[GAP]** (#4954) one store in the app holds a document's
   segments and passes, read from the engine's one segments call; it is the only caller of that
   call, and nothing else in the app keeps segments.
+- `source.app.index-is-the-engines` — **[GAP]** (#4954) a box on screen is addressed by the engine's
+  own index for it, never by its position in what happens to be drawn; leaving an undrawable
+  box out of the drawing changes no other box's address.
+- `source.app.curated-pass-stays-on-top` — **[GAP]** (#4954) a pass that a person made, or that
+  carries any segment a person made, is shown ahead of every machine pass, as today; a newer
+  machine run never covers a person's region.
 - `source.app.overlays-draw-from-the-seam` — **[GAP]** (#4954) the boxes drawn over an image and
   over a PDF page both come from that store through one shared function, with the same
   drawing code as today and no new overlay; a page looks the same before and after the switch.

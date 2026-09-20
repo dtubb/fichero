@@ -222,9 +222,13 @@ the synced folder) is there to look at and compare. In a *relaxed* project the n
 counts, and a person's always outranks a machine's. **Before anyone has chosen**, in either
 kind of project, the newest pass is what is shown, plainly labelled as a machine's and
 unchosen, so a new project is never blank; "the working pass" means the chosen one, or the
-newest if none is chosen. Where nobody has chosen, a pass counts as a person's only when a person made or
-accepted the pass itself; one hand-drawn segment inside a machine's pass does not make it
-so. Which pass is working is worked out from recorded human choices and
+newest if none is chosen. Where nobody has chosen, **which pass is shown** follows the rule the app already has (ruled
+2026-09-03 after a drawn region vanished behind a newer machine run): a pass that a person
+made, **or that carries any segment a person made**, comes first; then a file's own text
+layer; then the newest machine pass. Curation persists and constrains the machine. That
+settles which pass is shown and used; it does **not** turn that pass's machine-made segments
+and readings into a person's: each still says who made it, and in a strict project each is
+still labelled unchosen until a person chooses. Which pass is working is worked out from recorded human choices and
 the project's rule; it is never a flag stored on a pass, so changing the rule rewrites
 nothing.
 
