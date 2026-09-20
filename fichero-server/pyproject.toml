@@ -159,9 +159,14 @@ requires = [
     # OpenCV SHIPS (Daniel, 2026-09-06): the image-enhance / background-removal /
     # deskew step is a demo feature and must actually WORK on-device, not no-op.
     # It is ~hundreds of MB — accepted for that. (image_ops still guards the
-    # import so a stripped build degrades rather than crashes.) pykeen -> torch
-    # stays OUT: an order of magnitude more, and nothing shipped needs it.
-    # "pykeen",
+    # import so a stripped build degrades rather than crashes.)
+    # pykeen is IN the bundle by the maintainer's ruling of 2026-09-20, with
+    # torch and the rest of its dependencies (roughly half a gigabyte more).
+    "pykeen",
+    # networkx is imported directly by knowledge/graph.py and friends. It used to
+    # be absent; it now also arrives with torch, but a package the engine imports
+    # by name is listed by name.
+    "networkx",
     # rdflib is IN the bundle (2026-09-20): api/routes/kg/sparql.py imports it at
     # module top and the engine imports that route at start, so a bundle without
     # it exits 250 on launch ("can't reach server"). 4.8 MB, pure Python, one
@@ -309,7 +314,13 @@ dependencies = [
     # spaCy and OpenCV both moved INTO the bundle: spaCy for the SVO grammar
     # gate (~54 MB), OpenCV for the image-enhance demo feature (Daniel,
     # 2026-09-06 — must work on-device, not no-op; ~hundreds of MB accepted).
-    # "pykeen",
+    # pykeen is IN the bundle by the maintainer's ruling of 2026-09-20, with
+    # torch and the rest of its dependencies (roughly half a gigabyte more).
+    "pykeen",
+    # networkx is imported directly by knowledge/graph.py and friends. It used to
+    # be absent; it now also arrives with torch, but a package the engine imports
+    # by name is listed by name.
+    "networkx",
     # rdflib is IN the bundle (2026-09-20): api/routes/kg/sparql.py imports it at
     # module top and the engine imports that route at start, so a bundle without
     # it exits 250 on launch ("can't reach server"). 4.8 MB, pure Python, one

@@ -136,7 +136,12 @@ fi
   if [ ! -d "$ENGINE_DIR/build/fichero_server/macos/app" ]; then
     "$BRIEFCASE" create macOS --app fichero_server
   fi
-  "$BRIEFCASE" update macOS --app fichero_server
+  # -r: refresh REQUIREMENTS too. Without it a dependency added to pyproject.toml
+  # never reaches the release bundle: on 2026-09-20 rdflib was added to the
+  # briefcase `requires`, this script rebuilt "successfully", and the bundle
+  # still had no rdflib. build_backend_bundle.sh has always passed -r; the
+  # release path did not.
+  "$BRIEFCASE" update macOS --app fichero_server -r
   "$BRIEFCASE" build macOS --app fichero_server
 )
 
