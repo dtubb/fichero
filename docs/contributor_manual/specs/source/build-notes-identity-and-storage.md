@@ -31,41 +31,82 @@
 `interpretation_ids`). With no segment list, a segment edit could only say "this document
 changed", and a window would redraw a whole page.
 
+**What the engine worker's reading found (2026-09-19; file and line in
+`agent-work/source-model/recon-slice-2.md`), and what it means.**
+
+- **Adding the two lists to `ChangeSpec` does nothing by itself.** `ActionRegistry._emit`
+  (`actions/registry.py`, about lines 284 to 291) passes the id lists to `emit_change` through a
+  **hand-written list of keywords**, not a loop. A list that is on `ChangeSpec` and not in that
+  keyword list is silently never sent.
+- **There is no stored event log.** Both "replay" paths are in the running process. But the
+  **folded activity stream, which is what feeds remote windows, has its own hard-coded place
+  where events are written out**: `_change_event_to_activity_response`
+  (`api/routes/system/activity.py`, about lines 100 to 123) writes each id list into
+  `ActivityResponse.metadata` as JSON, and that is exactly what Swift's
+  `init?(activityMetadata:)` reads. Miss this site and a remote window never sees a segment
+  event, one hop before the Swift gap.
+- **The risk is silent omission, not refusal.** Nothing checks which id lists an event carries.
+  There are **four hand-written sites that must agree and are not enumerated anywhere**:
+  `_emit`, the activity fold, and Swift's two ways of building a `ChangeEvent`
+  (`init(from:)` for the direct stream, `init?(activityMetadata:)` for remote windows). The
+  existing guardrail (`check_emit_change_coverage.py`) only checks that `emit_change` is
+  called at all.
+- **The gap is already open today:** the engine sends `artifact_ids` and `interpretation_ids`,
+  and Swift decodes neither.
+
+**The rule this slice sets (so the test is written against a rule).** `emit_change`
+**de-duplicates every id list and keeps the order it was given** (first occurrence wins), for
+all lists, old and new. It does not sort. A store that patches items in place gains nothing
+from a duplicate, and order can carry meaning (the order things were changed in). Today
+`emit_change` does neither; this is a small behaviour change for every list, made once, here.
+
 **Engine.**
-- `api/change_stream.py`: `ChangeEvent` gains `segment_ids: list[str] = []` and `pass_ids:
-  list[str] = []`; `emit_change(...)` gains keyword arguments `segment_ids: Iterable[str] = ()`
-  and `pass_ids: Iterable[str] = ()`, handled exactly as `artifact_ids` is (sorted, de-duplicated,
-  omitted from the wire when empty if that is what the others do: copy, do not invent).
-- `actions/registry.py`: `ChangeSpec` gains the same two lists, and `ActionRegistry._emit`
-  passes them through to `emit_change` beside the others.
-- Replay and the event log: wherever a `ChangeEvent` is serialised for replay, the two lists
-  ride along. An **old** logged event with neither key must still decode (default empty).
+- One declared tuple, `CHANGE_ID_LISTS = ("entity_ids", "claim_ids", "document_ids",
+  "artifact_ids", "citation_ids", "reference_ids", "interpretation_ids", "segment_ids",
+  "pass_ids")`, in `api/change_stream.py`. **A new kind of id list is added there and nowhere
+  else in the engine.**
+- `ChangeEvent` gains `segment_ids: list[str] = []` and `pass_ids: list[str] = []`;
+  `emit_change(...)` gains the two keyword arguments; de-duplication (order kept) is applied to
+  every name in the tuple, in one loop.
+- `actions/registry.py`: `ChangeSpec` gains the two lists, and **`_emit` iterates the tuple**
+  to build the keywords it passes, replacing the hand-written list.
+- `api/routes/system/activity.py`: **`_change_event_to_activity_response` iterates the same
+  tuple** to write the lists into `metadata`.
 - Domain name for the events later slices emit: `segment` (event types `segment.created`,
   `segment.updated`, `segment.deleted`, `segment.converted`, `pass.created`). This slice
   registers nothing that emits them.
 
-**App.** `Services/LibraryChangeStream.swift`: `struct ChangeEvent: Decodable` gains
-`segmentIds: [String]` and `passIds: [String]` (and `artifactIds`, which the engine already
-sends and the Swift type does not yet decode), decoded with a default of empty so an engine
-that does not send them still decodes. **`ChangeEvent` is built through two paths, and both
-must gain them**: the direct stream's `init(from:)`, and `init?(activityMetadata:)`, which
-feeds remote windows from the folded activity stream. Miss the second and a remote window
-silently never sees a segment event. One test for each path. No consumer is added in this slice (there is no segment
-store yet); emitting with no subscriber matches how `artifact.updated` first landed.
+**App** (`Services/LibraryChangeStream.swift`). `ChangeEvent` gains `segmentIds`, `passIds`,
+**and the two the engine already sends and Swift drops today, `artifactIds` and
+`interpretationIds`**, in **both** `init(from:)` and `init?(activityMetadata:)`, each
+defaulting to empty so an engine that does not send them still decodes. Swift has no way to
+read the engine's tuple, so its half is protected by the contract test below. No consumer is
+added in this slice (there is no segment store yet).
 
 **No schema change, no migration, no action, no route.**
 
 **Refusals.** None.
 
 **Tests.**
-- `emit_change(..., segment_ids=[b, a, a])` delivers `segment_ids == [a, b]` to a subscriber
-  (pins `source.events.segment-ids`).
-- A `ChangeSpec` with `segment_ids` and `pass_ids` reaches the subscriber through
-  `registry.invoke` of a throwaway test action.
-- An event serialised before this change (no `segment_ids` key) still decodes, engine side
-  and, in a Swift unit test tagged `.models`, app side.
-- An event with only `segment_ids` set does **not** populate `document_ids` by itself (a later
-  slice decides to send both; the stream must not guess).
+- **One round trip for every declared kind, through both paths**: for each name in
+  `CHANGE_ID_LISTS`, emit an event carrying that list; assert it arrives at a direct-stream
+  subscriber, and that the activity fold's `metadata` carries it. The test iterates the tuple,
+  so a kind added later is covered without editing the test (pins `source.events.segment-ids`,
+  and closes the silent-omission class).
+- A `ChangeSpec` with `segment_ids` and `pass_ids` reaches a subscriber through
+  `registry.invoke` of a throwaway test action (this is the test that fails today's
+  hand-written keyword list).
+- De-duplication with order kept: `segment_ids=[b, a, b, c]` arrives as `[b, a, c]`; the same
+  for an old list (`document_ids`), so the rule is pinned for all of them.
+- An event with neither new key still decodes, engine side and, in a Swift unit test tagged
+  `.models`, app side, **for each of Swift's two init paths**.
+- Swift decodes `artifactIds` and `interpretationIds` from a recorded engine event, through
+  both init paths (the gap that is open today).
+- A contract test holds the Swift side to the engine's tuple: a fixture file of one event
+  carrying every declared list, written by an engine test from `CHANGE_ID_LISTS`, is decoded
+  by a Swift test that asserts every list is non-empty. A kind added in the engine and not in
+  Swift fails there.
+- An event with only `segment_ids` set does **not** populate `document_ids` by itself.
 
 ## Slice 3 — `Segment` and `Pass` records (#4921)
 
