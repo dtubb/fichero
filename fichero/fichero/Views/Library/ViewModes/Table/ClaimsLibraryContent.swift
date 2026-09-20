@@ -306,7 +306,11 @@ struct ClaimsLibraryContent: View {
             let parent = docsById[claim.sourceDocumentId ?? ""]
                 ?? Document(id: claim.sourceDocumentId ?? "unknown",
                             name: Self.sourceName(for: claim, docsById: docsById))
-            selection = [LibraryOutlineNode.claimItem(claim, parent: parent).id]
+            // Land on exactly the new row, through the grammar (#4436) — this
+            // view has no anchor/cursor of its own to update, only the shared
+            // selection set, so `.selection` is the one field it can honestly
+            // write.
+            selection = SelectionGrammar.select(LibraryOutlineNode.claimItem(claim, parent: parent).id).selection
         }
     }
 

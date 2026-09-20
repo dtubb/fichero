@@ -252,7 +252,10 @@ struct SelectAllVisibleSurfaceTests {
     func entitiesTablePublishesVisibleIds() throws {
         let table = try code(at: "Views/Library/ViewModes/Table/EntitiesLibraryContent.swift")
         #expect(table.contains("var onVisibleIds: (([String]) -> Void)?"))
-        #expect(table.contains("onChange(of: items.map(\\.id)) { _, newIds in onVisibleIds?(newIds) }"))
+        // The visible ids are published when the shown rows change. (Two substrings, not one exact
+        // line: the same handler now also reports the available types, #4856.)
+        #expect(table.contains("onChange(of: items.map(\\.id)) { _, newIds in"))
+        #expect(table.contains("onVisibleIds?(newIds)"))
         // Every input that can change what's on screen reports — the per-table
         // filter, the shared search, and the store's own load finishing.
         #expect(table.contains("onChange(of: filterText)"))
@@ -271,7 +274,10 @@ struct SelectAllVisibleSurfaceTests {
     func claimsTablePublishesVisibleIds() throws {
         let table = try code(at: "Views/Library/ViewModes/Table/ClaimsLibraryContent.swift")
         #expect(table.contains("var onVisibleIds: (([String]) -> Void)?"))
-        #expect(table.contains("onChange(of: items.map(\\.id)) { _, newIds in onVisibleIds?(newIds) }"))
+        // The visible ids are published when the shown rows change. (Two substrings, not one exact
+        // line: the same handler now also reports the available types, #4856.)
+        #expect(table.contains("onChange(of: items.map(\\.id)) { _, newIds in"))
+        #expect(table.contains("onVisibleIds?(newIds)"))
         #expect(table.contains("onChange(of: filterText)"))
         #expect(table.contains("onChange(of: filterType)"))
         #expect(table.contains("onChange(of: searchQuery)"))

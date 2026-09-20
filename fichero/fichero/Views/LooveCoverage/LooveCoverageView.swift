@@ -553,14 +553,15 @@ private struct LanguageSearchPopover: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 12)
             } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(results) { language in
-                            languageRow(language)
-                            Divider()
-                        }
+                // A selectable row collection (each row toggles a language
+                // column in/out) belongs in a native List, not a hand-rolled
+                // ScrollView + LazyVStack (agents/ROADMAP.md).
+                List {
+                    ForEach(results) { language in
+                        languageRow(language)
                     }
                 }
+                .listStyle(.plain)
                 .frame(height: 280)
             }
         }

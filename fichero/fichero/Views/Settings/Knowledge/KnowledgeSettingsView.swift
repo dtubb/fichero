@@ -129,25 +129,21 @@ struct KnowledgeSettingsView: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            let (status, data) = try await client.requestData(path: "/api/settings/sparql-endpoints")
-            guard (200...299).contains(status) else {
+            let response = try await client.api.getSparqlEndpointsApiSettingsSparqlEndpointsGet(.init())
+            switch response {
+            case .ok(let ok):
+                apply(try ok.body.json)
+            case .undocumented(let status, _):
                 statusMessage = "Couldn't load endpoints (status \(status))."
-                return
             }
-            apply(data)
         } catch {
             statusMessage = "Couldn't load endpoints: \(error.localizedDescription)"
         }
     }
 
-    private func apply(_ data: Data) {
-        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
-        let rawEndpoints = obj["endpoints"] as? [[String: Any]] ?? []
-        endpoints = rawEndpoints.compactMap { item in
-            guard let name = item["name"] as? String, let url = item["url"] as? String else { return nil }
-            return SparqlEndpointRow(name: name, url: url)
-        }
-        selectedURL = obj["selected_url"] as? String ?? KnowledgeSettingsView.wikidataDefaultURL
+    private func apply(_ config: Components.Schemas.SparqlEndpointsConfig) {
+        endpoints = (config.endpoints ?? []).map { SparqlEndpointRow(name: $0.name, url: $0.url) }
+        selectedURL = config.selectedUrl ?? KnowledgeSettingsView.wikidataDefaultURL
     }
 
     private func add() async {
@@ -169,23 +165,25 @@ struct KnowledgeSettingsView: View {
     }
 
     private func save() async {
-        let payload: [String: Any] = [
-            "endpoints": endpoints.map { ["name": $0.name, "url": $0.url] },
-            "selected_url": selectedURL
-        ]
+        let config = Components.Schemas.SparqlEndpointsConfig(
+            endpoints: endpoints.map { Components.Schemas.SparqlEndpoint(name: $0.name, url: $0.url) },
+            selectedUrl: selectedURL
+        )
         do {
-            let body = try JSONSerialization.data(withJSONObject: payload)
-            let (status, data) = try await client.requestData(
-                path: "/api/settings/sparql-endpoints", method: "PUT", jsonBody: body
+            let response = try await client.api.setSparqlEndpointsApiSettingsSparqlEndpointsPut(
+                .init(body: .json(config))
             )
-            guard (200...299).contains(status) else {
+            switch response {
+            case .ok(let ok):
+                // Reflect what the server actually persisted (it keeps the
+                // Wikidata default present and rejects an unknown selection).
+                apply(try ok.body.json)
+                statusMessage = nil
+            case .unprocessableContent:
+                statusMessage = "Couldn't save endpoints: the server rejected the request."
+            case .undocumented(let status, _):
                 statusMessage = "Couldn't save endpoints (status \(status))."
-                return
             }
-            // Reflect what the server actually persisted (it keeps the Wikidata
-            // default present and rejects an unknown selection).
-            apply(data)
-            statusMessage = nil
         } catch {
             statusMessage = "Couldn't save endpoints: \(error.localizedDescription)"
         }

@@ -64,6 +64,21 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     # in-file and in native_row_containers_allowlist.json. Revisit List if a
     # selection model arrives.
     "Library/ViewModes/Dataset/Timeline/DatasetTimelineView.swift#1c431f5c23": "2026-08-14 List SIGTRAP; re-hashed 2026-08-19 by the SelectionGrammar clicks + Full Text cap lift (#4598) — same sanctioned block. NOTE: rows now multi-select, so the List constraint deserves a revisit next preview session",
+    # 2026-09-20: the SAME model-picker popover shape already sanctioned for
+    # ModelChipToolbarItem.swift above (logo/pricing/vision SharedModelRow
+    # rows in a fixed-height popover) — Chat's own toolbar model picker,
+    # not a new pattern. Same reason applies: List chrome misbehaves in
+    # popovers, and the concrete-row perf fix that shape depends on assumes
+    # this structure.
+    "Chat/ChatViewToolbar.swift#2a472b0532": "2026-09-20: same fixed-height SharedModelRow popover shape as ModelChipToolbarItem.swift — List misbehaves in popovers; same reason, different toolbar",
+    # 2026-09-20: a 2D coverage MATRIX (model rows × language columns),
+    # scrolling BOTH axes with a frozen header row — not a selectable row
+    # list at all (no tap target, no selection state on a cell). `Table`
+    # assumes one fixed column set known ahead of render and per-row
+    # selection; this view's column set is the CHOSEN language set (variable,
+    # user-editable via the picker below it) and no row is ever selected.
+    # Same "no selection model" reasoning as DatasetTimelineView's own entry.
+    "LooveCoverage/LooveCoverageView.swift#e6c345f987": "2026-09-20: a read-only coverage matrix (rows x variable language columns), both-axis scroll, no selection model — Table assumes a fixed column set and row selection, neither of which applies here",
 }
 
 ALLOWLIST_FILES = {

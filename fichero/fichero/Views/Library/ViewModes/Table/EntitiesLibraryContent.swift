@@ -167,7 +167,11 @@ struct EntitiesLibraryContent: View {
             await reloadScope(force: true)
             let parent = Document(id: entity.sourceDocumentIds?.first ?? "unknown",
                                   name: entity.canonicalName)
-            selection = [LibraryOutlineNode.entityItem(entity, parent: parent).id]
+            // Land on exactly the new row, through the grammar (#4436) — this
+            // view has no anchor/cursor of its own to update, only the shared
+            // selection set, so `.selection` is the one field it can honestly
+            // write.
+            selection = SelectionGrammar.select(LibraryOutlineNode.entityItem(entity, parent: parent).id).selection
         }
     }
 
