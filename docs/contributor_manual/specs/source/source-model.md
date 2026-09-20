@@ -491,7 +491,8 @@ One action converts one page's boxes into segment records as part of the first e
 inverse deletes exactly the records it made. The rules are in `segments-and-geometry.md`
 ("First-edit conversion: the rules"). Behaviours: `source.store.ids-on-first-edit`,
 `source.store.no-batch-rewrite`, `source.store.one-page-per-conversion`,
-`source.store.conversion-undo-leaves-nothing`.
+`source.store.undo-first-edit-keeps-conversion` (and four more added 2026-09-20; see the
+build notes for slice 6).
 
 ### Then, in dependency order
 

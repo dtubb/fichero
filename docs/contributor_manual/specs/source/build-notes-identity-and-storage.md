@@ -515,107 +515,317 @@ edits is refused one by one; there is no merge. (Foundation, morning question 15
 - Undo restores from `SegmentVersion`: a test that blanks the audit row's `before` and still
   restores proves the payload is not the source of truth.
 
-## Slice 6 — first-edit conversion (#4924). Do not start before slices 1 to 5 are committed.
+## Slice 6 — first-edit conversion (#4924). Do not start before #4957 (redo) reports.
 
-**Pins:** `source.store.ids-on-first-edit`, `source.store.no-batch-rewrite`,
-`source.store.one-page-per-conversion`, `source.store.conversion-undo-leaves-nothing`,
-`source.store.conversion-repoints-exact-matches`. The design rules are in
-`segments-and-geometry.md` ("First-edit conversion: the rules").
+Rewritten 2026-09-20 against the code of slices 1 to 5 as committed on `spec/page-model`.
+Claims about existing code are graded VERIFIED (read on disk) or INFERRED.
 
-**What exists.** Region edits today are one action, `artifact.regions_edit`
-(`api/routes/document/artifacts.py`; params `ArtifactRegionsEditActionParams { artifact_id,
-edit }`), whose inverse is `_invert_artifact_to_restore` → `artifact.restore` with the whole
-previous artifact. **Used unchanged after conversion, that inverse would restore the block of
-boxes and leave the new segment rows: two stores.** Note too that its `before` and `after`
-are whole artifact dumps, text included: the existing action already puts a researcher's words
-in the audit chain (this bears on morning question 8; this slice does not make it worse and
-does not fix it).
+### Assumptions this section is written under (assumptions, not rulings)
 
-**Is a page converted?** `is_converted(db, document_id) -> bool`: true when a live
-`SegmentPass` exists for the document with `source_artifact_id` set. Never inferred from the
-block being absent. A second edit finds it true and does not convert again.
+Each is the maintainer's to rule; each is in the morning file. If one is ruled the other way,
+the part of the design that moves is named.
 
-**Marking the block as replaced.** `Artifact` gains one additive field,
-`geometry_superseded_by_pass_id: str | None` (a column added on open by `_ensure_table`; no
-data migration). The block itself is **kept unchanged** (it is what undo restores, and what
-old readers still resolve claims against). One helper, `read_ocr_geometry(artifact, *,
-allow_superseded=False)`, is the only sanctioned way to read `artifact.ocr_geometry`; it raises
-`GeometrySuperseded` for a superseded block unless the caller is on the short permitted list
-(the seam of slice 1; the conversion and its inverse; span resolution for a claim whose anchor
-has not been re-pointed). A guardrail script lists the permitted callers; every other reader
-found by `grep ocr_geometry` is moved to the seam in this slice or listed with a reason.
+- **A1. Conversion is lazy**, on a page's first edit (the 2026-09-19 ruling). An eager
+  whole-project conversion, if ever wanted, is **this same action with no edit, run once for
+  each page after a snapshot**, and nothing else. The design below makes that true: the action
+  takes one document, its `edit` is optional, and the ids it makes are repeatable, so a page
+  converted eagerly and a page converted lazily end up byte-identical. Nothing batch-rewrites
+  a real project; no migration writes a segment.
+- **A2. Every result with boxes becomes its own pass**; the working pass is the one the Source
+  view was showing (the `artifact_id` the edit names). Conversion never merges or deletes a
+  pass. *If ruled otherwise:* only step 2's loop changes.
+- **A3. No new free text in the audit chain.** The action's params carry today's
+  `ArtifactRegionsEditRequest` unchanged, which already has a `text` field that
+  `artifact.regions_edit` already writes into the chain (VERIFIED, `artifacts.py`). Slice 6
+  adds no other text: `before` and `after` hold ids, counts and numbers only. `reason` and
+  `note` keep their 200-character cap. **One thing to stop on is named under "Text" below.**
+- **A4. Not built on:** #4942 (Segments pane), #4950 (recipes as files), #4953 (rights).
 
-**The action.** `segment.convert_and_edit`:
+### Four things found in the built code that slice 6 must not trip on
 
-- Params: `document_id`, `artifact_id` (the result being edited), `edit` (today's
-  `ArtifactRegionsEditRequest`, unchanged, so the app's existing verbs keep working).
-- Steps, in one transaction: (1) refuse if `is_converted`; (2) for **every** artifact of the
-  document that has boxes, make one `SegmentPass` (`source_artifact_id` set, `provenance_kind`
-  copied from the artifact's run) and one `Segment` for each box with `save_many`
-  (`anchor.rect` from the box, `anchor.polygon` and `baseline` from `metadata` where present
-  and normalised, `anchor.rendition_id` from the result, `anchor.char_start/char_end`, `kind`
-  from the box's level, `metadata` carrying `box_index` so the order of the old list is never
-  lost); (3) set `geometry_superseded_by_pass_id` on each; (4) re-point exact matches (below);
-  (5) apply `edit` to the new rows of `artifact_id`'s pass through the slice 5 actions'
-  internals (one audit row in all, not one for each); (6) write versions.
-- The **working pass** is the pass made from `artifact_id` (the one being looked at): recorded
-  as a human choice in the form slice 8 will read (`SegmentPassChoice { document_id, pass_id,
-  chosen_by, chosen_at }`, table `segmentpasschoices`; the only thing stored about "working").
-- `before`: `{document_id, artifact_ids, superseded_was: {artifact_id: null}}`.
-  `after`: `{pass_ids, segment_ids, repointed: [{kind, id, segment_id}], choice_id}`. Ids and
-  geometry only.
-- **Inverse** `segment.unconvert`, params from `after`: hard-deletes exactly those
-  `segment_ids`, `pass_ids`, their versions and the choice row (these rows have existed only
-  inside this one action's effect); clears each `segment_id` it set on a re-pointed record;
-  clears `geometry_superseded_by_pass_id`. The block of boxes was never changed, so nothing is
-  "restored": it is simply the truth again. **Refused** (`ConversionHasDependents`, with the
-  count) when any later audit row names one of those `segment_ids` or `pass_ids`.
-- One document for each invocation: `document_id` is a single string, never a list.
-  `source.store.no-batch-rewrite` gets a guardrail as well as a test: a script fails if any
-  function in `db/migrations/` references `Segment` or `save_many` on segments, and if any
-  action's params model takes a list of document ids for conversion.
+1. **A stored segment returns no text and no page number.** VERIFIED:
+   `segment_read_from_row` sets `text=None` and `page_index=None`. A box read from the block
+   returns both. Converted as the older draft of these notes said, every box on the page would
+   lose its words on screen at the first edit. Settled under "Text" below.
+2. **The app still draws from `Artifact.ocr_geometry`.** VERIFIED: app stage 2 is held, and
+   `ArtifactService.editRegions` takes the edited `Artifact` back and draws its boxes. If the
+   block is kept untouched and nothing else is done, a person's move would appear not to
+   happen. Settled under "What the old app sees" below.
+3. **`audit_id` on a version or forwarding row is not the audit row's id.** VERIFIED: each
+   slice 4 and 5 action mints `audit_id = uuid.uuid4().hex` for its rows, and
+   `ActionRegistry.invoke` then creates the `ActionAudit` with its own default id. The two
+   never meet, so "which audited action made this version" cannot be looked up. Not slice 6's
+   to fix, but slice 6 must not copy it. **Wanted from the #4957 lane:** `ChangeSpec` gains
+   `audit_id: str | None`; when set, `invoke` uses it as `ActionAudit.id`. One line each side;
+   the existing actions then pass the id they already mint. Filed on #4955's list.
+4. **A pass with `source_artifact_id` can be made by hand** (`POST /segments/passes`,
+   VERIFIED). So "this page has a pass that names an artifact" cannot mean "converted". The
+   older draft's `is_converted` is replaced below.
 
-**After conversion**, the app's existing region verbs (move, delete, combine, add) go to
-`segment.update`, `segment.delete`, `segment.merge`, `segment.create`. The route
-`PUT /api/artifacts/{artifact_id}/regions` stays, and decides: not converted →
-`segment.convert_and_edit`; converted → translate the edit into segment actions. The app does
-not change in this slice (it still sends box indexes; the route maps an index to the segment
-whose `metadata.box_index` it is). Moving the app to segment ids is the editor's work.
+### The one idea: conversion stores exactly what the seam already returns
 
-**Re-pointing exact matches.** In step (4): for each annotation, claim evidence anchor and
-content representation of the document whose `SourceAnchor.rect` equals a converted box's rect
-**to within 1e-6 on all four numbers, on the same `rendition_id`**, set its `segment_id` (a new
-optional field on those records, added on open) and list it in `after.repointed`. A record
-with no exact match is left as it is and listed in the action's result as `not_repointed`
-with its id and the reason. Nothing is re-pointed by overlap or by nearness.
+`segments_from_result(...)` (VERIFIED, `models/segments.py`) is the one function that turns a
+block of boxes into `PassRead` + `SegmentRead`s: kinds, anchors, polygons, baselines, the
+degenerate-box handling, and who made each box. Conversion **calls that function and saves its
+output as rows.** It does not read `ocr_geometry` itself and has no second mapping. One new
+function, `rows_from_reads(pass_read, segment_reads) -> (SegmentPass, list[Segment])`, is the
+whole translation.
 
-**ChangeSpec.** `domains=["segment","artifact","document"]`; `segment_ids`, `pass_ids`,
-`artifact_ids`, `document_ids`; event type `segment.converted`.
+That gives the slice its master test, **"conversion changes nothing you can see"**: the seam's
+response for a document just before conversion and just after a conversion with no edit are
+equal field for field, except `id`, `pass_id`, `provisional`. Every awkward input in the list
+at the end is a case of that one test.
 
-**Refusals** (typed, each tested): a second conversion (`AlreadyConverted`); a document with no
-boxes (`NothingToConvert`); undo with dependents (`ConversionHasDependents`); a superseded
-block read outside the permitted list (`GeometrySuperseded`); any `legacy:` id in `edit`.
+### 1. One audited action, one undo step
 
-**Tests, by behaviour** (all in a temporary library built the way `tests/conftest.py` builds
-one; never a real library).
-- `source.store.ids-on-first-edit`: open a document with boxes and read it through the seam
-  ten times: no `segments` rows, no artifact `updated_at` change. One region move: rows exist
-  for **every** artifact's boxes, one pass each; the moved box's segment has the new rect; ids
-  from the seam are no longer provisional. A second move converts nothing more (pass and
-  segment counts unchanged but for versions).
-- `source.store.conversion-undo-leaves-nothing`: convert-and-edit, then undo through the
-  generic undo route: **zero** segment, pass, version and choice rows for the document; the
-  artifact row equals its pre-conversion dump byte for byte; the seam returns provisional ids
-  again. Convert, make one more edit, try to undo the conversion: refused, count is 1.
-- `source.store.conversion-repoints-exact-matches`: an annotation whose rect equals a box gains
-  that segment's id and loses it on undo; one that is off by 0.01 is reported, unchanged.
-- `source.store.one-page-per-conversion` / `.no-batch-rewrite`: converting document A leaves
-  document B's artifacts and row counts untouched; the guardrail script passes, and fails on a
-  fixture migration that writes segments.
-- Old library: a database made before slices 3 to 6 opens twice with no error and no new
-  rows; its first region edit converts.
-- A claim whose evidence anchor was not re-pointed still reveals its source after conversion
-  (the span resolver is on the permitted-readers list).
+`segment.convert_and_edit`, registered `atomic=True`, `undoable=True`.
+
+- **Params:** `document_id: str` (one, never a list), `artifact_id: str | None`,
+  `edit: ArtifactRegionsEditRequest | None`. `artifact_id` and `edit` come together or not at
+  all (422 otherwise). With neither it is the eager form of A1.
+- **Steps, inside the registry's one `db.transaction()`:**
+  1. Load the document's artifacts that have boxes and are not yet converted (see 3). If
+     `artifact_id` is given and **is** converted: raise `AlreadyConverted` (see 2, the race).
+     If there is nothing to convert and no edit: `NothingToConvert`.
+  2. For each, `segments_from_result` → `rows_from_reads` → `save` the pass, `save_many` the
+     segments, write version 1 for each (slice 5's `snapshot_segment_version`), set the
+     artifact's marker (see 3).
+  3. Re-point exact matches (unchanged from the older draft: same rendition, all four numbers
+     within 1e-6, otherwise reported in `not_repointed`; nothing by overlap or nearness).
+  4. Record the working pass (`SegmentPassChoice`, only when `artifact_id` is given).
+  5. If `edit` is given: translate it (see "What the old app sees") and apply it through the
+     **same internal functions** the slice 5 actions call, not through `registry.invoke` (a
+     nested invoke would write a second audit row). Those internals must be callable without
+     the HTTP layer; where a slice 5 action body raises `HTTPException` directly, lift the
+     body into a plain function that raises the typed error and let the route map it.
+- **`before`:** `{document_id, converted_artifact_ids: []}`. **`after`:**
+  `{pass_ids, segment_count, artifact_ids, repointed: [{kind, id, segment_id}], choice_id,
+  edit: {…what the matching slice 5 action records in its own `after`…}}`. Numbers and ids.
+  **Not** 20,000 segment ids: they are repeatable from `artifact_ids` (see 2), and a dense page
+  must not put a megabyte in the chain.
+- **`target_ids`:** the document id and the artifact ids. This is what #4917's per-target
+  check walks (see 5).
+- **ChangeSpec:** `domains=["segment","artifact","document"]`, `document_ids`, `artifact_ids`,
+  `pass_ids`; **no `segment_ids` list for the converted boxes** (same reason; the app re-reads
+  the page on `segment.converted`), but the edit's own touched `segment_ids` are listed.
+- **Any failure in any step marks the transaction `rollback_only`** (VERIFIED: nested
+  `Database.transaction()` does this and the outermost level raises). A half-converted page
+  cannot exist. `save_many` must run **inside** the registry's transaction, in the house order
+  GATE then LOCK; slice 3's review found it opening its own and taking them the other way, and
+  that fix is a precondition here. Probe: make the 3rd artifact's `save_many` raise, and
+  assert zero rows and no marker for artifacts 1 and 2.
+
+**What slice 6 needs from #4957 (redo).** Today redo replays the original action's name and
+params (VERIFIED, `actions_registry.py::undo_action`). For this action that replay is only
+correct because of two things this slice guarantees: the conversion part is **repeatable**
+(same ids, see 2) and **skipped when already done** (on redo the page is still converted, see
+6, so only the edit is re-applied). So: (a) if #4957 keeps replay, `convert_and_edit` must on
+replay take the converted branch and apply the edit to the same segment ids; (b) if #4957
+moves to "redo is the inverse of the inverse", the inverse action's own `invert` returns the
+edit as the matching slice 5 action. Either way **a segment *added* by the triggering edit
+must get the same id on redo**: its id goes in `after.edit` and the add internals accept a
+server-supplied id. Until #4957 lands, redo of this action is refused with slice 5's typed
+refusal, not attempted.
+
+### 2. Identity: provisional ids become real ids exactly once
+
+- **Repeatable ids.** A converted box's id is
+  `uuid5(SEGMENT_CONVERSION_NAMESPACE, f"{artifact_id}:{box_index}").hex`; its pass's is
+  `uuid5(…, f"pass:{artifact_id}").hex`. Same shape as `_new_id()`. The namespace is one
+  constant in `models/segments.py`, never changed. This is what makes A1 true, makes redo
+  safe, and keeps the audit payload small. "An id is never given to another segment" holds:
+  the id belongs to that box of that result forever. Segments made any other way keep
+  `_new_id()`.
+- **No forwarding rows are written at conversion.** A forwarding note records that one
+  lasting id gave way to another. A provisional id was never lasting: it names a position.
+  20,000 notes for a dense page would also be 20,000 rows that say nothing a function cannot.
+  Instead one function, `real_id_for_provisional(legacy_id) -> str`, parses
+  `legacy:<artifact>:<box>` and returns the uuid5.
+- **What a reader holding a provisional id gets afterwards.** Reads: `resolve_segment` and
+  `POST /api/locations/resolve` accept a provisional id, map it with that function, and answer
+  with the real id and `was_provisional: true` **only if that row exists**; if the artifact is
+  not converted the answer is what it is today. Writes: unchanged, refused
+  (`ProvisionalSegmentIdError`, 422). A client is told the real id; it is never silently
+  written through.
+- **Two edits racing on one page.** Both pass the route's "not converted" look. The
+  registry's transaction serialises them (GATE then LOCK). The loser re-reads the marker
+  **inside** the transaction, finds it set, and raises `AlreadyConverted`. The route catches
+  exactly that error and re-routes the same request down the converted branch, once. That is
+  the routing decision made again on fresh state, not a fallback. The primary key on the
+  repeatable ids is the second guard: a double insert cannot succeed even if the check were
+  wrong. The loser's edit then meets slice 5's compare-and-set like any other edit. Test with
+  two threads and a barrier; assert one pass per artifact, one conversion audit row, and
+  either two applied edits or one typed `SegmentStale`.
+
+### 3. The block of boxes afterwards, and how the seam chooses
+
+- **The block is kept, untouched, for good**: it is the record of what the machine produced,
+  and (see "Text") still the home of each box's words. Conversion and everything after it
+  never write `Artifact.ocr_geometry` again. Test: the artifact row's dump, minus the marker,
+  is byte-equal before and after conversion, after an edit, and after undo.
+- **The marker.** `Artifact.geometry_superseded_by_pass_id: str | None`, additive, added on
+  open. **An artifact is converted when its marker is set.** The seam and the action also load
+  the pass it names; marker set and pass missing or soft-deleted **raises**
+  (`ConversionMarkerDangling`), never falls back to the block. This is per artifact, not per
+  document: a machine run after conversion still writes a block today, shows beside the rows
+  as a provisional pass, and is converted by the next edit (step 1 converts "not yet
+  converted", which is why a second conversion on one document is normal, not refused).
+- **The seam** (`list_document_segments`, VERIFIED to return rows and then every artifact
+  with boxes): its second loop skips an artifact whose marker is set. That one `if` is the
+  whole choice. Without it a converted page returns every box twice; that is the first test.
+- **Other readers of the block.** `read_ocr_geometry(artifact, *, allow_superseded=False)` and
+  the permitted-callers guardrail stand as in the older draft. Permitted: the seam's text
+  fill, the conversion, span resolution for a claim not re-pointed, the API projection below.
+
+### Text and page numbers (the hole found in built code)
+
+Until readings hang on segments (slice 8), a box's words have one home: the kept block.
+
+- `rows_from_reads` stores `metadata["box_index"]` (already what slice 3's sort key reads,
+  VERIFIED) and `metadata["page_index"]`.
+- `segment_read_from_row` gains the source artifact's block as an optional argument; for a
+  row with `metadata.box_index` it returns that box's `text`, and `page_index` from metadata.
+  One `db.get(Artifact)` for each pass, which the route already does (VERIFIED).
+- A **merged** segment (the app's `combine`) returns its members' texts joined in
+  `_reading_order`, from `metadata["member_box_indexes"]`, which the merge internals set when
+  every member has a `box_index`. Computed at read; nothing new stored.
+- **STOP POINT for the manager, not decided here.** `add` may carry typed `text` (VERIFIED:
+  `ArtifactService.editRegions(… text:)`). After conversion there is nowhere lawful to keep
+  it: not the block (never written again), not the audit chain beyond what A3 allows, and a
+  `metadata["text"]` on the row would be a second home for words that slice 8 then has to
+  move row by row. Default taken, reversible: **an `add` with non-empty text on a converted
+  page is refused** (`TextNeedsReadings`, 422) until slice 8; an `add` with empty text, which
+  is what the rubber-band draw sends, works. If the app sends typed text on add in practice,
+  slice 8's smallest part must come before slice 6 instead. INFERRED that it does not; the
+  lane should grep the call sites of `addRegion` before building.
+
+### What the old app sees (the app does not change in this slice)
+
+- `PUT /api/artifacts/{artifact_id}/regions` stays and decides: marker unset →
+  `segment.convert_and_edit`; marker set → the matching slice 5 action.
+- **Index translation.** The app sends positions in the list it was last given. One function,
+  `live_rows_in_order(db, pass_id)` (live rows sorted by slice 3's `_segment_row_sort_key`),
+  serves both the projection below and the translation: index *n* is the *n*-th row of that
+  list. Never `metadata.box_index` directly, because after a delete the app's positions shift
+  and the stored box indexes do not. An index past the end is a typed 422.
+- **Projection.** Every API response that serialises an artifact whose marker is set
+  (`GET /api/artifacts/{id}`, the document's artifact list, the PUT's own response) fills
+  `ocr_geometry.boxes` from `live_rows_in_order`, with text as above. One function,
+  `geometry_for_api(db, artifact)`, called where artifacts are serialised. The row in the
+  database is not touched. The app keeps working unchanged, and the dozen Swift readers that
+  subscript boxes by position keep their invariant (position == index) because both sides use
+  the one ordering. When app stage 2 draws from the seam, the projection is deleted; say so in
+  its docstring with the issue number.
+
+### 4. Who made what
+
+- The pass and each segment get exactly the `provenance_kind` `segments_from_result` derives
+  (VERIFIED: `_derive_pass_provenance_kind`, and `_box_is_hand_drawn` for a box a person drew
+  into a machine result). A machine's boxes are stored as the machine's, a hand-drawn box as
+  the person who drew it, an unknown as `unknown`. **Never the converting person's.**
+  `created_by` on converted rows is the artifact's provider or `None`, never `ctx.actor`;
+  version 1's `actor` is `None` and its `provenance_kind` is the box's.
+- Only the triggering edit is the person's: the touched segment's version 2 carries
+  `actor=ctx.actor`, `provenance_kind=human`, and that segment alone becomes human-curated.
+  Probe: convert a 50-box machine page with one move; assert 49 rows still `workflow`, one
+  `human`, and the app's ranking core (pass is human OR any segment is) now ranks that pass as
+  hand-curated, which is today's behaviour after a region edit.
+
+### 5. Multi-user
+
+- The route uses `get_library_database_for_write`; the registry checks
+  `authz.assert_can_write` for every id in params (`document_id`, `artifact_id`), which after
+  #4917 resolve to the document and its folders (VERIFIED in review). No new check is written.
+- Tests, mounted through the route: a viewer's first edit → 403, **zero** segment rows, no
+  marker, artifact byte-equal; an editor denied this document → 403, same assertions, and the
+  same editor succeeds on another document; an editor denied a folder above → 403. The
+  conversion must not run before the check: assert on rows, not only on the status code.
+- A person allowed the edited artifact's document converts **all** its results' boxes. They
+  all belong to that one document, so one check covers them. Say so in the docstring.
+
+### 6. Undo: the edit is undone, the conversion is kept
+
+The older draft, and the spec rule it pinned, had undo delete every converted row and return
+the page to provisional ids. That **is achievable** (the block is untouched, the ids are
+repeatable), but it is the wrong trade, and the rule is changed in `segments-and-geometry.md`
+in the same commit as these notes:
+
+- It needs the only **hard delete** in the segment store, of up to 20,000 rows plus their
+  versions, behind a "has anything depended on these since" test. That test cannot be written
+  simply: after edit 2 and its undo, the rows carry versions 3 and 4 from actions that are
+  all undone, and with redo changing under #4957 "later actions that still count" is a moving
+  definition. When the test says no, the person's **first edit cannot be undone at all**,
+  which is the worst outcome on the table.
+- Keeping the conversion costs nothing anyone can see: the master test above is exactly the
+  statement that a converted, unedited page reads the same as an unconverted one.
+- It is what A1 needs anyway: if conversion can be run with no edit, it must be harmless to
+  leave in place.
+
+So: `invert(before, after)` returns the inverse of **`after.edit` only**, as the matching
+slice 5 inverse (move → `segment.update` back to the recorded geometry with the recorded
+version; delete → undelete; combine → unmerge; add → delete), through slice 5's own inverse
+builders. It reads only `after`, as slice 5's review required. The marker, passes, rows and
+version 1s stay. Undo of the eager form (no edit) is refused: `NothingToUndo`. The trap the old
+rule closed (the old inverse restoring the artifact beside new rows) stays closed, because
+`artifact.restore` is never the inverse of anything on a converted artifact; test that
+`artifact.regions_edit` is unreachable once the marker is set.
+
+Recorded in the morning file as a default taken, reversible: a true "unconvert" can be added
+later as its own owner-only action precisely because ids are repeatable.
+
+### 7. Behaviours, data, existing data, tests
+
+All tests in a temporary library built as `tests/conftest.py` builds one. Never a real one.
+
+| Behaviour | Data | Existing data | Test |
+| --- | --- | --- | --- |
+| `source.store.ids-on-first-edit` | rows + marker appear at first edit | reading ten times writes nothing; artifact `updated_at` unchanged | one move → a pass for every result with boxes; ids real; second move converts nothing |
+| `source.store.conversion-changes-nothing-seen` (new) | none beyond the above | the master test, run over every awkward input below | seam before == seam after, but for `id`, `pass_id`, `provisional` |
+| `source.store.conversion-ids-repeatable` (new) | uuid5 ids | eager and lazy agree | convert a copy of the same fixture twice in two libraries: identical ids; a provisional id resolves to the real one on reads, is refused on writes |
+| `source.store.converted-boxes-keep-their-maker` (new) | `provenance_kind`, `created_by`, version actor | a hand-drawn box inside a machine result stays the person's | the 50-box probe in 4 |
+| `source.store.undo-first-edit-keeps-conversion` (replaces `…conversion-undo-leaves-nothing`) | inverse from `after.edit` | block never restored | move, undo: geometry back, version 3, rows and marker remain, block byte-equal; `artifact.regions_edit` refused on a converted artifact |
+| `source.store.one-page-per-conversion`, `.no-batch-rewrite` | one `document_id` | document B untouched | guardrail script as in the older draft, plus: params model has no list of documents |
+| `source.store.conversion-repoints-exact-matches` | `segment_id` on the three record kinds | unmatched reported | exact gains the id; off by 0.01 reported, unchanged |
+| `source.store.old-app-still-works` (new) | projection + index translation | the app's positions | move, delete, then move "index 3": the box moved is the one the projection listed fourth |
+
+**Awkward inputs to probe when the build is reviewed** (each is a row of the master test
+unless it says otherwise):
+
+- An undrawable box: stored with the anchor's rect unset and `metadata.geometry_problem`,
+  bbox columns zero, still a row, still in order, still holding its position so later indexes
+  do not shift (the app's zero-size placeholder relies on this).
+- Gaps or repeats in stored box indexes: cannot arise from `segments_from_result` (index is
+  list position); if `rows_from_reads` is ever handed them it **refuses the pass**
+  (`BoxIndexesNotContiguous`) and the whole action rolls back.
+- A pass whose source artifact has since been removed (INFERRED: artifacts are hard-deleted;
+  no soft-delete field found on `Artifact`): the seam returns the rows with `text=None` and
+  no `artifact_type`, and does not raise. A marker can no longer dangle, the artifact is gone.
+- A result with an empty box list, and a document with none: no pass is made for it; with an
+  edit of `add`, conversion makes the one empty pass for `artifact_id` so the new box has a
+  pass to live in (today's "bootstraps an empty user geometry").
+- A dense page, 20,000 boxes. Two separate bounds, measured, not quoted from a comment: the
+  **read** by area stays under slice 3's 200 ms bound on the converted page; the **conversion
+  itself** is measured and reported, with no bound asserted until there is a number (one
+  `save_many` for segments, one for versions; never a row-at-a-time loop; audit payload under
+  10 kB, asserted).
+- A multi-page PDF result: `page_index` survives conversion for every box.
+- Polygons and baselines: present before, equal after.
+
+### What an app slice would need once this engine half exists (app stage 2 stays held)
+
+Listed only; nothing here is to be built.
+
+1. Draw overlays from `SegmentStore`, not `Artifact.ocr_geometry`; then the engine's
+   projection (`geometry_for_api`) is deleted. Same issue, two halves, in that order.
+2. Edit by segment id and `expected_version` through the slice 5 routes; stop sending box
+   positions. The zero-size placeholder rule stays until then.
+3. On `segment.converted`, re-read the page and swap provisional ids for real ones
+   (`real_id_for_provisional` has a Swift twin, or the app simply re-reads; prefer re-read).
+4. Selection held across conversion: a selected provisional id maps to its real id, so the
+   box a person just moved stays selected.
+5. Show a typed `SegmentStale` as "this box changed elsewhere", not a generic failure.
+6. Add-with-text waits on slice 8 (see the stop point).
+7. The Swift tests on this branch have still never been executed; run them before any of it.
 
 ## App slice A — the app reads the seam into one store and draws from it (#4954)
 

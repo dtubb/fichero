@@ -354,19 +354,25 @@ below).
   migration ever writes segment records.
 - **Every result with boxes becomes its own pass**, so nothing is lost and they can be compared
   (default taken; in the morning file).
-- **Undo leaves nothing behind.** The action's inverse deletes exactly the segment records it
-  created, by the ids it recorded, and restores the block of boxes. (Today's inverse for a
-  region edit restores the artifact and nothing else; used unchanged, it would leave the new
-  records beside the restored block: two stores. That is the trap this rule closes.) Once a
-  later action has touched one of those segments, undoing the conversion is refused, with how
-  many later changes depend on it.
+- **Undo undoes the edit and keeps the conversion** (changed 2026-09-20; design, default taken,
+  in the morning file). A converted page with no edit reads exactly as it did before, so
+  keeping the records costs nothing a person can see, and it needs no hard delete and no test
+  of "has anything depended on these since", which, when it said yes, would have left a
+  person's first edit impossible to undo. (Today's inverse for a region edit restores the
+  artifact and nothing else; used on a converted result it would leave records beside a
+  restored block: two stores. That trap stays closed: the old region action and its restore
+  are unreachable once a result is converted, and the block is never written again.) Ids are
+  repeatable, so a true "unconvert" can be added later as its own action if it is wanted.
 - **What pointed at the old boxes.** In the same action, a claim, note or mark whose rectangle
   matches a converted box exactly gains that segment's id; one that does not match keeps its
   anchor and is reported. Nothing is silently re-pointed.
 - **The old block is marked as replaced**, and the permitted readers of it are listed in one
   place; any other reader raises.
-- **It is detected properly**: a page counts as converted when it has segment records, not
-  when its block is missing, so a second edit never converts twice.
+- **It is detected properly**: a result counts as converted when it is marked as replaced by a
+  pass, and that pass must exist (a mark without its pass raises); never when its block is
+  missing, and never merely because some pass names it, since a pass can be made by hand. It
+  is decided for each result, not each page: a machine run after conversion adds a new block,
+  which the next edit converts. A second edit never converts the same result twice.
 
 ### Finding segments across a project
 
@@ -508,8 +514,22 @@ The read seam and events
 Storage
 - `source.store.one-page-per-conversion` — **[GAP]** (#4924) no action converts more than one document's boxes,
   and no migration writes segment records.
-- `source.store.conversion-undo-leaves-nothing` — **[GAP]** (#4924) undoing a first-edit conversion deletes the
-  records it made and restores the block; it is refused once later changes depend on them.
+- `source.store.undo-first-edit-keeps-conversion` — **[GAP]** (#4924) undoing the first edit undoes the edit
+  and keeps the page's segment records; the old block is never restored over them, and the old
+  region action is unreachable on a converted result. (Replaces
+  `source.store.conversion-undo-leaves-nothing`, 2026-09-20; default taken, in the morning file.)
+- `source.store.conversion-changes-nothing-seen` — **[GAP]** (#4924) a page read just before and just after
+  conversion is the same in every field but the ids: kinds, shapes, order, words, page numbers
+  and who made each box.
+- `source.store.conversion-ids-repeatable` — **[GAP]** (#4924) a converted box's id follows from its result and
+  its position, so converting the same page again, eagerly or on first edit, gives the same
+  ids; a provisional id resolves to the real one on reads and is still refused on writes.
+- `source.store.converted-boxes-keep-their-maker` — **[GAP]** (#4924) converted boxes are stored as their
+  maker's (machine, the person who drew them, or unknown), never as the person whose edit
+  caused the conversion; only the edited segment becomes that person's.
+- `source.store.old-app-still-works` — **[GAP]** (#4924) until the app draws from segments, a converted result
+  is served with its boxes filled from the segment records in one order, and an edit by
+  position lands on the box shown at that position.
 - `source.store.conversion-repoints-exact-matches` — **[GAP]** (#4924) in the converting action, a claim, note or
   mark whose rectangle matches a converted box gains its segment id; others keep their anchor
   and are reported.
