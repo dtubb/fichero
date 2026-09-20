@@ -336,12 +336,25 @@ wrote it); `reason: str | None`; `created_at`. No action ever updates or deletes
 undoing a merge writes a *new* `restored` row.
 
 `SegmentCarry` (table `segmentcarrys`): `id`; `match_id`; `carried_kind: str` (`reading` |
-`annotation` | `claim_evidence`); `original_id`; `copy_id`; `created_at`. It is what makes a
+`annotation`; **never a claim**: a statement is carried, in the statements step with slice 8,
+by adding a `SourceSupport` to the same claim, recorded here as `claim_support` so uncarry
+removes exactly that support; copying a `KnowledgeClaim` would say a thing twice in the
+graph); `original_id`; `copy_id`; `created_at`. It is what makes a
 carry undoable: the copies it lists are what the inverse removes.
 
 **Indexes** (added to `migrate_segment_indices`): `segmentmatchs(from_segment_id)`,
 `segmentmatchs(to_segment_id)`, `segmentforwardings(old_segment_id)`,
 `segmentcarrys(match_id)`.
+
+**A diamond is not a loop.** People will split a line and later join the parts again by hand,
+or split A into B and C and merge those into D. Reaching an id a second time during the walk
+is therefore **skipped**, not an error, and each live id is collected once. A real loop is a
+cycle of `merged` notes among ids that are not live (X into Y, Y into X, neither restored):
+that is what the merge refusal looks for, on merged notes only, and what the walk raises on.
+After a split, resolving gives **all** the live parts, and names the primary one (the part
+that kept the id; else the first in the as-written order); `/api/locations/resolve` returns
+them all (`liveSegmentIds`) and never quietly picks one. Notes about one id are ordered by an
+append sequence, not by timestamp alone.
 
 **The resolver** (one function, `resolve_segment(db, segment_id) -> ResolvedSegment`, used by
 everything that follows an id): walks `SegmentForwarding` from `old_segment_id`, newest row for

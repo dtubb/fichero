@@ -29,9 +29,11 @@ When a page is segmented again (by a model, an import, another scholar), the new
 as a **new pass** with new segments and new ids. Nothing existing is replaced or renumbered.
 A person can then say "this new line is that old line". That writes a **match**: a small
 record of its own, with who said so and how sure. Readings, marks and statements can then be
-carried across the match onto the new segment, and the trail stays visible. **Carrying copies;
-it never moves**: the original stays on the old segment, the copy names the match it came
-across, and undoing the carry removes the copies. A match can be many to many (one old line
+carried across the match onto the new segment, and the trail stays visible. **Carrying a reading or a mark
+copies it; it never moves**: the original stays on the old segment, the copy is recorded as
+carried across that match, and undoing the carry removes the copies. **A statement is never
+copied**: a claim in the knowledge graph is carried by giving **the same claim** one more
+place it rests on, so the graph never says a thing twice. A match can be many to many (one old line
 became two); a reading is carried only across a one-to-one match, and Fichero says when it
 did not carry. A machine may
 *propose* matches; only a person accepts them.
@@ -379,8 +381,9 @@ Identity and versions
   re-type, and an id is never given to another segment.
 - `source.segment.rerun-is-new-pass` — **[GAP]** (#4921) segmenting a page again adds a pass; nothing existing
   is replaced or renumbered.
-- `source.segment.carry-across-a-match` — **[GAP]** (#4922) across an accepted one-to-one match, readings, marks
-  and statements are copied (never moved) to the new segment, each copy naming the match;
+- `source.segment.carry-across-a-match` — **[GAP]** (#4922) across an accepted one-to-one match, readings and
+  marks are copied (never moved) to the new segment, each copy recorded against the match; a
+  statement is never copied: the same claim gains one more place it rests on;
   undoing the carry removes the copies; a match that is not one-to-one carries no reading and
   says so.
 - `source.segment.versioned-alone` — **[GAP]** (#4923) one segment's history can be read, compared and restored
