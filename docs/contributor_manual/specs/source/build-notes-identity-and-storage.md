@@ -827,6 +827,26 @@ Listed only; nothing here is to be built.
 6. Add-with-text waits on slice 8 (see the stop point).
 7. The Swift tests on this branch have still never been executed; run them before any of it.
 
+## Owed after the redo reviews (#4957; before the segment editor, and before slice 6's `combine`)
+
+From `reviews/redo-4957-review.md` and `-review-2.md`. Agreed with the safety set's request.
+
+1. **`expected_versions` on `segment.merge`, `segment.split`, `segment.carry`, and on
+   `unmerge`, `unsplit`, `uncarry`**, one number for every segment the action touches, compared
+   before anything is written (`SegmentStale`, as update and delete do). Each forward action's
+   `after` gains `versions` for every id it touched, so the inverse worked out from that `after`
+   carries fresh numbers on every lap, and the replay path's refresh has something to read.
+   Tests, through the undo route, on rows: redo of a merge after another person reshaped a
+   member is refused; undo of a split after another person edited a part is refused, and the
+   part is still there.
+2. **`unsplit`, `uncarry` and `match_withdraw` soft-delete**, and the redo of split, carry and
+   propose restores what they removed (as redo of create now restores rather than re-creates),
+   so part, copy and match ids come back the same. `unsplit` is today the one hard delete in
+   the store; after this there is none.
+3. **Undelete, unmerge and unsplit refuse** when the segment's pass or parent is no longer
+   live, with a typed reason; never a live segment in a deleted pass.
+4. Slice 6 inherits all three through `combine` (a merge) and `add` (a create).
+
 ## App slice A — the app reads the seam into one store and draws from it (#4954)
 
 Starts when engine slices 1 and 2 are committed. App only. **Nothing new is editable**; a page

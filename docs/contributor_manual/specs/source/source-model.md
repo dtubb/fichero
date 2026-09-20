@@ -633,6 +633,35 @@ The maintainer answered the set's open questions one by one on 2026-09-19. Parap
     editor trial means sixty frames a second with twenty thousand shapes on the oldest
     supported iPhone.
 
+### Agreed with the safety set, 2026-09-20 (undo, Trash, the record; branch `spec/undo-trash`, not merged)
+
+Answers to that set's requests. Each is this set's position; where it is the maintainer's to
+rule it says so, and the manager carries any difference to the maintainer as one list.
+
+- **One rule for redo in the shared undo route** (a step is reversed through its own inverse
+  when it has one): **agreed.** It is what `source.editor.redo-works` needs, and ids never
+  moving makes "restore" the right redo of a delete. The rule is theirs to specify; segments
+  are one user of it. Condition: each action moved onto the rule gets a do, undo, redo, undo
+  test on rows, not status codes.
+- **The version store is one shape**: **agreed on the rule, not on sharing a table.** The rule
+  (a preimage saved for each version, numbers only go up, a restore writes a new version, a
+  write names the version it expects) is the one to follow for notes, statements, entities and
+  workflow definitions. `SegmentVersion` itself is typed to a segment's fields and is not a
+  general table. Version rows are outside the record's chain, so a purge can reach them.
+- **A deleted segment is "undo only", not a Trash item**: **agreed.** It is soft-deleted, still
+  resolves through its forwarding note, and comes back by undo or from its own history in the
+  editor. A deleted **pass** is a body of work a person might go looking for; whether that
+  belongs in the Trash is **for the maintainer**.
+- **Words in the record** (this set's questions 8, 17 and 23): the joint proposal, a chained
+  part (who, what, when, ids, version numbers, a fingerprint) and a content part outside the
+  hash that a purge can blank, is **agreed as the proposal, and for the maintainer to rule.**
+  It would unblock purge in `rights-and-access.md`. One condition from this set: the
+  fingerprint must be keyed with a random value kept in the content part and blanked with it.
+  A plain fingerprint of a short reason or a single word can be found by trying every likely
+  word, so the chain would still give the words away.
+- **Merge, split and carry take the expected version**: **agreed**, and so do their inverses.
+  See "Owed after the redo reviews" in the identity and storage build notes.
+
 ### Still open
 
 **Blocked on the maintainer** (found by review on the night of 2026-09-19; each is in the
