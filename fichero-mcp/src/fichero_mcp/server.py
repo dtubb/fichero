@@ -406,6 +406,31 @@ def fichero_segments(
         )
 
 
+@mcp.tool()
+def fichero_segment(segment_id: str) -> Any:
+    """Read one segment's live row, resolved through forwarding (merge,
+    split, or deleted-then-restored) when it is no longer live, and saying
+    so (source-model slice 4/5, read-only, writes nothing)."""
+    with _client() as client:
+        return client.get_segment(segment_id)
+
+
+@mcp.tool()
+def fichero_segment_versions(segment_id: str) -> Any:
+    """Read one segment's own version history (source-model slice 5,
+    read-only, writes nothing)."""
+    with _client() as client:
+        return client.list_segment_versions(segment_id)
+
+
+@mcp.tool()
+def fichero_segment_reference(segment_id: str) -> Any:
+    """Read a segment's citable, stable reference string (source-model
+    slice 4, read-only, writes nothing)."""
+    with _client() as client:
+        return client.segment_reference(segment_id)
+
+
 # -- knowledge graph -------------------------------------------------------
 @mcp.tool()
 def fichero_kg_entities(

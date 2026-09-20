@@ -42,6 +42,14 @@ EXPECTED_TOOLS = {
     "fichero_artifact_get",
     "fichero_search",
     "fichero_activity",
+    # Source-model slice 1/4/5 read-only segments seam (#4919/#4922/#4923;
+    # this contract set had drifted behind fichero_segments's own addition,
+    # caught while adding the other three for #4955 item C's MCP/CLI
+    # parity).
+    "fichero_segments",
+    "fichero_segment",
+    "fichero_segment_versions",
+    "fichero_segment_reference",
     # Library scoping + doc/workflow drive tools that were registered but had
     # gone missing from this contract set (S37762) — added here so the exact
     # set is truthful again.

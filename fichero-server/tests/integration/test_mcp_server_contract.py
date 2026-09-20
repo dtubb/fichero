@@ -49,6 +49,14 @@ EXPECTED_TOOLS = {
     # Source-model slice 1 (2026-09-19): read-only segments seam
     # (source.one-store, source.seam.read-either-store).
     "fichero_segments",
+    # Source-model slice 4/5 (#4955 item C): the three real-Segment reads
+    # the HTTP API offers beyond the slice-1 list -- one segment's live row
+    # (resolved through forwarding), its version history, and its citable
+    # reference. Parity pinned by
+    # test_segment_detail_versions_reference_hard_gate_same_everywhere.
+    "fichero_segment",
+    "fichero_segment_versions",
+    "fichero_segment_reference",
     # #4485: KG writes through the audited /api/mcp/tools/knowledge/* path
     # (actor from auth state, change events emitted).
     "fichero_kg_entity_upsert",
@@ -267,6 +275,96 @@ async def test_segments_hard_gate_same_ids_and_rects_everywhere(mcp_server, cli_
     cli_body = json.loads(result.output)
     assert _ids_and_rects(cli_body["segments"]) == route_pairs
     assert cli_body["passes"][0]["text"] == route_pass_text
+
+
+@pytest.mark.asyncio
+async def test_segment_detail_versions_reference_hard_gate_same_everywhere(
+    mcp_server, cli_live_engine,  # noqa: F811
+):
+    """#4955 item C: every read the HTTP API offers for a real (slice
+    3/4/5) Segment -- its live row (resolved through forwarding), its
+    version history, and its citable reference -- must be reachable
+    through the MCP tools and the generated CLI command with the SAME
+    result as the route itself. Uses a REAL ``Segment`` row (not the
+    slice-1 legacy/provisional blob path above): `get_segment`/
+    `list_segment_versions`/`segment_reference` all refuse a provisional
+    id, so this needs `POST /api/segments/passes` + `POST /api/segments`,
+    then one `PUT` update to produce a version row worth reading.
+    """
+    import httpx
+    from typer.testing import CliRunner
+
+    from fichero_cli import __main__ as cli
+
+    base_url = cli_live_engine["base_url"]
+    library_path = str(cli_live_engine["library"])
+    headers = {"X-Fichero-Library-Path": library_path}
+
+    with httpx.Client(base_url=base_url, headers=headers, timeout=10.0) as http:
+        doc = http.post("/api/documents", json={"name": "hard-gate-segment.jpg"}).json()
+        pass_row = http.post(
+            "/api/segments/passes", json={"document_id": doc["id"], "name": "hard-gate-pass"}
+        ).json()
+        segment = http.post(
+            "/api/segments",
+            json={
+                "document_id": doc["id"], "pass_id": pass_row["id"], "kind": "word",
+                "anchor": {"document_id": doc["id"], "rect": [0.1, 0.1, 0.2, 0.1]},
+            },
+        ).json()
+        segment_id = segment["id"]
+        http.request(
+            "PUT", f"/api/segments/{segment_id}",
+            json={"segment_id": segment_id, "expected_version": 1, "kind_raw": "hard-gate-edit"},
+        ).raise_for_status()
+
+        # 1. The route, direct.
+        route_detail = http.get(f"/api/segments/{segment_id}").json()
+        route_versions = http.get(f"/api/segments/{segment_id}/versions").json()
+        route_reference = http.get(f"/api/segments/{segment_id}/reference").json()
+
+    assert route_detail["segment"]["kind_raw"] == "hard-gate-edit"
+    assert len(route_versions) == 1
+    assert route_reference["segment_id"] == segment_id
+
+    # 2. The MCP tools, in-process against the same live engine.
+    mcp_detail = await call(mcp_server, "fichero_segment", {"segment_id": segment_id})
+    assert mcp_detail == route_detail
+
+    mcp_versions = await call(mcp_server, "fichero_segment_versions", {"segment_id": segment_id})
+    # `call()`'s own docstring: a single-element list comes back as ONE
+    # content block, unwrapped to the bare dict rather than `[dict]`.
+    if isinstance(mcp_versions, dict):
+        mcp_versions = [mcp_versions]
+    assert mcp_versions == route_versions
+
+    mcp_reference = await call(
+        mcp_server, "fichero_segment_reference", {"segment_id": segment_id}
+    )
+    assert mcp_reference == route_reference
+
+    # 3. The generated CLI command, against the same live engine.
+    runner = CliRunner()
+    env = {
+        "FICHERO_API_URL": base_url,
+        "FICHERO_LIBRARY_PATH": library_path,
+        "FICHERO_DISABLE_AUTH": "1",
+    }
+    detail_result = runner.invoke(cli.app, ["--json", "segments", "get", segment_id], env=env)
+    assert detail_result.exit_code == 0, detail_result.output
+    assert json.loads(detail_result.output) == route_detail
+
+    versions_result = runner.invoke(
+        cli.app, ["--json", "segments", "list-versions", segment_id], env=env
+    )
+    assert versions_result.exit_code == 0, versions_result.output
+    assert json.loads(versions_result.output) == route_versions
+
+    reference_result = runner.invoke(
+        cli.app, ["--json", "segments", "reference", segment_id], env=env
+    )
+    assert reference_result.exit_code == 0, reference_result.output
+    assert json.loads(reference_result.output) == route_reference
 
 
 @pytest.mark.asyncio
