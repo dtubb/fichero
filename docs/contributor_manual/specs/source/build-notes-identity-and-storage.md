@@ -346,13 +346,20 @@ carry undoable: the copies it lists are what the inverse removes.
 `segmentmatchs(to_segment_id)`, `segmentforwardings(old_segment_id)`,
 `segmentcarrys(match_id)`.
 
+**Only live segments take part.** Merge, split and carry refuse (`SegmentNotLive`, naming the id
+and why) any segment that has been deleted or merged away, and a `keep_id` that is not live:
+otherwise merging a deleted segment writes a newer `merged` note over its `deleted` one, and a
+delete quietly becomes a merge. **Every write route refuses a `legacy:` id with a 422**, never
+a 500; one parametrized test sends one in every id field of every write route.
+
 **A diamond is not a loop.** People will split a line and later join the parts again by hand,
 or split A into B and C and merge those into D. Reaching an id a second time during the walk
 is therefore **skipped**, not an error, and each live id is collected once. A real loop is a
 cycle of `merged` notes among ids that are not live (X into Y, Y into X, neither restored):
 that is what the merge refusal looks for, on merged notes only, and what the walk raises on.
 After a split, resolving gives **all** the live parts, and names the primary one (the part
-that kept the id; else the first in the as-written order); `/api/locations/resolve` returns
+that kept the id; else the first part listed when the split was made, the walk ordering each
+level by the note's `sequence`); `/api/locations/resolve` returns
 them all (`liveSegmentIds`) and never quietly picks one. Notes about one id are ordered by an
 append sequence, not by timestamp alone.
 
