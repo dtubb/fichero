@@ -740,8 +740,23 @@ Until readings hang on segments (slice 8), a box's words have one home: the kept
 
 ### What the old app sees (the app does not change in this slice)
 
-- `PUT /api/artifacts/{artifact_id}/regions` stays and decides: marker unset →
-  `segment.convert_and_edit`; marker set → the matching slice 5 action.
+- `PUT /api/artifacts/{artifact_id}/regions` stays and **always invokes
+  `segment.convert_and_edit`** (changed 2026-09-20 to what was built, which is better than the
+  earlier draft's two routes): the action converts whatever on the page is not yet converted,
+  which after the first edit is normally nothing, then applies the edit. One path, one audit
+  row for each edit, one undo step, and it is the branch the losing side of a race needs
+  anyway. The inverse is the inner action's own, read from the record that action made for
+  itself. **Combine is the exception to watch:** it is a merge PLUS a reshape of the kept
+  segment, so its inverse must undo both (and remove the `member_box_indexes` it added);
+  the merge's inverse alone leaves the kept box as the union on top of the boxes it
+  swallowed (step 5 review, FIX FIRST).
+- **A moved box carries its outline with it.** The old app sends only a rectangle. The row's
+  polygon and baseline are mapped from the old rectangle to the new one (translate, and scale
+  when the size changed), never left where the line used to be.
+- **An added box takes an ordinary new id.** Repeatable ids are for converted boxes only:
+  eager conversion has no add, and redo of an add is an undelete of the same row. (A count
+  of "all segments ever made" is not monotonic while `unsplit` hard-deletes parts, so an id
+  minted from it can collide and refuse every later add.)
 - **Index translation.** The app sends positions in the list it was last given. One function,
   `live_rows_in_order(db, pass_id)` (live rows sorted by slice 3's `_segment_row_sort_key`),
   serves both the projection below and the translation: index *n* is the *n*-th row of that
