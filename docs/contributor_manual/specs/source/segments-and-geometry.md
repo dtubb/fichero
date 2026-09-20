@@ -135,10 +135,41 @@ across an opening belongs to the opening and is resolved onto each page it touch
   furniture, so a reading of the text can leave it out and an export can put it where the
   format wants it.
 
+### A worked case that already half exists: a diary with three days to a page
+
+The maintainer's own project holds printed diaries with three dated entries on each page.
+Today a workflow ("Diary Entries") already turns each page into **entry nodes**: each entry is
+a child of its page, made from a prototype (`diary_entry`), with its date as a structured
+attribute. Checked in the running app on 2026-09-19, read-only: the entries are there and
+dated, but an entry looked at carried **no region at all** (`region_in_parent` and `bbox`
+empty; its note says the page's dimensions were not known when it was made). So the entry is
+structured data with nothing tying it back to its part of the page.
+
+In this model that is one thing, not two:
+
+- the entry is a **region segment** on the page (its third of the page, as a polygon), with a
+  lasting id;
+- it is also a **logical unit** of kind *diary entry*, made from the prototype, so it carries
+  the prototype's structured attributes (date, weather, places), each of which can point at
+  the words it came from;
+- the lines and words inside it are its children, so its text is worked out from them;
+- it still appears in the Library as the node it is today. **A segment that matters enough is
+  a node**: a region can be promoted to a node (today's region promotion already does this),
+  and a node made by a workflow is given its region.
+
+Turning "three days on a page" into "three records with dates" is then one instance of a
+general pattern: **find the parts, give each part its structure, keep each part tied to its
+ink**. The same pattern turns a table into rows, a register into entries, a letter book into
+letters, a page of glosses into gloss-and-word pairs.
+
 ### Tables and forms
 
 A table is a segment; its cells are segments with a row, a column, how many rows and columns
 they span, and whether they are a header. A cell's text is ordinary lines and words inside it.
+So a table on a page (an account book, a census return, a register, a palaeographer's table
+of letterforms) **becomes a real table**: its rows and columns can be read out as data, sent
+to a spreadsheet, searched by column, and each row can feed the knowledge graph (one row of a
+census is one household's claims), with every cell still pointing at its ink.
 A form's "label" and "filled-in answer" are two segments joined by a typed link. Ticks,
 crosses and cancellation marks are **mark** segments with a state.
 
@@ -284,6 +315,13 @@ Structure
 - `source.segment.furniture` — page furniture is marked, and a reading can leave it out.
 - `source.segment.table-cells` — a table's cells are segments with row, column, spans and
   header kind.
+- `source.segment.node-has-its-region` — a node made from part of a page (a diary entry, a
+  letter, a register entry) is a segment of that page with a shape, never structured data
+  with no tie to its ink.
+- `source.segment.structured-from-prototype` — a segment can be made from a prototype and carry
+  its structured attributes; each attribute can point at the words it came from.
+- `source.segment.table-as-data` — a table segment can be read out as rows and columns of data
+  in which every cell still points at its segment.
 - `source.segment.marks-have-state` — a tick, cross or cancellation is a segment with a state.
 
 Passes, orders, links

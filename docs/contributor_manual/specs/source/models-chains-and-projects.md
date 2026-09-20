@@ -174,6 +174,8 @@ chaining safe: a step can only follow a step that gives what it needs.
 | tie text to lines | a reading of the page + a pass of lines | readings on those lines |
 | correct | a reading + the picture it was read from | a new reading that names the first |
 | propose a shape | a page image + a click | one shape |
+| find a table's cells | a table segment's picture (and its lines, if any) | cell segments with rows, columns, spans and headers |
+| trace a drawing | a segment's picture | a drawing (SVG) as a reading of that segment |
 | describe / classify a picture | a segment's picture | a description, or classes |
 | translate / transliterate / normalise | a reading | a reading |
 | find names; tag words | a reading | mentions on stretches of it; word-level analysis |

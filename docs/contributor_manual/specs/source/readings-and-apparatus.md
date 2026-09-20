@@ -31,7 +31,8 @@ A segment has any number of **readings**. A reading has:
   *normalised* (spelling regularised), *as read aloud* (the qere; the Japanese reading of a
   Chinese text), *transliteration*, *translation*, *description* (what a picture shows),
   *coordinate* (for a map control point), *music* (the notes or neumes of a music segment,
-  in the field's encoding). A project can add kinds;
+  in the field's encoding), *drawing* (a diagram, a map outline or a letterform traced as
+  lines that can be scaled and edited: an SVG). A project can add kinds;
 - **how normalised it is**, as a named level. Three sensible defaults ship (*as written*,
   *expanded*, *normalised*) and the list is open: a project can define its own as part of its
   guideline. Levels cannot be reliably converted into each other, so the level is recorded,
@@ -47,6 +48,15 @@ A segment has any number of **readings**. A reading has:
 
 Readings are never edited in place. A correction is a new reading (or a revision of a human
 one) that names what it corrects.
+
+### One patch of ink, many conversions
+
+The same segment can be turned into many things, and each is just another reading or another
+worked-out thing hanging on it, with its author and what it was made from: a transcription;
+an expansion; a translation; a transliteration; a description; a **table of data** (for a
+table segment); a **drawing** (for a diagram, a map or a letterform); a vector; a list of
+names found. None replaces another. New kinds of conversion are new entries in an open list,
+and a new job in a chain, not a change to the model.
 
 ### Several readings can all be right
 
