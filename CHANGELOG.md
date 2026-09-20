@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+**The app from the DMG can start its server.** The 2026.09.19 build's embedded engine exited on
+launch, so the app said it could not reach the server: the SPARQL route imports `rdflib` as the
+engine starts, and the embedded bundle did not carry it. `rdflib`, `pykeen` (with PyTorch) and
+`networkx` are now in the bundle. The release's engine rebuild also never refreshed its packages,
+so a package added to the list would not have reached a release; it does now. Two new tests work
+out exactly what the bundle carries and refuse any import the bundle would not have, at start-up
+and anywhere else in the engine; the second found an optional entity-recognition provider that
+needed a package this build does not include, and it now says so by name. The transport tests
+no longer touch a developer's real app database or token file (#4245), and the engine's test
+suite and the release gate were exercised leg by leg for the first time in a week.
+
 ## 2026-09-19
 
 **Knowledge and the source reveal.** Clicking a sentence in an entity's biography opens the claim
