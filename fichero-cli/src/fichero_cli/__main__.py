@@ -2655,22 +2655,13 @@ def kg_rebuild(
     _invoke(ctx, lambda c: c.kg_rebuild(vectors=vectors, triples=triples))
 
 
-@kg_app.command("reset")
-def kg_reset(
-    ctx: typer.Context,
-    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
-) -> None:
-    """Wipe all KG rows (entities, claims, links) so extraction can run fresh.
-
-    Documents and artifacts are not touched. Run a Catalogue/Extract
-    workflow afterwards to refill the knowledge graph.
-    """
-    if not yes:
-        typer.confirm(
-            "This will delete ALL entities, claims, and links. Continue?",
-            abort=True,
-        )
-    _invoke(ctx, lambda c: c.kg_reset())
+# #4982: `kg reset` removed, not stubbed. It called a route that could never
+# actually run (a two-argument call against a one-argument `db.delete`), and
+# fixing that call would have armed an unaudited, unfiltered, unconfirmed
+# bulk delete of every entity/claim/link — curated or not. Nothing a person
+# relies on is lost: the command has never worked. When the real, audited
+# `kg.reset` action exists (safety-net spec, `safety.net.reset-never-
+# touches-curated-work`), this command returns pointed at that.
 
 
 # -- library commands ------------------------------------------------------

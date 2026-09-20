@@ -49,13 +49,6 @@
   },
   {
     "file": "fichero-server/src/fichero_server/api/routes/kg/rebuild.py",
-    "function": "reset_kg",
-    "class": "violation",
-    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
-    "issue": 4831
-  },
-  {
-    "file": "fichero-server/src/fichero_server/api/routes/kg/rebuild.py",
     "function": "rebuild_kg",
     "class": "violation",
     "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
