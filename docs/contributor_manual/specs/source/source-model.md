@@ -403,6 +403,15 @@ nothing, it cannot harm a library.
   `legacy:<artifact_id>`. One helper (`assert_not_provisional`) raises a typed error, and every
   later write path calls it, so a provisional id can never be stored in a claim, a mark or a
   reading.
+- **One bad box never fails the page.** Today's boxes may have zero width or height, and a
+  stored polygon may run off its image or have too few points; the anchor refuses all of
+  these. Such a box is **still returned as a segment**, with the rect (or the polygon) left
+  unset and the reason in `metadata["geometry_problem"]`. Nothing is clamped or invented.
+- **Read shapes that last.** `SegmentRead` also has `metadata: dict` (raw pixel values from a
+  tool go here, never into the anchor). `PassRead` also has `source_artifact_id` and
+  `artifact_type` (the app ranks passes by them), and its `created_at` is a date and time or
+  nothing, never an empty string. Passes come back ordered by `(created_at, id)`, segments in
+  box order within a pass.
 - **Kraken's polygon and baseline** ride in a box's `metadata` today, in pixels. The seam
   returns them normalised to the named image. A box with no polygon returns none (never a
   polygon invented from its rectangle).
