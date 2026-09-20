@@ -2,7 +2,7 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
-## 2026.09.19
+## 2026.09.20
 
 - Knowledge: click a sentence to see its source; Entities and Claims panes work as master and detail; a folder shows the people in its subfolders.
 - Panes: each Library pane shows the kind its own chip says.

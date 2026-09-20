@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2026-09-20
+
 **The app from the DMG can start its server.** The 2026.09.19 build's embedded engine exited on
 launch, so the app said it could not reach the server: the SPARQL route imports `rdflib` as the
 engine starts, and the embedded bundle did not carry it. `rdflib`, `pykeen` (with PyTorch) and

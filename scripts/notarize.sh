@@ -150,10 +150,13 @@ except Exception: print("")')"
   fi
   echo "  Submission id: $SUBMISSION_ID"
 
-  # 90 polls x 20s = 30 minutes. Generous on purpose: an abandoned submission
-  # costs a whole release cycle, and the poll is cheap.
+  # 180 polls x 20s = 60 minutes (FICHERO_NOTARY_MAX_POLLS overrides). It was
+  # 30 minutes until 2026-09-20: with pykeen and torch in the embedded engine the
+  # DMG is about 925 MB, Apple took longer than that, the poll gave up on a
+  # submission Apple then ACCEPTED, and the release stopped before its second
+  # DMG. An abandoned submission costs a whole release cycle; the poll is cheap.
   NOTARY_STATUS="In Progress"
-  for _ in $(seq 1 90); do
+  for _ in $(seq 1 "${FICHERO_NOTARY_MAX_POLLS:-180}"); do
     sleep 20
     INFO_JSON="$(xcrun notarytool info "$SUBMISSION_ID" "${NOTARY_AUTH_ARGS[@]}" --output-format json 2>/dev/null || true)"
     NOTARY_STATUS="$(printf '%s' "$INFO_JSON" | /usr/bin/python3 -c 'import json,sys
