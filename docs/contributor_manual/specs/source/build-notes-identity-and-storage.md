@@ -653,12 +653,19 @@ image overlay, `RegionInteractionLayer` and `PDFPageWithToolbar` take their geom
    `SegmentDisplay.geometry(for:store:preferring:)` takes that artifact's id and shows its pass
    first when it has drawable segments. Without this the Inspector's selection silently stops
    choosing what is drawn.
-4. **Carries the engine's index.** The draw model's box gains `engineIndex: Int?`, filled from
-   `segment.boxIndex`. `OCRGeometry.displayIndexedBoxes` yields that index where present (the
-   array offset only on the old artifact path, which this commit leaves with no callers), and
-   `RegionSelection` stores it. A segment that cannot be drawn is left out of what is **drawn**
-   and changes no other box's address. Two segments of one pass with the same `boxIndex` is a
-   reported error, not a silent sort.
+4. **Keeps a box's position equal to the engine's index; does not add a second index.** About
+   a dozen readers address a box by its **position in `OCRGeometry.boxes`** and hand that
+   number to the engine (`RegionInteractionLayer`, `ZoomableImagePreviewMac+Regions`,
+   `+Annotations`, `+RegionEntry`, `RegionSelection`; found by search, 2026-09-20). Stage 1's
+   `engineIndex` reaches only one of them (`displayIndexedBoxes`), so one dropped box would put
+   two kinds of index into one selection. So the mapping keeps the invariant they all rely on:
+   **an undrawable segment stays in the list, at its place, as a box marked not drawable**
+   (zero-size rect; never drawn; never hit), which is what today's zero-width boxes already
+   are. While mapping, `boxIndex` values must be exactly `0 ..< count`, no gap and no repeat,
+   or the pass is refused and reported. `engineIndex` leaves the box type (it is part of the
+   synthesised equality today, which makes the same boxes unequal across the two paths).
+   Addressing by id, not index, arrives with the editor, when converted pages stop having a
+   box index.
 5. **Gives the draw model the hand-drawn fact directly.** `OCRGeometryBox.isHandDrawn` becomes a
    stored value set from `segment.isHandCurated`; the rebuild of `provider: "user"` and
    `source: "manual"` goes. (On decode from an artifact, it is still worked out from those two
@@ -684,9 +691,9 @@ can win the ranking, and draws nothing, covering a lower pass with good boxes. T
 has the same fault with zero-width boxes (noted on → #4955).
 
 **Tests.**
-- Pure: the index test (a pass with an unset-rect segment in the middle; select the box after
-  it; the index handed to the edit call is that box's `boxIndex`); duplicate `boxIndex` is
-  reported; a machine pass carrying one human segment ranks ahead of a newer machine pass (the
+- Pure: the index test (a pass with an unset-rect segment in the middle: the mapped list has
+  the same count as the pass, the box after it sits at its own `boxIndex`, the placeholder is
+  not drawable and cannot be hit); a gap or a repeat in `boxIndex` refuses the pass; a machine pass carrying one human segment ranks ahead of a newer machine pass (the
   2026-09-03 case); the preferred artifact's pass wins over the ranking, and does not when it
   has nothing drawable; the mapped `OCRGeometry` equals the old artifact path's for the same
   boxes, **including `text`, `pageIndex` and `isHandDrawn`**; `apply(_:)` with `segmentIds`
