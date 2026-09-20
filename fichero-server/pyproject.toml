@@ -162,7 +162,11 @@ requires = [
     # import so a stripped build degrades rather than crashes.) pykeen -> torch
     # stays OUT: an order of magnitude more, and nothing shipped needs it.
     # "pykeen",
-    # "rdflib",
+    # rdflib is IN the bundle (2026-09-20): api/routes/kg/sparql.py imports it at
+    # module top and the engine imports that route at start, so a bundle without
+    # it exits 250 on launch ("can't reach server"). 4.8 MB, pure Python, one
+    # dependency (pyparsing). It was commented out only by sitting beside pykeen.
+    "rdflib",
     "opencv-python-headless",
     # Document Processing
     "PyMuPDF",
@@ -306,7 +310,11 @@ dependencies = [
     # gate (~54 MB), OpenCV for the image-enhance demo feature (Daniel,
     # 2026-09-06 — must work on-device, not no-op; ~hundreds of MB accepted).
     # "pykeen",
-    # "rdflib",
+    # rdflib is IN the bundle (2026-09-20): api/routes/kg/sparql.py imports it at
+    # module top and the engine imports that route at start, so a bundle without
+    # it exits 250 on launch ("can't reach server"). 4.8 MB, pure Python, one
+    # dependency (pyparsing). It was commented out only by sitting beside pykeen.
+    "rdflib",
     "opencv-python-headless",
     # Historical-text stack (#3319/#3322): all four are small pure-Python.
     "ftfy",         # mojibake repair before parsing OCR'd text
