@@ -284,3 +284,169 @@ id.
   merge the same reference resolves to the kept segment with the trail; after a delete it says
   deleted; the same answers come back over MCP and the generated command.
 - Audit payloads of every action above contain no free text longer than `note` and `reason`.
+
+## Slice 5 — versions for each segment, and refusing a stale edit (#4923)
+
+**Pins:** `source.segment.versioned-alone`, `source.segment.delete-is-undoable`,
+`source.edit.stale-is-refused`.
+
+**Model.** `SegmentVersion` (table `segmentversions`), append-only: `id`; `segment_id`;
+`version: int`; `document_id`; `pass_id`; `parent_segment_id`; `kind`; `kind_raw`; `anchor`
+(JSON); `baseline` (JSON); `is_furniture`; `deleted: bool`; `actor`; `provenance_kind`;
+`audit_id`; `reason: str | None`; `created_at`. It is a full copy of the segment's own fields at
+that version, so undo restores **from ordinary data**, not from the audit chain. Index:
+`segmentversions(segment_id)`.
+
+Every action that changes a segment (this slice's and slice 4's merge and split, which are
+updated to do so) writes the new `SegmentVersion` in the same transaction and bumps
+`Segment.version`.
+
+**Actions.**
+
+| Action | Params | Records for its inverse | Inverse |
+|---|---|---|---|
+| `segment.update` | `segment_id`, `expected_version: int`, and any of `anchor`, `baseline`, `kind`, `kind_raw`, `parent_segment_id`, `is_furniture` | `before: {segment_id, version}`, `after: {segment_id, version}` | `segment.restore_version` to `before.version` |
+| `segment.delete` | `segment_ids: list[str]`, `expected_versions: dict[str,int]`, `reason?` | `before: {segment_id: version}` | `segment.undelete` |
+| `segment.undelete` | `segment_ids` | `before: {segment_id: version}` | `segment.delete` |
+| `segment.restore_version` | `segment_id`, `version`, `expected_version` | `before: {version}` | `segment.restore_version` back |
+
+Delete sets `deleted_at` and `deleted_by`, writes a `deleted` version and a `deleted`
+forwarding row; the row stays. Undelete clears `deleted_at`, writes a version and a `restored`
+forwarding row. Restoring a version writes a **new** version whose fields equal the old one:
+history only grows.
+
+**Compare-and-set.** Inside the action's transaction: read the segment; if `version !=
+expected_version`, raise `SegmentStale` (HTTP 409) carrying `segment_id`, `expected_version`,
+`current_version` and `changed: list[str]` (the field names that differ between the two
+versions, from `SegmentVersion`). Nothing is written. `Database.save()` is last-write-wins by
+itself, so this check is the whole protection; it must sit inside the transaction, not before
+it.
+
+**Reads.** `GET /api/segments/{segment_id}/versions` (`response_model` a list of
+`SegmentVersion`); `GET /api/segments/{segment_id}` returns the live row, resolving through
+`resolve_segment` when the id has been forwarded (and saying so).
+
+**ChangeSpec.** `domains=["segment"]`; `segment_ids`; `pass_ids`; `document_ids`; event types
+`segment.updated`, `segment.deleted`, `segment.restored`.
+
+**Refusals** (typed, each tested): `SegmentStale`; updating a deleted segment
+(`SegmentDeleted`); restoring a version of another segment; changing `document_id` or
+`pass_id` (not accepted by the params model); a `legacy:` id.
+
+**Not supported, and said so:** editing while out of reach of the engine. A queue of stale
+edits is refused one by one; there is no merge. (Foundation, morning question 15.)
+
+**Tests, by behaviour.**
+- `source.segment.versioned-alone`: three updates to one segment leave three versions of it and
+  change no other segment's row or version; `restore_version` to the first makes a fourth
+  equal to the first.
+- `source.segment.delete-is-undoable`: delete, then undo through the generic undo route
+  (`api/routes/system/actions_registry.py`): the segment is live, its id unchanged, and an
+  annotation anchored to it still resolves; the forwarding trail shows `deleted` then
+  `restored`.
+- `source.edit.stale-is-refused`: two updates made against version 1; the second is refused
+  with `changed` naming the field the first one changed; the row equals the first update.
+- Undo restores from `SegmentVersion`: a test that blanks the audit row's `before` and still
+  restores proves the payload is not the source of truth.
+
+## Slice 6 — first-edit conversion (#4924). Do not start before slices 1 to 5 are committed.
+
+**Pins:** `source.store.ids-on-first-edit`, `source.store.no-batch-rewrite`,
+`source.store.one-page-per-conversion`, `source.store.conversion-undo-leaves-nothing`,
+`source.store.conversion-repoints-exact-matches`. The design rules are in
+`segments-and-geometry.md` ("First-edit conversion: the rules").
+
+**What exists.** Region edits today are one action, `artifact.regions_edit`
+(`api/routes/document/artifacts.py`; params `ArtifactRegionsEditActionParams { artifact_id,
+edit }`), whose inverse is `_invert_artifact_to_restore` → `artifact.restore` with the whole
+previous artifact. **Used unchanged after conversion, that inverse would restore the block of
+boxes and leave the new segment rows: two stores.** Note too that its `before` and `after`
+are whole artifact dumps, text included: the existing action already puts a researcher's words
+in the audit chain (this bears on morning question 8; this slice does not make it worse and
+does not fix it).
+
+**Is a page converted?** `is_converted(db, document_id) -> bool`: true when a live
+`SegmentPass` exists for the document with `source_artifact_id` set. Never inferred from the
+block being absent. A second edit finds it true and does not convert again.
+
+**Marking the block as replaced.** `Artifact` gains one additive field,
+`geometry_superseded_by_pass_id: str | None` (a column added on open by `_ensure_table`; no
+data migration). The block itself is **kept unchanged** (it is what undo restores, and what
+old readers still resolve claims against). One helper, `read_ocr_geometry(artifact, *,
+allow_superseded=False)`, is the only sanctioned way to read `artifact.ocr_geometry`; it raises
+`GeometrySuperseded` for a superseded block unless the caller is on the short permitted list
+(the seam of slice 1; the conversion and its inverse; span resolution for a claim whose anchor
+has not been re-pointed). A guardrail script lists the permitted callers; every other reader
+found by `grep ocr_geometry` is moved to the seam in this slice or listed with a reason.
+
+**The action.** `segment.convert_and_edit`:
+
+- Params: `document_id`, `artifact_id` (the result being edited), `edit` (today's
+  `ArtifactRegionsEditRequest`, unchanged, so the app's existing verbs keep working).
+- Steps, in one transaction: (1) refuse if `is_converted`; (2) for **every** artifact of the
+  document that has boxes, make one `SegmentPass` (`source_artifact_id` set, `provenance_kind`
+  copied from the artifact's run) and one `Segment` for each box with `save_many`
+  (`anchor.rect` from the box, `anchor.polygon` and `baseline` from `metadata` where present
+  and normalised, `anchor.rendition_id` from the result, `anchor.char_start/char_end`, `kind`
+  from the box's level, `metadata` carrying `box_index` so the order of the old list is never
+  lost); (3) set `geometry_superseded_by_pass_id` on each; (4) re-point exact matches (below);
+  (5) apply `edit` to the new rows of `artifact_id`'s pass through the slice 5 actions'
+  internals (one audit row in all, not one for each); (6) write versions.
+- The **working pass** is the pass made from `artifact_id` (the one being looked at): recorded
+  as a human choice in the form slice 8 will read (`SegmentPassChoice { document_id, pass_id,
+  chosen_by, chosen_at }`, table `segmentpasschoices`; the only thing stored about "working").
+- `before`: `{document_id, artifact_ids, superseded_was: {artifact_id: null}}`.
+  `after`: `{pass_ids, segment_ids, repointed: [{kind, id, segment_id}], choice_id}`. Ids and
+  geometry only.
+- **Inverse** `segment.unconvert`, params from `after`: hard-deletes exactly those
+  `segment_ids`, `pass_ids`, their versions and the choice row (these rows have existed only
+  inside this one action's effect); clears each `segment_id` it set on a re-pointed record;
+  clears `geometry_superseded_by_pass_id`. The block of boxes was never changed, so nothing is
+  "restored": it is simply the truth again. **Refused** (`ConversionHasDependents`, with the
+  count) when any later audit row names one of those `segment_ids` or `pass_ids`.
+- One document for each invocation: `document_id` is a single string, never a list.
+  `source.store.no-batch-rewrite` gets a guardrail as well as a test: a script fails if any
+  function in `db/migrations/` references `Segment` or `save_many` on segments, and if any
+  action's params model takes a list of document ids for conversion.
+
+**After conversion**, the app's existing region verbs (move, delete, combine, add) go to
+`segment.update`, `segment.delete`, `segment.merge`, `segment.create`. The route
+`PUT /api/artifacts/{artifact_id}/regions` stays, and decides: not converted →
+`segment.convert_and_edit`; converted → translate the edit into segment actions. The app does
+not change in this slice (it still sends box indexes; the route maps an index to the segment
+whose `metadata.box_index` it is). Moving the app to segment ids is the editor's work.
+
+**Re-pointing exact matches.** In step (4): for each annotation, claim evidence anchor and
+content representation of the document whose `SourceAnchor.rect` equals a converted box's rect
+**to within 1e-6 on all four numbers, on the same `rendition_id`**, set its `segment_id` (a new
+optional field on those records, added on open) and list it in `after.repointed`. A record
+with no exact match is left as it is and listed in the action's result as `not_repointed`
+with its id and the reason. Nothing is re-pointed by overlap or by nearness.
+
+**ChangeSpec.** `domains=["segment","artifact","document"]`; `segment_ids`, `pass_ids`,
+`artifact_ids`, `document_ids`; event type `segment.converted`.
+
+**Refusals** (typed, each tested): a second conversion (`AlreadyConverted`); a document with no
+boxes (`NothingToConvert`); undo with dependents (`ConversionHasDependents`); a superseded
+block read outside the permitted list (`GeometrySuperseded`); any `legacy:` id in `edit`.
+
+**Tests, by behaviour** (all in a temporary library built the way `tests/conftest.py` builds
+one; never a real library).
+- `source.store.ids-on-first-edit`: open a document with boxes and read it through the seam
+  ten times: no `segments` rows, no artifact `updated_at` change. One region move: rows exist
+  for **every** artifact's boxes, one pass each; the moved box's segment has the new rect; ids
+  from the seam are no longer provisional. A second move converts nothing more (pass and
+  segment counts unchanged but for versions).
+- `source.store.conversion-undo-leaves-nothing`: convert-and-edit, then undo through the
+  generic undo route: **zero** segment, pass, version and choice rows for the document; the
+  artifact row equals its pre-conversion dump byte for byte; the seam returns provisional ids
+  again. Convert, make one more edit, try to undo the conversion: refused, count is 1.
+- `source.store.conversion-repoints-exact-matches`: an annotation whose rect equals a box gains
+  that segment's id and loses it on undo; one that is off by 0.01 is reported, unchanged.
+- `source.store.one-page-per-conversion` / `.no-batch-rewrite`: converting document A leaves
+  document B's artifacts and row counts untouched; the guardrail script passes, and fails on a
+  fixture migration that writes segments.
+- Old library: a database made before slices 3 to 6 opens twice with no error and no new
+  rows; its first region edit converts.
+- A claim whose evidence anchor was not re-pointed still reveals its source after conversion
+  (the span resolver is on the permitted-readers list).
