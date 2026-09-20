@@ -12550,6 +12550,31 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('segments')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for segments endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='segments')
+        existing_apps['segments'] = target_app
+
+    @target_app.command("list-document")
+    def segments_list_document_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        artifact_id: Optional[str] = typer.Option(None, "--artifact-id", help="Query parameter: artifact_id."),
+        kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
+        pass_id: Optional[str] = typer.Option(None, "--pass-id", help="Query parameter: pass_id."),
+    ) -> None:
+        """List Document Segments (GET /api/segments/document/{doc_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/document/{doc_id}"
+            params = {
+                "artifact_id": artifact_id,
+                "kind": kind,
+                "pass_id": pass_id,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('settings')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for settings endpoints.', no_args_is_help=True)

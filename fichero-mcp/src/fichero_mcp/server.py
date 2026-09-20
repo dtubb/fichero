@@ -392,6 +392,20 @@ def fichero_artifacts(
         )
 
 
+@mcp.tool()
+def fichero_segments(
+    doc_id: str,
+    artifact_id: Optional[str] = None,
+    pass_id: Optional[str] = None,
+    kind: Optional[str] = None,
+) -> Any:
+    """Read a source's segments (source-model slice 1, read-only, writes nothing)."""
+    with _client() as client:
+        return client.list_segments(
+            doc_id, artifact_id=artifact_id, pass_id=pass_id, kind=kind
+        )
+
+
 # -- knowledge graph -------------------------------------------------------
 @mcp.tool()
 def fichero_kg_entities(

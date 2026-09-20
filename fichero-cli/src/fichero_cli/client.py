@@ -75,6 +75,7 @@ from fichero_server.models import (
     LibraryCreateResponse,
     LibraryRegistryResponse,
     LibrarySnapshot,
+    SegmentListResponse,
 )
 
 # https, not http (#4468): the engine MANDATES TLS on TCP (engine_manager
@@ -1104,6 +1105,33 @@ class FicheroClient:
             Artifact.model_validate(a)
             for a in _expect_list(raw, path)
         ]
+
+    def list_segments(
+        self,
+        doc_id: str,
+        *,
+        artifact_id: str | None = None,
+        pass_id: str | None = None,
+        kind: str | None = None,
+    ) -> SegmentListResponse:
+        """Fetch a source's segments (source-model slice 1, read-only).
+
+        Backed by ``GET /api/segments/document/{doc_id}``. Used by the
+        ``fichero_segments`` MCP tool and by hand -- the generated CLI
+        command hits the same route independently, and the hard-gate test
+        pins that both come back identical.
+        """
+        return SegmentListResponse.model_validate(
+            self.request(
+                "GET",
+                f"/api/segments/document/{doc_id}",
+                params={
+                    "artifact_id": artifact_id,
+                    "pass_id": pass_id,
+                    "kind": kind,
+                },
+            )
+        )
 
     # -- knowledge graph ---------------------------------------------------
     def list_entities(

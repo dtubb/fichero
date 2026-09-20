@@ -1779,6 +1779,7 @@ from fichero_server.api.routes.document import (  # noqa: E402
     inspector as document_inspector,
     renditions,
     notes,
+    segments as document_segments,
     sources,
     view as document_view,
 )
@@ -1859,6 +1860,9 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (changes.router, "/api", ["changes"]),
     (annotations.router, "/api", ["annotations"]),
     (content_representations.router, "/api", ["content-representations"]),
+    # Source-model slice 1 (2026-09-19): GET /api/segments/document/{doc_id},
+    # read-only, writes nothing (source.one-store, source.seam.read-either-store).
+    (document_segments.router, "/api", ["segments"]),
     # Renditions — alternative pixels of one node; ordered engine-side so the
     # preview and any card surface agree what "next" means (2026-08-20).
     (renditions.router, "/api", ["renditions"]),

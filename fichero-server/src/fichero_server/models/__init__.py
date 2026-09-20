@@ -71,6 +71,20 @@ from fichero_server.models.anchors import (
     validate_rect,
 )
 
+# Source-model slice 1 (2026-09-19) — read-only segment shapes over today's
+# ocr_geometry blob. `segments.py` sits below this file (imports anchors.py
+# and knowledge.py, both already imported above) so re-exporting it here
+# introduces no new circular-import ordering.
+from fichero_server.models.segments import (
+    LEGACY_ID_PREFIX,
+    PassRead,
+    ProvisionalSegmentIdError,
+    SegmentListResponse,
+    SegmentRead,
+    assert_not_provisional,
+    segments_from_result,
+)
+
 # Forward refs — routes import from this file, so we can't import back. The
 # route modules call model_rebuild() on their owning envelope at module end.
 if TYPE_CHECKING:
@@ -2537,6 +2551,14 @@ __all__ = [
     "NodeRegion",
     "RegionConfidence",
     "SourceAnchor",
+    # Source-model slice 1 — read-only segment shapes (models/segments.py).
+    "LEGACY_ID_PREFIX",
+    "PassRead",
+    "ProvisionalSegmentIdError",
+    "SegmentListResponse",
+    "SegmentRead",
+    "assert_not_provisional",
+    "segments_from_result",
     "Rendition",
     "RenditionListResponse",
     "ANCHOR_GRANULARITIES",

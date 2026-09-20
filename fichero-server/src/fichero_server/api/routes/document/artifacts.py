@@ -1150,6 +1150,16 @@ def _edit_regions_impl(
     db: Database, artifact_id: str, edit: ArtifactRegionsEditRequest, actor: str
 ) -> tuple[Artifact, dict[str, Any]]:
     from fichero_server.core.timeutil import utc_now
+    from fichero_server.models.segments import ProvisionalSegmentIdError, assert_not_provisional
+
+    # `source.seam.provisional-ids-refused`: a caller could reach here by
+    # forwarding a `PassRead.id` (`legacy:<artifact_id>`) instead of the real
+    # artifact id it is prefixed from — refuse with a typed reason rather
+    # than a generic 404 that would look like the artifact was just deleted.
+    try:
+        assert_not_provisional(artifact_id, what="artifact_id")
+    except ProvisionalSegmentIdError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     artifact = db.get(Artifact, artifact_id)
     if not artifact:

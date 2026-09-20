@@ -387,4 +387,5 @@ markers = [
     # feature slices identically across both suites (`pytest -m transport`).
     "transport: engine transport contract (spec: transport-http-uds) — UDS / HTTPS / in-memory",
     "build_config: Xcode build/test/run config invariants (spec: xcode-build-configs)",
+    "source_model: source model behaviours (spec: docs/contributor_manual/specs/source/source-model.md, milestone 322)",
 ]

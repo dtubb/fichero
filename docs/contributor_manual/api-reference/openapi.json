@@ -2725,6 +2725,85 @@
         }
       }
     },
+    "/api/segments/document/{doc_id}": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "List Document Segments",
+        "description": "The segments of one source page, across whichever of its artifacts\ncarry geometry. Opening a page this way writes nothing \u2014 the \"opening a\npage writes nothing\" half of `source.store.ids-on-first-edit` \u2014 and a\ndocument with no geometry yet returns an empty list, not an error.\n\n**Order.** Passes come back sorted by `(created_at, id)`; segments stay\nin box order within their pass \u2014 the order the app's index mapping and\nthe route/MCP/CLI parity test both rely on, not \"whatever the store\nhappened to return\".\n\n**A bad box never fails the page** (`source.seam.read-either-store`):\na box the anchor cannot hold still comes back as a segment, with its\nrect/polygon unset and the reason in `metadata[\"geometry_problem\"]`\n(`models/segments.py::_build_anchor`).",
+        "operationId": "list_document_segments_api_segments_document__doc_id__get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "artifact_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Restrict to one artifact's boxes",
+              "title": "Artifact Id"
+            },
+            "description": "Restrict to one artifact's boxes"
+          },
+          {
+            "name": "pass_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Restrict to one pass (today: legacy:<artifact_id>)",
+              "title": "Pass Id"
+            },
+            "description": "Restrict to one pass (today: legacy:<artifact_id>)"
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Restrict to one segment kind (region, line, word, ...)",
+              "title": "Kind"
+            },
+            "description": "Restrict to one segment kind (region, line, word, ...)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{document_id}/renditions": {
       "get": {
         "tags": [
@@ -57194,6 +57273,70 @@
         ],
         "title": "ParquetExportResponse"
       },
+      "PassRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "provisional": {
+            "type": "boolean",
+            "title": "Provisional"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Run Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Created At"
+          },
+          "source_artifact_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Artifact Id"
+          },
+          "artifact_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "Artifact Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "provisional",
+          "document_id",
+          "name",
+          "provenance_kind"
+        ],
+        "title": "PassRead",
+        "description": "One pass, read either from today's blob (one per artifact) or\n(later) a real ``Pass`` row."
+      },
       "PathResponse": {
         "properties": {
           "source_id": {
@@ -63136,6 +63279,35 @@
         "title": "SecurityScopedAccessResponse",
         "description": "Whether the engine can now read the library."
       },
+      "SegmentListResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "passes": {
+            "items": {
+              "$ref": "#/components/schemas/PassRead"
+            },
+            "type": "array",
+            "title": "Passes"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentRead"
+            },
+            "type": "array",
+            "title": "Segments"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "passes",
+          "segments"
+        ],
+        "title": "SegmentListResponse"
+      },
       "SegmentOperationRequest": {
         "properties": {
           "method": {
@@ -63173,6 +63345,90 @@
         },
         "type": "object",
         "title": "SegmentOperationRequest"
+      },
+      "SegmentRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "provisional": {
+            "type": "boolean",
+            "title": "Provisional"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "pass_id": {
+            "type": "string",
+            "title": "Pass Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "kind_raw": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kind Raw"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind"
+          },
+          "anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Output"
+          },
+          "baseline": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Baseline"
+          },
+          "text": {
+            "type": "string",
+            "nullable": true,
+            "title": "Text"
+          },
+          "confidence": {
+            "type": "number",
+            "nullable": true,
+            "title": "Confidence"
+          },
+          "source_artifact_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Artifact Id"
+          },
+          "box_index": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Box Index"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "provisional",
+          "document_id",
+          "pass_id",
+          "kind",
+          "provenance_kind",
+          "anchor"
+        ],
+        "title": "SegmentRead",
+        "description": "One segment, read either from today's blob or (later) a real row.\n\nThe caller cannot tell which store it came from -- `source.one-store`."
       },
       "SelectionKind": {
         "type": "string",

@@ -372,6 +372,35 @@ history travels with the artifact. The response is `ArtifactResponse` with
 geometry included, so the caller re-renders its overlay from the reply rather
 than re-fetching.
 
+### Segments (read-only, source-model slice 1)
+
+`GET /api/segments/document/{doc_id}` returns a source page's segments —
+region, line and word boxes — read from whichever of its artifacts carry
+`ocr_geometry`. It writes nothing: reading a page's segments this way never
+creates rows, and calling it twice leaves the artifact and its `version`
+untouched. The response is `SegmentListResponse` (`document_id`, `passes`,
+`segments`); a document with no geometry yet returns an empty list, not an
+error, and an unknown `doc_id` returns `404`. Optional query parameters
+`artifact_id` (restrict to one artifact's boxes), `pass_id` (restrict to one
+pass), and `kind` (restrict to one segment kind — region, line, word) narrow
+the result.
+
+Every id is **provisional**: a segment read from today's blob gets
+`legacy:<artifact_id>:<box_index>` and its pass `legacy:<artifact_id>`, both
+marked `provisional: true`. A provisional id is refused on write — the
+regions-edit route (`PUT /api/artifacts/{artifact_id}/regions` above) returns
+`422` if handed one, rather than resolving it as a real artifact id.
+
+Each segment's `anchor` is a `SourceAnchor` (rect always; a polygon only when
+the source box's metadata carries one — a Kraken line's polygon and baseline
+are normalized from pixels to the anchor's fractional top-left convention,
+with the raw pixel values kept in the anchor's own extra fields, never
+thrown away).
+
+Access follows the same rule as every other library-scoped read route today
+(a valid token bound to the library; no finer-grained per-document check yet
+— see #4917 for the known gap in that check for artifact-scoped reads).
+
 ### Workflow folder presentation
 
 `GET /api/workflows/folders` returns the presentation metadata for workflow

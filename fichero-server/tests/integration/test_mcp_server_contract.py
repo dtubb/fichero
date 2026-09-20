@@ -46,6 +46,9 @@ EXPECTED_TOOLS = {
     "fichero_kg_neighborhood",
     "fichero_document_kg",
     "fichero_artifact_get",
+    # Source-model slice 1 (2026-09-19): read-only segments seam
+    # (source.one-store, source.seam.read-either-store).
+    "fichero_segments",
     # #4485: KG writes through the audited /api/mcp/tools/knowledge/* path
     # (actor from auth state, change events emitted).
     "fichero_kg_entity_upsert",
@@ -185,12 +188,77 @@ async def test_read_tools_answer_against_seeded_library(mcp_server, cli_live_eng
     hits = await call(mcp_server, "fichero_search", {"query": "Eugenio"})
     assert "Letter 1933" in json.dumps(hits) or "test-doc-letter" in json.dumps(hits)
 
+    # source-model slice 1: no artifact in this seed carries ocr_geometry, so
+    # an empty segment list is the honest answer, not an error.
+    segments = await call(mcp_server, "fichero_segments", {"doc_id": doc_id})
+    assert segments.get("document_id") == doc_id
+    assert segments.get("segments") == []
+
     # empty on a fresh library is a legitimate answer for these two
     activity = await call(mcp_server, "fichero_activity", {}, allow_empty=True)
     assert isinstance(activity, (list, dict))
 
     notes = await call(mcp_server, "fichero_list_notes", {}, allow_empty=True)
     assert isinstance(notes, (list, dict))
+
+
+@pytest.mark.asyncio
+async def test_segments_hard_gate_same_ids_and_rects_everywhere(mcp_server, cli_live_engine):  # noqa: F811
+    """`source.one-store`/`source.seam.read-either-store` hard gate: the
+    route, the MCP tool and the generated CLI command must resolve through
+    the same mapping function and agree byte-for-byte on ids and rects.
+    """
+    import httpx
+    from typer.testing import CliRunner
+
+    from fichero_cli import __main__ as cli
+
+    base_url = cli_live_engine["base_url"]
+    library_path = str(cli_live_engine["library"])
+    headers = {"X-Fichero-Library-Path": library_path}
+
+    with httpx.Client(base_url=base_url, headers=headers, timeout=10.0) as http:
+        doc = http.post("/api/documents", json={"name": "hard-gate.jpg"}).json()
+        artifact = http.post(
+            "/api/artifacts/",
+            json={"document_id": doc["id"], "artifact_type": "regions"},
+        ).json()
+        http.put(
+            f"/api/artifacts/{artifact['id']}/regions",
+            json={
+                "op": "add",
+                "bbox": [0.1, 0.2, 0.3, 0.1],
+                "text": "hard gate segment",
+                "level": "region",
+            },
+        ).raise_for_status()
+
+        # 1. The route, direct.
+        route_body = http.get(f"/api/segments/document/{doc['id']}").json()
+
+    def _ids_and_rects(segments: list[dict]) -> list[tuple[str, list[float]]]:
+        return [(s["id"], s["anchor"]["rect"]) for s in segments]
+
+    route_pairs = _ids_and_rects(route_body["segments"])
+    assert route_pairs == [("legacy:" + artifact["id"] + ":0", [0.1, 0.2, 0.3, 0.1])]
+
+    # 2. The MCP tool, in-process against the same live engine.
+    mcp_result = await call(mcp_server, "fichero_segments", {"doc_id": doc["id"]})
+    assert _ids_and_rects(mcp_result["segments"]) == route_pairs
+
+    # 3. The generated CLI command, against the same live engine.
+    runner = CliRunner()
+    env = {
+        "FICHERO_API_URL": base_url,
+        "FICHERO_LIBRARY_PATH": library_path,
+        "FICHERO_DISABLE_AUTH": "1",
+    }
+    result = runner.invoke(
+        cli.app, ["--json", "segments", "list-document", doc["id"]], env=env
+    )
+    assert result.exit_code == 0, result.output
+    cli_body = json.loads(result.output)
+    assert _ids_and_rects(cli_body["segments"]) == route_pairs
 
 
 @pytest.mark.asyncio
