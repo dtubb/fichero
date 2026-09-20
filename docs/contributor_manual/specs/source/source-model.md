@@ -47,12 +47,12 @@ are the test.
 
 | File | What it holds |
 |---|---|
-| `source-model.md` | this file: intent, rulings, the words, what exists today, open questions |
+| `source-model.md` | this file: intent, rulings, the words, what exists today, the rulings of 2026-09-19 and what is still open |
 | `source-survey.md` | the evidence: standards, worked examples from philology, the field's tools, other document models, sources |
 | `segments-and-geometry.md` | identity, shape, images, the ladder, passes, reading orders, links, maps, versions, storage |
 | `readings-and-apparatus.md` | readings, written and read, hands, campaigns, the three kinds of "sure", letterforms, the researcher's marks |
 | `languages-scripts-signs.md` | language, script, encoding, the cascade, direction, declared signs, sign lists, fonts, input |
-| `segment-editor.md` | the native editor in the Source view, the Pencil, the performance trial, accessibility |
+| `segment-editor.md` | the native editor in the Source view, the Segments pane, the Pencil, the performance trial, accessibility |
 | `formats-and-training.md` | every format in and out, validation, loss reports, the training loop, measuring a model |
 | `models-chains-and-projects.md` | one card for every model, jobs with typed inputs and outputs, chains as workflows, how a result was made, projects and onboarding, finding models, the synced folder |
 | `rights-and-access.md` | rights, consent, community labels, restriction, redaction, removal (raised by review; not yet discussed) |
@@ -181,7 +181,7 @@ primitive with a kind. A segment has:
 | **Source view** | the pane that shows a source's image and, with a segment focus, edits its segments | "Preview" |
 | **source** | the page, the group of pages it belongs to, or a recording | |
 | **segment** | anything on a source, at any level, with a lasting id | the older "a segment is one anchor" |
-| **pass** | one authored set of segments over a source: a model run, a person's layout, an import. The **working pass** is the one the Reader, search and export use; only a person makes a pass the working pass | "layer", in its first sense |
+| **pass** | one authored set of segments over a source: a model run, a person's layout, an import. The **working pass** is the one the Reader, search and export use; in a strict project only a person makes a pass the working pass | "layer", in its first sense |
 | **campaign** | one campaign of writing on the page: main ink, rubric, later vowels, under-text | "ink layer" |
 | **reading** | what someone or something says a segment reads: text, translation, description | the older plan's "transcription", and its "edition" (now a reading's **kind** and **level**) |
 | **mark set** | one researcher's notes, highlights, stars and tags | |
@@ -368,76 +368,78 @@ approval.
   responsibility, ethics). **TK labels** — Traditional Knowledge labels a community applies
   to say how its material may be used.
 
-## Open questions for the creative director
+## Rulings of 2026-09-19 (second round), and what is still open
 
-This is the one list for the whole set, ordered by how much else depends on the answer. Each
-has the spec's proposal, which stands until ruled.
+The maintainer answered the set's open questions one by one on 2026-09-19. Paraphrased:
 
-Ruled so far (recorded under "Ruled"): all of the apparatus from the start; engine and app
-together; Fichero's own model; every format both ways; open to the unknown; build on what is
-there; the spec first and the order of building after; marks on any segment; the source is
-the page and a segment is everything on it; the editor is native SwiftUI; maps; dates in any
-calendar; it reaches embeddings, the knowledge graph, the Reader and workflows; models
-described one way; visible chains; a project (today's library) with its own settings and
-onboarding; the Source view (today's Preview); a synced folder.
+1. **Identity.** An id never moves. "This new line is that old line" is a separate match
+   record. Merge, split and delete leave forwarding notes.
+2. **Existing projects.** Opening a page writes nothing. The first edit writes that page's
+   segments once, undoably.
+3. **The words.** *Pass* and *campaign* replace the two kinds of "layer". *Profile* has one
+   meaning. What the Library pane is called once a library is a project is **left for the
+   app-wide rename spec**.
+4. **What counts as the record is a project's own rule.** A project is either *strict* (only a
+   person chooses the reading that counts and makes a pass the working pass; machine work is
+   labelled until then) or *relaxed* (the newest reading counts, and a person's always
+   outranks a machine's). **A new project starts strict.** A profile can set either.
+5. **Rights and access are in this set.** Owners and editors can restrict and redact. Only the
+   owner can purge.
+6. **No list of what was exported** is kept. Following up a removal outside Fichero is the
+   researcher's own job.
+7. **Recordings are in this set**: segments can be stretches of time.
+8. **Several named reading orders, plus typed links** kept for cross-references.
+9. **Automatic work is allowed after a first yes** for each project. What it makes follows the
+   project's rule in 4.
+10. **A folder inside a project can carry its own settings**, through the cascade, set in the
+    Inspector. No second settings window.
+11. **Levels of normalisation.** Three sensible defaults (as written, expanded, normalised),
+    and the list is open: a project can define its own.
+12. **A sign with no character is a declared sign** (a name and a picture from a real page,
+    optionally a number in a sign list, a private-use code, a font).
+13. **Languages.** Glottolog is the source the maintainer had in mind, beside standard language
+    tags. Native Land Digital and FirstVoices are wanted too, and the list of sources is open.
+14. **Fonts.** Fichero ships a few and a project can add its own; and there should be **a good,
+    easy way to find fonts for a script and add them**, as there is for models.
+15. **Openings and millimetres:** yes to both.
+16. **Onboarding starts with sample pages.** Fichero proposes what the project is; then a
+    profile, or the questions, or both, to correct it.
+17. **Models from outside.** Kraken's repository and Hugging Face at first, the list open.
+    Copyleft models are downloaded on request, not bundled.
+18. **A Segments pane.** The Library gets you to a page. Getting to the segments themselves, to
+    move, edit and reorder them, with their readings beside them, wants a surface of its own.
+    There may be more than one such view. **Its design is open** (see below).
+19. **Formats.** PageXML, TEI and ALTO are all built first, with YOLO's text labels. They sit
+    on **one general mapping system** that makes adding another format easy, and **every
+    export is validated**.
+20. **Recipes are files of their own.** A best-practice chain is a shareable file that makes a
+    workflow when it is applied. What runs is still a workflow: one way of running, two ways
+    of arriving at it.
+21. **Settled by the spec writer, and the maintainer can overturn any of them:** the area is
+    the "source model"; one milestone for the whole set, with the guardrail exception
+    recorded; a claim keeps a copy of its anchor beside the segment id; Parquet through the
+    existing export path; fine-tuning inside Fichero becomes its own later spec (Kraken
+    training); the synced folder has a fixed layout that Fichero chooses; "smooth" in the
+    editor trial means sixty frames a second with twenty thousand shapes on the oldest
+    supported iPhone.
 
-1. **Identity.** An id never moves; "this new line is that old line" is a separate match
-   record; merge, split and delete leave forwarding notes. Agreed? *Proposed: yes; everything
-   else hangs on it.*
-2. **Existing projects.** Opening a page with old boxes writes nothing; the first edit writes
-   that page's segments once, undoably. Or only when you ask? *Proposed: on first edit.*
-3. **The words.** *Pass* and *campaign* in place of two kinds of "layer"; *profile* with one
-   meaning; does the **Library pane** keep its name now that a library is a project?
-   *Proposed: yes to the first two.*
-4. **What counts as the record.** Only a person chooses the reading that counts, and only a
-   person makes a pass the working pass; machine work is labelled until then. Agreed?
-   *Proposed: yes.*
-5. **Rights and access.** Is the rights slice wanted in this set? Who may restrict, redact and
-   purge? *Proposed: yes; the owner alone.*
-6. **A purge and what has left.** Keep a plain list of what was exported, so removal can be
-   followed up? *Proposed: yes.*
-7. **Recordings.** Sound and video as stretches of time, in this set now or in a neighbour
-   spec? *Proposed: here; it changes what a shape is.*
-8. **Reading orders and links.** Several named reading orders, plus typed links kept for
-   cross-references only. Agreed? *Proposed: yes.*
-9. **Automatic work.** May a project's chain run on new sources unasked, and may files
-   arriving in the synced folder come in without a person? *Proposed: automatic passes yes,
-   after a first yes; never the working pass.*
-10. **Settings below the project.** May a folder inside a project carry its own settings
-    (language, models)? *Proposed: yes, through the cascade, set in the Inspector; no second
-    settings window.*
-11. **Levels of normalisation.** How many, and called what? *Proposed: the field's three: as
-    written, expanded, normalised.*
-12. **Signs and scripts.** Is the declared sign (a name and a picture from a real page) the
-    right answer for a sign with no character? Is there an Indigenous-language source to use
-    beside Glottolog? Does Fichero ship fonts? *Proposed: yes; name one; ship a few and let a
-    project add more.*
-13. **Openings and millimetres.** Draw across two facing pages? Give a segment's size in
-    millimetres? *Proposed: yes to both.*
-14. **Onboarding.** A profile first; otherwise five questions (scripts; languages; print or
-    hand and when; page complexity; may pages leave this machine), with sample pages
-    proposing the answers? *Proposed: yes.*
-15. **Models from outside.** Look in Kraken's repository and Hugging Face at first? Download
-    copyleft layout models on request and do not bundle them? *Proposed: yes to both.*
-16. **Browsing segments.** In the Library's ordinary table and outline views, with no separate
-    segment browser? *Proposed: yes.*
-17. **First format.** PageXML or TEI? *Proposed: PageXML: nearest the geometry, and what
-    Kraken and eScriptorium read.*
-18. **Recipes' home.** A best-practice chain is a locked default workflow; shared ones travel
-    as profile files. Agreed? *Proposed: yes, one mechanism.*
-19. **Smaller ones the spec can settle if you would rather not:** the area's name ("source
-    model"); one milestone or one for each file (the guardrail expects a spec's name to equal
-    its milestone's); whether a claim keeps a copy of its anchor beside the segment id;
-    Parquet through the existing export or Arrow directly; what counts as smooth in the
-    editor trial, and on which oldest device; whether fine-tuning itself runs inside Fichero;
-    whether the synced folder's layout is fixed.
-20. **The order of building.** Decided after the spec is whole (ruled). What depends on what:
-    segment records with ids and passes; the anchor's new shapes; matches and forwarding
-    notes; versions for each segment; readings on segments; the cascade and direction; rights;
-    citation; structure and links; the editor (after its trial); the apparatus; formats one at
-    a time; training and measuring; models, chains and projects alongside; recordings from
-    early on. The smallest honest first slice: one real page, its existing Kraken lines read
-    as segments without writing; reshape one line and split one line as undoable actions; the
-    same segment identical from engine, MCP, command line and app; PageXML out and back in as
-    a second pass with a loss report; corrected lines out as straightened line pictures with
-    readings.
+### Still open
+
+1. **The Segments pane.** What it shows and does: a list, a strip or a grid of segment
+   pictures with their readings; reordering by dragging; moving segments between regions and
+   passes; editing a reading in place or in the Reader beside it. How it stays one code path
+   with the Library's listing and the Source view's editor. This needs its own design pass
+   with the maintainer.
+2. **The Library pane's name** once a library is a project (for the rename spec).
+3. **Who may see restricted material among editors**: every editor, or only those a rights
+   record names?
+4. **The order of building.** Decided after the spec is whole (ruled). What depends on what:
+   segment records with ids and passes; the anchor's new shapes; matches and forwarding
+   notes; versions for each segment; readings on segments; the cascade and direction; rights;
+   citation; structure and links; the editor (after its trial) and the Segments pane; the
+   apparatus; the general format mapping, then PageXML, ALTO, TEI and YOLO on it; training and
+   measuring; models, chains, recipes and projects alongside; recordings from early on. The
+   smallest honest first slice: one real page, its existing Kraken lines read as segments
+   without writing; reshape one line and split one line as undoable actions; the same segment
+   identical from engine, MCP, command line and app; PageXML out and back in as a second
+   pass with a loss report; corrected lines out as straightened line pictures with readings.

@@ -6,8 +6,8 @@
 > material; and what exports and training sets do with restricted material.
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
-> code makes them pass. **Status: DRAFT — raised by review, 2026-09-19. Not yet discussed with
-> the maintainer; every part of it is PROPOSED.** A slice of the source model: read
+> code makes them pass. **Status: DRAFT — raised by review, 2026-09-19. The maintainer has
+> ruled that it belongs in this set and who may act; the rest is PROPOSED.** A slice of the source model: read
 > `source-model.md` first. Behaviour ids below have **no tags yet**. Nothing here is built.
 > What exists today (VERIFIED on disk, `fichero_server/security/authz.py`): a person has one of
 > three roles in a project: **owner**, **editor** or **viewer**. Nothing restricts anything
@@ -41,9 +41,10 @@ against their sources before approval.)
   labels of its own.
 - **It passes downward, and only tightens.** A rights record on a project covers everything in
   it; a record lower down may restrict further, never loosen what is above it.
-- **Who may do what.** The project's **owner** sets and changes rights records, redacts and
-  purges. An **editor** sees restricted material only if the record says editors may. A
-  **viewer** never does. (Whether a record can name particular people is an open question.)
+- **Who may do what** (ruled 2026-09-19). **Owners and editors** can set rights records,
+  restrict and redact. **Only the owner can purge.** A **viewer** never sees restricted
+  material. (Whether every editor sees it, or only those a record names, is an open
+  question.)
 - **Restricted** means those not allowed do not see a segment's picture, readings, marks or
   statements. For them it is **hidden, and the fact that something is hidden is shown** ("one
   passage on this page is restricted"). It is never silently dropped.
@@ -64,8 +65,9 @@ against their sources before approval.)
   (search entries, vectors, word-level analysis); the files in the synced folder; and the
   quoted words inside any claim that rested on it. A claim itself is kept, with a plain note
   that its evidence was removed, so nothing points at nothing. A purge cannot reach what has
-  already left the machine, so Fichero keeps a plain **list of what was exported, when and to
-  where**, for the owner to follow up. A purge is rarer and louder than delete; it cannot be
+  already left the machine (an export, a shared training set), and Fichero keeps no list of
+  what was exported (ruled 2026-09-19): following that up is the researcher's own job, and
+  the purge says so plainly. A purge is rarer and louder than delete; it cannot be
   undone; and it leaves a note that something was purged, by whom, when and why, without
   saying what it was.
 - All of these are audited actions, and work the same from the app, MCP and the command
@@ -77,7 +79,8 @@ against their sources before approval.)
   or any segment, with labels from an open list.
 - `source.rights.tighten-only` — a record passes downward; a lower level may restrict further
   and never loosen.
-- `source.rights.owner-sets` — only a project's owner sets rights records, redacts and purges.
+- `source.rights.who-acts` — owners and editors set rights records, restrict and redact; only
+  the owner can purge.
 - `source.rights.restricted-is-said` — for a viewer (and an editor the record does not admit) a
   restricted segment's content is hidden, and the page says that something is hidden.
 - `source.rights.citation-does-not-leak` — a reference to a restricted segment opens to
@@ -93,7 +96,6 @@ against their sources before approval.)
 - `source.rights.purge-reaches-derivatives` — a purge also removes search entries, vectors,
   pictures, synced-folder files and quoted evidence; a claim that rested on it is kept with a
   stated absence.
-- `source.rights.export-list` — Fichero keeps a list of what was exported, when and to where.
 
 ## Test matrix
 
@@ -101,6 +103,5 @@ To be filled at approval.
 
 ## Open questions
 
-See the one list in `source-model.md`. The ones that belong here: whether this slice is wanted
-in this set; who may restrict, redact and purge; whether a record can name particular people;
-which label sets ship.
+Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
+`source-model.md`.

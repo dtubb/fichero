@@ -151,9 +151,11 @@ shown, hidden and compared. They never overwrite each other. Two people disagree
 where a line ends is two passes, both kept: disagreement is data.
 
 One pass is the **working pass** for a source: the one the Reader, search and export use
-unless told otherwise. **Only a person makes a pass the working pass.** A pass a machine made
-(by a chain run automatically, by an import, by the synced folder) is there to look at and
-compare; it is never the record until someone says so.
+unless told otherwise. What may become the working pass follows **the project's rule** (ruled
+2026-09-19). In a *strict* project, which is how every new project starts, only a person
+makes a pass the working pass: a machine's pass (from a chain run automatically, an import,
+the synced folder) is there to look at and compare. In a *relaxed* project the newest pass
+counts, and a person's always outranks a machine's.
 
 ### Reading orders
 
@@ -288,8 +290,9 @@ Passes, orders, links
 - `source.pass.named-authored` — segments live in named passes, each with an author; passes
   can be shown, hidden and compared.
 - `source.pass.never-overwrites` — two layouts of one page are two passes, both kept.
-- `source.pass.working-is-a-persons-choice` — a pass made by a machine, an import or the synced
-  folder never becomes the working pass until a person makes it so.
+- `source.pass.working-follows-project-rule` — in a strict project a machine's pass never
+  becomes the working pass until a person makes it so; in a relaxed project the newest pass
+  counts and a person's outranks a machine's; a new project is strict.
 - `source.pass.working` — one pass is the working pass the Reader, search and export use by
   default.
 - `source.order.named-multiple` — a source can have several named reading orders, each with an
@@ -348,7 +351,7 @@ Identity, continued
 Storage
 - `source.store.ids-on-first-edit` — opening a page with old geometry shows its segments
   without writing anything; the first edit writes that page's segments once, as one audited
-  action that can be undone. (Proposed; see the foundation's open questions.)
+  action that can be undone. (Ruled 2026-09-19.)
 - `source.store.bounded-reads` — a page's segments come back by level and by area, in bounded
   time, however many there are.
 - `source.store.record-per-segment` — the store can answer questions about single segments
@@ -363,5 +366,5 @@ image and picture from the engine, MCP, the command line and the app.
 
 ## Open questions
 
-See `source-model.md`. The ones that belong here: how existing projects' segments get ids;
-whether a claim keeps a copy of its anchor as well as the segment id.
+Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
+`source-model.md`.

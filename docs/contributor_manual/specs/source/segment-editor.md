@@ -45,12 +45,17 @@ other, it can sit **beside** a Reader (type the reading of the selected line), b
 Inspector (the facts of the selected segment), beside the Library, or beside a second Source
 view on another pass, another image of the same page, or another source altogether.
 
-**Browsing segments needs no new surface (proposed).** The Library is always the navigator,
-and segments are nodes. Selecting a source lets the Library list its segments as rows in its
-ordinary table and outline views (kind, reading, order, hand, language, certainty, marks),
-sortable and filterable like anything else; selecting a row selects the segment everywhere.
-"Every line in hand B", "every segment with no chosen reading", "all instances of this sign"
-are then searches in the Library, not a separate browser.
+**A Segments pane (ruled in direction 2026-09-19; its design is open).** The Library gets you
+to a page. Getting to the segments themselves wants a surface of its own: to see a source's
+segments with their pictures and readings, step through them, **reorder** them, **move** them
+between regions or passes, and edit them, with a reading view beside. There may be more than
+one such view (a list, a strip, a grid). What is fixed already: it is a pane like any other,
+so it sits beside the Source view, the Reader and the Inspector; selecting a segment there
+selects it everywhere; every change is the same audited action the Source view's editor
+makes; and it draws on the one store. Questions about the whole project ("every line in hand
+B", "every segment with no chosen reading") remain searches in the Library, which can list
+segments as rows like any other node. The pane's own design is an open question in the
+foundation.
 
 ### One overlay, one editor
 
@@ -134,9 +139,13 @@ export.
 
 - `source.editor.segment-focus` — the Source view has a segment focus in which the editing
   tools appear; it can sit beside a Reader, an Inspector, the Library or another Source view.
-- `source.editor.library-lists-segments` — a source's segments can be listed, sorted, filtered
-  and selected in the Library's ordinary table and outline views; there is no separate segment
-  browser.
+- `source.segments-pane.exists` — a Segments pane shows a source's segments with their pictures
+  and readings, and lets them be stepped through, reordered, moved and edited; it sits beside
+  any other pane. (Design open.)
+- `source.segments-pane.same-actions` — every change made in the Segments pane is the same
+  audited action the Source view's editor makes; selection is shared.
+- `source.editor.library-lists-segments` — the Library can list segments as rows, so
+  project-wide questions about segments are ordinary Library searches.
 - `source.editor.one-overlay` — one component draws and edits segments in the Source view; no
   second overlay renderer exists in the app.
 - `source.editor.source-view-only` — segments are edited in the Source view, not in the Reader or the
@@ -191,5 +200,5 @@ the iPhone.
 
 ## Open questions
 
-See `source-model.md`. The one that belongs here: the trial's pass marks (what frame rate, on
-which oldest device).
+Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
+`source-model.md`.

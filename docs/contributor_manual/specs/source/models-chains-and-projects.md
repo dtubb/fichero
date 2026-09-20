@@ -254,18 +254,19 @@ to download them), the right transcription guideline, and only the tools that ma
   for a project. Profiles inherit ("Spanish palaeography, notarial hands" from "Spanish
   palaeography" from "Handwritten, Latin script"), and a project can override anything.
 - A profile is **a plain file that can be shared** (one JSON document, or lines of JSON for a
-  set of them): languages and scripts; period; material; **which default workflow is its
-  chain** (by name; a profile does not carry a second copy of the graph) and which model does
-  each job; the guideline and level of normalisation; model suggestions with their citations; rights
+  set of them): languages and scripts; period; material; **which recipe is its chain** and
+  which model does each job; the project's rule for what counts as the record (strict or
+  relaxed); the guideline and level of normalisation; model suggestions with their citations; rights
   defaults; what the synced folder should hold. It holds no sources and no secrets.
 - Profiles can be **exported, imported, and published** by a community of practice, so best
   practice for a language or a script travels as a file, not as folklore. Fichero ships a
   starter set, kept as data.
-- **It can be automatic, and automatic work is never the record.** With a profile chosen, new
-  sources go through the project's chain by themselves (as import already does for the
-  basics). What that makes is a pass and readings **to look at**: never the working pass,
-  never a chosen reading, until a person says so. Cloud models are used only if the project
-  allows it.
+- **It can be automatic, after a first yes.** Automatic work is switched on once for each
+  project, and the first time Fichero shows what it is about to do and waits. After that new
+  sources go through the project's chain by themselves. Whether what it makes counts as the
+  record follows **the project's rule**: in a strict project (every new project) it is a pass
+  and readings to look at until a person says so; in a relaxed project the newest counts.
+  Cloud models are used only if the project allows it.
 
 Project settings sit **inside the cascade already ruled** for language and other attributes:
 
@@ -299,7 +300,11 @@ reached afterwards from **Project Settings…**, in the File menu and on the pro
 menu. One window, reached two ways; no second settings surface. An existing project can run
 the onboarding at any time.
 
-It offers the profiles first. If none fits, making a project asks **at most five things**, each of which changes what Fichero does.
+**It starts with sample pages** (ruled 2026-09-19). Drop in a few pages and Fichero proposes
+what the project is: scripts, languages, print or hand, period, how complex the pages are,
+and the profile that fits best. Then a profile, or the questions, or both, to correct what it
+proposed. With no sample pages, it offers the profiles; and if none fits, making a project
+asks **at most five things**, each of which changes what Fichero does.
 Anything that can be worked out is worked out and shown for correction, not asked.
 
 1. **Which scripts?**
@@ -315,9 +320,12 @@ Reading direction and where the line sits follow from the script, and can be cor
 Mac's abilities are detected. Better still: **give Fichero a few sample pages first** and it
 proposes answers to 1 to 4, which the researcher corrects.
 
-From the answers Fichero proposes a **default chain**. A best-practice chain (a "recipe") **is
-one of the locked default workflows** the workflows spec already ships: one mechanism, not a
-second store. Profiles and onboarding point at them by name. Fichero says plainly:
+From the answers Fichero proposes a **default chain**. A best-practice chain is a **recipe: a
+shareable file of its own** (ruled 2026-09-19) that names the jobs, the models that suit, and
+for which languages, scripts and periods it is meant. Applying a recipe **makes a workflow**.
+What runs is always a workflow, so there is still one way of running things; a recipe is a
+second way of arriving at one, built to be shared between people and projects. Profiles and
+onboarding point at recipes. Fichero ships a starter set. Fichero says plainly:
 
 - which models it will use, and why;
 - which it needs to download, how big they are, and their licences;
@@ -448,11 +456,15 @@ Projects and onboarding
   guideline and the tools shown, and offers to download the models it names.
 - `source.chain.bar-offers-what-fits` — beside the project's chain, the workflow bar offers the
   workflows the current selection can feed; there is no list of tools to hide.
-- `source.chain.recipe-is-a-default-workflow` — a best-practice chain is a locked default
-  workflow; profiles and onboarding name it and keep no second copy.
-- `source.profile.automatic` — with a profile chosen, new sources run the project's chain
-  without being asked; what it makes is never the working pass or a chosen reading until a
-  person says so.
+- `source.recipe.is-a-file` — a best-practice chain is a shareable recipe file that names jobs,
+  suitable models, and the languages, scripts and periods it is for.
+- `source.recipe.makes-a-workflow` — applying a recipe makes a workflow; nothing runs except
+  workflows.
+- `source.profile.automatic-after-first-yes` — automatic chaining is switched on for each
+  project and confirms before its first run; what it makes counts as the record only as the
+  project's rule allows.
+- `source.project.record-rule` — a project is strict or relaxed about what counts as the
+  record; a new project is strict; a profile can set either.
 - `source.project.one-settings-window` — making a new project and Project Settings… (File menu
   and the project's context menu) open the same window; there is no second surface.
 - `source.project.in-the-cascade` — project settings sit between the app and a folder in the
@@ -461,8 +473,9 @@ Projects and onboarding
 - `source.project.stays-local` — a project marked "pages may not leave this machine" refuses
   cloud models for everything in it, and says why.
 - `source.onboard.five-questions` — making a project asks at most five questions.
-- `source.onboard.proposes-from-samples` — given sample pages, Fichero proposes script,
-  language, material and layout answers for correction.
+- `source.onboard.samples-first` — onboarding starts by asking for sample pages, and from them
+  proposes scripts, languages, material, period, layout and the best-fitting profile, for
+  correction.
 - `source.onboard.derives-not-asks` — direction, line position and hardware are worked out,
   shown, and correctable.
 - `source.onboard.proposes-chain` — the answers yield a proposed default chain from recipes
@@ -518,7 +531,9 @@ The synced folder
   runtime configuration), because **profile** now means a project's set-up.
 - `ui/model-selector-consistency.md`: a picker row could show what a card knows (suits,
   local or cloud, licence class); that spec's open question on what a row shows.
-- `ui/workflows.md` / `ui/workflow-node-config.md`: steps declare a job; a chain is checked
+- `ui/workflows.md` / `ui/workflow-node-config.md`: a recipe file makes a workflow (the
+  maintainer ruled recipes are files of their own; the locked default workflows and recipes
+  must not become two stores of the same chains); steps declare a job; a chain is checked
   before it runs; the general "segments to any reader" step replaces `economy_htr` and its
   kin; the known drift between `kraken_model` and `kraken_recognition_model` disappears when
   the model is a card.
@@ -532,12 +547,8 @@ To be filled at approval.
 
 ## Open questions
 
-See the one list in `source-model.md`. The ones that belong here: automatic work; onboarding's
-five questions; where models are looked for and whether copyleft ones are downloaded on
-request; the home of recipes; whether the Library pane keeps its name; whether a folder
-inside a project carries its own settings (proposed: yes, through the cascade, set in the
-Inspector, with no second settings window and no second kind of project); whether the synced
-folder has a fixed layout.
+Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
+`source-model.md`.
 
 ## Sources
 

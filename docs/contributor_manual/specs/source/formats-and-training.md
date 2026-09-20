@@ -22,6 +22,15 @@ a model trainer, and always knows what a format could not carry.
 
 ## The design
 
+### One general mapping system, and what is built first (ruled 2026-09-19)
+
+**PageXML, ALTO and TEI are all built first**, together with YOLO's text labels. They are not
+three separate pieces of code: they sit on **one general mapping system**, in which a format
+is described (what each of its elements means in the source model, what it cannot hold, how
+it is validated) and the same machinery reads, writes, validates and reports losses for all
+of them. Adding MEI, hOCR or a format nobody has asked for yet is then a new description, not
+a new importer and exporter. **Every export is validated.**
+
 ### The rules for every format
 
 - **A format is a mapping, not a model.** Adding one adds no fields to segments.
@@ -103,6 +112,11 @@ What the survey established, and the design follows:
 ## Behaviors (ids proposed; untagged until approval)
 
 Rules for every format
+- `source.format.one-mapping-system` — every format is read, written, validated and
+  loss-reported by one general mapping system; adding a format adds a description, not a new
+  importer or exporter.
+- `source.format.first-four` — PageXML, ALTO, TEI and YOLO text labels are the first formats
+  built on it.
 - `source.format.import-is-pass` — an import arrives as a new pass with its provenance and
   overwrites nothing.
 - `source.format.reimport-recognised` — importing the same file again is recognised, not
@@ -166,5 +180,5 @@ and its schema for validation.
 
 ## Open questions
 
-See `source-model.md`. The ones that belong here: which format is built first; Parquet
-through the existing export path or Arrow files directly.
+Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
+`source-model.md`.

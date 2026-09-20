@@ -32,8 +32,10 @@ A segment has any number of **readings**. A reading has:
   Chinese text), *transliteration*, *translation*, *description* (what a picture shows),
   *coordinate* (for a map control point), *music* (the notes or neumes of a music segment,
   in the field's encoding). A project can add kinds;
-- **how normalised it is**, as a named level. Levels cannot be reliably converted into each
-  other, so the level is recorded, never assumed;
+- **how normalised it is**, as a named level. Three sensible defaults ship (*as written*,
+  *expanded*, *normalised*) and the list is open: a project can define its own as part of its
+  guideline. Levels cannot be reliably converted into each other, so the level is recorded,
+  never assumed;
 - its **language and script**;
 - **what it was read from**: which image of the page, and, for a reading made from another
   reading (a translation, a normalisation), which one;
@@ -55,13 +57,14 @@ ranked guesses. The model holds both, and does not mix them up.
 ### Which reading counts
 
 For each kind, one reading can be **the chosen one**: what the Reader shows first, what
-export writes. Only a person chooses. Until someone has, the Reader shows the newest reading
-and **labels it plainly as a machine's and unchosen**; search still finds it; an export marks
-it as machine-made in its loss report. A machine's output never becomes the record by
-default. Whether a reading was made by a person or a machine is set by the engine from how it
+export writes. How it comes to be chosen is **the project's rule** (ruled 2026-09-19). In a
+*strict* project, which is how every new project starts, only a person chooses: until someone
+has, the Reader shows the newest reading and **labels it plainly as a machine's and
+unchosen**; search still finds it; an export marks it as machine-made in its loss report. In
+a *relaxed* project (a searchable archive, say) the newest reading counts, and a person's
+always outranks a machine's. Either way a machine reading is always *shown* as a machine's. Whether a reading was made by a person or a machine is set by the engine from how it
 arrived, never claimed by the sender. The choice is itself recorded, with who and when, and
-changing it rewrites nothing. (Proposed; see "Which reading counts" among the foundation's
-open questions.)
+changing it rewrites nothing.
 
 ### Written and read
 
@@ -196,10 +199,11 @@ Readings
   corrects.
 - `source.reading.equal-alternatives` — several readings of one kind can stand as equally
   valid, apart from a machine's ranked guesses.
-- `source.reading.chosen-by-a-person` — only a person chooses the reading that counts; the
-  choice is recorded and changing it rewrites nothing.
-- `source.reading.unchosen-is-labelled` — until chosen, the Reader labels the shown reading as
-  a machine's and unchosen, and exports mark it machine-made.
+- `source.reading.chosen-follows-project-rule` — in a strict project only a person chooses the
+  reading that counts; in a relaxed project the newest counts and a person's outranks a
+  machine's; a new project is strict; the choice is recorded and changing it rewrites nothing.
+- `source.reading.machine-is-labelled` — a machine's reading is always shown as a machine's,
+  and in a strict project as unchosen; exports mark it machine-made.
 - `source.reading.maker-set-by-engine` — whether a person or a machine made a reading is set
   by the engine, not claimed by the sender.
 - `source.reading.stretch-names-its-reading` — a stretch of text names the exact reading it was
@@ -266,5 +270,5 @@ To be filled at approval.
 
 ## Open questions
 
-See `source-model.md`. The ones that belong here: which reading counts when nobody has
-chosen; how many normalisation levels, and their names.
+Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
+`source-model.md`.

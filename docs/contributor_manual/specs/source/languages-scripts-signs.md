@@ -31,7 +31,10 @@ language, script, direction and signs are *recorded*.
   different systems: Glottolog (open licence; covers dialects and under-resourced and
   Indigenous languages) is not part of BCP 47, so the record holds both, and one spelling of
   each is kept for the whole project. Where no registry knows the language, a private tag
-  made in the project, with a name and notes. "Unknown" and "not yet looked at"
+  made in the project, with a name and notes. Other sources can be drawn on beside Glottolog, from an
+  open list: Native Land Digital (languages and territories; it asks for attribution and says
+  it is not authoritative) and FirstVoices (community-owned language archives, where each
+  community governs access) are wanted from the start. "Unknown" and "not yet looked at"
   are different values, as they already are for a document's language today.
 - **Script** — ISO 15924, including its honest codes: no writing; undetermined; and the
   private-use codes for a script a project declares itself.
@@ -100,8 +103,11 @@ signs as classes).
 
 ### Fonts
 
-The font a reading needs is recorded with it. A project can carry its own fonts for its
-scripts. If a needed font is missing, Fichero says so and shows sign pictures or a fallback;
+The font a reading needs is recorded with it. Fichero ships a few open fonts for scripts the
+system lacks, a project can carry its own, and a profile can name the fonts it needs. There
+is **an easy way to find a font for a script and add it** to the project (searching the open
+font collections by script, showing the licence, one step to add), the same in spirit as
+finding a model. If a needed font is missing, Fichero says so and shows sign pictures or a fallback;
 it never shows empty boxes without explanation.
 
 ### Input
@@ -157,6 +163,8 @@ Signs
 
 Fonts and input
 - `source.font.recorded` — a reading records the font it needs; a project can carry fonts.
+- `source.font.find-and-add` — fonts for a script can be searched for in open collections and
+  added to a project in one step, with their licence shown.
 - `source.font.missing-is-said` — a missing font is reported; no unexplained empty boxes.
 - `source.input.palette` — a searchable palette of a script's characters and the project's
   signs inserts into a reading.
@@ -171,5 +179,5 @@ To be filled at approval.
 
 ## Open questions
 
-See `source-model.md`. The ones that belong here: is there a particular Indigenous-language
-source to use beside Glottolog; does Fichero ship fonts, or only let a project add them.
+Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
+`source-model.md`.
