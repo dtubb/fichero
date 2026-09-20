@@ -58,7 +58,8 @@ are the test.
 | `formats-and-training.md` | every format in and out, validation, loss reports, the training loop, measuring a model |
 | `models-chains-and-projects.md` | one card for every model, jobs with typed inputs and outputs, chains as workflows, how a result was made, projects and onboarding, finding models, the synced folder |
 | `synced-folder.md` | a project tied to a folder: outputs kept current (the exporter's continuous export), files taken in (a trigger for the one import path), conflicts shown |
-| `build-notes-identity-and-storage.md` | engineering detail for build slices 2 to 6; not for the maintainer to read |
+| `build-notes-shapes-and-anchor.md` | engineering detail for build slice 7, with the size of the anchor retirement; not for the maintainer to read |
+| `build-notes-identity-and-storage.md` | engineering detail for build slices 2 to 6 and the app's first slice; not for the maintainer to read |
 | `rights-and-access.md` | rights, consent, community labels, restriction, redaction, removal (in the set by ruling; how it meets the permissions that already exist is blocked on the maintainer) |
 
 **How to read the set.** This file first: it gives the whole shape. Then, for depth, in this
