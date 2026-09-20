@@ -7,7 +7,7 @@
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
 > code makes them pass. **Status: DRAFT.** A slice of the source model: read `source-model.md`
-> first. Evidence in `source-survey.md`. Behaviour ids below have **no tags yet**; everything
+> first. Evidence in `source-survey.md`. Every behaviour below is tagged **[GAP]** with its issue; everything
 > is design unless stated under "What exists today".
 
 ## Intent
@@ -141,66 +141,66 @@ export) its picture comes from one engine call that cuts the image to the segmen
 There is one way to get a segment's picture, used by the app, MCP, the command line and
 export.
 
-## Behaviors (ids proposed; untagged until approval)
+## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
 
-- `source.editor.segment-focus` — the Source view has a segment focus in which the editing
+- `source.editor.segment-focus` — **[GAP]** (#4941) the Source view has a segment focus in which the editing
   tools appear; it can sit beside a Reader, an Inspector, the Library or another Source view.
-- `source.segments-pane.exists` — **BLOCKED on the maintainer** (a Segments pane, or a view of
+- `source.segments-pane.exists` — **[GAP]** (#4942) **BLOCKED on the maintainer** (a Segments pane, or a view of
   the Library): a surface shows a source's segments with their pictures and readings, and lets
   them be stepped through, reordered and moved. Not to be built or tested until ruled.
-- `source.segments-pane.same-actions` — **BLOCKED with the one above**: whatever that surface
+- `source.segments-pane.same-actions` — **[GAP]** (#4942) **BLOCKED with the one above**: whatever that surface
   is, every change it makes is the same audited action the Source view's editor makes, and
   selection is shared.
-- `source.editor.library-lists-segments` — the Library can list segments as rows, so
+- `source.editor.library-lists-segments` — **[GAP]** (#4941) the Library can list segments as rows, so
   project-wide questions about segments are ordinary Library searches.
-- `source.editor.one-overlay` — one component draws and edits segments in the Source view; no
+- `source.editor.one-overlay` — **[GAP]** (#4941) one component draws and edits segments in the Source view; no
   second overlay renderer exists in the app.
-- `source.editor.shapes-in-source-view` — a segment's shape is edited in the Source view; its
+- `source.editor.shapes-in-source-view` — **[GAP]** (#4941) a segment's shape is edited in the Source view; its
   readings are typed in the Reader; the Inspector shows and does not edit.
-- `source.editor.selection-shared` — selecting a segment in the Source view, Reader or Inspector
+- `source.editor.selection-shared` — **[GAP]** (#4941) selecting a segment in the Source view, Reader or Inspector
   selects it in the others.
-- `source.editor.edits-are-actions` — every edit is one audited, reversible engine action; the
+- `source.editor.edits-are-actions` — **[GAP]** (#4941) every edit is one audited, reversible engine action; the
   editor updates only the changed segments.
-- `source.editor.system-undo` — ⌘Z and ⇧⌘Z undo and redo editor actions through the action
+- `source.editor.system-undo` — **[GAP]** (#4941) ⌘Z and ⇧⌘Z undo and redo editor actions through the action
   pass.
-- `source.editor.agent-parity` — every edit the editor can make can be made over MCP and the
+- `source.editor.agent-parity` — **[GAP]** (#4941) every edit the editor can make can be made over MCP and the
   command line through the same actions.
-- `source.editor.two-switches` — the editor has two view switches only (show the order; show
+- `source.editor.two-switches` — **[GAP]** (#4941) the editor has two view switches only (show the order; show
   the links); everything else shown follows from zoom and selection.
-- `source.editor.draw-shapes` — box, polygon, point, line and baseline can be drawn.
-- `source.editor.reshape` — points can be dragged, added and removed; shapes moved and nudged.
-- `source.editor.propose-shape` — a click asks the engine to propose a shape, which can then be
+- `source.editor.draw-shapes` — **[GAP]** (#4941) box, polygon, point, line and baseline can be drawn.
+- `source.editor.reshape` — **[GAP]** (#4941) points can be dragged, added and removed; shapes moved and nudged.
+- `source.editor.propose-shape` — **[GAP]** (#4941) a click asks the engine to propose a shape, which can then be
   adjusted.
-- `source.editor.cut` — a scissors stroke splits one or many lines at once.
-- `source.editor.join-group` — selected segments can be merged; lines grouped into a region
+- `source.editor.cut` — **[GAP]** (#4941) a scissors stroke splits one or many lines at once.
+- `source.editor.join-group` — **[GAP]** (#4941) selected segments can be merged; lines grouped into a region
   and ungrouped.
-- `source.editor.set-kind` — the selection's kind (and furniture or text) can be set.
-- `source.editor.set-direction` — the selection's direction can be set, and a line reversed.
-- `source.editor.set-language-script` — the selection's language and script can be set.
-- `source.editor.set-hand-campaign` — the selection's hand and campaign can be set.
-- `source.editor.reorder` — a named reading order can be edited by dragging in a list or
+- `source.editor.set-kind` — **[GAP]** (#4941) the selection's kind (and furniture or text) can be set.
+- `source.editor.set-direction` — **[GAP]** (#4941) the selection's direction can be set, and a line reversed.
+- `source.editor.set-language-script` — **[GAP]** (#4941) the selection's language and script can be set.
+- `source.editor.set-hand-campaign` — **[GAP]** (#4941) the selection's hand and campaign can be set.
+- `source.editor.reorder` — **[GAP]** (#4941) a named reading order can be edited by dragging in a list or
   clicking segments in turn.
-- `source.editor.draw-link` — dragging from one segment to another makes a typed link.
-- `source.editor.match-across-passes` — a segment in one pass can be matched to one in
+- `source.editor.draw-link` — **[GAP]** (#4941) dragging from one segment to another makes a typed link.
+- `source.editor.match-across-passes` — **[GAP]** (#4941) a segment in one pass can be matched to one in
   another.
-- `source.editor.transcribe-by-line` — with a line selected, the Reader shows its picture above
+- `source.editor.transcribe-by-line` — **[GAP]** (#4941) with a line selected, the Reader shows its picture above
   its reading; Return selects the next line in the order and the Source view follows. (The
-  Reader's planned in-place transcription editing, #4375, is this same editor: one place to
+  Reader's planned in-place transcription editing, → #4375, is this same editor: one place to
   type a reading.)
-- `source.editor.marks` — the selection can be noted, highlighted, checked and tagged.
-- `source.editor.control-points` — control points can be placed and given coordinates.
-- `source.editor.keyboard-complete` — every command has a menu item and can be done from the
+- `source.editor.marks` — **[GAP]** (#4941) the selection can be noted, highlighted, checked and tagged.
+- `source.editor.control-points` — **[GAP]** (#4941) control points can be placed and given coordinates.
+- `source.editor.keyboard-complete` — **[GAP]** (#4941) every command has a menu item and can be done from the
   keyboard.
-- `source.editor.pencil-draws` — on the iPad the Pencil draws shapes, baselines and cuts.
-- `source.editor.pencil-traces-strokes` — a Pencil trace is kept as stroke segments with
+- `source.editor.pencil-draws` — **[GAP]** (#4941) on the iPad the Pencil draws shapes, baselines and cuts.
+- `source.editor.pencil-traces-strokes` — **[GAP]** (#4941) a Pencil trace is kept as stroke segments with
   position, time, pressure and tilt.
-- `source.editor.smooth-when-dense` — zoom, pan, hit-test and drag hold sixty frames a second
+- `source.editor.smooth-when-dense` — **[GAP]** (#4940) zoom, pan, hit-test and drag hold sixty frames a second
   with twenty thousand shapes on the oldest supported iPhone (the ruled target; the trial
   settles how to draw, and may come back and say the target is wrong).
-- `source.editor.level-of-detail` — finer levels appear as you zoom in.
-- `source.editor.voiceover` — each visible segment is an accessibility element with kind,
+- `source.editor.level-of-detail` — **[GAP]** (#4940) finer levels appear as you zoom in.
+- `source.editor.voiceover` — **[GAP]** (#4941) each visible segment is an accessibility element with kind,
   reading and order.
-- `source.editor.one-input-seam` — pointer, touch and Pencil feed one input path; the same
+- `source.editor.one-input-seam` — **[GAP]** (#4941) pointer, touch and Pencil feed one input path; the same
   editor runs on Mac, iPad and iPhone.
 
 ## Test matrix

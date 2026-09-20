@@ -8,7 +8,7 @@
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
 > code makes them pass. **Status: DRAFT.** A slice of the source model (split out of
 > `models-chains-and-projects.md` on 2026-09-19, because it is a programme of its own): read
-> `source-model.md` first. Behaviour ids below have **no tags yet**; nothing here is built.
+> `source-model.md` first. Every behaviour below is tagged **[GAP]** with its issue; nothing here is built.
 >
 > **Owners, and do not duplicate.** Writing a project's outputs to disk as the work goes on
 > is already the exporter's planned continuous export (`export/exporter.md`,
@@ -58,36 +58,36 @@ fifty thousand images must not start work by surprise).
 - **Fichero never overwrites a file it did not write.** It records a checksum of everything it
   writes; a file in its way that it does not recognise is left alone and reported.
 
-## Behaviors (ids proposed; untagged until approval)
+## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
 
-- `source.sync.writes-the-record-or-says-so` — the folder holds the working pass and chosen
+- `source.sync.writes-the-record-or-says-so` — **[GAP]** (#4952) the folder holds the working pass and chosen
   readings; an unchosen machine reading written there is marked machine-made in the file and
   its loss report.
-- `source.sync.intake-is-opt-in` — taking files in from the folder is switched on for each
+- `source.sync.intake-is-opt-in` — **[GAP]** (#4952) taking files in from the folder is switched on for each
   project and shows what it will bring in before its first run.
-- `source.sync.outputs-follow-edits` — chosen outputs in the project's folder are rewritten
+- `source.sync.outputs-follow-edits` — **[GAP]** (#4952) chosen outputs in the project's folder are rewritten
   soon after the segments or readings they hold change.
-- `source.sync.files-say-what-they-hold` — each file names its pass, reading order and reading
+- `source.sync.files-say-what-they-hold` — **[GAP]** (#4952) each file names its pass, reading order and reading
   kind, with its loss report beside it.
-- `source.sync.new-images-come-in` — images added to the folder become sources and run the
+- `source.sync.new-images-come-in` — **[GAP]** (#4952) images added to the folder become sources and run the
   project's default chain.
-- `source.sync.outside-edits-are-passes` — a changed or new XML file comes in as a new pass
+- `source.sync.outside-edits-are-passes` — **[GAP]** (#4952) a changed or new XML file comes in as a new pass
   with provenance and overwrites nothing.
-- `source.sync.conflicts-kept-both` — when project and file both changed, both are kept and
+- `source.sync.conflicts-kept-both` — **[GAP]** (#4952) when project and file both changed, both are kept and
   the conflict is shown.
-- `source.sync.restricted-stays-out` — restricted material is left out of the folder unless
+- `source.sync.restricted-stays-out` — **[GAP]** (#4952) restricted material is left out of the folder unless
   deliberately included.
-- `source.sync.folder-is-a-projection` — the folder can be deleted and remade from the project.
-- `source.sync.one-import-path` — files arriving through the synced folder go through the same
+- `source.sync.folder-is-a-projection` — **[GAP]** (#4952) the folder can be deleted and remade from the project.
+- `source.sync.one-import-path` — **[GAP]** (#4952) files arriving through the synced folder go through the same
   import path as any other import.
-- `source.sync.engine-side-and-throttled` — the folder is named where the engine runs, and
+- `source.sync.engine-side-and-throttled` — **[GAP]** (#4952) the folder is named where the engine runs, and
   syncing is throttled background work.
-- `source.sync.fixed-layout` — the folder's layout is chosen by Fichero and is the same for
+- `source.sync.fixed-layout` — **[GAP]** (#4952) the folder's layout is chosen by Fichero and is the same for
   every project.
-- `source.sync.never-overwrites-a-stranger` — Fichero overwrites only files it wrote itself,
+- `source.sync.never-overwrites-a-stranger` — **[GAP]** (#4952) Fichero overwrites only files it wrote itself,
   known by a checksum it recorded; any other file in the way is left and reported.
-- `source.sync.out-is-the-exporters` — writing outputs as the work goes on is the exporter's
-  continuous export (#4640), fed by this model; no second export path exists.
+- `source.sync.out-is-the-exporters` — **[GAP]** (#4952) writing outputs as the work goes on is the exporter's
+  continuous export (→ #4640), fed by this model; no second export path exists.
 
 ## Test matrix
 

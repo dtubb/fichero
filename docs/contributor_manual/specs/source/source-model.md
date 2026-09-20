@@ -488,10 +488,10 @@ identity and storage* (slices 1 to 6); *source-model: shapes and readings* (7 to
 
 The foundation has two of its own. Everything else is in the slices.
 
-- `source.one-store` — only one engine call returns a segment's shape, and only one returns
+- `source.one-store` — **[GAP]** (#4919) only one engine call returns a segment's shape, and only one returns
   its picture; the Source view, Reader, Inspector, agents, training and export all use them,
   and the app keeps no second store of segments.
-- `source.builds-on-the-anchor` — a segment's place is a `SourceAnchor`, and the other three
+- `source.builds-on-the-anchor` — **[GAP]** (#4925) a segment's place is a `SourceAnchor`, and the other three
   ways of saying "where" (`OCRGeometryBox`'s own box, `AgentNoteSourceAnchor`, and any new
   one) are retired onto it, slice by slice; no new addressing scheme is introduced. This is a
   migration, the largest in the programme, and each slice that retires one says so.
@@ -503,8 +503,9 @@ segments and giving passes, `source.chain.segments-to-any-reader` and
 `source.chain.output-never-overwrites` (models); open lists, `source.segment.open-kinds`,
 `source.reading.kinds`, `source.date.open-calendars`, `source.link.typed`.
 
-None is tagged yet: tags need issues, issues need the milestone, and the milestone is made at
-approval.
+Every behaviour in the set is tagged **[GAP]** and cites one of 35 grouped issues on milestone
+`source-model` (322), filed 2026-09-19: one issue for each coherent piece of work, not one for
+each behaviour. Four of them are marked BLOCKED on the maintainer.
 
 ## Plain-word glossary
 

@@ -8,7 +8,7 @@
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
 > code makes them pass. **Status: DRAFT — raised by review, 2026-09-19. The maintainer has
 > ruled that it belongs in this set and who may act; the rest is PROPOSED.** A slice of the source model: read
-> `source-model.md` first. Behaviour ids below have **no tags yet**. Nothing here is built.
+> `source-model.md` first. Every behaviour below is tagged **[GAP]** with its issue. Nothing here is built.
 > What exists today (VERIFIED on disk, `fichero_server/security/authz.py`): a person has one of
 > three roles in a project: **owner**, **editor** or **viewer**; and **grant-and-deny overrides
 > on a target and everything under it** already exist, enforced on every audited write
@@ -84,33 +84,33 @@ against their sources before approval.)
 - All of these are audited actions, and work the same from the app, MCP and the command
   line.
 
-## Behaviors (ids proposed; untagged until approval)
+## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
 
-- `source.rights.one-check` — a rights record is enforced by the existing permission layer (a
+- `source.rights.one-check` — **[GAP]** (#4953) a rights record is enforced by the existing permission layer (a
   grant or deny on a segment id, inherited the way it already is); there is no second check.
   (Recommended; blocked on the maintainer with the rest of this slice.)
-- `source.rights.record` — a rights and consent record can be attached to a project, a source
+- `source.rights.record` — **[GAP]** (#4953) a rights and consent record can be attached to a project, a source
   or any segment, with labels from an open list.
-- `source.rights.tighten-only` — a record passes downward; a lower level may restrict further
+- `source.rights.tighten-only` — **[GAP]** (#4953) a record passes downward; a lower level may restrict further
   and never loosen.
-- `source.rights.who-acts` — owners and editors set rights records, restrict and redact; only
+- `source.rights.who-acts` — **[GAP]** (#4953) owners and editors set rights records, restrict and redact; only
   the owner can purge.
-- `source.rights.restricted-is-said` — for anyone not allowed to see it (always a viewer; which
+- `source.rights.restricted-is-said` — **[GAP]** (#4953) for anyone not allowed to see it (always a viewer; which
   editors is an open question), a restricted segment's content is hidden, and the page says
   that something is hidden.
-- `source.rights.citation-does-not-leak` — a reference to a restricted segment opens to
+- `source.rights.citation-does-not-leak` — **[GAP]** (#4953) a reference to a restricted segment opens to
   "restricted" for someone not allowed.
-- `source.rights.exports-leave-out` — exports, training sets and the synced folder leave
+- `source.rights.exports-leave-out` — **[GAP]** (#4953) exports, training sets and the synced folder leave
   restricted material out by default and report how much.
-- `source.rights.model-use` — a segment's record says whether it may go to a cloud model, a
+- `source.rights.model-use` — **[GAP]** (#4953) a segment's record says whether it may go to a cloud model, a
   local model, or none; the engine refuses a workflow that would break it, and says why.
-- `source.rights.redact` — redaction covers a segment's content visibly, everywhere it would
+- `source.rights.redact` — **[GAP]** (#4953) redaction covers a segment's content visibly, everywhere it would
   appear, without deleting it.
-- `source.rights.purge-is-an-action` — a purge is an action in the one audited registry, the same
+- `source.rights.purge-is-an-action` — **[GAP]** (#4953) a purge is an action in the one audited registry, the same
   shape as the purge that exists for draft entities; not a separate route.
-- `source.rights.purge` — a purge removes a segment's content, cannot be undone, and leaves a
+- `source.rights.purge` — **[GAP]** (#4953) a purge removes a segment's content, cannot be undone, and leaves a
   note that says who, when and why.
-- `source.rights.purge-reaches-derivatives` — a purge also removes search entries, vectors,
+- `source.rights.purge-reaches-derivatives` — **[GAP]** (#4953) a purge also removes search entries, vectors,
   pictures, synced-folder files and quoted evidence; a claim that rested on it is kept with a
   stated absence.
 

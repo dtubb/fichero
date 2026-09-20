@@ -7,7 +7,7 @@
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
 > code makes them pass. **Status: DRAFT.** A slice of the source model: read `source-model.md`
-> first. Evidence in `source-survey.md`. Behaviour ids below have **no tags yet**; everything
+> first. Evidence in `source-survey.md`. Every behaviour below is tagged **[GAP]** with its issue; everything
 > is design unless the foundation's "What exists today" says otherwise. (Today: language is
 > recorded once per document; script only on a reading; no direction anywhere; the detector
 > knows English and Spanish.)
@@ -136,56 +136,56 @@ Because language, script, signs and letterforms sit on segments, two sources can
 by character: a Japanese page beside a Chinese one; the same sign in two hands; every
 instance of one abbreviation in a codex.
 
-## Behaviors (ids proposed; untagged until approval)
+## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
 
 Language and script
-- `source.lang.three-facts` — language, script and encoding are recorded separately.
-- `source.lang.registries` — language holds a BCP 47 tag and, separately, a Glottolog code (a
+- `source.lang.three-facts` — **[GAP]** (#4938) language, script and encoding are recorded separately.
+- `source.lang.registries` — **[GAP]** (#4938) language holds a BCP 47 tag and, separately, a Glottolog code (a
   second code on the engine's existing language record, not a new registry);
   script is ISO 15924 including unwritten, undetermined and private-use; encoding (full, part,
   none) is recorded by Fichero.
-- `source.lang.project-declared` — a project can declare a language or script no registry has.
-- `source.lang.unknown-is-not-unexamined` — "unknown" and "not yet looked at" are different.
-- `source.lang.cascade` — language and script inherit downward from app to character and can
+- `source.lang.project-declared` — **[GAP]** (#4938) a project can declare a language or script no registry has.
+- `source.lang.unknown-is-not-unexamined` — **[GAP]** (#4938) "unknown" and "not yet looked at" are different.
+- `source.lang.cascade` — **[GAP]** (#4938) language and script inherit downward from app to character and can
   be overridden at any level (direction inherits the same way: see `source.dir.per-segment`).
-- `source.lang.says-where-from` — a shown value says which level it came from.
-- `source.lang.reading-overrides` — a reading's own language and script win for that reading.
-- `source.lang.many-per-page` — one page can hold several languages and scripts at once.
+- `source.lang.says-where-from` — **[GAP]** (#4938) a shown value says which level it came from.
+- `source.lang.reading-overrides` — **[GAP]** (#4938) a reading's own language and script win for that reading.
+- `source.lang.many-per-page` — **[GAP]** (#4938) one page can hold several languages and scripts at once.
 
 Direction
-- `source.dir.per-segment` — direction is set per segment: four straight directions,
+- `source.dir.per-segment` — **[GAP]** (#4938) direction is set per segment: four straight directions,
   alternating, or follows the baseline; plus the direction in which lines or columns succeed.
-- `source.dir.logical-order-stored` — stored text is in reading order; mixed direction in a
+- `source.dir.logical-order-stored` — **[GAP]** (#4938) stored text is in reading order; mixed direction in a
   line follows the Unicode bidirectional rules on display.
-- `source.dir.reader-lays-out` — the Reader lays text out in its direction, and falls back to
+- `source.dir.reader-lays-out` — **[GAP]** (#4938) the Reader lays text out in its direction, and falls back to
   reading order plus the shape on the image where it cannot.
 
 Signs
-- `source.sign.declared` — a sign with no character can be declared with a name and a picture
+- `source.sign.declared` — **[GAP]** (#4939) a sign with no character can be declared with a name and a picture
   cut from a real page.
-- `source.sign.list-authority` — a sign can be identified by an authority and a number in its
+- `source.sign.list-authority` — **[GAP]** (#4939) a sign can be identified by an authority and a number in its
   list, with no code point.
-- `source.sign.project-list` — declared signs live in a project's sign list, which can be
+- `source.sign.project-list` — **[GAP]** (#4939) declared signs live in a project's sign list, which can be
   exported and shared.
-- `source.sign.in-readings` — a reading's text can mix characters and declared signs.
-- `source.sign.variants` — a variant form of an encoded character is recorded as the character
+- `source.sign.in-readings` — **[GAP]** (#4939) a reading's text can mix characters and declared signs.
+- `source.sign.variants` — **[GAP]** (#4939) a variant form of an encoded character is recorded as the character
   plus the variant.
-- `source.sign.gather-instances` — every instance of one sign in a project can be listed, with
+- `source.sign.gather-instances` — **[GAP]** (#4939) every instance of one sign in a project can be listed, with
   its picture, from one search.
-- `source.sign.shown-as-picture` — where no font has a sign, its picture is shown in line.
-- `source.sign.export-honest` — exports carry declared signs where the format can (TEI) and
+- `source.sign.shown-as-picture` — **[GAP]** (#4939) where no font has a sign, its picture is shown in line.
+- `source.sign.export-honest` — **[GAP]** (#4939) exports carry declared signs where the format can (TEI) and
   report substitutions where it cannot.
 
 Fonts and input
-- `source.font.recorded` — a reading records the font it needs; a project can carry fonts.
-- `source.font.find-and-add` — fonts for a script can be searched for in open collections and
+- `source.font.recorded` — **[GAP]** (#4939) a reading records the font it needs; a project can carry fonts.
+- `source.font.find-and-add` — **[GAP]** (#4939) fonts for a script can be searched for in open collections and
   added to a project in one step, with their licence shown.
-- `source.font.missing-is-said` — a missing font is reported; no unexplained empty boxes.
-- `source.input.palette` — a searchable palette of a script's characters and the project's
+- `source.font.missing-is-said` — **[GAP]** (#4939) a missing font is reported; no unexplained empty boxes.
+- `source.input.palette` — **[GAP]** (#4939) a searchable palette of a script's characters and the project's
   signs inserts into a reading.
 
 Comparison
-- `source.compare.side-by-side` — two sources can be shown side by side with matching
+- `source.compare.side-by-side` — **[GAP]** (#4939) two sources can be shown side by side with matching
   characters or signs aligned.
 
 ## Test matrix

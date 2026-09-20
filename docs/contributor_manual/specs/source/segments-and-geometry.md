@@ -7,7 +7,7 @@
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
 > code makes them pass. **Status: DRAFT.** A slice of the source model: read `source-model.md`
 > first (the rulings and the words are there). The evidence is in `source-survey.md`.
-> Behaviour ids below have **no tags yet**. Unless "What exists today" in the foundation says
+> Every behaviour below is tagged **[GAP]** with its issue. Unless "What exists today" in the foundation says
 > otherwise, everything here is design, not built. Tags and issues are added when the spec is
 > approved and the milestone exists.
 
@@ -361,149 +361,149 @@ below).
 segment are one more leg of the one search response (`ui/search.md` owns search; routed), not a
 separate segment search.
 
-## Behaviors (ids proposed; untagged until approval)
+## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
 
 Identity and versions
-- `source.segment.lasting-id` — a segment keeps its id through move, reshape, re-read and
+- `source.segment.lasting-id` — **[GAP]** (#4921) a segment keeps its id through move, reshape, re-read and
   re-type, and an id is never given to another segment.
-- `source.segment.rerun-is-new-pass` — segmenting a page again adds a pass; nothing existing
+- `source.segment.rerun-is-new-pass` — **[GAP]** (#4921) segmenting a page again adds a pass; nothing existing
   is replaced or renumbered.
-- `source.segment.carry-across-a-match` — across an accepted one-to-one match, readings, marks
+- `source.segment.carry-across-a-match` — **[GAP]** (#4922) across an accepted one-to-one match, readings, marks
   and statements are copied (never moved) to the new segment, each copy naming the match;
   undoing the carry removes the copies; a match that is not one-to-one carries no reading and
   says so.
-- `source.segment.versioned-alone` — one segment's history can be read, compared and restored
+- `source.segment.versioned-alone` — **[GAP]** (#4923) one segment's history can be read, compared and restored
   without touching others.
-- `source.segment.delete-is-undoable` — a deleted segment can be brought back with everything
+- `source.segment.delete-is-undoable` — **[GAP]** (#4923) a deleted segment can be brought back with everything
   that pointed at it.
 
 Shape and images
-- `source.segment.shape-kinds` — a segment's shape is a point, a line, an area or a stretch of
+- `source.segment.shape-kinds` — **[GAP]** (#4925) a segment's shape is a point, a line, an area or a stretch of
   time; it may have more than one.
-- `source.segment.box-is-derived` — the box is worked out from the shape and cannot be edited
+- `source.segment.box-is-derived` — **[GAP]** (#4921) the box is worked out from the shape and cannot be edited
   apart from it.
-- `source.segment.curved-baseline` — a line's baseline can curve; direction can follow it.
-- `source.segment.names-its-image` — every shape names the image it was measured on; the image
+- `source.segment.curved-baseline` — **[GAP]** (#4925) a line's baseline can curve; direction can follow it.
+- `source.segment.names-its-image` — **[GAP]** (#4919) every shape names the image it was measured on; the image
   has a size and a checksum.
-- `source.segment.no-guessing-across-images` — a shape is shown on another image of the page
+- `source.segment.no-guessing-across-images` — **[GAP]** (#4926) a shape is shown on another image of the page
   only through a known alignment; otherwise Fichero says it cannot.
-- `source.segment.picture-by-shape` — any segment's picture can be had, cut to its shape, from
+- `source.segment.picture-by-shape` — **[GAP]** (#4925) any segment's picture can be had, cut to its shape, from
   a chosen image, at a chosen size; a line's can be straightened.
 
 Structure
-- `source.segment.one-primitive` — every level of the ladder, and every non-text thing, is a
+- `source.segment.one-primitive` — **[GAP]** (#4921) every level of the ladder, and every non-text thing, is a
   segment with a kind.
-- `source.segment.open-kinds` — kinds come from a standard list a project can extend; a model's
+- `source.segment.open-kinds` — **[GAP]** (#4921) kinds come from a standard list a project can extend; a model's
   own label is kept beside the tidy kind.
-- `source.segment.levels-optional` — any level may be absent; adding word segments under a
+- `source.segment.levels-optional` — **[GAP]** (#4927) any level may be absent; adding word segments under a
   line changes no id, shape or reading of the line or its region.
-- `source.segment.physical-and-logical` — a segment can sit in the physical ladder and in a
+- `source.segment.physical-and-logical` — **[GAP]** (#4927) a segment can sit in the physical ladder and in a
   logical unit that crosses pages or documents.
-- `source.segment.flow` — text that continues across a column, page or picture is a named
+- `source.segment.flow` — **[GAP]** (#4930) text that continues across a column, page or picture is a named
   reading order and reads straight through.
-- `source.segment.furniture` — page furniture is marked, and a reading can leave it out.
-- `source.segment.table-cells` — a table's cells are segments with row, column, spans and
+- `source.segment.furniture` — **[GAP]** (#4927) page furniture is marked, and a reading can leave it out.
+- `source.segment.table-cells` — **[GAP]** (#4928) a table's cells are segments with row, column, spans and
   header kind.
-- `source.segment.node-has-its-region` — a node made from part of a page (a diary entry, a
+- `source.segment.node-has-its-region` — **[GAP]** (#4927) a node made from part of a page (a diary entry, a
   letter, a register entry) is a segment of that page with a shape, never structured data
   with no tie to its ink.
-- `source.segment.structured-from-prototype` — a segment can be made from a prototype and carry
+- `source.segment.structured-from-prototype` — **[GAP]** (#4927) a segment can be made from a prototype and carry
   its structured attributes; each attribute can point at the words it came from.
-- `source.segment.table-as-data` — a table segment can be read out as rows and columns of data
+- `source.segment.table-as-data` — **[GAP]** (#4928) a table segment can be read out as rows and columns of data
   in which every cell still points at its segment.
-- `source.segment.marks-have-state` — a tick, cross or cancellation is a segment with a state.
+- `source.segment.marks-have-state` — **[GAP]** (#4928) a tick, cross or cancellation is a segment with a state.
 
 Passes, orders, links
-- `source.pass.named-authored` — segments live in named passes, each with an author; passes
+- `source.pass.named-authored` — **[GAP]** (#4921) segments live in named passes, each with an author; passes
   can be shown, hidden and compared.
-- `source.pass.never-overwrites` — two layouts of one page are two passes, both kept.
-- `source.pass.working-follows-project-rule` — in a strict project a machine's pass never
+- `source.pass.never-overwrites` — **[GAP]** (#4921) two layouts of one page are two passes, both kept.
+- `source.pass.working-follows-project-rule` — **[GAP]** (#4929) in a strict project a machine's pass never
   becomes the working pass until a person makes it so; in a relaxed project the newest pass
   counts and a person's outranks a machine's; a new project is strict.
-- `source.pass.working` — the Reader, search and export use one pass: the one a person chose,
+- `source.pass.working` — **[GAP]** (#4929) the Reader, search and export use one pass: the one a person chose,
   or the newest, labelled unchosen, if nobody has; it is worked out, never a stored flag.
-- `source.order.named-multiple` — a source can have several named reading orders, each with an
+- `source.order.named-multiple` — **[GAP]** (#4930) a source can have several named reading orders, each with an
   author and certainty.
-- `source.order.next-previous` — next and previous are always asked of a named order.
-- `source.link.typed` — a link between segments has a type, direction, author and certainty;
+- `source.order.next-previous` — **[GAP]** (#4930) next and previous are always asked of a named order.
+- `source.link.typed` — **[GAP]** (#4931) a link between segments has a type, direction, author and certainty;
   types come from an extendable list; it is the one typed-link record that the existing note,
   canvas and prediction links converge on, not a further kind.
-- `source.link.any-depth` — links chain (a comment on a comment), and can cross sources.
-- `source.link.both-ways` — from either end of a link you can reach the other.
+- `source.link.any-depth` — **[GAP]** (#4931) links chain (a comment on a comment), and can cross sources.
+- `source.link.both-ways` — **[GAP]** (#4931) from either end of a link you can reach the other.
 
 Maps
-- `source.geo.control-points` — a point on an image can be tied to a coordinate on the earth,
+- `source.geo.control-points` — **[GAP]** (#4933) a point on an image can be tied to a coordinate on the earth,
   with author and certainty.
-- `source.geo.segment-to-world` — on a georeferenced image, any segment can give its place in
+- `source.geo.segment-to-world` — **[GAP]** (#4933) on a georeferenced image, any segment can give its place in
   the world.
-- `source.geo.names-a-place` — a label on a map can be linked to the place entity it names.
+- `source.geo.names-a-place` — **[GAP]** (#4933) a label on a map can be linked to the place entity it names.
 
 Canvas
-- `source.canvas.segment-as-card` — any source, page or segment can be placed on a canvas as a
+- `source.canvas.segment-as-card` — **[GAP]** (#4931) any source, page or segment can be placed on a canvas as a
   card with its picture and chosen reading, without being copied.
-- `source.canvas.links-are-links` — a link drawn between cards on a canvas is a typed link of
+- `source.canvas.links-are-links` — **[GAP]** (#4931) a link drawn between cards on a canvas is a typed link of
   the source model.
 
 Pointing and statements
-- `source.point.by-id-or-span` — a thing points at a segment by id, or at a stretch of one of
+- `source.point.by-id-or-span` — **[GAP]** (#4932) a thing points at a segment by id, or at a stretch of one of
   its readings.
-- `source.point.text-is-derived` — a page's text is worked out from segments and a reading
+- `source.point.text-is-derived` — **[GAP]** (#4932) a page's text is worked out from segments and a reading
   order; it is never the master.
-- `source.statement.on-segment` — a claim or mention points at a segment id, keeps a copy of
+- `source.statement.on-segment` — **[GAP]** (#4932) a claim or mention points at a segment id, keeps a copy of
   its anchor beside it, and survives re-segmentation and re-transcription; a claim on an
   unconverted page points by its anchor alone.
-- `source.statement.both-ways` — from a segment, what is said about it; from a statement, its
+- `source.statement.both-ways` — **[GAP]** (#4932) from a segment, what is said about it; from a statement, its
   ink.
 
 Identity, continued
-- `source.segment.match-record` — "this new segment is that old one" is a record of its own
+- `source.segment.match-record` — **[GAP]** (#4922) "this new segment is that old one" is a record of its own
   with an author and certainty; ids do not move; a machine may propose, a person accepts.
-- `source.segment.forwarding-notes` — a merged, split or deleted segment leaves a permanent
+- `source.segment.forwarding-notes` — **[GAP]** (#4922) a merged, split or deleted segment leaves a permanent
   forwarding note; following an old id is one call; the walk raises past 64 steps; a merge
   into a segment that already forwards to the source is refused; a trail ending in a delete
   says so.
-- `source.segment.citable` — a segment has one stable reference that opens it in the app and
+- `source.segment.citable` — **[GAP]** (#4922) a segment has one stable reference that opens it in the app and
   resolves over MCP and the command line, following forwarding notes.
-- `source.segment.time-span` — a segment of a recording is a stretch of time (with an area,
+- `source.segment.time-span` — **[GAP]** (#4933) a segment of a recording is a stretch of time (with an area,
   for video) and behaves as any other segment.
-- `source.segment.opening` — a shape drawn across two facing pages belongs to the opening and
+- `source.segment.opening` — **[GAP]** (#4927) a shape drawn across two facing pages belongs to the opening and
   resolves onto each page.
-- `source.image.alignment-points` — two images of one page can be tied by points so shapes
+- `source.image.alignment-points` — **[GAP]** (#4926) two images of one page can be tied by points so shapes
   cross between them.
-- `source.image.rescan-strands-nothing-silently` — after a rescan, shapes stay on their image
+- `source.image.rescan-strands-nothing-silently` — **[GAP]** (#4926) after a rescan, shapes stay on their image
   and Fichero says which passes have not crossed over.
-- `source.image.physical-scale` — an image can carry a scale so a segment's size can be given
+- `source.image.physical-scale` — **[GAP]** (#4926) an image can carry a scale so a segment's size can be given
   in millimetres.
-- `source.edit.stale-is-refused` — an edit made against an old version of a segment is
+- `source.edit.stale-is-refused` — **[GAP]** (#4923) an edit made against an old version of a segment is
   refused, with what changed.
-- `source.derived.recomputable` — pictures, search entries, vectors and word-level analysis
+- `source.derived.recomputable` — **[GAP]** (#4925) pictures, search entries, vectors and word-level analysis
   name the segment, reading, model and version they came from, and are absent when not made.
 
 The read seam and events
-- `source.seam.read-either-store` — one engine call returns a source's segments whether they
+- `source.seam.read-either-store` — **[GAP]** (#4919) one engine call returns a source's segments whether they
   live in a block of boxes or in segment records; its answer has the same shape either way.
-- `source.seam.provisional-ids-refused` — an id read from a block of boxes is marked
+- `source.seam.provisional-ids-refused` — **[GAP]** (#4919) an id read from a block of boxes is marked
   provisional, and every write path refuses one with a typed error.
-- `source.events.segment-ids` — a change event names the segments and passes that changed, so a
+- `source.events.segment-ids` — **[GAP]** (#4920) a change event names the segments and passes that changed, so a
   window updates those and nothing else.
 
 Storage
-- `source.store.one-page-per-conversion` — no action converts more than one document's boxes,
+- `source.store.one-page-per-conversion` — **[GAP]** (#4924) no action converts more than one document's boxes,
   and no migration writes segment records.
-- `source.store.conversion-undo-leaves-nothing` — undoing a first-edit conversion deletes the
+- `source.store.conversion-undo-leaves-nothing` — **[GAP]** (#4924) undoing a first-edit conversion deletes the
   records it made and restores the block; it is refused once later changes depend on them.
-- `source.store.conversion-repoints-exact-matches` — in the converting action, a claim, note or
+- `source.store.conversion-repoints-exact-matches` — **[GAP]** (#4924) in the converting action, a claim, note or
   mark whose rectangle matches a converted box gains its segment id; others keep their anchor
   and are reported.
-- `source.store.ids-on-first-edit` — opening a page with old geometry shows its segments
+- `source.store.ids-on-first-edit` — **[GAP]** (#4924) opening a page with old geometry shows its segments
   without writing anything; the first edit writes that page's segments once, as one audited
   action that can be undone. (Ruled 2026-09-19.)
-- `source.store.bounded-reads` — a page's segments come back by kind and by area, never "all
+- `source.store.bounded-reads` — **[GAP]** (#4921) a page's segments come back by kind and by area, never "all
   of a project"; one page at one kind returns in under 200 ms with 200,000 segment records in
   the source (threshold in the morning file).
-- `source.store.record-per-segment` — the store can answer questions about single segments
+- `source.store.record-per-segment` — **[GAP]** (#4921) the store can answer questions about single segments
   (the lines of a page; a word's history; all segments in a hand).
-- `source.store.no-batch-rewrite` — an existing project's geometry is never converted by
+- `source.store.no-batch-rewrite` — **[GAP]** (#4924) an existing project's geometry is never converted by
   batch.
 
 ## Test matrix

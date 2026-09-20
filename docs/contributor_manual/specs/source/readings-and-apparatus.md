@@ -7,7 +7,7 @@
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
 > code makes them pass. **Status: DRAFT.** A slice of the source model: read `source-model.md`
-> first. Evidence in `source-survey.md`. Behaviour ids below have **no tags yet**; everything
+> first. Evidence in `source-survey.md`. Every behaviour below is tagged **[GAP]** with its issue; everything
 > is design unless the foundation's "What exists today" says otherwise.
 
 ## Intent
@@ -205,90 +205,90 @@ shows; alt text) and may have **classifications** (a seal; a map; music; a portr
 with its author and, if a machine made it, its confidence. A description is a reading like
 any other: several can exist, one is chosen, none is overwritten.
 
-## Behaviors (ids proposed; untagged until approval)
+## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
 
 Readings
-- `source.reading.set` — a segment can have many readings; adding one never changes another.
-- `source.reading.kinds` — a reading has a kind from an extendable list whose shipped defaults
+- `source.reading.set` — **[GAP]** (#4934) a segment can have many readings; adding one never changes another.
+- `source.reading.kinds` — **[GAP]** (#4934) a reading has a kind from an extendable list whose shipped defaults
   are: as written, expanded, normalised, as read aloud, transliteration, translation,
   description, coordinate, music, drawing.
-- `source.reading.level-recorded` — every reading says how normalised it is; the level is
+- `source.reading.level-recorded` — **[GAP]** (#4934) every reading says how normalised it is; the level is
   never inferred or silently converted.
-- `source.reading.read-from` — a reading names the image it was read from, and the reading it
+- `source.reading.read-from` — **[GAP]** (#4934) a reading names the image it was read from, and the reading it
   was made from if it has one.
-- `source.reading.author-and-guideline` — a reading names its author (person, or model and
+- `source.reading.author-and-guideline` — **[GAP]** (#4934) a reading names its author (person, or model and
   run) and any guideline it follows.
-- `source.reading.corrections-are-new` — a correction is a new reading that names what it
+- `source.reading.corrections-are-new` — **[GAP]** (#4934) a correction is a new reading that names what it
   corrects.
-- `source.reading.equal-alternatives` — several readings of one kind can stand as equally
+- `source.reading.equal-alternatives` — **[GAP]** (#4934) several readings of one kind can stand as equally
   valid, apart from a machine's ranked guesses.
-- `source.reading.chosen-is-worked-out` — "which reading counts" is worked out from recorded
+- `source.reading.chosen-is-worked-out` — **[GAP]** (#4934) "which reading counts" is worked out from recorded
   human choices, who made each reading, how recent it is and the project's rule; it is never a
   flag stored on a reading, so changing the project's rule rewrites nothing.
-- `source.reading.chosen-follows-project-rule` — in a strict project only a person chooses the
+- `source.reading.chosen-follows-project-rule` — **[GAP]** (#4934) in a strict project only a person chooses the
   reading that counts; in a relaxed project the newest counts and a person's outranks a
   machine's; a new project is strict; the choice is recorded and changing it rewrites nothing.
-- `source.reading.machine-is-labelled` — a machine's reading is always shown as a machine's,
+- `source.reading.machine-is-labelled` — **[GAP]** (#4934) a machine's reading is always shown as a machine's,
   and in a strict project as unchosen; exports mark it machine-made.
-- `source.reading.maker-set-by-engine` — whether a person or a machine made a reading or a pass
-  is the existing engine-set `ProvenanceKind` (the one claims use, #4868, #4869), not a new
+- `source.reading.maker-set-by-engine` — **[GAP]** (#4934) whether a person or a machine made a reading or a pass
+  is the existing engine-set `ProvenanceKind` (the one claims use, → #4868, → #4869), not a new
   field, and is never claimed by the sender.
-- `source.reading.stretch-names-its-reading` — a stretch of text names the exact reading it was
+- `source.reading.stretch-names-its-reading` — **[GAP]** (#4934) a stretch of text names the exact reading it was
   measured on; when that reading is replaced it is carried over or reported unplaced.
-- `source.reading.written-read-pair` — two readings can be joined as written and read, apart
+- `source.reading.written-read-pair` — **[GAP]** (#4934) two readings can be joined as written and read, apart
   from error and correction.
-- `source.reading.char-confidence-on-line` — per-character positions and confidence ride on a
+- `source.reading.char-confidence-on-line` — **[GAP]** (#4934) per-character positions and confidence ride on a
   line's reading without character segments existing.
 
 Hands and ink
-- `source.hand.record` — a hand is a project record (name or label, date, place, style, notes)
+- `source.hand.record` — **[GAP]** (#4935) a hand is a project record (name or label, date, place, style, notes)
   shared across sources.
-- `source.hand.attributed` — a segment or campaign names its hand, with certainty and the
+- `source.hand.attributed` — **[GAP]** (#4935) a segment or campaign names its hand, with certainty and the
   author of the judgement; rival attributions coexist.
-- `source.hand.not-provenance` — the Inspector shows who wrote the ink and who made the record
+- `source.hand.not-provenance` — **[GAP]** (#4935) the Inspector shows who wrote the ink and who made the record
   as two separate facts.
-- `source.campaign.ordered` — a source has ordered campaigns; segments belong to one; campaigns can
+- `source.campaign.ordered` — **[GAP]** (#4935) a source has ordered campaigns; segments belong to one; campaigns can
   share characters.
-- `source.campaign.reading-says-which` — a reading can say which campaigns it takes in.
+- `source.campaign.reading-says-which` — **[GAP]** (#4935) a reading can say which campaigns it takes in.
 
 Sureness and damage
-- `source.sure.three-kinds` — machine confidence, scholarly certainty and the state of the page
+- `source.sure.three-kinds` — **[GAP]** (#4935) machine confidence, scholarly certainty and the state of the page
   are separate fields, never combined.
-- `source.sure.editorial-facts` — unclear, lost, restored, supplied, superfluous, deleted and
+- `source.sure.editorial-facts` — **[GAP]** (#4935) unclear, lost, restored, supplied, superfluous, deleted and
   added are recorded as facts with extent, reason and author.
-- `source.sure.brackets-are-drawn` — editorial signs are produced from those facts on display
+- `source.sure.brackets-are-drawn` — **[GAP]** (#4935) editorial signs are produced from those facts on display
   and export; they are never stored in a reading's text.
 
 Letterforms
-- `source.letterform.chain` — a character segment can name its character, its allograph and
+- `source.letterform.chain` — **[GAP]** (#4935) a character segment can name its character, its allograph and
   its scribe's form.
-- `source.letterform.features` — a character segment can carry components and features from
+- `source.letterform.features` — **[GAP]** (#4935) a character segment can carry components and features from
   open lists.
-- `source.letterform.compare` — marks of the same character can be gathered and compared
+- `source.letterform.compare` — **[GAP]** (#4935) marks of the same character can be gathered and compared
   across hands and sources.
 
 Dates
-- `source.date.on-segment` — a date can hang on any segment, not only on a document.
-- `source.date.three-parts` — a date keeps its wording, its parts in a named calendar, and a
+- `source.date.on-segment` — **[GAP]** (#4936) a date can hang on any segment, not only on a document.
+- `source.date.three-parts` — **[GAP]** (#4936) a date keeps its wording, its parts in a named calendar, and a
   range of days on the common count, separately.
-- `source.date.open-calendars` — calendars come from an open list a project can extend.
-- `source.date.conversion-names-its-choices` — an interpretation names the rule, the choices
+- `source.date.open-calendars` — **[GAP]** (#4936) calendars come from an open list a project can extend.
+- `source.date.conversion-names-its-choices` — **[GAP]** (#4936) an interpretation names the rule, the choices
   (correlation, month reckoning, start of year, reign), its author and certainty; rival
   interpretations coexist.
-- `source.date.unconvertible-is-kept` — a date in a calendar with no conversion is stored,
+- `source.date.unconvertible-is-kept` — **[GAP]** (#4936) a date in a calendar with no conversion is stored,
   shown and sortable within that calendar, and absent from the common timeline.
-- `source.date.cycles-and-partials` — a recurring or partial date is a set of possible ranges.
-- `source.date.one-timeline` — sorting, search and the timeline use the common count across
+- `source.date.cycles-and-partials` — **[GAP]** (#4936) a recurring or partial date is a set of possible ranges.
+- `source.date.one-timeline` — **[GAP]** (#4936) sorting, search and the timeline use the common count across
   calendars.
 
 Marks and descriptions
-- `source.mark.any-level` — notes, highlights, checks and tags go on any segment, using the same
+- `source.mark.any-level` — **[GAP]** (#4937) notes, highlights, checks and tags go on any segment, using the same
   annotation records a document uses (owner: `ui/reading-markup-annotations.md`).
-- `source.mark.authored-sets` — marks live in named, authored sets that can be shown apart or
+- `source.mark.authored-sets` — **[GAP]** (#4937) marks live in named, authored sets that can be shown apart or
   together.
-- `source.mark.many-segments` — one mark can cover several separate segments, or a stretch of
+- `source.mark.many-segments` — **[GAP]** (#4937) one mark can cover several separate segments, or a stretch of
   a reading.
-- `source.picture.described` — a non-text segment has descriptions and classifications as
+- `source.picture.described` — **[GAP]** (#4937) a non-text segment has descriptions and classifications as
   readings, with authors; one is chosen.
 
 ## Test matrix

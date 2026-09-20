@@ -7,7 +7,7 @@
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
 > code makes them pass. **Status: DRAFT.** A slice of the source model: read `source-model.md`
-> first. Evidence in `source-survey.md`. Behaviour ids below have **no tags yet**; everything
+> first. Evidence in `source-survey.md`. Every behaviour below is tagged **[GAP]** with its issue; everything
 > is design unless the foundation's "What exists today" says otherwise. (Today: no PageXML,
 > ALTO, TEI, MEI, hOCR or YOLO code; a Convert-to-SVG tool exists (a vision model redraws the
 > page; it is not made from geometry); Parquet, IIIF, W3C annotation and RDF export ship
@@ -134,80 +134,83 @@ What the survey established, and the design follows:
   (not written). This slice guarantees only that Fichero can produce, and take in, what
   training needs.
 
-## Behaviors (ids proposed; untagged until approval)
+## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
 
 Rules for every format
-- `source.format.one-model-one-harness` — every format reads into and writes out of the one
+- `source.format.one-model-one-harness` — **[GAP]** (#4943) every format reads into and writes out of the one
   source model, and shares one harness for validation, the loss report and the round-trip
   test; adding a format adds a reader and a writer, and no field to segments.
-- `source.format.reuses-the-one-stream` — Parquet, IIIF, W3C annotations, RDF and CSV go out
+- `source.format.reuses-the-one-stream` — **[GAP]** (#4943) Parquet, IIIF, W3C annotations, RDF and CSV go out
   through the exporter's existing record stream, extended to carry segments; no second stream
   is built.
-- `source.format.rights-filtered-once` — restricted material is filtered in that one stream,
+- `source.format.rights-filtered-once` — **[GAP]** (#4943) restricted material is filtered in that one stream,
   not in each writer.
-- `source.format.schemas-on-disk` — schemas are kept with Fichero and validation never goes to
+- `source.format.schemas-on-disk` — **[GAP]** (#4943) schemas are kept with Fichero and validation never goes to
   the network; outside files are parsed with entities and network access off.
-- `source.format.first-four` — PageXML, ALTO, TEI and YOLO text labels are the first formats
+- `source.format.first-four` — **[GAP]** (#4943) PageXML, ALTO, TEI and YOLO text labels are the first formats
   built on it.
-- `source.format.import-is-pass` — an import arrives as a new pass with its provenance and
+- `source.format.import-is-pass` — **[GAP]** (#4943) an import arrives as a new pass with its provenance and
   overwrites nothing.
-- `source.format.reimport-recognised` — importing the same file again is recognised, not
-  duplicated silently (the importer's content-hash skip, #739, is the mechanism).
-- `source.format.keeps-unrecognised` — content the model has no field for is kept, labelled,
+- `source.format.reimport-recognised` — **[GAP]** (#4943) importing the same file again is recognised, not
+  duplicated silently (the importer's content-hash skip, → #739, is the mechanism).
+- `source.format.keeps-unrecognised` — **[GAP]** (#4943) content the model has no field for is kept, labelled,
   and written back on export to that format.
-- `source.format.export-validated` — an export is validated against its schema; an invalid
+- `source.format.export-validated` — **[GAP]** (#4943) an export is validated against its schema; an invalid
   one is a reported failure.
-- `source.format.loss-report` — every export states what it could not carry.
-- Round trips, one for each format that goes both ways (export then import returns the same
-  segments, shapes, orders and readings, less what the loss report named):
-  `source.format.round-trip-pagexml` · `source.format.round-trip-alto` ·
-  `source.format.round-trip-tei` · `source.format.round-trip-hocr` ·
-  `source.format.round-trip-yolo` · `source.format.round-trip-columnar`.
-- `source.format.export-choices` — an export names the pass, reading order and reading kind
+- `source.format.loss-report` — **[GAP]** (#4943) every export states what it could not carry.
+Round trips (export then import returns the same segments, shapes, orders and readings, less
+what the loss report named), one for each format that goes both ways:
+- `source.format.round-trip-pagexml` — **[GAP]** (#4944) the PAGEXML round trip holds.
+- `source.format.round-trip-alto` — **[GAP]** (#4944) the ALTO round trip holds.
+- `source.format.round-trip-tei` — **[GAP]** (#4945) the TEI round trip holds.
+- `source.format.round-trip-hocr` — **[GAP]** (#4944) the HOCR round trip holds.
+- `source.format.round-trip-yolo` — **[GAP]** (#4944) the yolo round trip holds.
+- `source.format.round-trip-columnar` — **[GAP]** (#4946) the columnar round trip holds.
+- `source.format.export-choices` — **[GAP]** (#4943) an export names the pass, reading order and reading kind
   it writes, with defaults.
-- `source.format.everywhere` — import and export work from the app, MCP and the command line,
+- `source.format.everywhere` — **[GAP]** (#4943) import and export work from the app, MCP and the command line,
   with a remote engine.
 
 Each format (one import and one export behaviour each)
-- `source.format.pagexml-in` · `source.format.pagexml-out`
-- `source.format.alto-in` · `source.format.alto-out`
-- `source.format.tei-in` · `source.format.tei-out`
-- `source.format.mei-in` · `source.format.mei-out`
-- `source.format.w3c-in` · `source.format.w3c-out`
-- `source.format.hocr-in` · `source.format.hocr-out`
-- `source.format.foreign-package-in` · `source.format.foreign-package-out` — a Transkribus or
+- `source.format.pagexml-in` · `source.format.pagexml-out` **[GAP]** (#4944)
+- `source.format.alto-in` · `source.format.alto-out` **[GAP]** (#4944)
+- `source.format.tei-in` · `source.format.tei-out` **[GAP]** (#4945)
+- `source.format.mei-in` · `source.format.mei-out` **[GAP]** (#4945)
+- `source.format.w3c-in` · `source.format.w3c-out` **[GAP]** (#4946)
+- `source.format.hocr-in` · `source.format.hocr-out` **[GAP]** (#4944)
+- `source.format.foreign-package-in` · `source.format.foreign-package-out` — **[GAP]** (#4946) a Transkribus or
   eScriptorium project as a whole.
-- `source.format.yolo-in` · `source.format.yolo-out`
-- `source.format.kraken-in` · `source.format.kraken-out`
-- `source.format.columnar-in` · `source.format.columnar-out`
-- `source.format.geo-in` · `source.format.geo-out`
-- `source.format.table-in` · `source.format.table-out` — a table segment as CSV or a
+- `source.format.yolo-in` · `source.format.yolo-out` **[GAP]** (#4944)
+- `source.format.kraken-in` · `source.format.kraken-out` **[GAP]** (#4946)
+- `source.format.columnar-in` · `source.format.columnar-out` **[GAP]** (#4946)
+- `source.format.geo-in` · `source.format.geo-out` **[GAP]** (#4946)
+- `source.format.table-in` · `source.format.table-out` — **[GAP]** (#4946) a table segment as CSV or a
   spreadsheet, each cell carrying a reference to its segment.
-- `source.format.svg-out` — the page as SVG, text in its direction and along its baseline,
+- `source.format.svg-out` — **[GAP]** (#4946) the page as SVG, text in its direction and along its baseline,
   with descriptions.
-- `source.format.pdf-out` — a searchable PDF with text in place and descriptions as alt text.
+- `source.format.pdf-out` — **[GAP]** (#4946) a searchable PDF with text in place and descriptions as alt text.
 
 Training
-- `source.train.set-from-selection` — a training set is made from chosen sources, pass, kinds
+- `source.train.set-from-selection` — **[GAP]** (#4947) a training set is made from chosen sources, pass, kinds
   and readings.
-- `source.train.line-pictures` — line pictures are cut to the polygon and straightened on the
+- `source.train.line-pictures` — **[GAP]** (#4947) line pictures are cut to the polygon and straightened on the
   baseline.
-- `source.train.human-checked-by-default` — only human-checked readings are included by
+- `source.train.human-checked-by-default` — **[GAP]** (#4947) only human-checked readings are included by
   default; including others is deliberate and is recorded row by row in the set.
-- `source.train.ground-truth` — a fully corrected page can be marked as ground truth.
-- `source.train.measured` — a model's pass can be scored against ground truth by page and by
+- `source.train.ground-truth` — **[GAP]** (#4947) a fully corrected page can be marked as ground truth.
+- `source.train.measured` — **[GAP]** (#4947) a model's pass can be scored against ground truth by page and by
   hand, and the score is kept with the date, model and training set.
-- `source.train.model-lineage` — a pass made by a fine-tuned model names that model, and the
+- `source.train.model-lineage` — **[GAP]** (#4947) a pass made by a fine-tuned model names that model, and the
   model names the training set it came from.
-- `source.train.split-by-manuscript` — training, validation and test are split by manuscript.
-- `source.train.self-describing` — a training set carries a description in HTR-United's terms.
-- `source.train.rows-keep-context` — each row keeps hand, script, period, source, guideline
+- `source.train.split-by-manuscript` — **[GAP]** (#4947) training, validation and test are split by manuscript.
+- `source.train.self-describing` — **[GAP]** (#4947) a training set carries a description in HTR-United's terms.
+- `source.train.rows-keep-context` — **[GAP]** (#4947) each row keeps hand, script, period, source, guideline
   and level.
-- `source.train.sign-pictures` — pictures of characters and declared signs can be exported as
+- `source.train.sign-pictures` — **[GAP]** (#4947) pictures of characters and declared signs can be exported as
   a labelled set.
-- `source.train.output-is-pass` — a fine-tuned model's output arrives as a new pass and new
+- `source.train.output-is-pass` — **[GAP]** (#4947) a fine-tuned model's output arrives as a new pass and new
   readings.
-- `source.train.projection-only` — a training set is made on demand and is never the record.
+- `source.train.projection-only` — **[GAP]** (#4947) a training set is made on demand and is never the record.
 
 ## Test matrix
 

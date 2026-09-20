@@ -8,7 +8,7 @@
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
 > code makes them pass. **Status: DRAFT.** A slice of the source model: read `source-model.md`
-> first. Behaviour ids below have **no tags yet**; everything under "The design" is unbuilt
+> first. Every behaviour below is tagged **[GAP]** with its issue; everything under "The design" is unbuilt
 > design.
 >
 > **See also, and do not duplicate.** Four specs own neighbouring ground and change daily on
@@ -399,63 +399,63 @@ Specified in its own file, `synced-folder.md`: it is a programme of its own (wat
 folder, matching files, bringing outside edits in, keeping outputs current), and it belongs
 half to the exporter and half to the importer.
 
-## Behaviors (ids proposed; untagged until approval)
+## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
 
 Model cards and jobs
-- `source.model.one-card` — every usable model has one card in one shape, whatever kind it is.
-- `source.model.card-is-the-catalogue` — cards are the contents of the single catalogue; the
+- `source.model.one-card` — **[GAP]** (#4948) every usable model has one card in one shape, whatever kind it is.
+- `source.model.card-is-the-catalogue` — **[GAP]** (#4948) cards are the contents of the single catalogue; the
   shared picker and role defaults read them; no second catalogue exists.
-- `source.model.jobs-typed` — a card names its jobs from a fixed list, each with what it takes
+- `source.model.jobs-typed` — **[GAP]** (#4948) a card names its jobs from a fixed list, each with what it takes
   and gives in source-model terms.
-- `source.model.suits` — a card states scripts, languages, period, material, direction and line
+- `source.model.suits` — **[GAP]** (#4948) a card states scripts, languages, period, material, direction and line
   position.
-- `source.model.licence-class` — a card carries a licence and a licence class; only open
+- `source.model.licence-class` — **[GAP]** (#4948) a card carries a licence and a licence class; only open
   models (permissive, or compatible copyleft) download without a further deliberate step.
-- `source.model.citation-shown` — a model's citation appears wherever its work is shown and in
+- `source.model.citation-shown` — **[GAP]** (#4948) a model's citation appears wherever its work is shown and in
   exports.
-- `source.model.measured-here` — a card shows this project's own measurements of the model.
-- `source.model.reaches-cli-by-generation` — a card route reaches the command line through
+- `source.model.measured-here` — **[GAP]** (#4948) a card shows this project's own measurements of the model.
+- `source.model.reaches-cli-by-generation` — **[GAP]** (#4948) a card route reaches the command line through
   the generated client; no model command is hand-written.
 
 Chains and making
-- `source.chain.is-a-workflow` — a chain is a workflow; the second chaining mechanism that
+- `source.chain.is-a-workflow` — **[GAP]** (#4949) a chain is a workflow; the second chaining mechanism that
   ships today (`execution/chaining.py`) is folded into the workflow graph and retired.
-- `source.resolve.one-cascade` — which model does a job, which language applies and which
+- `source.resolve.one-cascade` — **[GAP]** (#4949) which model does a job, which language applies and which
   guideline holds are all answered by one engine resolver walking the one cascade; today's
   app-wide role defaults are its top level, not a separate system.
-- `source.egress.one-gate` — whether content may leave this machine is decided in one place,
+- `source.egress.one-gate` — **[GAP]** (#4949) whether content may leave this machine is decided in one place,
   where a model is called, reading the cascade (a project's rule, a segment's rights record);
   today's privacy check on model profiles becomes that gate.
-- `source.chain.checked-before-run` — a chain whose steps do not fit (what one gives is not
+- `source.chain.checked-before-run` — **[GAP]** (#4949) a chain whose steps do not fit (what one gives is not
   what the next takes) is refused before it runs, with the reason.
-- `source.chain.segments-to-any-reader` — one general step cuts each segment's picture and
+- `source.chain.segments-to-any-reader` — **[GAP]** (#4949) one general step cuts each segment's picture and
   hands it to any model that can do the next job, writing readings back on the same segments.
-- `source.chain.jobs-without-models` — a chain can name jobs only, resolved against the
+- `source.chain.jobs-without-models` — **[GAP]** (#4949) a chain can name jobs only, resolved against the
   project's settings when run.
-- `source.chain.bar-offers-project-default` — the workflow bar offers the project's default
+- `source.chain.bar-offers-project-default` — **[GAP]** (#4949) the workflow bar offers the project's default
   chain first, on the current selection, down to chosen segments.
-- `source.chain.output-never-overwrites` — a chain's output is a new pass or new readings.
-- `source.making.recorded` — every pass and reading records run, step, model card and version,
+- `source.chain.output-never-overwrites` — **[GAP]** (#4949) a chain's output is a new pass or new readings.
+- `source.making.recorded` — **[GAP]** (#4949) every pass and reading records run, step, model card and version,
   settings, inputs, and person-or-machine (set by the engine).
-- `source.making.walkable` — the chain behind any reading can be walked back step by step.
-- `source.making.in-inspector` — the Inspector shows the selected segment's making as a
+- `source.making.walkable` — **[GAP]** (#4949) the chain behind any reading can be walked back step by step.
+- `source.making.in-inspector` — **[GAP]** (#4949) the Inspector shows the selected segment's making as a
   readable chain.
-- `source.making.same-everywhere` — the same making is returned over MCP and the command line,
+- `source.making.same-everywhere` — **[GAP]** (#4949) the same making is returned over MCP and the command line,
   and shown for a run in the workflow bar and run log.
-- `source.making.compare-chains` — two chains' results on one page can be compared and scored.
+- `source.making.compare-chains` — **[GAP]** (#4949) two chains' results on one page can be compared and scored.
 
 Projects and onboarding
-- `source.project.has-settings` — a project (today's library) has settings of its own for
+- `source.project.has-settings` — **[GAP]** (#4951) a project (today's library) has settings of its own for
   languages, scripts, period, chain, models, rules and folder; one never filled in behaves as
   before.
-- `source.profile.is-a-prototype` — a project profile is a prototype for a project;
+- `source.profile.is-a-prototype` — **[GAP]** (#4951) a project profile is a prototype for a project;
   profiles inherit from one another, and a project can override any value.
-- `source.profile.shareable-file` — a profile can be exported to and imported from a plain file
+- `source.profile.shareable-file` — **[GAP]** (#4951) a profile can be exported to and imported from a plain file
   that holds settings, chain, tools to show, guideline and model suggestions, and no sources
   or secrets.
-- `source.profile.sets-up-the-project` — choosing a profile sets languages, scripts, chain,
+- `source.profile.sets-up-the-project` — **[GAP]** (#4951) choosing a profile sets languages, scripts, chain,
   guideline and the tools shown, and offers to download the models it names.
-- `source.chain.bar-offers-what-fits` — beside the project's chain, the workflow bar offers the
+- `source.chain.bar-offers-what-fits` — **[GAP]** (#4949) beside the project's chain, the workflow bar offers the
   workflows the current selection can feed; there is no list of tools to hide.
 - **BLOCKED on the maintainer** (the next three): recipes as files were ruled on 2026-09-19;
   about fifty locked default workflows already ship as the app's best-practice chains
@@ -463,57 +463,57 @@ Projects and onboarding
   maintainer most wants to avoid. The reviewers recommend **recipe files as the one source,
   with the shipped default workflows seeded from them**. In the morning file; nothing is
   built on recipes until ruled.
-- `source.recipe.is-a-file` — a best-practice chain is a shareable recipe file that names jobs,
+- `source.recipe.is-a-file` — **[GAP]** (#4950) a best-practice chain is a shareable recipe file that names jobs,
   suitable models, and the languages, scripts and periods it is for.
-- `source.recipe.makes-a-workflow` — applying a recipe makes a workflow; nothing runs except
+- `source.recipe.makes-a-workflow` — **[GAP]** (#4950) applying a recipe makes a workflow; nothing runs except
   workflows.
-- `source.recipe.holds-no-second-copy` — a recipe holds no chain that the workflow store also
+- `source.recipe.holds-no-second-copy` — **[GAP]** (#4950) a recipe holds no chain that the workflow store also
   holds: a shipped best-practice chain exists once, and the other form is made from it.
-- `source.project.automatic-after-first-yes` — automatic chaining is switched on for each
+- `source.project.automatic-after-first-yes` — **[GAP]** (#4951) automatic chaining is switched on for each
   project and confirms before its first run; what it makes counts as the record only as the
   project's rule allows.
-- `source.project.record-rule` — a project is strict or relaxed about what counts as the
+- `source.project.record-rule` — **[GAP]** (#4951) a project is strict or relaxed about what counts as the
   record; a new project is strict; a profile can set either.
-- `source.project.relaxed-never-changes-the-maker` — a relaxed project changes what counts as
+- `source.project.relaxed-never-changes-the-maker` — **[GAP]** (#4951) a relaxed project changes what counts as
   the record, never who made it: a machine's reading, pass or claim is stored and shown as a
-  machine's in every project (the engine sets this; see #4868, #4869).
-- `source.project.one-settings-window` — making a new project and Project Settings… (File menu
+  machine's in every project (the engine sets this; see → #4868, → #4869).
+- `source.project.one-settings-window` — **[GAP]** (#4951) making a new project and Project Settings… (File menu
   and the project's context menu) open the same window; there is no second surface.
-- `source.project.in-the-cascade` — project settings sit between the app and a folder in the
+- `source.project.in-the-cascade` — **[GAP]** (#4951) project settings sit between the app and a folder in the
   one cascade; a folder can override them; a shown value says which level it came from.
-- `source.project.own-models` — two projects can use different models for the same job.
-- `source.project.stays-local` — a project marked "pages may not leave this machine" refuses
+- `source.project.own-models` — **[GAP]** (#4951) two projects can use different models for the same job.
+- `source.project.stays-local` — **[GAP]** (#4951) a project marked "pages may not leave this machine" refuses
   cloud models for everything in it, and says why.
-- `source.onboard.five-questions` — making a project asks at most five questions.
-- `source.onboard.samples-first` — onboarding starts by asking for sample pages, and from them
+- `source.onboard.five-questions` — **[GAP]** (#4951) making a project asks at most five questions.
+- `source.onboard.samples-first` — **[GAP]** (#4951) onboarding starts by asking for sample pages, and from them
   proposes scripts, languages, material, period, layout and the best-fitting profile, for
   correction.
-- `source.onboard.derives-not-asks` — direction, line position and hardware are worked out,
+- `source.onboard.derives-not-asks` — **[GAP]** (#4951) direction, line position and hardware are worked out,
   shown, and correctable.
-- `source.onboard.proposes-chain` — the answers yield a proposed default chain from recipes
+- `source.onboard.proposes-chain` — **[GAP]** (#4951) the answers yield a proposed default chain from recipes
   kept as data, with models, downloads and licences stated.
-- `source.onboard.says-no-model` — where the existing language-fit score finds no suitable
+- `source.onboard.says-no-model` — **[GAP]** (#4951) where the existing language-fit score finds no suitable
   model, Fichero says so and proposes the hand-transcribe-then-train route; it never
   substitutes silently.
-- `source.onboard.rerun-rewrites-nothing` — changing a project's answers changes defaults for
+- `source.onboard.rerun-rewrites-nothing` — **[GAP]** (#4951) changing a project's answers changes defaults for
   new work only.
 
 Finding models
-- `source.find.by-need` — the existing model recommender and language-fit score are extended
+- `source.find.by-need` — **[GAP]** (#4948) the existing model recommender and language-fit score are extended
   (not replaced) to search by job, script, language, period and local-only, across an open
-  list of sources including Kraken's repository and Hugging Face (#2116).
-- `source.find.download-is-a-provider-row` — a downloaded model becomes a row under its
+  list of sources including Kraken's repository and Hugging Face (→ #2116).
+- `source.find.download-is-a-provider-row` — **[GAP]** (#4948) a downloaded model becomes a row under its
   provider, through the one catalogue's download path.
-- `source.find.results-are-cards` — results are shown as cards, with licence class, size and
+- `source.find.results-are-cards` — **[GAP]** (#4948) results are shown as cards, with licence class, size and
   whether this Mac can run them.
-- `source.find.try-before-default` — a found model can be tried on chosen pages and measured
+- `source.find.try-before-default` — **[GAP]** (#4948) a found model can be tried on chosen pages and measured
   before becoming a default.
 
 Reader and language tools
-- `source.reader.one-renderer` — one Reader renderer shows any script, direction and declared
+- `source.reader.one-renderer` — **[GAP]** (#4948) one Reader renderer shows any script, direction and declared
   sign.
-- `source.nlp.no-silent-fallback` — see `histnorm.language.no-silent-english-entity-model`
-  (#4914), which owns this; not restated here.
+- `source.nlp.no-silent-fallback` — **[GAP]** (#4948) see `histnorm.language.no-silent-english-entity-model`
+  (→ #4914), which owns this; not restated here.
 
 ## Requests to other specs (for the manager to route; nothing edited here)
 
