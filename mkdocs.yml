@@ -413,6 +413,7 @@ nav:
               - Models, Chains & Projects: contributor_manual/specs/source/models-chains-and-projects.md
               - Synced Folder: contributor_manual/specs/source/synced-folder.md
               - Rights, Consent & Access: contributor_manual/specs/source/rights-and-access.md
+              - Build Notes (identity & storage): contributor_manual/specs/source/build-notes-identity-and-storage.md
               - Segment Representations (earlier; first slice): contributor_manual/specs/source/segment-representations.md
               - Historical Text Normalization (earlier; the text side): contributor_manual/specs/source/historical-text-normalization.md
               - Archival Data Model (earlier; staged plan): contributor_manual/specs/source/archival-data-model-plan.md
