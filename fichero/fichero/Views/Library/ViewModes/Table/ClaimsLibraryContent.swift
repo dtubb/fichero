@@ -26,6 +26,19 @@ struct ClaimsLibraryContent: View {
     /// `kg.view.keyboard-delete`; same `onVisibleIds` shape
     /// `DatasetModeView` already reports through).
     var onVisibleIds: (([String]) -> Void)?
+    /// #4856: the filter TEXT and TYPE now live in the shared bottom bar's
+    /// filter slot — `LibraryView` owns the state, this view only reads and
+    /// writes it, the same as `selection`.
+    @Binding var filterText: String
+    @Binding var filterType: String?
+    /// #4856: set true by the shared footer's "+" when this content kind is
+    /// active. Drives the SAME create sheet the old in-table "New Claim"
+    /// button opened — only where the trigger lives has moved.
+    @Binding var addRequested: Bool
+    /// Reports this scope's loaded claim types UP so the shared footer's
+    /// type menu (§ `filterType`) has rows to offer — only the content knows
+    /// what its own loaded rows contain.
+    var onAvailableTypesChanged: (([String]) -> Void)?
 
     /// The SHARED source cursor — a claim row opens its page + highlight through
     /// the same seam the claim card and entity biography use. Optional → safe
@@ -72,14 +85,6 @@ struct ClaimsLibraryContent: View {
     /// `folderId` alone never refired across libraries (the F5 bug).
     @State private var loadedLibraryId: UUID?
 
-    /// Per-table filter (spec: kg-tables, filter.text / filter.claim-type). Intersects
-    /// with the shared ⌘F `searchQuery`; empty text + nil type = no per-table filter.
-    @State private var filterText = ""
-    @State private var filterType: String?
-
-    /// Presents the manual claim-create sheet (spec: kg-tables `claim.create`).
-    @State private var showingCreateSheet = false
-
     /// The claim being edited (spec: kg-tables `claim.edit`). Presents the EXISTING
     /// `EditClaimSheet` (PATCH). A tiny Identifiable wrapper is needed because
     /// `KnowledgeClaim.id` is optional, which `.sheet(item:)` cannot key on.
@@ -113,6 +118,10 @@ struct ClaimsLibraryContent: View {
             if case .entity = scope {
                 narrowedHeader
             }
+            // #4856: no second bar here any more — the filter and the add
+            // control both moved into the shared bottom bar's slots
+            // (`LibraryView+BottomActionBar.swift`), so a table pane spends
+            // exactly one bar's height, not two.
             ClaimsTableView(
                 items: items,
                 selection: $selection,
@@ -123,9 +132,6 @@ struct ClaimsLibraryContent: View {
                 onEdit: { claimToEdit = $0 },
                 onRevealSource: revealSource
             )
-            // #4850: bottom, matching the Entities table and the Library
-            // pane's own filter — was first in this VStack (top).
-            filterBar
         }
         // Reload on BOTH the active library AND the folder scope. Keying on
         // `folderId` alone left the library-wide row (folderId == nil) stuck on
@@ -157,7 +163,7 @@ struct ClaimsLibraryContent: View {
                 showingAllOverride = false
             }
         }
-        .sheet(isPresented: $showingCreateSheet) {
+        .sheet(isPresented: $addRequested) {
             // Attribute the hand-authored claim to the folder/page in view so it
             // appears in this scope after reload; a nil folder makes a sourceless
             // working hypothesis (library-wide "Claims").
@@ -187,15 +193,28 @@ struct ClaimsLibraryContent: View {
         // trigger set. `items` itself already re-derives from whichever store
         // (`model` or `claimStore`) is active, so this needs no OTHER new wiring
         // — Select All keeps seeing exactly the narrowed list this pane shows.
-        .onChange(of: items.map(\.id)) { _, newIds in onVisibleIds?(newIds) }
+        // #4856 folds in reporting the scope's available TYPES on the same
+        // triggers — the shared footer's type menu (§ `filterType`) needs
+        // them the moment this content becomes the active one, same as the
+        // visible ids.
+        .onChange(of: items.map(\.id)) { _, newIds in
+            onVisibleIds?(newIds)
+            onAvailableTypesChanged?(availableTypes)
+        }
         .onChange(of: filterText) { _, _ in onVisibleIds?(items.map(\.id)) }
         .onChange(of: filterType) { _, _ in onVisibleIds?(items.map(\.id)) }
         .onChange(of: searchQuery) { _, _ in onVisibleIds?(items.map(\.id)) }
         .onChange(of: model?.isLoading) { _, loading in
-            if loading == false { onVisibleIds?(items.map(\.id)) }
+            if loading == false {
+                onVisibleIds?(items.map(\.id))
+                onAvailableTypesChanged?(availableTypes)
+            }
         }
         .onChange(of: claimStore?.isLoading) { _, loading in
-            if loading == false { onVisibleIds?(items.map(\.id)) }
+            if loading == false {
+                onVisibleIds?(items.map(\.id))
+                onAvailableTypesChanged?(availableTypes)
+            }
         }
     }
 
@@ -323,41 +342,6 @@ struct ClaimsLibraryContent: View {
     /// The claim types present in the loaded set, for the type picker.
     private var availableTypes: [String] {
         Array(Set(scopedClaims.compactMap { $0.claimType?.rawValue })).sorted()
-    }
-
-    @ViewBuilder
-    private var filterBar: some View {
-        // Reuses the shared bottom-toolbar-strip component (#4362) instead of
-        // a hand-placed HStack, matching the Entities table and the Library
-        // pane's own filter chrome.
-        PaneFilterBar(placement: .bottom) {
-            Image(systemName: "line.3.horizontal.decrease.circle")
-                .foregroundStyle(.secondary)
-            TextField("Filter claims", text: $filterText)
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: 220)
-            Menu {
-                Button("All types") { filterType = nil }
-                Divider()
-                ForEach(availableTypes, id: \.self) { type in
-                    Button(type.capitalized) { filterType = type }
-                }
-            } label: {
-                Label(filterType?.capitalized ?? "All types", systemImage: "tag")
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            Spacer()
-            // Manual create (spec: kg-tables `claim.create`) — hand-author a claim
-            // from the table, wiring POST /api/claims via EntityService.createClaim.
-            Button {
-                showingCreateSheet = true
-            } label: {
-                Label("New Claim", systemImage: "plus")
-            }
-            .help("Assert a claim by hand")
-            .accessibilityIdentifier("kg.claim.new")
-        }
     }
 
     private var emptyMessage: String {

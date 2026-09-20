@@ -12,6 +12,7 @@ extension ChatView {
         PaneKindSelector(
             kindTitle: "Chat",
             kindIcon: "bubble.left.and.bubble.right",
+            currentKind: .chat,
             lenses: ChatSurfaceTab.allCases,
             lensTitle: { (tab: ChatSurfaceTab) in tab.title },
             lensIcon: { (tab: ChatSurfaceTab) in tab.icon },

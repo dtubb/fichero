@@ -128,21 +128,95 @@ extension LibraryView {
         }
     }
 
-    /// Essential verbs — always inline (#3057): New Folder, Delete, Import. The
-    /// trailing Spacer keeps them left-aligned with the secondary/overflow on the
-    /// right, preserving the bar's existing Finder-style layout.
+    /// #4856: ONE add control, content-aware — a folder in Documents, an
+    /// entity in Entities, a claim in Claims. Calls the SAME create paths
+    /// the content's own former "New Entity"/"New Claim" button called
+    /// (`kgContentAddRequested`, read by whichever `EntitiesLibraryContent`/
+    /// `ClaimsLibraryContent` is mounted); it does not write a new one.
+    private var addButtonLabel: String {
+        switch effectiveContentKind {
+        case .documents: return "New Folder"
+        case .entities: return "New Entity"
+        case .claims: return "New Claim"
+        }
+    }
+
+    private var addButtonHelp: String {
+        switch effectiveContentKind {
+        case .documents: return "Create a new folder"
+        case .entities: return "Create an entity by hand"
+        case .claims: return "Assert a claim by hand"
+        }
+    }
+
+    private func performAdd() {
+        switch effectiveContentKind {
+        case .documents: handleCreateNewFolder()
+        case .entities, .claims: kgContentAddRequested = true
+        }
+    }
+
+    private var addButtonAccessibilityIdentifier: String {
+        switch effectiveContentKind {
+        case .documents: return "library.newFolder"
+        case .entities: return "kg.entity.new"
+        case .claims: return "kg.claim.new"
+        }
+    }
+
+    /// #4856: the filter slot — the SAME text field + type menu
+    /// `EntitiesLibraryContent`/`ClaimsLibraryContent` used to draw in their
+    /// own second bar, now filled into this ONE bar instead. The content
+    /// view still owns the filter's MEANING (it reports `onAvailableTypesChanged`
+    /// and reads `filterText`/`filterType` back) — only where the controls
+    /// DRAW has moved.
+    @ViewBuilder
+    private var kgContentFilterControls: some View {
+        Image(systemName: "line.3.horizontal.decrease.circle")
+            .foregroundStyle(.secondary)
+        TextField(
+            effectiveContentKind == .claims ? "Filter claims" : "Filter entities",
+            text: $kgContentFilterText
+        )
+        .textFieldStyle(.roundedBorder)
+        .frame(maxWidth: 220)
+        Menu {
+            Button("All types") { kgContentFilterType = nil }
+            Divider()
+            ForEach(kgContentAvailableTypes, id: \.self) { type in
+                Button(type.capitalized) { kgContentFilterType = type }
+            }
+        } label: {
+            Label(kgContentFilterType?.capitalized ?? "All types", systemImage: "tag")
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    /// Essential verbs — always inline (#3057): the add control, Delete, Import.
+    /// The trailing Spacer keeps them left-aligned with the secondary/overflow on
+    /// the right, preserving the bar's existing Finder-style layout.
     @ViewBuilder
     private var essentialBarButtons: some View {
+        // #4856's own open question, not decided here: whether Import (and
+        // Delete/Export/Run-Workflow's existing content-aware `.disabled`
+        // rules below) should HIDE rather than grey for a KG content kind
+        // they don't apply to — left exactly as they behave today.
+        if effectiveContentKind != .documents {
+            kgContentFilterControls
+        }
+
         Button {
-            handleCreateNewFolder()
+            performAdd()
         } label: {
             Image(systemName: "plus")
-                .accessibilityLabel("New Folder")
+                .accessibilityLabel(addButtonLabel)
         }
         .buttonStyle(.borderless)
         .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
         .contentShape(Rectangle())
-        .help("Create a new folder")
+        .help(addButtonHelp)
+        .accessibilityIdentifier(addButtonAccessibilityIdentifier)
 
         Button {
             promptDeleteSelected()

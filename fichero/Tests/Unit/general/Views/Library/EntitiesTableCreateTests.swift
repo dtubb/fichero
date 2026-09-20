@@ -21,12 +21,20 @@ final class EntitiesTableCreateTests: XCTestCase {
         try Self.appSource("Views/Library/ViewModes/Table/EntitiesLibraryContent.swift")
     }
 
+    /// #4856: the "New Entity" affordance itself moved into the ONE shared
+    /// bottom bar (`LibraryView+BottomActionBar.swift`'s content-aware add
+    /// control) so a table pane spends one bar, not two — the table's own
+    /// file now only needs to keep the trigger (`addRequested`) and the
+    /// sheet it presents.
     func testTableOffersAManualCreateAffordance() throws {
         let source = try entitiesContentSource()
-        XCTAssertTrue(source.contains("New Entity"),
-                      "the entities table must offer a New Entity affordance")
-        XCTAssertTrue(source.contains("showingCreateSheet"),
-                      "the create affordance must present the create sheet")
+        XCTAssertTrue(source.contains("addRequested"),
+                      "the create affordance must present the create sheet from an external trigger")
+        let footerSource = try Self.appSource("Views/Library/LibraryView+BottomActionBar.swift")
+        XCTAssertTrue(footerSource.contains("New Entity"),
+                      "the shared footer's add control must offer a New Entity label for this content kind")
+        XCTAssertTrue(footerSource.contains("kgContentAddRequested = true"),
+                      "the shared footer's add control must trigger the entities table's own create sheet")
     }
 
     func testCreateReusesNewEntitySheetNotAParallelForm() throws {

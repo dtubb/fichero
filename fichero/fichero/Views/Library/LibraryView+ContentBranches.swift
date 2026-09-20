@@ -249,7 +249,11 @@ extension LibraryView {
                 documents: documents,
                 searchQuery: activeSearchQuery,
                 selection: $selection,
-                onVisibleIds: { claimsVisibleIds = $0 }
+                onVisibleIds: { claimsVisibleIds = $0 },
+                filterText: $kgContentFilterText,
+                filterType: $kgContentFilterType,
+                addRequested: $kgContentAddRequested,
+                onAvailableTypesChanged: { kgContentAvailableTypes = $0 }
             )
             .padding(.leading, browserLeadingInset)
         } else {
@@ -270,7 +274,11 @@ extension LibraryView {
             searchQuery: activeSearchQuery,
             selection: $selection,
             onOpen: { openEntityFromLibrary($0) },
-            onVisibleIds: { entitiesVisibleIds = $0 }
+            onVisibleIds: { entitiesVisibleIds = $0 },
+            filterText: $kgContentFilterText,
+            filterType: $kgContentFilterType,
+            addRequested: $kgContentAddRequested,
+            onAvailableTypesChanged: { kgContentAvailableTypes = $0 }
         )
         .padding(.leading, browserLeadingInset)
     }

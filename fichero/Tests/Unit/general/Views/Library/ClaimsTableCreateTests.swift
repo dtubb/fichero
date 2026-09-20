@@ -18,14 +18,22 @@ final class ClaimsTableCreateTests: XCTestCase {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
+    /// #4856: the "New Claim" affordance itself moved into the ONE shared
+    /// bottom bar (`LibraryView+BottomActionBar.swift`'s content-aware add
+    /// control) so a table pane spends one bar, not two — the table's own
+    /// file now only needs to keep the trigger (`addRequested`) and the
+    /// sheet it presents.
     func testClaimsTableOffersManualCreateWiredToTheSheet() throws {
         let source = try Self.appSource("Views/Library/ViewModes/Table/ClaimsLibraryContent.swift")
-        XCTAssertTrue(source.contains("New Claim"),
-                      "the claims table must offer a New Claim affordance")
-        XCTAssertTrue(source.contains("showingCreateSheet"),
-                      "the affordance must present the create sheet")
+        XCTAssertTrue(source.contains("addRequested"),
+                      "the affordance must present the create sheet from an external trigger")
         XCTAssertTrue(source.contains("NewClaimSheet("),
                       "create must present NewClaimSheet")
+        let footerSource = try Self.appSource("Views/Library/LibraryView+BottomActionBar.swift")
+        XCTAssertTrue(footerSource.contains("New Claim"),
+                      "the shared footer's add control must offer a New Claim label for this content kind")
+        XCTAssertTrue(footerSource.contains("kgContentAddRequested = true"),
+                      "the shared footer's add control must trigger the claims table's own create sheet")
     }
 
     func testCreateGoesThroughPostApiClaimsAsHuman() throws {

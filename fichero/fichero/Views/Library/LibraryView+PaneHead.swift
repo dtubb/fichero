@@ -29,6 +29,7 @@ extension LibraryView {
         PaneKindSelector(
             kindTitle: "Library",
             kindIcon: ToolbarSymbols.breadcrumbLibrary,
+            currentKind: .library,
             lenses: availableDisplayModes,
             lensTitle: { (mode: ViewDisplayMode) in mode.label },
             lensIcon: { (mode: ViewDisplayMode) in mode.icon },

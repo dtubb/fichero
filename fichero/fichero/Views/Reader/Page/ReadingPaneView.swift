@@ -433,14 +433,15 @@ struct ReadingPaneView: View {
         PaneKindSelector(
             kindTitle: "Reader",
             kindIcon: "book",
+            currentKind: .reading,
             lenses: ReaderLens.allCases,
             lensTitle: { (lens: ReaderLens) in lens.title },
             lensIcon: { (lens: ReaderLens) in lens.icon },
-            // ONE icon (Daniel, 2026-09-01). The kind glyph and the Content
-            // lens glyph were two document pictures a divider apart, with the
-            // breadcrumb's proxy icon a capsule away — three ways of saying
-            // "a page". The kind icon now opens the lens menu itself.
-            collapsesKindIntoLens: true,
+            // #4880: the Reader now uses the SAME two-control row as
+            // Library/Preview (kind chooser, then view chooser) instead of
+            // its own always-merged icon — the merge that used to be
+            // permanent for Reader is now only the shared narrowest-width
+            // fallback every kind already had.
             // The head SAYS what it is showing (Daniel, 2026-09-02) — the
             // glyph alone could not tell content from a translation from one
             // named artifact — and the View menu carries the "Showing"

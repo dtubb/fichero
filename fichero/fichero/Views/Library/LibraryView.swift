@@ -181,6 +181,26 @@ struct LibraryView: View {
     @State var entitiesVisibleIds: [String] = []
     @State var claimsVisibleIds: [String] = []
 
+    /// #4856: the Entities/Claims filter (text + type) now lives in the
+    /// shared bottom bar's filter slot, not a second bar each content view
+    /// drew for itself. One pair of state, reused by whichever KG content
+    /// kind is active — only one is ever visible in a pane at once, and
+    /// switching kind already clears `selection` (`contentKindBinding`), so
+    /// reset the filter alongside it rather than leaking one kind's filter
+    /// text into the other's table.
+    @State var kgContentFilterText: String = ""
+    @State var kgContentFilterType: String?
+    /// The type menu's own rows — reported UP by whichever content view is
+    /// active (the same shape `onVisibleIds` already reports through),
+    /// since only the content knows what claim/entity types its loaded rows
+    /// actually contain.
+    @State var kgContentAvailableTypes: [String] = []
+    /// Set true by the shared footer's "+" when the active content kind is
+    /// Entities or Claims (§ Documents keeps its own New Folder action) —
+    /// read by whichever content view is mounted to open ITS OWN create
+    /// sheet, the same `NewEntitySheet`/`NewClaimSheet` each already used.
+    @State var kgContentAddRequested = false
+
     /// Document pending presentation in the Add-to-Workspace picker (#1494).
     /// Non-nil drives the `.sheet(item:)` below.
     @State var workspacePickerDocument: Document?

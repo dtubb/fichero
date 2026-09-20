@@ -62,6 +62,7 @@ extension ContentView {
         PaneKindSelector(
             kindTitle: "Preview",
             kindIcon: ToolbarSymbols.previewPane,
+            currentKind: .preview,
             lenses: PreviewLens.allCases,
             lensTitle: { (lens: PreviewLens) in lens.title },
             lensIcon: { (lens: PreviewLens) in lens.icon },

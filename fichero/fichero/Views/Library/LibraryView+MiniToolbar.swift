@@ -322,6 +322,13 @@ extension LibraryView {
             set: { newKind in
                 guard newKind != effectiveContentKind else { return }
                 selection = []
+                // #4856: the shared footer's filter slot is reused across
+                // whichever KG content kind is active — a claim-type filter
+                // must not silently narrow the entities table you just
+                // switched to.
+                kgContentFilterText = ""
+                kgContentFilterType = nil
+                kgContentAvailableTypes = []
                 if let paneContentKindSwitcher {
                     paneContentKindSwitcher.switchContentKind(newKind)
                 } else {
