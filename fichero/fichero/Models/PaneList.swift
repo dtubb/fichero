@@ -261,6 +261,24 @@ indirect enum PaneNode: Codable, Sendable, Hashable, Identifiable {
             return .split(id: id, axis: axis, children: children.map { $0.changingContentKind(target, to: newContentKind) })
         }
     }
+
+    /// This node with the leaf `id`'s `config.libraryLayout` changed to `newLayout`, preserving
+    /// everything else — the LAYOUT sibling of `changingContentKind` above (#4965, source-model
+    /// panes recon slice E, 2026-09-20: the View menu's Icon/List/Table commands write HERE, to
+    /// the focused pane's own field, not a window-wide setting). Exact same shape as
+    /// `changingContentKind`: `nil` clears the pane's explicit choice (back to following the
+    /// window/workspace default); every other pane is untouched.
+    func changingLibraryLayout(_ target: UUID, to newLayout: String?) -> PaneNode {
+        switch self {
+        case let .leaf(id, kind, scope, config):
+            guard id == target else { return self }
+            var updated = config
+            updated.libraryLayout = newLayout
+            return .leaf(id: id, kind: kind, scope: scope, config: updated)
+        case let .split(id, axis, children):
+            return .split(id: id, axis: axis, children: children.map { $0.changingLibraryLayout(target, to: newLayout) })
+        }
+    }
 }
 
 /// A window's centre composition: an ordered list of top-level pane nodes
@@ -329,6 +347,30 @@ struct PaneList: Codable, Sendable, Hashable {
     /// window again). Every other pane is untouched.
     func changingLeafContentKind(_ id: UUID, to contentKind: String?) -> PaneList {
         PaneList(nodes.map { $0.changingContentKind(id, to: contentKind) })
+    }
+
+    /// Change the leaf `id`'s explicit LIBRARY LAYOUT (#4965, slice E) — the View menu's Icon/
+    /// List/Table/… commands write here when a Library leaf is focused. `nil` clears it (follow
+    /// the window/workspace default again). Every other pane is untouched — same shape as
+    /// `changingLeafContentKind` above.
+    func changingLeafLibraryLayout(_ id: UUID, to layout: String?) -> PaneList {
+        PaneList(nodes.map { $0.changingLibraryLayout(id, to: layout) })
+    }
+
+    /// The `PaneConfig` of the leaf with `id`, nested splits included — `nil` if no leaf has that
+    /// id. Slice E (#4965): the View menu reads a focused leaf's CURRENT `libraryLayout` through
+    /// this, so its checkmark reflects the pane's own explicit choice, not the window default.
+    func config(for id: UUID) -> PaneConfig? {
+        var found: PaneConfig?
+        func walk(_ node: PaneNode) {
+            guard found == nil else { return }
+            switch node {
+            case let .leaf(leafId, _, _, config): if leafId == id { found = config }
+            case let .split(_, _, children): children.forEach(walk)
+            }
+        }
+        nodes.forEach(walk)
+        return found
     }
 
     /// Every leaf id of `kind`, nested splits included (leading→trailing order).

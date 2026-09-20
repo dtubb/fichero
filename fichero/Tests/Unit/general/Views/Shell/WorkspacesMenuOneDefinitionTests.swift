@@ -80,8 +80,14 @@ struct WorkspacesMenuOneDefinitionTests {
     // equal, regardless of closure identity) while letting a REAL focus change through (either
     // field differs → not equal) — the root fix for #4968's stale-Split-state diagnosis.
 
-    private static func commands(canSplit: Bool, kind: PaneKind?) -> WindowLayoutCommands {
-        WindowLayoutCommands(
+    private static func commands(
+        canSplit: Bool, kind: PaneKind?, layout: String? = nil, libraryLeafOf: BuiltInWorkspaceLayout? = nil
+    ) -> WindowLayoutCommands {
+        // Typed locals: a ternary between nil and a closure does not type-check inline.
+        var setLayout: (@MainActor (String) -> Void)?
+        if libraryLeafOf != nil { setLayout = { (_: String) in } }
+        let leaf = libraryLeafOf?.panes.leafIDs(of: .library).first
+        return WindowLayoutCommands(
             saveWorkspace: {},
             applyWorkspace: { _ in },
             applyWorkspaceLayout: { _ in },
@@ -89,8 +95,21 @@ struct WorkspacesMenuOneDefinitionTests {
             newTab: {},
             canSplitFocusedLeaf: canSplit,
             focusedPaneKindForSplit: kind,
-            isWorkspaceActive: { _ in false }
+            isWorkspaceActive: { _ in false },
+            focusedLibraryLayout: layout,
+            // A REAL Library pane id, taken from a built-in workspace. The type is inferred on
+            // purpose: on this toolchain an explicit `import Foundation` in a Swift Testing
+            // file makes the build recompile Apple's Testing-with-Foundation overlay, which fails.
+            focusedLibraryLeafID: leaf,
+            setFocusedLibraryLayout: setLayout
         )
+    }
+
+    @Test("focus moving between two Library panes with the SAME layout compares unequal")
+    func aDifferentFocusedLibraryPaneComparesUnequal() {
+        let a = Self.commands(canSplit: true, kind: .library, layout: "icons", libraryLeafOf: .read)
+        let b = Self.commands(canSplit: true, kind: .library, layout: "icons", libraryLeafOf: .browse)
+        #expect(a != b, "the layout setter captures a pane id, so a stale value would write to the old pane")
     }
 
     @Test("two instances with the same data compare equal, even with fresh closures")

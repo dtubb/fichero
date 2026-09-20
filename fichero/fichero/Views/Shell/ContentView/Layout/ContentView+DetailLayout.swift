@@ -31,8 +31,9 @@ extension ContentView {
         // column bounds. Without this outer clip, inner split panes can still
         // paint under the shell sidebar or past the left window edge (#3336).
         .clipped()
-        // Window split commands + workspace capture (Daniel, 2026-08-29).
-        .environment(\.paneSplitCoordinator, paneSplitCoordinator)
+        // `.environment(\.paneSplitCoordinator, …)` DELETED (step F, source-model panes recon,
+        // 2026-09-20) — `PaneSplitCoordinator` no longer exists; see `ContentView.swift`'s own
+        // deletion note.
     }
 
     // detailStatusPathBar is RETIRED (Daniel #106-108) — see the comment at

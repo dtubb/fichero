@@ -91,11 +91,11 @@ struct ContentView: View {
     /// Per-slot pane-kind overrides (Daniel, 2026-08-23): a slot can host
     /// any pane kind; nil entry = the plan's own kind.
     @State var paneKindOverrides: [String: PaneSpec.Kind] = [:]
-    /// Per-window split mailbox/mirror (Daniel, 2026-08-29): routes the
-    /// toolbar's Split Right/Below to the FOCUSED pane's SplittablePane and
-    /// lets a workspace save read the live split counts. Injected into the
-    /// centre row via `\.paneSplitCoordinator`.
-    @State var paneSplitCoordinator = PaneSplitCoordinator()
+    // `paneSplitCoordinator` DELETED (step F, source-model panes recon, 2026-09-20): its
+    // ONLY readers were `SplittablePane`'s own legacy split UI (retired — every live pane is
+    // now the `PaneModelSplitHook` pass-through, slice A) and `ContentView+LayoutChooser.swift`'s
+    // capture/apply of `WindowLayoutSnapshot.splits` (removed the same slice — that field stays
+    // Codable, decode-only, so an old saved workspace still decodes and simply never acts on it).
     /// The Save Workspace… name prompt (Daniel, 2026-08-29).
     /// BOXED window-chrome UX state (2026-08-30, the ViewValueSizeTests
     /// promise): ContentView is value-copied on every graph update, so

@@ -471,13 +471,14 @@ extension ContentView {
         iconStrip + PaneHeadMetrics.barHeight + MiniToolbar<EmptyView, EmptyView>.standardHeight
     }
 
-    /// Per-child SIZING for a split's children: HARD-pinned (`PaneConfig.paneExtent` — the film
-    /// strip, absolute points, ignores stored drag state), PROPORTIONAL (`PaneConfig.paneFraction`
-    /// — a resizable column seeded from a fraction of the stack's own extent), or FLEX (fills
-    /// whatever the sized/pinned siblings leave over). An extent always wins over a fraction on the
-    /// same leaf (`Sizing.preferred`, pure + unit-tested). A `.library` leaf's `paneExtent` is
-    /// widened to include its own chrome (`libraryStripExtent`, #4848) before `Sizing.preferred`
-    /// ever sees it.
+    /// Per-child SIZING for a split's children: a DEFAULT extent (`PaneConfig.paneExtent` — the
+    /// film strip, absolute points; resizable and floored at this value since slice D, 2026-09-20,
+    /// #4876/#4848 — no longer a hard pin that ignores stored drag state), PROPORTIONAL
+    /// (`PaneConfig.paneFraction` — a resizable column seeded from a fraction of the stack's own
+    /// extent), or FLEX (fills whatever the sized/pinned siblings leave over). An extent always
+    /// wins over a fraction on the same leaf (`Sizing.preferred`, pure + unit-tested). A
+    /// `.library` leaf's `paneExtent` is widened to include its own chrome (`libraryStripExtent`,
+    /// #4848) before `Sizing.preferred` ever sees it.
     private func childExtents(_ nodes: [PaneNode], axis: SplitAxis) -> [WorkspaceSplitStack.Sizing] {
         let preferences: [WorkspaceSplitStack.Sizing?] = nodes.map { node in
             guard case let .leaf(_, kind, _, config) = node else { return nil }

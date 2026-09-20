@@ -2,10 +2,13 @@ import SwiftUI
 
 /// A RESIZABLE stack for an applied workspace's splits. Lays 1–N child panes out along `axis`.
 ///
-/// Each child is FLEX (fills the remainder), a HARD PIN (`Sizing.fixed`, absolute points — the film
-/// strip, which should never grow with the display), or PROPORTIONAL (`Sizing.fraction`, a share of
-/// the stack's own extent, resizable via a `ResizableDivider` once dragged) (#4688, CD 2026-09-17:
-/// "think through % ... for the various default workspaces").
+/// Each child is FLEX (fills the remainder), a DEFAULT EXTENT (`Sizing.fixed`, absolute points —
+/// the film strip, which does not SCALE with the display but IS draggable, floored at its own
+/// configured value — #4876/#4848, source-model panes recon slice D, 2026-09-20: "a default, not
+/// a pin", replacing the earlier "never resizable, no divider" behavior of the same name), or
+/// PROPORTIONAL (`Sizing.fraction`, a share of the stack's own extent, resizable via a
+/// `ResizableDivider` once dragged) (#4688, CD 2026-09-17: "think through % ... for the various
+/// default workspaces").
 ///
 /// EVERYTHING is wrapped in a `GeometryReader` and every extent is CLAMPED to the available space —
 /// the pattern `SplittablePane` uses. The previous version stacked TWO frames on each fixed child
@@ -18,9 +21,13 @@ struct WorkspaceSplitStack: View {
     enum Sizing: Equatable {
         /// Fills whatever the sized/pinned siblings leave over.
         case flex
-        /// A HARD pin, absolute points — never resizable, never reads or writes the per-position
-        /// stored drag state (#4688). The film strip: "a strip of page icons should not grow with
-        /// the display" (CD 2026-09-16).
+        /// A DEFAULT extent, absolute points, resizable (slice D, 2026-09-20 — was a hard,
+        /// never-resizable pin; #4876/#4848). The UNDRAGGED value is exactly this many points —
+        /// it does not scale with `total` the way `.fraction` does, so "the strip of page icons
+        /// should not grow with the display" (CD 2026-09-16) still holds by default — but a drag
+        /// now persists over it (same id-keyed store `.fraction` uses, storing raw points here
+        /// instead of a 0...1 share — see `storedOverrides`), floored at this same value: the
+        /// strip can grow, never shrink below its own configured minimum.
         case fixed(Double)
         /// A proportional seed — a share (0–1) of the stack's own extent — for a RESIZABLE column:
         /// seeded from this fraction the first time it's laid out, then a drag persists over it via
@@ -182,6 +189,19 @@ struct WorkspaceSplitStack: View {
     /// with no stored value keeps `nil` — the caller's existing "fall back to its own default ×
     /// total" rule, unchanged.
     ///
+    /// The resolved value for a `.fixed` (default-extent) child: its own stored drag if present,
+    /// floored at its configured default — a drag can grow the strip, never shrink it below the
+    /// size its workspace defines (slice D, 2026-09-20, #4876/#4848). `nil` (never dragged) tells
+    /// the caller to fall back to `points` itself. Independent of any sibling — unlike
+    /// `.fraction`'s `renormalizedFractions`, a `.fixed` child's own drag never redistributes
+    /// against another child's, so closing a sibling can never disturb it.
+    ///
+    /// Pure, `nonisolated`, directly unit-testable without a view.
+    nonisolated static func resolvedFixedExtent(default points: Double, stored: Double?) -> Double? {
+        guard let stored else { return nil }
+        return max(points, stored)
+    }
+
     /// Pure, `nonisolated`, directly unit-testable without a view.
     nonisolated static func renormalizedFractions(
         defaults: [Double?], stored: [Double?]
@@ -198,34 +218,48 @@ struct WorkspaceSplitStack: View {
         }
     }
 
-    /// The stored override for each `.fraction` child, in child order, as ABSOLUTE POINTS
+    /// The stored override for each RESIZABLE child (`.fraction` OR `.fixed` — slice D,
+    /// 2026-09-20: `.fixed` gained a drag too), in child order, as ABSOLUTE POINTS
     /// (`resolvedExtents`'s existing contract, unchanged) — `nil` for a child never dragged (so
-    /// `resolvedExtents` falls back to its own fraction of `total`), and `nil` for every
-    /// non-`.fraction` child (fixed/flex have no stored value). Looks each `.fraction` child up
-    /// BY ITS OWN ID, then renormalizes the present ones (`renormalizedFractions`) before
-    /// converting to points — the two steps `storedFractionsById`/`renormalizedFractions` above
-    /// exist to make each independently testable.
+    /// `resolvedExtents` falls back to its own default), and `nil` for `.flex` (no stored value).
+    ///
+    /// The SAME id-keyed store holds both kinds, but the NUMBER means something different per
+    /// kind, disambiguated here by `child.sizing`: for `.fraction`, it's a 0...1 SHARE (hence the
+    /// renormalize-then-`*total` step, shared collective-share math with its `.fraction`
+    /// siblings — `renormalizedFractions`); for `.fixed`, it's already absolute POINTS, floored
+    /// at the child's own configured default (`max(points, stored)`) — a film strip's drag is
+    /// independent of any sibling, never renormalized against one.
     private func storedOverrides(total: Double) -> [Double?] {
         let storedById = storedFractionsById()
         var defaults: [Double?] = []
-        var stored: [Double?] = []
+        var storedFractionsList: [Double?] = []
         for child in children {
             guard case let .fraction(fraction) = child.sizing else {
-                defaults.append(nil); stored.append(nil); continue
+                defaults.append(nil); storedFractionsList.append(nil); continue
             }
             defaults.append(fraction)
-            stored.append(storedById[child.id])
+            storedFractionsList.append(storedById[child.id])
         }
-        let normalized = Self.renormalizedFractions(defaults: defaults, stored: stored)
-        return normalized.map { $0.map { $0 * total } }
+        let normalizedFractions = Self.renormalizedFractions(defaults: defaults, stored: storedFractionsList)
+
+        return children.enumerated().map { index, child in
+            switch child.sizing {
+            case .fraction:
+                return normalizedFractions[index].map { $0 * total }
+            case let .fixed(points):
+                return Self.resolvedFixedExtent(default: points, stored: storedById[child.id])
+            case .flex:
+                return nil
+            }
+        }
     }
 
     /// The children interleaved with dividers. A divider sits between a resizable child and the
     /// flexing content, on the side facing the flex, so dragging it resizes the resizable pane.
     /// Resizable children BEFORE the flex get the divider after them (drag toward trailing to
     /// grow); one AFTER the flex (a trailing strip) gets the divider before it (drag toward
-    /// leading to grow). A HARD-pinned child (the film strip) never gets a divider — it's fixed,
-    /// full stop (#4688).
+    /// leading to grow). Slice D, 2026-09-20 (#4876/#4848): a `.fixed` child now gets one too —
+    /// it is RESIZABLE (default extent, floored at its own value), not exempt.
     @ViewBuilder private func arranged(total: CGFloat) -> some View {
         let resolved = Self.resolvedExtents(
             children.map(\.sizing), storedOverrides: storedOverrides(total: Double(total)), total: Double(total)
@@ -239,8 +273,21 @@ struct WorkspaceSplitStack: View {
             switch child.sizing {
             case .flex:
                 return ChildPlan(id: child.id, view: child.view, layout: .flex)
-            case .fixed:
-                return ChildPlan(id: child.id, view: child.view, layout: .fixed(resolved[index] ?? 0))
+            case let .fixed(points):
+                // Slice D: writes RAW POINTS (`newValue`, no `/total`) — `.fixed`'s stored value
+                // is absolute, unlike `.fraction`'s 0...1 share (see `storedOverrides` above).
+                // Floored at `points` via `divider`'s own `minWidth:` below, so a drag can never
+                // shrink the strip past its configured default.
+                let displayValue = resolved[index] ?? points
+                let childId = child.id
+                let binding = Binding<Double>(
+                    get: { displayValue },
+                    set: { newValue in writeStoredFraction(newValue, for: childId) }
+                )
+                return ChildPlan(
+                    id: child.id, view: child.view,
+                    layout: .resizable(binding, display: displayValue, dividerBefore: index > flexIndex, minWidth: points)
+                )
             case .fraction:
                 // SF3 review finding: this used to be a plain pass-through to a raw @SceneStorage
                 // slot, which is WHY something had to seed it with an absolute-points value before
@@ -264,7 +311,7 @@ struct WorkspaceSplitStack: View {
                 )
                 return ChildPlan(
                     id: child.id, view: child.view,
-                    layout: .resizable(binding, display: displayValue, dividerBefore: index > flexIndex)
+                    layout: .resizable(binding, display: displayValue, dividerBefore: index > flexIndex, minWidth: 48)
                 )
             }
         }
@@ -272,25 +319,24 @@ struct WorkspaceSplitStack: View {
             switch plan.layout {
             case .flex:
                 plan.view.frame(maxWidth: .infinity, maxHeight: .infinity)
-            case let .fixed(value):
-                sized(plan.view, value: value)
-            case let .resizable(binding, display, dividerBefore):
-                if dividerBefore { divider(binding, edge: .trailing, total: total) }
+            case let .resizable(binding, display, dividerBefore, minWidth):
+                if dividerBefore { divider(binding, edge: .trailing, total: total, minWidth: minWidth) }
                 sized(plan.view, value: display)
-                if !dividerBefore { divider(binding, edge: .leading, total: total) }
+                if !dividerBefore { divider(binding, edge: .leading, total: total, minWidth: minWidth) }
             }
         }
     }
 
-    /// How one child is laid out this render: filling the remainder, pinned to a fixed points
-    /// value, or resizable — bound to a stored slot, displayed at its resolved (clamped) extent,
-    /// with a divider on the side facing the flex.
+    /// How one child is laid out this render: filling the remainder, or resizable — bound to a
+    /// stored value, displayed at its resolved (clamped) extent, with a divider on the side
+    /// facing the flex, floored at `minWidth` (its own default extent for `.fixed`, the generic
+    /// `48` for `.fraction`). Slice D, 2026-09-20: a separate `.fixed` case (no divider, ever) is
+    /// GONE — `.fixed` now renders through this same resizable path, since it IS resizable.
     /// Sibling of `ChildPlan`, not nested inside it — three levels of nesting
     /// (stack > plan > layout) buys nothing and trips `nesting`.
     private enum ChildLayout {
         case flex
-        case fixed(Double)
-        case resizable(Binding<Double>, display: Double, dividerBefore: Bool)
+        case resizable(Binding<Double>, display: Double, dividerBefore: Bool, minWidth: Double)
     }
 
     private struct ChildPlan {
@@ -312,10 +358,11 @@ struct WorkspaceSplitStack: View {
         }
     }
 
-    /// Resolve every child's on-screen extent for a stack of `total` points along its axis: a fixed
-    /// child's own points, or (fraction × total) for a proportional one — `storedOverrides` (a
-    /// previously seeded or dragged resizable column) substitutes for the fraction at that index
-    /// when present. The SUM of every sized (fixed + fraction) child is then bounded to leave at
+    /// Resolve every child's on-screen extent for a stack of `total` points along its axis: a
+    /// fixed child's own DEFAULT points, or (fraction × total) for a proportional one —
+    /// `storedOverrides` (a previously dragged resizable column, `.fixed` OR `.fraction` since
+    /// slice D, 2026-09-20) substitutes at that index when present. The SUM of every sized
+    /// (fixed + fraction) child is then bounded to leave at
     /// least `flexMinimum` for whatever flexes, scaling every sized child down proportionally if
     /// needed but never below `minPerPane` — this is what stops two 360pt-equivalent children
     /// summing to more than a 600pt stack (#4688), and replaces the old single-value `clamp` that
@@ -340,6 +387,10 @@ struct WorkspaceSplitStack: View {
             case .flex:
                 return nil
             case let .fixed(points):
+                // Slice D, 2026-09-20 (#4876/#4848): `.fixed` is resizable now, so it reads a
+                // stored override exactly like `.fraction` does — `points` is only the DEFAULT,
+                // never dragged.
+                if index < storedOverrides.count, let stored = storedOverrides[index] { return stored }
                 return points
             case let .fraction(fraction):
                 if index < storedOverrides.count, let stored = storedOverrides[index] { return stored }
@@ -359,11 +410,16 @@ struct WorkspaceSplitStack: View {
         }
     }
 
-    private func divider(_ extent: Binding<Double>, edge: ResizableDivider.Edge, total: CGFloat) -> some View {
+    /// `minWidth` floors the drag — `48` for a `.fraction` column (unchanged), or a `.fixed`
+    /// child's own configured default extent (slice D, 2026-09-20): the strip can grow, never
+    /// shrink below the size its workspace defines.
+    private func divider(
+        _ extent: Binding<Double>, edge: ResizableDivider.Edge, total: CGFloat, minWidth: Double = 48
+    ) -> some View {
         ResizableDivider(
             width: extent,
-            minWidth: 48,
-            maxWidth: max(96, Double(total) - 48),
+            minWidth: minWidth,
+            maxWidth: max(minWidth + 48, Double(total) - 48),
             edge: edge,
             axis: axis == .horizontal ? .horizontal : .vertical
         )

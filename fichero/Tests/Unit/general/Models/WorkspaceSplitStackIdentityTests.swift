@@ -117,4 +117,91 @@ struct WorkspaceSplitStackIdentityTests {
         #expect(abs((resolved[1] ?? 0) - 600) < 1)
         #expect(resolved[2] == nil, "the reader is the flex peer — resolvedExtents leaves it nil, never a guessed value")
     }
+
+    // MARK: - Slice D (#4876/#4848, 2026-09-20): a default, not a pin
+
+    /// Every leaf (kind + config) anywhere in a list, splits flattened — same helper shape as
+    /// `BuiltInWorkspaceLayoutTests.allLeaves`, kept local since that file wasn't touched here.
+    private func allLeaves(_ list: PaneList) -> [(kind: PaneKind, config: PaneConfig)] {
+        var out: [(kind: PaneKind, config: PaneConfig)] = []
+        func walk(_ node: PaneNode) {
+            switch node {
+            case let .leaf(_, kind, _, config): out.append((kind: kind, config: config))
+            case let .split(_, _, children): children.forEach(walk)
+            }
+        }
+        list.nodes.forEach(walk)
+        return out
+    }
+
+    /// "Every built-in workspace with a bottom row declares a resizable boundary above it":
+    /// proven in two parts, since there is no mounted harness to watch a divider actually draw
+    /// (see the file-level note in the slice report). Part one, here: every leaf that pins an
+    /// extent (`PaneConfig.paneExtent` — the only field a bottom strip uses) resolves to
+    /// `Sizing.fixed`, and `Sizing.fixed` — since slice D — is proven RESIZABLE (not exempt from
+    /// a divider) by `resolvedFixedExtentHonoursAStoredOverride` and
+    /// `resolvedExtentsHonoursAStoredOverrideForAFixedChild` below: a `.fixed` child that ignored
+    /// drag state, as it did before this slice, could never round-trip a stored value the way
+    /// those tests prove it now does.
+    @Test("every built-in workspace's paneExtent-pinned leaf resolves to Sizing.fixed, the sizing slice D made resizable")
+    func everyPaneExtentLeafResolvesToFixedSizing() {
+        var foundAtLeastOne = false
+        for layout in BuiltInWorkspaceLayout.allCases {
+            for leaf in allLeaves(layout.panes) {
+                guard let extent = leaf.config.paneExtent else { continue }
+                foundAtLeastOne = true
+                let sizing = WorkspaceSplitStack.Sizing.preferred(extent: extent, fraction: leaf.config.paneFraction)
+                #expect(sizing == .fixed(extent), "\(layout.title)'s pinned leaf must resolve to .fixed")
+            }
+        }
+        #expect(foundAtLeastOne, "expected at least one built-in workspace to have a paneExtent-pinned bottom row")
+    }
+
+    /// The default (never-dragged) resolution is exactly today's height — `resolvedFixedExtent`
+    /// with `stored: nil` falls straight back to the configured default, unchanged from before
+    /// this slice.
+    @Test("a fixed child's default (never-dragged) resolution is exactly its configured height")
+    func fixedChildDefaultResolutionIsUnchanged() {
+        #expect(WorkspaceSplitStack.resolvedFixedExtent(default: 72, stored: nil) == nil)
+        // `nil` here means "no override" — `resolvedExtents`'s own fallback (unchanged) is what
+        // actually returns the configured default; proven directly below.
+        let resolved = WorkspaceSplitStack.resolvedExtents([.fixed(72), .flex], total: 800)
+        #expect(resolved[0] == 72)
+    }
+
+    /// A drag grows the strip, but can never shrink it below its own configured default.
+    @Test("a fixed child's dragged height is floored at its own default — it can grow, never shrink below it")
+    func fixedChildDraggedHeightIsFlooredAtItsDefault() {
+        #expect(WorkspaceSplitStack.resolvedFixedExtent(default: 72, stored: 150) == 150, "growing past the default is honoured")
+        #expect(WorkspaceSplitStack.resolvedFixedExtent(default: 72, stored: 40) == 72, "a stored value below the default is floored, not honoured")
+    }
+
+    /// `resolvedExtents` itself honours a stored override for a `.fixed` child (not just the
+    /// pure floor helper in isolation) — this is the exact behavior that was MISSING before this
+    /// slice (`.fixed` used to ignore `storedOverrides` unconditionally).
+    @Test("resolvedExtents honours a stored override for a .fixed child, not just its default")
+    func resolvedExtentsHonoursAStoredOverrideForAFixedChild() {
+        let resolved = WorkspaceSplitStack.resolvedExtents(
+            [.fixed(72), .flex], storedOverrides: [140, nil], total: 800
+        )
+        #expect(resolved[0] == 140)
+    }
+
+    /// "A dragged height persists by id and survives a sibling closing": a `.fixed` child's
+    /// stored value is looked up ONLY by its own id (`decodeStoredFractions`, unchanged from
+    /// slice C) and never renormalized against a sibling (unlike `.fraction` — `.fixed` values
+    /// are independent, absolute points, see `resolvedFixedExtent`'s own doc comment) — so
+    /// encoding two strips' drags, then reading back only the SURVIVOR's id after a simulated
+    /// close (simply not looking up the closed id — nothing ever prunes an entry), returns the
+    /// survivor's value completely unchanged.
+    @Test("a fixed child's dragged height persists by id, unaffected by a sibling closing")
+    func fixedChildDraggedHeightPersistsByIdAcrossASiblingClose() throws {
+        let survivor = UUID()
+        let closed = UUID()
+        let json = WorkspaceSplitStack.encodeStoredFractions([survivor: 160, closed: 90])
+        let decoded = WorkspaceSplitStack.decodeStoredFractions(try #require(json))
+        // The "close": the closed pane's id is simply never looked up again.
+        let survivorResolved = WorkspaceSplitStack.resolvedFixedExtent(default: 72, stored: decoded[survivor])
+        #expect(survivorResolved == 160, "the survivor's own dragged height is exactly what was stored, untouched by the sibling's closing")
+    }
 }

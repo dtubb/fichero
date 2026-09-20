@@ -46,6 +46,18 @@ extension ContentView {
         return activePaneList.leafIDs(of: kind).first
     }
 
+    /// The id of the FOCUSED Library leaf specifically — `nil` when a different kind (or nothing
+    /// eligible) is focused. Slice E (#4965, source-model panes recon, 2026-09-20): the View
+    /// menu's layout commands write to THIS leaf's own `PaneConfig.libraryLayout` when present —
+    /// a real per-pane setting, not `ViewSettings.libraryLayout`'s window-wide one — falling back
+    /// to today's window-wide write otherwise ("if no Library pane is focused, the commands act
+    /// as today", team-lead's own wording). Same "known residue" as `focusedLeafID` above:
+    /// resolves to the FIRST Library leaf when more than one exists.
+    var focusedLibraryLeafID: UUID? {
+        guard focusedPaneKindForSplit == .library else { return nil }
+        return focusedLeafID
+    }
+
     /// Split the focused leaf along `axis` through the `PaneList` model (spec
     /// panes.split.focused-only) — the symmetric twin of `closeLeaf`/`removingLeaf`. A no-op
     /// when nothing eligible has focus.
@@ -179,12 +191,19 @@ extension ContentView {
         // with #4685's split-routing fix), so a NEW snapshot leaves the field at its `[String:
         // String] = [:]` default. The field itself stays on `WindowLayoutSnapshot` — decode-only
         // now — purely so a snapshot saved BEFORE this change still decodes leniently.
+        //
+        // `splits` is NOT populated here either (step 2 of slice A's own deferred delete, source-
+        // model panes recon, 2026-09-20): `PaneSplitCoordinator`'s counts went functionally inert
+        // the moment slice A made every live pane pass-through (nothing records into it any
+        // more), and `paneList` below has ALWAYS been the real composition — the two fields were
+        // written in parallel, not as a fallback pair, so this was already redundant before
+        // today. Same discipline as `paneKindOverrides`: the field stays on `WindowLayoutSnapshot`
+        // for an OLD snapshot to decode leniently; a NEW one just never fills it.
         WindowLayoutSnapshot(
             panes: currentPaneVisibilityPlan,
             libraryPaneWidth: widescreenContentPaneWidth,
             readerPaneWidth: pageContentPaneWidth,
             chatPaneWidth: chatPaneWidth,
-            splits: paneSplitCoordinator.splitCounts,
             viewDisplayMode: viewDisplayMode.rawValue,
             layoutMode: currentLayoutMode.rawValue,
             toolbar: WindowWorkspaceStore.shared.toolbarVisibility,
@@ -233,7 +252,10 @@ extension ContentView {
                 paneListDidChange()
             }
         }
-        paneSplitCoordinator.applySplits(snapshot.splits)
+        // `snapshot.splits` is NOT applied here (step 2 of slice A's own deferred delete,
+        // 2026-09-20): `PaneSplitCoordinator` is gone (see `SplittablePane.swift`) — an old
+        // snapshot that still carries split counts decodes fine (the field stays `Codable`,
+        // decode-only) and its counts are simply never acted on, same as `paneKindOverrides`.
         // Toolbar last, and outside the animation: it is app-wide chrome, not
         // this window's geometry, and re-laying the NSToolbar mid-animation is
         // exactly the kind of churn #3163 taught us to keep off the critical
@@ -262,7 +284,18 @@ extension ContentView {
     /// Published via `focusedSceneValue` so the View menu's workspace section
     /// acts on the focused window (same mechanism as InspectorButton).
     var windowLayoutCommands: WindowLayoutCommands {
-        WindowLayoutCommands(
+        // Typed locals: the type-checker could not diagnose these inline (a closure
+        // returning a closure inside a long initialiser).
+        let libraryLeafID: UUID? = focusedLibraryLeafID
+        let libraryLayout: String? = libraryLeafID.flatMap { activePaneList.config(for: $0)?.libraryLayout }
+        var setLibraryLayout: (@MainActor (String) -> Void)?
+        if let id = libraryLeafID {
+            setLibraryLayout = { (raw: String) in
+                activePaneList = activePaneList.changingLeafLibraryLayout(id, to: raw)
+                paneListDidChange()
+            }
+        }
+        return WindowLayoutCommands(
             saveWorkspace: {
                 chromeUX.workspaceNameDraft = ""
                 chromeUX.showSaveWorkspacePrompt = true
@@ -284,7 +317,15 @@ extension ContentView {
             // active-workspace checkmark stops being a toolbar-only feature.
             isWorkspaceActive: { workspace in
                 isActive(workspace, panes: currentPaneVisibilityPlan, toolbar: WindowWorkspaceStore.shared.toolbarVisibility)
-            }
+            },
+            // Slice E (#4965): the focused Library leaf's own explicit layout, if any — same
+            // shape as `focusedPaneKindForSplit` above, cheaply available from the model already
+            // in hand.
+            focusedLibraryLayout: libraryLayout,
+            focusedLibraryLeafID: libraryLeafID,
+            // `nil` when no Library leaf is focused: the View menu then writes the
+            // window-wide setting exactly as before.
+            setFocusedLibraryLayout: setLibraryLayout
         )
     }
 }
@@ -314,6 +355,10 @@ struct WindowLayoutCommands: Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.canSplitFocusedLeaf == rhs.canSplitFocusedLeaf
             && lhs.focusedPaneKindForSplit == rhs.focusedPaneKindForSplit
+            && lhs.focusedLibraryLayout == rhs.focusedLibraryLayout
+            // The setter closure captures a leaf id. Two Library panes with the same layout
+            // would otherwise compare equal and the menu would keep writing to the OLD pane.
+            && lhs.focusedLibraryLeafID == rhs.focusedLibraryLeafID
     }
 
     let saveWorkspace: @MainActor () -> Void
@@ -336,4 +381,18 @@ struct WindowLayoutCommands: Equatable {
     /// #4968: whether a saved workspace matches what this window currently shows — the checkmark
     /// both menus now display identically (previously toolbar-only).
     let isWorkspaceActive: @MainActor (SavedWindowWorkspace) -> Bool
+    /// Slice E (#4965): the FOCUSED Library leaf's own explicit `PaneConfig.libraryLayout`, raw
+    /// (`"icons"`/`"list"`/`"table"`/…, `ViewDisplayMode(paneLibraryLayout:)`'s vocabulary — the
+    /// SAME string `PaneSpec.paneNodeView` already reads to inject `\.paneLibraryLayout`, not a
+    /// second one). `nil` when no Library leaf is focused, OR one is focused but has never had an
+    /// explicit layout set (follows the window/workspace default) — the View menu cannot tell
+    /// those apart from this field alone and doesn't need to: either way it falls back to
+    /// `ViewSettings.libraryLayout` for its checkmark.
+    let focusedLibraryLayout: String?
+    /// WHICH Library leaf `setFocusedLibraryLayout` writes to; part of equality on purpose.
+    let focusedLibraryLeafID: UUID?
+    /// Slice E (#4965): write a NEW explicit layout to the focused Library leaf — `nil` when no
+    /// Library leaf is focused, so the View menu can tell "write here" apart from "act as today"
+    /// (team-lead's own wording) without a separate Bool.
+    let setFocusedLibraryLayout: (@MainActor (String) -> Void)?
 }
