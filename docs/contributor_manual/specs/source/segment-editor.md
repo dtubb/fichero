@@ -186,6 +186,10 @@ The editor
 - `source.editor.redo-works` — **[GAP]** (#4957) after undoing a segment edit, Redo (⇧⌘Z) does it again;
   redo is worked out afresh as the undo of the undo, so it succeeds although the segment's
   version has moved on; it is refused only if something else has changed the segment since.
+  Doing, undoing, redoing and undoing again, any number of times, ends where the first undo
+  ended: the same segment, pass, match and copy ids come back on redo, and none is left over
+  under a new id (a redo that makes new ids and an undo that names the old ones is the
+  failure this rules out; reviewed 2026-09-20, the first half is fixed, this half is not).
   (Today a redo of a segment edit is refused as stale: the shared undo route replays the
   original request. The editor cannot ship without this.)
 - `source.editor.system-undo` — **[GAP]** (#4941) ⌘Z and ⇧⌘Z undo and redo editor actions through the action
