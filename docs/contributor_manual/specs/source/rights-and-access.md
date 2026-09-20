@@ -15,6 +15,16 @@
 > (`actions/registry.py`) and in search. They stop at a document, not a word. The sharing and
 > accounts specs have not been read in full for this slice, and must be before approval.
 >
+> **Routed fact, 2026-09-20 (#4917, read in review; in the worktree, not yet committed when this
+> was written).** The permission layer's one ancestor walk now resolves an artifact, segment,
+> pass, match, version, forwarding note or carry to its document, then walks the folders above
+> it. So a grant or deny on a document or folder reaches everything the source model hangs on
+> that document, and a lookup fault denies. The walk still does **not** go below a document:
+> an override placed on a segment id matches that id alone, because the walk does not follow
+> `Segment.parent_segment_id`. If the maintainer rules that rights become grants and denies on
+> a segment, the build is one more step in that same walk (segment, parent segment, document),
+> never a second check. This changes nothing about the block below.
+>
 > **BLOCKED on the maintainer.** This slice was ruled into the set on 2026-09-19. Review then
 > showed that a rights record with its own enforcement would be a second permission system
 > beside the one that exists. The reviewers recommend: **the existing permission layer
