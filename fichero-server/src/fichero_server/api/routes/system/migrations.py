@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from fichero_server.db import Database
 
 from fichero_server.api.main import get_library_database, get_library_database_for_write
-from fichero_server.db.migrations.runner import MigrationRunner
+from fichero_server.db.migrations.runner import MigrationRunner, MigrationStatus
 
 # No own prefix: main.py already mounts this router at /api/migrations — the
 # doubled /api/migrations/migrations segment was a mount+prefix stutter
@@ -270,8 +270,24 @@ async def run_migration(
             )
 
         runner.save_run_result(result)
+        # #4983 item 5: two of MigrationRunner's boundary excepts
+        # (`migrate_legacy_notes_to_annotations`, `repair_rtf_escapes`) set
+        # `result.status = failed` WITHOUT raising — before this, this
+        # route answered 200 either way, so a failure was only visible to
+        # a caller that checks the JSON body's `status` field, never one
+        # that checks the HTTP status code. Checked callers first: nothing
+        # hand-written in the app, fichero-cli's client, or fichero-mcp
+        # calls this route today (only the generated CLI surface
+        # references it) — no caller's expectations to break.
+        if result.status == MigrationStatus.failed:
+            raise HTTPException(
+                status_code=500,
+                detail=result.error_message or "Migration failed",
+            )
         return _migration_result_to_response(result)
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Migration failed: {str(e)}")
 

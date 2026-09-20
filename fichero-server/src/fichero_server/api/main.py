@@ -1661,7 +1661,7 @@ async def health_check(
                         MigrationFailureResponse(
                             migration=f.migration,
                             error_type=f.error_type,
-                            message=f.message,
+                            message=_redact_local_path(f.message, db.path),
                             occurred_at=f.occurred_at,
                         )
                         for f in db.migration_failures
@@ -1693,6 +1693,26 @@ async def health_check(
             ),
             nonce or x_fichero_client_nonce,
         )
+
+
+def _redact_local_path(message: str, db_path) -> str:
+    """Strip this library's local filesystem path out of an error message
+    before it reaches an API response (#4983 item 4).
+
+    The server may be remote (`no-local-paths-server-may-be-remote`): a
+    caller across the network gets nothing about the engine's own disk
+    layout. DuckDB's own exception text CAN embed the full path (verified:
+    opening a missing file raises `IOException('IO Error: Cannot open
+    file "/abs/path/x.duckdb": ...')`). The full, unredacted text still
+    reaches the server LOG via `logger.error` in
+    `db/migrations/schema.py` — only the API response is scrubbed.
+    """
+    from pathlib import Path
+
+    path = Path(db_path)
+    redacted = message.replace(str(path), "<library>")
+    redacted = redacted.replace(str(path.parent), "<library>")
+    return redacted
 
 
 def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthResponse:

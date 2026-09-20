@@ -91,13 +91,21 @@ class DatabaseManager:
 
                 db = Database(path=db_path)
                 try:
-                    migrate_workflow_table(db.conn)
-                    migrate_saved_search_table(db.conn)
-                    migrate_provider_refs_table(db.conn)
-                    migrate_activity_tables(db.conn)
+                    # #4983 phase 1: same shared `db.migration_failures` list
+                    # `Database.__init__` populated, and the same
+                    # `migrate_workflow_table` re-raises on failure (the one
+                    # migration that still fails loudly) — an atomic
+                    # rollback + ERROR log + recorded failure happen inside
+                    # each function now (`_run_atomic_migration`), so this
+                    # `except` below only ever fires for that one function,
+                    # exactly as before this phase.
+                    migrate_workflow_table(db.conn, db.migration_failures)
+                    migrate_saved_search_table(db.conn, db.migration_failures)
+                    migrate_provider_refs_table(db.conn, db.migration_failures)
+                    migrate_activity_tables(db.conn, db.migration_failures)
                     # #4426: collapse unbounded catalogue.chunk.N types.
-                    migrate_catalogue_chunk_artifact_type(db.conn)
-                    migrate_checkpoint_tables(db.conn)
+                    migrate_catalogue_chunk_artifact_type(db.conn, db.migration_failures)
+                    migrate_checkpoint_tables(db.conn, db.migration_failures)
 
                     # Seed default workflow presets (Transcribe, Catalogue) into
                     # the GLOBAL library only (#4102) — they're app-level presets,

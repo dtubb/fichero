@@ -1731,6 +1731,18 @@ class RemoteBackendHealth(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class MigrationFailureResponse(BaseModel):
+    """One recorded schema-migration failure, surfaced at ``GET /api/health``
+    (#4983 phase 1). Mirrors ``db.migrations.schema.MigrationFailure`` — the
+    persistence-layer record — as an API shape.
+    """
+
+    migration: str
+    error_type: str
+    message: str
+    occurred_at: datetime
+
+
 class HealthResponse(BaseModel):
     """Response from ``GET /api/health`` endpoint.
 
@@ -1758,6 +1770,13 @@ class HealthResponse(BaseModel):
     # names → installed version; a lib that is not installed is simply absent
     # (the box shows its name with no version rather than a wrong one).
     dependencies: dict[str, str] = Field(default_factory=dict)
+    # #4983 phase 1: schema-migration failures recorded on this library's
+    # `Database` at open (or at the manager's own migration batch — same
+    # shared list either way). Empty means none recorded THIS process —
+    # migrations run once per process per library (`db_manager` caches the
+    # `Database` instance), so a fresh recorded failure only ever shows up
+    # after the app restarts and reopens the library.
+    migration_failures: list[MigrationFailureResponse] = Field(default_factory=list)
 
 
 class EmbeddingStatsResponse(BaseModel):
