@@ -381,6 +381,12 @@ nav:
           - AI:
               - AI Settings: contributor_manual/specs/ai/ai-settings.md
               - Provider API Keys: contributor_manual/specs/ai/provider-keys.md
+          - Compute:
+              - Remote Compute (foundation): contributor_manual/specs/compute/remote-compute.md
+              - The Linux Server Image: contributor_manual/specs/compute/linux-server-image.md
+              - Targets, Installing & Connecting: contributor_manual/specs/compute/targets-and-connection.md
+              - What Leaves, Transfer & Results: contributor_manual/specs/compute/transfer-and-results.md
+              - Jobs, Engines, Fine-tuning & Publishing: contributor_manual/specs/compute/jobs-and-fine-tuning.md
           - Docs:
               - Docs Citations & Bibliography: contributor_manual/specs/docs/docs-citations-bibliography.md
           - Export:
