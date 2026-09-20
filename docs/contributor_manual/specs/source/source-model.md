@@ -420,6 +420,12 @@ nothing, it cannot harm a library.
   stored polygon may run off its image or have too few points; the anchor refuses all of
   these. Such a box is **still returned as a segment**, with the rect (or the polygon) left
   unset and the reason in `metadata["geometry_problem"]`. Nothing is clamped or invented.
+  The same holds for a **baseline** (it must be two points or more, every number finite and
+  inside the image, or it is left unset and reported) and for a polygon or baseline that is
+  present but **cannot be read at all** (no usable pixel frame; values that are not numbers):
+  it is reported, never dropped in silence. A bad rectangle never costs a good polygon, and a
+  bad polygon never costs a good rectangle. No number that is not a number ever reaches the
+  response.
 - **Read shapes that last.** `SegmentRead` also has `metadata: dict` (raw pixel values from a
   tool go here, never into the anchor). `PassRead` also has `source_artifact_id` and
   `artifact_type` (the app ranks passes by them), and its `created_at` is a date and time or
