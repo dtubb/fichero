@@ -205,6 +205,11 @@ scholar's competing layout; an imported PageXML file; the glosses; the pictures.
 shown, hidden and compared. They never overwrite each other. Two people disagreeing about
 where a line ends is two passes, both kept: disagreement is data.
 
+A pass has a maker (a person, a model run, an import), and **so does every segment in it**, and
+they can differ: a person who draws one region on top of a machine's layout adds a human
+segment to a machine's pass. A pass can be mixed. What counts as the record is therefore never
+decided by a pass's maker alone (see the working-pass rule below and the morning file).
+
 A segment belongs to **exactly one pass**. The same ink in two passes is two segments and a
 match. A run over five hundred pages makes five hundred passes (a pass is for one source);
 they carry the run's id and name, and are shown grouped by run.
@@ -217,7 +222,9 @@ the synced folder) is there to look at and compare. In a *relaxed* project the n
 counts, and a person's always outranks a machine's. **Before anyone has chosen**, in either
 kind of project, the newest pass is what is shown, plainly labelled as a machine's and
 unchosen, so a new project is never blank; "the working pass" means the chosen one, or the
-newest if none is chosen. Which pass is working is worked out from recorded human choices and
+newest if none is chosen. Where nobody has chosen, a pass counts as a person's only when a person made or
+accepted the pass itself; one hand-drawn segment inside a machine's pass does not make it
+so. Which pass is working is worked out from recorded human choices and
 the project's rule; it is never a flag stored on a pass, so changing the rule rewrites
 nothing.
 
@@ -482,6 +489,10 @@ Identity, continued
 The read seam and events
 - `source.seam.read-either-store` — **[GAP]** (#4919) one engine call returns a source's segments whether they
   live in a block of boxes or in segment records; its answer has the same shape either way.
+- `source.seam.maker-for-each-segment` — **[GAP]** (#4919) every segment read through the seam says
+  who made it, in the one maker vocabulary, set by the engine: a person when the box itself
+  proves a person drew it, otherwise its pass's maker; never supplied by a caller, never
+  defaulting to a person; a pass may hold segments by different makers.
 - `source.seam.provisional-ids-refused` — **[GAP]** (#4919) an id read from a block of boxes is marked
   provisional, and every write path refuses one with a typed error.
 - `source.events.segment-ids` — **[GAP]** (#4920) a change event names the segments and passes that changed, so a

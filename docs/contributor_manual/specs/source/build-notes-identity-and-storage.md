@@ -45,8 +45,12 @@ changed", and a window would redraw a whole page.
   registers nothing that emits them.
 
 **App.** `Services/LibraryChangeStream.swift`: `struct ChangeEvent: Decodable` gains
-`segmentIds: [String]` and `passIds: [String]`, decoded with a default of empty so an engine
-that does not send them still decodes. No consumer is added in this slice (there is no segment
+`segmentIds: [String]` and `passIds: [String]` (and `artifactIds`, which the engine already
+sends and the Swift type does not yet decode), decoded with a default of empty so an engine
+that does not send them still decodes. **`ChangeEvent` is built through two paths, and both
+must gain them**: the direct stream's `init(from:)`, and `init?(activityMetadata:)`, which
+feeds remote windows from the folded activity stream. Miss the second and a remote window
+silently never sees a segment event. One test for each path. No consumer is added in this slice (there is no segment
 store yet); emitting with no subscriber matches how `artifact.updated` first landed.
 
 **No schema change, no migration, no action, no route.**

@@ -408,6 +408,14 @@ nothing, it cannot harm a library.
   `legacy:<artifact_id>`. One helper (`assert_not_provisional`) raises a typed error, and every
   later write path calls it, so a provisional id can never be stored in a claim, a mark or a
   reading.
+- **Who made each segment.** `SegmentRead` carries `provenance_kind` (the existing
+  `ProvenanceKind`, the one claims use; → #4868, → #4869), **set by the engine**: `human` when the
+  box's own provider or source proves a person drew it (a person's marquee is written into
+  whatever machine result is showing, so this is known box by box), otherwise the pass's kind.
+  It is never supplied by a caller and never defaults to `human`. There is no separate
+  "hand-drawn" flag: one vocabulary for who made a thing, at every level. **A pass can therefore
+  be mixed**: a machine's layout with a person's segments in it. Test: a machine result with
+  one hand-drawn box returns that segment as `human` and the rest as the pass's kind.
 - **One bad box never fails the page.** Today's boxes may have zero width or height, and a
   stored polygon may run off its image or have too few points; the anchor refuses all of
   these. Such a box is **still returned as a segment**, with the rect (or the polygon) left
