@@ -370,6 +370,77 @@ class TestStaleIsRefused:
         assert r.status_code == 422
 
 
+class TestStaleDeleteIsRefusedDirectly:
+    """test-audit F8, 2026-09-20: a dedicated stale-delete test, not
+    dependent on the redo-limitation test that #4957 will rewrite. A
+    segment is updated (bumping it to version 2); a `segment.delete` call
+    that still holds the OLD version (1) must be refused with the exact
+    typed error, leave the row live, write no new `SegmentVersion` row, and
+    leave no `deleted` forwarding note. Same shape for a stale
+    `segment.restore_version` call."""
+
+    def test_stale_delete_is_refused_row_stays_live_no_version_or_note_written(self, db):
+        from fastapi import HTTPException
+
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        ctx = _ctx(db)
+        registry.invoke(
+            db, "segment.update",
+            {"segment_id": seg.id, "expected_version": 1,
+             "anchor": {"document_id": doc.id, "rect": [0.2, 0.2, 0.1, 0.1]}}, ctx,
+        )
+        versions_before = len(db.query(SegmentVersion, segment_id=seg.id))
+        notes_before = len(db.query(SegmentForwarding, old_segment_id=seg.id))
+
+        with pytest.raises(HTTPException) as excinfo:
+            registry.invoke(
+                db, "segment.delete",
+                {"segment_ids": [seg.id], "expected_versions": {seg.id: 1}}, ctx,
+            )
+        assert excinfo.value.status_code == 409
+        detail = excinfo.value.detail
+        assert detail["segment_id"] == seg.id
+        assert detail["expected_version"] == 1
+        assert detail["current_version"] == 2
+
+        row = db.get(Segment, seg.id)
+        assert row.deleted_at is None
+        assert row.version == 2
+        assert len(db.query(SegmentVersion, segment_id=seg.id)) == versions_before
+        assert len(db.query(SegmentForwarding, old_segment_id=seg.id)) == notes_before
+
+    def test_stale_restore_version_is_refused_row_stays_unchanged(self, db):
+        from fastapi import HTTPException
+
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        seg = _make_segment(db, document_id=doc.id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+        ctx = _ctx(db)
+        registry.invoke(
+            db, "segment.update",
+            {"segment_id": seg.id, "expected_version": 1,
+             "anchor": {"document_id": doc.id, "rect": [0.2, 0.2, 0.1, 0.1]}}, ctx,
+        )
+        versions_before = len(db.query(SegmentVersion, segment_id=seg.id))
+
+        with pytest.raises(HTTPException) as excinfo:
+            registry.invoke(
+                db, "segment.restore_version",
+                {"segment_id": seg.id, "version": 1, "expected_version": 1}, ctx,
+            )
+        assert excinfo.value.status_code == 409
+        detail = excinfo.value.detail
+        assert detail["expected_version"] == 1
+        assert detail["current_version"] == 2
+
+        row = db.get(Segment, seg.id)
+        assert row.anchor.rect == [0.2, 0.2, 0.1, 0.1]
+        assert row.version == 2
+        assert len(db.query(SegmentVersion, segment_id=seg.id)) == versions_before
+
+
 class TestUndoRestoresFromOrdinaryData:
     def test_a_blanked_audit_before_still_restores(self, db, client):
         """`before`/`after` on `ActionAudit` are NOT the source of truth --

@@ -327,8 +327,18 @@ async def list_document_segments(
         # else `(created_at, id)` -- never the bare `id`, which is random and
         # meaningless for the app's index mapping.
         rows.sort(key=_segment_row_sort_key)
-        pass_segments = [segment_read_from_row(row) for row in rows]
-        by_pass.append((pass_read_from_row(pass_row), pass_segments))
+        pass_segments = [
+            segment_read_from_row(row, box_index=index) for index, row in enumerate(rows)
+        ]
+        # A pass made from an artifact carries that artifact's type (test-audit
+        # B2, App slice A stage 2's notes) -- looked up here, since
+        # `pass_read_from_row` has no `db` of its own.
+        pass_artifact_type = None
+        if pass_row.source_artifact_id:
+            source_artifact = db.get(Artifact, pass_row.source_artifact_id)
+            if source_artifact:
+                pass_artifact_type = source_artifact.artifact_type
+        by_pass.append((pass_read_from_row(pass_row, artifact_type=pass_artifact_type), pass_segments))
 
     # Then the old boxes, for whichever artifacts still carry them
     # (unconverted — every artifact, today, since nothing converts yet).

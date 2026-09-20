@@ -218,6 +218,153 @@ class TestSchemaArrivesAtOpen:
         assert after == before, "an unconverted document's seam answer changed"
 
 
+class TestOldLibraryWithRealResearchData:
+    """test-audit B3, 2026-09-20: the schema-arrival test above is a
+    two-table toy (its one artifact has `ocr_geometry` NULL; its
+    before/after comparison omits `ocr_geometry` and `data`). This class
+    builds a library the way TODAY'S code actually makes one -- a document,
+    an artifact with REAL `ocr_geometry` boxes (one machine, one
+    hand-drawn) and `data`, an annotation, a knowledge claim with a source
+    anchor, and an audit chain from two real actions, through the real
+    `Database`/action-registry path -- closes it, opens it through
+    `Database` TWICE more, and compares EVERY column of EVERY pre-existing
+    row, byte for byte, plus that the audit chain still verifies each time.
+    This is the test that protects real research data across ordinary
+    re-opens (the anchor that backs `verify_audit_chain` is keyed to this
+    exact file path, in `settings.base_path` -- not something a copy to
+    another path could carry, so the library is built and reopened at ONE
+    path throughout, exactly as a real library on disk is)."""
+
+    _CARRIED_TABLES = ("documents", "artifacts", "annotations", "knowledgeclaims", "actionaudits")
+
+    def _build_library(self, db_path) -> dict:
+        """Write real rows the way today's code does: model saves for the
+        document/artifact/claim, real actions (audited, chained) for the
+        annotation create-then-update."""
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryResult
+        from fichero_server.models import Artifact, DocType, Document, FileType, Status
+        from fichero_server.models.knowledge import KnowledgeClaim
+
+        db = Database(db_path)
+        try:
+            doc = Document(
+                name="marshall-1933-p4.jpg", doc_type=DocType.file, file_type=FileType.image,
+                path="/marshall-1933-p4.jpg", status=Status.completed,
+            )
+            db.save(doc)
+
+            geometry = OCRGeometryResult(
+                text="the heirs filed suit",
+                provider="apple_vision",
+                boxes=[
+                    OCRGeometryBox(
+                        text="the heirs filed suit", bbox=[0.1, 0.1, 0.6, 0.05], level="line",
+                        char_start=0, char_end=20, provider="apple_vision",
+                    ),
+                    OCRGeometryBox(
+                        text="[margin note]", bbox=[0.8, 0.1, 0.15, 0.05], level="word",
+                        provider="user", source="manual",
+                    ),
+                ],
+            )
+            artifact = Artifact(
+                document_id=doc.id, artifact_type="regions", content="the heirs filed suit",
+                ocr_geometry=geometry, provider="apple_vision", confidence=0.94,
+                data={"page_number": 4, "collection": "marshall-diaries"},
+            )
+            db.save(artifact)
+
+            claim = KnowledgeClaim(
+                text="The heirs filed suit in 1933.",
+                source_document_id=doc.id,
+                source_excerpt="the heirs filed suit",
+                source_char_start=0,
+                source_char_end=20,
+                time_start="1933-01-01",
+                time_end="1933-12-31",
+            )
+            db.save(claim)
+
+            ctx = ActionContext(actor="daniel", library_path=str(db_path.parent))
+            create_result = registry.invoke(
+                db, "annotation.create",
+                {
+                    "document_id": doc.id, "kind": "highlight",
+                    "char_start": 0, "char_end": 20, "color": "#FFDD00",
+                },
+                ctx,
+            )
+            annotation_id = create_result.result["id"]
+            registry.invoke(
+                db, "annotation.update",
+                {"annotation_id": annotation_id, "update": {"text": "check against the deed"}},
+                ctx,
+            )
+
+            return {
+                "doc_id": doc.id, "artifact_id": artifact.id,
+                "claim_id": claim.id, "annotation_id": annotation_id,
+            }
+        finally:
+            db.close()
+
+    def _snapshot(self, conn) -> dict[str, list[tuple]]:
+        return {
+            table: conn.execute(f'SELECT * FROM "{table}" ORDER BY id').fetchall()
+            for table in self._CARRIED_TABLES
+        }
+
+    def test_opening_a_real_library_twice_touches_no_pre_existing_row(self, tmp_path):
+        from fichero_server.actions.audit_chain import verify_audit_chain
+
+        db_path = tmp_path / "real_library.duckdb"
+        ids = self._build_library(db_path)
+
+        db0 = Database(db_path)
+        try:
+            assert "segments" in _table_names(db0.conn)
+            assert "segment_passes" in _table_names(db0.conn)
+            before_snapshot = self._snapshot(db0.conn)
+            for table in self._CARRIED_TABLES:
+                assert before_snapshot[table], f"{table} must carry at least one pre-existing row"
+            assert verify_audit_chain(db0).ok
+        finally:
+            db0.close()
+
+        db1 = Database(db_path)
+        try:
+            after_first_reopen = self._snapshot(db1.conn)
+            assert after_first_reopen == before_snapshot
+            assert verify_audit_chain(db1).ok
+        finally:
+            db1.close()
+
+        db2 = Database(db_path)
+        try:
+            after_second_open = self._snapshot(db2.conn)
+            assert after_second_open == before_snapshot
+            assert verify_audit_chain(db2).ok
+
+            # Byte-for-byte at the model layer too, not just raw SQL columns
+            # -- catches a value that round-trips through SQL unchanged but
+            # decodes differently (a JSON field re-typed, for instance).
+            from fichero_server.models import Artifact, Document
+            from fichero_server.models.knowledge import Annotation, KnowledgeClaim
+
+            doc_after = db2.get(Document, ids["doc_id"])
+            artifact_after = db2.get(Artifact, ids["artifact_id"])
+            claim_after = db2.get(KnowledgeClaim, ids["claim_id"])
+            annotation_after = db2.get(Annotation, ids["annotation_id"])
+            assert doc_after.name == "marshall-1933-p4.jpg"
+            assert artifact_after.ocr_geometry.boxes[1].provider == "user"
+            assert artifact_after.data == {"page_number": 4, "collection": "marshall-diaries"}
+            assert claim_after.source_char_start == 0 and claim_after.source_char_end == 20
+            assert annotation_after.text == "check against the deed"
+        finally:
+            db2.close()
+
+
 class TestSequenceMigrationOnAnExistingForwardingTable:
     """#4922 second look: a library already carrying `segmentforwardings`
     rows written BEFORE the `sequence` column existed (this branch, one

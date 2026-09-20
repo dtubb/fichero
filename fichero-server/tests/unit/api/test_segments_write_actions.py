@@ -391,6 +391,83 @@ class TestTheSeamReadsBothRealAndLegacy:
         assert set(legacy_body["segments"][0].keys()) == set(real_body["segments"][0].keys())
 
 
+class TestRealPassIsDrawable:
+    """test-audit B2, 2026-09-20: for a REAL (non-legacy) row the seam used
+    to report `box_index=None` and `artifact_type=None` unconditionally,
+    which is exactly what the app refuses to draw (a pass whose box indexes
+    are not dense `0..count` is refused; a pass with no artifact_type is
+    excluded from ranking). Per the spec (build-notes-identity-and-storage.md,
+    the slice 1 seam's own docstring, and App slice A stage 2's "a pass made
+    from an artifact carries that artifact's type"): the seam reports the
+    RESOLVED read order (`metadata['box_index']` when a converted box
+    recorded one, else `created_at` then `id`) as a dense `box_index`, and a
+    pass with a `source_artifact_id` carries that artifact's `artifact_type`."""
+
+    def test_real_segments_in_a_pass_get_a_dense_box_index_in_read_order(self, client, db):
+        doc = _make_doc(db)
+        pass_body = _create_pass(client, doc.id)
+        # Created out of any spatial order -- box_index must reflect the
+        # RESOLVED read order (created_at then id here; none of these rows
+        # set metadata["box_index"]), not client-supplied position.
+        made = [
+            _create_segment(
+                client, document_id=doc.id, pass_id=pass_body["id"],
+                anchor={"document_id": doc.id, "rect": [0.1 * i, 0.1 * i, 0.05, 0.05]},
+            ).json()
+            for i in range(4)
+        ]
+
+        body = client.get(f"/api/segments/document/{doc.id}").json()
+        segments = [s for s in body["segments"] if s["pass_id"] == pass_body["id"]]
+        assert [s["box_index"] for s in segments] == [0, 1, 2, 3]
+        assert [s["id"] for s in segments] == [s["id"] for s in made]
+
+    def test_box_index_is_scoped_per_pass_not_across_the_whole_document(self, client, db):
+        doc = _make_doc(db)
+        pass_a = _create_pass(client, doc.id, name="pass-a")
+        pass_b = _create_pass(client, doc.id, name="pass-b")
+        _create_segment(client, document_id=doc.id, pass_id=pass_a["id"])
+        _create_segment(client, document_id=doc.id, pass_id=pass_b["id"])
+        _create_segment(client, document_id=doc.id, pass_id=pass_b["id"])
+
+        body = client.get(f"/api/segments/document/{doc.id}").json()
+        by_pass: dict[str, list[int]] = {}
+        for s in body["segments"]:
+            by_pass.setdefault(s["pass_id"], []).append(s["box_index"])
+        assert by_pass[pass_a["id"]] == [0]
+        assert by_pass[pass_b["id"]] == [0, 1]
+
+    def test_a_pass_made_from_an_artifact_carries_that_artifacts_type(self, client, db):
+        from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryResult
+
+        doc = _make_doc(db)
+        geometry = OCRGeometryResult(
+            text="alpha", provider="apple_vision",
+            boxes=[OCRGeometryBox(text="alpha", bbox=[0.1, 0.1, 0.2, 0.05], level="word")],
+        )
+        artifact = Artifact(
+            document_id=doc.id, artifact_type="regions", content="alpha", ocr_geometry=geometry,
+        )
+        db.save(artifact)
+
+        pass_body = _create_pass(client, doc.id, source_artifact_id=artifact.id)
+
+        body = client.get(f"/api/segments/document/{doc.id}").json()
+        real_pass = next(p for p in body["passes"] if p["id"] == pass_body["id"])
+        assert real_pass["artifact_type"] == "regions"
+
+    def test_a_pass_with_no_source_artifact_reports_no_artifact_type(self, client, db):
+        """Not invented: the spec only says a pass MADE FROM an artifact
+        carries its type. A from-scratch pass (no source_artifact_id) has
+        nothing to carry, and stays `None` -- not a guess."""
+        doc = _make_doc(db)
+        pass_body = _create_pass(client, doc.id)
+
+        body = client.get(f"/api/segments/document/{doc.id}").json()
+        real_pass = next(p for p in body["passes"] if p["id"] == pass_body["id"])
+        assert real_pass["artifact_type"] is None
+
+
 def _make_segments(document_id: str, pass_id: str, count: int, *, kinds: tuple[str, ...] = ("word", "line")):
     from fichero_server.models.anchors import SourceAnchor
     from fichero_server.models.knowledge import ProvenanceKind
@@ -414,58 +491,14 @@ def _make_segments(document_id: str, pass_id: str, count: int, *, kinds: tuple[s
     return rows
 
 
-@pytest.mark.slow
-class TestBoundedReads:
-    """source.store.bounded-reads. The bound is THE ROUTE's answer as a
-    client receives it, at the spec's numbers (#4921 review) -- not the
-    SQL alone, and not a shape easier than the real behaviour. Marked slow
-    -- exclude with `-m "not slow"` on a loaded machine. What was measured
-    is printed; see the report for the actual numbers."""
-
-    def test_one_page_one_kind_at_200k_segments_in_the_source_returns_in_under_200ms(
-        self, client, db,
-    ):
-        """200,000 segments spread as a real source is: 500 page documents
-        of 400 segments each. The route answers for ONE page, one kind."""
-        from fichero_server.models.knowledge import ProvenanceKind
-
-        target_doc = None
-        for page_num in range(500):
-            doc = _make_doc(db, name=f"page-{page_num}.jpg")
-            if page_num == 250:
-                target_doc = doc
-            pass_row = SegmentPass(document_id=doc.id, name="bulk", provenance_kind=ProvenanceKind.workflow)
-            db.save(pass_row)
-            db.save_many(_make_segments(doc.id, pass_row.id, 400))
-
-        started = time.perf_counter()
-        r = client.get(f"/api/segments/document/{target_doc.id}", params={"kind": "word"})
-        elapsed_ms = (time.perf_counter() - started) * 1000
-        assert r.status_code == 200
-        assert len(r.json()["segments"]) == 200  # half of 400 are "word"
-        print(f"\n[bounded-reads] one page, one kind, 200,000 segments in the source: {elapsed_ms:.1f} ms")
-        assert elapsed_ms < 200, f"took {elapsed_ms:.1f} ms, wanted < 200 ms"
-
-    def test_dense_page_by_kind_and_by_area_returns_in_under_200ms(self, client, db):
-        """The editor's case: 20,000 segments on ONE page. By kind AND by
-        area (a rectangle, `area=x,y,w,h`) together, through the route."""
-        from fichero_server.models.knowledge import ProvenanceKind
-
-        doc = _make_doc(db, name="dense.jpg")
-        pass_row = SegmentPass(document_id=doc.id, name="dense", provenance_kind=ProvenanceKind.workflow)
-        db.save(pass_row)
-        db.save_many(_make_segments(doc.id, pass_row.id, 20_000))
-
-        started = time.perf_counter()
-        r = client.get(
-            f"/api/segments/document/{doc.id}", params={"kind": "word", "area": "0,0,0.125,0.125"},
-        )
-        elapsed_ms = (time.perf_counter() - started) * 1000
-        assert r.status_code == 200
-        assert r.json()["segments"]  # at least one segment in this area
-        assert all(s["kind"] == "word" for s in r.json()["segments"])
-        print(f"[bounded-reads] dense page (20,000), one kind + one area: {elapsed_ms:.1f} ms")
-        assert elapsed_ms < 200, f"took {elapsed_ms:.1f} ms, wanted < 200 ms"
+class TestBoundedReadsCorrectness:
+    """source.store.bounded-reads' CORRECTNESS half -- never marked slow
+    (test-audit B1, 2026-09-20): these four run in a few milliseconds each
+    and pin the by-area review fixes (the wide-segment and half-tile-
+    straddler cases) that the timing class's blanket `@pytest.mark.slow`
+    had switched off in every ordinary gate/CI run (`-m "not slow"` /
+    `-k "not slow"`). Proven by the audit: removing the half-tile growth
+    fix left the (then-slow-tagged) suite at 50 passed, 7 deselected."""
 
     def test_area_returns_a_wide_segment_centred_outside_it_but_not_one_wholly_outside(
         self, client, db,
@@ -563,6 +596,66 @@ class TestBoundedReads:
         r = client.get(f"/api/segments/document/{doc.id}", params={"area": "not,a,rect"})
         assert r.status_code == 422
 
+    def test_a_read_with_no_document_id_is_refused(self, client):
+        """Structural, not a new check: `doc_id` is a required path
+        parameter, so the route simply does not match without one."""
+        r = client.get("/api/segments/document/")
+        assert r.status_code == 404
+
+
+@pytest.mark.slow
+class TestBoundedReadsPerformance:
+    """source.store.bounded-reads' TIMED half -- the two `< 200ms`
+    assertions and the one honest, unasserted measurement. Excluded with
+    `-m "not slow"` on a loaded machine or in CI; the CORRECTNESS tests
+    that used to live in this class (test-audit B1) never carried a
+    timing dependency and are not marked slow any more."""
+
+    def test_one_page_one_kind_at_200k_segments_in_the_source_returns_in_under_200ms(
+        self, client, db,
+    ):
+        """200,000 segments spread as a real source is: 500 page documents
+        of 400 segments each. The route answers for ONE page, one kind."""
+        from fichero_server.models.knowledge import ProvenanceKind
+
+        target_doc = None
+        for page_num in range(500):
+            doc = _make_doc(db, name=f"page-{page_num}.jpg")
+            if page_num == 250:
+                target_doc = doc
+            pass_row = SegmentPass(document_id=doc.id, name="bulk", provenance_kind=ProvenanceKind.workflow)
+            db.save(pass_row)
+            db.save_many(_make_segments(doc.id, pass_row.id, 400))
+
+        started = time.perf_counter()
+        r = client.get(f"/api/segments/document/{target_doc.id}", params={"kind": "word"})
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        assert r.status_code == 200
+        assert len(r.json()["segments"]) == 200  # half of 400 are "word"
+        print(f"\n[bounded-reads] one page, one kind, 200,000 segments in the source: {elapsed_ms:.1f} ms")
+        assert elapsed_ms < 200, f"took {elapsed_ms:.1f} ms, wanted < 200 ms"
+
+    def test_dense_page_by_kind_and_by_area_returns_in_under_200ms(self, client, db):
+        """The editor's case: 20,000 segments on ONE page. By kind AND by
+        area (a rectangle, `area=x,y,w,h`) together, through the route."""
+        from fichero_server.models.knowledge import ProvenanceKind
+
+        doc = _make_doc(db, name="dense.jpg")
+        pass_row = SegmentPass(document_id=doc.id, name="dense", provenance_kind=ProvenanceKind.workflow)
+        db.save(pass_row)
+        db.save_many(_make_segments(doc.id, pass_row.id, 20_000))
+
+        started = time.perf_counter()
+        r = client.get(
+            f"/api/segments/document/{doc.id}", params={"kind": "word", "area": "0,0,0.125,0.125"},
+        )
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        assert r.status_code == 200
+        assert r.json()["segments"]  # at least one segment in this area
+        assert all(s["kind"] == "word" for s in r.json()["segments"])
+        print(f"[bounded-reads] dense page (20,000), one kind + one area: {elapsed_ms:.1f} ms")
+        assert elapsed_ms < 200, f"took {elapsed_ms:.1f} ms, wanted < 200 ms"
+
     def test_a_whole_dense_page_in_one_read_is_measured_not_asserted(self, client, db):
         """A whole dense page (no kind, no area filter) is the ORM's honest
         cost at this row count -- reported, never asserted (slice 3b, a
@@ -581,9 +674,3 @@ class TestBoundedReads:
         assert r.status_code == 200
         assert len(r.json()["segments"]) == 20_000
         print(f"[bounded-reads] a WHOLE dense page (20,000), no filter: {elapsed_ms:.1f} ms (not asserted)")
-
-    def test_a_read_with_no_document_id_is_refused(self, client):
-        """Structural, not a new check: `doc_id` is a required path
-        parameter, so the route simply does not match without one."""
-        r = client.get("/api/segments/document/")
-        assert r.status_code == 404

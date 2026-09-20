@@ -631,11 +631,19 @@ def rects_intersect(a: tuple[float, float, float, float], b: tuple[float, float,
     return ax < bx + bw and bx < ax + aw and ay < by + bh and by < ay + ah
 
 
-def segment_read_from_row(row: Segment) -> SegmentRead:
+def segment_read_from_row(row: Segment, *, box_index: int | None = None) -> SegmentRead:
     """The real-row twin of `segment_from_box` -- same `SegmentRead` shape,
     `provisional=False`. The seam (`api/routes/document/segments.py`) is the
     ONE place that resolves either this or the blob path, never both for the
-    same pass."""
+    same pass.
+
+    `box_index` (test-audit B2, 2026-09-20): a real row carries none of its
+    own -- it is the caller's position for this row within the pass's
+    RESOLVED read order (`_segment_row_sort_key`: `metadata["box_index"]`
+    when a converted box recorded one, else `created_at` then `id`), so the
+    app's "boxIndex must be exactly 0..count" rule has something dense to
+    read. A caller with no such order (a single-segment lookup, not a page
+    read) passes nothing and gets `None`, same as before."""
     return SegmentRead(
         id=row.id,
         provisional=False,
@@ -649,7 +657,7 @@ def segment_read_from_row(row: Segment) -> SegmentRead:
         text=None,  # readings on segments arrive in a later slice
         confidence=row.confidence,
         source_artifact_id=None,  # a real segment is not backed by one artifact
-        box_index=None,
+        box_index=box_index,
         page_index=None,  # not stored on Segment until its own slice
         metadata=dict(row.metadata),
     )
@@ -1096,8 +1104,16 @@ def forwards_to(db: Any, from_id: str, target_id: str) -> bool:
     return False
 
 
-def pass_read_from_row(row: SegmentPass) -> PassRead:
-    """The real-row twin of the pass half of `segments_from_result`."""
+def pass_read_from_row(row: SegmentPass, *, artifact_type: str | None = None) -> PassRead:
+    """The real-row twin of the pass half of `segments_from_result`.
+
+    `artifact_type` (test-audit B2, 2026-09-20): App slice A stage 2's notes
+    say "a pass made from an artifact carries that artifact's type" -- so a
+    pass with a `source_artifact_id` reports that artifact's `artifact_type`
+    here (the caller looks it up; this function has no `db`), never a
+    guess. A from-scratch pass (no `source_artifact_id`) has nothing to
+    carry and stays `None` -- the notes say nothing about that case, so
+    nothing is invented for it."""
     return PassRead(
         id=row.id,
         provisional=False,
@@ -1109,6 +1125,6 @@ def pass_read_from_row(row: SegmentPass) -> PassRead:
         run_id=row.run_id,
         created_at=row.created_at,
         source_artifact_id=row.source_artifact_id,
-        artifact_type=None,
+        artifact_type=artifact_type,
         text=None,  # readings on passes arrive in a later slice
     )
