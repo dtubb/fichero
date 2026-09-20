@@ -112,6 +112,14 @@ and checks the content part against its fingerprint when the content is present.
 blanks the content part and writes its own recorded row saying so. The chain still verifies;
 the words are gone; the fact that something was removed, by whom and why, is kept.
 
+**The fingerprint is keyed, and the key is blanked with the content.** This is the
+source-model set's condition, and it is a real security point. A plain fingerprint of a short
+reason or a single typed word can be reversed by trying every likely word until one matches,
+so the chain would go on giving the words away after a purge. So each content part carries its
+own random value; the fingerprint is made from the content AND that value; the value lives in
+the content part and is blanked with it. After a purge nothing remains to test a guess
+against.
+
 For **old rows**, whose content is inside the hash: they are left alone unless a purge needs
 one. Then the content is blanked, and the purge's own row lists the blanked entries, so the
 check reports them as "removed by a recorded purge" rather than as tampering.
@@ -120,10 +128,18 @@ check reports them as "removed by a recorded purge" rather than as tampering.
   row; a new chain mode number. *Existing data:* old rows untouched until a purge reaches one.
   *Test:* blank a content part through the purge action: the chain verifies and reports one
   recorded removal; blank one by hand: the chain reports tampering.
+- `safety.record.the-fingerprint-cannot-be-guessed`: the fingerprint of a content part is
+  keyed with a random value of at least 128 bits, made per row, stored in the content part
+  and blanked with it. *Test:* purge a row whose content was one common word; with the chained
+  part alone, trying a word list finds no match; before the purge, with the content part
+  present, verification still passes.
 - `safety.record.a-typed-reason-is-content`: a reason or note typed by a person with a step is
   content, not chained text. *Test:* it can be purged.
 
-**This is a proposal to the maintainer and to the source-model set's author, not a decision.**
+**Where it stands.** The source-model set's author agreed this as the joint proposal on
+2026-09-20, with the keyed fingerprint as their condition (their commit b5b8fa925). It is
+still the maintainer's to rule. It would unblock the purge in their rights slice. Version rows
+are already outside the chain on their branch, so a purge can reach those today.
 
 ### D. Seeing who did what
 

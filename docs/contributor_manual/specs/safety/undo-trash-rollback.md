@@ -107,10 +107,11 @@ goes to the Trash when deleted: a document, a folder, a note, a workflow, a run,
 search, an entity. Small edits (a moved box, a changed word, a tag) are undo only. A thing in
 the Trash takes its dependants out of view with it, and brings them back when it is put back.
 
-**Rollback stands on versions.** The source-model set keeps versions of segments and of the
-artifacts that hold text. This set does not build a second version store. It extends the same
-rule to the few other kinds that need it, and adds the screens: see what it said before,
-return to it.
+**Rollback stands on versions.** The source-model set keeps versions of segments, by four
+rules: the earlier state is saved, numbers only go up, a return writes a new version, and a
+write names the version it expects. This set does not invent a second way. It applies the same
+rules, with a table of the same shape for each kind, to the few other kinds that need it, and
+adds the screens: see what it said before, return to it.
 
 **A run is one step.** Everything a run writes carries the run's stamp, so its work can be
 listed, reviewed, and taken back as one step next week. The same stamp serves work that ran on
@@ -225,15 +226,26 @@ library appear in the new Trash on first open.
 
 These are requests, not edits. The files belong to their authors.
 
-- **To the source-model set** (`fabel-spec-writer`): (a) adopt one rule for redo in the shared
-  undo route (a step is reversed through its own inverse when it has one), which this set
-  specifies in `undo.md` for every action, so the segment-only fix now in hand becomes the
-  general rule rather than a special case; (b) confirm that the version store built for
-  segments and artifacts is THE version store, and that this set may extend the same tables'
-  rule to notes, statements and entities rather than build another; (c) a deleted segment is
-  "undo only" under this set's Trash rule (a person does not go looking for a line in a Trash);
-  confirm that matches their intent; (d) questions 8, 17 and 23 (words in the record) collide
-  with `the-record.md`; one joint proposal is written there.
+- **To the source-model set** (`fabel-spec-writer`). **All five answered on 2026-09-20, no
+  disagreements** (their record: "Agreed with the safety set" in their foundation file, commit
+  b5b8fa925 on `spec/page-model`). What was agreed, and where it is folded in here:
+  (a) one rule for redo in the shared undo route (a step is reversed through its own inverse
+  when it has one): agreed; the rule is this set's to own and segments are one user of it;
+  their condition, a four-lap test on rows for every action moved onto it, is now
+  `safety.undo.every-action-on-the-rule-has-a-four-lap-test`, and what the rule promises about
+  ids is stated precisely in `safety.undo.redo-keeps-the-id`;
+  (b) versions: agreed on the RULES, not on sharing a table; `versions-and-restore.md` now
+  says one shape and one set of rules with a table per kind, and why; this set's earlier
+  claim that text artifacts already have a version table on their branch was checked and
+  withdrawn;
+  (c) a deleted segment is undo only: agreed; whether a deleted PASS is a Trash item goes to
+  the maintainer (`trash.md`);
+  (d) words in the record: the chained part and content part is agreed as the joint proposal,
+  for the maintainer to rule, with their condition that the fingerprint be keyed and the key
+  blanked with the content (`safety.record.the-fingerprint-cannot-be-guessed`);
+  (e) expected versions on merge, split and carry, and on their inverses: agreed
+  (`safety.undo.inverses-are-locked-too`); their finding that a restore does not check what
+  it restores into is now a general rule (`safety.undo.a-restore-checks-where-it-lands`).
 - **To the remote-compute set:** `compute.land.undoable-as-one` and
   `compute.land.server-sets-the-maker` should cite the run stamp defined in `run-take-back.md`
   instead of defining a second one. A landed job is a run.

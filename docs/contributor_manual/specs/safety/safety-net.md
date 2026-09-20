@@ -49,7 +49,7 @@ something goes badly wrong.
 | The copy is a full copy | yes (`shutil.copy2`, `shutil.copytree`); no use of the disk's ability to share unchanged data | VERIFIED by survey (`:202`, `:234`) |
 | Snapshots live in a folder on the engine's own machine, outside the library | built; reached only through routes, so a remote engine works | VERIFIED by survey (`:7`, `:154-156`) |
 | Library updates (schema migrations) | no version table, no transaction, no snapshot first; a failure is caught and logged as a warning and the library opens half updated | VERIFIED `db/migrations/schema.py:230-231`; applied unconditionally per survey (`db/__init__.py:1026-1037`). **#4983** |
-| The knowledge-graph reset | would delete every entity, statement and link with no filter, no record, no confirmation; cannot run today because it calls a one-argument delete with two (`api/routes/kg/rebuild.py:50-55` against `db/__init__.py:3306`); its only test fakes the wrong shape; the app cannot reach it | VERIFIED. **#4982. Nobody is to repair the call as written.** |
+| The knowledge-graph reset | would delete every entity, statement and link with no filter, no record, no confirmation; cannot run today because it calls a one-argument delete with two (`api/routes/kg/rebuild.py:50-55` against `db/__init__.py:3306`); its only test fakes the wrong shape; the app cannot reach it | VERIFIED on this branch. **#4982. Nobody is to repair the call as written.** Being resolved as this slice rules: the route, the app's dead method for it and the hand-written command-line "kg reset" command are all being deleted, not repaired (per the manager, 2026-09-20) |
 | Transactions | nested ones are flattened; no savepoints; the database, the vector store and file storage share no transaction and nothing reconciles them | VERIFIED by survey (`db/__init__.py:1525-1563`, `:1003-1006`) |
 | Stored bytes with no row, after a failed import | possible; no sweep exists | VERIFIED by survey |
 | Who may delete a snapshot | anyone who may write, including the snapshot that is the only way back from a purge | VERIFIED by survey (`security/authz.py:255-260`) |
@@ -107,14 +107,26 @@ something goes badly wrong.
 
 - `safety.net.an-update-completes-or-changes-nothing`: each update to a library's format runs
   in a transaction with a number, recorded in a version table in the library. On failure the
-  transaction is rolled back, the version is unchanged, and **the library does not open for
-  writing**. The person is told which update failed, that nothing was changed, and that the
+  transaction is rolled back, the version is unchanged, and (in phase two, see the next
+  behaviour) **the library does not open for writing**. The person is told which update failed, that nothing was changed, and that the
   snapshot from before the update is in Settings. A failure is never a warning in a log.
   *Data:* a version table; updates numbered in order. *Existing data:* a library with no
   version table is measured once (which columns and tables it has), given the number that
   matches, and updated from there; the existing updates are already written to be safe to run
   twice. Nothing is discarded. *Test:* an update that fails half way: the library's tables are
   byte-identical to before, the version is unchanged, the open is refused with the sentence.
+- `safety.net.an-update-in-two-phases`: #4983 is being built in two phases, and the split is
+  deliberate. **Phase one, now:** each update is atomic (it completes or changes nothing), and
+  a failure is VISIBLE: the person is told, in the app, which update failed and that nothing
+  was changed. The library still opens. **Phase two, the maintainer's decision:** a failed
+  update stops the library opening for writing. *Why it is the maintainer's decision and not a default:*
+  failures are swallowed today, so an update may ALREADY be failing silently on a real
+  library, every time it opens, and nobody knows. Turning on "refuse to open" first would
+  lock a researcher out of their own working library on the day they install the fix, for a
+  fault that has been harmless enough to go unnoticed. Phase one finds out. When phase one has
+  run on the real libraries and shows no failing update, phase two is safe to turn on; if it
+  shows one, that update is repaired first. *Test:* phase one: an update that fails leaves the
+  tables byte-identical, and the failure is returned to the app and shown, not only logged.
 - `safety.net.an-update-is-snapshotted-first`: the snapshot rule of B applies; with no room,
   the update does not start and the library opens read-only in its present format if the app
   can read it, or not at all, and says which. *Test:* no room: no update attempted.

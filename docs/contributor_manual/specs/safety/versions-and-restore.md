@@ -10,9 +10,11 @@
 > are VERIFIED (line given), TRACED or INFERRED. Nothing was run.
 >
 > **This slice builds ON the source-model set** (branch `spec/page-model`, its slices 4 and 5
-> and its slice 6 build notes, commit 76c6c0146). That set owns the version store. This slice
-> adds no second store. Where a rule here would change theirs, it is written as a request in
-> the foundation file, not as an edit to their files.
+> and its slice 6 build notes, commit 76c6c0146). That set owns the version RULES and the
+> first table that follows them. This slice adds no second set of rules. Agreed with that set
+> on 2026-09-20 (its commit b5b8fa925): the rule is shared; a table is not. Where a rule here
+> would change theirs, it is written as a request in the foundation file, not as an edit to
+> their files.
 
 ## Intent
 
@@ -41,7 +43,8 @@ Undo is for the last few minutes. History is for last month.
 | What | State | Evidence |
 | --- | --- | --- |
 | Version history of anything, on the main line | **none** | VERIFIED by survey |
-| Segment and text-artifact version tables; a restore that writes a new version; numbers only go up; an expected-version check on update, delete and restore | built on the unmerged source-model branch only | VERIFIED by survey of that worktree |
+| A version table for **segments** (`SegmentVersion`); a restore that writes a new version; numbers only go up; an expected-version check on update, delete and restore | built on the unmerged source-model branch only. It is the ONLY version table there: an earlier draft of this file said text artifacts had one too; that was checked and is not so | VERIFIED in that worktree (`models/segments.py:767`; no other version class in the models folder) |
+| Version rows sit outside the record's hash chain, so a purge can reach them | true on that branch | per that set's author, 2026-09-20 |
 | Merge, split and carry take no expected version | gap on that branch | VERIFIED by survey; noted by that set's own reviewer |
 | Image edits as settings; original never written; return-to-original reversible | built, and right | VERIFIED `api/routes/ingest/image_editing.py:1615-1618`; byte-level test per survey |
 | Undoing an edit restores the whole row from a copy kept in the record | built; this is what the record's size problem comes from | VERIFIED by survey `api/routes/document/artifacts.py:252-255`, `:890-910` |
@@ -50,14 +53,24 @@ Undo is for the last few minutes. History is for last month.
 
 ## Behaviours
 
-### A. One version store
+### A. One shape and one set of rules, a table per kind
 
-- `safety.history.one-store`: there is one way versions are kept: the source-model set's. A
-  version is an ordinary row beside the thing, holding the content as it was, its number, who,
-  when, which recorded step made it, and whether a person or a machine made it. Other kinds
-  follow the same shape; none invents its own. *Data:* the source-model tables for segments
-  and text artifacts; same-shaped tables for the kinds in B. *Existing data:* see C. *Test:*
-  a guardrail: a table that stores earlier content of a thing matches the one shape.
+- `safety.history.one-shape`: there is one way versions are kept, and it is a set of RULES,
+  not one table. The rules, the source-model set's: a version row saves the thing as it was
+  BEFORE the change; numbers only go up; a restore writes a new version; a write names the
+  version it expects and is refused if the thing has moved on. Every version row also carries
+  the same few columns: the thing's id, the number, who, when, which recorded step made it,
+  and whether a person or a machine did. **Each kind has its own table, typed to that kind's
+  fields.** *Why a table per kind and not one general table:* (1) the first one built,
+  `SegmentVersion`, is typed to a segment's fields, and is right to be; (2) a restore has to
+  write typed fields back, and a general table would hold the research as an untyped blob
+  that the database cannot check; (3) access rules and a rights purge work by kind and by
+  field (blank a reading, keep a shape), which a blob hides; (4) the cost of separate tables
+  is one guardrail, below, and a general table would not save any code a restore needs
+  anyway. *Data:* `SegmentVersion` on the source-model branch; a table of the same shape for
+  each kind in B. *Existing data:* see C. *Test:* a guardrail: every table that stores an
+  earlier state of a thing has the shared columns and obeys the four rules, proven by one
+  shared test run against each kind.
 - `safety.history.versions-are-ordinary-data`: versions live with the research, not in the
   tamper-evident record. So access rules reach them, a purge can reach them, and a snapshot
   carries them. The record refers to a version by number (`the-record.md`). *Test:* deny a
@@ -65,8 +78,10 @@ Undo is for the last few minutes. History is for last month.
 
 ### B. What keeps history
 
-- `safety.history.the-kinds`: these keep versions: a **segment** and a **text artifact**
-  (source-model set); a **note**; a **statement**; an **entity**'s name, kind, aliases and
+- `safety.history.the-kinds`: these keep versions: a **segment** (source-model set, built on
+  its branch); a **text artifact**, meaning a page's transcription or other text output held
+  outside segments (not built anywhere yet; needed until every page's text lives in segments,
+  because today each edit to one stores the full text twice in the record); a **note**; a **statement**; an **entity**'s name, kind, aliases and
   description; a **workflow**'s definition (#4342). These do not: tags, ratings, positions on
   a board, links (they are undo only, and the record shows them); images (their edit settings
   are their history). *Test:* one behaviour test per kind: three committed changes leave three

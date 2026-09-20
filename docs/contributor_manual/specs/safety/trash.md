@@ -47,7 +47,7 @@ This is the Trash the app already promises in its delete dialog and does not hav
 | Trashed documents are left out of exports | **unknown** | export reads all documents at `export_service.py:132`, `:253`, `:1440` (VERIFIED lines); whether the read filters deleted rows was not checked |
 | Stored original files are ever deleted | never, not even at purge | VERIFIED by survey: storage has no delete call |
 | Purge computes snapshots for a reversal, then discards them | wrong | VERIFIED by survey `documents.py:2528-2560`, `:3429-3456` |
-| A deleted run is marked and nothing reads the mark; the route is outside the record | #4960 | VERIFIED by survey `workflows/activity_store.py:1297`, `:1311-1354` |
+| A deleted run is marked and nothing reads the mark; the route is outside the record | #4960. True on this branch. **The engine half is fixed on the integration branch (0bcb71c8e, after this branch was cut):** deleting a run is one recorded action (single, bulk, clear failed); the run row is soft-deleted; its events are KEPT and hidden when read; a test proves that flipping the mark back restores both. The tracker's "workflow deleted" event now has no caller | this branch: VERIFIED by survey `workflows/activity_store.py:1297`, `:1311-1354`; the fix: commit confirmed to exist, its content as reported by the manager, not read here |
 | Every other kind (notes, annotations, entities, statements, workflows, conversations, saved searches, canvas items, references) | hard-deleted; comes back only by reversing the recorded step | VERIFIED by survey |
 | Deleting a folder of workflows, searches or conversations with its contents | hard delete, no record, no way back | VERIFIED by survey `api/routes/document/folders.py:388-422` |
 | Confirmation before delete | inconsistent: the same kind confirms on one surface and not another; deleting a run never confirms | VERIFIED by survey |
@@ -68,6 +68,13 @@ This is the Trash the app already promises in its delete dialog and does not hav
   | saved search, conversation | a tag, a link, a rating |
   | canvas board | a note's place on a board |
   | entity | a statement; a link between statement and entity |
+  | **a pass: for the maintainer** (see below) | |
+
+  **A deleted pass.** Agreed with the source-model set: a deleted segment is undo only. It is
+  soft-deleted, still resolves through its forwarding note, and comes back by undo or from its
+  own history. But a **pass** (one whole segmentation or reading of a page, by a person or a
+  model) is a body of work someone might go looking for. By this slice's own rule it belongs
+  in the Trash. It is put to the maintainer, with that proposal.
 
   A statement or an annotation removed by mistake last week is still recoverable: from the
   history list (slice 1) or the thing's own history (slice 3). It simply does not clutter the
@@ -82,7 +89,11 @@ This is the Trash the app already promises in its delete dialog and does not hav
   each is put back on its own. Nothing is rewritten. *Test:* delete one of each kind; each is
   in the Trash list with who and when.
 - `safety.trash.deleted-runs-join-it`: a deleted workflow run goes to the Trash with its
-  events intact; the delete is a recorded action (#4960; an engine lane is building it soft).
+  events intact; the delete is a recorded action (#4960; the engine half has landed on the
+  integration branch as a soft delete with events kept, which is exactly what the Trash
+  needs). What is left for this slice: the run appears in the Trash list; Put Back is a
+  recorded action that flips the mark back; and the tracker's unused "workflow deleted" event
+  is either the event the Trash listens to, or is deleted. One or the other, not left lying.
   *Existing data:* runs already marked deleted appear in the Trash on first open. *Test:*
   delete a run; the activity window no longer lists it; the Trash does; Put Back returns it
   with every event.

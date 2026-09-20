@@ -108,7 +108,8 @@ The engine half can ship alone. It makes every client safe at once, including ag
   edits a page; B edits the same page; A's undo is refused and B's text is byte-identical
   afterwards; B undoes; now A's undo succeeds.
 - `safety.undo.version-is-the-second-lock`: where a kind of thing carries a version number
-  (segments and text artifacts, from the source-model set), the reversal also names the
+  (segments today, on the source-model branch; the other kinds of `versions-and-restore.md`
+  as they gain versions), the reversal also names the
   version it expects and is refused if the version has moved. This catches a change that did
   not go through the record (a route still outside the action layer). *Data:* the version
   columns of the source-model set; no new store. *Existing data:* kinds without versions rely
@@ -137,13 +138,48 @@ The engine half can ship alone. It makes every client safe at once, including ag
   snapshot; so redo becomes a restore of the same entity with the same id; undoing that redo
   falls back to replaying the delete, which is now right because the entity exists again. No
   action needs rewriting. *Existing data:* old chains in the record keep working; the rule
-  only changes what the NEXT reversal does. *Test:* for each family (create, delete, update,
-  move, merge, split): do, undo, redo, undo, redo. After every lap the rows are identical to
-  the same lap before, and no row exists under a new id.
-- `safety.undo.redo-keeps-the-id`: redoing a create brings back the same thing under the same
-  id, so everything that pointed at it still does. It never makes a second thing. *Test:*
-  create an entity; link a statement to it; undo both; redo both; the statement points at the
-  original id and exactly one entity exists.
+  only changes what the NEXT reversal does. *Where it stands:* agreed with the source-model
+  set (2026-09-20), which owns one user of the rule. On that set's branch the rule exists
+  today as a switch an action opts into, turned on for segment actions only (VERIFIED in that
+  worktree: `actions/registry.py:185`, `api/routes/document/segments.py:505`), so shipped
+  actions are unchanged. This slice makes it THE rule of the route: on for every action, and
+  the switch removed once the last action has moved. *Test:* the next behaviour.
+- `safety.undo.every-action-on-the-rule-has-a-four-lap-test`: no action moves onto the rule
+  without a test that runs do, undo, redo, undo through the real route and asserts on ROWS,
+  not status codes: after the second undo the rows equal the rows after the first undo, and no
+  live row is left that no later undo can remove. This is the source-model set's condition,
+  adopted. *Test:* a guardrail: every action with the rule on is named by such a test.
+- `safety.undo.redo-keeps-the-id`: what the rule promises about ids, precisely, in three
+  parts. **(1) Always:** the thing a step was ABOUT comes back under the id it had. Redoing a
+  create restores the same thing; it never makes a second one; everything that pointed at it
+  still does. **(2) Always:** no lap leaves a stray. Whatever a redo makes, the next undo
+  removes all of it. **(3) The aim, not yet true everywhere:** things a step makes as a
+  BY-PRODUCT also keep their ids. Today, on the source-model branch, the parts of a split, the
+  copies of a carry and a proposed match get NEW ids on each redo and are cleaned up correctly
+  on the next undo (their second review, 2026-09-20). That is safe, because of the first lock:
+  if anything had come to point at an old by-product (an annotation on a part), a later live
+  step would have touched it and the undo that removed it would have been refused. It becomes
+  part (1) when those inverses remove softly and the redo restores, as create already does.
+  Until then such an action says so in its registration, and its four-lap test asserts
+  "nothing left over" instead of "same ids". *Test:* create an entity; link a statement to it;
+  undo both; redo both; the statement points at the original id and exactly one entity exists.
+  For a split: after each lap exactly one live segment covers the line, or exactly the parts
+  do, never both.
+- `safety.undo.a-restore-checks-where-it-lands`: a step that brings something back (an undo of
+  a delete, an unmerge, an unsplit, a Put Back, a redo) first checks that what it restores INTO
+  still exists and is live: the folder, the document, the pass, the parent. If not, it refuses
+  with a reason, and brings nothing back into a place where it would be invisible. *Why:* the
+  source-model review found that undelete, unmerge and unsplit do not check that the pass or
+  the parent is still live, so a segment can return into a deleted pass and never be seen.
+  The same holds for any kind. *Test:* delete a thing; delete its container; undo the first
+  delete: refused, with the container named; put the container back; now it succeeds.
+- `safety.undo.inverses-are-locked-too`: an inverse obeys the two locks like any other step.
+  It names the versions it expects of everything it will change or remove, and it never
+  hard-deletes something a later step has touched. On the source-model branch merge, split
+  and carry take no expected version, and neither do unmerge, unsplit and uncarry; unsplit
+  hard-deletes the parts it is given even if someone has since edited or annotated one
+  (VERIFIED by that set's review). Agreed with that set: all six take the token. *Test:* split;
+  someone annotates a part; undo the split: refused, the part and its annotation untouched.
 - `safety.undo.redo-is-refused-when-changed`: redo obeys the same two locks as undo (B).
   *Test:* undo an edit; someone else edits the thing; redo is refused.
 - `safety.undo.a-new-step-clears-redo`: once I make a new step, my earlier undone steps are no
