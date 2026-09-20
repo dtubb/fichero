@@ -6545,6 +6545,19 @@ class Database(DatabaseEmbeddingMixin):
         from fichero_server.db.migrations.schema import migrate_checkpoint_tables
         migrate_checkpoint_tables(self.conn, self.migration_failures)
 
+    def read_library_uuid(self) -> str | None:
+        """The library's stable sync UUID, or ``None`` if not yet minted.
+
+        Typed persistence-layer entry point (#1876) for
+        ``db_migrations.read_library_uuid`` — a route reaching ``db.conn``
+        directly (as ``api/routes/library/sync.py`` used to) bypasses this
+        choke point. Delegates verbatim: degrades to ``None`` on a
+        not-yet-migrated library rather than raising, same as the
+        migrations-layer function it wraps.
+        """
+        from fichero_server.db.migrations.schema import read_library_uuid
+        return read_library_uuid(self.conn)
+
 
 # Backward-compatibility alias used by older tests/tooling that patch `fichero_server.db.db`.
 db = db_manager

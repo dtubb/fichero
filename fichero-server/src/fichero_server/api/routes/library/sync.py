@@ -27,7 +27,6 @@ from pydantic import BaseModel
 
 from fichero_server.api.main import get_library_database
 from fichero_server.db import Database
-from fichero_server.db.migrations.schema import read_library_uuid
 from fichero_server.workflows.library_sync_db import (
     DB_IMAGE_REL,
     build_db_image,
@@ -68,7 +67,7 @@ def _resolved_library_id(db: Database) -> str:
     The identity migration mints the UUID at open, so the fallback is defensive
     (a library opened by an older engine that has not re-migrated yet).
     """
-    uuid = read_library_uuid(db.conn)
+    uuid = db.read_library_uuid()
     if uuid:
         return uuid
     # Defensive fallback — mirrors audit_chain's derivation so a not-yet-migrated
