@@ -152,6 +152,22 @@ strong form: reading twice changes neither the list of tables nor any row count.
 read-only way of opening a library is ever added, it must skip `_materialize_schema`, and the
 seam must treat "no such table" as "no rows". The engine has no such path today.)
 
+**Reading by area takes a rectangle.** The route's parameter is `area=x,y,w,h` (fractions of the
+image, the form an anchor's rect has), never a grid key: the tile grid is the engine's own
+detail and can change. "By area" means **every segment whose box intersects the rectangle**.
+A segment is filed under the tile of its centre, so the engine must also return a wide
+segment that covers the area and is centred outside it (file it under every tile it covers,
+or keep a short list of segments larger than a tile). Test: a region as wide as the page,
+centred outside the asked-for area, comes back.
+
+**Locks are taken in the house order: the transaction gate, then the connection lock.**
+`_execute` does gate then lock, and a transaction holds the gate for its whole life. `save_many`
+must enter `self.transaction()` and start it **before** it takes `_lock`; the reverse order
+lets an importer's batch deadlock against a person's open edit. Test: two threads, one holding
+a transaction open between two statements, the other calling `save_many`; both finish within
+a timeout. When a nested level of a transaction fails, the whole transaction is marked
+rollback-only, so a caller that catches the error cannot commit half a batch.
+
 **Bulk writes are one audited action like any other.** `Database.transaction()` is re-entrant;
 `save_many` must join it (not issue its own `BEGIN`), so that `segment.create_many` is
 registered `atomic=True` and its rows and its audit row commit together or not at all.
@@ -281,8 +297,7 @@ whose `document_id` is not the segment's.
   With 200,000 segments in one source, spread as a real source is (500 page documents of 400;
   made with `save_many` in a temporary library; marked `slow`), `GET
   /api/segments/document/{doc_id}?kind=` for one page returns in under 200 ms. Separately, a
-  dense page (20,000 segments on **one** page): a read by kind **and by area** (`tile=`, a new
-  query parameter) returns in under 200 ms; a whole dense page in one read is measured and
+  dense page (20,000 segments on **one** page): a read by kind **and by area** (`area=x,y,w,h`) returns in under 200 ms; a whole dense page in one read is measured and
   **reported, not asserted**. Timing the SQL alone does not pin this behaviour. A read with
   no `document_id` is refused. (A lean read path, raw rows to the read shape with no
   intermediate model, is **slice 3b**, needed before the editor's trial, not now.)
