@@ -148,6 +148,29 @@ func activityMapExecutionStatus(_ status: WorkflowStatus) -> ActivityRunStatus {
     }
 }
 
+/// Maps the engine's canonical `workflow_runs.status` vocabulary
+/// (`accepted → running → paused → completed | failed | cancelled`, plus the
+/// soft-delete marker `deleted` — see `fichero-server`'s `run_status.py`) to
+/// the app's `ActivityRunStatus` (#4960: the runs-table route is now what
+/// `ActivityStore.historicalRuns` reads, so its raw string needs the same
+/// mapping `activityMapActivityType` gives an event's `type`). `accepted`
+/// folds to `.running` for the same reason `activityMapExecutionStatus`
+/// folds `.idle` to `.running`: queued and running both read as "this is
+/// happening" to the user. `deleted` never reaches here (the route excludes
+/// it server-side); an unrecognised string — a future status this app
+/// hasn't learned yet — falls back to `.completed`, matching
+/// `activityMapActivityType`'s own unknown-default rather than guessing red.
+func activityMapRunStatus(_ status: String) -> ActivityRunStatus {
+    switch status.lowercased() {
+    case "accepted", "running": return .running
+    case "paused": return .paused
+    case "completed": return .completed
+    case "failed", "error": return .failed
+    case "cancelled", "stopped": return .cancelled
+    default: return .completed
+    }
+}
+
 func activityMapActivityType(_ type: String) -> ActivityRunStatus {
     switch type {
     case "workflow_started": return .running

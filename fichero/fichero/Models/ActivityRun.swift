@@ -38,6 +38,23 @@ struct ActivityRun: Identifiable {
     }
 }
 
+// MARK: - Run delete outcome (#4960)
+
+/// What `ActivityStore.deleteRuns` actually did — names both halves rather
+/// than a bare count, so a caller can say plainly "3 removed, 1 still
+/// running" instead of a silent partial success.
+struct RunDeleteOutcome: Equatable, Sendable {
+    /// Run ids the engine actually removed (and `ActivityStore` has already
+    /// spliced out of `runs`).
+    let deletedIds: [String]
+    /// Run ids that were requested (by id, or matched by a status filter)
+    /// but NOT removed — most commonly a still-running run, which the
+    /// engine never deletes out from under itself.
+    let skippedIds: [String]
+
+    static let empty = RunDeleteOutcome(deletedIds: [], skippedIds: [])
+}
+
 // MARK: - Activity Run Status
 
 enum ActivityRunStatus {

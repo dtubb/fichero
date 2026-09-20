@@ -146,6 +146,21 @@ struct ActivityStatusToolbarItem: View {
             // surfaces can't disagree. Failed jobs render red here too.
             ForEach(activityStore.backgroundJobs) { job in
                 ActivityJobRow(job: job)
+                    // A failed WORKFLOW job (Kraken Detect Regions, HTR, …)
+                    // is a run in the SAME `workflow_runs` record the window
+                    // reads (#4960: this popover's job list already comes
+                    // from `list_workflow_runs`, see `ActivityService
+                    // .getBackgroundJobs`) — `job.id` is that run's thread
+                    // id, so the SAME delete operation removes it here, not
+                    // a second one. A non-workflow job (embedding, import…)
+                    // has no run record to delete, so it gets no menu.
+                    .contextMenu {
+                        if job.taskType == "workflow", job.state.isFailed {
+                            Button("Delete", role: .destructive) {
+                                Task { await activityStore.deleteRuns(threadIds: [job.id]) }
+                            }
+                        }
+                    }
             }
 
             ForEach(activeWorkflows, id: \.threadId) { execution in

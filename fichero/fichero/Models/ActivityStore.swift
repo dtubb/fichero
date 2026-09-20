@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 import Observation
 import OSLog
@@ -48,16 +49,24 @@ final class ActivityStore: ChangeEventConsumer {
     /// touched a library they didn't open in this window.
     private(set) var lastLibraryOpened: LibraryOpenedSignal?
 
-    // MARK: - Run list (#3231)
+    // MARK: - Run list (#3231, #4960)
     //
-    // The store owns the live+history run-list merge (previously assembled inside
-    // ActivityBrowserView). Views observe `runs`/`runLoadFailures` and call
-    // `rebuildRuns`, passing their @Environment deps in so the store stays free of
-    // view-layer wiring. (Per-event in-place patching is a follow-up (#3231 p3);
-    // today a `refreshToken` bump still triggers a full rebuild.)
+    // The store owns the live+history run-list merge (previously assembled
+    // inside ActivityBrowserView). Views observe `runs`/`runLoadFailures` and
+    // call `rebuildRuns`, passing @Environment deps in. `runs` is patched
+    // in place (`patchRun`) — no method here reassigns the whole array.
     private(set) var runs: [ActivityRun] = []
     private(set) var runLoadFailures: [String] = []
     private(set) var isRebuildingRuns = false
+    /// True when the last `GET /workflow-execution/runs` page was full —
+    /// probably a next page to page in. `false` on a short page, or before load.
+    private(set) var runsHasMore = false
+    /// Historical rows fetched so far (reset by `rebuildRuns`) — the `offset`
+    /// `loadMoreRuns` pages from.
+    private var historicalRunsFetched = 0
+    /// One page at a time — the old 7-day/100-event ceiling is gone, so the
+    /// list can be arbitrarily long ("show ALL items"); page it instead.
+    private let runsPageSize = 50
 
     // MARK: - Background jobs (#user-machine-always-useful FIX 2)
     //
@@ -154,12 +163,18 @@ final class ActivityStore: ChangeEventConsumer {
         start()
     }
 
-    // MARK: - Run list assembly (#3231)
+    // MARK: - Run list assembly (#3231, #4960)
 
-    /// Rebuild `runs` from the window's live executions + this library's recent
-    /// history. Deps are passed in (the view holds them via @Environment)
-    /// so the store carries no view-layer references. Per-library query failures
-    /// are collected into `runLoadFailures` rather than silently dropped.
+    /// Rebuild `runs` from the window's live executions + this library's
+    /// FIRST page of runs. #4960: reads the engine's `workflow_runs` table —
+    /// the SAME record `/activity/jobs` (the popover) already reads —
+    /// instead of the old 7-day/100-event log, the verified cause of the
+    /// popover and window disagreeing (`agent-work/reviews/
+    /// activity-system-review-2026-09-20.md` §2). Every fresh row is PATCHED
+    /// into `runs`, never a wholesale replace. Fetches through
+    /// `self.activityService`, not `library.activityService` (identical by
+    /// construction) — a store built directly in a test needs no
+    /// `LibraryReference` transport.
     func rebuildRuns(
         activeExecutions: [WorkflowExecution],
         library: LibraryManager.LibraryReference
@@ -167,14 +182,77 @@ final class ActivityStore: ChangeEventConsumer {
         isRebuildingRuns = true
         defer { isRebuildingRuns = false }
 
-        var result = activeExecutions.map { liveRun(from: $0, library: library) }
-        let (historical, failures) = await historicalRuns(
-            excluding: Set(result.map(\.runId)),
-            library: library
-        )
-        result.append(contentsOf: historical)
-        runs = result.sorted { $0.timestamp > $1.timestamp }
-        runLoadFailures = failures
+        let live = activeExecutions.map { liveRun(from: $0, library: library) }
+        let liveIds = Set(live.map(\.id))
+        do {
+            let page = try await activityService.listWorkflowRuns(limit: runsPageSize, offset: 0)
+            let historical = page.items
+                .filter { !liveIds.contains(historicalRunId(threadId: $0.threadId, library: library)) }
+                .map { historicalRun(from: $0, library: library) }
+            for run in live + historical {
+                patchRun(run)
+            }
+            historicalRunsFetched = page.items.count
+            runsHasMore = page.items.count >= runsPageSize
+            runLoadFailures.removeAll { $0 == loadFailureMessage(for: library) }
+        } catch {
+            if !runLoadFailures.contains(loadFailureMessage(for: library)) {
+                runLoadFailures.append(loadFailureMessage(for: library))
+            }
+        }
+    }
+
+    /// Page in the NEXT page of this library's historical runs, appended —
+    /// never replacing what `runs` already holds. A no-op while there is no
+    /// further page, or a rebuild is already in flight.
+    func loadMoreRuns(library: LibraryManager.LibraryReference) async {
+        guard runsHasMore, !isRebuildingRuns else { return }
+        do {
+            let page = try await activityService.listWorkflowRuns(
+                limit: runsPageSize,
+                offset: historicalRunsFetched
+            )
+            for summary in page.items {
+                patchRun(historicalRun(from: summary, library: library))
+            }
+            historicalRunsFetched += page.items.count
+            runsHasMore = page.items.count >= runsPageSize
+        } catch {
+            // A page-in failure leaves `runs` exactly as it was; scrolling
+            // again retries.
+        }
+    }
+
+    /// Update ONE row in place by id, at its EXISTING array position (same
+    /// identity for a future Table's selection/scroll); a run not yet
+    /// present is appended. The only way `runs` content ever changes.
+    func patchRun(_ run: ActivityRun) {
+        if let index = runs.firstIndex(where: { $0.id == run.id }) {
+            runs[index] = run
+        } else {
+            runs.append(run)
+        }
+    }
+
+    /// Delete runs by explicit id OR by a status filter — "Clear Failed" is
+    /// this SAME call with `statuses: ["failed"]`. Removes exactly the
+    /// `deletedIds` the engine reports; `skippedIds` (still-running, unknown)
+    /// keep their row, returned so the caller can say so plainly.
+    @discardableResult
+    func deleteRuns(threadIds: [String]? = nil, statuses: [String]? = nil) async -> RunDeleteOutcome {
+        do {
+            let result = try await activityService.deleteWorkflowRuns(threadIds: threadIds, statuses: statuses)
+            let deleted = Set(result.deletedIds)
+            runs.removeAll { deleted.contains($0.runId) }
+            return RunDeleteOutcome(deletedIds: result.deletedIds, skippedIds: result.skippedIds)
+        } catch {
+            log.debug("ActivityStore: deleteRuns failed \(error.localizedDescription, privacy: .public)")
+            return RunDeleteOutcome(deletedIds: [], skippedIds: threadIds ?? [])
+        }
+    }
+
+    private func loadFailureMessage(for library: LibraryManager.LibraryReference) -> String {
+        "Couldn't load activity from \(library.displayName)"
     }
 
     private func liveRun(
@@ -182,7 +260,7 @@ final class ActivityStore: ChangeEventConsumer {
         library: LibraryManager.LibraryReference
     ) -> ActivityRun {
         ActivityRun(
-            id: "\(library.id.uuidString)|\(execution.threadId)",
+            id: historicalRunId(threadId: execution.threadId, library: library),
             runId: execution.threadId,
             workflowId: execution.id,
             threadId: execution.threadId,
@@ -199,48 +277,36 @@ final class ActivityStore: ChangeEventConsumer {
         )
     }
 
-    private func historicalRuns(
-        excluding seenThreadIds: Set<String>,
+    /// A run straight from the runs table, not an event. An unparseable or
+    /// absent `startedAt` falls back to "now" rather than sorting a row to
+    /// the top or bottom by accident.
+    private func historicalRun(
+        from summary: Components.Schemas.WorkflowRunSummary,
         library: LibraryManager.LibraryReference
-    ) async -> (runs: [ActivityRun], failures: [String]) {
-        let types = ["workflow_started", "workflow_completed", "workflow_failed", "workflow_cancelled"]
-        let since = Date().addingTimeInterval(-7 * 24 * 3600)
-        var result: [ActivityRun] = []
-        var failures: [String] = []
-        var emittedThreadIds = seenThreadIds
-        do {
-            let items = try await library.activityService.queryActivities(
-                types: types,
-                since: since,
-                limit: 100
-            )
-            for item in items.sorted(by: {
-                ($0.parsedTimestamp ?? .distantPast) > ($1.parsedTimestamp ?? .distantPast)
-            }) {
-                let threadId = item.threadId ?? item.batchId.map { "batch:\($0)" }
-                guard let threadId, !emittedThreadIds.contains(threadId) else { continue }
-                result.append(ActivityRun(
-                    id: "\(library.id.uuidString)|\(threadId)",
-                    runId: threadId,
-                    workflowId: item.workflowId,
-                    threadId: threadId,
-                    workflowName: activityCleanWorkflowName(activityExtractWorkflowName(from: item)),
-                    timestamp: item.parsedTimestamp ?? Date(),
-                    status: activityMapActivityType(item.type),
-                    progress: nil,
-                    currentStep: nil,
-                    errorCount: 0,
-                    fileCount: 0,
-                    isLive: false,
-                    libraryId: library.id,
-                    libraryName: library.displayName
-                ))
-                emittedThreadIds.insert(threadId)
-            }
-        } catch {
-            failures.append("Couldn't load activity from \(library.displayName)")
-        }
-        return (result, failures)
+    ) -> ActivityRun {
+        let timestamp = summary.startedAt.flatMap { ISO8601DateFormatter().date(from: $0) } ?? Date()
+        return ActivityRun(
+            id: historicalRunId(threadId: summary.threadId, library: library),
+            runId: summary.threadId,
+            workflowId: summary.workflowId,
+            threadId: summary.threadId,
+            workflowName: activityCleanWorkflowName(summary.workflowName),
+            timestamp: timestamp,
+            status: activityMapRunStatus(summary.status),
+            progress: nil,
+            currentStep: nil,
+            errorCount: (summary.error?.isEmpty == false) ? 1 : 0,
+            fileCount: summary.documentCount ?? 0,
+            isLive: false,
+            libraryId: library.id,
+            libraryName: library.displayName
+        )
+    }
+
+    /// A live run and its later-settled historical record share this id —
+    /// what lets `patchRun` update a finishing run's row IN PLACE.
+    private func historicalRunId(threadId: String, library: LibraryManager.LibraryReference) -> String {
+        "\(library.id.uuidString)|\(threadId)"
     }
 
     // MARK: - ChangeEventConsumer
