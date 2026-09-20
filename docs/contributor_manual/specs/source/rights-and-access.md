@@ -10,9 +10,19 @@
 > ruled that it belongs in this set and who may act; the rest is PROPOSED.** A slice of the source model: read
 > `source-model.md` first. Behaviour ids below have **no tags yet**. Nothing here is built.
 > What exists today (VERIFIED on disk, `fichero_server/security/authz.py`): a person has one of
-> three roles in a project: **owner**, **editor** or **viewer**. Nothing restricts anything
-> below the level of a whole project. The sharing and accounts specs have not been read in
-> full for this slice, and must be before approval.
+> three roles in a project: **owner**, **editor** or **viewer**; and **grant-and-deny overrides
+> on a target and everything under it** already exist, enforced on every audited write
+> (`actions/registry.py`) and in search. They stop at a document, not a word. The sharing and
+> accounts specs have not been read in full for this slice, and must be before approval.
+>
+> **BLOCKED on the maintainer.** This slice was ruled into the set on 2026-09-19. Review then
+> showed that a rights record with its own enforcement would be a second permission system
+> beside the one that exists. The reviewers recommend: **the existing permission layer
+> enforces; a rights record says what is meant and why** (and is turned into grants and denies
+> on a segment id, one check). That is the maintainer's to rule; it is in the morning file.
+> **Nothing here is built until then.** A second blocking question sits under purge: every
+> action's record lives in a tamper-evident chain, so a purge cannot reach words stored there
+> (see `readings-and-apparatus.md`).
 
 ## Intent
 
@@ -52,7 +62,8 @@ against their sources before approval.)
   "restricted" for someone not allowed, never to its content.
 - **Exports, training sets and the synced folder leave restricted material out by default**
   and say how many segments they left out. Including it takes a deliberate, recorded act by
-  the owner.
+  someone allowed to restrict (an owner or an editor). The filter sits **once**, in the
+  exporter's one record stream, not in each writer (routed to `export/exporter.md`).
 - **Sent to a model?** Whether a segment may be sent to a cloud model, to a local model only,
   or to none, is part of its rights record. The engine refuses, and says why, when a workflow
   would break it.
@@ -75,14 +86,18 @@ against their sources before approval.)
 
 ## Behaviors (ids proposed; untagged until approval)
 
+- `source.rights.one-check` — a rights record is enforced by the existing permission layer (a
+  grant or deny on a segment id, inherited the way it already is); there is no second check.
+  (Recommended; blocked on the maintainer with the rest of this slice.)
 - `source.rights.record` — a rights and consent record can be attached to a project, a source
   or any segment, with labels from an open list.
 - `source.rights.tighten-only` — a record passes downward; a lower level may restrict further
   and never loosen.
 - `source.rights.who-acts` — owners and editors set rights records, restrict and redact; only
   the owner can purge.
-- `source.rights.restricted-is-said` — for a viewer (and an editor the record does not admit) a
-  restricted segment's content is hidden, and the page says that something is hidden.
+- `source.rights.restricted-is-said` — for anyone not allowed to see it (always a viewer; which
+  editors is an open question), a restricted segment's content is hidden, and the page says
+  that something is hidden.
 - `source.rights.citation-does-not-leak` — a reference to a restricted segment opens to
   "restricted" for someone not allowed.
 - `source.rights.exports-leave-out` — exports, training sets and the synced folder leave
@@ -91,6 +106,8 @@ against their sources before approval.)
   local model, or none; the engine refuses a workflow that would break it, and says why.
 - `source.rights.redact` — redaction covers a segment's content visibly, everywhere it would
   appear, without deleting it.
+- `source.rights.purge-is-an-action` — a purge is an action in the one audited registry, the same
+  shape as the purge that exists for draft entities; not a separate route.
 - `source.rights.purge` — a purge removes a segment's content, cannot be undone, and leaves a
   note that says who, when and why.
 - `source.rights.purge-reaches-derivatives` — a purge also removes search entries, vectors,

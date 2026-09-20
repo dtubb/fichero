@@ -28,11 +28,12 @@ A segment has any number of **readings**. A reading has:
 
 - its **text** (which may include declared signs: see `languages-scripts-signs.md`);
 - its **kind**: *as written* (letter for letter), *expanded* (abbreviations opened),
-  *normalised* (spelling regularised), *as read aloud* (the qere; the Japanese reading of a
+  *normalised* (spelling regularised; this is where the normalization spec's planned second
+  text field goes: one reading of kind *normalised*, not a second field), *as read aloud* (the qere; the Japanese reading of a
   Chinese text), *transliteration*, *translation*, *description* (what a picture shows),
   *coordinate* (for a map control point), *music* (the notes or neumes of a music segment,
-  in the field's encoding), *drawing* (a diagram, a map outline or a letterform traced as
-  lines that can be scaled and edited: an SVG). A project can add kinds;
+  in the field's encoding), *drawing* (a diagram, a map outline or a letterform as lines that can be scaled and edited:
+  an SVG; the SVG kind and the Convert-to-SVG tool that exist today are this kind). A project can add kinds;
 - **how normalised it is**, as a named level. Three sensible defaults ship (*as written*,
   *expanded*, *normalised*) and the list is open: a project can define its own as part of its
   guideline. Levels cannot be reliably converted into each other, so the level is recorded,
@@ -75,6 +76,15 @@ a *relaxed* project (a searchable archive, say) the newest reading counts, and a
 always outranks a machine's. Either way a machine reading is always *shown* as a machine's. Whether a reading was made by a person or a machine is set by the engine from how it
 arrived, never claimed by the sender. The choice is itself recorded, with who and when, and
 changing it rewrites nothing.
+
+How it is kept: only a person's **deliberate choices** are stored (this segment, this kind,
+this reading, who, when). Everything else is worked out when asked. So switching a project
+between strict and relaxed changes an answer and rewrites nothing.
+
+**What an audited record may hold** is an open, blocking question (morning file): every
+action's record sits in a tamper-evident chain, so a researcher's words stored there could
+never be purged. The default taken: reading and segment actions record ids and digests, and
+undo restores from the versions kept as ordinary data.
 
 ### Written and read
 
@@ -128,8 +138,10 @@ and marks compared across sources. (The model is Archetype's; see the survey.)
 
 ### The researcher's own marks
 
-Notes, highlights, stars and tags go on any segment at any level, exactly as they go on a
-document: the same note, star and tag, not a second kind. In addition:
+Notes, highlights, checks and tags go on any segment at any level, exactly as they go on a
+document: the same records, not a second kind. (The app's ruled mark is a **check**, not a
+star; `ui/reading-markup-annotations.md` owns marks, and what follows extends it: routed.) In
+addition:
 
 - marks live in **named sets with an author**, so two researchers' annotations of one source
   can overlap, disagree and be shown separately or together;
@@ -197,8 +209,9 @@ any other: several can exist, one is chosen, none is overwritten.
 
 Readings
 - `source.reading.set` — a segment can have many readings; adding one never changes another.
-- `source.reading.kinds` — a reading has a kind from an extendable list (as written, expanded,
-  normalised, as read aloud, transliteration, translation, description, coordinate).
+- `source.reading.kinds` — a reading has a kind from an extendable list whose shipped defaults
+  are: as written, expanded, normalised, as read aloud, transliteration, translation,
+  description, coordinate, music, drawing.
 - `source.reading.level-recorded` — every reading says how normalised it is; the level is
   never inferred or silently converted.
 - `source.reading.read-from` — a reading names the image it was read from, and the reading it
@@ -209,13 +222,17 @@ Readings
   corrects.
 - `source.reading.equal-alternatives` — several readings of one kind can stand as equally
   valid, apart from a machine's ranked guesses.
+- `source.reading.chosen-is-worked-out` — "which reading counts" is worked out from recorded
+  human choices, who made each reading, how recent it is and the project's rule; it is never a
+  flag stored on a reading, so changing the project's rule rewrites nothing.
 - `source.reading.chosen-follows-project-rule` — in a strict project only a person chooses the
   reading that counts; in a relaxed project the newest counts and a person's outranks a
   machine's; a new project is strict; the choice is recorded and changing it rewrites nothing.
 - `source.reading.machine-is-labelled` — a machine's reading is always shown as a machine's,
   and in a strict project as unchosen; exports mark it machine-made.
-- `source.reading.maker-set-by-engine` — whether a person or a machine made a reading is set
-  by the engine, not claimed by the sender.
+- `source.reading.maker-set-by-engine` — whether a person or a machine made a reading or a pass
+  is the existing engine-set `ProvenanceKind` (the one claims use, #4868, #4869), not a new
+  field, and is never claimed by the sender.
 - `source.reading.stretch-names-its-reading` — a stretch of text names the exact reading it was
   measured on; when that reading is replaced it is carried over or reported unplaced.
 - `source.reading.written-read-pair` — two readings can be joined as written and read, apart
@@ -265,8 +282,8 @@ Dates
   calendars.
 
 Marks and descriptions
-- `source.mark.any-level` — notes, highlights, stars and tags go on any segment, using the same
-  records a document uses.
+- `source.mark.any-level` — notes, highlights, checks and tags go on any segment, using the same
+  annotation records a document uses (owner: `ui/reading-markup-annotations.md`).
 - `source.mark.authored-sets` — marks live in named, authored sets that can be shown apart or
   together.
 - `source.mark.many-segments` — one mark can cover several separate segments, or a stretch of

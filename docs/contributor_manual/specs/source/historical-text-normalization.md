@@ -260,7 +260,14 @@ rather than defaulting to the pessimistic prior.
   `_fold_for_search` (NFD/search), `_fold_accents` (NFKD/entity keys), and whatever this spec's
   phase-1 canonicalization eventually adds — any new normalization work must state which of
   these it replaces or coexists with, not silently add a fifth.
-- `histnorm.language.no-silent-english-entity-model` — **[BROKEN]** (#4914) VERIFIED on disk
+- `histnorm.language.no-silent-english-entity-model` — **[PARTIAL]** (#4914; fixed by `7c04953cf`
+  on 2026-09-19: entity recognition and the subject-verb-object reader now decline a language
+  they have no model for, by name, and the import draft records why; tests in
+  `tests/unit/kg/test_spacy_ner.py`, `tests/unit/knowledge/test_spacy_svo_validator.py` and
+  `tests/unit/api/test_nlp_draft_import.py`. The issue stays open for one loose end:
+  `is_pipeline_available` in `knowledge/spacy_ner.py` still falls back to the English list
+  when asked about a language it does not know; it only answers "is a model installed", and no
+  extraction reaches it.) What was found, VERIFIED on disk
   2026-09-19 (`fichero_server/knowledge/spacy_ner.py`, in the pipeline loader): when there is
   no spaCy pipeline for a document's language, the code sets the language to English, loads
   the English models, and only logs a warning. So a text in an unsupported language gets
@@ -312,8 +319,11 @@ rather than defaulting to the pessimistic prior.
 ### H. Future direction, explicitly deferred (not this milestone's gap to close)
 
 - `histnorm.future.cascading-attribute-resolution` — **NOT NOW, ratified future direction.**
+  **2026-09-19: no longer deferred.** The maintainer ruled that settings cascade (a folder
+  inside a project can differ); the design now lives in `languages-scripts-signs.md`. What
+  follows is the earlier note, kept for the record.
   Language and other per-text attributes are intended to eventually CASCADE
-  (app → library → folder → page → region → line → word → character), with an override at any
+  (app → project (today's library) → folder → document → page → region → line → word → character), with an override at any
   level and the finest grain able to differ from its ancestors — e.g. a page set to Spanish with
   one interlined Latin line. This is a deliberately deferred design (creative-director ruling:
   get the "loove" character-coverage/tiering fit right first — see `histnorm.language.*` above

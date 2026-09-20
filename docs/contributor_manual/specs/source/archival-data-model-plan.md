@@ -181,7 +181,12 @@ Inspector-Knowledge #151 (inspector), Client-MCP #52 (MCP/CLI), Testing #267, Ex
 The maintainer has since ruled that the whole model is specified properly first, and the order
 of building is decided from the finished spec (`source-model.md`, open question on
 order). The phases above stay as a record of intent; this table says where each now lives and
-what changed. Words: a "layer" of segments is now a **pass**; a "transcription" in an
+what changed. Words: the per-document **Profile** hinge of section 1 is retired (a project's *profile*, plus
+overrides lower in the cascade, does its job; "profile" now means only that); the granularity
+ladder of section 3 is replaced by the source model's (which reaches above the page and has
+no separate "glyph" or "page-part" level); the open questions in section 7 on profile
+detection and on the first export target were answered by the rulings of 2026-09-19
+(onboarding starts from sample pages; PageXML, ALTO and TEI are built together); a "layer" of segments is now a **pass**; a "transcription" in an
 "edition" is a **reading** with a kind and a level; "representations" are readings plus
 **worked-out things**.
 

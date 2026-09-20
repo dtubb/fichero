@@ -9,9 +9,12 @@
 > code makes them pass. **Status: DRAFT.** A slice of the source model: read `source-model.md`
 > first. Evidence in `source-survey.md`. Behaviour ids below have **no tags yet**; everything
 > is design unless the foundation's "What exists today" says otherwise. (Today: no PageXML,
-> ALTO, TEI, MEI, SVG or YOLO code; the Parquet export has no geometry; Kraken only reads,
-> it is not trained. `export/exporter.md` owns the exporter as a whole; this slice owns what
-> the source model needs from it.)
+> ALTO, TEI, MEI, hOCR or YOLO code; a Convert-to-SVG tool exists (a vision model redraws the
+> page; it is not made from geometry); Parquet, IIIF, W3C annotation and RDF export ship
+> through one record stream, which carries no geometry; a IIIF and W3C-annotation importer
+> ships; Kraken only reads, it is not trained. `export/exporter.md` owns the exporter as a
+> whole, including continuous export to disk (#4640); `importer/importer.md` owns import.
+> This slice owns what the source model needs from them.)
 
 ## Intent
 
@@ -22,14 +25,32 @@ a model trainer, and always knows what a format could not carry.
 
 ## The design
 
-### One general mapping system, and what is built first (ruled 2026-09-19)
+### One model in the middle and one harness, and what is built first (ruled 2026-09-19)
 
-**PageXML, ALTO and TEI are all built first**, together with YOLO's text labels. They are not
-three separate pieces of code: they sit on **one general mapping system**, in which a format
-is described (what each of its elements means in the source model, what it cannot hold, how
-it is validated) and the same machinery reads, writes, validates and reports losses for all
-of them. Adding MEI, hOCR or a format nobody has asked for yet is then a new description, not
-a new importer and exporter. **Every export is validated.**
+**PageXML, ALTO and TEI are all built first**, together with YOLO's text labels, and **every
+export is validated**. The maintainer ruled one general system that makes adding a format
+easy. How that is met, after review:
+
+- **One model in the middle** (the source model's own segments, passes, orders and readings)
+  and **one harness** that every format uses: validate against the format's schema; write the
+  loss report; run the round-trip test. That is where the real sharing is.
+- **A reader and a writer for each format against that model.** PageXML, ALTO and hOCR are the
+  same shape spelled differently and share nearly everything. **TEI is not the same shape**: its
+  text is a document with its own structure, and the zones on the page are a second tree the
+  text points into. It gets its own reader and writer (and its own build milestone), on the
+  same harness. Forcing it through a table of field-to-field mappings would produce TEI
+  nobody in the field accepts.
+- **What already ships stays where it is.** Parquet, IIIF, W3C annotations, RDF and CSV go out
+  through the exporter's one record stream (`export_service.py`); this work makes that stream
+  **carry segments**, it does not build a second one. The XML family, YOLO, Kraken's formats,
+  SVG made from geometry, and the map formats are the new readers and writers. The columnar
+  training set rides the existing Parquet path (ruled).
+- **Rights are filtered once**, in that one stream, before any writer sees a record; not in
+  fourteen writers (routed to `export/exporter.md`).
+- **Validation needs real schemas on disk.** The schemas are kept with Fichero (no fetching one
+  at export time, in an app that works offline); an XML validator becomes a declared
+  dependency; files from outside are parsed with entities and network access off.
+- **The loss report and validation are for every export**, the shipped ones included (routed).
 
 ### The rules for every format
 
@@ -101,6 +122,9 @@ What the survey established, and the design follows:
   made the model. Without this nobody can tell whether fine-tuning helped.
 - The split between training, validation and test is made **by manuscript**, not by line, so
   a model is never tested on a hand it has seen.
+- The engine already has a training-export route and a Hugging Face dataset bundle in hand
+  (`export/exporter.md`, #4069, #2181, #1806). Training sets here **extend those**; the
+  HTR-United description rides on the same bundle.
 - A training set carries a **description of itself** in the field's own terms (HTR-United's:
   language, script, period, hands, volume, guidelines, licence, who did what, Unicode
   normalisation), so it can be catalogued and shared without retyping.
@@ -113,23 +137,32 @@ What the survey established, and the design follows:
 ## Behaviors (ids proposed; untagged until approval)
 
 Rules for every format
-- `source.format.one-mapping-system` — every format is read, written, validated and
-  loss-reported by one general mapping system; adding a format adds a description, not a new
-  importer or exporter.
+- `source.format.one-model-one-harness` — every format reads into and writes out of the one
+  source model, and shares one harness for validation, the loss report and the round-trip
+  test; adding a format adds a reader and a writer, and no field to segments.
+- `source.format.reuses-the-one-stream` — Parquet, IIIF, W3C annotations, RDF and CSV go out
+  through the exporter's existing record stream, extended to carry segments; no second stream
+  is built.
+- `source.format.rights-filtered-once` — restricted material is filtered in that one stream,
+  not in each writer.
+- `source.format.schemas-on-disk` — schemas are kept with Fichero and validation never goes to
+  the network; outside files are parsed with entities and network access off.
 - `source.format.first-four` — PageXML, ALTO, TEI and YOLO text labels are the first formats
   built on it.
 - `source.format.import-is-pass` — an import arrives as a new pass with its provenance and
   overwrites nothing.
 - `source.format.reimport-recognised` — importing the same file again is recognised, not
-  duplicated silently.
+  duplicated silently (the importer's content-hash skip, #739, is the mechanism).
 - `source.format.keeps-unrecognised` — content the model has no field for is kept, labelled,
   and written back on export to that format.
 - `source.format.export-validated` — an export is validated against its schema; an invalid
   one is a reported failure.
 - `source.format.loss-report` — every export states what it could not carry.
-- `source.format.round-trip-<format>` — one behaviour beside each in-and-out pair below: export
-  then import returns the same segments, shapes, orders and readings, less what the loss
-  report named.
+- Round trips, one for each format that goes both ways (export then import returns the same
+  segments, shapes, orders and readings, less what the loss report named):
+  `source.format.round-trip-pagexml` · `source.format.round-trip-alto` ·
+  `source.format.round-trip-tei` · `source.format.round-trip-hocr` ·
+  `source.format.round-trip-yolo` · `source.format.round-trip-columnar`.
 - `source.format.export-choices` — an export names the pass, reading order and reading kind
   it writes, with defaults.
 - `source.format.everywhere` — import and export work from the app, MCP and the command line,

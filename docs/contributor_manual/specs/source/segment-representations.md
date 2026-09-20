@@ -2,7 +2,7 @@
 
 > **2026-09-19 — read this first.** The shared ideas in this file (what a segment is, its
 > slots, the delivery rule) now have one home: `source-model.md` and its slices.
-> Where this file and that set differ, that set wins. This file stays as the FIRST SLICE (reading a segment's picture and text across the spine). Its "a segment is one anchor" is now "a segment is a record with a lasting id whose place is an anchor"; its "representations" are the source model's "worked-out things" (pictures, vectors, word-level analysis) and "readings". Its `segment.*` ids stay.
+> Where this file and that set differ, that set wins. This file stays as the FIRST SLICE (reading a segment's picture and text across the spine). Its "a segment is one anchor" is now "a segment is a record with a lasting id whose place is an anchor"; its "representations" are the source model's "worked-out things" (pictures, vectors, word-level analysis) and "readings". Its `segment.*` ids stay, including its version behaviours. In its data shape below, "layer" now means a **pass** and a transcription's "edition" is a reading's **kind and level**; its open question on the first export target was answered by the rulings of 2026-09-19.
 >
 > Milestone: segment-representations
 > Manual: TBD — pairs with the archival-data-model section: a reader needs to be told that one

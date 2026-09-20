@@ -411,6 +411,7 @@ nav:
               - Segment Editor: contributor_manual/specs/source/segment-editor.md
               - Formats & Training: contributor_manual/specs/source/formats-and-training.md
               - Models, Chains & Projects: contributor_manual/specs/source/models-chains-and-projects.md
+              - Synced Folder: contributor_manual/specs/source/synced-folder.md
               - Rights, Consent & Access: contributor_manual/specs/source/rights-and-access.md
               - Segment Representations (earlier; first slice): contributor_manual/specs/source/segment-representations.md
               - Historical Text Normalization (earlier; the text side): contributor_manual/specs/source/historical-text-normalization.md

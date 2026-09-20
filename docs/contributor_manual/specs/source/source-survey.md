@@ -1,5 +1,6 @@
 # Source Model — Survey of the field (2026-09-19)
 
+> Milestone: source-model
 > Manual: TBD — none needed of its own; it is the evidence behind the source-model sections.
 >
 > Part of the source model (see `source-model.md`, the foundation). This file is the evidence:

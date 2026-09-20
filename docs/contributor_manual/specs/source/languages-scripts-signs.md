@@ -39,7 +39,10 @@ language, script, direction and signs are *recorded*.
 - **Script** — ISO 15924, including its honest codes: no writing; undetermined; and the
   private-use codes for a script a project declares itself.
 - **Encoding** — whether, and how far, the signs have Unicode characters: fully, partly, or
-  not at all. No registry records this; it is Fichero's own third fact. Never assumed.
+  not at all. Never assumed. Fichero already measures something close for *models* (how well a
+  model's vocabulary covers a script's characters, in four tiers, with an honest "cannot
+  tell": `llm/script_coverage.py`, served as language fit). The page-level fact builds on that
+  measure and its words; it is not a second one.
 
 One language can use several scripts. One page can hold several of each. A Japanese page
 holds Chinese characters and two syllabaries at once.
@@ -47,8 +50,11 @@ holds Chinese characters and two syllabaries at once.
 ### It cascades
 
 Language, script and direction are set at any level and **inherited downward** until
-overridden: app default, project, folder, group of pages, page, region, line, word,
-character. A gloss in Basque inside a Latin page overrides for that gloss only. Every value
+overridden: app, project, folder, document (a group of pages), page, region, line, word,
+character. The engine already resolves a document's language in one place
+(`llm/language_policy.py`); the cascade **extends that resolver**, and the same one resolver
+answers for models and guidelines too (`source.resolve.one-cascade` in the models slice).
+The merging rule (a child overrides its parent; a loop raises) is the prototype system's. A gloss in Basque inside a Latin page overrides for that gloss only. Every value
 shown says where it came from ("from the page"; "set here"). This is the ratified cascade
 already recorded in the normalization spec; this is where it lives.
 
@@ -68,6 +74,11 @@ The Reader lays text out in its direction. Where it cannot lay a direction out a
 text (a spiral), it shows the reading in reading order and shows the shape on the image.
 
 ### Signs without characters
+
+**How a declared sign sits inside a reading's text** (default taken; morning file): the text
+stays an ordinary string, with a project-minted private-use character standing for the sign,
+and the reading carries a small map from position to sign. Search, comparison and every
+existing reader of a reading's text keep working; the Reader and the exporters use the map.
 
 A **sign** is the unit of a script. Most signs are Unicode characters. When one is not, it is
 a **declared sign**, which needs only:
@@ -103,6 +114,9 @@ signs as classes).
 
 ### Fonts
 
+Font *files* and which reading needs which are this model's; how text is drawn with them
+belongs to the typography work (`histnorm.render.no-bundled-fonts`, #3324, #3315): routed.
+
 The font a reading needs is recorded with it. Fichero ships a few open fonts for scripts the
 system lacks, a project can carry its own, and a profile can name the fonts it needs. There
 is **an easy way to find a font for a script and add it** to the project (searching the open
@@ -126,7 +140,8 @@ instance of one abbreviation in a codex.
 
 Language and script
 - `source.lang.three-facts` — language, script and encoding are recorded separately.
-- `source.lang.registries` — language holds a BCP 47 tag and, separately, a Glottolog code;
+- `source.lang.registries` — language holds a BCP 47 tag and, separately, a Glottolog code (a
+  second code on the engine's existing language record, not a new registry);
   script is ISO 15924 including unwritten, undetermined and private-use; encoding (full, part,
   none) is recorded by Fichero.
 - `source.lang.project-declared` — a project can declare a language or script no registry has.

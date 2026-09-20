@@ -14,8 +14,9 @@
 
 Everything the model can hold can be seen and edited on the page. The editor lives in the
 **Source view** (the pane the app has called the Preview; the maintainer has decided on the
-new name, and the rename is not this spec's to carry through the app), on the image, and
-nowhere else. It is **native SwiftUI** (ruled), so one editor
+new name, and the rename is not this spec's to carry through the app), on the image. **Shapes
+are edited in the Source view; readings are typed in the Reader; the Inspector shows and does
+not edit.** That is the split, and it is what keeps three surfaces three. It is **native SwiftUI** (ruled), so one editor
 serves the Mac, the iPad and the iPhone, feels like a Mac app, and takes the Apple Pencil.
 
 The three surfaces stay three. The **Source view** shows the image and edits segments. The
@@ -26,8 +27,12 @@ Selecting a segment in any of them selects it in the others.
 
 - `Views/Preview/ImageViewer/OCRGeometryOverlay.swift` draws all boxes, display only.
 - `Views/Preview/ImageViewer/Regions/RegionInteractionLayer.swift` sits above it and can
-  select (click, shift-click, band), move a region, draw a new box and name it, delete, and
-  rate lines. No reshape, no polygon, no merge or split, no order, no links.
+  select (click, shift-click, band), move a region, draw a new box and name it, and rate
+  lines; delete is in `ZoomableImagePreviewMac+Regions.swift`. No reshape, no polygon, no merge
+  or split, no order, no links.
+- **Other things are drawn over a page too**: annotations, a PDF's own marks, and the
+  image-editing overlay. `ui/reader-overlay-frame-identity.md` (`frame.*`) owns when any of
+  them may draw.
 - Boxes are addressed by their position in a list, because they have no ids.
 - `RegionInteractionLayer.swift` is compiled for the Mac only (`#if os(macOS)`) and takes its
   clicks from the Mac's pointer. There is no segment editing on the iPad or iPhone today. One
@@ -45,22 +50,23 @@ other, it can sit **beside** a Reader (type the reading of the selected line), b
 Inspector (the facts of the selected segment), beside the Library, or beside a second Source
 view on another pass, another image of the same page, or another source altogether.
 
-**A Segments pane (ruled in direction 2026-09-19; its design is open).** The Library gets you
-to a page. Getting to the segments themselves wants a surface of its own: to see a source's
-segments with their pictures and readings, step through them, **reorder** them, **move** them
-between regions or passes, and edit them, with a reading view beside. There may be more than
-one such view (a list, a strip, a grid). What is fixed already: it is a pane like any other,
-so it sits beside the Source view, the Reader and the Inspector; selecting a segment there
-selects it everywhere; every change is the same audited action the Source view's editor
-makes; and it draws on the one store. Questions about the whole project ("every line in hand
-B", "every segment with no chosen reading") remain searches in the Library, which can list
-segments as rows like any other node. The pane's own design is an open question in the
-foundation.
+**A Segments pane: ruled in direction, and BLOCKED on the maintainer.** On 2026-09-19 the
+maintainer asked for a surface of its own for getting to a source's segments: to see them with
+their pictures and readings, step through them, reorder them, move them between regions or
+passes, and edit them, with a reading beside. An earlier ruling (`ui/modes-to-panes.md`) says
+the Library is always the navigator and that **there is no browser kind of pane**; and the
+Library's word-level view work (#4728) covers some of the same ground. Both cannot stand as
+written. The reviewers' recommendation is that this be a **view of the Library** (rows can be
+segments; a strip or grid is a Library view mode) beside the Source view, not a sixth kind of
+pane. That is the maintainer's to rule; it is in the morning file. **Nothing is built for it
+until then.** What holds whichever way it goes: selecting a segment selects it everywhere;
+every change is the same audited action the Source view makes; it draws on the one store.
 
 ### One overlay, one editor
 
 The display overlay and the region layer become **one** thing that draws segments and edits
-them. There is not a second renderer anywhere: the Reader's highlights, thumbnails with
+them, under the same frame rule as the annotation, PDF-mark and image-editing overlays (it
+joins that one gated family; it is not a fifth overlay with rules of its own). There is not a second renderer anywhere: the Reader's highlights, thumbnails with
 boxes, and exports to SVG and PDF all come from the same segment records and the same drawing
 rules.
 
@@ -96,7 +102,7 @@ can make every edit the editor can, through the same actions.
   selected, the Reader shows that line's picture above its reading, and Return moves the
   selection to the next line in the order; the Source view follows. Line-by-line transcription is
   keyboard-only if you want it to be, and the three surfaces stay three.
-- **Mark**: note, highlight, star and tag the selection.
+- **Mark**: note, highlight, check and tag the selection.
 - **Georeference**: drop control points and give them coordinates.
 
 Every command is in the menu bar with a shortcut, in the context menu of a segment, and
@@ -139,17 +145,18 @@ export.
 
 - `source.editor.segment-focus` — the Source view has a segment focus in which the editing
   tools appear; it can sit beside a Reader, an Inspector, the Library or another Source view.
-- `source.segments-pane.exists` — a Segments pane shows a source's segments with their pictures
-  and readings, and lets them be stepped through, reordered, moved and edited; it sits beside
-  any other pane. (Design open.)
-- `source.segments-pane.same-actions` — every change made in the Segments pane is the same
-  audited action the Source view's editor makes; selection is shared.
+- `source.segments-pane.exists` — **BLOCKED on the maintainer** (a Segments pane, or a view of
+  the Library): a surface shows a source's segments with their pictures and readings, and lets
+  them be stepped through, reordered and moved. Not to be built or tested until ruled.
+- `source.segments-pane.same-actions` — **BLOCKED with the one above**: whatever that surface
+  is, every change it makes is the same audited action the Source view's editor makes, and
+  selection is shared.
 - `source.editor.library-lists-segments` — the Library can list segments as rows, so
   project-wide questions about segments are ordinary Library searches.
 - `source.editor.one-overlay` — one component draws and edits segments in the Source view; no
   second overlay renderer exists in the app.
-- `source.editor.source-view-only` — segments are edited in the Source view, not in the Reader or the
-  Inspector.
+- `source.editor.shapes-in-source-view` — a segment's shape is edited in the Source view; its
+  readings are typed in the Reader; the Inspector shows and does not edit.
 - `source.editor.selection-shared` — selecting a segment in the Source view, Reader or Inspector
   selects it in the others.
 - `source.editor.edits-are-actions` — every edit is one audited, reversible engine action; the
@@ -177,16 +184,19 @@ export.
 - `source.editor.match-across-passes` — a segment in one pass can be matched to one in
   another.
 - `source.editor.transcribe-by-line` — with a line selected, the Reader shows its picture above
-  its reading; Return selects the next line in the order and the Source view follows.
-- `source.editor.marks` — the selection can be noted, highlighted, starred and tagged.
+  its reading; Return selects the next line in the order and the Source view follows. (The
+  Reader's planned in-place transcription editing, #4375, is this same editor: one place to
+  type a reading.)
+- `source.editor.marks` — the selection can be noted, highlighted, checked and tagged.
 - `source.editor.control-points` — control points can be placed and given coordinates.
 - `source.editor.keyboard-complete` — every command has a menu item and can be done from the
   keyboard.
 - `source.editor.pencil-draws` — on the iPad the Pencil draws shapes, baselines and cuts.
 - `source.editor.pencil-traces-strokes` — a Pencil trace is kept as stroke segments with
   position, time, pressure and tilt.
-- `source.editor.smooth-when-dense` — zoom, pan, hit-test and drag stay smooth at twenty
-  thousand shapes on the oldest supported device (numbers set by the trial).
+- `source.editor.smooth-when-dense` — zoom, pan, hit-test and drag hold sixty frames a second
+  with twenty thousand shapes on the oldest supported iPhone (the ruled target; the trial
+  settles how to draw, and may come back and say the target is wrong).
 - `source.editor.level-of-detail` — finer levels appear as you zoom in.
 - `source.editor.voiceover` — each visible segment is an accessibility element with kind,
   reading and order.

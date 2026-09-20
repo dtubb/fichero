@@ -29,23 +29,38 @@ When a page is segmented again (by a model, an import, another scholar), the new
 as a **new pass** with new segments and new ids. Nothing existing is replaced or renumbered.
 A person can then say "this new line is that old line". That writes a **match**: a small
 record of its own, with who said so and how sure. Readings, marks and statements can then be
-carried across the match onto the new segment, and the trail stays visible. A machine may
+carried across the match onto the new segment, and the trail stays visible. **Carrying copies;
+it never moves**: the original stays on the old segment, the copy names the match it came
+across, and undoing the carry removes the copies. A match can be many to many (one old line
+became two); a reading is carried only across a one-to-one match, and Fichero says when it
+did not carry. A machine may
 *propose* matches; only a person accepts them.
 
 When segments are **merged**, one id goes on and the others leave a **forwarding note**
 ("merged into X"). When one is **split**, its id stays on one part and a forwarding note says
 where the rest went. When one is **deleted**, it leaves a forwarding note that says so, and
 the delete can be undone. Forwarding notes are never removed. Following an old id to where
-that ink is now is one lookup, the same from the app, MCP and the command line. If the trail
+that ink is now is **one call** (the engine walks the notes), the same from the app, MCP and
+the command line. Forwarding notes never form a loop: the walk raises if it passes 64 steps
+(it never silently stops short), and a merge whose target already forwards to the source is
+refused, with the reason. If the trail
 ends at a delete, Fichero says "this was deleted, by whom, when", and never shows nothing.
 
 **How this grows from what exists.** Today's shared anchor (`SourceAnchor`) stays the one way
 to say *where*. A segment is a record with an id whose *place* is an anchor; today's
-boxes-in-a-list become segments. There is one addressing scheme, not two. But the anchor as
+boxes-in-a-list become segments. Today that is **not** one scheme: a box in an OCR result
+carries its own rectangle and does not use the anchor at all, and a note made by an agent has
+a small anchor type of its own. Moving those onto the anchor is part of this work (see
+`source.builds-on-the-anchor` in the foundation). A segment is also **not** a `NodeRegion`:
+that type says where a whole *node* sits in its parent (a diary entry on its page); a segment
+is one of many records on a page. They share the same way of writing a rectangle, and
+nothing else. But the anchor as
 built cannot yet say everything this design needs (read on disk, `models/anchors.py`: one
 rectangle, which must have width and height; one polygon, which must be closed with three
 points or more; no id; no baseline). **What the anchor must gain:** a point; an open path; a
-baseline that can curve; more than one shape; a text angle; a stretch of time. Its
+baseline that can curve; more than one shape; a stretch of time. (It already has a text
+angle: `rotation`. The rectangle's own rules stay as they are for rectangles; each new kind
+of shape gets its own check.) Its
 `granularity` word and a segment's **kind** are the same idea and become one list.
 
 ### A reference you can cite
@@ -70,8 +85,10 @@ the forwarding notes.
 - Every shape names **the image (or recording) it was measured on**. Coordinates are fractions
   of that image, from the top-left. The image record carries its pixel size, a checksum, and,
   where known, its **physical scale** (so a letter's height can be given in millimetres).
-  Today geometry names its image once for a whole result, and an image has no checksum or
-  scale of its own; both are part of this design, not built.
+  Today geometry names its image once for a whole result; an image has its pixel size and a
+  `frame_status` (the engine's word on whether its frame can be trusted), and no checksum or
+  scale. The checksum and scale are this design's additions to that one record, not a second
+  record of image identity (`ui/reader-overlay-frame-identity.md` owns the frame rules).
 
 ### Several images of one page
 
@@ -145,7 +162,8 @@ to the page **exists when the page had measured word boxes** (one entry from the
 run carries `region_in_parent`: a rectangle that is the union of its words' boxes, marked
 measured, method `diary-entry-word-union:apple`), and is **honestly absent otherwise** (two
 entries from the August run, and one with no text, carry no region, and say why:
-`bbox_basis` is `no_page_dimensions` or `none`). So today an entry is a node with structured
+`bbox_basis` is `no_page_dimensions` or `none`). The engine has computed an entry's region
+from its line boxes since commit `1db6c2922` (2026-08-22); entries made before that lack one. So today an entry is a node with structured
 data and, at best, a rectangle; it has no lasting segment id, no polygon, and its lines and
 words are not its children.
 
@@ -170,7 +188,9 @@ letters, a page of glosses into gloss-and-word pairs.
 
 A table is a segment; its cells are segments with a row, a column, how many rows and columns
 they span, and whether they are a header. A cell's text is ordinary lines and words inside it.
-So a table on a page (an account book, a census return, a register, a palaeographer's table
+A table-extraction tool already ships (`workflows/tools/table_extract.py`) and gives rows and
+columns as data; in this model its output becomes cell segments, so the data and the ink are
+tied. So a table on a page (an account book, a census return, a register, a palaeographer's table
 of letterforms) **becomes a real table**: its rows and columns can be read out as data, sent
 to a spreadsheet, searched by column, and each row can feed the knowledge graph (one row of a
 census is one household's claims), with every cell still pointing at its ink.
@@ -185,14 +205,28 @@ scholar's competing layout; an imported PageXML file; the glosses; the pictures.
 shown, hidden and compared. They never overwrite each other. Two people disagreeing about
 where a line ends is two passes, both kept: disagreement is data.
 
+A segment belongs to **exactly one pass**. The same ink in two passes is two segments and a
+match. A run over five hundred pages makes five hundred passes (a pass is for one source);
+they carry the run's id and name, and are shown grouped by run.
+
 One pass is the **working pass** for a source: the one the Reader, search and export use
 unless told otherwise. What may become the working pass follows **the project's rule** (ruled
 2026-09-19). In a *strict* project, which is how every new project starts, only a person
 makes a pass the working pass: a machine's pass (from a chain run automatically, an import,
 the synced folder) is there to look at and compare. In a *relaxed* project the newest pass
-counts, and a person's always outranks a machine's.
+counts, and a person's always outranks a machine's. **Before anyone has chosen**, in either
+kind of project, the newest pass is what is shown, plainly labelled as a machine's and
+unchosen, so a new project is never blank; "the working pass" means the chosen one, or the
+newest if none is chosen. Which pass is working is worked out from recorded human choices and
+the project's rule; it is never a flag stored on a pass, so changing the rule rewrites
+nothing.
 
 ### Reading orders
+
+The ladder itself has no order: which line comes third is never a property of a parent and its
+children. **Every order is a named reading order**, and one, *as written*, is made with each
+pass. An order belongs to a pass (its segments are that pass's); the same name means the same
+thing across passes. Positions are fractions, so moving one segment changes one record.
 
 A source has one or more **named reading orders**. Each is a sequence of segments with an
 author and a certainty: the order as written; the order that reading-marks impose; the order
@@ -200,6 +234,13 @@ of a commentary. An order can nest (regions in order, lines in order inside each
 "previous" are always asked *of a named order*.
 
 ### Links
+
+Fichero already has four kinds of link, each with its own list of types: between notes
+(`NoteLink`), between things on a canvas (`SpatialConnection`, and `CanvasItem` of kind link),
+and between predictions (`PredictionLink`). This design does not add a fifth. There is to be
+**one typed-link record**; a link between segments is one; the others converge on it; a line
+drawn on a canvas is that record with a position. (`ui/library-view-modes.md`, #3085, owns the
+canvas half; routed.)
 
 A link joins one segment to another (on the same source or a different one). It has a
 **type**, a direction, an author and a certainty. The standard types: *glosses*, *comments on*,
@@ -240,7 +281,9 @@ copy.
 
 An edit names the version of the segment it was made against. If the segment has changed
 since (someone else reshaped it; an iPad was offline), the edit is refused and Fichero shows
-what changed. Edits are never silently merged or silently lost.
+what changed. Edits are never silently merged or silently lost. Editing while out of reach of
+the engine (an iPad offline) is **not supported** in this work: a queue of stale edits
+refused one by one is no way to work, and reconciling them is a design of its own.
 
 ### What is worked out from a segment
 
@@ -254,11 +297,18 @@ that made them, and are absent, not faked, when they have not been made. (This i
 ### Statements
 
 A knowledge-graph claim or entity mention points at a segment id (and, if needed, a stretch
-of a reading). Because ids last, a claim survives the page being re-segmented or
+of a reading), and **keeps a copy of its anchor beside the id** (ruled 2026-09-19), so its
+evidence can still be shown if a segment is ever lost. Every claim that exists today has only
+an anchor; it gains a segment id when its page converts (rules below), and until then the
+anchor is its pointer. Because ids last, a claim survives the page being re-segmented or
 re-transcribed. From a segment you can list what is said about it; from a statement you can
 go to its ink.
 
 ### Versions
+
+The first slice's spec (`segment-representations.md`) has its own version behaviours
+(`segment.rep.versioned`, `segment.inspector.version-visible`). They are the same records seen
+at the level of a representation; that spec keeps those ids, and this one does not repeat them.
 
 Every change to a segment (shape, kind, pass, order, links) is a new version of *that
 segment*, with who, when and why. A segment's history can be read, compared and restored by
@@ -275,8 +325,41 @@ asked for and may be cached; they are never the record.
 
 Today all the boxes of a result are one block of data. This design needs **one record per
 segment**, so the store can answer "the lines of this page", "this word's history", "every
-segment in this hand". Existing projects are never converted by batch (see the foundation's
-open questions on how their segments get ids).
+segment in this hand". Existing projects are never converted by
+batch: a page's boxes become segments on that page's first edit (ruled 2026-09-19; rules
+below).
+
+### First-edit conversion: the rules
+
+- **What counts as an edit.** Any action that changes a box's shape, kind, membership or order:
+  what `artifact.regions_edit` does today. Adding a reading, a mark or a claim to a box does
+  **not** convert its page. A new machine run does **not** convert the old boxes: it writes
+  segment records for itself, and the old block stays as it is until someone edits it.
+- **One action, one audit record.** The conversion happens inside the edit's own action; there
+  is never a page with converted records nobody asked for.
+- **One page for each conversion.** No action converts more than one document's boxes, and no
+  migration ever writes segment records.
+- **Every result with boxes becomes its own pass**, so nothing is lost and they can be compared
+  (default taken; in the morning file).
+- **Undo leaves nothing behind.** The action's inverse deletes exactly the segment records it
+  created, by the ids it recorded, and restores the block of boxes. (Today's inverse for a
+  region edit restores the artifact and nothing else; used unchanged, it would leave the new
+  records beside the restored block: two stores. That is the trap this rule closes.) Once a
+  later action has touched one of those segments, undoing the conversion is refused, with how
+  many later changes depend on it.
+- **What pointed at the old boxes.** In the same action, a claim, note or mark whose rectangle
+  matches a converted box exactly gains that segment's id; one that does not match keeps its
+  anchor and is reported. Nothing is silently re-pointed.
+- **The old block is marked as replaced**, and the permitted readers of it are listed in one
+  place; any other reader raises.
+- **It is detected properly**: a page counts as converted when it has segment records, not
+  when its block is missing, so a second edit never converts twice.
+
+### Finding segments across a project
+
+"Every line in hand B", "every instance of this sign" and a search result that lands on a
+segment are one more leg of the one search response (`ui/search.md` owns search; routed), not a
+separate segment search.
 
 ## Behaviors (ids proposed; untagged until approval)
 
@@ -285,8 +368,10 @@ Identity and versions
   re-type, and an id is never given to another segment.
 - `source.segment.rerun-is-new-pass` — segmenting a page again adds a pass; nothing existing
   is replaced or renumbered.
-- `source.segment.carry-across-a-match` — across an accepted match, readings, marks and
-  statements can be carried to the new segment, leaving a visible trail.
+- `source.segment.carry-across-a-match` — across an accepted one-to-one match, readings, marks
+  and statements are copied (never moved) to the new segment, each copy naming the match;
+  undoing the carry removes the copies; a match that is not one-to-one carries no reading and
+  says so.
 - `source.segment.versioned-alone` — one segment's history can be read, compared and restored
   without touching others.
 - `source.segment.delete-is-undoable` — a deleted segment can be brought back with everything
@@ -310,8 +395,8 @@ Structure
   segment with a kind.
 - `source.segment.open-kinds` — kinds come from a standard list a project can extend; a model's
   own label is kept beside the tidy kind.
-- `source.segment.levels-optional` — any level may be absent and added later without
-  disturbing others.
+- `source.segment.levels-optional` — any level may be absent; adding word segments under a
+  line changes no id, shape or reading of the line or its region.
 - `source.segment.physical-and-logical` — a segment can sit in the physical ladder and in a
   logical unit that crosses pages or documents.
 - `source.segment.flow` — text that continues across a column, page or picture is a named
@@ -335,13 +420,14 @@ Passes, orders, links
 - `source.pass.working-follows-project-rule` — in a strict project a machine's pass never
   becomes the working pass until a person makes it so; in a relaxed project the newest pass
   counts and a person's outranks a machine's; a new project is strict.
-- `source.pass.working` — one pass is the working pass the Reader, search and export use by
-  default.
+- `source.pass.working` — the Reader, search and export use one pass: the one a person chose,
+  or the newest, labelled unchosen, if nobody has; it is worked out, never a stored flag.
 - `source.order.named-multiple` — a source can have several named reading orders, each with an
   author and certainty.
 - `source.order.next-previous` — next and previous are always asked of a named order.
 - `source.link.typed` — a link between segments has a type, direction, author and certainty;
-  types come from an extendable list.
+  types come from an extendable list; it is the one typed-link record that the existing note,
+  canvas and prediction links converge on, not a further kind.
 - `source.link.any-depth` — links chain (a comment on a comment), and can cross sources.
 - `source.link.both-ways` — from either end of a link you can reach the other.
 
@@ -363,8 +449,9 @@ Pointing and statements
   its readings.
 - `source.point.text-is-derived` — a page's text is worked out from segments and a reading
   order; it is never the master.
-- `source.statement.on-segment` — a claim or mention points at a segment id and survives
-  re-segmentation and re-transcription.
+- `source.statement.on-segment` — a claim or mention points at a segment id, keeps a copy of
+  its anchor beside it, and survives re-segmentation and re-transcription; a claim on an
+  unconverted page points by its anchor alone.
 - `source.statement.both-ways` — from a segment, what is said about it; from a statement, its
   ink.
 
@@ -372,7 +459,9 @@ Identity, continued
 - `source.segment.match-record` — "this new segment is that old one" is a record of its own
   with an author and certainty; ids do not move; a machine may propose, a person accepts.
 - `source.segment.forwarding-notes` — a merged, split or deleted segment leaves a permanent
-  forwarding note; following an old id is one lookup; a trail ending in a delete says so.
+  forwarding note; following an old id is one call; the walk raises past 64 steps; a merge
+  into a segment that already forwards to the source is refused; a trail ending in a delete
+  says so.
 - `source.segment.citable` — a segment has one stable reference that opens it in the app and
   resolves over MCP and the command line, following forwarding notes.
 - `source.segment.time-span` — a segment of a recording is a stretch of time (with an area,
@@ -390,12 +479,28 @@ Identity, continued
 - `source.derived.recomputable` — pictures, search entries, vectors and word-level analysis
   name the segment, reading, model and version they came from, and are absent when not made.
 
+The read seam and events
+- `source.seam.read-either-store` — one engine call returns a source's segments whether they
+  live in a block of boxes or in segment records; its answer has the same shape either way.
+- `source.seam.provisional-ids-refused` — an id read from a block of boxes is marked
+  provisional, and every write path refuses one with a typed error.
+- `source.events.segment-ids` — a change event names the segments and passes that changed, so a
+  window updates those and nothing else.
+
 Storage
+- `source.store.one-page-per-conversion` — no action converts more than one document's boxes,
+  and no migration writes segment records.
+- `source.store.conversion-undo-leaves-nothing` — undoing a first-edit conversion deletes the
+  records it made and restores the block; it is refused once later changes depend on them.
+- `source.store.conversion-repoints-exact-matches` — in the converting action, a claim, note or
+  mark whose rectangle matches a converted box gains its segment id; others keep their anchor
+  and are reported.
 - `source.store.ids-on-first-edit` — opening a page with old geometry shows its segments
   without writing anything; the first edit writes that page's segments once, as one audited
   action that can be undone. (Ruled 2026-09-19.)
-- `source.store.bounded-reads` — a page's segments come back by level and by area, in bounded
-  time, however many there are.
+- `source.store.bounded-reads` — a page's segments come back by kind and by area, never "all
+  of a project"; one page at one kind returns in under 200 ms with 200,000 segment records in
+  the source (threshold in the morning file).
 - `source.store.record-per-segment` — the store can answer questions about single segments
   (the lines of a page; a word's history; all segments in a hand).
 - `source.store.no-batch-rewrite` — an existing project's geometry is never converted by

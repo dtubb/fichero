@@ -37,7 +37,9 @@ project; and a project can be tied to a synced folder.
 
 ## What exists today (read on disk 2026-09-19 by a code worker; to be re-read before tagging)
 
-- **Models are described in five or more different shapes**: providers (`llm/providers.py`);
+- **Models are described in several shapes, partly unified already.** The four local runtimes
+  (MLX, spaCy, Kraken, Whisper) are folded into one catalogue entry and one download path
+  (`llm/local_model_catalog.py`, `/api/local-inference/catalog`). Still separate: providers (`llm/providers.py`);
   cloud model prices and abilities from a vendored list (`llm/model_types.py`); the local
   catalogue entry (`llm/local_inference.py`) which spaCy, Kraken and Whisper are folded into
   (`llm/local_model_catalog.py`); a separate list of embedding models (`llm/local_models.py`);
@@ -46,8 +48,16 @@ project; and a project can be tied to a synced folder.
   "segmentation" or "recognition". The AI settings spec already records the unification as a
   gap with open issues.
 - **Two families of engine routes** (one for MLX, one for spaCy, Kraken and Whisper) carry
-  through into two families of MCP tools. **The command line has no model commands at all**:
-  it can run workflows and manage providers, nothing else.
+  through into two families of MCP tools. **The command line already has about twenty-five
+  model commands**, because it is generated from the OpenAPI contract (about 700 commands in
+  all): list, download and delete a model, model profiles, install Kraken, compare models.
+  Anything this slice adds as a route reaches the command line for nothing.
+- **A model recommender and a language-fit score exist** (`llm/model_recommendations.py`,
+  `llm/language_coverage.py`, `llm/script_coverage.py`, served as language fit): how well a
+  model covers a script, in four tiers, with an honest "cannot tell".
+- **A fifth chaining mechanism ships** beside the four below: chains of workflows with
+  conditions and their own routes (`execution/chaining.py`, `api/routes/workflow/chains.py`).
+- **One place already refuses cloud use for privacy** (`enforce_model_profile_privacy`).
 - **Role defaults** (`$small`, `$large`, vision tiers) are app-wide. A workflow node can store
   an alias, resolved when it runs. There is no default at the level of a project, a folder or
   a document.
@@ -64,8 +74,11 @@ project; and a project can be tied to a synced folder.
   then `trocr_transcribe_lines` or `kraken_transcribe_page` reads them, all inside one
   function `economy_htr_file`; (3) `workflows/tools/align_transcript.py`, tool
   `align_transcript`; (4) `workflows/tools/merge_geometry.py`, tool `merge_geometry`. What (3)
-  and (4) do inside (joining by counting lines; laying a reviewed transcript over word boxes)
-  is from the code worker's reading, INFERRED here. **Kraken's
+  and (4) do inside is VERIFIED by an independent reviewer: (3) puts a transcript's lines on
+  Kraken's baselines only when the line counts match, and writes nothing otherwise
+  (`media/transcript_alignment.py`); (4) lays a reviewed transcript over measured word boxes,
+  records for every word whether its box was measured or worked out, and refuses a page whose
+  line structure cannot be trusted (`media/geometry_merge.py`). **Kraken's
   baselines cropped and handed to Apple Vision or a local vision model does not exist**,
   though every piece it needs does (Apple Vision accepts any image; the cropping exists).
 - **How a result was made** is partly recorded: an artifact names its provider, model, run,
@@ -84,9 +97,9 @@ project; and a project can be tied to a synced folder.
   English. Neither handles direction, script or vertical writing.
 - **Embeddings** use one multilingual model for everything; the alternative is chosen by an
   environment variable, not in Settings. Vectors live in DuckDB and refuse to mix spaces.
-- **spaCy** knows five languages. For any other language it **falls back to English without
-  telling the user** (VERIFIED on disk; recorded as broken in
-  `historical-text-normalization.md`, #4914), or to a language model if nothing is installed.
+- **spaCy** knows five languages. For any other it used to fall back to English without
+  saying so; that was fixed on 2026-09-19 (`7c04953cf`, #4914): it now declines, by name. One
+  loose end remains in an availability check (recorded in `historical-text-normalization.md`).
 
 ## What the field does (survey, 2026-09-19; sources at the end)
 
@@ -199,13 +212,16 @@ segments.** With it:
 - A layout detector finds the regions; each kind of region goes to a different reader (a
   table to one, a marginal gloss in another language to another).
 
-`economy_htr`, `align_transcript` and Kraken's own segment-and-read become cases of it, not
-separate code.
+`economy_htr`, `align_transcript`, `merge_geometry` and Kraken's own segment-and-read are
+**retired into it**, keeping what they do well (refusing a page rather than guessing;
+recording measured against worked-out boxes).
 
 ### Chains are workflows
 
 A **chain** is a workflow: a saved graph of steps, as the workflows spec already defines.
-There is no second kind of thing. What this slice adds:
+There is to be no second kind of thing. Today there **is** one (`execution/chaining.py`), so
+this is a migration: its conditions fold into the workflow graph and it is retired (routed to
+`ui/workflows.md`). What this slice adds:
 
 - steps declare their job, so a chain can be checked before it runs (what each step gives is
   what the next one takes);
@@ -319,8 +335,8 @@ Anything that can be worked out is worked out and shown for correction, not aske
 as a sixth question.)
 
 Reading direction and where the line sits follow from the script, and can be corrected. The
-Mac's abilities are detected. Better still: **give Fichero a few sample pages first** and it
-proposes answers to 1 to 4, which the researcher corrects.
+Mac's abilities are detected. (Sample pages come first, as above; these questions are what is
+left when there are none, or to correct what Fichero proposed.)
 
 From the answers Fichero proposes a **default chain**. A best-practice chain is a **recipe: a
 shareable file of its own** (ruled 2026-09-19) that names the jobs, the models that suit, and
@@ -354,8 +370,8 @@ job, script, language, period and whether it must run locally. Fichero searches 
 field keeps them (Kraken's repository on Zenodo; Hugging Face; an open list that can grow) and
 shows results **as cards**, with licence class, size and whether this Mac can run them.
 
-- **Open** models (permissive, or copyleft compatible with Fichero's own AGPL) download
-  without a further step. Others (non-commercial; gated; special terms; a revenue cap) say so
+- **Open** models (permissive, or copyleft compatible with Fichero's own AGPL) are downloaded
+  when asked for, with no further step; nothing copyleft is bundled (ruled). Others (non-commercial; gated; special terms; a revenue cap) say so
   plainly and need a deliberate choice; some cannot be redistributed at all and the card says
   why.
 - A model's **citation is shown** wherever its work is shown, and goes into exports.
@@ -377,35 +393,11 @@ Fichero says so, and offers what does work for any language (search, vectors, a 
 model if the project allows one). It never quietly runs the English pipeline over another
 language.
 
-### A synced folder (which is also a new way to import)
+### The synced folder
 
-A project can be tied to a folder on the machine where the engine runs. This is more than
-export: the folder is a **new way to start an import**, and it needs real engine and app work
-(watching the folder; matching files to sources; bringing outside edits in as passes; showing
-conflicts). It is a new *trigger* for the one import path that `importer/importer.md` owns,
-not a second importer. Taking files **in** from the folder is switched on for each project,
-and the first time it shows what it is about to bring in and waits for a yes (a folder of
-fifty thousand images must not start work by surprise).
-
-- **Out, as you go.** For each source, Fichero keeps chosen outputs up to date in the folder.
-  It writes the **working pass and the chosen readings**. Where a reading nobody has chosen
-  is written, the file and its loss report say it is machine-made. Outputs:
-  the page's PageXML or ALTO, a TEI file for the source, plain text, the training set, and the
-  rest of `formats-and-training.md`. When a segment or reading changes, the affected files are
-  rewritten soon after, not at some later export. Each file says which pass, reading order and
-  kind of reading it holds, and carries its loss report beside it.
-- **In, as they arrive.** New images dropped into the folder become sources in the project and
-  go through its default chain. An XML file that appears or changes there (edited in another
-  tool) comes in as **a new pass with its own provenance**, the same as any import. It never
-  overwrites work in the project.
-- **Conflicts are shown, not settled silently.** If the project and the file both changed,
-  Fichero keeps both, as two passes, and says so.
-- **Restricted material stays out** of the folder unless deliberately included.
-- The folder is a **projection**: it can be deleted and made again from the project. The
-  project remains the record.
-- The engine may be on another machine, so the folder is named on the engine's side; the app
-  never assumes it can see the same disk.
-- Writing is throttled like all background work, so a large project never pegs the machine.
+Specified in its own file, `synced-folder.md`: it is a programme of its own (watching a
+folder, matching files, bringing outside edits in, keeping outputs current), and it belongs
+half to the exporter and half to the importer.
 
 ## Behaviors (ids proposed; untagged until approval)
 
@@ -422,11 +414,18 @@ Model cards and jobs
 - `source.model.citation-shown` — a model's citation appears wherever its work is shown and in
   exports.
 - `source.model.measured-here` — a card shows this project's own measurements of the model.
-- `source.model.cli-parity` — the command line can list, show, search, download and remove
-  models.
+- `source.model.reaches-cli-by-generation` — a card route reaches the command line through
+  the generated client; no model command is hand-written.
 
 Chains and making
-- `source.chain.is-a-workflow` — a chain is a workflow; no second chaining mechanism exists.
+- `source.chain.is-a-workflow` — a chain is a workflow; the second chaining mechanism that
+  ships today (`execution/chaining.py`) is folded into the workflow graph and retired.
+- `source.resolve.one-cascade` — which model does a job, which language applies and which
+  guideline holds are all answered by one engine resolver walking the one cascade; today's
+  app-wide role defaults are its top level, not a separate system.
+- `source.egress.one-gate` — whether content may leave this machine is decided in one place,
+  where a model is called, reading the cascade (a project's rule, a segment's rights record);
+  today's privacy check on model profiles becomes that gate.
 - `source.chain.checked-before-run` — a chain whose steps do not fit (what one gives is not
   what the next takes) is refused before it runs, with the reason.
 - `source.chain.segments-to-any-reader` — one general step cuts each segment's picture and
@@ -458,13 +457,19 @@ Projects and onboarding
   guideline and the tools shown, and offers to download the models it names.
 - `source.chain.bar-offers-what-fits` — beside the project's chain, the workflow bar offers the
   workflows the current selection can feed; there is no list of tools to hide.
+- **BLOCKED on the maintainer** (the next three): recipes as files were ruled on 2026-09-19;
+  about fifty locked default workflows already ship as the app's best-practice chains
+  (`workflows/default_workflows.py`). Two stores of the same chains is the duplicate the
+  maintainer most wants to avoid. The reviewers recommend **recipe files as the one source,
+  with the shipped default workflows seeded from them**. In the morning file; nothing is
+  built on recipes until ruled.
 - `source.recipe.is-a-file` — a best-practice chain is a shareable recipe file that names jobs,
   suitable models, and the languages, scripts and periods it is for.
 - `source.recipe.makes-a-workflow` — applying a recipe makes a workflow; nothing runs except
   workflows.
 - `source.recipe.holds-no-second-copy` — a recipe holds no chain that the workflow store also
   holds: a shipped best-practice chain exists once, and the other form is made from it.
-- `source.profile.automatic-after-first-yes` — automatic chaining is switched on for each
+- `source.project.automatic-after-first-yes` — automatic chaining is switched on for each
   project and confirms before its first run; what it makes counts as the record only as the
   project's rule allows.
 - `source.project.record-rule` — a project is strict or relaxed about what counts as the
@@ -487,14 +492,18 @@ Projects and onboarding
   shown, and correctable.
 - `source.onboard.proposes-chain` — the answers yield a proposed default chain from recipes
   kept as data, with models, downloads and licences stated.
-- `source.onboard.says-no-model` — where no suitable model exists, Fichero says so and proposes
-  the hand-transcribe-then-train route; it never substitutes silently.
+- `source.onboard.says-no-model` — where the existing language-fit score finds no suitable
+  model, Fichero says so and proposes the hand-transcribe-then-train route; it never
+  substitutes silently.
 - `source.onboard.rerun-rewrites-nothing` — changing a project's answers changes defaults for
   new work only.
 
 Finding models
-- `source.find.by-need` — models can be searched by job, script, language, period and
-  local-only, across an open list of sources including Kraken's repository and Hugging Face.
+- `source.find.by-need` — the existing model recommender and language-fit score are extended
+  (not replaced) to search by job, script, language, period and local-only, across an open
+  list of sources including Kraken's repository and Hugging Face (#2116).
+- `source.find.download-is-a-provider-row` — a downloaded model becomes a row under its
+  provider, through the one catalogue's download path.
 - `source.find.results-are-cards` — results are shown as cards, with licence class, size and
   whether this Mac can run them.
 - `source.find.try-before-default` — a found model can be tried on chosen pages and measured
@@ -503,32 +512,8 @@ Finding models
 Reader and language tools
 - `source.reader.one-renderer` — one Reader renderer shows any script, direction and declared
   sign.
-- `source.nlp.no-silent-fallback` — a language tool runs only for a language it supports;
-  otherwise Fichero says none exists and offers what does work.
-
-The synced folder
-- `source.sync.writes-the-record-or-says-so` — the folder holds the working pass and chosen
-  readings; an unchosen machine reading written there is marked machine-made in the file and
-  its loss report.
-- `source.sync.intake-is-opt-in` — taking files in from the folder is switched on for each
-  project and shows what it will bring in before its first run.
-- `source.sync.outputs-follow-edits` — chosen outputs in the project's folder are rewritten
-  soon after the segments or readings they hold change.
-- `source.sync.files-say-what-they-hold` — each file names its pass, reading order and reading
-  kind, with its loss report beside it.
-- `source.sync.new-images-come-in` — images added to the folder become sources and run the
-  project's default chain.
-- `source.sync.outside-edits-are-passes` — a changed or new XML file comes in as a new pass
-  with provenance and overwrites nothing.
-- `source.sync.conflicts-kept-both` — when project and file both changed, both are kept and
-  the conflict is shown.
-- `source.sync.restricted-stays-out` — restricted material is left out of the folder unless
-  deliberately included.
-- `source.sync.folder-is-a-projection` — the folder can be deleted and remade from the project.
-- `source.sync.one-import-path` — files arriving through the synced folder go through the same
-  import path as any other import.
-- `source.sync.engine-side-and-throttled` — the folder is named where the engine runs, and
-  syncing is throttled background work.
+- `source.nlp.no-silent-fallback` — see `histnorm.language.no-silent-english-entity-model`
+  (#4914), which owns this; not restated here.
 
 ## Requests to other specs (for the manager to route; nothing edited here)
 
