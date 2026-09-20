@@ -197,3 +197,90 @@ whose `document_id` is not the segment's.
 - Old-library test above, twice.
 - The seam returns rows for a converted document and boxes for an unconverted one, in the
   same response shape.
+
+## Slice 4 — matches, forwarding notes, a citable reference (#4922)
+
+**Pins:** `source.segment.match-record`, `source.segment.forwarding-notes`,
+`source.segment.carry-across-a-match`, `source.segment.citable`.
+
+**Models** (`models/segments.py`).
+
+`SegmentMatch` (table `segmentmatchs`): `id`; `document_id`; `from_segment_id` (the older);
+`to_segment_id` (the newer); `state: str` (`proposed` | `accepted` | `rejected`);
+`proposed_by_kind: ProvenanceKind` (engine-set); `proposed_by: str | None`;
+`accepted_by: str | None`; `accepted_at: datetime | None`; `certainty: float | None`;
+`note: str | None` (a short reason; **not** source text); `created_at`. Many to many is
+allowed (one old line became two).
+
+`SegmentForwarding` (table `segmentforwardings`), **append-only**: `id`; `document_id`;
+`old_segment_id`; `kind: str` (`merged` | `split` | `deleted` | `restored`);
+`new_segment_ids: list[str]` (JSON; empty for `deleted`); `actor`; `audit_id` (the action that
+wrote it); `reason: str | None`; `created_at`. No action ever updates or deletes a row here;
+undoing a merge writes a *new* `restored` row.
+
+`SegmentCarry` (table `segmentcarrys`): `id`; `match_id`; `carried_kind: str` (`reading` |
+`annotation` | `claim_evidence`); `original_id`; `copy_id`; `created_at`. It is what makes a
+carry undoable: the copies it lists are what the inverse removes.
+
+**Indexes** (added to `migrate_segment_indices`): `segmentmatchs(from_segment_id)`,
+`segmentmatchs(to_segment_id)`, `segmentforwardings(old_segment_id)`,
+`segmentcarrys(match_id)`.
+
+**The resolver** (one function, `resolve_segment(db, segment_id) -> ResolvedSegment`, used by
+everything that follows an id): walks `SegmentForwarding` from `old_segment_id`, newest row for
+each id first. It is an iterative walk with a visited set. **Depth cap 64: past it, it raises
+`SegmentForwardingTooDeep`; it never returns a partial answer.** A revisited id raises
+`SegmentForwardingLoop` (it should be unreachable, because the merge refusal below prevents
+loops; the raise is the safety net). Result: `ResolvedSegment { requested_id, live_segment_ids:
+list[str], trail: list[forwarding rows], ended_in_delete: bool, deleted_by, deleted_at }`.
+
+**Actions.**
+
+| Action | Params | Records for its inverse | Inverse |
+|---|---|---|---|
+| `segment.match_propose` | `from_segment_id`, `to_segment_id`, `certainty?`, `note?` | `after: {match_id}` | `segment.match_withdraw` |
+| `segment.match_accept` | `match_id` | `before: {state}` | `segment.match_set_state` back to `proposed` |
+| `segment.match_reject` | `match_id` | `before: {state}` | same |
+| `segment.merge` | `segment_ids: list[str]` (two or more, one pass), `keep_id` | `before`: each absorbed segment's id, anchor, kind, parent, version; `after: {kept_id, forwarding_ids}` | `segment.unmerge` (restores the absorbed rows from `before`, writes `restored` forwarding rows) |
+| `segment.split` | `segment_id`, `parts: list[{anchor, baseline?}]` (two or more) | `before`: the segment's anchor and version; `after: {kept_id, new_segment_ids, forwarding_id}` | `segment.unsplit` |
+| `segment.carry` | `match_id`, `kinds: list[str]` | `after: {carry_ids, copy_ids}` | `segment.uncarry` (deletes exactly those copies) |
+
+`segment.match_accept` is refused for a caller whose `ProvenanceKind` is not `human` (only a
+person accepts). `segment.carry` requires an `accepted`, **one-to-one** match for readings; for
+a many-to-many match it carries nothing of kind `reading` and returns `not_carried` with the
+reason. Carrying **copies**; the original stays where it was.
+
+Audit payloads: ids, anchors, kinds, versions. No reading text is copied into a payload: a
+carry records the ids of the copies, and the copies themselves are ordinary rows.
+
+**The citable reference.** `fichero:segment/<library_uuid>/<document_id>/<segment_id>`, a plain
+string worked out on request (`library_uuid` from the existing `library_identity` table). It
+is **not** a new resolver: `POST /api/locations/resolve` gains an optional `segmentId` (and
+accepts the string form), calls `resolve_segment`, and answers with the live segment's
+document, page and anchor, plus the trail when the id was forwarded. Route:
+`GET /api/segments/{segment_id}/reference` returns `{reference, segment_id}`.
+
+**ChangeSpec.** `domains=["segment"]`; `segment_ids` = every id touched (kept, absorbed, new);
+`pass_ids`; `document_ids`; event types `segment.merged`, `segment.split`, `segment.matched`.
+
+**Refusals** (typed, each tested): merging segments from different passes or documents
+(`SegmentPassMismatch`); **merging into a segment that already forwards to the one being
+absorbed** (`SegmentForwardingWouldLoop`, names both ids); a `keep_id` not among
+`segment_ids`; a split with fewer than two parts, or parts outside the image; accepting a match
+as a machine (`MatchNeedsAPerson`); carrying across a match that is not accepted; any `legacy:`
+id.
+
+**Tests, by behaviour.**
+- `source.segment.match-record`: propose as a tool, accept as a person; a tool's accept is
+  refused; both segments keep their own ids; nothing in either row changed.
+- `source.segment.forwarding-notes`: merge A into B, split B into C and D, delete C: resolving
+  A returns D alive and says C was deleted, by whom and when, in **one call**; a hand-made chain
+  of 65 raises `SegmentForwardingTooDeep`; merge A into B then B into A is refused; after undo
+  of a merge the old forwarding row is still there beside a `restored` row.
+- `source.segment.carry-across-a-match`: a one-to-one carry copies a reading and an annotation,
+  leaves the originals, names the match on each copy; `segment.uncarry` removes exactly the
+  copies; a one-to-two match carries no reading and says so.
+- `source.segment.citable`: the reference resolves through `/api/locations/resolve`; after a
+  merge the same reference resolves to the kept segment with the trail; after a delete it says
+  deleted; the same answers come back over MCP and the generated command.
+- Audit payloads of every action above contain no free text longer than `note` and `reason`.
