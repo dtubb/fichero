@@ -169,15 +169,17 @@ extension ContentView {
     /// independently — the per-window "canvas" key made splitting one
     /// preview split both.
     private func kindContent(
-        kind: PaneSpec.Kind, slotId: String, fixedWidth: CGFloat?
+        kind: PaneSpec.Kind, slotId: String, fixedWidth: CGFloat?,
+        splitLeaf: ((SplitAxis) -> Void)? = nil
     ) -> AnyView {
         let spec = PaneSpec(kind: kind, fixedWidth: fixedWidth)
         let splitKey = "\(slotId)-\(kind.rawValue)"
+        let modelSplit = splitLeaf.map { PaneModelSplitHook(split: $0) }
         switch spec.kind {
         case .library:
             return AnyView(
                 // Splittable (h/v) Library list pane — #2276.
-                adaptiveSplittablePane(storageKey: splitKey) {
+                adaptiveSplittablePane(storageKey: splitKey, modelSplit: modelSplit) {
                     contentWithOptionalModeRail
                 }
                 .frame(width: spec.fixedWidth)
@@ -194,13 +196,13 @@ extension ContentView {
             // so ⌘A over a clicked preview still went to the library (Daniel,
             // live 2026-08-23).
             return AnyView(
-                widescreenCanvasPane(splitKey: splitKey)
+                widescreenCanvasPane(splitKey: splitKey, modelSplit: modelSplit)
                     .simultaneousGesture(
                         TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview }
                     )
             )
         case .reading:
-            let reading = widescreenReadingPane(splitKey: splitKey)
+            let reading = widescreenReadingPane(splitKey: splitKey, modelSplit: modelSplit)
                 .simultaneousGesture(
                     TapGesture().onEnded { _ in focusedPane = .reading; paneFocusHint = .reading }
                 )
@@ -296,6 +298,15 @@ extension ContentView {
                     changeContentKind: { id, contentKind in
                         activePaneList = activePaneList.changingLeafContentKind(id, to: contentKind?.rawValue)
                         paneListDidChange()
+                    },
+                    // ONE CODE PATH (2026-09-20 ruling): the in-pane split control
+                    // (`SplittablePane`'s `\.splitAxisActions`, surfaced via
+                    // `PaneChromeMenu`'s "+") now calls THIS — the same
+                    // `PaneList.splittingLeaf` the Workspaces menu already uses —
+                    // instead of duplicating this leaf's own rendered content.
+                    splitLeaf: { id, axis in
+                        activePaneList = activePaneList.splittingLeaf(id, axis: axis)
+                        paneListDidChange()
                     }
                 ),
                 sizing: extents[index]
@@ -316,7 +327,8 @@ extension ContentView {
         _ node: PaneNode, keyPath: String, secondaryIDs: Set<UUID> = [], isSole: Bool = false,
         closeLeaf: ((UUID) -> Void)? = nil,
         changeKind: ((UUID, PaneKind) -> Void)? = nil,
-        changeContentKind: ((UUID, LibraryContentKind?) -> Void)? = nil
+        changeContentKind: ((UUID, LibraryContentKind?) -> Void)? = nil,
+        splitLeaf: ((UUID, SplitAxis) -> Void)? = nil
     ) -> AnyView {
         switch node {
         case let .leaf(id, kind, _, config):
@@ -330,7 +342,11 @@ extension ContentView {
                 kindContent(
                     kind: paneSpecKind(kind),
                     slotId: "pane-\(keyPath)-\(kind.rawValue)",
-                    fixedWidth: nil
+                    fixedWidth: nil,
+                    // THIS leaf's own id, closed over here — the same per-leaf
+                    // seam `changeKind`/`changeContentKind` already use, now
+                    // extended to split (ONE CODE PATH ruling, 2026-09-20).
+                    splitLeaf: splitLeaf.map { leafSplit in { axis in leafSplit(id, axis) } }
                 )
                 .environment(\.isSecondarySplitPane, secondaryIDs.contains(id))
                 // Sole pane → the head collapses its close affordance (spec panes.head.sole-collapse).
@@ -403,7 +419,7 @@ extension ContentView {
             return paneSplitView(
                 axis: axis, children: children, keyPath: keyPath,
                 secondaryIDs: secondaryIDs, closeLeaf: closeLeaf, changeKind: changeKind,
-                changeContentKind: changeContentKind
+                changeContentKind: changeContentKind, splitLeaf: splitLeaf
             )
         }
     }
@@ -415,7 +431,8 @@ extension ContentView {
         axis: SplitAxis, children: [PaneNode], keyPath: String,
         secondaryIDs: Set<UUID> = [], closeLeaf: ((UUID) -> Void)? = nil,
         changeKind: ((UUID, PaneKind) -> Void)? = nil,
-        changeContentKind: ((UUID, LibraryContentKind?) -> Void)? = nil
+        changeContentKind: ((UUID, LibraryContentKind?) -> Void)? = nil,
+        splitLeaf: ((UUID, SplitAxis) -> Void)? = nil
     ) -> AnyView {
         let extents = childExtents(children, axis: axis)
         let views = children.enumerated().map { idx, child in
@@ -423,7 +440,7 @@ extension ContentView {
                 paneNodeView(
                     child, keyPath: "\(keyPath).\(idx)",
                     secondaryIDs: secondaryIDs, closeLeaf: closeLeaf, changeKind: changeKind,
-                    changeContentKind: changeContentKind
+                    changeContentKind: changeContentKind, splitLeaf: splitLeaf
                 ),
                 sizing: extents[idx]
             )

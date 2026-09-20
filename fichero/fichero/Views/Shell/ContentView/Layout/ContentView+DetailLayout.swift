@@ -44,11 +44,14 @@ extension ContentView {
     /// its own flexible width so it fills whatever the list/reading panes leave.
     /// Extracted so the canvas can be conditionally shown/hidden (#1448).
     @ViewBuilder
-    func widescreenCanvasPane(splitKey: String = "canvas") -> some View {
+    func widescreenCanvasPane(
+        splitKey: String = "canvas",
+        modelSplit: PaneModelSplitHook? = nil
+    ) -> some View {
         // Splittable (h/v) image / canvas viewer — #2276. The split key is
         // SLOT-scoped (2026-08-24): two slots hosting previews shared the
         // per-window "canvas" @SceneStorage, so splitting one split both.
-        adaptiveSplittablePane(storageKey: splitKey) {
+        adaptiveSplittablePane(storageKey: splitKey, modelSplit: modelSplit) {
             // F3: the pin lives in the per-split HOST, not on ContentView, so
             // each SplittablePane sub-instance pins independently (mirrors
             // ReadingPaneView's own @State). The host is built INSIDE this
@@ -289,8 +292,11 @@ extension ContentView {
     /// The reading / WebKit "Knowledge" pane of the widescreen layout.
     /// Extracted so it can be conditionally shown/hidden per-window (#1448).
     @ViewBuilder
-    func widescreenReadingPane(splitKey: String = "reading") -> some View {
-        widescreenReadingPaneBody(readingSplitKey: splitKey)
+    func widescreenReadingPane(
+        splitKey: String = "reading",
+        modelSplit: PaneModelSplitHook? = nil
+    ) -> some View {
+        widescreenReadingPaneBody(readingSplitKey: splitKey, modelSplit: modelSplit)
     }
 
     /// What the Reader shows: the selected document, or — when nothing is
@@ -354,7 +360,10 @@ extension ContentView {
     }
 
     @ViewBuilder
-    private func widescreenReadingPaneBody(readingSplitKey: String) -> some View {
+    private func widescreenReadingPaneBody(
+        readingSplitKey: String,
+        modelSplit: PaneModelSplitHook? = nil
+    ) -> some View {
         // Compute the page count ONCE (#3866): reading `pdfDocPages` twice here
         // (isEmpty + count) recomputed a filter+sort per read — 2x O(n log n) per
         // render. The pane needs only the count, so use the sort-free accessor.
@@ -378,7 +387,7 @@ extension ContentView {
         // _ConditionalContent grew the value past what the copy machinery
         // survives; erasure at the case boundary caps it, same as the root
         // layout and window root.
-        adaptiveSplittablePane(storageKey: readingSplitKey) {
+        adaptiveSplittablePane(storageKey: readingSplitKey, modelSplit: modelSplit) {
             // ONE pane for both selection widths (2026-08-25): the multi view
             // used to replace ReadingPaneView wholesale, so a 3-item
             // selection erased the head, lens selector and crumbs. Now the
@@ -434,10 +443,11 @@ extension ContentView {
     @ViewBuilder
     func adaptiveSplittablePane<Content: View>(
         storageKey: String,
+        modelSplit: PaneModelSplitHook? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
         if shouldUseSplittablePane {
-            SplittablePane(storageKey: storageKey) {
+            SplittablePane(storageKey: storageKey, modelSplit: modelSplit) {
                 content()
             }
         } else {

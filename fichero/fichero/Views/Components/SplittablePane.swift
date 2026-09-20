@@ -189,6 +189,66 @@ struct SplitPaneState {
     }
 }
 
+// MARK: - PaneModelSplitHook (ONE-CODE-PATH ruling, 2026-09-20)
+
+/// A pane the ONE-CODE-PATH ruling requires (source-model panes recon,
+/// slice A): when a `SplittablePane` is given this, it never splits ITSELF
+/// — the pane system (`PaneList`) is live for the leaf that pane wraps, and
+/// split/close already have a real, per-leaf owner
+/// (`PaneList.splittingLeaf`/`.removingLeaf`, both verified correct). Before
+/// this hook existed, `SplittablePane`'s own `content()` closure was
+/// captured ONCE per leaf and re-rendered N times by its internal grid/
+/// vertical/horizontal containers — every per-leaf seam injected ABOVE that
+/// view (`\.paneKindSwitcher`, `\.paneContentKindSwitcher`,
+/// `\.paneContentKind`) is set ONCE, for the ONE model leaf, so every
+/// rendered copy read the SAME switcher closure and the SAME environment
+/// value: changing "one" copy's kind or content-kind changed the one leaf
+/// both copies were drawn from (#4967, #4878, #4979 — confirmed by reading
+/// `SplittablePane.swift` and `PaneKindSelector.swift`; see the recon doc
+/// for the full trace).
+///
+/// Top-level, not nested in the generic `SplittablePane<Content>`: this
+/// hook does not depend on `Content`, and a caller building
+/// `widescreenCanvasPane`/`widescreenReadingPane` (which do not know
+/// `SplittablePane`'s `Content` type — it's inferred at the call site) would
+/// otherwise have no way to name this type in their own signature.
+struct PaneModelSplitHook {
+    /// Split THIS pane's own leaf along `axis` (the `PaneList` `SplitAxis`,
+    /// `.horizontal`/`.vertical` — NOT the same vocabulary as
+    /// `SplittablePane`'s OWN `toggleVertical`/`toggleHorizontal`, which
+    /// name a SCREEN DIRECTION (vertical divider = side-by-side) rather
+    /// than a stack axis. See `splitAxisActions()`'s mapping.
+    let split: (SplitAxis) -> Void
+
+    /// The `SplitAxisActions` a pass-through `SplittablePane` publishes into
+    /// `\.splitAxisActions` — pulled out of `SplittablePane.body` so the axis
+    /// mapping is a plain function, testable without mounting a view.
+    /// `hasVertical`/`hasHorizontal` are always `false`: a further split of
+    /// THIS pane produces a new SIBLING leaf in the model, rendered as its
+    /// own separate `SplittablePane`, never a second copy of this one — so
+    /// `PaneHead`'s close button (gated on `hasVertical || hasHorizontal`)
+    /// correctly falls through to the real per-leaf close for every pane
+    /// reached through this hook.
+    func splitAxisActions() -> SplitAxisActions {
+        SplitAxisActions(
+            hasVertical: false,
+            hasHorizontal: false,
+            paneCount: 1,
+            // The name swap is real, not a typo: `SplittablePane`'s OWN
+            // "vertical" means a VERTICAL DIVIDER (panes side by side —
+            // `verticalSplitContainer` is an `HStack`), which is `PaneList`'s
+            // `.horizontal` AXIS (`WorkspaceSplitStack(axis: .horizontal)` is
+            // also an `HStack`, confirmed at `ContentView.paneListRow`). Its
+            // "horizontal" means a horizontal divider (stacked, `VStack`) —
+            // `PaneList`'s `.vertical` axis. Get this backwards and "Split
+            // Vertical" stacks instead of siding.
+            onToggleVertical: { split(.horizontal) },
+            onToggleHorizontal: { split(.vertical) },
+            onCollapseSplit: {}  // never invoked: hasVertical/hasHorizontal are always false
+        )
+    }
+}
+
 // MARK: - SplittablePane
 
 /// Wraps a content pane so the user can independently split it left/right and
@@ -208,9 +268,21 @@ struct SplitPaneState {
 struct SplittablePane<Content: View>: View {
     private let storageKey: String
     private let content: () -> Content
+    /// `nil` (no legacy caller found this pass — `kindContent`, the one
+    /// production caller of `adaptiveSplittablePane`, always supplies this
+    /// now) keeps the ORIGINAL self-contained split UI as a documented
+    /// fallback rather than deleting it outright: `PaneSplitCoordinator`'s
+    /// recorded counts are still read/written by
+    /// `ContentView+LayoutChooser.swift` (workspace save/restore, not
+    /// opened this pass) — removing the internal containers entirely risks
+    /// silently changing what that capture records. Left for a maintainer/
+    /// team-lead call, not decided here. See `PaneModelSplitHook`'s own doc
+    /// comment for what setting this fixes.
+    private let modelSplit: PaneModelSplitHook?
 
     /// Window-level split commands + workspace capture (Daniel, 2026-08-29).
     /// nil (e.g. previews, panes outside the centre row) simply opts out.
+    /// Unused when `modelSplit` is present — see `body`.
     @Environment(\.paneSplitCoordinator) private var splitCoordinator
 
     /// Whether the WHOLE pane is already a secondary copy — set from above when an applied workspace
@@ -234,8 +306,13 @@ struct SplittablePane<Content: View>: View {
     /// Height of the middle pane in a 3-row horizontal layout.
     @SceneStorage private var horizontalSecondaryExtent: Double
 
-    init(storageKey: String, @ViewBuilder content: @escaping () -> Content) {
+    init(
+        storageKey: String,
+        modelSplit: PaneModelSplitHook? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
         self.storageKey = storageKey
+        self.modelSplit = modelSplit
         self.content = content
         self._verticalPaneCount = SceneStorage(wrappedValue: 1, "splittablePane.\(storageKey).verticalCount")
         self._horizontalPaneCount = SceneStorage(wrappedValue: 1, "splittablePane.\(storageKey).horizontalCount")
@@ -246,21 +323,34 @@ struct SplittablePane<Content: View>: View {
     }
 
     var body: some View {
-        splitContainer
-            // Mirror counts into the window coordinator so a workspace save
-            // can read them; apply/act on window-level commands addressed to
-            // this pane's storage key (Daniel, 2026-08-29). NotificationCenter
-            // posts happen on the main actor (the coordinator is @MainActor),
-            // so onReceive delivers synchronously on main.
-            .onAppear { recordSplitCounts() }
-            .onChange(of: verticalPaneCount) { _, _ in recordSplitCounts() }
-            .onChange(of: horizontalPaneCount) { _, _ in recordSplitCounts() }
-            .onReceive(NotificationCenter.default.publisher(for: .paneSplitCommand)) { note in
-                handleSplitCommand(note)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .paneSplitApply)) { note in
-                handleSplitApply(note)
-            }
+        if let modelSplit {
+            // ONE CODE PATH (2026-09-20 ruling): this leaf is owned by
+            // `PaneList` — never split itself. The published actions never
+            // report a split in progress (`hasVertical`/`hasHorizontal` are
+            // always false — see `PaneModelSplitHook.splitAxisActions()`),
+            // which also makes `PaneHead`'s close button (gated on those two
+            // flags: "collapse the split" vs. "close the leaf") correctly
+            // fall through to `\.paneCloseAction` (the real per-leaf close)
+            // for every pane reached through this hook.
+            content()
+                .environment(\.splitAxisActions, modelSplit.splitAxisActions())
+        } else {
+            splitContainer
+                // Mirror counts into the window coordinator so a workspace save
+                // can read them; apply/act on window-level commands addressed to
+                // this pane's storage key (the maintainer, 2026-08-29). NotificationCenter
+                // posts happen on the main actor (the coordinator is @MainActor),
+                // so onReceive delivers synchronously on main.
+                .onAppear { recordSplitCounts() }
+                .onChange(of: verticalPaneCount) { _, _ in recordSplitCounts() }
+                .onChange(of: horizontalPaneCount) { _, _ in recordSplitCounts() }
+                .onReceive(NotificationCenter.default.publisher(for: .paneSplitCommand)) { note in
+                    handleSplitCommand(note)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .paneSplitApply)) { note in
+                    handleSplitApply(note)
+                }
+        }
     }
 
     private var splitState: SplitPaneState {
