@@ -12,6 +12,7 @@ tokenizer yields an honest UNKNOWN record — never a heuristic guess.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from pathlib import Path
@@ -20,6 +21,8 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from fichero_server.db.storage import settings
+
+logger = logging.getLogger(__name__)
 
 
 ScoreBand = Literal["excellent", "good", "limited", "poor", "unknown"]
@@ -305,8 +308,12 @@ def _ensure_derived_coverage(
         ensure_coverage(
             spec.model, language, provider=spec.provider, coverage_dir=coverage_dir
         )
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001 -- ensure_coverage has no single
+        # documented failure mode (tokenizer fetch, cache write, ...); a miss
+        # is the expected/common outcome here, so debug rather than warn.
+        logger.debug(
+            "coverage derivation failed for %s/%s: %s", spec.model, language.code, exc
+        )
     derived = _load_derived_record(spec, language, coverage_dir)
     if derived is not None:
         return derived

@@ -130,14 +130,26 @@ final class TransportRoutingMatrixTests: XCTestCase {
 
     private let inMemoryBaseURL = URL(string: "http://asgi.local")!
 
+    /// A library package path for the streaming rows. The engine refuses any
+    /// path whose name does not end in `.fichero`, so a bare `/tmp/...-lib`
+    /// (what these tests sent while they were silently skipping) gets a 403.
+    private static let matrixLibraryPath: String = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("inmem-matrix-\(ProcessInfo.processInfo.processIdentifier).fichero").path
+
     /// Isolated HOME + known bootstrap token for in-process auth. Set once per
     /// test that needs auth; the engine reads `.api-key` fresh per request.
     /// Callers must also gate on `requireIsolatedBasePath()` so `app.duckdb`
     /// is isolated (frozen at storage import from `FICHERO_BASE_PATH`).
     private func isolatedToken() throws -> (token: String, restore: () -> Void) {
         try InMemoryTestEnv.requireIsolatedBasePath()
-        let (_, token, restore) = try InMemoryTestEnv.isolatedHomeWithBootstrapToken()
-        return (token, restore)
+        try InMemoryTestEnv.configureOrSkip()
+        // An app-supplied FICHERO_BOOTSTRAP_TOKEN is authoritative for the
+        // engine (#2862) and outranks any `.api-key` file, so the token these
+        // requests must send is the one configureOrSkip() exported. The old
+        // isolated-HOME token was written before that rule and got 401.
+        let token = getenv("FICHERO_BOOTSTRAP_TOKEN").map { String(cString: $0) }
+            ?? InMemoryTestEnv.bootstrapToken
+        return (token, {})
     }
 
     // MARK: - Matrix: health (public, unary)
@@ -248,7 +260,7 @@ final class TransportRoutingMatrixTests: XCTestCase {
             path: "/api/changes/stream",
             headers: [
                 ("authorization", "Bearer \(token)"),
-                ("x-fichero-library-path", "/tmp/inmem-matrix-lib")
+                ("x-fichero-library-path", Self.matrixLibraryPath)
             ])
         XCTAssertEqual(status, 200, "inmemory: changes/stream must open 200 (got \(status))")
         XCTAssertEqual(firstLine, ": connected",
@@ -266,7 +278,7 @@ final class TransportRoutingMatrixTests: XCTestCase {
             path: "/api/changes/stream",
             headers: [
                 ("authorization", "Bearer \(token)"),
-                ("x-fichero-library-path", "/tmp/inmem-matrix-lib")
+                ("x-fichero-library-path", Self.matrixLibraryPath)
             ])
         XCTAssertEqual(status, 200, "uds-via-inmemory: changes/stream must open 200 (got \(status))")
         XCTAssertEqual(firstLine, ": connected",

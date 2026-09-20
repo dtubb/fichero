@@ -15,7 +15,6 @@ visible in the suite and flips green the moment it is fixed.
 
 from __future__ import annotations
 
-import pytest
 
 from fichero_server.knowledge.spacy_ner import EntitySpan, cluster_aliases
 from fichero_server.models.knowledge import EntityType, KnowledgeEntity

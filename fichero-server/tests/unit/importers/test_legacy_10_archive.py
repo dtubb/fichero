@@ -969,7 +969,7 @@ def test_manifest_importer_passes_declared_artifacts_through(tmp_path: Path) -> 
 
 
 def test_catalogue_artifact_lands_once_through_the_drop_path(
-    client, db, test_package, tmp_path
+    client, db, test_package, tmp_path, monkeypatch
 ) -> None:
     """End-to-end through the real routes: the ficha arrives, and a re-drop
     adds nothing.
@@ -989,7 +989,19 @@ def test_catalogue_artifact_lands_once_through_the_drop_path(
     source = tmp_path / "archive"
     build_folder(source, name="1936-doc")
     build_folder(source, name="1950-nocat", sizes=[7, 8], catalogue=False)
-    core._InProcessManifestClient = lambda _lib: _TestClientAdapter(client)
+    # `monkeypatch.setattr`, NOT a bare module-attribute assignment: a raw
+    # `core._InProcessManifestClient = ...` here leaked into every test that
+    # ran after this one in the same process (this file sorts before
+    # test_manifest_folder_drop.py) -- the swapped-in `_TestClientAdapter`
+    # wraps this test's own `client` fixture directly, with none of the real
+    # `_InProcessManifestClient`'s `fichero.transport=inmemory` ASGI-scope
+    # stamp `_is_loopback_request` needs, so
+    # `test_in_process_client_passes_the_loopback_guard` (which deliberately
+    # deletes PYTEST_CURRENT_TEST to force reliance on that exact stamp)
+    # started getting a real 403 "loopback only" instead of ever
+    # constructing the real client it meant to test (#4914 gate run,
+    # 2026-09-19). `monkeypatch.setattr` reverts automatically at teardown.
+    monkeypatch.setattr(core, "_InProcessManifestClient", lambda _lib: _TestClientAdapter(client))
 
     request = IngestFolderRequest(path=str(source), mode="link")
     import_folder_impl(db, request, Path(test_package))

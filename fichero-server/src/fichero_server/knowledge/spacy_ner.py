@@ -275,11 +275,22 @@ def _load_pipeline(language: str):
 
     candidates = _MODEL_PREFERENCE.get(language)
     if not candidates:
+        # #4914 (normalization.ner.no-silent-language-fallback): this used to
+        # log a warning and then silently substitute English -- a French,
+        # Latin, or Syriac source got entities found by English grammar
+        # rules, stored as draft claims, with nothing downstream marking
+        # that the wrong-language model produced them. The project rule is
+        # raise or decline loudly, never substitute a different
+        # implementation. Decline exactly like the "spaCy not installed"
+        # branch above: name the language, return None, let the caller
+        # fall through to the LLM-only path (or, for the import-time draft
+        # layer, record why NER did not run).
         logger.warning(
-            "spacy_ner: no pipeline for language=%r, falling back to English", language
+            "spacy_ner: no entity model for language=%r — declining NER for "
+            "this language rather than substituting English",
+            language,
         )
-        language = "en"
-        candidates = _MODEL_PREFERENCE["en"]
+        return None
 
     installed = _installed_models(spacy)
     for model_name in candidates:

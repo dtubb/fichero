@@ -2307,7 +2307,7 @@ class TestParentTextLivesOnPages:
     beachball on big documents, and a double index in search."""
 
     def _ingest(self, tmp_path, pages):
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import patch
         from fichero_server.importers.ingest import ingest_file, IngestMode
 
         file_path = _make_pdf(tmp_path, "diary.pdf", len(pages))

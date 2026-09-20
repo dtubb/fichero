@@ -58,6 +58,15 @@ enum InMemoryTestEnv {
         // depends on ambient state is not testing the contract, it is testing
         // the box — and it fails differently for the next person.
         setenvIfUnset("FICHERO_BOOTSTRAP_TOKEN", bootstrapToken)
+
+        // The engine PERSISTS an app-supplied bootstrap token to `.api-key`.
+        // Without a relocated token dir that is the USER's real file: on
+        // 2026-09-19 a gate run replaced it with the test token above, which
+        // 401s every CLI and MCP call until it is restored. Always relocate.
+        let tokenDir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("fichero-inmem-token-\(ProcessInfo.processInfo.processIdentifier)")
+        try? FileManager.default.createDirectory(at: tokenDir, withIntermediateDirectories: true)
+        setenvIfUnset("FICHERO_TOKEN_DIR", tokenDir.path)
     }
 
     /// The bootstrap token these tests hand the in-process engine.

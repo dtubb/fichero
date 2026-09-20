@@ -291,6 +291,14 @@ below rather than folded in on a title match.
   — that half still needs a mounted reproduction (an XCUITest from the exact restored-scene
   path that triggers it, if one is ever found), and a test that only covers the nil-safety half
   would keep passing even if the real trigger were never real to begin with.
+- `reader.one-renderer-handles-writing-direction` — **[GAP]** (#4915, recorded from the
+  source-model spec work, branch `spec/page-model`, `specs/source/models-chains-and-projects.md`
+  — not in this tree) one code path renders a document's text, and a document's actual
+  language/script drives both its `lang` and its writing direction. Verified: TWO separate
+  Reader renderers exist today — the native `Views/Reader/Page/DocumentTextReader.swift` and
+  the engine's HTML template `api/templates/document_view.html`, which hard-codes
+  `<html lang="en">` (line 2) regardless of the document's own language. Verified: neither file
+  contains any `dir=`/RTL/writing-direction handling — zero hits by grep in either. Not built.
 
 ### F. Redirected to an existing spec
 
@@ -348,7 +356,7 @@ Also waiting on the same not-yet-existing spec, from #248:
   ['book_structure']`, rendered in `ClaimSummaryCard`/`EntityKindRow`), not a Reader-tab
   question; no spec read this pass owns citation-label formatting.
 - **#1491** (TL-3: source outline endpoint, hierarchical drill-down API) — backend-only
-  ("Thinking Layer" program, `docs/architecture/thinking-layer.md`), no UI surface of its own
+  ("Thinking Layer" program, `docs/contributor_manual/architecture/thinking-layer.md`), no UI surface of its own
   to fold into.
 
 ### Fold table (issue → spec → behavior id → tag)

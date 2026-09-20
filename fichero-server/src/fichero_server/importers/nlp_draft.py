@@ -222,16 +222,30 @@ def run_nlp_draft(
     # own language (`language` param, when given, is the top-precedence
     # `requested` override `resolve_language` already defines; absent that,
     # the document's own recorded/detected language wins -- never a global
-    # default overriding it), fall back to the lightweight heuristic only
-    # when nothing else answers.
+    # default overriding it).
+    #
+    # #4914 (normalization.ner.no-silent-language-fallback): this used to
+    # fall through to `spacy_ner.detect_language(text)` -- a crude EN/ES-only
+    # heuristic that returns "en" for anything that doesn't look distinctly
+    # Spanish -- whenever the resolved language was either genuinely
+    # undetermined OR a real, KNOWN language spaCy has no model for (French,
+    # Latin, Syriac). Both cases silently produced English-rule entities
+    # stored as unmarked draft claims. Decline honestly in both cases
+    # instead: no guessing, and when the language IS known, name it in the
+    # recorded reason rather than re-guessing a possibly-wrong one.
     from fichero_server.llm.language_policy import resolve_language
 
     resolution = resolve_language(requested=language, document=doc, text=text)
-    lang = (
-        spacy_ner.normalize_language(resolution.language)
-        if resolution.is_known
-        else None
-    ) or spacy_ner.detect_language(text)
+    if not resolution.is_known:
+        return NlpDraftResult(
+            error=f"no entity model: {resolution.basis}"
+        )
+
+    lang = spacy_ner.normalize_language(resolution.language)
+    if lang is None:
+        return NlpDraftResult(
+            error=f"no entity model for language={resolution.language!r}"
+        )
 
     if not spacy_ner.is_pipeline_available(lang):
         return NlpDraftResult(

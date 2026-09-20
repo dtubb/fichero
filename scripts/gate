@@ -878,7 +878,14 @@ cmd_transport() {
       fichero-server/tests/integration/test_transport_matrix.py \
       fichero-server/tests/integration/test_transport_round_trips.py \
     || { rc=$?; verdict="$GATE_LAST_VERDICT"; }
+  # The in-process engine opens its app database under FICHERO_BASE_PATH. Left
+  # unset that is the machine's REAL app.duckdb, which a running Fichero holds
+  # locked (every request 500s) and which no test may ever write to. The
+  # authenticated suites skip without it, so the gate always supplies one.
+  local inmem_base; inmem_base="$(mktemp -d "${TMPDIR:-/tmp}/fichero-gate-inmem.XXXXXX")"
+  mkdir -p "$inmem_base/token"
   run_gated "transport-swift-inmemory" "${GATE_TIMEOUT_TRANSPORT:-1800}" \
+    env FICHERO_BASE_PATH="$inmem_base" FICHERO_TOKEN_DIR="$inmem_base/token" \
     swift test --package-path fichero/fichero-api-client \
       --filter 'InMemoryTransportSmokeTests|TransportRoutingMatrixTests|TransportMatrixRoundTripTests' \
     || { rc=$?; verdict="$GATE_LAST_VERDICT"; }

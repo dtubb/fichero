@@ -10,7 +10,6 @@ partial import; a new destination receives a full copy.
 
 from pathlib import Path
 
-import pytest
 
 from fichero_server.importers.ingest import IngestMode, ingest_folder
 from fichero_server.models import Document, DocType

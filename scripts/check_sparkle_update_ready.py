@@ -466,14 +466,30 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    # #4382 (test_guardrails_fail_on_missing_input.py): "found nothing" and
+    # "looked at nothing" must never share an exit code. Before saying NOT
+    # ARMED, confirm this is actually a real checkout with nothing to check
+    # yet -- not a moved/renamed tree this script can no longer see at all.
+    # `ROOT/fichero-server` existing is that structural marker (mirrors
+    # check_release_size_ratchet.py's own BLIND-vs-NOT-ARMED distinction:
+    # its baseline file missing fails loudly; no release build yet exits 0).
+    if not (ROOT / "fichero-server").is_dir():
+        print(
+            "error: fichero-server/ not found under this script's own root "
+            f"({ROOT}) -- the tree has moved or this copy is not inside the "
+            "real checkout, so this guardrail cannot verify anything",
+            file=sys.stderr,
+        )
+        return 1
+
     # Arming requires BOTH --app and --dmg explicitly, always, with no
     # existence-probing fallback to a default path. `verify_all.sh --fast`
     # sweeps every scripts/check_*.py with NO arguments; a real release
     # build can be sitting in build/releases/ (another lane's in-flight
     # work, a stale artifact) at the exact moment an unrelated dev gate
     # runs, and this check must NEVER reach the network in that case.
-    # NOT ARMED, unconditionally, on no args -- no filesystem probe, no
-    # network call, always exit 0.
+    # NOT ARMED, on no args -- no network call, exit 0 -- but only once the
+    # check above has confirmed there IS a real tree here to be not-armed in.
     if args.app is None or args.dmg is None:
         print("sparkle-update readiness: NOT ARMED — pass --app and --dmg explicitly to run this check")
         return 0

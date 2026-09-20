@@ -1,6 +1,5 @@
 from types import SimpleNamespace
 
-import pytest
 
 from fichero_server.knowledge.svo_cleanup import (
     clean_svo_claims,

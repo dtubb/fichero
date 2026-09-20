@@ -2,6 +2,59 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.09.19
+
+- Knowledge: click a sentence to see its source; Entities and Claims panes work as master and detail; a folder shows the people in its subfolders.
+- Panes: each Library pane shows the kind its own chip says.
+- Models: one picker in the workflow bar, with your role defaults alongside named models.
+- Segmentation: Kraken works on a PDF page, and its boxes appear when the run finishes.
+
+**Clicking a sentence takes you to its source.** Click a sentence in an entity's biography and
+the claim editor opens with the source highlighted, in one step — the Inspector stays on the
+entity instead of losing focus. Clicking a claim shows its source in both the Reader and Preview
+without losing your place.
+
+**Search finds a page before it's fully processed.** A page you'd just imported, not yet added
+to the search index, used to vanish from results the moment any other page matched the same
+word — even while the Inspector was showing you that exact text. Search now finds it.
+
+**Editing a statement, right from its sentence.** You can edit a statement directly from where
+it appears — the change saves the same way every other edit does, updates in place, and lets you
+set a date and pick who it's about. Changing who a statement is about also updates the name and
+the sentence together.
+
+**Entities and claims read more honestly.** A biography now states each claim's own subject —
+never borrowing the page's name, never falling back to a vague "they." A folder that holds only
+subfolders now shows its full list of people, matching what the Inspector already showed for it.
+Deleting or merging an entity now cleans up every field a claim carries about it, not just the
+obvious one. A source written in a language Fichero has no model for is now told apart from one
+it does — it no longer gets silently read with the wrong grammar.
+
+**A Library pane now shows what its own label says.** Set a pane to Claims and it shows Claims,
+not whatever the sidebar last had selected — choosing a specific kind for a pane sticks, the same
+way choosing any other kind does.
+
+**Entities and Claims panes work together.** Select an entity in one pane and a Claims pane
+narrows to that entity's claims, under a header naming who it's about — a pane-local "Show All"
+returns to the folder's full list.
+
+**Provenance.** Every claim now says truthfully whether a person, the app itself, or an AI made
+it — a machine-written claim can no longer default to looking human-made.
+
+**Selecting a workflow from the Library.** Clicking a workflow's row in the Library now opens
+its editor in place, the same as picking it from the sidebar.
+
+**The Knowledge Graph sidebar mode has retired.** Entities and Claims now live as Library
+tables; the SPARQL console has its own window.
+
+**One model picker everywhere.** The workflow bar's model control now matches the picker used
+elsewhere in the app, and it offers your role defaults ("small," "large," "vision small," and so
+on) alongside named models — pick a role and it always follows whatever you've set as current.
+
+**Kraken segmentation.** Kraken can now segment a single page of a PDF, matching what Apple
+Vision could already do. A finished workflow run now tells the app what it saved, so a
+segmentation overlay can appear on its own instead of waiting for a click.
+
 ## 2026.09.18
 
 - Workspaces: one pane model, persisted across relaunch; stable divider positions; Split from the menu.

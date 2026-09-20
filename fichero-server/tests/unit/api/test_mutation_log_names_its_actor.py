@@ -25,7 +25,6 @@ import ast
 import inspect
 from pathlib import Path
 
-import pytest
 
 SRC = Path(__file__).parents[3] / "src" / "fichero_server"
 

@@ -13,7 +13,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import httpx
-import pytest
 
 
 def _installed_entry():

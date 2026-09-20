@@ -78,7 +78,11 @@ extension LibraryView {
         // documents. In Claims / Entities mode the table owns its own column
         // sort and those controls would be dead affordances over a different kind
         // of row (Daniel: no-op controls confuse a demo).
-        if libraryContentKind == .documents {
+        // #4884: gates on what's ACTUALLY rendering, not the raw local
+        // fallback — `libraryContentKind` alone stopped being a reliable
+        // "documents vs. KG table" signal once it could be nil (never
+        // touched) or overridden per-pane via the chip/workspace config.
+        if effectiveContentKind == .documents {
             // Xcode-console-style metadata popover (#18): which optional
             // attributes list rows display. Sits with sort/filter because it,
             // too, acts on the library list.
@@ -302,13 +306,27 @@ extension LibraryView {
     /// into the claims/entities list, where the ids mean something else. The
     /// picker itself lives in the pane head (`LibraryContentKindControl`), beside
     /// the view-mode picker; this is the binding it drives.
+    ///
+    /// #4884: the chip now DISPLAYS the effective kind (so a pane that's
+    /// following the window shows what it's actually following, not a stale
+    /// "Documents" while an entities table renders under it), and WRITES an
+    /// EXPLICIT choice — through `\.paneContentKindSwitcher` when this pane
+    /// has a slot (persisted into the workspace's `PaneConfig`), else the
+    /// local `libraryContentKind` fallback (the compact-iPhone leaf, which
+    /// has none). Choosing "Documents" is exactly as explicit/sticky as
+    /// choosing Claims or Entities — never special-cased back to "follow the
+    /// window" — the maintainer's "Library panes are not linked" ruling.
     var contentKindBinding: Binding<LibraryContentKind> {
         Binding(
-            get: { libraryContentKind },
+            get: { effectiveContentKind },
             set: { newKind in
-                guard newKind != libraryContentKind else { return }
+                guard newKind != effectiveContentKind else { return }
                 selection = []
-                libraryContentKind = newKind
+                if let paneContentKindSwitcher {
+                    paneContentKindSwitcher.switchContentKind(newKind)
+                } else {
+                    libraryContentKind = newKind
+                }
             }
         )
     }

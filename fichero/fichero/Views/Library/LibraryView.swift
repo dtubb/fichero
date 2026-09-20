@@ -7,9 +7,10 @@ import UniformTypeIdentifiers
 /// WHAT the library pane is showing, driven from OUTSIDE (the sidebar): documents,
 /// or a library-wide knowledge-graph collection. `.entities` predates the
 /// node-model tables; `.claims` (P4) joins it so the sidebar's two peer KG
-/// sections both flow through the same library. When this is a KG collection the
-/// pane shows the library-wide claims/entities TABLE; `.documents` leaves the
-/// in-pane `libraryContentKind` picker (folder-scoped) in charge.
+/// sections both flow through the same library. #4884: this is the WINDOW's
+/// default, not the final answer for every pane — `LibraryView.effectiveContentKind`
+/// lets a pane's own EXPLICIT kind (the chip) override this per-pane; see its
+/// doc comment (`LibraryView+ContentBranches.swift`).
 enum LibraryContentCollection {
     case documents
     case entities
@@ -334,7 +335,30 @@ struct LibraryView: View {
     // WHAT the library is browsing — documents, or the KG nodes (claims/entities)
     // that also live in a folder (the node-model IA). Orthogonal to displayMode.
     // Phase 1 lands `.claims` in the table.
-    @State var libraryContentKind: LibraryContentKind = .documents
+    //
+    // #4884: this is now ONLY the fallback for a Library leaf that has no pane
+    // SLOT — concretely, the compact iPhone reader stack's leaf
+    // (`compactLibraryReaderStack`, `ContentView+CompactReader.swift`), which
+    // renders `LibraryView` outside the pane tree entirely (no `.leaf`, no
+    // slot id, nothing for `\.paneContentKindSwitcher` to attach to). DO NOT
+    // DELETE as dead — every OTHER Library leaf (reached through the pane
+    // tree) is driven by `\.paneContentKind`/`\.paneContentKindSwitcher`
+    // instead (`effectiveContentKind`, `LibraryView+MiniToolbar.swift`'s
+    // `contentKindBinding`). `nil` = never explicitly touched, follow the
+    // window; once set (INCLUDING to `.documents`) it is sticky, same
+    // semantics as the pane-tree path (the maintainer's "Library panes are
+    // not linked" ruling).
+    @State var libraryContentKind: LibraryContentKind?
+    /// The workspace/chip-set EXPLICIT kind for THIS library pane, when it has
+    /// one (#4884) — see the doc comment on `libraryContentKind` above.
+    /// Internal, not private: read from `LibraryView+ContentBranches.swift`'s
+    /// `effectiveContentKind` — `private` is file-scoped.
+    @Environment(\.paneContentKind) var paneContentKind: LibraryContentKind?
+    /// Present only when this pane is hosted in a switchable slot (#4884) —
+    /// the content-kind chip writes through this when non-nil, else through
+    /// the local `libraryContentKind` fallback above. Internal, not private:
+    /// read from `LibraryView+MiniToolbar.swift`'s `contentKindBinding`.
+    @Environment(\.paneContentKindSwitcher) var paneContentKindSwitcher: PaneContentKindSwitcher?
 
     // Grid column count for arrow key navigation (updated by GeometryReader in iconsView)
     @State var gridColumnCount: Int = 4

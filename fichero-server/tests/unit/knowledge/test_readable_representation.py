@@ -8,11 +8,9 @@ headless foundation the biography/regest/gazetteer renderings build on. Test-fir
 """
 from __future__ import annotations
 
-import pytest
 
 from fichero_server.models.knowledge import KnowledgeClaim
 from fichero_server.knowledge.readable import (
-    Aggregation,
     Ordering,
     aggregate_claims,
     order_claims,

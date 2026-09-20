@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2026-09-19
+
 **Knowledge and the source reveal.** Clicking a sentence in an entity's biography opens the claim
 editor and highlights the source at once, and the Inspector now stays on the entity instead of
 losing focus — a caller could previously clear the focused entity just by omitting it; the
@@ -27,7 +29,18 @@ now selects what the table actually shows (#4575, #4851, #4794). A folder that h
 subfolders now shows its whole subtree of entities in the Entities table, the same as the
 Inspector already did for that folder — the table now scopes through the same route the
 Inspector uses instead of collecting only direct child documents (#4885). Built and tested;
-not yet seen on screen.
+not yet seen on screen. That same folder-scoping is now one shared walk on the engine side too,
+with each route's own recursion default pinned by a test so changing one is a visible decision,
+not a drift (#4885). A Library pane now shows the kind its own chip says, not whatever the
+window's sidebar happened to select — choosing Documents is as explicit as choosing Claims, so
+a Documents pane stays a Documents pane (#4884). Built and tested; not yet seen on screen. A
+source in a language Fichero has no entity model for is now declined by name instead of being
+silently read with English or Spanish grammar (#4914). A Claims pane now narrows to the entity
+selected in an Entities pane, under a header that names the entity, with a pane-local Show All
+that returns to the folder's claims and resets when the focused entity changes; Delete acts on
+the claims the pane is showing (#4886). Built and tested; not yet confirmed on screen. Known and
+filed as a separate issue: two windows open on the same library still share one claim scope
+(#4913).
 
 **Workflows.** Selecting a workflow by clicking its row in the Library now opens its editor in
 place — canvas and run log, no mode flip, no double-click — through one "effective workflow"
@@ -86,7 +99,17 @@ makes the orphan-engine sweep finish before the app decides to spawn its own now
 driving the actual function with an injected slow sweep, closing the one case in this whole batch
 that shipped completely untested; a spec-led audit found seven more fixes, across launch
 stability and the model pickers, that still ship with no automated test at all, and wrote up, for
-each one, exactly what a test would need to do to catch a regression.
+each one, exactly what a test would need to do to catch a regression. Every red guardrail from
+that audit now has an issue and an owner, so none of it is untracked debt anymore. The app's
+whole test target was run in full for the first time in a week, surfacing seven failures — all
+drift from this week's own work that nothing had caught because nothing had run the whole suite
+— and fourteen more in the engine suite, seven from this week's audited-route work and seven
+older; all are fixed, and six view-level statics that could trap an off-main test suite are
+marked safe so that class of crash can't recur. The entity biography view is split into four
+smaller files along its own natural seams, with no behavior change, clearing the one SwiftLint
+error the gate doesn't currently check for on its own. A new pre-publish check can tell, before
+anything is signed, whether an update would actually be newer than what the live Sparkle feed
+already offers — catching a stale or non-increasing build before it ships, not after.
 
 **Specs and milestones.** A months-long backlog of legacy GitHub milestones with no owning spec
 is being worked down one at a time: each one's open issues are read fresh against today's code,

@@ -10,7 +10,6 @@ import pytest
 from fichero_server.models.prototype_schema import (
     ATTRIBUTE_ROLES,
     ATTRIBUTE_TYPES,
-    AttributeDecl,
     attribute_declarations,
     is_declaration,
     validate_prototype_attributes,

@@ -284,4 +284,16 @@ struct BuiltInWorkspaceLayoutTests {
         let expected = Set(allLeafIDs(panes).map(\.id)).subtracting([target.id])
         #expect(survivingIDs == expected)
     }
+
+    // MARK: - #4884: Read must not change
+
+    @Test("Read's library leaf sets no explicit content kind — it follows the window, unchanged")
+    func readLibraryLeafHasNoExplicitContentKind() {
+        let libraryLeaves = allLeaves(BuiltInWorkspaceLayout.read.panes).filter { $0.kind == .library }
+        #expect(libraryLeaves.count == 1)
+        #expect(
+            libraryLeaves.first?.config.libraryContentKind == nil,
+            "Read's library leaf must have no explicit kind, or LibraryView.effectiveKind would stop following the window's sidebar collection for it — a real behavior change #4884 must not cause"
+        )
+    }
 }

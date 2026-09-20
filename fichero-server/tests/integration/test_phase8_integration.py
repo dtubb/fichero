@@ -376,7 +376,6 @@ class TestCatalogueWorkflowE2E:
         4. Asserts workflow status, completed nodes, and artifact persistence
         """
         import time
-        from pathlib import Path
 
         # Step 1: Load fixture PDF
         fixture_pdf = sample_file("sample.pdf")

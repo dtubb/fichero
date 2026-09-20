@@ -28,9 +28,6 @@ from fichero_server.api.main import get_library_database, get_library_database_f
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
     EntityMatchCandidate,
-    EntityMergeAudit,
-    EntityMergeOperationType,
-    KnowledgeClaim,
     KnowledgeEntity,
     PendingMatchMethod,
     PendingMatchState,

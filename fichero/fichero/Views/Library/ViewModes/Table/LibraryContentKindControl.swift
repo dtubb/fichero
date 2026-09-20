@@ -8,9 +8,10 @@ import SwiftUI
 /// generic `Controls` parameter stays nameable and its body keeps its explicit,
 /// type-check-budgeted shape.
 struct LibraryContentKindControl: View {
-    /// Bound to the library's `libraryContentKind`; the setter clears the
-    /// selection so a document-id selection can't leak into the claims / entities
-    /// list, where the ids mean something else.
+    /// Bound to `LibraryView.contentKindBinding` (#4884: displays the pane's
+    /// EFFECTIVE kind, writes an explicit per-pane choice); the setter clears
+    /// the selection so a document-id selection can't leak into the claims /
+    /// entities list, where the ids mean something else.
     @Binding var kind: LibraryContentKind
 
     var body: some View {

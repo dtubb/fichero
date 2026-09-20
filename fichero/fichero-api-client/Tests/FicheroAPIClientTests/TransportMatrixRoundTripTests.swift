@@ -31,6 +31,11 @@ import OpenAPIRuntime
 final class TransportMatrixRoundTripTests: XCTestCase {
 
     override func setUp() async throws {
+        // Every request here passes the auth gate, and the auth gate opens the
+        // app database. Without an isolated base path that is the machine's
+        // REAL app.duckdb: a live engine's lock turns every request into a 500,
+        // and with no live engine the test would write into real app state.
+        try InMemoryTestEnv.requireIsolatedBasePath()
         try InMemoryTestEnv.configureOrSkip()
     }
 

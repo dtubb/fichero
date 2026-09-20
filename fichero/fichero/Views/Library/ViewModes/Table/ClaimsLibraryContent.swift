@@ -32,6 +32,34 @@ struct ClaimsLibraryContent: View {
     /// no-op without a host.
     @Environment(ClaimSourceNavigationState.self) private var cursor: ClaimSourceNavigationState?
 
+    /// #4886 master/detail: the per-window "an entity is focused" signal — the
+    /// SAME one an Entities pane's row click already sets
+    /// (`LibraryView+Selection.swift`'s `openEntityFromLibrary`), no new wiring.
+    @Environment(KGFocusState.self) private var kgFocusState: KGFocusState?
+    /// #4886: when an entity is focused, this pane reads/acts THROUGH the
+    /// EXISTING per-library `ClaimStore.loadClaims(forEntity:)`/`.delete` —
+    /// never a second loader (the maintainer's standing objection to duplicate
+    /// code paths). Safe today: traced every reader of `claimStore.claims` —
+    /// the ONLY live consumer is the entity digest's `.entity` scope
+    /// (`EntityDigestContent+Provenance.swift`), which is always the SAME
+    /// entity `kgFocusState` names, so sharing the store's one scope is "one
+    /// fetch, two renderers," not a fight. `ClaimStore.loadClaims(forDocument:)`
+    /// has ZERO production callers today — the document Inspector's Knowledge
+    /// tab uses a separate endpoint (`documentKnowledgeGraph`) and its own
+    /// local state, not this store — so there is no `.document`-scope reader
+    /// to collide with. KNOWN CAVEAT (#4913, pre-existing, not introduced
+    /// here): `ClaimStore` is per-LIBRARY but `kgFocusState` is per-WINDOW, so
+    /// two windows on the same library focused on different entities race the
+    /// same shared scope — already true for two Inspectors today.
+    @Environment(ClaimStore.self) private var claimStore: ClaimStore?
+    /// Pane-local dismissal of the entity narrowing ("Show All") — deliberately
+    /// NOT `kgFocusState.focusedEntityId = nil`, which would blank the
+    /// Inspector's biography if it's following the same focus. Resets to
+    /// `false` the moment the WINDOW's focus moves to a genuinely different
+    /// entity (`showingAllResets(from:to:)` below) — "Show All" dismisses
+    /// THIS narrowing, it doesn't opt the pane out of master/detail forever.
+    @State private var showingAllOverride = false
+
     @State private var model: LibraryClaimsModel?
 
     /// The library the cached `model` was built for. `EntityService` is per-library
@@ -69,6 +97,10 @@ struct ClaimsLibraryContent: View {
     /// this the Source column fell back to a raw "Source 2a614b56…" id (spec:
     /// panes-workspaces panes.claim.source-is-document).
     @Environment(DocumentStore.self) private var documentStore
+    /// Resolves the focused entity's display name for the "Claims about <name>"
+    /// header (#4886). Already in the same window-environment list as
+    /// `kgFocusState`/`claimStore` — no new plumbing.
+    @Environment(EntityStore.self) private var entityStore: EntityStore?
 
     private struct EditingClaim: Identifiable {
         let claim: Components.Schemas.KnowledgeClaim
@@ -77,10 +109,14 @@ struct ClaimsLibraryContent: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // #4886: narrowed-scope header — silent filtering reads as a bug.
+            if case .entity = scope {
+                narrowedHeader
+            }
             ClaimsTableView(
                 items: items,
                 selection: $selection,
-                isLoading: model?.isLoading ?? true,
+                isLoading: isLoading,
                 emptyMessage: emptyMessage,
                 onOpenSource: openSource,
                 onDelete: deleteClaims,
@@ -96,12 +132,30 @@ struct ClaimsLibraryContent: View {
         // the previous library's claims after a switch (spec F5). The cached
         // model captured the OLD library's per-library `EntityService`, so a
         // switch also REBUILDS it — a stale-service model must not survive.
+        // Kept running even while entity-scoped (#4886): the folder data stays
+        // warm in the background, so "Show All" never shows an avoidable spinner.
         .task(id: LibraryClaimsModel.reloadKey(libraryId: windowState.libraryId, folderId: folderId)) {
             if model == nil || loadedLibraryId != windowState.libraryId {
                 model = LibraryClaimsModel(service: entityService)
                 loadedLibraryId = windowState.libraryId
             }
             await model?.load(folderId: folderId)
+        }
+        // #4886: the entity-scoped load, through the EXISTING ClaimStore seam
+        // (see the doc comment on `claimStore` above for why sharing it is
+        // safe today, and #4913 for the pre-existing cross-window caveat).
+        // Keyed on the focused entity id alone, independent of `showingAllOverride`
+        // — the store stays warm whether or not THIS pane is currently showing it.
+        .task(id: kgFocusState?.focusedEntityId) {
+            guard let entityId = kgFocusState?.focusedEntityId else { return }
+            await claimStore?.loadClaims(forEntity: entityId)
+        }
+        // #4886: "Show All" dismisses THIS narrowing only; a genuinely NEW
+        // focus re-engages master/detail (the pure `showingAllResets` rule).
+        .onChange(of: kgFocusState?.focusedEntityId) { old, new in
+            if Self.showingAllResets(from: old, to: new) {
+                showingAllOverride = false
+            }
         }
         .sheet(isPresented: $showingCreateSheet) {
             // Attribute the hand-authored claim to the folder/page in view so it
@@ -118,16 +172,21 @@ struct ClaimsLibraryContent: View {
             set: { claimToEdit = $0?.claim }
         )) { wrapped in
             // Reuse the existing SVO editor (PATCH, #4833: now via ClaimStore).
-            // On save, reload the scope so the row reflects the edit.
+            // On save, reload whichever scope is ACTIVE so the row reflects the
+            // edit (#4886: reloading only the folder path would leave an
+            // entity-narrowed table showing the stale pre-edit row).
             EditClaimSheet(claim: wrapped.claim) { _ in
                 claimToEdit = nil
-                Task { await model?.load(folderId: folderId) }
+                Task { await reloadActiveScope() }
             }
         }
         // #4851/#4794: report the visible ids on every input that can change
-        // them — the filter inputs directly, and the model's own load
-        // finishing (covers both the initial load and a folder/library
-        // switch). Mirrors `DatasetModeView.reportVisible()`'s trigger set.
+        // them — the filter inputs directly, and either scope's own load
+        // finishing (covers the initial load, a folder/library switch, AND an
+        // entity focus/unfocus, #4886). Mirrors `DatasetModeView.reportVisible()`'s
+        // trigger set. `items` itself already re-derives from whichever store
+        // (`model` or `claimStore`) is active, so this needs no OTHER new wiring
+        // — Select All keeps seeing exactly the narrowed list this pane shows.
         .onChange(of: items.map(\.id)) { _, newIds in onVisibleIds?(newIds) }
         .onChange(of: filterText) { _, _ in onVisibleIds?(items.map(\.id)) }
         .onChange(of: filterType) { _, _ in onVisibleIds?(items.map(\.id)) }
@@ -135,6 +194,86 @@ struct ClaimsLibraryContent: View {
         .onChange(of: model?.isLoading) { _, loading in
             if loading == false { onVisibleIds?(items.map(\.id)) }
         }
+        .onChange(of: claimStore?.isLoading) { _, loading in
+            if loading == false { onVisibleIds?(items.map(\.id)) }
+        }
+    }
+
+    /// #4886: which claims this pane is scoped to right now — an explicit
+    /// entity focus wins over the folder, UNLESS the user dismissed it with
+    /// "Show All" for this pane. Pure, testable off-view.
+    enum ClaimsScope: Equatable {
+        case folder(String?)
+        case entity(String)
+    }
+
+    // `ClaimsLibraryContent` is a View, so its statics are @MainActor by
+    // default (#4902-class trap) — `nonisolated` is load-bearing for a
+    // non-@MainActor Swift Testing suite to call these directly. Both are
+    // pure over their parameters.
+    nonisolated static func effectiveScope(
+        focusedEntityId: String?,
+        folderId: String?,
+        showingAllOverride: Bool
+    ) -> ClaimsScope {
+        if !showingAllOverride, let focusedEntityId {
+            return .entity(focusedEntityId)
+        }
+        return .folder(folderId)
+    }
+
+    /// Whether the WINDOW's focus moved to a genuinely different entity (or
+    /// cleared) — the rule that resets "Show All" so it dismisses one
+    /// narrowing rather than opting the pane out of master/detail forever.
+    nonisolated static func showingAllResets(from old: String?, to new: String?) -> Bool {
+        old != new
+    }
+
+    private var scope: ClaimsScope {
+        Self.effectiveScope(
+            focusedEntityId: kgFocusState?.focusedEntityId,
+            folderId: folderId,
+            showingAllOverride: showingAllOverride
+        )
+    }
+
+    private var isLoading: Bool {
+        switch scope {
+        case .folder: return model?.isLoading ?? true
+        case .entity: return claimStore?.isLoading ?? true
+        }
+    }
+
+    /// Re-fetch whichever scope is currently active (used after an edit).
+    private func reloadActiveScope() async {
+        switch scope {
+        case .folder:
+            await model?.load(folderId: folderId)
+        case .entity(let entityId):
+            await claimStore?.loadClaims(forEntity: entityId, force: true)
+        }
+    }
+
+    /// The focused entity's display name for the header, resolved from the
+    /// SAME per-library `EntityStore` every other KG surface reads — never a
+    /// raw id. A graceful placeholder while the entity itself hasn't loaded.
+    private var focusedEntityName: String {
+        guard let id = kgFocusState?.focusedEntityId else { return "" }
+        return entityStore?.libraryEntities.first(where: { $0.id == id })?.canonicalName
+            ?? "this entity"
+    }
+
+    @ViewBuilder
+    private var narrowedHeader: some View {
+        HStack {
+            Text("Claims about \(focusedEntityName)")
+                .font(.headline)
+            Spacer()
+            Button("Show All") { showingAllOverride = true }
+                .font(.subheadline)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
     }
 
     /// After a manual create, reload the folder scope so the new claim appears, and
@@ -172,9 +311,18 @@ struct ClaimsLibraryContent: View {
         return true
     }
 
+    /// The claims backing THIS pane right now — `model`'s folder-scoped list,
+    /// or `claimStore`'s entity-scoped one (#4886), whichever `scope` picked.
+    private var scopedClaims: [Components.Schemas.KnowledgeClaim] {
+        switch scope {
+        case .folder: return model?.claims ?? []
+        case .entity: return claimStore?.claims ?? []
+        }
+    }
+
     /// The claim types present in the loaded set, for the type picker.
     private var availableTypes: [String] {
-        Array(Set((model?.claims ?? []).compactMap { $0.claimType?.rawValue })).sorted()
+        Array(Set(scopedClaims.compactMap { $0.claimType?.rawValue })).sorted()
     }
 
     @ViewBuilder
@@ -213,7 +361,13 @@ struct ClaimsLibraryContent: View {
     }
 
     private var emptyMessage: String {
-        if let error = model?.loadError {
+        let loadError: String? = {
+            switch scope {
+            case .folder: return model?.loadError
+            case .entity: return claimStore?.loadError
+            }
+        }()
+        if let error = loadError {
             return "Couldn't load claims: \(error)"
         }
         if let query = trimmedQuery, filterText.isEmpty, filterType == nil {
@@ -221,6 +375,11 @@ struct ClaimsLibraryContent: View {
         }
         if trimmedQuery != nil || !filterText.isEmpty || filterType != nil {
             return "No claims match the current filter."
+        }
+        // #4886: the narrowed-scope empty state names what it's scoped to —
+        // "No claims in this folder" would be actively misleading here.
+        if case .entity = scope {
+            return "No claims about \(focusedEntityName) yet."
         }
         return "No claims here yet. Run knowledge extraction to populate them."
     }
@@ -235,7 +394,7 @@ struct ClaimsLibraryContent: View {
     private var items: [ClaimsTableView.Item] {
         let docsById = self.docsById
 
-        return (model?.claims ?? []).compactMap { claim -> ClaimsTableView.Item? in
+        return scopedClaims.compactMap { claim -> ClaimsTableView.Item? in
             let values = ClaimTableRow(claim)
             let sourceName = Self.sourceName(for: claim, docsById: docsById)
             guard Self.claimMatches(
@@ -293,12 +452,28 @@ struct ClaimsLibraryContent: View {
     /// never shows a phantom-deleted row.
     private func deleteClaims(_ claims: [Components.Schemas.KnowledgeClaim]) {
         let ids = claims.compactMap(\.id)
-        guard !ids.isEmpty, let model else { return }
-        Task {
-            do {
-                try await model.delete(claimIds: ids)
-            } catch {
-                await model.load(folderId: folderId)
+        guard !ids.isEmpty else { return }
+        // #4886: through whichever store is BACKING the visible rows — both
+        // `ClaimStore.delete` and `LibraryClaimsModel.delete` splice the row
+        // out of their own array in place (no wholesale reload) on success.
+        switch scope {
+        case .folder:
+            guard let model else { return }
+            Task {
+                do {
+                    try await model.delete(claimIds: ids)
+                } catch {
+                    await model.load(folderId: folderId)
+                }
+            }
+        case .entity:
+            guard let claimStore else { return }
+            Task {
+                do {
+                    try await claimStore.delete(claimIds: ids)
+                } catch {
+                    await reloadActiveScope()
+                }
             }
         }
     }

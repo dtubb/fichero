@@ -253,7 +253,10 @@ def _claim_scope(db, documents: Any, state: State) -> list[str]:
         seen.append(doc_id)
         try:
             children = db.query(Document, parent_id=doc_id)
-        except Exception:  # noqa: BLE001 — a lookup miss must not end the run
+        except Exception as exc:  # noqa: BLE001 -- a lookup miss must not end
+            # the run; no single documented failure mode for this query, and
+            # an unexpected DB error here is worth a trace, not silence.
+            logger.warning("child lookup failed for document %s: %s", doc_id, exc)
             continue
         for child in children:
             if child.id not in seen:
