@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2026-09-19
+
 **Knowledge and the source reveal.** Clicking a sentence in an entity's biography opens the claim
 editor and highlights the source at once, and the Inspector now stays on the entity instead of
 losing focus — a caller could previously clear the focused entity just by omitting it; the
