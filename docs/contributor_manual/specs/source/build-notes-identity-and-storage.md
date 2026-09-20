@@ -452,6 +452,24 @@ forwarding row; the row stays. Undelete clears `deleted_at`, writes a version an
 forwarding row. Restoring a version writes a **new** version whose fields equal the old one:
 history only grows.
 
+**One way back, and versions only go up.** A segment's state returns by exactly one path:
+`SegmentVersion`. `restore_version`, the undo of an update, **unmerge and unsplit** all restore
+from the snapshot that merge, split and update wrote, and each writes a **new** version equal
+to the old one; a version number is never set back, and `(segment_id, version)` is unique in
+`segmentversions` after any sequence of actions. No inverse takes geometry from the audit
+record; inverses carry ids and version numbers, read from `after`.
+
+**Undoing a change that is no longer the latest is refused.** An inverse names the version the
+action left (`expected_version = after.version`), so if the segment has changed since, the
+undo is refused as stale, with what changed, and nothing is overwritten. The same holds for
+undoing an undo. (`undelete` needs no expected version: a deleted segment cannot change, since
+update, merge, split and carry all refuse it, so "is it deleted" is its whole precondition;
+its inverse carries the versions from **after** the undelete.)
+
+**Typed notes are short.** `reason` and `note` are capped at 200 characters, are an operator's
+note, and must not quote a source: they are recorded inside the tamper-evident chain. Whether
+any typed words belong there is the maintainer's question (morning file).
+
 **Compare-and-set.** Inside the action's transaction: read the segment; if `version !=
 expected_version`, raise `SegmentStale` (HTTP 409) carrying `segment_id`, `expected_version`,
 `current_version` and `changed: list[str]` (the field names that differ between the two
