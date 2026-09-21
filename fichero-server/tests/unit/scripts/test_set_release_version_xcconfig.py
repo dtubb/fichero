@@ -42,6 +42,8 @@ def _make_fixture(tmp_path: Path, pbx_contents: str = "// no version literals\n"
     )
     (root / "fichero-server").mkdir()
     (root / "fichero-server" / "pyproject.toml").write_text(
+        '[tool.briefcase]\nversion = "2026.7.1"\n\n'
+        '[tool.fichero.kraken_bundle]\nversion = "7.1.1"\n\n'
         '[project]\nname = "fichero-server"\nversion = "2026.7.1"\n',
         encoding="utf-8",
     )
@@ -186,3 +188,22 @@ def test_self_check_contract_still_passes() -> None:
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "self-check: PASS" in result.stdout
+
+
+def test_the_stamp_leaves_another_tables_own_version_alone(tmp_path: Path) -> None:
+    """A version that is NOT the app's stays put (2026-09-20).
+
+    `[tool.fichero.kraken_bundle]`'s `version` pins the Kraken WHEEL. A bare
+    `^version = "<digit>` substitution rewrote it to the app's release version,
+    so the release lane tried to install a Kraken that does not exist and the
+    DMG's engine would have shipped with no Kraken at all. Only the app's own
+    two tables are stamped.
+    """
+    root = _make_fixture(tmp_path)
+    result = _run_stamp(root, "2026.09.21")
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    pyproject = (root / "fichero-server" / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'version = "7.1.1"' in pyproject, "the Kraken wheel pin must survive a release stamp"
+    # Both of the app's OWN version lines did move.
+    assert pyproject.count('version = "2026.9.21"') == 2, pyproject
