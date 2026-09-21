@@ -8,120 +8,61 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Sidebar
 // MARK: - Service Observers and Data Loading Extension
 
 extension SidebarView {
-    /// Set up observers for all library services using Combine
-    /// Uses $property publishers (not objectWillChange) to ensure we read AFTER mutations complete
+    /// Observe every open library's sidebar-driving stores, plus the global chain service.
+    ///
+    /// Every store here is `@Observable` (#1851, #1911, #2960), so there is no Combine publisher
+    /// to subscribe to — each observer is a `withObservationTracking` chain, armed through
+    /// `observerChains` so this call can SUPERSEDE the chains a previous call armed. It runs from
+    /// the view's `.task` and again on every open-library-count change; before the token, each
+    /// run stacked another immortal set on top (see `SidebarObserverChains`).
     func setupServiceObservers() {
-        // Cancel existing subscriptions
-        cancellables.removeAll()
+        observerChains.reset()
 
-        // Observe changes in all libraries' services
         for library in libraryManager.openLibraries {
-            // Observe document changes. DocumentStore is @Observable (#1851),
-            // so it has no Combine `$collections` publisher — use Observation
-            // tracking and re-arm after each mutation.
-            observeDocumentStore(library.documentStore, libraryId: library.id)
+            let libraryId = library.id
+            let documentStore = library.documentStore
+            observerChains.observe(
+                signature: {
+                    // `sidebarTreeSignature` reads `sidebarDocuments` (collections + the
+                    // children cache). `childrenCache` is @ObservationIgnored, so a change-stream
+                    // splice that lands rows ONLY there registers nothing (the 2026-08-24
+                    // folder-drop that never grew a chevron); `revision` is the store's
+                    // observable proxy for exactly those containers, and `currentDocuments`
+                    // churns on status polls the signature deliberately ignores (#3862). Read
+                    // all three so the chain wakes; the signature decides whether to rebuild.
+                    _ = documentStore.collections
+                    _ = documentStore.currentDocuments
+                    _ = documentStore.revision
+                    return sidebarTreeSignature(for: library)
+                },
+                onChange: { rebuildCaches(for: libraryId, reason: "documents") }
+            )
 
-            // Observe saved search + conversation changes. Both services are now
-            // @Observable (#2960), so they have no Combine `$` publishers — use
-            // Observation tracking, re-armed after each mutation.
-            observeSavedSearchService(library.savedSearchService, libraryId: library.id)
-            observeConversationService(library.conversationService, libraryId: library.id)
+            let savedSearchService = library.savedSearchService
+            observerChains.observe(
+                signature: { savedSearchService.savedSearches.hashValue },
+                onChange: { rebuildCaches(for: libraryId, reason: "savedSearches") }
+            )
 
-            // Observe workflow changes. WorkflowStore is now @Observable (#1911),
-            // so it has no Combine `$workflows` publisher — use Observation
-            // tracking, re-armed after each fire, to mirror the old behaviour
-            // (rebuild caches AFTER a workflow mutation completes).
-            observeWorkflowStore(library.workflowStore, libraryId: library.id)
+            let conversationService = library.conversationService
+            observerChains.observe(
+                signature: { conversationService.conversations.hashValue },
+                onChange: { rebuildCaches(for: libraryId, reason: "conversations") }
+            )
+
+            let workflowStore = library.workflowStore
+            observerChains.observe(
+                signature: { workflowStore.workflows.hashValue },
+                onChange: { rebuildCaches(for: libraryId, reason: "workflows") }
+            )
         }
 
-        // Observe chain changes (global ChainService, now @Observable #2960).
-        observeChainService(chainService)
-    }
-
-    /// Observe an @Observable ChainService's `chains` array and mirror it into
-    /// the sidebar's local `chains`. Re-arm after each fire (one-shot tracking).
-    func observeChainService(_ service: ChainService) {
-        withObservationTracking {
-            _ = service.chains
-        } onChange: {
-            Task { @MainActor in
-                chains = service.chains
-                observeChainService(service)
-            }
-        }
-    }
-
-    /// Observe an @Observable SavedSearchService's `savedSearches` and rebuild
-    /// caches after each mutation. Re-arm after each fire (one-shot tracking).
-    func observeSavedSearchService(_ service: SavedSearchService, libraryId: UUID) {
-        withObservationTracking {
-            _ = service.savedSearches
-        } onChange: {
-            Task { @MainActor in
-                rebuildCaches(for: libraryId)
-                observeSavedSearchService(service, libraryId: libraryId)
-            }
-        }
-    }
-
-    /// Observe an @Observable ConversationService's `conversations` and rebuild
-    /// caches after each mutation. Re-arm after each fire (one-shot tracking).
-    func observeConversationService(_ service: ConversationService, libraryId: UUID) {
-        withObservationTracking {
-            _ = service.conversations
-        } onChange: {
-            Task { @MainActor in
-                rebuildCaches(for: libraryId)
-                observeConversationService(service, libraryId: libraryId)
-            }
-        }
-    }
-
-    /// Observe an @Observable WorkflowStore's `workflows` array and rebuild the
-    /// sidebar caches when it changes. `withObservationTracking` fires once, so
-    /// we re-arm it on each change to keep observing for the view's lifetime.
-    func observeWorkflowStore(_ store: WorkflowStore, libraryId: UUID) {
-        withObservationTracking {
-            _ = store.workflows
-        } onChange: {
-            Task { @MainActor in
-                rebuildCaches(for: libraryId)
-                observeWorkflowStore(store, libraryId: libraryId)
-            }
-        }
-    }
-
-    /// Observe an @Observable DocumentStore's sidebar-driving arrays and
-    /// rebuild caches when either changes. Re-arm after each fire because
-    /// `withObservationTracking` is one-shot.
-    func observeDocumentStore(_ store: DocumentStore, libraryId: UUID) {
-        withObservationTracking {
-            _ = store.collections
-            _ = store.currentDocuments
-            // childrenCache is @ObservationIgnored, so reading it registers NO
-            // dependency — a change-stream splice that lands rows ONLY there
-            // (Ann's folder-drop on Inbox, 2026-08-24: import succeeded, no
-            // chevron ever appeared) never woke this observer. `revision` is
-            // the store's designated observable proxy for exactly those
-            // ignored containers; track it.
-            _ = store.childrenCache
-            _ = store.revision
-        } onChange: {
-            Task { @MainActor in
-                // #3862: currentDocuments (and status overrides on collections)
-                // churn on every processing poll, but they don't shape the sidebar
-                // tree. Only rebuild when the tree-relevant signature actually
-                // changed — otherwise a status-poll storm rebuilt the whole tree
-                // and re-rendered the entire List for no visible change.
-                if let library = libraryManager.getLibrary(id: libraryId) {
-                    let signature = sidebarTreeSignature(for: library)
-                    if sidebarTreeSignatures[libraryId] != signature {
-                        rebuildCaches(for: libraryId)
-                    }
-                }
-                observeDocumentStore(store, libraryId: libraryId)
-            }
-        }
+        // The global chain list is mirrored into the view's own `chains`, not rebuilt from.
+        let service = chainService
+        observerChains.observe(
+            signature: { service.chains.hashValue },
+            onChange: { chains = service.chains }
+        )
     }
 
     /// Load automation data (schedules and triggers)

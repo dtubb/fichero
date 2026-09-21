@@ -10,8 +10,17 @@ extension SidebarView {
     // the sidebar caches are ready (#2548) — see `sidebarShouldReconcileSelection`.
     // `lastHandledSelectionDestination` keeps this idempotent: re-invoking with the same
     // id is a no-op, so the reconcile path never double-handles a live click.
-    func handleSelectionChange(_ newDestination: SidebarDestination?) {
+    //
+    // `reason` says which of the two callers this is — it only reaches the opt-in diagnostic
+    // line (`RenderDiagnostics`), so a doubled selection in the console names its second source.
+    func handleSelectionChange(_ newDestination: SidebarDestination?, reason: String) {
         sidebarViewLogger.info("selectedItemId changed to: \(newDestination?.serializedID ?? "nil")")
+        if RenderDiagnostics.printChanges {
+            let alreadyHandled = lastHandledSelectionDestination == newDestination
+            sidebarViewLogger.info(
+                "◆ handleSelectionChange reason: \(reason, privacy: .public), already handled: \(alreadyHandled)"
+            )
+        }
         guard let destination = newDestination else {
             lastHandledSelectionDestination = nil
             return
@@ -30,6 +39,23 @@ extension SidebarView {
     }
 
     private func handleSelectionDestination(_ destination: SidebarDestination) {
+        // A newer selection supersedes one still waiting for its library.
+        pendingCrossLibraryRoute = nil
+        // A selection from ANOTHER library switches the window first and routes when that
+        // lands — never in the same turn, while the content column still holds the old
+        // library's stores (#4995/#4996, `CrossLibraryRoute`).
+        let step = CrossLibraryRoute.firstStep(
+            destinationLibraryId: libraryId(of: destination),
+            windowLibraryId: windowState.libraryId
+        )
+        if case .switchLibraryFirst(let targetLibraryId) = step {
+            sidebarViewLogger.info(
+                "Switching window from library \(windowState.libraryId) to library \(targetLibraryId) before routing"
+            )
+            pendingCrossLibraryRoute = CrossLibraryRoute.Pending(libraryId: targetLibraryId, destination: destination)
+            windowState.libraryId = targetLibraryId
+            return
+        }
         switch destination {
         case .library(let libraryId):
             if windowState.libraryId != libraryId {
@@ -94,6 +120,37 @@ extension SidebarView {
         }
     }
 
+    /// The library a destination belongs to, or `nil` for one that belongs to none (the
+    /// browser sections, a run) or that the item index cannot resolve.
+    private func libraryId(of destination: SidebarDestination) -> UUID? {
+        switch destination {
+        case .library(let libraryId), .knowledgeCollection(_, let libraryId):
+            return libraryId
+        case .browser, .run:
+            return nil
+        default:
+            return cachedItem(id: destination.serializedID)?.libraryId
+        }
+    }
+
+    /// Route the selection that was waiting for `landedLibraryId` (`.onChange(of:
+    /// windowState.libraryId)`). If the window landed on a different library than the
+    /// selection asked for, nothing routes and the selection is un-stamped so a re-click works.
+    func routePendingCrossLibrarySelection(landedLibraryId: UUID) {
+        let pending = pendingCrossLibraryRoute
+        pendingCrossLibraryRoute = nil
+        guard let destination = CrossLibraryRoute.destinationToRoute(
+            pending: pending, landedLibraryId: landedLibraryId
+        ) else {
+            if pending != nil {
+                sidebarViewLogger.error("Window landed on \(landedLibraryId), not the selection's library — not routed")
+                lastHandledSelectionDestination = nil
+            }
+            return
+        }
+        handleSelectionDestination(destination)
+    }
+
     // `SidebarBrowserDestination` routes each browser section to a distinct
     // sidebar mode/view mode — split out of `handleSelectionDestination` to keep
     // that switch's complexity low.
@@ -135,7 +192,7 @@ extension SidebarView {
             selectedId: selectedDestination?.serializedID,
             lastHandled: lastHandledSelectionDestination?.serializedID
         ) else { return }
-        handleSelectionChange(selectedDestination)
+        handleSelectionChange(selectedDestination, reason: "reconcile")
     }
 
     // Handle sidebar item selection and update view mode
@@ -194,9 +251,10 @@ extension SidebarView {
         // Switch window's library if the selected item belongs to a different library
         if let itemLibraryId = item.libraryId, itemLibraryId != windowState.libraryId {
             sidebarViewLogger.info("Switching window from library \(windowState.libraryId) to library \(itemLibraryId)")
+            // Unreached for a sidebar click since #4995/#4996: `handleSelectionDestination`
+            // switches the library FIRST and routes only once it has landed
+            // (`CrossLibraryRoute`). Kept as the last line of defence for any other caller.
             windowState.libraryId = itemLibraryId
-            // Wait for next run loop to allow SwiftUI to update environment objects
-            // This ensures the new library's services are injected before we try to use them
         } else {
             sidebarViewLogger.info("Item belongs to current library: \(windowState.libraryId)")
         }

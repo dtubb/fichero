@@ -10,12 +10,16 @@ enum SidebarItemBuilder {
     /// Returns a flat list of items that can be children of a library header
     @MainActor
     static func buildLibraryGroup(
-        library: LibraryManager.LibraryReference
+        library: LibraryManager.LibraryReference,
+        reason: String = "all"
     ) -> [SidebarItem] {
         let documents = library.documentStore.sidebarDocuments
         // Per-rebuild logging demoted to debug (perf audit 2026-08-19): these
         // fired once a second for the whole of an import.
-        sidebarBuilderLogger.debug("⏱ SidebarItemBuilder.build entry — \(documents.count) docs in \(library.displayName)")
+        let libraryName = library.displayName
+        sidebarBuilderLogger.debug(
+            "⏱ SidebarItemBuilder.build entry — \(documents.count) docs in \(libraryName) (reason: \(reason, privacy: .public))"
+        )
         var allItems: [SidebarItem] = []
 
         // Add document folders first
