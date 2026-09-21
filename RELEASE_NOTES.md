@@ -55,6 +55,28 @@ on) alongside named models — pick a role and it always follows whatever you've
 Vision could already do. A finished workflow run now tells the app what it saved, so a
 segmentation overlay can appear on its own instead of waiting for a click.
 
+**Also in this build (build 11).**
+
+- **Kraken comes with the app.** Kraken segmentation is now installed inside Fichero, so there
+  is nothing to download before a run. If your Mac is short of memory, Kraken says so plainly and
+  waits for you, rather than risking a crash.
+- **Faster knowledge.** Opening an entity no longer reads the whole library first: a large
+  library that took seconds now answers at once.
+- **Activity.** The Activity window and its toolbar popover show the same list of runs, and
+  finished runs can be deleted.
+- **Safer upgrades.** When an update changes a library's database, each change now completes
+  fully or not at all, and a failure is reported instead of passing silently. The old command
+  that erased a library's whole knowledge graph in one step has been removed.
+- **Panes.** Dragging a divider now resizes only the panes on either side of it, a split no
+  longer leaves an empty band, and the bottom Library strip can be resized.
+- **Fewer repeated loads.** Clicking an item in another library, or turning to the next page,
+  no longer asks for the same data several times over.
+
+**Known issues in this build.** A second Library pane can show a different kind of item than
+its label says. Splitting a pane can leave its two halves unequal. The Claims list can appear
+empty at the top folder of a library that has claims. Some entity biographies put a date where
+the person should be. These are being worked on.
+
 ## 2026.09.18
 
 - Workspaces: one pane model, persisted across relaunch; stable divider positions; Split from the menu.
