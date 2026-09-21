@@ -19,11 +19,9 @@ class ArtifactService {
     /// Loading state per document
     private(set) var loadingDocuments: Set<String> = []
 
-    /// The fetch on its way for each cache key, so concurrent callers share it. Not observed:
-    /// it is plumbing, and observing it would re-render every reader of this service per fetch.
+    /// The fetch on its way per cache key, so callers share it. Not observed: plumbing.
     @ObservationIgnored private var inFlightFetches: [String: InFlightFetch] = [:]
-    /// Bumped by every write and cache clear. A fetch that STARTED before a write may carry the
-    /// old answer, so it is neither joined nor stored once the number has moved on.
+    /// Bumped by every write and clear: a fetch that started earlier is neither joined nor stored.
     @ObservationIgnored private var writeGeneration = 0
 
     private struct InFlightFetch {
@@ -75,17 +73,12 @@ class ArtifactService {
         return all.filter { $0.artifactType == type }
     }
 
-    /// The document's FULL artifact list: from the cache, from a fetch already on its way, or
-    /// from a new fetch. Two rules live here, at the one seam every caller shares (#5003):
-    ///
-    /// - **One fetch at a time per document.** A page change makes the Preview, the Reader, the
-    ///   Inspector, the overlay and the film strip all ask at once. The cache is only filled when
-    ///   a response ARRIVES, so each of them used to send its own request (five for one swipe).
-    ///   Callers now join the fetch in flight. A `forceRefresh` caller joins it too: a fetch that
-    ///   started a moment ago is as fresh as one it would start itself.
-    /// - **The server is always asked for every type.** A typed request used to store its
-    ///   FILTERED answer under the document's key, so a later untyped caller got, say, only the
-    ///   translations (often none) as "all artifacts". The type filter is applied locally.
+    /// The document's FULL artifact list, from the cache, from a fetch already on its way, or
+    /// from a new one. Two rules, at the one seam every caller shares (#5003): concurrent
+    /// callers JOIN the fetch in flight (a page change asks from five views at once, and the
+    /// cache only fills when a response arrives, so each used to send its own request); and the
+    /// server is always asked for EVERY type, because a typed request used to store its filtered
+    /// answer as the document's whole list. The type filter is applied locally.
     private func allArtifacts(
         documentId: String, cacheKey: String, includeDescendants: Bool, forceRefresh: Bool
     ) async throws -> [Artifact] {
