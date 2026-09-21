@@ -121,23 +121,10 @@ validation:
 nav:
   - Home: index.md
   - User Guide:
-      - Overview: user_manual/README.md
-      # User guide organized as FOLDERS = PARTS (docs/user_manual/guide/<part>/…), the
-      # layout Daniel edits in Typora. HAND-MAINTAINED, explicit nav (offline-safe,
-      # no awesome-pages). Part names/order follow the About. Front-matter pages in
-      # 1-introduction are Daniel's authored prose (verbatim, no AI note). The
-      # "Editing" part (7th in the About) is omitted until its chapter exists.
-      - Introduction:
-          - Philosophy of Fichero: user_manual/guide/1-introduction/1-philosophy-of-fichero.md
-          - What Is Fichero?: user_manual/guide/1-introduction/2-what-is-fichero.md
-          - Who Is Fichero For?: user_manual/guide/1-introduction/3-who-is-fichero-for.md
-          - How Does Fichero Work?: user_manual/guide/1-introduction/4-how-does-fichero-work.md
-          - About This Manual: user_manual/guide/1-introduction/5-about-this-manual.md
-          - A Few Conventions: user_manual/guide/1-introduction/6-a-few-conventions.md
-      # Parts 2–8 (Preparation onward) are AI-drafted and NOT published to
-      # tubb.ca yet — the .md files stay in the repo (GitHub) but are removed
-      # from the site nav and excluded from the build (see exclude_docs above).
-      # Restore these nav entries once the chapters are human-reviewed.
+      - Overview: user-guide.md
+      # The user manual is being rewritten outside this repo and is not published
+      # (2026-09-21): the old guide pages were removed from the site and this page
+      # says it is coming. Restore a guide section here when the manual is ready.
       - Feature Matrix: reference_manual/features.md
       # BEGIN generated capability reference nav — scripts/generate_capability_reference.py
       - Reference:
