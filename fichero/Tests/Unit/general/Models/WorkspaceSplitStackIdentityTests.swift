@@ -33,59 +33,65 @@ struct WorkspaceSplitStackIdentityTests {
         #expect(decoded.isEmpty)
     }
 
-    // MARK: - Renormalization (#4972's own fix: survivors grow into freed space)
+    // MARK: - A stored size is used as it is (#5014, #5012)
 
-    @Test("no stored values leaves the array unchanged (every child falls back to its own default)")
-    func noStoredValuesIsUnchanged() {
-        let defaults: [Double?] = [0.3, 0.7]
-        let stored: [Double?] = [nil, nil]
-        let result = WorkspaceSplitStack.renormalizedFractions(defaults: defaults, stored: stored)
-        #expect(result == [nil, nil])
+    /// Browse's row: Library 0.15, Preview 0.60, Reader flexing. Real pane ids from the built-in.
+    private static let browseSizings: [WorkspaceSplitStack.Sizing] = [.fraction(0.15), .fraction(0.60), .flex]
+    private static var browseIDs: [UUID] { BuiltInWorkspaceLayout.browse.panes.nodes.map(\.id) }
+
+    @Test("nothing stored: every child falls back to its own default")
+    func nothingStoredMeansNoOverrides() {
+        let overrides = WorkspaceSplitStack.storedOverrides(
+            sizings: Self.browseSizings, ids: Self.browseIDs, storedById: [:], total: 1000
+        )
+        #expect(overrides == [nil, nil, nil])
     }
 
-    /// THE key case: two `.fraction` peers each hold a stored (dragged) value; the FIRST one's
-    /// sibling closes (so it is now the ONLY `.fraction` child — `defaults`/`stored` each have
-    /// one entry). Its normalized fraction must equal its OWN default share, not its old
-    /// (now-meaningless, since its sibling is gone) stored proportion relative to a sibling
-    /// that no longer exists.
-    @Test("a survivor whose sibling closed grows to its own default share, not its stale stored fraction")
-    func survivorGrowsToItsOwnDefaultShareAfterASiblingCloses() {
-        // Before close: two peers, defaults [0.3, 0.7], user dragged them to [0.5, 0.5].
-        // After close: only the survivor remains — defaults [0.3], stored [0.5].
-        let defaults: [Double?] = [0.3]
-        let stored: [Double?] = [0.5]
-        let result = WorkspaceSplitStack.renormalizedFractions(defaults: defaults, stored: stored)
-        #expect(result == [0.3], "the lone survivor's normalized share is its OWN default — 100% of what it's now entitled to")
+    /// #5012: with ONLY the Library dragged, the old per-pass rescale computed (v / v) x default,
+    /// which is always the default, so the drag was undone and the divider looked dead.
+    @Test("one dragged pane keeps its dragged size; it is not scaled back to its default")
+    func aLoneStoredSizeSurvives() {
+        let ids = Self.browseIDs
+        let overrides = WorkspaceSplitStack.storedOverrides(
+            sizings: Self.browseSizings, ids: ids, storedById: [ids[0]: 0.30], total: 1000
+        )
+        #expect(overrides[0] == 300, "the Library was dragged to 30 percent and stays there")
+        #expect(overrides[1] == nil, "the Preview was never dragged")
     }
 
-    @Test("two stored peers renormalize to sum to their COLLECTIVE default share, not 1.0 outright")
-    func twoStoredPeersRenormalizeToTheirCollectiveDefaultShare() {
-        // Two `.fraction` peers with a combined default of 0.5 (the rest is a `.flex` sibling's
-        // share, which this function never touches); the user dragged them to a lopsided 0.9/0.1.
-        let defaults: [Double?] = [0.2, 0.3]
-        let stored: [Double?] = [0.9, 0.1]
-        let result = WorkspaceSplitStack.renormalizedFractions(defaults: defaults, stored: stored)
-        let expectedSum = 0.5  // 0.2 + 0.3 — the collective share their defaults were entitled to
-        let resultSum = (result[0] ?? 0) + (result[1] ?? 0)
-        #expect(abs(resultSum - expectedSum) < 0.0001, "renormalized peers must sum to their collective DEFAULT share")
-        #expect(abs((result[0] ?? 0) / (result[1] ?? 0) - 9.0) < 0.0001, "the 9:1 dragged RATIO between them survives")
+    /// #5014: with two stored sizes the old rescale pinned their SUM to the sum of their
+    /// defaults, so dragging the right-hand divider could only move the left-hand pane.
+    @Test("dragging one pane leaves another dragged pane's size alone")
+    func twoStoredSizesAreIndependent() {
+        let ids = Self.browseIDs
+        let before = WorkspaceSplitStack.storedOverrides(
+            sizings: Self.browseSizings, ids: ids, storedById: [ids[0]: 0.20, ids[1]: 0.50], total: 1000
+        )
+        let after = WorkspaceSplitStack.storedOverrides(
+            sizings: Self.browseSizings, ids: ids, storedById: [ids[0]: 0.20, ids[1]: 0.40], total: 1000
+        )
+        #expect(before[0] == 200)
+        #expect(after[0] == 200, "the Library did not move when the Preview's divider was dragged")
+        #expect(after[1] == 400)
     }
 
-    @Test("a mix of stored and never-dragged children: unset ones keep nil, stored ones renormalize among themselves")
-    func mixOfStoredAndUnsetChildren() {
-        let defaults: [Double?] = [0.2, 0.3, 0.1]
-        let stored: [Double?] = [0.6, nil, 0.4]
-        let result = WorkspaceSplitStack.renormalizedFractions(defaults: defaults, stored: stored)
-        #expect(result[1] == nil, "the never-dragged child keeps nil — falls back to its OWN default, untouched")
-        let storedSum = (result[0] ?? 0) + (result[2] ?? 0)
-        let expectedSum = 0.2 + 0.1  // the two STORED children's collective default share
-        #expect(abs(storedSum - expectedSum) < 0.0001)
+    @Test("a closed pane's stored size is simply never read")
+    func aClosedPanesStoredSizeIsIgnored() {
+        let ids = Self.browseIDs
+        let survivors = [ids[0], ids[2]]
+        let overrides = WorkspaceSplitStack.storedOverrides(
+            sizings: [.fraction(0.15), .flex], ids: survivors,
+            storedById: [ids[0]: 0.20, ids[1]: 0.50], total: 1000
+        )
+        #expect(overrides == [200, nil], "the survivor keeps its size and the flexing pane takes the freed space")
     }
 
-    @Test("mismatched array lengths return the stored array unchanged rather than crashing")
-    func mismatchedLengthsReturnsStoredUnchanged() {
-        let result = WorkspaceSplitStack.renormalizedFractions(defaults: [0.5], stored: [0.3, 0.7])
-        #expect(result == [0.3, 0.7])
+    @Test("mismatched array lengths give no overrides rather than crashing")
+    func mismatchedLengthsGiveNoOverrides() {
+        let overrides = WorkspaceSplitStack.storedOverrides(
+            sizings: Self.browseSizings, ids: [], storedById: [:], total: 1000
+        )
+        #expect(overrides == [nil, nil, nil])
     }
 
     // MARK: - A workspace's default proportions (Browse: 15/60/25, #4966)

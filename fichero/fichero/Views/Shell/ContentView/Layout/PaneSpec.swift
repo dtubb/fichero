@@ -317,12 +317,11 @@ extension ContentView {
                 sizing: extents[index]
             )
         }
-        // The leading node's own id makes the key workspace-unique (#4688): a bare "root" (or a
-        // tree-position string) is the SAME for every applied workspace, so Read's inner split and
-        // Transcribe's film strip — both at position "0" — shared one @SceneStorage slot. A node's
-        // id is fresh per applied `PaneList`, so two different workspaces' top-level rows never
-        // collide even though they're both "root".
-        let storageKey = WorkspaceSplitStack.storageKey(keyPath: "root", leadingChildID: list.nodes.first?.id)
+        // The key is this row's tree POSITION alone (#4994): the row keeps its view identity
+        // across an applied workspace, so a key that changed with the workspace changed under a
+        // live `@SceneStorage`. Sizes stay per-workspace because the stored value is keyed by
+        // each child's own pane id (`id: node.id` above) — see `WorkspaceSplitStack.storageKey`.
+        let storageKey = WorkspaceSplitStack.storageKey(keyPath: "root")
         WorkspaceSplitStack(axis: .horizontal, storageKey: storageKey, children: columns)
     }
 
@@ -452,11 +451,9 @@ extension ContentView {
                 sizing: extents[idx]
             )
         }
-        // Same workspace-unique-key fix as `paneListRow` (#4688): `keyPath` alone is a tree
-        // POSITION, identical across every workspace, so two different workspaces' splits at the
-        // same position collided. The leading child's own id (fresh per applied `PaneList`) makes
-        // this key unique per workspace, not just per position.
-        let storageKey = WorkspaceSplitStack.storageKey(keyPath: keyPath, leadingChildID: children.first?.id)
+        // Same rule as `paneListRow` (#4994): the tree position alone; per-workspace sizes ride
+        // the pane-id keys inside the stored value.
+        let storageKey = WorkspaceSplitStack.storageKey(keyPath: keyPath)
         return AnyView(WorkspaceSplitStack(axis: axis, storageKey: storageKey, children: views))
     }
 
@@ -506,9 +503,9 @@ extension ContentView {
     /// the mix so the pane list always has somewhere that absorbs a total that doesn't divide
     /// evenly, and preserves which slot flexes today: the FIRST peer when a pin is present (the
     /// rule that keeps the Transcribe/Compare film strip pinned while the content above it fills
-    /// the rest), the LAST peer when there is no pin (CD 2026-09-17's rule for the un-pinned
-    /// workspaces). With a pin and no peer at all, nothing is left to flex — every child is
-    /// either pinned or explicitly fractioned, so each just keeps its own preference.
+    /// the rest), the LAST peer when there is no pin (the rule for the un-pinned workspaces). With
+    /// NO peer at all, the last child that is not a pin flexes instead (every child a pin: the
+    /// last one), so a split can never be left with nothing to absorb the remainder.
     ///
     /// KNOWN LIMITATION, not exercised by any built-in and not part of #4849's reported shape
     /// (every built-in pairs a pin with exactly ONE peer, which is always correct): with a pin
@@ -535,12 +532,19 @@ extension ContentView {
             : max(0, 1 - explicitFractionSum) / Double(peerIndices.count)
 
         let hasPin = preferences.contains(where: isPinned)
-        let flexIndex: Int? = hasPin ? peerIndices.first : peerIndices.last
+        // A split ALWAYS has one flexing child (#5011, #5014). With no peer to flex, the explicit
+        // shares alone decide the layout: two halves that each copied a 0.4 share filled 0.8 of
+        // their split and left the rest empty, and closing the flexing pane of a row left its
+        // share as a gap. So when no peer exists, the LAST child that is not a pin gives up its
+        // explicit share and flexes; when every child is a pin, the last one does.
+        let lastUnpinned = preferences.indices.last { !isPinned(preferences[$0]) }
+        let flexIndex: Int = (hasPin ? peerIndices.first : peerIndices.last)
+            ?? lastUnpinned ?? (preferences.count - 1)
 
         return preferences.indices.map { idx in
+            if idx == flexIndex { return .flex }
             if isPinned(preferences[idx]) { return preferences[idx]! }
             if let preference = preferences[idx] { return preference }
-            if idx == flexIndex { return .flex }
             return .fraction(peerShare)
         }
     }

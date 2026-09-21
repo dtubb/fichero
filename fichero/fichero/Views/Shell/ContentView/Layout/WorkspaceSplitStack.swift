@@ -78,19 +78,18 @@ struct WorkspaceSplitStack: View {
     /// pane's old width as a gap and the survivors never growing into it. Keyed by `Child.id`
     /// instead: a closed pane's id is simply never looked up again (nothing prunes the JSON
     /// entry, nothing needs to — `storedOverrides` only ever reads the CURRENT children's own
-    /// ids), and the survivors' stored shares are renormalized (`renormalizedFractions`, below)
-    /// so they again sum to what their own DEFAULT fractions would have — the "grow into the
-    /// freed space" contract. A single JSON-encoded string, not a per-id `@SceneStorage`
+    /// ids). The survivors grow into the freed space because `PaneSpec.childSizings` always leaves
+    /// one FLEXING pane, which absorbs it — stored values are never rescaled (#5014). A single
+    /// JSON-encoded string, not a per-id `@SceneStorage`
     /// property (which needs FIXED properties, per the old three-slot comment this replaces) —
     /// this is why it can hold any number of ids without another #4849-style slot cap.
     ///
     /// Stored as FRACTIONS, not the old absolute points: a fraction naturally re-scales with
-    /// `total` (a window resize) and is what `renormalizedFractions` needs to redistribute
-    /// after a close — an absolute point value carries no notion of "share of the whole" to
-    /// redistribute.
+    /// `total` (a window resize); an absolute point value would not.
     ///
     /// A DIFFERENT `@SceneStorage` key name than the old `"wsplit.<key>.0/1/2"` (`"wsplit.<key>.
-    /// fractions"` — see `init`) — old positional values are simply never read into this path,
+    /// fractions"` — see `init`), where `<key>` is the split's tree position alone (`storageKey`,
+    /// #4994) — old positional values are simply never read into this path,
     /// same as slice A's "stale keys must be harmless" rule: a pre-migration window resets ONCE,
     /// landing on the workspace's own DEFAULT proportions (Browse still opens 15/60/25), not on
     /// equal thirds — `storedOverrides` returns `nil` for every id absent from a fresh `"{}"`,
@@ -104,19 +103,27 @@ struct WorkspaceSplitStack: View {
         self._storedFractionsJSON = SceneStorage(wrappedValue: "{}", "wsplit.\(storageKey).fractions")
     }
 
-    /// A workspace-unique storage-key component (#4688): `keyPath` alone is a tree POSITION
-    /// ("0", "0.1", …), identical across every workspace, so Read's inner split and Transcribe's
-    /// film strip — both at position "0" — shared one @SceneStorage slot ("drag Read's divider
-    /// once, switch to Transcribe → the strip is the dragged height, not 72"). `leadingChildID` is a
-    /// `PaneNode`'s own id, freshly generated per applied `PaneList`, so two different workspaces'
-    /// splits at the same tree position never collide. `keyPath` stays in the key too, purely for
-    /// human-readable debugging (e.g. in a `defaults read`).
+    /// The storage-key component: the split's tree POSITION ("root", "0", "0.1", …) and nothing
+    /// else (#4994). A position is fixed for the life of the view that sits at it, which is what
+    /// `@SceneStorage` requires — its key is read ONCE, when the view is first installed.
+    ///
+    /// This used to append the leading child's pane id (#4688), so that Read's inner split and
+    /// Transcribe's film strip — both at position "0" — did not share one slot of positional
+    /// extents. But the stack at a position keeps its SwiftUI identity when a different
+    /// workspace is applied (or its leading pane is split or closed) while that id changes, so
+    /// the key changed under a live view: SwiftUI kept the first key, logged "SceneStorage may
+    /// not change its key after initialization" on every later render, and wrote every drag
+    /// into the FIRST workspace's slot. #4688's purpose — a size never leaks between workspaces
+    /// — is now served INSIDE the value: the stored JSON is keyed by pane id
+    /// (`storedFractionsJSON`), the five built-in workspaces' ids are deterministic and pairwise
+    /// disjoint, and a runtime-created pane mints a fresh id. `WorkspaceSplitStackSizingTests`
+    /// pins both halves.
     // #4902: `nonisolated` is load-bearing, not decorative — WorkspaceSplitStackSizingTests
     // is a non-@MainActor Swift Testing suite that calls this directly; a View's static
     // members are @MainActor-isolated by default (Swift 6), so without this the call would
     // not even compile off-main. Pure string composition, no actor-isolated state read.
-    nonisolated static func storageKey(keyPath: String, leadingChildID: UUID?) -> String {
-        "\(keyPath)-\(leadingChildID?.uuidString ?? keyPath)"
+    nonisolated static func storageKey(keyPath: String) -> String {
+        keyPath
     }
 
     var body: some View {
@@ -177,24 +184,10 @@ struct WorkspaceSplitStack: View {
         storedFractionsJSON = json
     }
 
-    /// Renormalizes STORED per-child fractions so their collective share matches what their own
-    /// DEFAULT fractions (`child.sizing`'s `.fraction` value, freshly computed every render by
-    /// `PaneSpec.childSizings` from the CURRENT sibling set — unchanged, already correct) would
-    /// have summed to. `PaneSpec.childSizings` already handles "how much do the fraction-sized
-    /// children collectively get vs. the flex sibling" correctly per render; this only
-    /// redistributes the STORED, user-dragged PROPORTION of that same collective share among
-    /// whichever of them have one — so closing a peer whose OWN fraction disappears from
-    /// `defaults` leaves the survivors' stored shares summing to the survivors' own fresh
-    /// collective share, i.e. they grow into the freed space instead of leaving a gap. A child
-    /// with no stored value keeps `nil` — the caller's existing "fall back to its own default ×
-    /// total" rule, unchanged.
-    ///
     /// The resolved value for a `.fixed` (default-extent) child: its own stored drag if present,
     /// floored at its configured default — a drag can grow the strip, never shrink it below the
     /// size its workspace defines (slice D, 2026-09-20, #4876/#4848). `nil` (never dragged) tells
-    /// the caller to fall back to `points` itself. Independent of any sibling — unlike
-    /// `.fraction`'s `renormalizedFractions`, a `.fixed` child's own drag never redistributes
-    /// against another child's, so closing a sibling can never disturb it.
+    /// the caller to fall back to `points` itself. Independent of any sibling: closing one can never disturb it.
     ///
     /// Pure, `nonisolated`, directly unit-testable without a view.
     nonisolated static func resolvedFixedExtent(default points: Double, stored: Double?) -> Double? {
@@ -202,56 +195,44 @@ struct WorkspaceSplitStack: View {
         return max(points, stored)
     }
 
-    /// Pure, `nonisolated`, directly unit-testable without a view.
-    nonisolated static func renormalizedFractions(
-        defaults: [Double?], stored: [Double?]
-    ) -> [Double?] {
-        guard defaults.count == stored.count else { return stored }
-        let presentIndices = stored.indices.filter { stored[$0] != nil }
-        guard !presentIndices.isEmpty else { return stored }
-        let presentSum = presentIndices.reduce(0.0) { $0 + stored[$1]! }
-        guard presentSum > 0 else { return stored }
-        let defaultSumForPresent = presentIndices.reduce(0.0) { $0 + (defaults[$1] ?? 0) }
-        return stored.indices.map { index in
-            guard let value = stored[index] else { return nil }
-            return (value / presentSum) * defaultSumForPresent
-        }
-    }
-
-    /// The stored override for each RESIZABLE child (`.fraction` OR `.fixed` — slice D,
-    /// 2026-09-20: `.fixed` gained a drag too), in child order, as ABSOLUTE POINTS
-    /// (`resolvedExtents`'s existing contract, unchanged) — `nil` for a child never dragged (so
-    /// `resolvedExtents` falls back to its own default), and `nil` for `.flex` (no stored value).
+    /// The stored override for each RESIZABLE child (`.fraction` or `.fixed`), in child order,
+    /// as ABSOLUTE POINTS (`resolvedExtents`'s contract) — `nil` for a child never dragged (it
+    /// falls back to its own default) and for `.flex` (which stores nothing).
     ///
-    /// The SAME id-keyed store holds both kinds, but the NUMBER means something different per
-    /// kind, disambiguated here by `child.sizing`: for `.fraction`, it's a 0...1 SHARE (hence the
-    /// renormalize-then-`*total` step, shared collective-share math with its `.fraction`
-    /// siblings — `renormalizedFractions`); for `.fixed`, it's already absolute POINTS, floored
-    /// at the child's own configured default (`max(points, stored)`) — a film strip's drag is
-    /// independent of any sibling, never renormalized against one.
-    private func storedOverrides(total: Double) -> [Double?] {
-        let storedById = storedFractionsById()
-        var defaults: [Double?] = []
-        var storedFractionsList: [Double?] = []
-        for child in children {
-            guard case let .fraction(fraction) = child.sizing else {
-                defaults.append(nil); storedFractionsList.append(nil); continue
-            }
-            defaults.append(fraction)
-            storedFractionsList.append(storedById[child.id])
-        }
-        let normalizedFractions = Self.renormalizedFractions(defaults: defaults, stored: storedFractionsList)
-
-        return children.enumerated().map { index, child in
-            switch child.sizing {
+    /// One id-keyed store holds both kinds; the NUMBER means something different for each: for
+    /// `.fraction` a 0...1 share of the stack, for `.fixed` absolute points floored at the
+    /// child's configured default.
+    ///
+    /// A stored value is what the person dragged, and it is used AS IT IS (#5014). An earlier
+    /// version rescaled the stored fractions on every pass so that together they summed to their
+    /// defaults: a lone dragged pane was scaled straight back to its default (its divider looked
+    /// dead, #5012), and two dragged panes could only trade with EACH OTHER, so dragging the
+    /// right divider moved the left pane. A divider trades space between the pane it sizes and
+    /// the flexing pane, nothing else; `resolvedExtents`' sum-clamp keeps the row fitting, and
+    /// `PaneSpec.childSizings` guarantees a flexing pane so a close never leaves a gap.
+    ///
+    /// Pure, `nonisolated`, directly unit-testable without a view.
+    nonisolated static func storedOverrides(
+        sizings: [Sizing], ids: [UUID], storedById: [UUID: Double], total: Double
+    ) -> [Double?] {
+        guard sizings.count == ids.count else { return sizings.map { _ in nil } }
+        return sizings.indices.map { index in
+            switch sizings[index] {
             case .fraction:
-                return normalizedFractions[index].map { $0 * total }
+                return storedById[ids[index]].map { $0 * total }
             case let .fixed(points):
-                return Self.resolvedFixedExtent(default: points, stored: storedById[child.id])
+                return resolvedFixedExtent(default: points, stored: storedById[ids[index]])
             case .flex:
                 return nil
             }
         }
+    }
+
+    private func storedOverrides(total: Double) -> [Double?] {
+        Self.storedOverrides(
+            sizings: children.map(\.sizing), ids: children.map(\.id),
+            storedById: storedFractionsById(), total: total
+        )
     }
 
     /// The children interleaved with dividers. A divider sits between a resizable child and the

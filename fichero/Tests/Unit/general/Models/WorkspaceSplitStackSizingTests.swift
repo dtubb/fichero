@@ -3,7 +3,8 @@ import Foundation
 import SwiftUI
 import Testing
 
-/// #4688 — proportional splits + the sum-clamp + workspace-unique storage keys. All PURE: no view
+/// #4688 — proportional splits + the sum-clamp + sizes that never leak between workspaces
+/// (by pane id inside the stored value since #4994, not by storage key). All PURE: no view
 /// mounted, no GeometryReader, no @SceneStorage. `WorkspaceSplitStack.resolvedExtents` and
 /// `.storageKey` are the extracted maths/keying the fix relies on.
 struct WorkspaceSplitStackSizingTests {
@@ -76,25 +77,59 @@ struct WorkspaceSplitStackSizingTests {
         #expect(WorkspaceSplitStack.Sizing.preferred(extent: nil, fraction: nil) == nil)
     }
 
-    // MARK: - Storage keys differ across workspaces at the same tree position (#4688 defect 3)
+    // MARK: - Sizes never leak between workspaces at the same tree position (#4688, #4994)
 
-    @Test("storage keys at the same tree position differ across the five built-in workspaces")
-    func storageKeysDifferAcrossWorkspaces() {
-        // Read's inner split and Transcribe/Compare's film-strip split are BOTH nominally the
-        // top-level "root" position — the exact collision the issue reports ("wsplit.0.0" shared
-        // by Read's inner split and the film strip). Each workspace's `PaneList` carries freshly
-        // generated node ids, so keying on the leading child's id (not just "root") must diverge.
-        let keys = BuiltInWorkspaceLayout.allCases.map { layout in
-            WorkspaceSplitStack.storageKey(keyPath: "root", leadingChildID: layout.panes.nodes.first?.id)
+    /// Every node id (leaf and split) in a composition — a stack's children can be either.
+    private func nodeIDs(of list: PaneList) -> [UUID] {
+        func walk(_ node: PaneNode) -> [UUID] {
+            switch node {
+            case .leaf: return [node.id]
+            case let .split(_, _, children): return [node.id] + children.flatMap(walk)
+            }
         }
-        #expect(Set(keys).count == keys.count)
+        return list.nodes.flatMap(walk)
+    }
+
+    /// The storage key is a tree POSITION and is the same for every workspace (#4994: a key that
+    /// followed the workspace changed under a live `@SceneStorage`). What keeps Read's split and
+    /// Transcribe's film strip — both at one position — from sharing a size is that the stored
+    /// value is keyed by pane id, and no two built-in workspaces share one.
+    @Test("the five built-in workspaces' pane ids are pairwise disjoint")
+    func builtInPaneIDsAreDisjoint() {
+        let all = BuiltInWorkspaceLayout.allCases.flatMap { nodeIDs(of: $0.panes) }
+        #expect(!all.isEmpty)
+        #expect(Set(all).count == all.count, "two built-in panes share an id, so they would share a stored size")
+    }
+
+    @Test("a size stored for one workspace's pane is never read by another workspace at the same position")
+    func storedSizeDoesNotLeakAcrossWorkspaces() throws {
+        for owner in BuiltInWorkspaceLayout.allCases {
+            // One workspace drags every one of its panes; this is what its stack persists.
+            let owned = nodeIDs(of: owner.panes)
+            let json = try #require(WorkspaceSplitStack.encodeStoredFractions(
+                Dictionary(uniqueKeysWithValues: owned.map { ($0, 0.42) })
+            ))
+            let stored = WorkspaceSplitStack.decodeStoredFractions(json)
+            #expect(stored.count == owned.count)
+
+            // Every OTHER workspace reads the same slot (same position, same key) by its own ids.
+            for other in BuiltInWorkspaceLayout.allCases where other != owner {
+                let leaked = nodeIDs(of: other.panes).filter { stored[$0] != nil }
+                #expect(leaked.isEmpty, "another workspace read a size that was dragged in a different one")
+            }
+        }
+    }
+
+    @Test("a split's storage key does not depend on which workspace is applied")
+    func storageKeyIsThePositionAlone() {
+        #expect(WorkspaceSplitStack.storageKey(keyPath: "root") == "root")
+        #expect(WorkspaceSplitStack.storageKey(keyPath: "0.1") == "0.1")
     }
 
     @Test("the same PaneList's storage key is stable across repeated calls")
     func storageKeyStableForOneList() {
-        let list = BuiltInWorkspaceLayout.read.panes
-        let first = WorkspaceSplitStack.storageKey(keyPath: "root", leadingChildID: list.nodes.first?.id)
-        let second = WorkspaceSplitStack.storageKey(keyPath: "root", leadingChildID: list.nodes.first?.id)
+        let first = WorkspaceSplitStack.storageKey(keyPath: "root")
+        let second = WorkspaceSplitStack.storageKey(keyPath: "root")
         #expect(first == second)
     }
 
@@ -218,12 +253,49 @@ struct WorkspaceSplitStackSizingTests {
         #expect(dragged[0] == 500)
     }
 
-    /// The un-weighted case with NO peers at all (every sibling explicit) leaves every child
-    /// exactly as given — no forced flex invented where nothing is left to flex.
-    @Test("with no peers, every explicit sibling keeps its own preference")
-    func noPeersKeepsEveryExplicitPreference() {
-        let preferences: [WorkspaceSplitStack.Sizing?] = [.fraction(0.4), .fraction(0.6)]
-        let sizings = ContentView.childSizings(preferences, fallbackFraction: 0.4)
-        #expect(sizings == [.fraction(0.4), .fraction(0.6)])
+    // MARK: - A split always has one flexing child (#5011, #5014)
+
+    /// With no peer, the explicit shares alone used to decide the layout: two halves that each
+    /// copied a 0.4 share filled 0.8 of their split and left the rest EMPTY.
+    @Test("with no peers, the last child flexes so the split is always filled")
+    func noPeersStillLeavesOneFlexingChild() {
+        let copied: [WorkspaceSplitStack.Sizing?] = [.fraction(0.4), .fraction(0.4)]
+        let sizings = ContentView.childSizings(copied, fallbackFraction: 0.4)
+        #expect(sizings == [.fraction(0.4), .flex])
+        let effective = Self.effectiveExtents(WorkspaceSplitStack.resolvedExtents(sizings, total: 1000), total: 1000)
+        #expect(abs(effective.reduce(0, +) - 1000) < 1, "the two halves fill the whole split, no gap")
+    }
+
+    /// Closing the flexing pane of a row (Browse without its Reader) used to leave its share as a gap.
+    @Test("closing the flexing pane leaves a row that still fills its width")
+    func aRowWhoseFlexingPaneClosedStillFills() {
+        let survivors: [WorkspaceSplitStack.Sizing?] = [.fraction(0.15), .fraction(0.60)]
+        let sizings = ContentView.childSizings(survivors, fallbackFraction: 0.4)
+        #expect(sizings == [.fraction(0.15), .flex])
+    }
+
+    @Test("a pin with no peer: the child that is not a pin flexes, and the pin is kept")
+    func aPinWithNoPeerKeepsThePin() {
+        let sizings = ContentView.childSizings([.fraction(0.5), .fixed(72)], fallbackFraction: 0.4)
+        #expect(sizings == [.flex, .fixed(72)])
+    }
+
+    @Test("every child a pin (a split film strip): the last one flexes")
+    func everyChildAPinStillFlexes() {
+        let sizings = ContentView.childSizings([.fixed(140), .fixed(140)], fallbackFraction: 0.4)
+        #expect(sizings == [.fixed(140), .flex])
+    }
+
+    @Test("every sizing decision has exactly one flexing child")
+    func exactlyOneFlexingChildAlways() {
+        let cases: [[WorkspaceSplitStack.Sizing?]] = [
+            [nil], [nil, nil], [.fraction(0.2), nil, nil], [nil, .fixed(72)],
+            [.fraction(0.4), .fraction(0.6)], [.fixed(72)], [.fixed(72), .fixed(72)],
+            [.fraction(0.15), .fraction(0.60), nil],
+        ]
+        for preferences in cases {
+            let flexing = ContentView.childSizings(preferences, fallbackFraction: 0.4).filter { $0 == .flex }
+            #expect(flexing.count == 1, "one child must absorb the remainder")
+        }
     }
 }
