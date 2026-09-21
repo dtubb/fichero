@@ -51,6 +51,12 @@ exclude_docs: |
   user/guide/5-knowledge-graph/
   user/guide/6-search/
   user/guide/8-appendixes/
+  # Reference pages written after the docs reorganisation and not yet reviewed for the
+  # public site (2026-09-21, release 2026.09.20): kept in the repo, not published, until
+  # the maintainer approves them — then add them to nav and remove them here.
+  reference_manual/3-appendix-c-keyboard-shortcuts.md
+  reference_manual/5-appendix-d-glossary.md
+  reference_manual/about-version-facts.md
 
 theme:
   name: material
