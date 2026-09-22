@@ -1,3 +1,197 @@
+### 2026.09.20
+
+- Knowledge: click a sentence to see its source; Entities and Claims panes work as master and detail; a folder shows the people in its subfolders.
+- Panes: each Library pane shows the kind its own chip says.
+- Models: one picker in the workflow bar, with your role defaults alongside named models.
+- Segmentation: Kraken works on a PDF page, and its boxes appear when the run finishes.
+
+**Clicking a sentence takes you to its source.** Click a sentence in an entity's biography and
+the claim editor opens with the source highlighted, in one step — the Inspector stays on the
+entity instead of losing focus. Clicking a claim shows its source in both the Reader and Preview
+without losing your place.
+
+**Search finds a page before it's fully processed.** A page you'd just imported, not yet added
+to the search index, used to vanish from results the moment any other page matched the same
+word — even while the Inspector was showing you that exact text. Search now finds it.
+
+**Editing a statement, right from its sentence.** You can edit a statement directly from where
+it appears — the change saves the same way every other edit does, updates in place, and lets you
+set a date and pick who it's about. Changing who a statement is about also updates the name and
+the sentence together.
+
+**Entities and claims read more honestly.** A biography now states each claim's own subject —
+never borrowing the page's name, never falling back to a vague "they." A folder that holds only
+subfolders now shows its full list of people, matching what the Inspector already showed for it.
+Deleting or merging an entity now cleans up every field a claim carries about it, not just the
+obvious one. A source written in a language Fichero has no model for is now told apart from one
+it does — it no longer gets silently read with the wrong grammar.
+
+<details markdown>
+<summary>Show more releases</summary>
+
+**A Library pane now shows what its own label says.** Set a pane to Claims and it shows Claims,
+not whatever the sidebar last had selected — choosing a specific kind for a pane sticks, the same
+way choosing any other kind does.
+
+**Entities and Claims panes work together.** Select an entity in one pane and a Claims pane
+narrows to that entity's claims, under a header naming who it's about — a pane-local "Show All"
+returns to the folder's full list.
+
+**Provenance.** Every claim now says truthfully whether a person, the app itself, or an AI made
+it — a machine-written claim can no longer default to looking human-made.
+
+**Selecting a workflow from the Library.** Clicking a workflow's row in the Library now opens
+its editor in place, the same as picking it from the sidebar.
+
+**The Knowledge Graph sidebar mode has retired.** Entities and Claims now live as Library
+tables; the SPARQL console has its own window.
+
+**One model picker everywhere.** The workflow bar's model control now matches the picker used
+elsewhere in the app, and it offers your role defaults ("small," "large," "vision small," and so
+on) alongside named models — pick a role and it always follows whatever you've set as current.
+
+**Kraken segmentation.** Kraken can now segment a single page of a PDF, matching what Apple
+Vision could already do. A finished workflow run now tells the app what it saved, so a
+segmentation overlay can appear on its own instead of waiting for a click.
+
+**Also in this build (build 11).**
+
+- **Kraken comes with the app.** Kraken segmentation is now installed inside Fichero, so there
+  is nothing to download before a run. If your Mac is short of memory, Kraken says so plainly and
+  waits for you, rather than risking a crash.
+- **Faster knowledge.** Opening an entity no longer reads the whole library first: a large
+  library that took seconds now answers at once.
+- **Activity.** The Activity window and its toolbar popover show the same list of runs, and
+  finished runs can be deleted.
+- **Safer upgrades.** When an update changes a library's database, each change now completes
+  fully or not at all, and a failure is reported instead of passing silently. The old command
+  that erased a library's whole knowledge graph in one step has been removed.
+- **Panes.** Dragging a divider now resizes only the panes on either side of it, a split no
+  longer leaves an empty band, and the bottom Library strip can be resized.
+- **Fewer repeated loads.** Clicking an item in another library, or turning to the next page,
+  no longer asks for the same data several times over.
+
+**Known issues in this build.** A second Library pane can show a different kind of item than
+its label says. Splitting a pane can leave its two halves unequal. The Claims list can appear
+empty at the top folder of a library that has claims. Some entity biographies put a date where
+the person should be. These are being worked on.
+
+### 2026.09.18
+
+- Workspaces: one pane model, persisted across relaunch; stable divider positions; Split from the menu.
+- Menus: shortcut collisions fixed; real Redo; Zoom to Fit is ⌘9.
+- AI selector: consistent rows everywhere; a failed model fetch never changes your selection.
+- Launch: roughly 10 seconds faster to ready on the development machine.
+
+**It opens, and the panes behave.** A crash on launch is fixed: a window could die before it drew
+anything. Workspaces settled into **five** layouts on **⌘⌥1–5** — Read (your table over the reader,
+the page beside it), Browse, Transcribe, Transcribe · Tall, and Compare. *(Yesterday's note promised
+six on ⌘⌥1–6; Catalogue and Claims were dropped — browsing claims is a way of filtering your library,
+not a layout.)*
+
+Panes now do what you'd expect. Split one and close half of it, and only that half closes. Drag the
+dividers to resize. In Transcribe and Compare the strip of pages along the bottom is a **narrow film
+strip** instead of eating a third of the window. The icon at the left of a pane's header changes what
+that pane shows, so you can turn a reader into a page view without rebuilding your layout. Headers
+are quieter too — the hairline under them is gone, so every pane reads like the page view did.
+
+**Marks land where you put them.** Highlights, bounding boxes and transcribed words no longer drift
+on pages you had flipped or auto-cropped — Fichero was drawing them against the original pixels.
+
+**Choosing a model takes one step.** Settings, chat and workflow nodes all use the same picker now:
+one list, with the model's family, price and whether it can read images — no more choosing a provider
+and then hunting through a second menu.
+
+**Finding things.** ⌘F searches your library; ⌘⌥F finds inside the page you're reading; full-screen
+reading moved to ⌃⌘F. New Folder and Import now sit in the File menu. Holding ⌥ with a keyboard
+shortcut no longer summons the loupe by mistake.
+
+**Workflow nodes.** Applying a model from Compare now updates the node instead of looking like it did
+nothing; nodes using a capability like *large* or *vision* show that on the canvas instead of a blank
+line; the entity-extraction node gained its prompt box; and simply opening a node no longer quietly
+rewrites its settings.
+
+### 2026.09.16
+
+**Workspaces you can trust.** Switching workspaces no longer crashes — the ⌘⌥1–6 shortcuts move
+between six redesigned layouts (a Mail-style default: your library table with the reader below and
+the page beside it; icon-browsing; transcription; side-by-side compare; and an inspector layout for
+related files). Menus are reorganized too: the View menu is tidied into submenus, and new **Read**
+and **Knowledge** menus gather the reading and knowledge commands.
+
+### 2026.09.15
+
+**Workspaces, one system.** The window's layouts are now a single, coherent set of six
+workspaces — Read, Browse, Transcribe, Compare, Catalogue, and Claims — each a real two-dimensional
+arrangement of panes, and each switchable from the keyboard with ⌘⌥1 through ⌘⌥6 (or the Workspaces
+menu). The old, overlapping "show/hide" presets are gone; there's one way to arrange the window now.
+
+**The Compare workspace no longer freezes.** Opening two documents side by side used to spin the
+beachball; that whole class of multi-pane hang is fixed, and closing a pane now closes just that
+pane instead of the whole column.
+
+Under the hood this release adds a suite of tests that *apply* each workspace and check the app stays
+responsive — so this kind of freeze gets caught automatically from now on, rather than in use.
+
+### 2026.09.08
+
+Two builds in one day. An earlier rebuild fixed a packaging regression —
+shipped builds had been carrying Xcode's debug layout (a 296MB debug
+library, unoptimized code); the app is now compiled with real
+optimizations, dramatically smaller and faster. Then a full night of live
+testing turned up a punch-list, every item root-caused and fixed.
+
+**The reader opens the page you picked.** Clicking a search result — or
+any page — now scrolls the reader to that exact page and lands find on
+it, every match highlighted and counted. Manifest-imported image pages
+(which carry no page number of their own) used to strand the reader on the
+folder's first page; it now finds the page by its own identity.
+
+**Everything busy shows in Activity.** Embedding, importing, and Kraken
+segmentation now appear in both the toolbar Activity popover and the full
+Activity viewer, with progress, live CPU%, and — when something fails — a
+clear Failed state naming the cause. A job that didn't take is obvious
+instead of silently missing.
+
+**The machine stays yours while it works.** Bulk embedding no longer pegs
+the CPU: it runs background-nice on spare cores and yields to whatever
+you're doing. Folder clicks that took 34 seconds during a big import are
+back to a fraction of a second, and embedding resumes exactly where it
+left off after a quit.
+
+**Workflows run on what you meant.** "This folder" runs on the folder
+itself, not silently on every file inside it; you can stop a running
+chain; and the bar spells out folder-versus-children scope. A second
+spaCy pass started while one is running now waits its turn instead of
+failing.
+
+**Selection stays visible.** An active selection is no longer hidden in
+the status island by continuous background work — that work has its own
+Activity indicator, so the island shows what you have selected.
+
+**Image navigation is smoother.** Descending into a folder no longer
+flashes an empty frame, page-to-page slides are snappier, and every
+rendition — including each redraw — is its own clearly-labeled row in the
+rendition menu.
+
+**Paleography.** Kraken can detect regions (baselines and boxes) and run
+per-line handwriting recognition tied to those lines; a new step aligns an
+existing transcript to the detected lines, and the overlay appears on its
+own when detection finishes. Recognition never overwrites good transcript
+text.
+
+**Knowledge quality.** Statements are extracted a page at a time, which
+removes the cross-product of subjects and objects that produced nonsense
+triples; people with different surnames stay distinct; and a Merge/Dedup
+pass collapses name collisions automatically.
+
+**Library cloning (early).** The groundwork for copying a library to
+another machine over the network — resumable, pull-only — ships behind
+`fichero library clone`.
+
+**About.** The "Built on" list now shows the live versions of the
+open-source libraries the running engine actually loaded.
+
 ### 2026.09.05
 
 An overnight release from a full evening of live testing — ninety-plus
@@ -15,9 +209,6 @@ real span of the page, and the grammar must actually support the subject —
 a first-person verb can no longer be stamped with a bystander's name.
 The garbled-text bug (`ca'f1istin`) is fixed at extraction and a repair
 heals existing rows. spaCy ships built in as the free grammar layer.
-
-<details markdown>
-<summary>Show more releases</summary>
 
 **Statements lead somewhere.** Click a statement and you land on its
 source page with the passage highlighted — in the reader and the preview.
@@ -454,6 +645,76 @@ the engine log is no longer erased by the restart that follows a crash.
 **Windows recover.** Closing the last library left no way to open a window;
 File-menu commands now work with no window open. Models & Providers shows the
 provider list again after a layout bug collapsed it to nothing.
+
+### 2026.08.04
+
+**Libraries & Access**
+
+- A library you create is one the engine can actually read. The sandboxed engine's
+  `Path.home()` is the app container, so every home-derived allowed root pointed
+  inside the container and no library outside it could be served. Two defects, both
+  required: the bookmark handoff was gated on a build flag that stopped tracking
+  whether the process is sandboxed, and the *create* path never minted a bookmark
+  at all (only *open* did).
+- A refused library now says what is wrong and where, instead of failing to load
+  silently. A 403 reports the engine's own reason rather than a guess.
+
+**Import**
+
+- A 61-second import is no longer reported as a failure. File ingest rides a
+  deadline that scales with the document instead of the 60-second bound meant for
+  quick requests; the same applies to starting a workflow run.
+- The failure alert shows the per-file reasons it was already assembling, and the
+  progress label stops claiming a phase the app cannot observe.
+- pdfium ships inside the bundle, signed with the app, instead of being fetched at
+  runtime into a quarantined temp copy Gatekeeper refuses to load — which left
+  every PDF imported as images with no searchable text.
+
+**Workflows**
+
+- A tiled page keeps every strip, in order. Tiling paired all N strips with one
+  document and each transcription overwrote the last, so a ten-strip page kept
+  only the tenth. Joined once, ordered by file index, after the concurrent
+  fan-out completes.
+- The paleography ensemble's steps say what they do instead of showing graph ids.
+
+**Windows & Diagnostics**
+
+- File-menu commands work with no window open, so ⌘N can recover from zero windows.
+- Models & Providers shows the provider list again (a layout collapse hid it).
+- An unreadable API key is no longer reported as an absent one.
+- Engine startup distinguishes "nothing listening", "our child died", "another
+  engine holds the socket" and "the engine rejected our token" instead of
+  reporting one message for all four.
+- `engine.log` appends, so a crash's evidence survives the restart that follows it.
+- Sidebar drop outcomes persist in the log; readiness polling stopped flooding it.
+
+**Transport & Data Loading**
+
+- Add a pluggable `ClientTransport` seam for the engine connection: macOS local
+  builds dial the embedded engine over a Unix domain socket (UDS), iOS/iPad and
+  remote/sharing use HTTPS, and an experimental in-process ASGI transport
+  (PythonKit) can run the engine inside the app on Dev/DMG builds
+  ([#4037](https://github.com/dtubb/fichero/issues/4037)).
+- Route all image, media, and WebKit storage loading through the transport via a
+  `fichero-res://` scheme (`URLProtocol` + `WKURLSchemeHandler` +
+  `AVAssetResourceLoaderDelegate`), so assets load identically over UDS,
+  in-memory, and HTTPS — no component builds a raw `127.0.0.1:8765` URL.
+- Route the engine readiness probe through the transport, so launch reaches
+  "ready" over any transport rather than a hard-coded TCP probe.
+- Grant loopback-owner auth to UDS and in-process connections via an ASGI
+  `scope["fichero.transport"]` marker; fixes authenticated requests returning
+  401 over UDS.
+- Shorten the UDS socket path to fit the AF_UNIX `sun_path` limit inside the App
+  Store sandbox container.
+
+**Notes**
+
+- The in-memory / PythonKit transport is a Dev/DMG experiment only — signed App
+  Store builds cannot disable library validation, which loading an external
+  `libpython` requires.
+- A launch-time import-deferral optimization was shelved pending investigation
+  of an async-test hang it exposed.
 
 ### 2026.08.02
 

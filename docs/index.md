@@ -18,6 +18,8 @@ Fichero is a Mac app to read and work with archives. It can help transcribe hand
 
 [Download Fichero :material-apple:](https://github.com/dtubb/fichero/releases/latest/download/Fichero-dev.dmg){ .md-button .md-button--primary }
 
+--8<-- "docs/_latest.md"
+
 macOS 26+, Apple Silicon.
 
 </div>
