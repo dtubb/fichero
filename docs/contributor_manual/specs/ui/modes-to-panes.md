@@ -182,7 +182,7 @@ fourth type.
   — its own file (`Views/SPARQLConsole/SPARQLConsoleView.swift`) and window
   (`Window("SPARQL Console", id: "sparql-console")`, `FicheroApp.swift`), reached from the
   Knowledge menu. The "predict entities" flow (`HeuristicReviewSheet`) was NOT recovered — it
-  had no caller outside the deleted files and is now unreachable anywhere; the dead-code sweep is #4791, and whether the predict
+  had no caller outside the deleted files and is now unreachable anywhere; the dead-code sweep is → #4791, and whether the predict
   affordance returns is the `kg-enrichment` milestone's decision (→ #4759), not silently dropped. Pinned by
   `SidebarModeRestoreTests.allCasesCountIsSix` (no `.knowledgeGraph` case),
   `LibraryPaneNeverMountsModeSurfaceTests.deletedTypesDoNotLingerAnywhere` (bare-identifier
