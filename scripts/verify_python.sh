@@ -33,9 +33,18 @@ run "ruff" "$RUFF" check fichero-server/src/
 #    A real hang becomes one failing test with a stack and the rest of the suite still
 #    runs. 300s per test is a ceiling, not a measurement: lower it once the slowest
 #    test in the gate is known.
+#    -m "not timing" excludes assertions whose subject is a DURATION. They are
+#    not optional and not flaky: the spec calls the usability bound "a measured
+#    number, not a comment". They are excluded HERE because this gate runs beside
+#    other work, and the same suite took 5:53 quiet and 39:43 contended — a bound
+#    asserted under that is a bound about the load. Run them deliberately on an
+#    idle machine:  pytest -m timing fichero-server/tests/unit/
+#    Only the two duration tests carry the marker; the FACT tests beside them stay
+#    in the gate, because marking the file would drop real guarantees as collateral.
 run "backend unit" "$PYTEST" fichero-server/tests/unit/ \
   fichero-cli/tests/ fichero-mcp/tests/ \
   --ignore=fichero-server/tests/unit/_archived -q -k "not embedding" \
+  -m "not timing" \
   --timeout=300 --timeout-method=signal
 
 # Say what this gate does NOT cover, so the exclusion can't quietly become
