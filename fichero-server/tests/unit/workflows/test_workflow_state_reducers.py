@@ -144,3 +144,16 @@ def test_merge_error():
     assert _merge_error("old", None) == "old"
     assert _merge_error(None, None) is None
     assert _merge_error(None, "boom") == "boom"
+
+
+def test_an_oversized_output_names_the_field_that_made_it_too_big():
+    """#5018: the error said only "15873722 > 8388608 bytes"; it now names the fields carrying it."""
+    import pytest
+    big = {"images": "x" * (9 * 1024 * 1024), "summary": {"count": 1}, "text": "short"}
+    with pytest.raises(ValueError) as caught:
+        compact_output_for_state(big)
+    message = str(caught.value)
+    assert "exceeded the capped serialized size" in message
+    assert "largest fields: images = " in message
+    assert message.index("images") < message.index("text = ")
+
