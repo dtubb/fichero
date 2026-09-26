@@ -9158,7 +9158,7 @@
           "claims"
         ],
         "summary": "List Claims",
-        "description": "List knowledge claims with optional filtering.\n\nWhen ``include_descendants=true`` is combined with\n``source_document_id=<folder_id>``, claims for the folder AND every\ndescendant doc are returned \u2014 required by the folder KG view\nbecause extract_all writes claims to PAGE docs, not the container\n(#826).",
+        "description": "List knowledge claims with optional filtering.\n\n``source_document_id=<folder_id>`` returns the claims of the folder AND\nevery descendant document by default (``include_descendants=true``): a\nfolder query means everything under it, and extract_all writes claims to\nPAGE docs, not the container (#826). Pass ``include_descendants=false`` for\nthe document alone. The default was ``false`` until #5065; it is now the\nsame answer as the entity list and the knowledge-graph route.",
         "operationId": "list_claims_api_claims_get",
         "parameters": [
           {
@@ -9237,7 +9237,7 @@
             "required": false,
             "schema": {
               "type": "boolean",
-              "default": false,
+              "default": true,
               "title": "Include Descendants"
             }
           },
@@ -12470,7 +12470,7 @@
           "documents"
         ],
         "summary": "Canonical KG grouping for a document \u2014 deduped, merge-resolved",
-        "description": "The single source of truth for a document's knowledge graph. Resolves entities, follows merge chains to the canonical entity (absorbed entities' claims are kept, not dropped), groups by kind \u2014 including a Dates group for entity-less date claims \u2014 dedups within each kind, and returns the groups in display order. The list-view row and the KG inspector tab both render this verbatim so they can no longer disagree (#1068).\n\nWith ``include_children=true`` the query walks the document tree (BFS) and aggregates every descendant's claims onto the parent. extract_all writes claims to PAGE doc ids, never the parent PDF \u2014 so a parent PDF queried without this flag looks empty even though its pages are full of entities (#1069).\n\nThe ``catalogue`` field carries any catalogue artifacts on the document (narrative / timeline / keywords), narrative-first, so a catalogued folder can render its readable synthesis above the entity-kind sections (#1047). Empty for leaf documents.",
+        "description": "The single source of truth for a document's knowledge graph. Resolves entities, follows merge chains to the canonical entity (absorbed entities' claims are kept, not dropped), groups by kind \u2014 including a Dates group for entity-less date claims \u2014 dedups within each kind, and returns the groups in display order. The list-view row and the KG inspector tab both render this verbatim so they can no longer disagree (#1068).\n\nBy default (``include_descendants=true``) the query walks the document tree (BFS) and aggregates every descendant's claims onto the parent. extract_all writes claims to PAGE doc ids, never the parent PDF \u2014 so a parent PDF queried without recursion looks empty even though its pages are full of entities (#1069). Pass ``include_descendants=false`` for the document alone. This is the same flag, with the same default, as the claim and entity lists (#5065); it replaces ``include_children``, whose implicit ``or len(descendants) > 1`` made it a no-op wherever it mattered.\n\nThe ``catalogue`` field carries any catalogue artifacts on the document (narrative / timeline / keywords), narrative-first, so a catalogued folder can render its readable synthesis above the entity-kind sections (#1047). Empty for leaf documents.",
         "operationId": "knowledge_graph_api_documents__document_id__knowledge_graph_get",
         "parameters": [
           {
@@ -12483,13 +12483,13 @@
             }
           },
           {
-            "name": "include_children",
+            "name": "include_descendants",
             "in": "query",
             "required": false,
             "schema": {
               "type": "boolean",
-              "default": false,
-              "title": "Include Children"
+              "default": true,
+              "title": "Include Descendants"
             }
           }
         ],
@@ -12770,7 +12770,7 @@
           "entities"
         ],
         "summary": "List Entities",
-        "description": "List knowledge entities with optional filtering.\n\nWhen `document_id` is provided, returns only entities mentioned by claims\nfrom that document (source-scoped aggregation).",
+        "description": "List knowledge entities with optional filtering.\n\nWhen `document_id` is provided, returns only entities mentioned by claims\nfrom that document AND every descendant document (``include_descendants=true``,\nthe default); pass ``include_descendants=false`` for the document alone.",
         "operationId": "list_entities_api_entities_get",
         "parameters": [
           {
@@ -12801,6 +12801,16 @@
               "type": "string",
               "nullable": true,
               "title": "Document Id"
+            }
+          },
+          {
+            "name": "include_descendants",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Include Descendants"
             }
           },
           {

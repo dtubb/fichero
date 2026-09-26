@@ -3177,7 +3177,7 @@
         ],
         "query_params": [
           {
-            "name": "include_children",
+            "name": "include_descendants",
             "required": false,
             "type": "boolean"
           }
@@ -3252,6 +3252,11 @@
             "name": "entity_type",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "include_descendants",
+            "required": false,
+            "type": "boolean"
           },
           {
             "name": "limit",

@@ -4670,13 +4670,13 @@ def register_generated_openapi_commands(
     def documents_canonical_kg_grouping_for_a_deduped_merge_resolved_get(
         ctx: typer.Context,
         document_id: str = typer.Argument(..., help="Path parameter: document_id."),
-        include_children: Optional[bool] = typer.Option(None, "--include-children/--no-include-children", help="Query parameter: include_children."),
+        include_descendants: Optional[bool] = typer.Option(None, "--include-descendants/--no-include-descendants", help="Query parameter: include_descendants."),
     ) -> None:
         """Canonical KG grouping for a document — deduped, merge-resolved (GET /api/documents/{document_id}/knowledge-graph)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/documents/{document_id}/knowledge-graph"
             params = {
-                "include_children": include_children,
+                "include_descendants": include_descendants,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -4741,6 +4741,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         document_id: Optional[str] = typer.Option(None, "--document-id", help="Query parameter: document_id."),
         entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Query parameter: entity_type."),
+        include_descendants: Optional[bool] = typer.Option(None, "--include-descendants/--no-include-descendants", help="Query parameter: include_descendants."),
         limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
         offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
         q: Optional[str] = typer.Option(None, "--q", help="Query parameter: q."),
@@ -4751,6 +4752,7 @@ def register_generated_openapi_commands(
             params = {
                 "document_id": document_id,
                 "entity_type": entity_type,
+                "include_descendants": include_descendants,
                 "limit": limit,
                 "offset": offset,
                 "q": q,
