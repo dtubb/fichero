@@ -372,6 +372,145 @@ history travels with the artifact. The response is `ArtifactResponse` with
 geometry included, so the caller re-renders its overlay from the reply rather
 than re-fetching.
 
+### Segments (source model)
+
+`GET /api/segments/document/{doc_id}` returns a source page's segments —
+region, line and word boxes — resolved from whichever of its artifacts carry
+`ocr_geometry` (the old blob) AND from real `Segment`/`SegmentPass` rows
+where they exist (slice 3): the caller cannot tell which store a segment
+came from. Reading a page's segments this way writes nothing: calling it
+twice creates no row. The response is `SegmentListResponse` (`document_id`,
+`passes`, `segments`); a document with neither yet returns an empty list,
+not an error, and an unknown `doc_id` returns `404`. Optional query
+parameters `artifact_id` (restrict to one artifact's boxes, or one real
+pass's source artifact), `pass_id` (restrict to one pass — a `legacy:` one
+or a real pass id), `kind` (restrict to one segment kind — region, line,
+word), and `area` (a rectangle, `x,y,w,h` in image fractions — every real
+segment whose box intersects it) narrow the result.
+
+A segment read from today's blob is **provisional**:
+`legacy:<artifact_id>:<box_index>` and its pass `legacy:<artifact_id>`, both
+marked `provisional: true`. A provisional id is refused on write — the
+regions-edit route (`PUT /api/artifacts/{artifact_id}/regions` above) and
+every segment-write route below return `422` if handed one.
+
+Each segment's `anchor` is a `SourceAnchor` (rect always; a polygon only when
+the source box's metadata carries one — a Kraken line's polygon and baseline
+are normalized from pixels to the anchor's fractional top-left convention).
+Raw pixel values, and why a box's geometry could not be held, ride in the
+segment's own `metadata` (`raw_polygon_px`, `raw_baseline_px`,
+`raw_pixel_frame`, `geometry_problem`) — never on the anchor, which slices 3
+and 6 store.
+
+`POST /api/segments/passes` creates a `SegmentPass` (body:
+`SegmentPassCreateParams` — `document_id`, `name`, optional `run_id` and
+`source_artifact_id`), one typed audited action
+(`segment.pass_create`/`.pass_delete`/`.pass_restore`). `DELETE
+/api/segments/passes/{pass_id}` soft-deletes it (the row is never removed;
+its segments stop appearing in the seam).
+
+`POST /api/segments` creates one `Segment` in an existing pass (body:
+`SegmentCreateParams` — `document_id`, `pass_id`, `kind`, `anchor`, optional
+`baseline`, `parent_segment_id`, `kind_raw`); `POST /api/segments/bulk`
+creates several in one `save_many` transaction (`SegmentCreateManyParams`).
+Both refuse (`409`) a `pass_id` from another document or a
+`parent_segment_id` in another pass/document, and (`422`) a client-supplied
+`id`, `bbox_*`, `tile`, `version` or `provenance_kind` — the params models
+declare none of them, so `extra="forbid"` rejects the request outright; the
+four box columns are always engine-derived from `anchor`. Update and delete
+of a segment as a user-facing feature, with version compare-and-set, arrive
+in a later slice.
+
+**Matches, forwarding notes, a citable reference (slice 4).** An id never
+moves: "this new segment is that old one" is a `SegmentMatch` record, and a
+merge/split/delete leaves an append-only `SegmentForwarding` note so an old
+id can always be followed (`resolve_segment`, used by the citable reference
+below).
+
+`POST /api/segments/matches` proposes a match (body: `from_segment_id`,
+`to_segment_id`, optional `certainty`, `note`), one typed audited action
+(`segment.match_propose`/`.match_withdraw`). `POST
+/api/segments/matches/{match_id}/accept` and `POST
+/api/segments/matches/{match_id}/reject` change its state; only a person
+may accept — a machine caller gets `422` (`MatchNeedsAPerson`).
+
+`POST /api/segments/merge` absorbs two or more segments (one pass) into
+`keep_id` (body: `segment_ids`, `keep_id`); the absorbed rows are
+soft-deleted and each gets a `merged` forwarding note. Merging into a
+segment that already forwards to the one being absorbed is refused (`409`,
+`SegmentForwardingWouldLoop`) — this is what stops a merge cycle. `POST
+/api/segments/split` splits one segment into two or more `parts` (each an
+`anchor` and optional `baseline`); the original id stays on the first
+part, and a `split` forwarding note names every resulting id.
+
+`POST /api/segments/carry` copies readings/annotations/claim-evidence
+across an **accepted** match (body: `match_id`, `kinds` — any of
+`reading`, `annotation`, `claim_evidence`); the original is never moved.
+A `reading` is carried only across a **one-to-one** match (accepted
+matches only) — a many-to-many match carries no reading and reports why in
+`not_carried`. Its inverse, `segment.uncarry`, removes exactly the copies.
+
+`GET /api/segments/{segment_id}/reference` returns a citable string,
+`fichero:segment/<library_uuid>/<document_id>/<segment_id>`, worked out on
+request (never stored). It resolves through the EXISTING `POST
+/api/locations/resolve` — never a second resolver — which gains an
+optional `segmentId` (a bare id or the citable string form, checked against
+the current library and refused with `422` if it names another one): the
+route follows any forwarding first (`resolve_segment`), so a merged, split
+or deleted id still resolves to where its content lives today. The
+response's `liveSegmentIds` names EVERY live part (a split line has two —
+this never quietly picks one), `resolvedSegmentId` names the primary
+(the part that kept the requested id, else the first part listed when the
+split was made), `segmentForwarding` is the trail followed, and
+`segmentDeleted` says whether nothing is live any more. A `documentId` sent
+alongside a `segmentId` that disagrees with what it resolves to is refused
+(`422`) rather than the segment's silently winning.
+
+**Versions, and refusing a stale edit (slice 5).** Every segment carries a
+`version`, and every writing action names the version it read
+(`expected_version`); if the segment has changed since, the write is
+refused with `409` — never silently merged, never silently overwritten.
+Editing while out of reach of the engine (a device offline) is **not
+supported** in this work: a queue of stale edits made while disconnected is
+refused one by one, same as any other stale edit, with no reconciliation.
+
+`PUT /api/segments/{segment_id}` changes one segment's `anchor`,
+`baseline`, `kind`, `kind_raw`, `parent_segment_id` and/or `is_furniture`
+(body: `SegmentUpdateParams` — `segment_id` matching the path, plus
+`expected_version`; `document_id`/`pass_id` are not accepted — a segment
+never moves pass or document, that is a merge). A stale `expected_version`
+is refused (`409`, body: `{message, segment_id, expected_version,
+current_version, changed}` — `changed` names exactly the fields that moved
+since); an update to a deleted (or merged-away) segment is refused
+(`409`).
+
+`POST /api/segments/delete` soft-deletes one or more segments in the same
+pass and document (body: `segment_ids`, `expected_versions` — one per id
+— optional `reason`), writing a `SegmentVersion` snapshot and a `deleted`
+forwarding note for each. This REPLACES slice 3's internal stand-in: it is
+now a real, undoable action with a real inverse. `POST
+/api/segments/undelete` brings them back (body: `segment_ids`), clearing
+`deleted_at` and writing a `restored` forwarding note.
+
+`POST /api/segments/{segment_id}/restore-version` writes the segment back
+to one of its own recorded versions (body: `version`, `expected_version`),
+as a NEW version — history only grows, nothing is overwritten in place.
+Restoring a version number that was never recorded for this segment (a
+version that belongs to a different segment, or simply does not exist) is
+a `404`.
+
+`GET /api/segments/{segment_id}/versions` lists one segment's own history
+(`SegmentVersion` rows, oldest first) without touching any other segment's
+rows. `GET /api/segments/{segment_id}` returns the live row, resolving
+through the same forwarding walk as the citable reference when the id has
+been merged, split or deleted, and saying so
+(`resolved_from_forwarding`, `trail`).
+
+Access follows the same rule as every other library-scoped route today (a
+valid token bound to the library, write-checked per target id; no
+finer-grained per-document read check yet — see #4917 for the known gap in
+that check for artifact-scoped reads).
+
 ### Workflow folder presentation
 
 `GET /api/workflows/folders` returns the presentation metadata for workflow

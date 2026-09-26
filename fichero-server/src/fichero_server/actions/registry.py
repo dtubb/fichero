@@ -105,6 +105,15 @@ class ChangeSpec:
     target_ids: list[str] = field(default_factory=list)
     before: dict | None = None
     after: dict | None = None
+    #: #4955 addendum: set this to the SAME id an ``execute`` already minted
+    #: for its OWN child rows (e.g. a segment action's `SegmentVersion`/
+    #: `SegmentForwarding.audit_id`) so ``invoke`` uses it as the
+    #: `ActionAudit.id` it writes for this call, instead of a second,
+    #: unrelated default id -- the two must be the SAME id for a child row's
+    #: `audit_id` to ever resolve to a real audit row. ``None`` (the
+    #: default) leaves `ActionAudit`'s own default factory in charge, so
+    #: every action that does not mint its own child-row id is unaffected.
+    audit_id: str | None = None
     emit_type: str | None = None
     entity_ids: list[str] = field(default_factory=list)
     claim_ids: list[str] = field(default_factory=list)
@@ -113,6 +122,10 @@ class ChangeSpec:
     citation_ids: list[str] = field(default_factory=list)
     reference_ids: list[str] = field(default_factory=list)
     interpretation_ids: list[str] = field(default_factory=list)
+    #: Source-model slice 2 (#4920). Nothing emits these yet -- no segment
+    #: action exists until slice 4.
+    segment_ids: list[str] = field(default_factory=list)
+    pass_ids: list[str] = field(default_factory=list)
     # #4205: document id -> parent id, for ids in ``document_ids``. Absent
     # means "parent unknown, fetch it" and NEVER "root", so bulk actions
     # that only have ids may leave it empty without misleading a client.
@@ -155,6 +168,21 @@ class ActionRegistration:
     # gated behind a later write-policy review (EPIC #1848). Default False =
     # mutating, so existing actions are untouched and fail safe.
     read_only: bool = False
+    # #4957: when THIS action is the one being undone (i.e. it is itself an
+    # inverse/redo row with `inverse_of` set) and it has its OWN `invert`,
+    # compute the next step from ITS OWN recorded `after` instead of
+    # replaying the row it points at. Declared per action, opt-in, default
+    # False -- every action that does not set this keeps today's replay
+    # behaviour byte-for-byte (`actions_registry.undo_action`'s redo leg).
+    # Segment actions that MINT a new id/physical row on redo (create,
+    # pass_create's inverse `pass_delete`, merge, split, carry, match_propose)
+    # set this so redoing them undoes/redoes the SAME id every time, never a
+    # replay of an earlier, now-stale row's params; segment actions with a
+    # working compare-and-set token (update, delete, undelete,
+    # restore_version) do NOT set it -- replay-with-a-refreshed-token is
+    # already provably correct for them (see `_refresh_replay_expected_versions`)
+    # and stays their behaviour. Never a name-prefix test, never global.
+    redo_via_own_invert: bool = False
 
 
 class ActionNotFoundError(KeyError):
@@ -231,11 +259,12 @@ class ActionRegistry:
                 # Audit write is NOT best-effort: if it fails the action fails. The
                 # before/after captured by execute ARE the undo payload.
                 audit = ActionAudit(
+                    **({"id": spec.audit_id} if spec.audit_id else {}),
                     action_name=name,
                     actor=ctx.actor,
                     client=ctx.client,
                     target_ids=list(spec.target_ids),
-                    params=params.model_dump(mode="json"),
+                    params=_audit_params(params),
                     before=spec.before,
                     after=spec.after,
                     run_id=ctx.run_id,
@@ -245,11 +274,12 @@ class ActionRegistry:
         else:
             result, spec = reg.execute(db, params, ctx)
             audit = ActionAudit(
+                **({"id": spec.audit_id} if spec.audit_id else {}),
                 action_name=name,
                 actor=ctx.actor,
                 client=ctx.client,
                 target_ids=list(spec.target_ids),
-                params=params.model_dump(mode="json"),
+                params=_audit_params(params),
                 before=spec.before,
                 after=spec.after,
                 run_id=ctx.run_id,
@@ -277,25 +307,25 @@ class ActionRegistry:
         if not ctx.library_path or not spec.emit_type:
             return
         from fichero_server.api.change_stream import (
+            CHANGE_ID_LISTS,
             emit_change,
         )  # local: avoid cycle at module load
 
         try:
+            # Iterates the one declared tuple (source-model slice 2, #4920)
+            # rather than naming each id list here by hand -- a kind added
+            # to CHANGE_ID_LISTS and to ChangeSpec reaches emit_change with
+            # no third edit needed.
+            id_list_kwargs = {name: getattr(spec, name) for name in CHANGE_ID_LISTS}
             emit_change(
                 ctx.library_path,
                 type=spec.emit_type,
-                entity_ids=spec.entity_ids,
-                claim_ids=spec.claim_ids,
-                document_ids=spec.document_ids,
-                artifact_ids=spec.artifact_ids,
-                citation_ids=spec.citation_ids,
-                reference_ids=spec.reference_ids,
-                interpretation_ids=spec.interpretation_ids,
                 document_parents=spec.document_parents,
                 run_id=ctx.run_id,
                 actor=ctx.actor,
                 origin_window=ctx.origin_window,
                 origin_user=ctx.actor,
+                **id_list_kwargs,
             )
         except Exception as exc:  # pragma: no cover - emit is already best-effort
             logger.debug("action emit_change failed (ignored): %s", exc)
@@ -303,6 +333,28 @@ class ActionRegistry:
 
 # Process-global singleton — THE registry.
 registry = ActionRegistry()
+
+
+def _audit_params(params: BaseModel) -> dict:
+    """What of an action's params the audit row keeps.
+
+    Every action's params are audited in full -- that is the default and it
+    stays the default, because an audit chain that quietly drops arguments
+    cannot be used to answer "what exactly was asked for".
+
+    A params model may narrow this by defining ``audit_params()``, and exactly
+    one kind of thing may use it: CONTENT THE RECORD ALREADY HOLDS ONCE
+    (source-model slice 8, #4934). A person's transcription of a line belongs
+    in the reading they wrote; copying it into the audit chain as well makes
+    the chain a second, un-editable edition of the same text, growing without
+    limit and never corrected. The digest goes in instead, which still proves
+    which text the action wrote. Nothing may hide an id, a target or a
+    decision this way.
+    """
+    hook = getattr(params, "audit_params", None)
+    if callable(hook):
+        return hook()
+    return params.model_dump(mode="json")
 
 
 def action(
@@ -314,6 +366,7 @@ def action(
     invert: InvertFn | None = None,
     atomic: bool = True,
     read_only: bool = False,
+    redo_via_own_invert: bool = False,
 ) -> Callable[[ExecuteFn], ExecuteFn]:
     """Decorator: register ``fn`` as the action ``name``.
 
@@ -321,6 +374,10 @@ def action(
 
     ``read_only=True`` marks an action that only reads state; the chat-tools
     agent loop (#1847) only exposes/dispatches these while mutations stay gated.
+
+    ``redo_via_own_invert=True`` -- see :attr:`ActionRegistration.redo_via_own_invert`
+    (#4957). Opt-in, per action; default False leaves every action's redo
+    behaviour exactly as it is today.
     """
 
     def decorator(fn: ExecuteFn) -> ExecuteFn:
@@ -334,6 +391,7 @@ def action(
                 invert=invert,
                 atomic=atomic,
                 read_only=read_only,
+                redo_via_own_invert=redo_via_own_invert,
             )
         )
         return fn

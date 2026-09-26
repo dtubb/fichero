@@ -1045,6 +1045,7 @@ class Database(DatabaseEmbeddingMixin):
         self._materialize_schema()
         self._seed_builtin_document_prototypes()
         self._seed_builtin_node_classes()
+        self._seed_builtin_reading_kinds()
         self._backfill_claim_links_to_library_links()
         self._backfill_filed_entity_documents()
         self._backfill_note_documents()
@@ -1134,6 +1135,33 @@ class Database(DatabaseEmbeddingMixin):
             )
         self._materialize_schema()
 
+    def library_uuid(self) -> str | None:
+        """The library's stable sync UUID, or ``None`` if not yet minted.
+
+        Typed wrapper over `read_library_uuid` (#1876 architecture rule:
+        raw `.conn` access belongs only inside the persistence layer,
+        behind a typed method) -- used by the citable-reference route
+        (source-model slice 4, #4922) so it never touches `db.conn`
+        directly.
+        """
+        from fichero_server.db.migrations.schema import read_library_uuid
+
+        return read_library_uuid(self.conn)
+
+    def next_forwarding_sequence(self) -> int:
+        """The next value of `segment_forwarding_seq`, a native DuckDB
+        sequence (#4922 third look): monotonic and persists across
+        restarts, so `SegmentForwarding.sequence` orders notes about one
+        id correctly even when two are written in the same microsecond --
+        `created_at` alone cannot. Under the shared lock like any other
+        statement (`_execute`), so two concurrent writers never get the
+        same value.
+        """
+        row = self._execute(
+            "SELECT nextval('segment_forwarding_seq')", fetch="one",
+        )
+        return int(row[0])
+
     def _all_schema_models(self) -> tuple[type[BaseModel], ...]:
         from fichero_server.models.hermeneutics import (
             HermeneuticCircleState,
@@ -1164,18 +1192,30 @@ class Database(DatabaseEmbeddingMixin):
             Reference,
             ReferenceProvenance,
         )
+        from fichero_server.models.conversion import ConversionRun
         from fichero_server.models import (
             ActionAudit,
             AgentNote,
             Artifact,
+            ContentRepresentation,
+            ContentRepresentationRevision,
             Conversation,
             Document,
+            LibraryReadingKind,
+            ReadingChoice,
             DocumentNote,
             ImageEditChain,
             KnownLibrary,
             ProviderRef,
             Run,
             SavedSearch,
+            Segment,
+            SegmentCarry,
+            SegmentForwarding,
+            SegmentMatch,
+            SegmentPass,
+            SegmentPassChoice,
+            SegmentVersion,
             Trace,
             Workflow,
         )
@@ -1208,8 +1248,36 @@ class Database(DatabaseEmbeddingMixin):
             ClaimMergeAudit,
             ClaimSuppressionRule,
             ClassificationValue,
+            # Source-model slice 8 (#4934): registered here, BEFORE `Segment`
+            # below, for two reasons. The tuple's order is the order
+            # `_materialize_schema` reconciles in, and `migrate_segment_indices`
+            # fires once `segments` exists -- so the reading table's new
+            # `segment_id` column must already be there, or its index silently
+            # fails to build and every derived page text is a table scan per
+            # line. And a reading's new columns are meant to ARRIVE ON OPEN, as
+            # the build notes say, not on whatever write happens to come first.
+            ContentRepresentation,
+            ContentRepresentationRevision,
+            # Source-model slice 8b (#4924): the conversion report. Registered
+            # so its table is there at open like every other one -- and so
+            # Guard 1 (#5056) covers it, which is the point of having found the
+            # three that were missing. Nothing at open needs it, so its
+            # position here is not load-bearing the way the two above are; it
+            # sits with them because a reader looking for the source-model
+            # tables should find them together.
+            ConversionRun,
             Conversation,
             Document,
+            # Source-model slice 8 (#4934), and ordered for the same reason as
+            # the two above: slice 6 writes these rows at a page's first edit,
+            # and slice 8 is the first thing to READ them per page
+            # (`resolve_working_pass`). It sits BEFORE `Segment` because
+            # `migrate_segment_indices` fires the moment `segments` and
+            # `segment_passes` both exist -- MID-ITERATION -- so a table
+            # registered after `SegmentPass` gets its index only on the SECOND
+            # open of the library. Alphabetical order would put it beside
+            # `SegmentPass` and quietly cost every first open its index.
+            SegmentPassChoice,
             DocumentCitation,
             DocumentNote,
             EntityMatchCandidate,
@@ -1226,9 +1294,11 @@ class Database(DatabaseEmbeddingMixin):
             KnowledgePredictionRun,
             LibraryEntityType,
             LibraryItemLink,
+            LibraryReadingKind,
             Milestone,
             MutationLog,
             PatternInstance,
+            ReadingChoice,
             Project,
             ProjectInclusion,
             ProviderRef,
@@ -1243,6 +1313,17 @@ class Database(DatabaseEmbeddingMixin):
             Run,
             SavedSearch,
             SearchSource,
+            # Source-model slice 3 (#4921), slice 4 (#4922) and slice 5
+            # (#4923): registered here so the empty tables and their
+            # indexes arrive at OPEN (`_materialize_schema`) with every
+            # other table -- schema on open, data on first edit, never a
+            # side effect of a GET.
+            Segment,
+            SegmentCarry,
+            SegmentForwarding,
+            SegmentMatch,
+            SegmentVersion,
+            SegmentPass,
             SpatialConnection,
             SpatialNode,
             SpatialRoom,
@@ -1531,7 +1612,17 @@ class Database(DatabaseEmbeddingMixin):
 
     @contextmanager
     def transaction(self):
-        """Run a unit of work inside one serialized DuckDB transaction."""
+        """Run a unit of work inside one serialized DuckDB transaction.
+
+        Rollback-only (source-model slice 3, #4921): when a NESTED level
+        fails, it re-raises without rolling back (only the outermost level
+        owns COMMIT/ROLLBACK) -- but a caller that CATCHES that error inside
+        its own ambient `with db.transaction():` and carries on must not be
+        able to commit a partial batch. A nested failure marks the whole
+        transaction `rollback_only`; the outermost level checks the flag on
+        its own successful exit and rolls back (and raises) regardless of
+        what any inner caller caught.
+        """
         outermost = not self.in_transaction
         depth = getattr(self._tx_state, "depth", 0) + 1
         self._tx_state.depth = depth
@@ -1539,18 +1630,28 @@ class Database(DatabaseEmbeddingMixin):
             self._tx_state.started = False
             self._tx_state.after_commit_hooks = []
             self._tx_state.after_rollback_hooks = []
+            self._tx_state.rollback_only = False
 
         hooks: list[Callable[[], None]] = []
         started = False
+        raise_rollback_only = False
         try:
             yield
             started = bool(getattr(self._tx_state, "started", False))
             if outermost and started:
-                with self._lock:
-                    self.conn.execute("COMMIT")
-                hooks = list(getattr(self._tx_state, "after_commit_hooks", []))
+                if getattr(self._tx_state, "rollback_only", False):
+                    with self._lock:
+                        self.conn.execute("ROLLBACK")
+                    hooks = list(getattr(self._tx_state, "after_rollback_hooks", []))
+                    raise_rollback_only = True
+                else:
+                    with self._lock:
+                        self.conn.execute("COMMIT")
+                    hooks = list(getattr(self._tx_state, "after_commit_hooks", []))
         except Exception:
             started = bool(getattr(self._tx_state, "started", False))
+            if not outermost:
+                self._tx_state.rollback_only = True
             if outermost and started:
                 with self._lock:
                     self.conn.execute("ROLLBACK")
@@ -1564,10 +1665,19 @@ class Database(DatabaseEmbeddingMixin):
                 self._tx_state.after_commit_hooks = []
                 self._tx_state.after_rollback_hooks = []
                 self._tx_state.started = False
+                self._tx_state.rollback_only = False
                 if started:
                     self._transaction_gate.release()
                 for hook in hooks:
                     hook()
+        if raise_rollback_only:
+            # Raised OUTSIDE the try/except above so this function's own
+            # `except Exception:` never sees (and re-marks/re-rolls-back) it.
+            raise RuntimeError(
+                "transaction rolled back: a nested step failed and was "
+                "caught by an intermediate caller, but the whole "
+                "transaction was marked rollback-only"
+            )
 
     # =========================================================================
     # Core CRUD Operations
@@ -1739,7 +1849,10 @@ class Database(DatabaseEmbeddingMixin):
         Semantics:
         - All objects must be the same model type (one table, one column set).
         - All-or-nothing: a bad row aborts the whole batch (ROLLBACK) and the
-          error is raised — never a silent partial write.
+          error is raised — never a silent partial write. Via the re-entrant
+          `self.transaction()`, this also means: called inside an ambient
+          audited-action transaction (`atomic=True`), the batch commits or
+          rolls back TOGETHER with that action's audit row.
         - Empty input is a no-op returning 0.
         - Does NOT auto-embed; callers that also need vectors should pair this
           with ``embed_many`` so the embedding append batches too.
@@ -1774,46 +1887,65 @@ class Database(DatabaseEmbeddingMixin):
                 )
             param_rows.append([row[c] for c in cols])
 
-        with self._lock:
-            for attempt in range(_DUCKDB_WRITE_CONFLICT_RETRIES + 1):
-                try:
-                    self.conn.execute("BEGIN TRANSACTION")
-                    try:
-                        # DuckDB's Python executemany still dispatches one UPSERT
-                        # per row. Native multi-row VALUES is ~20x faster here.
-                        # ponytail: 500 bounds SQL/parameter size; tune only from
-                        # a measured larger-model or driver limit.
-                        for start in range(0, len(param_rows), 500):
-                            batch = param_rows[start : start + 500]
-                            row_placeholders = f"({', '.join('?' for _ in cols)})"
-                            placeholders = ", ".join(row_placeholders for _ in batch)
-                            sql = self._upsert_sql(sql_table, cols, placeholders)
-                            self.conn.execute(sql, [value for row in batch for value in row])
-                    except Exception:
-                        # Abort the partial batch — no half-written rows.
-                        self.conn.execute("ROLLBACK")
-                        raise
-                    self.conn.execute("COMMIT")
-                    return len(param_rows)
-                except duckdb.Error as exc:
-                    if self._is_invalidated_error(exc):
-                        logger.warning(
-                            "DuckDB connection for %s was invalidated during "
-                            "save_many; reopening and retrying",
-                            self.path,
-                        )
-                        self._reconnect_after_invalidated()
-                        continue
-                    if not self._is_write_conflict_error(exc):
-                        raise
-                    if attempt >= _DUCKDB_WRITE_CONFLICT_RETRIES:
-                        raise RuntimeError(
-                            "DuckDB write conflict did not resolve after "
-                            f"{_DUCKDB_WRITE_CONFLICT_RETRIES} retries for "
-                            f"{self.path} (save_many)."
-                        ) from exc
-                    delay = _DUCKDB_WRITE_CONFLICT_BACKOFF_SECONDS * (attempt + 1)
-                    time.sleep(delay)
+        for attempt in range(_DUCKDB_WRITE_CONFLICT_RETRIES + 1):
+            try:
+                # `self.transaction()` is re-entrant (source-model slice 3,
+                # #4921): called standalone (the importer's batch ingest),
+                # this IS the outermost transaction and behaves exactly as
+                # the raw BEGIN/COMMIT/ROLLBACK it replaces did. Called
+                # from INSIDE an ambient `with db.transaction():` (an
+                # audited action registered `atomic=True`, e.g.
+                # `segment.create_many`), it joins that transaction
+                # instead of issuing its own nested BEGIN — so the bulk
+                # rows and the action's audit row commit or roll back
+                # together, never rows-with-no-audit-record.
+                #
+                # House lock order (#4921 review, the deadlock fix): enter
+                # the transaction and start it BEFORE taking the gate/lock,
+                # exactly as `_execute` does -- gate, then lock. The OLD
+                # (buggy) shape took `self._lock` first and only then
+                # entered the transaction (which acquires the gate via
+                # `_ensure_transaction_started`): lock-then-gate, the
+                # reverse of every other write path. A transaction holds
+                # the gate for its whole life, so a standalone `save_many`
+                # taking the lock first, while another thread's ambient
+                # transaction holds the gate between statements, deadlocks
+                # each waiting on what the other holds.
+                with self.transaction():
+                    self._ensure_transaction_started()
+                    with self._transaction_gate:
+                        with self._lock:
+                            # DuckDB's Python executemany still dispatches one
+                            # UPSERT per row. Native multi-row VALUES is ~20x
+                            # faster here. ponytail: 500 bounds SQL/parameter
+                            # size; tune only from a measured larger-model or
+                            # driver limit.
+                            for start in range(0, len(param_rows), 500):
+                                batch = param_rows[start : start + 500]
+                                row_placeholders = f"({', '.join('?' for _ in cols)})"
+                                placeholders = ", ".join(row_placeholders for _ in batch)
+                                sql = self._upsert_sql(sql_table, cols, placeholders)
+                                self.conn.execute(sql, [value for row in batch for value in row])
+                return len(param_rows)
+            except duckdb.Error as exc:
+                if self._is_invalidated_error(exc):
+                    logger.warning(
+                        "DuckDB connection for %s was invalidated during "
+                        "save_many; reopening and retrying",
+                        self.path,
+                    )
+                    self._reconnect_after_invalidated()
+                    continue
+                if not self._is_write_conflict_error(exc):
+                    raise
+                if attempt >= _DUCKDB_WRITE_CONFLICT_RETRIES:
+                    raise RuntimeError(
+                        "DuckDB write conflict did not resolve after "
+                        f"{_DUCKDB_WRITE_CONFLICT_RETRIES} retries for "
+                        f"{self.path} (save_many)."
+                    ) from exc
+                delay = _DUCKDB_WRITE_CONFLICT_BACKOFF_SECONDS * (attempt + 1)
+                time.sleep(delay)
             raise RuntimeError("save_many retry loop exited unexpectedly")
 
     def _legacy_all_saved_search_rows(self) -> list[BaseModel]:
@@ -2178,6 +2310,29 @@ class Database(DatabaseEmbeddingMixin):
                     is_builtin=True,
                 )
             )
+
+    def _seed_builtin_reading_kinds(self) -> None:
+        """Seed the shipped reading kinds (source-model slice 8, #4934).
+
+        Idempotent, and additive only: a key already present is left exactly
+        as it is, so a project that relabelled "Transcription" keeps its
+        label, and a kind a project ADDED is never touched. Nothing is ever
+        deleted from this table -- a row stored under a kind that is later
+        withdrawn must still read back.
+        """
+        if not hasattr(self.conn, "execute"):
+            return
+
+        from fichero_server.models.readings import (
+            BUILTIN_READING_KINDS,
+            LibraryReadingKind,
+        )
+
+        existing = {row.key for row in self.query(LibraryReadingKind)}
+        for key, label in BUILTIN_READING_KINDS:
+            if key in existing:
+                continue
+            self.save(LibraryReadingKind(key=key, label=label, builtin=True))
 
     def _effective_prototype_attributes(self, doc: Any) -> dict[str, Any]:
         """Resolve inherited prototype attributes and overlay the node payload."""
@@ -2798,6 +2953,53 @@ class Database(DatabaseEmbeddingMixin):
                 if (hydrated := self._hydrate_row(model, columns, row)) is not None
             )
         return out
+
+    def _query_where(self, model: Type[T], extra_sql: str, params: dict, **filters) -> list[T]:
+        """INTERNAL, beside its sibling `query_in`. `query`'s equality
+        filters, plus one raw parameterized WHERE fragment ANDed on
+        (#4921's area-by-rectangle read needs `pass_id = ? AND
+        (list_contains($tiles, tile) OR bbox_w > ? OR bbox_h > ?)`, not a
+        single-column equality or IN-list, so neither `query()` nor
+        `query_in()` fits).
+
+        `extra_sql` must be a **constant** -- a module-level string with no
+        interpolation of caller values, never an f-string built per call
+        (that was this method's first shape; a general "raw WHERE fragment"
+        door on `Database` with values spliced in is exactly the SQL-
+        injection shape its sibling methods guard against). Bind every
+        value, including a whole list, through `params` (DuckDB `$name`
+        placeholders; a list binds as one parameter for `list_contains`/
+        `IN`) -- never string-formatted into `extra_sql` itself.
+        `tests/unit/db/test_query_where_extra_sql_is_constant.py` walks
+        this method's callers and fails on an f-string or other computed
+        `extra_sql`.
+        """
+        sql_table = self._sql_table_name(model)
+        self._ensure_table(model)
+
+        for k in filters.keys():
+            if not _VALID_IDENTIFIER.match(k):
+                raise ValueError(f"Invalid column name: {k}")
+
+        query_params: dict[str, Any] = dict(params)
+        where_clauses = [extra_sql] if extra_sql else []
+        for k, v in filters.items():
+            nv = v.value if hasattr(v, "value") else v
+            query_params[k] = nv
+            where_clauses.append(f"{k} = ${k}")
+
+        where = " AND ".join(where_clauses) if where_clauses else "TRUE"
+        rows, columns = self._execute_fetch_with_columns(
+            f"SELECT * FROM {sql_table} WHERE {where}",
+            query_params,
+        )
+        if not rows:
+            return []
+        return [
+            hydrated
+            for row in rows
+            if (hydrated := self._hydrate_row(model, columns, row)) is not None
+        ]
 
     def query_in(self, model: Type[T], column: str, values) -> list[T]:
         """Query rows where `column` matches any of `values` (SQL ``IN``).
@@ -4229,9 +4431,19 @@ class Database(DatabaseEmbeddingMixin):
                 if not _VALID_IDENTIFIER.match(k):
                     raise ValueError(f"Invalid column name: {k}")
 
-            where = " AND ".join(f"{k} = ${k}" for k in filters.keys())
+            # `None` means IS NULL, not `= NULL` (#4924). SQL's `= NULL` is
+            # never true, so without this a soft-delete filter -- the most
+            # natural thing to count by, "how many live rows" -- silently
+            # returns 0 rather than the answer. Safe to add: no caller
+            # passes filters to `count` today, so nothing can change
+            # behaviour underneath.
+            where = " AND ".join(
+                f"{k} IS NULL" if filters[k] is None else f"{k} = ${k}"
+                for k in filters.keys()
+            )
+            params = {k: v for k, v in filters.items() if v is not None}
             result = self._execute(
-                f"SELECT COUNT(*) FROM {sql_table} WHERE {where}", filters
+                f"SELECT COUNT(*) FROM {sql_table} WHERE {where}", params or None
             ).fetchone()
 
         return result[0] if result else 0
@@ -6363,16 +6575,18 @@ class Database(DatabaseEmbeddingMixin):
 
     def _table_name(self, obj_or_model) -> str:
         """Get table name from model class (lowercase + 's')."""
-        if isinstance(obj_or_model, type) and obj_or_model.__name__ == "CanvasLayout":
+        name = (
+            obj_or_model.__name__
+            if isinstance(obj_or_model, type)
+            else type(obj_or_model).__name__
+        )
+        if name == "CanvasLayout":
             return "canvas_layout"
-        if (
-            not isinstance(obj_or_model, type)
-            and type(obj_or_model).__name__ == "CanvasLayout"
-        ):
-            return "canvas_layout"
-        if isinstance(obj_or_model, type):
-            return obj_or_model.__name__.lower() + "s"
-        return type(obj_or_model).__name__.lower() + "s"
+        # source-model slice 3 (#4921): the bare rule gives "segmentpasss",
+        # which reads badly -- same override CanvasLayout already gets.
+        if name == "SegmentPass":
+            return "segment_passes"
+        return name.lower() + "s"
 
     def _sql_table_name(self, obj_or_model) -> str:
         """Quote a table name for DuckDB SQL."""
@@ -6478,6 +6692,22 @@ class Database(DatabaseEmbeddingMixin):
             if first_reconcile_this_connection and table in {"knowledgeclaims", "knowledgeentitys"}:
                 from fichero_server.db.migrations.schema import migrate_knowledge_indices
                 migrate_knowledge_indices(self.conn)
+
+            # Source-model slice 3 (#4921): wait for BOTH tables (unlike the
+            # knowledge indices above, some of this migration's statements
+            # target segment_passes specifically) -- since `_all_schema_models`
+            # now creates both at open, "both already created" is true by the
+            # second of the two, one connection-reconcile pass apart, so this
+            # never logs the noisy "table does not exist yet" warning that
+            # firing on the FIRST of the two would guarantee on every fresh
+            # library.
+            if (
+                first_reconcile_this_connection
+                and table in {"segments", "segment_passes"}
+                and {"segments", "segment_passes"} <= self._tables_created
+            ):
+                from fichero_server.db.migrations.schema import migrate_segment_indices
+                migrate_segment_indices(self.conn)
 
     def _python_to_duckdb_type(self, python_type) -> str:
         """Map Python types to DuckDB types."""

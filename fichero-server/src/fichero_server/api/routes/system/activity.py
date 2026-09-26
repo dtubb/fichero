@@ -30,7 +30,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from fichero_server.api.auth import action_context
-from fichero_server.api.change_stream import ChangeEvent, _change_hub
+from fichero_server.api.change_stream import CHANGE_ID_LISTS, ChangeEvent, _change_hub
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.db import Database
@@ -99,6 +99,12 @@ class ActivityResponse(BaseModel):
 
 
 def _change_event_to_activity_response(event: ChangeEvent) -> ActivityResponse:
+    # Iterates the one declared tuple (source-model slice 2, #4920) instead
+    # of naming each id list here by hand -- this is the fold's own
+    # serialization site, what Swift's `init?(activityMetadata:)` decodes,
+    # and it used to be a second hardcoded list nothing kept in sync with
+    # `_emit`'s (agent-work/source-model/recon-slice-2.md).
+    id_list_metadata = {name: json.dumps(getattr(event, name)) for name in CHANGE_ID_LISTS}
     return ActivityResponse(
         id=f"change-{event.event_id or uuid4().hex}",
         type=ActivityType.SYSTEM_INFO.value,
@@ -113,13 +119,7 @@ def _change_event_to_activity_response(event: ChangeEvent) -> ActivityResponse:
             "origin_user": event.origin_user,
             "ts": event.ts,
             "change_metadata": json.dumps(event.metadata),
-            "document_ids": json.dumps(event.document_ids),
-            "entity_ids": json.dumps(event.entity_ids),
-            "claim_ids": json.dumps(event.claim_ids),
-            "artifact_ids": json.dumps(event.artifact_ids),
-            "citation_ids": json.dumps(event.citation_ids),
-            "reference_ids": json.dumps(event.reference_ids),
-            "interpretation_ids": json.dumps(event.interpretation_ids),
+            **id_list_metadata,
         },
     )
 

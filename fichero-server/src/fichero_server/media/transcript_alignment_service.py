@@ -11,6 +11,8 @@ import cycle.
 
 from __future__ import annotations
 
+from typing import Any
+
 from fichero_server.media.ocr_geometry import OCRGeometryResult
 from fichero_server.media.transcript_alignment import (
     BASELINE_COUNT_KEY,
@@ -56,6 +58,7 @@ def resolve_transcript(db: object, document_id: str) -> str | None:
 
 
 def align_and_build_artifact(
+    db: Any,
     regions_artifact: Artifact,
     transcript: str,
 ) -> tuple[OCRGeometryResult, Artifact | None]:
@@ -67,7 +70,13 @@ def align_and_build_artifact(
     persists nothing, so a mismatch never leaves a wrong overlay behind. The
     caller is responsible for ``db.save``-ing a returned artifact.
     """
-    regions = regions_artifact.ocr_geometry or OCRGeometryResult(
+    # LIVE baselines, not the stored block (#4924). `db` is required for
+    # exactly this reason: aligning a transcript onto a curated page must use
+    # the lines as the historian left them, not as the segmenter first found
+    # them, or the alignment quietly re-imposes the geometry they corrected.
+    from fichero_server.api.routes.document.segment_conversion import live_geometry
+
+    regions = live_geometry(db, regions_artifact) or OCRGeometryResult(
         provider=regions_artifact.provider or "kraken",
         model=regions_artifact.model,
     )

@@ -17,7 +17,7 @@
 >
 > **Out of scope, pointed at with arrows:** what a workflow DOES to an imported document
 > (transcription, extraction, chains) is `ui/workflows.md`'s; the shape a segmented/
-> transcribed page takes is `kg/segment-representations.md`'s; entity/claim extraction and
+> transcribed page takes is `source/segment-representations.md`'s; entity/claim extraction and
 > curation-persistence is `kg/kg-enrichment.md`'s. This spec owns only the pipeline from a
 > file arriving to it becoming a readable, searchable library node.
 
@@ -157,7 +157,7 @@ in the file's own status), never a silent nothing.
 (running the opt-in tool above produced bounding boxes that didn't appear until clicked) is
 NOT this spec's own behavior — the verified cause is a change-stream gap on the artifact/
 segmentation side, not the import-trigger path. It now lives at
-`kg/segment-representations.md`'s `segment.overlay.refreshes-when-segmentation-finishes`
+`source/segment-representations.md`'s `segment.overlay.refreshes-when-segmentation-finishes`
 (#4890), not restated here.
 - `importer.nlp-auto-at-import` — **[PARTIAL]** (#4830 — the original filing issue for the
   NLP-draft stage is closed, its engine half landed 177fc6cd3) the free NLP draft stage itself is BUILT: `run_nlp_draft`
@@ -360,7 +360,7 @@ everything else.
   `ui/workflows.md`.
 - **The shape a segmented/transcribed page takes** (regions, bounding boxes, the geometry a
   Kraken/Apple-Vision pass would produce once `importer.segmentation-automatic-no-toggle`
-  lands) — `kg/segment-representations.md`.
+  lands) — `source/segment-representations.md`.
 - **Entity/claim extraction and curation persistence across re-import** — the
   curation-persists-and-constrains-imports ruling's "import-time entity checker" has nowhere
   to hook into today, because NER doesn't run at import at all yet

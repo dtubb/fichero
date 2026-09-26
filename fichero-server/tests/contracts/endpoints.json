@@ -732,7 +732,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "Annotation"
+        "response_model": "AnnotationRead"
       },
       {
         "method": "PATCH",
@@ -2497,6 +2497,16 @@
       }
     ],
     "content-representations": [
+      {
+        "method": "POST",
+        "path": "/content-representations",
+        "operation_id": "create_representation_route_api_content_representations_post",
+        "summary": "Create Representation Route",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "RepresentationCreateParams",
+        "response_model": "ContentRepresentation"
+      },
       {
         "method": "GET",
         "path": "/content-representations/document/{document_id}",
@@ -8551,6 +8561,318 @@
         "query_params": [],
         "request_model": "SearchRequest",
         "response_model": null
+      }
+    ],
+    "segments": [
+      {
+        "method": "POST",
+        "path": "/segments",
+        "operation_id": "create_segment_api_segments_post",
+        "summary": "Create Segment",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentCreateParams",
+        "response_model": "SegmentRead"
+      },
+      {
+        "method": "POST",
+        "path": "/segments/bulk",
+        "operation_id": "create_segments_bulk_api_segments_bulk_post",
+        "summary": "Create Segments Bulk",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentCreateManyParams",
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/segments/carry",
+        "operation_id": "carry_across_match_api_segments_carry_post",
+        "summary": "Carry Across Match",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentCarryParams",
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/segments/delete",
+        "operation_id": "delete_segments_api_segments_delete_post",
+        "summary": "Delete Segments",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentDeleteParams",
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/segments/document/{doc_id}",
+        "operation_id": "list_document_segments_api_segments_document__doc_id__get",
+        "summary": "List Document Segments",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [
+          {
+            "name": "area",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "artifact_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "pass_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "SegmentListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/segments/document/{document_id}/text",
+        "operation_id": "get_document_text_api_segments_document__document_id__text_get",
+        "summary": "Get Document Text",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [
+          {
+            "name": "include_furniture",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "pass_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "DerivedText"
+      },
+      {
+        "method": "POST",
+        "path": "/segments/matches",
+        "operation_id": "propose_match_api_segments_matches_post",
+        "summary": "Propose Match",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentMatchProposeParams",
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/segments/matches/{match_id}/accept",
+        "operation_id": "accept_match_api_segments_matches__match_id__accept_post",
+        "summary": "Accept Match",
+        "path_params": [
+          "match_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/segments/matches/{match_id}/reject",
+        "operation_id": "reject_match_api_segments_matches__match_id__reject_post",
+        "summary": "Reject Match",
+        "path_params": [
+          "match_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/segments/merge",
+        "operation_id": "merge_segments_api_segments_merge_post",
+        "summary": "Merge Segments",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentMergeParams",
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/segments/passes",
+        "operation_id": "create_pass_api_segments_passes_post",
+        "summary": "Create Pass",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentPassCreateParams",
+        "response_model": "SegmentPass"
+      },
+      {
+        "method": "DELETE",
+        "path": "/segments/passes/{pass_id}",
+        "operation_id": "delete_pass_api_segments_passes__pass_id__delete",
+        "summary": "Delete Pass",
+        "path_params": [
+          "pass_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/segments/split",
+        "operation_id": "split_segment_api_segments_split_post",
+        "summary": "Split Segment",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentSplitParams",
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/segments/undelete",
+        "operation_id": "undelete_segments_api_segments_undelete_post",
+        "summary": "Undelete Segments",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentUndeleteParams",
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/segments/{segment_id}",
+        "operation_id": "get_segment_api_segments__segment_id__get",
+        "summary": "Get Segment",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SegmentDetailResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/segments/{segment_id}",
+        "operation_id": "update_segment_api_segments__segment_id__put",
+        "summary": "Update Segment",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [],
+        "request_model": "SegmentUpdateParams",
+        "response_model": "SegmentRead"
+      },
+      {
+        "method": "GET",
+        "path": "/segments/{segment_id}/picture",
+        "operation_id": "get_segment_picture_api_segments__segment_id__picture_get",
+        "summary": "A segment's picture, cut to its shape",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [
+          {
+            "name": "margin",
+            "required": false,
+            "type": "number"
+          },
+          {
+            "name": "mask",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "size",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "straighten",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/segments/{segment_id}/readings",
+        "operation_id": "list_segment_readings_api_segments__segment_id__readings_get",
+        "summary": "List Segment Readings",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [
+          {
+            "name": "kind",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ReadingListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/segments/{segment_id}/readings/choice",
+        "operation_id": "choose_segment_reading_api_segments__segment_id__readings_choice_post",
+        "summary": "Choose Segment Reading",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [],
+        "request_model": "ReadingChoiceBody",
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/segments/{segment_id}/reference",
+        "operation_id": "segment_reference_api_segments__segment_id__reference_get",
+        "summary": "Segment Reference",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SegmentReferenceResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/segments/{segment_id}/restore-version",
+        "operation_id": "restore_segment_version_api_segments__segment_id__restore_version_post",
+        "summary": "Restore Segment Version",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [],
+        "request_model": "SegmentRestoreVersionBody",
+        "response_model": "SegmentRead"
+      },
+      {
+        "method": "GET",
+        "path": "/segments/{segment_id}/versions",
+        "operation_id": "list_segment_versions_api_segments__segment_id__versions_get",
+        "summary": "List Segment Versions",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SegmentVersionListResponse"
       }
     ],
     "settings": [

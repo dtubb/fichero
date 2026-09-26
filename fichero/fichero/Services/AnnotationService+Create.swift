@@ -67,8 +67,11 @@ extension AnnotationService {
         }
     }
 
+    /// Generic over the wire row (#4990): create answers the plain
+    /// `Annotation` while the reads answer `AnnotationRead`, and both go
+    /// through the one mapping in `AnnotationService+Conversions`.
     private func createdAnnotation(
-        from generated: Components.Schemas.Annotation,
+        from generated: some AnnotationWireRow,
         scope: AnnotationScope
     ) -> DocumentAnnotation? {
         switch scope {

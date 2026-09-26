@@ -19,6 +19,18 @@ from fichero_server.db import Database
 # NOTE: fichero_server.llm is imported inside the one handler that translates (#3950).
 # It pulls langchain_core -> transformers. Every other endpoint in this module
 # is plain artifact CRUD and paid that cost for nothing.
+from fichero_server.models.segments import (
+    ProvisionalSegmentIdError,
+    assert_not_provisional,
+)
+from fichero_server.api.routes.document.segment_conversion import (
+    ConversionRefusal,
+    SegmentConvertAndEditParams,
+    is_converted,
+    live_box_count,
+    live_geometry,
+    restored_artifact_row,
+)
 from fichero_server.media.ocr_geometry import (
     GEOMETRY_REASON_KEY,
     OCRGeometryBox,
@@ -28,6 +40,7 @@ from fichero_server.media.ocr_geometry import (
     SpanRegion,
     geometry_status,
     region_for_line,
+    reading_order,
     region_for_span,
     union_bbox,
 )
@@ -130,25 +143,64 @@ class ArtifactRestoreActionParams(BaseModel):
     payload: dict[str, Any]
 
 
+def _stored_rendition_id(artifact: Artifact) -> str | None:
+    """Which picture this artifact's boxes were measured on.
+
+    Read from the block rather than the projection: the rendition is a
+    property of the MACHINE'S RUN -- which image it looked at -- and moving
+    a box does not change it. So the lean list responses can have it
+    without building a projection at all.
+    """
+    block = artifact.ocr_geometry  # raw-geometry-ok: the run's frame, which conversion never changes
+    return block.rendition_id if block else None
+
+
 def _artifact_response(
-    artifact: Artifact, *, include_geometry: bool = False
+    db: Database, artifact: Artifact, *, include_geometry: bool = False
 ) -> ArtifactResponse:
     # Geometry rides only on the single-artifact GET (#4309): a page's word
     # boxes can run to hundreds of records, so list endpoints stay lean and
     # the preview overlay fetches the one artifact it renders.
+    #
+    # `db` is REQUIRED, not optional, and that is deliberate (#4924): once an
+    # artifact has been converted its stored block is frozen at the state
+    # BEFORE its owner's first edit, and only `live_geometry` knows that. An
+    # optional `db` would let a future call site quietly serve a page as it
+    # looked before somebody curated it, with nothing raising anywhere. Every
+    # caller has a `db`; making them pass it is how they are made to decide.
+    # The FULL projection is built only when the boxes are actually asked
+    # for (#4924 review). A list response wants two small facts -- how many
+    # boxes, and which picture they were measured on -- and building the
+    # whole projection for every artifact in every list meant loading and
+    # sorting every row and copying every box to answer them. The document
+    # view is the hottest route there is.
+    #
+    # The count is live (`live_box_count`, which asks the database to count
+    # rows rather than hydrating them), because a person who deleted three
+    # boxes must not still be told there are twenty. The RENDITION comes
+    # from the block, and correctly: it says which picture the boxes were
+    # measured on, which is a property of the machine's run and does not
+    # change when somebody moves a box.
+    geometry = live_geometry(db, artifact) if include_geometry else None
     return ArtifactResponse(
         id=artifact.id,
         document_id=artifact.document_id,
         artifact_type=artifact.artifact_type,
         content=artifact.content,
         data=artifact.data,
-        ocr_geometry=artifact.ocr_geometry if include_geometry else None,
-        # Counted from the artifact itself, NOT from the field above: that one
+        ocr_geometry=geometry,
+        # Counted from the LIVE geometry, NOT from the field above: that one
         # is deliberately None on list responses, and reading the count off it
-        # would report 0 regions for every artifact in the list.
-        region_count=len(artifact.ocr_geometry.boxes) if artifact.ocr_geometry else 0,
+        # would report 0 regions for every artifact in the list. Live, because
+        # a person who deleted three boxes must not still be told there are
+        # twenty in the library list (#4924).
+        region_count=(
+            len(geometry.boxes) if geometry is not None else live_box_count(db, artifact)
+        ),
         geometry_rendition_id=(
-            artifact.ocr_geometry.rendition_id if artifact.ocr_geometry else None
+            geometry.rendition_id
+            if geometry is not None
+            else _stored_rendition_id(artifact)
         ),
         version=artifact.version,
         provider=artifact.provider,
@@ -225,11 +277,47 @@ def _update_artifact_impl(
     return artifact, before
 
 
+class ArtifactHoldsTheOnlyWords(ConversionRefusal, ValueError):
+    """Deleting this result would silently empty the text of every segment
+    on a page somebody has curated.
+
+    Until readings hang on segments (slice 8, #4924), a converted page's
+    WORDS still live in one place: the `ocr_geometry` block of the artifact
+    they were converted from. The rows keep the shapes; the block keeps the
+    text. Deleting the artifact leaves the page readable in outline and
+    blank in substance -- and nothing would say so.
+
+    Consistent with the two doors already shut on a converted artifact:
+    `artifact.regions_edit` refuses it, and `vision_base` refuses to
+    overwrite its geometry. "Prefer raising over silent loss" is the rule
+    for research data.
+    """
+
+    status_code = 409
+
+    def __init__(self, artifact_id: str, pass_id: str) -> None:
+        self.artifact_id = artifact_id
+        self.pass_id = pass_id
+        super().__init__(
+            f"Artifact {artifact_id} cannot be deleted yet: its boxes became "
+            f"the segments of pass {pass_id}, and this result still holds the "
+            "words of every one of them. Deleting it would leave that page's "
+            "segments with no text at all. Delete the segments you do not "
+            "want, or delete the page itself; this result can be removed once "
+            "readings are stored on segments (#4924, slice 8)."
+        )
+
+
 def _delete_artifact_impl(db: Database, artifact_id: str) -> dict[str, Any]:
     artifact = db.get(Artifact, artifact_id)
     if not artifact:
         raise HTTPException(
             status_code=404, detail=f"Artifact not found: {artifact_id}"
+        )
+    # #4924: the third door. Nothing is written before this.
+    if is_converted(artifact):
+        raise ArtifactHoldsTheOnlyWords(
+            artifact.id, artifact.geometry_superseded_by_pass_id or ""
         )
     before = artifact.model_dump(mode="json")
     # Translation and other artifact-scope embeddings must be removed when the
@@ -250,7 +338,11 @@ def _delete_artifact_impl(db: Database, artifact_id: str) -> dict[str, Any]:
 
 
 def _restore_artifact_impl(db: Database, payload: dict[str, Any]) -> Artifact:
-    artifact = Artifact(**payload)
+    # #4924: never from the payload -- see `restored_artifact_row`. A single
+    # artifact undo REFUSES a snapshot whose boxes disagree with the kept
+    # block, so the person is told rather than silently given a page that
+    # forked into two stores.
+    artifact = restored_artifact_row(db, payload, refuse_different_boxes=True)
     db.save(artifact)
     return artifact
 
@@ -331,7 +423,7 @@ async def list_all_artifacts(
         offset=offset,
     )
 
-    response_artifacts = [_artifact_response(a) for a in artifacts]
+    response_artifacts = [_artifact_response(db, a) for a in artifacts]
     return ArtifactListResponse(items=response_artifacts, count=total)
 
 
@@ -418,7 +510,7 @@ async def list_document_artifacts(
     artifacts = artifacts[offset : offset + limit]
 
     # Convert to response format
-    response_artifacts = [_artifact_response(a) for a in artifacts]
+    response_artifacts = [_artifact_response(db, a) for a in artifacts]
 
     return ArtifactListResponse(items=response_artifacts, count=total)
 
@@ -435,7 +527,7 @@ async def get_artifact(
             status_code=404, detail=f"Artifact not found: {artifact_id}"
         )
 
-    return _artifact_response(artifact, include_geometry=True)
+    return _artifact_response(db, artifact, include_geometry=True)
 
 
 class ArtifactRegionResponse(BaseModel):
@@ -492,7 +584,13 @@ async def get_artifact_region(
             detail="give either line, or char_start and char_end — not both, not neither",
         )
 
-    geometry = artifact.ocr_geometry
+    # LIVE, not the stored block (#4924). This is the one seam where a
+    # claim, a highlight or a search hit becomes a place on the page. On a
+    # converted artifact the stored block is frozen at the state BEFORE its
+    # owner's first edit, so reading it here would point a historian's own
+    # claim at where a box USED to be -- silently, on the one page they
+    # actually curated.
+    geometry = live_geometry(db, artifact)
     status = geometry_status(geometry)
     reason = (
         str(geometry.metadata.get(GEOMETRY_REASON_KEY))
@@ -570,7 +668,7 @@ async def align_transcript_to_regions(
             ),
         )
 
-    aligned, artifact = align_and_build_artifact(regions_artifact, transcript)
+    aligned, artifact = align_and_build_artifact(db, regions_artifact, transcript)
     if artifact is not None:
         db.save(artifact)
 
@@ -580,7 +678,7 @@ async def align_transcript_to_regions(
         transcript_line_count=int(aligned.metadata.get(TRANSCRIPT_LINE_COUNT_KEY) or 0),
         baseline_count=int(aligned.metadata.get(BASELINE_COUNT_KEY) or 0),
         artifact=(
-            _artifact_response(artifact, include_geometry=True)
+            _artifact_response(db, artifact, include_geometry=True)
             if artifact is not None
             else None
         ),
@@ -638,28 +736,34 @@ async def resolve_document_text_regions(
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
 
+    # LIVE for every candidate (#4924): the choice of WHICH artifact to
+    # resolve against is made on the same boxes the answer is read from, so
+    # a curated page cannot be picked by its old geometry and then measured
+    # by its new, or the reverse. One projection per candidate, reused.
+    live: list[tuple[Artifact, OCRGeometryResult]] = []
+    for a in db.query(Artifact, document_id=doc_id):
+        a_geometry = live_geometry(db, a)
+        if a_geometry is not None:
+            live.append((a, a_geometry))
     candidates = sorted(
-        (
-            a for a in db.query(Artifact, document_id=doc_id)
-            if a.ocr_geometry is not None
-        ),
-        key=lambda a: -(a.created_at.timestamp() if a.created_at else 0.0),
+        live,
+        key=lambda pair: -(pair[0].created_at.timestamp() if pair[0].created_at else 0.0),
     )
-    artifact = next(
+    chosen = next(
         (
-            a for a in candidates
-            if geometry_status(a.ocr_geometry) is OCRGeometryStatus.CAPTURED
+            pair for pair in candidates
+            if geometry_status(pair[1]) is OCRGeometryStatus.CAPTURED
         ),
         candidates[0] if candidates else None,
     )
-    if artifact is None or artifact.ocr_geometry is None:
+    if chosen is None:
         return DocumentTextRegionsResponse(
             document_id=doc_id,
             geometry_status=str(OCRGeometryStatus.NOT_RUN),
             geometry_reason="no geometry artifact recorded for this document",
         )
 
-    geometry = artifact.ocr_geometry
+    artifact, geometry = chosen
     status = geometry_status(geometry)
     reason = (
         str(geometry.metadata.get(GEOMETRY_REASON_KEY))
@@ -786,7 +890,7 @@ def _action_create_artifact(
         artifact_ids=[artifact.id],
         document_ids=[artifact.document_id],
     )
-    return _artifact_response(artifact).model_dump(mode="json"), spec
+    return _artifact_response(db, artifact).model_dump(mode="json"), spec
 
 
 class ArtifactBulkCreateActionParams(BaseModel):
@@ -907,7 +1011,7 @@ def _action_update_artifact(
         artifact_ids=[artifact.id],
         document_ids=[artifact.document_id],
     )
-    return _artifact_response(artifact).model_dump(mode="json"), spec
+    return _artifact_response(db, artifact).model_dump(mode="json"), spec
 
 
 @action(
@@ -951,7 +1055,7 @@ def _action_restore_artifact(
         artifact_ids=[artifact.id],
         document_ids=[artifact.document_id],
     )
-    return _artifact_response(artifact).model_dump(mode="json"), spec
+    return _artifact_response(db, artifact).model_dump(mode="json"), spec
 
 
 # =============================================================================
@@ -1066,7 +1170,7 @@ def _action_translate(
         artifact_ids=[artifact.id],
         document_ids=[params.document_id],
     )
-    return _artifact_response(artifact).model_dump(mode="json"), spec
+    return _artifact_response(db, artifact).model_dump(mode="json"), spec
 
 
 # =============================================================================
@@ -1112,7 +1216,16 @@ class ArtifactRegionsEditRequest(BaseModel):
         default=None,
         description="Normalized [x, y, w, h] for move/add",
     )
-    text: str = ""
+    text: str = Field(
+        default="",
+        description=(
+            "Text for the new box on `add`. REFUSED on add until readings "
+            "attach to segments (422, `TextNeedsReadings`): once a page's "
+            "boxes are segment records there is nowhere lawful to keep "
+            "typed words, and a page's first edit converts it (#4924). "
+            "Draw the region, then transcribe it. Ignored by the other ops."
+        ),
+    )
     level: OCRGeometryLevel = OCRGeometryLevel.REGION
 
 
@@ -1121,14 +1234,13 @@ class ArtifactRegionsEditActionParams(BaseModel):
     edit: ArtifactRegionsEditRequest
 
 
-def _reading_order(
-    pairs: list[tuple[int, OCRGeometryBox]],
-) -> list[tuple[int, OCRGeometryBox]]:
-    """Reading order: char spans when every member has one (the transcript IS
-    the reading order), else top-then-left by bbox."""
-    if all(b.char_start is not None for _, b in pairs):
-        return sorted(pairs, key=lambda p: (p[1].char_start or 0, p[1].char_end or 0))
-    return sorted(pairs, key=lambda p: (p[1].bbox[1], p[1].bbox[0]))
+# #4924: `SegmentConvertAndEditParams.edit` is a forward reference to the
+# model just above -- `segment_conversion.py` cannot import this module,
+# which imports it. Resolved here, once, the same way
+# `ArtifactUpdateActionParams` resolves `ArtifactUpdate` below.
+SegmentConvertAndEditParams.model_rebuild(
+    _types_namespace={"ArtifactRegionsEditRequest": ArtifactRegionsEditRequest}
+)
 
 
 def _validated_box(base: OCRGeometryBox | None, **updates: Any) -> OCRGeometryBox:
@@ -1150,13 +1262,44 @@ def _edit_regions_impl(
     db: Database, artifact_id: str, edit: ArtifactRegionsEditRequest, actor: str
 ) -> tuple[Artifact, dict[str, Any]]:
     from fichero_server.core.timeutil import utc_now
+    from fichero_server.models.segments import ProvisionalSegmentIdError, assert_not_provisional
+
+    # `source.seam.provisional-ids-refused`: a caller could reach here by
+    # forwarding a `PassRead.id` (`legacy:<artifact_id>`) instead of the real
+    # artifact id it is prefixed from — refuse with a typed reason rather
+    # than a generic 404 that would look like the artifact was just deleted.
+    try:
+        assert_not_provisional(artifact_id, what="artifact_id")
+    except ProvisionalSegmentIdError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     artifact = db.get(Artifact, artifact_id)
     if not artifact:
         raise HTTPException(status_code=404, detail=f"Artifact not found: {artifact_id}")
+    # #4924: once this artifact's boxes have become segment rows, its stored
+    # block is the record of what the MACHINE produced and is never written
+    # again. Editing it here would fork the page into two stores: the rows
+    # the seam serves, and a block quietly drifting beside them. Refused
+    # with a typed reason, not silently ignored. Step 5 of #4924 replaces
+    # this refusal with a re-route to `segment.convert_and_edit`; until then
+    # nothing in the product can reach it, because nothing converts a page.
+    if is_converted(artifact):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"artifact {artifact_id} has been converted to segments "
+                f"(pass {artifact.geometry_superseded_by_pass_id}); edit the "
+                "segments, not the stored geometry block"
+            ),
+        )
     before = artifact.model_dump(mode="json")
 
-    geometry = artifact.ocr_geometry
+    # The ONLY writer of the stored block. It has just refused every
+    # converted artifact above, so this read can only ever see an
+    # unconverted one -- and for an unconverted artifact the block IS the
+    # live geometry, which is why taking it raw here is not the stale read
+    # the guardrail hunts.
+    geometry = artifact.ocr_geometry  # raw-geometry-ok: unconverted only, refused above
     if geometry is None:
         if edit.op is not RegionEditOp.ADD:
             raise HTTPException(
@@ -1225,7 +1368,7 @@ def _edit_regions_impl(
             raise HTTPException(
                 status_code=422, detail="combine needs at least two indices"
             )
-        ordered = _reading_order([(i, boxes[i]) for i in indices])
+        ordered = reading_order([(i, boxes[i]) for i in indices])
         members = [b for _, b in ordered]
         merged_bbox = union_bbox(members)
         texts = [b.text for b in members if b.text]
@@ -1288,7 +1431,7 @@ def _action_edit_artifact_regions(
     # Geometry INCLUDED: the caller just edited boxes and re-renders from this
     # response — making it re-fetch would invite a stale-overlay class of bug.
     return (
-        _artifact_response(artifact, include_geometry=True).model_dump(mode="json"),
+        _artifact_response(db, artifact, include_geometry=True).model_dump(mode="json"),
         spec,
     )
 
@@ -1307,9 +1450,13 @@ async def edit_artifact_regions(
 ) -> ArtifactResponse:
     """Curate an artifact's regions: move, delete, add, or combine boxes.
 
-    Curation-grade: one audited, undoable action per edit (full before
-    snapshot — nothing is ever lost), plus a `curation_log` entry inside the
-    geometry itself so the history travels with the artifact.
+    Curation-grade: one audited, undoable action per edit — nothing is ever
+    lost.
+
+    Before a page's first edit, each edit is also appended to the block's
+    `curation_log`. The first edit converts the page to segment records;
+    from then on the block is never written, and the history is each
+    segment's versions and the audit record (#4924).
     """
     ctx = _resolve_action_ctx(
         actor=actor,
@@ -1317,10 +1464,38 @@ async def edit_artifact_regions(
         origin_window=x_fichero_origin_window,
         db=db,
     )
-    result = registry.invoke(
+    # #4924: ONE route, ONE action, and the marker decides what it does.
+    #
+    # `segment.convert_and_edit` converts the page's results if they are
+    # not rows yet and applies this edit either way, as a single audited
+    # action with a single undo step. On a page nobody has edited that is a
+    # conversion plus the edit; on every edit after it, just the edit. The
+    # app gets the same `ArtifactResponse` back in both cases, carrying the
+    # boxes it should now draw -- projected from the rows once the page is
+    # converted -- so nothing about the app changes.
+    # `source.seam.provisional-ids-refused`, BEFORE the lookup: a caller can
+    # reach here by forwarding a `PassRead.id` (`legacy:<artifact_id>`)
+    # instead of the real artifact id it is prefixed from, and that deserves
+    # a typed reason rather than a 404 that looks like the artifact was just
+    # deleted. `_edit_regions_impl` used to make this check; the route makes
+    # it now, because the route is what decides where the edit goes (#4924).
+    try:
+        assert_not_provisional(artifact_id, what="artifact_id")
+    except ProvisionalSegmentIdError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    artifact = db.get(Artifact, artifact_id)
+    if artifact is None:
+        raise HTTPException(status_code=404, detail=f"Artifact not found: {artifact_id}")
+
+    registry.invoke(
         db,
-        "artifact.regions_edit",
-        {"artifact_id": artifact_id, "edit": edit.model_dump(mode="json")},
+        "segment.convert_and_edit",
+        {
+            "document_id": artifact.document_id,
+            "artifact_id": artifact_id,
+            "edit": edit.model_dump(mode="json"),
+        },
         ctx,
     )
-    return ArtifactResponse.model_validate(result.result)
+    return _artifact_response(db, db.get(Artifact, artifact_id), include_geometry=True)

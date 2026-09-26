@@ -153,8 +153,20 @@ def _geometry_boxes(db: Database, page: Document) -> tuple[str, list[Any], str |
     indistinguishable from a measurement, which is the exact distinction
     `RegionConfidence` exists to preserve.
     """
+    # LIVE geometry, not the stored block (#4924): once a page has been
+    # curated, its artifact's block is frozen at the state before the first
+    # edit. An entry laid out against those boxes would ignore the very
+    # correction the historian made. Resolved ONCE per artifact here and
+    # carried alongside it, so the frame check below and the read at the end
+    # cannot end up looking at two different answers.
+    from fichero_server.api.routes.document.segment_conversion import live_geometry
+
     artifacts = db.query(Artifact, document_id=page.id) or []
-    candidates = [a for a in artifacts if a.ocr_geometry and a.ocr_geometry.boxes]
+    candidates = [
+        (a, geometry)
+        for a, geometry in ((a, live_geometry(db, a)) for a in artifacts)
+        if geometry and geometry.boxes
+    ]
     if not candidates:
         return "", [], None
 
@@ -176,11 +188,11 @@ def _geometry_boxes(db: Database, page: Document) -> tuple[str, list[Any], str |
     # So: prefer the document's own frame, and REFUSE rather than choose when
     # the candidates are incommensurable. Same argument as `compose` refusing
     # to mix frames instead of picking one.
-    own_frame = [a for a in candidates if not a.ocr_geometry.rendition_id]
+    own_frame = [pair for pair in candidates if not pair[1].rendition_id]
     if own_frame:
         candidates = own_frame
     else:
-        frames = {a.ocr_geometry.rendition_id for a in candidates}
+        frames = {geometry.rendition_id for _, geometry in candidates}
         if len(frames) > 1:
             logger.warning(
                 "page %s carries geometry in %d different frames (%s) and none "
@@ -192,13 +204,13 @@ def _geometry_boxes(db: Database, page: Document) -> tuple[str, list[Any], str |
 
     dated = sorted(
         candidates,
-        key=lambda a: (a.created_at is None, a.created_at),
+        key=lambda pair: (pair[0].created_at is None, pair[0].created_at),
     )
-    newest = dated[-1]
+    newest, newest_geometry = dated[-1]
     return (
-        newest.ocr_geometry.text or newest.content or "",
-        list(newest.ocr_geometry.boxes),
-        newest.provider or newest.ocr_geometry.provider,
+        newest_geometry.text or newest.content or "",
+        list(newest_geometry.boxes),
+        newest.provider or newest_geometry.provider,
     )
 
 

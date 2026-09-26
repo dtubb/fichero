@@ -353,7 +353,7 @@ Left in its legacy milestone, not folded here: **#2807** (iOS first-run parity, 
 product decision) and **#1755** (georeferencing a scanned map image onto a real basemap/globe
 — an authoring feature, not a mode that plots existing coordinates the way Map mode does) are
 both waiting on a home this spec isn't: onboarding has no spec, and georeferencing needs a map/
-representations spec of its own — **corrected 2026-09-19**: `kg/historical-text-normalization.md`
+representations spec of its own — **corrected 2026-09-19**: `source/historical-text-normalization.md`
 was written and read in full; #1755 is unrelated to it (that spec is about historical TEXT
 normalization — dates, entity variants, scripts — not map images), so this is not its waiting
 issue either. Left on its own milestone ("UX - Representations", #183) with no home found yet.

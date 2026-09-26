@@ -319,7 +319,7 @@ read of the calling loop before it can be called fully resolved.
 ## Redirect, not folded here
 
 - **#3309** (document date attribute + extraction → sort library & search by date) —
-  **redirected to `kg/historical-text-normalization.md`**, which already owns this exact ground
+  **redirected to `source/historical-text-normalization.md`**, which already owns this exact ground
   (`histnorm.dates.jdn-core`, `histnorm.dates.wired-at-import`, `histnorm.dates.search-and-
   sort`, citing #3309 itself). Not re-litigated here; this spec's own search-view sort control
   reads whatever that spec's JDN columns provide.
@@ -366,7 +366,7 @@ finding was posted as GitHub-comment evidence with "Left OPEN; not closing mysel
   COLUMN-VIEW surfacing this issue specifically asked for — a different surface, same data.
 
 **Redirected, not moved:**
-- #3309 → `kg/historical-text-normalization.md` (see above); left on #129.
+- #3309 → `source/historical-text-normalization.md` (see above); left on #129.
 
 **Milestones closed**: #17 ("Search View", 61 closed / 0 open), #186 ("Search View - Engine",
 6 closed / 0 open).

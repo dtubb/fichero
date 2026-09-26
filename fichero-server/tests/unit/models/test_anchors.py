@@ -143,6 +143,25 @@ class TestPolygon:
         with pytest.raises(ValidationError):
             SourceAnchor(document_id="doc-1", polygon=[[0, 0], [1, 0], [1, 1, 1]])
 
+    def test_polygon_point_within_edge_tolerance_accepted(self):
+        """#4955: `validate_rect`'s edge-sum check and the baseline's own
+        check (`segments.py::_COORD_TOLERANCE`) both absorb 1e-6 of float
+        drift past the image edge; the polygon check used to allow none, so
+        the SAME drift that a rect or baseline shrugs off dropped the whole
+        polygon. One point at 1 + 1e-6 (an even split summing just past 1.0
+        in binary) must not fail where a rect's edge would not."""
+        anchor = SourceAnchor(
+            document_id="doc-1",
+            polygon=[[0.0, 0.0], [1.0 + 5e-7, 0.0], [1.0 + 5e-7, 1.0], [0.0, 1.0]],
+        )
+        assert len(anchor.polygon) == 4
+
+    def test_polygon_point_past_tolerance_still_rejected(self):
+        """The tolerance absorbs float drift only, never a genuinely
+        off-frame point."""
+        with pytest.raises(ValidationError):
+            SourceAnchor(document_id="doc-1", polygon=[[0, 0], [1, 0], [1.1, 1.1]])
+
 
 class TestRendition:
     def test_pure_resample_has_no_transform(self):

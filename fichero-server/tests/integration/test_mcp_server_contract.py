@@ -46,6 +46,17 @@ EXPECTED_TOOLS = {
     "fichero_kg_neighborhood",
     "fichero_document_kg",
     "fichero_artifact_get",
+    # Source-model slice 1 (2026-09-19): read-only segments seam
+    # (source.one-store, source.seam.read-either-store).
+    "fichero_segments",
+    # Source-model slice 4/5 (#4955 item C): the three real-Segment reads
+    # the HTTP API offers beyond the slice-1 list -- one segment's live row
+    # (resolved through forwarding), its version history, and its citable
+    # reference. Parity pinned by
+    # test_segment_detail_versions_reference_hard_gate_same_everywhere.
+    "fichero_segment",
+    "fichero_segment_versions",
+    "fichero_segment_reference",
     # #4485: KG writes through the audited /api/mcp/tools/knowledge/* path
     # (actor from auth state, change events emitted).
     "fichero_kg_entity_upsert",
@@ -185,12 +196,257 @@ async def test_read_tools_answer_against_seeded_library(mcp_server, cli_live_eng
     hits = await call(mcp_server, "fichero_search", {"query": "Eugenio"})
     assert "Letter 1933" in json.dumps(hits) or "test-doc-letter" in json.dumps(hits)
 
+    # source-model slice 1: no artifact in this seed carries ocr_geometry, so
+    # an empty segment list is the honest answer, not an error.
+    segments = await call(mcp_server, "fichero_segments", {"doc_id": doc_id})
+    assert segments.get("document_id") == doc_id
+    assert segments.get("segments") == []
+
     # empty on a fresh library is a legitimate answer for these two
     activity = await call(mcp_server, "fichero_activity", {}, allow_empty=True)
     assert isinstance(activity, (list, dict))
 
     notes = await call(mcp_server, "fichero_list_notes", {}, allow_empty=True)
     assert isinstance(notes, (list, dict))
+
+
+@pytest.mark.asyncio
+async def test_segments_hard_gate_same_ids_and_rects_everywhere(mcp_server, cli_live_engine):  # noqa: F811
+    """`source.one-store`/`source.seam.read-either-store` hard gate: the
+    route, the MCP tool and the generated CLI command must resolve through
+    the same mapping function and agree byte-for-byte on ids and rects.
+    """
+    import httpx
+    from typer.testing import CliRunner
+
+    from fichero_cli import __main__ as cli
+
+    base_url = cli_live_engine["base_url"]
+    library_path = str(cli_live_engine["library"])
+    headers = {"X-Fichero-Library-Path": library_path}
+
+    with httpx.Client(base_url=base_url, headers=headers, timeout=10.0) as http:
+        doc = http.post("/api/documents", json={"name": "hard-gate.jpg"}).json()
+        artifact = http.post(
+            "/api/artifacts/",
+            json={"document_id": doc["id"], "artifact_type": "regions"},
+        ).json()
+        # No typed text on the add: since #4924 slice 6 a region added to a
+        # converted page cannot carry one (there is nowhere lawful to keep
+        # it until readings attach to segments), and a page's FIRST edit is
+        # what converts it. The rubber-band draw the app sends is exactly
+        # this shape.
+        http.put(
+            f"/api/artifacts/{artifact['id']}/regions",
+            json={
+                "op": "add",
+                "bbox": [0.1, 0.2, 0.3, 0.1],
+                "level": "region",
+            },
+        ).raise_for_status()
+
+        # 1. The route, direct.
+        route_body = http.get(f"/api/segments/document/{doc['id']}").json()
+
+    def _ids_and_rects(segments: list[dict]) -> list[tuple[str, list[float], object]]:
+        # page_index (slice 1b, #4919) rides in this tuple too: unset here
+        # (the live regions-edit route has no page_index field to set), but
+        # the three paths must still agree it is unset the same way.
+        return [(s["id"], s["anchor"]["rect"], s["page_index"]) for s in segments]
+
+    route_pairs = _ids_and_rects(route_body["segments"])
+    # One segment, at the rect that was drawn. Its id is a REAL one now,
+    # not the `legacy:<artifact>:<n>` this used to assert: the add was the
+    # page's first edit, so it converted the page (#4924). Which id it is
+    # does not matter here -- that all three surfaces say the SAME one
+    # does, and that is what the next two blocks check.
+    assert len(route_pairs) == 1
+    assert route_pairs[0][1] == [0.1, 0.2, 0.3, 0.1]
+    assert route_pairs[0][2] is None
+    assert not route_pairs[0][0].startswith("legacy:")
+    assert route_body["segments"][0]["provisional"] is False
+    route_pass_text = route_body["passes"][0]["text"]
+
+    # 2. The MCP tool, in-process against the same live engine.
+    mcp_result = await call(mcp_server, "fichero_segments", {"doc_id": doc["id"]})
+    assert _ids_and_rects(mcp_result["segments"]) == route_pairs
+    assert mcp_result["passes"][0]["text"] == route_pass_text
+
+    # 3. The generated CLI command, against the same live engine.
+    runner = CliRunner()
+    env = {
+        "FICHERO_API_URL": base_url,
+        "FICHERO_LIBRARY_PATH": library_path,
+        "FICHERO_DISABLE_AUTH": "1",
+    }
+    result = runner.invoke(
+        cli.app, ["--json", "segments", "list-document", doc["id"]], env=env
+    )
+    assert result.exit_code == 0, result.output
+    cli_body = json.loads(result.output)
+    assert _ids_and_rects(cli_body["segments"]) == route_pairs
+    assert cli_body["passes"][0]["text"] == route_pass_text
+
+
+@pytest.mark.asyncio
+async def test_segment_detail_versions_reference_hard_gate_same_everywhere(
+    mcp_server, cli_live_engine,  # noqa: F811
+):
+    """#4955 item C: every read the HTTP API offers for a real (slice
+    3/4/5) Segment -- its live row (resolved through forwarding), its
+    version history, and its citable reference -- must be reachable
+    through the MCP tools and the generated CLI command with the SAME
+    result as the route itself. Uses a REAL ``Segment`` row (not the
+    slice-1 legacy/provisional blob path above): `get_segment`/
+    `list_segment_versions`/`segment_reference` all refuse a provisional
+    id, so this needs `POST /api/segments/passes` + `POST /api/segments`,
+    then one `PUT` update to produce a version row worth reading.
+    """
+    import httpx
+    from typer.testing import CliRunner
+
+    from fichero_cli import __main__ as cli
+
+    base_url = cli_live_engine["base_url"]
+    library_path = str(cli_live_engine["library"])
+    headers = {"X-Fichero-Library-Path": library_path}
+
+    with httpx.Client(base_url=base_url, headers=headers, timeout=10.0) as http:
+        doc = http.post("/api/documents", json={"name": "hard-gate-segment.jpg"}).json()
+        pass_row = http.post(
+            "/api/segments/passes", json={"document_id": doc["id"], "name": "hard-gate-pass"}
+        ).json()
+        segment = http.post(
+            "/api/segments",
+            json={
+                "document_id": doc["id"], "pass_id": pass_row["id"], "kind": "word",
+                "anchor": {"document_id": doc["id"], "rect": [0.1, 0.1, 0.2, 0.1]},
+            },
+        ).json()
+        segment_id = segment["id"]
+        http.request(
+            "PUT", f"/api/segments/{segment_id}",
+            json={"segment_id": segment_id, "expected_version": 1, "kind_raw": "hard-gate-edit"},
+        ).raise_for_status()
+
+        # 1. The route, direct.
+        route_detail = http.get(f"/api/segments/{segment_id}").json()
+        route_versions = http.get(f"/api/segments/{segment_id}/versions").json()
+        route_reference = http.get(f"/api/segments/{segment_id}/reference").json()
+
+    assert route_detail["segment"]["kind_raw"] == "hard-gate-edit"
+    # `{items, count}`, not a bare array (#1075's rule for every list
+    # endpoint; `test_no_new_bare_array_get_endpoint` enforces it).
+    assert route_versions["count"] == 1
+    assert len(route_versions["items"]) == 1
+    assert route_reference["segment_id"] == segment_id
+
+    # 2. The MCP tools, in-process against the same live engine.
+    mcp_detail = await call(mcp_server, "fichero_segment", {"segment_id": segment_id})
+    assert mcp_detail == route_detail
+
+    mcp_versions = await call(mcp_server, "fichero_segment_versions", {"segment_id": segment_id})
+    # The route answers the `{items, count}` envelope every list endpoint
+    # answers (#1075's rule), and this tool mirrors it -- so there is one
+    # content block carrying one dict, and no unwrapping to reason about.
+    assert mcp_versions == route_versions
+
+    mcp_reference = await call(
+        mcp_server, "fichero_segment_reference", {"segment_id": segment_id}
+    )
+    assert mcp_reference == route_reference
+
+    # 3. The generated CLI command, against the same live engine.
+    runner = CliRunner()
+    env = {
+        "FICHERO_API_URL": base_url,
+        "FICHERO_LIBRARY_PATH": library_path,
+        "FICHERO_DISABLE_AUTH": "1",
+    }
+    detail_result = runner.invoke(cli.app, ["--json", "segments", "get", segment_id], env=env)
+    assert detail_result.exit_code == 0, detail_result.output
+    assert json.loads(detail_result.output) == route_detail
+
+    versions_result = runner.invoke(
+        cli.app, ["--json", "segments", "list-versions", segment_id], env=env
+    )
+    assert versions_result.exit_code == 0, versions_result.output
+    assert json.loads(versions_result.output) == route_versions
+
+    reference_result = runner.invoke(
+        cli.app, ["--json", "segments", "reference", segment_id], env=env
+    )
+    assert reference_result.exit_code == 0, reference_result.output
+    assert json.loads(reference_result.output) == route_reference
+
+
+@pytest.mark.asyncio
+@pytest.mark.xfail(
+    reason=(
+        "#4957 review 3: segment.merge gained a REQUIRED expected_versions "
+        "field; the committed contract/generated CLI are stale until the "
+        "manager regenerates them in the same commit as this work. "
+        "strict=False: this flips to a plain pass once that lands, no "
+        "follow-up edit needed here."
+    ),
+    strict=False,
+)
+async def test_segment_merge_with_a_token_hard_gate(cli_live_engine):  # noqa: F811
+    """#4957 review 3: parity must cover a TOKENED write, not only reads --
+    the generated CLI's `segments merge` command has no `--expected-versions`
+    option today, so this is expected red until the manager's regeneration."""
+    import httpx
+    from typer.testing import CliRunner
+
+    from fichero_cli import __main__ as cli
+
+    base_url = cli_live_engine["base_url"]
+    library_path = str(cli_live_engine["library"])
+    headers = {"X-Fichero-Library-Path": library_path}
+
+    with httpx.Client(base_url=base_url, headers=headers, timeout=10.0) as http:
+        doc = http.post("/api/documents", json={"name": "merge-parity.jpg"}).json()
+        pass_row = http.post(
+            "/api/segments/passes", json={"document_id": doc["id"], "name": "merge-parity-pass"}
+        ).json()
+        seg_a = http.post(
+            "/api/segments",
+            json={
+                "document_id": doc["id"], "pass_id": pass_row["id"], "kind": "word",
+                "anchor": {"document_id": doc["id"], "rect": [0.0, 0.0, 0.1, 0.1]},
+            },
+        ).json()
+        seg_b = http.post(
+            "/api/segments",
+            json={
+                "document_id": doc["id"], "pass_id": pass_row["id"], "kind": "word",
+                "anchor": {"document_id": doc["id"], "rect": [0.3, 0.3, 0.1, 0.1]},
+            },
+        ).json()
+
+    runner = CliRunner()
+    env = {
+        "FICHERO_API_URL": base_url,
+        "FICHERO_LIBRARY_PATH": library_path,
+        "FICHERO_DISABLE_AUTH": "1",
+    }
+    result = runner.invoke(
+        cli.app,
+        [
+            "--json", "segments", "merge",
+            "--segment-ids", json.dumps([seg_a["id"], seg_b["id"]]),
+            "--keep-id", seg_b["id"],
+            "--expected-versions", json.dumps({seg_a["id"]: 1, seg_b["id"]: 1}),
+        ],
+        env=env,
+    )
+    assert result.exit_code == 0, result.output
+    body = json.loads(result.output)
+    assert body["kept_id"] == seg_b["id"]
+
+    with httpx.Client(base_url=base_url, headers=headers, timeout=10.0) as http:
+        route_detail = http.get(f"/api/segments/{seg_a['id']}").json()
+    assert route_detail["segment"]["deleted_at"] is not None  # absorbed by the merge
 
 
 @pytest.mark.asyncio

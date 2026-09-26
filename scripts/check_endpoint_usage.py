@@ -37,6 +37,22 @@ HTTP_METHODS = {"get", "put", "post", "delete", "patch", "head", "options", "tra
 # Current baseline. The script exits 0 while every unused/asymmetric endpoint is
 # listed here and exits 1 when a new gap appears.
 KNOWN_GAPS: dict[str, str] = {
+    'POST /api/segments/passes': "2026-09-20 source-model slice 3 (#4921) - engine first; the app writes passes with the segment editor (#4941)",
+    'DELETE /api/segments/passes/{pass_id}': "2026-09-20 source-model slice 3 (#4921) - engine first; the app deletes passes with the segment editor (#4941)",
+    'POST /api/segments/bulk': "2026-09-20 source-model slice 3 (#4921) - engine first; used by first-edit conversion (#4924) and the segment editor (#4941)",
+    'POST /api/segments/matches': "2026-09-20 source-model slice 4 (#4922) - engine first; the app proposes matches with the segment editor (#4941)",
+    'POST /api/segments/matches/{match_id}/accept': "2026-09-20 source-model slice 4 (#4922) - engine first; the app accepts matches with the segment editor (#4941)",
+    'POST /api/segments/matches/{match_id}/reject': "2026-09-20 source-model slice 4 (#4922) - engine first; the app rejects matches with the segment editor (#4941)",
+    'POST /api/segments/merge': "2026-09-20 source-model slice 4 (#4922) - engine first; the app merges segments with the segment editor (#4941)",
+    'POST /api/segments/split': "2026-09-20 source-model slice 4 (#4922) - engine first; the app splits segments with the segment editor (#4941)",
+    'POST /api/segments/carry': "2026-09-20 source-model slice 4 (#4922) - engine first; the app carries readings/annotations with the segment editor (#4941)",
+    'PUT /api/segments/{segment_id}': "2026-09-20 source-model slice 5 (#4923) - engine first; the app updates segments with the segment editor (#4941)",
+    'POST /api/segments/delete': "2026-09-20 source-model slice 5 (#4923) - engine first; the app deletes segments with the segment editor (#4941)",
+    'POST /api/segments/undelete': "2026-09-20 source-model slice 5 (#4923) - engine first; the app undeletes segments with the segment editor (#4941)",
+    'POST /api/segments/{segment_id}/restore-version': "2026-09-20 source-model slice 5 (#4923) - engine first; the app restores versions with the segment editor (#4941)",
+    'GET /api/segments/{segment_id}/versions': "2026-09-20 source-model slice 5 (#4923) - engine first; a version history has no UI surface yet (#4941)",
+    'GET /api/segments/{segment_id}': "2026-09-20 source-model slice 5 (#4923) - engine first; the app reads one segment with the segment editor (#4941)",
+    'GET /api/segments/{segment_id}/reference': "2026-09-20 source-model slice 4 (#4922) - engine first; a citable reference has no UI surface yet (#4941)",
     'POST /api/kg/claims/dedupe': "CLI-first KG dedupe (2026-09-02) - cli-only",
     'POST /api/kg/entity-curation/dedupe': "CLI-first KG dedupe (2026-09-02) - cli-only",
     'POST /api/entities/bulk': "2026-08-18 bulk entity upsert - engine+importer path; Swift wiring queued with #4118",

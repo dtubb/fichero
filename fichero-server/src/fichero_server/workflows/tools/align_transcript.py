@@ -91,6 +91,8 @@ async def align_transcript_tool(
         logger.warning("align_transcript: nothing selected")
         return empty
 
+    from fichero_server.api.routes.document.segment_conversion import live_geometry
+
     db = db_manager.get_database(library_path)
     documents: list[dict[str, Any]] = []
     aligned_count = 0
@@ -101,7 +103,12 @@ async def align_transcript_tool(
         # Newest regions artifact that actually carries baselines. A page can
         # accumulate empty/older ones; the freshest with geometry is the one to
         # align to.
-        regions = [r for r in regions if r.ocr_geometry and r.ocr_geometry.boxes]
+        # LIVE baselines (#4924), resolved ONCE per artifact: a curated page
+        # must be aligned to the lines as its owner left them.
+        regions = [
+            r for r in regions
+            if (geometry := live_geometry(db, r)) is not None and geometry.boxes
+        ]
         if not regions:
             logger.info("align_transcript: %s has no baseline regions", doc_id)
             skipped_count += 1
@@ -115,7 +122,7 @@ async def align_transcript_tool(
             skipped_count += 1
             continue
 
-        _aligned, artifact = align_and_build_artifact(regions_artifact, transcript)
+        _aligned, artifact = align_and_build_artifact(db, regions_artifact, transcript)
         if artifact is None:
             logger.info("align_transcript: %s declined (line/baseline mismatch)", doc_id)
             skipped_count += 1

@@ -1,0 +1,198 @@
+# Source Model — Languages, scripts and signs — Design Spec (#TBD)
+
+> Milestone: source-model
+> Manual: TBD — part of the "How Fichero represents a source" section: how to say what
+> language and script a passage is in, how writing direction works, and how to work with a
+> script or a sign that no computer knows yet.
+>
+> Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
+> code makes them pass. **Status: DRAFT.** A slice of the source model: read `source-model.md`
+> first. Evidence in `source-survey.md`. Every behaviour below is tagged **[GAP]** with its issue; everything
+> is design unless the foundation's "What exists today" says otherwise. (Today: language is
+> recorded once per document; script only on a reading; no direction anywhere; the detector
+> knows English and Spanish.)
+
+## Intent
+
+Fichero should be as useful for a language with ten speakers, a script nobody has encoded,
+or a text written in a spiral, as it is for printed English. That means language, script,
+direction and the identity of a sign are recorded honestly at every level, and that "the
+computer has no character for this" never stops the work.
+
+`historical-text-normalization.md` owns what is *done* with text (normalising, dating,
+matching names across scripts, detecting language, translating). This slice owns how
+language, script, direction and signs are *recorded*.
+
+## The design
+
+### Three facts, never one field
+
+- **Language** — a BCP 47 tag, *and* a Glottolog code where there is one. They are two
+  different systems: Glottolog (open licence; covers dialects and under-resourced and
+  Indigenous languages) is not part of BCP 47, so the record holds both, and one spelling of
+  each is kept for the whole project. Where no registry knows the language, a private tag
+  made in the project, with a name and notes. Other sources can be drawn on beside Glottolog, from an
+  open list: Native Land Digital (languages and territories; it asks for attribution and says
+  it is not authoritative) and FirstVoices (community-owned language archives, where each
+  community governs access) are wanted from the start. "Unknown" and "not yet looked at"
+  are different values, as they already are for a document's language today.
+- **Script** — ISO 15924, including its honest codes: no writing; undetermined; and the
+  private-use codes for a script a project declares itself.
+- **Encoding** — whether, and how far, the signs have Unicode characters: fully, partly, or
+  not at all. Never assumed. Fichero already measures something close for *models* (how well a
+  model's vocabulary covers a script's characters, in four tiers, with an honest "cannot
+  tell": `llm/script_coverage.py`, served as language fit). The page-level fact builds on that
+  measure and its words; it is not a second one.
+
+One language can use several scripts. One page can hold several of each. A Japanese page
+holds Chinese characters and two syllabaries at once.
+
+### It cascades
+
+Language, script and direction are set at any level and **inherited downward** until
+overridden: app, project, folder, document (a group of pages), page, region, line, word,
+character. The engine already resolves a document's language in one place
+(`llm/language_policy.py`); the cascade **extends that resolver**, and the same one resolver
+answers for models and guidelines too (`source.resolve.one-cascade` in the models slice).
+The merging rule (a child overrides its parent; a loop raises) is the prototype system's. A gloss in Basque inside a Latin page overrides for that gloss only. Every value
+shown says where it came from ("from the page"; "set here"). This is the ratified cascade
+already recorded in the normalization spec; this is where it lives.
+
+A reading can also state its own language and script, which wins for that reading (a
+translation is in another language than the ink).
+
+### Direction
+
+Direction is a property of a segment: left to right; right to left; top to bottom; bottom to
+top; **alternating** (each line reverses); **follows the baseline** (a spiral, a seal, a
+coastline). For columns and lines there is also the direction in which *they* succeed each
+other (vertical columns running right to left). Mixed direction inside one line (Arabic with
+numerals) follows the Unicode bidirectional rules, and the stored text is always in reading
+order, never in display order.
+
+The Reader lays text out in its direction. Where it cannot lay a direction out as running
+text (a spiral), it shows the reading in reading order and shows the shape on the image.
+
+### Signs without characters
+
+**How a declared sign sits inside a reading's text** (default taken; morning file): the text
+stays an ordinary string, with a project-minted private-use character standing for the sign,
+and the reading carries a small map from position to sign. Search, comparison and every
+existing reader of a reading's text keep working; the Reader and the exporters use the map.
+
+A **sign** is the unit of a script. Most signs are Unicode characters. When one is not, it is
+a **declared sign**, which needs only:
+
+- a name or label;
+- a picture, cut from a real segment on a real page.
+
+and may have: notes; a sound or meaning; **references to sign lists** (the authority and the
+number in its list: a catalogue of Maya glyphs, a cuneiform sign list, a project's own); a
+private-use code point (MUFI's, where MUFI has one); a description of how it is built from
+parts; a font that draws it.
+
+A sign's identity can therefore be "number 561 in this catalogue" with no code point at all.
+Unicode is one authority among several.
+
+Declared signs live in a **sign list** owned by a project. A reading's text can mix ordinary
+characters and declared signs. A whole unencoded script can be built up this way, sign by
+sign, from its own sources: each new sign is declared from the page it was first met on, and
+every later instance points to it. The list can be exported and shared, and is the evidence
+needed for an encoding proposal.
+
+**Variant forms** of an encoded character (the many forms of one Chinese character; a
+long s) are recorded the same way: the character, plus which variant.
+
+### What can be done with declared signs
+
+Everything that can be done with characters: transcribe (pick from the list, or draw a box on
+the page and say "this one again"); search (by sign, by catalogue number); compare (all
+instances of one sign, side by side, across hands and sources); show (the sign's picture in
+line in the Reader where no font has it); export (as TEI's declared glyph elements; elsewhere a
+placeholder plus a report of what was substituted); train (a recogniser can learn declared
+signs as classes).
+
+### Fonts
+
+Font *files* and which reading needs which are this model's; how text is drawn with them
+belongs to the typography work (`histnorm.render.no-bundled-fonts`, #3324, #3315): routed.
+
+The font a reading needs is recorded with it. Fichero ships a few open fonts for scripts the
+system lacks, a project can carry its own, and a profile can name the fonts it needs. There
+is **an easy way to find a font for a script and add it** to the project (searching the open
+font collections by script, showing the licence, one step to add), the same in spirit as
+finding a model. If a needed font is missing, Fichero says so and shows sign pictures or a fallback;
+it never shows empty boxes without explanation.
+
+### Input
+
+Transcribing an unfamiliar script should not depend on the Mac having a keyboard for it: a
+palette of the project's signs and of a script's characters, searchable by name and by
+catalogue number, inserts into a reading.
+
+### Side by side
+
+Because language, script, signs and letterforms sit on segments, two sources can be compared
+by character: a Japanese page beside a Chinese one; the same sign in two hands; every
+instance of one abbreviation in a codex.
+
+## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
+
+Language and script
+- `source.lang.three-facts` — **[GAP]** (#4938) language, script and encoding are recorded separately.
+- `source.lang.registries` — **[GAP]** (#4938) language holds a BCP 47 tag and, separately, a Glottolog code (a
+  second code on the engine's existing language record, not a new registry);
+  script is ISO 15924 including unwritten, undetermined and private-use; encoding (full, part,
+  none) is recorded by Fichero.
+- `source.lang.project-declared` — **[GAP]** (#4938) a project can declare a language or script no registry has.
+- `source.lang.unknown-is-not-unexamined` — **[GAP]** (#4938) "unknown" and "not yet looked at" are different.
+- `source.lang.cascade` — **[GAP]** (#4938) language and script inherit downward from app to character and can
+  be overridden at any level (direction inherits the same way: see `source.dir.per-segment`).
+- `source.lang.says-where-from` — **[GAP]** (#4938) a shown value says which level it came from.
+- `source.lang.reading-overrides` — **[GAP]** (#4938) a reading's own language and script win for that reading.
+- `source.lang.many-per-page` — **[GAP]** (#4938) one page can hold several languages and scripts at once.
+
+Direction
+- `source.dir.per-segment` — **[GAP]** (#4938) direction is set per segment: four straight directions,
+  alternating, or follows the baseline; plus the direction in which lines or columns succeed.
+- `source.dir.logical-order-stored` — **[GAP]** (#4938) stored text is in reading order; mixed direction in a
+  line follows the Unicode bidirectional rules on display.
+- `source.dir.reader-lays-out` — **[GAP]** (#4938) the Reader lays text out in its direction, and falls back to
+  reading order plus the shape on the image where it cannot.
+
+Signs
+- `source.sign.declared` — **[GAP]** (#4939) a sign with no character can be declared with a name and a picture
+  cut from a real page.
+- `source.sign.list-authority` — **[GAP]** (#4939) a sign can be identified by an authority and a number in its
+  list, with no code point.
+- `source.sign.project-list` — **[GAP]** (#4939) declared signs live in a project's sign list, which can be
+  exported and shared.
+- `source.sign.in-readings` — **[GAP]** (#4939) a reading's text can mix characters and declared signs.
+- `source.sign.variants` — **[GAP]** (#4939) a variant form of an encoded character is recorded as the character
+  plus the variant.
+- `source.sign.gather-instances` — **[GAP]** (#4939) every instance of one sign in a project can be listed, with
+  its picture, from one search.
+- `source.sign.shown-as-picture` — **[GAP]** (#4939) where no font has a sign, its picture is shown in line.
+- `source.sign.export-honest` — **[GAP]** (#4939) exports carry declared signs where the format can (TEI) and
+  report substitutions where it cannot.
+
+Fonts and input
+- `source.font.recorded` — **[GAP]** (#4939) a reading records the font it needs; a project can carry fonts.
+- `source.font.find-and-add` — **[GAP]** (#4939) fonts for a script can be searched for in open collections and
+  added to a project in one step, with their licence shown.
+- `source.font.missing-is-said` — **[GAP]** (#4939) a missing font is reported; no unexplained empty boxes.
+- `source.input.palette` — **[GAP]** (#4939) a searchable palette of a script's characters and the project's
+  signs inserts into a reading.
+
+Comparison
+- `source.compare.side-by-side` — **[GAP]** (#4939) two sources can be shown side by side with matching
+  characters or signs aligned.
+
+## Test matrix
+
+To be filled at approval.
+
+## Open questions
+
+Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
+`source-model.md`.

@@ -31,6 +31,10 @@ def _row(**fields):
     row.step_name = ""
     row.content = None
     row.ocr_geometry = None
+    # Unconverted, like every artifact until its page's first edit (#4924).
+    # A MagicMock answers every attribute with a truthy mock, so without this
+    # the tool would read every fixture row as a converted page.
+    row.geometry_superseded_by_pass_id = None
     row.id = "artifact-1"
     for key, value in fields.items():
         setattr(row, key, value)

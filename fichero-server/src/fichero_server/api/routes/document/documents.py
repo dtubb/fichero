@@ -2618,7 +2618,18 @@ def restore_documents_impl(
             restored_ids.append(restored.id)
             seen_doc_ids.add(restored.id)
     for snapshot in artifacts or []:
-        db.save(Artifact.model_validate(snapshot))
+        # #4924, the same rule as `artifacts.py::_restore_artifact_impl`:
+        # the marker is read from the STORE and a converted artifact's kept
+        # block is never rewritten. A recorded dump is a picture of the
+        # past; whether this artifact's boxes are segment rows now, and
+        # what the machine originally produced, are facts about the
+        # present. A bulk restore cannot refuse a whole document over one
+        # artifact, so it keeps the block and restores everything else.
+        from fichero_server.api.routes.document.segment_conversion import (
+            restored_artifact_row,
+        )
+
+        db.save(restored_artifact_row(db, snapshot, refuse_different_boxes=False))
     return restored_ids
 
 

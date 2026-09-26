@@ -1,5 +1,9 @@
 # Historical Text Normalization — Design Spec (#TBD)
 
+> **2026-09-19 — read this first.** The shared ideas in this file (what a segment is, its
+> slots, the delivery rule) now have one home: `source-model.md` and its slices.
+> Where this file and that set differ, that set wins. This file stays as the text side of the source model. How language, script and direction are recorded, and the cascade, now live in `languages-scripts-signs.md`; what is done with text stays here, and works on a reading of a segment.
+>
 > Milestone: historical-text-normalization
 > Manual: TBD — the contributor manual has no historical-text-normalization section yet.
 >
@@ -256,6 +260,23 @@ rather than defaulting to the pessimistic prior.
   `_fold_for_search` (NFD/search), `_fold_accents` (NFKD/entity keys), and whatever this spec's
   phase-1 canonicalization eventually adds — any new normalization work must state which of
   these it replaces or coexists with, not silently add a fifth.
+- `histnorm.language.no-silent-english-entity-model` — **[PARTIAL]** (#4914; fixed by `7c04953cf`
+  on 2026-09-19: entity recognition and the subject-verb-object reader now decline a language
+  they have no model for, by name, and the import draft records why; tests in
+  `tests/unit/kg/test_spacy_ner.py`, `tests/unit/knowledge/test_spacy_svo_validator.py` and
+  `tests/unit/api/test_nlp_draft_import.py`. The issue stays open for one loose end, filed as #4918:
+  `is_pipeline_available` in `knowledge/spacy_ner.py` still falls back to the English list
+  when asked about a language it does not know; it only answers "is a model installed", and no
+  extraction reaches it.) What was found, VERIFIED on disk
+  2026-09-19 (`fichero_server/knowledge/spacy_ner.py`, in the pipeline loader): when there is
+  no spaCy pipeline for a document's language, the code sets the language to English, loads
+  the English models, and only logs a warning. So a text in an unsupported language gets
+  English entity recognition, and its results feed the automatic draft layer at import with no
+  sign to the researcher. This breaks the standing rule to decline, not substitute. Expected:
+  entity recognition declines for that language, says plainly "no entity model for this
+  language", and the import carries on without it; no English fallback. Not yet checked: what
+  language detection returns for a language it cannot identify, and whether that value reaches
+  this loader (see `source/models-chains-and-projects.md`, "Language tools are honest").
 - `histnorm.language.per-language-tables-exist-elsewhere` — **[OK]** (pre-existing, cited for
   context, not this milestone's own delivery) `spacy_svo.py`'s `_LANG_DEPS` (extraction-time
   dependency-label tables) and `readable.py`'s `_LEADING_PREPOSITIONS`/`_REALISATION` (added
@@ -298,8 +319,11 @@ rather than defaulting to the pessimistic prior.
 ### H. Future direction, explicitly deferred (not this milestone's gap to close)
 
 - `histnorm.future.cascading-attribute-resolution` — **NOT NOW, ratified future direction.**
+  **2026-09-19: no longer deferred.** The maintainer ruled that settings cascade (a folder
+  inside a project can differ); the design now lives in `languages-scripts-signs.md`. What
+  follows is the earlier note, kept for the record.
   Language and other per-text attributes are intended to eventually CASCADE
-  (app → library → folder → page → region → line → word → character), with an override at any
+  (app → project (today's library) → folder → document → page → region → line → word → character), with an override at any
   level and the finest grain able to differ from its ancestors — e.g. a page set to Spanish with
   one interlined Latin line. This is a deliberately deferred design (creative-director ruling:
   get the "loove" character-coverage/tiering fit right first — see `histnorm.language.*` above

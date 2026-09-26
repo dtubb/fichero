@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 
 /// Which artifact supplies the page-geometry overlay (#4418).
@@ -68,42 +69,78 @@ enum OCRGeometrySelection {
     /// generic calls, and the type-checker times out on it (the
     /// `LibraryWindow.body` failure mode).
     static func ranked(_ candidates: [Artifact]) -> [Artifact] {
-        var ranked: [(rank: Int, artifact: Artifact)] = []
-        for artifact in candidates {
-            if isKnownEmpty(artifact) { continue }
-            guard let typeRank: Int = geometryBearingTypes.firstIndex(of: artifact.artifactType) else {
-                continue
-            }
-            // HAND-CURATED geometry outranks every machine pass (Daniel,
-            // 2026-09-03: "I draw a region, switch view, come back and it's
-            // gone"). A `provider: "user"` artifact is the one a PERSON drew
-            // on this page; ranking it with the estimates let the next
-            // transcription or Detect Regions run — newer by definition —
-            // mask the boxes its author had just curated. Curation persists
-            // and constrains the machine, never the other way round.
-            //
-            // `text_geometry` keeps authority over the machine tier — it is
-            // the file's OWN text layer, exact coordinates, not an estimate.
-            // But between `transcription` and `regions` the type no longer
-            // decides (2026-08-25, Daniel's re-run): both are MEASURED passes
-            // over the same pixels, and ranking transcription above regions
-            // let a stale 8/23 transcription's sparse boxes permanently mask
-            // every fresh Detect Regions run — re-running "did nothing" on
-            // screen while the engine wrote 52 good boxes. Within a tier:
-            // newest wins.
-            let rank: Int
-            if isHandCurated(artifact) {
-                rank = -1
-            } else {
-                rank = typeRank == 0 ? 0 : 1
-            }
-            ranked.append((rank: rank, artifact: artifact))
+        rankCandidates(candidates.filter { !isKnownEmpty($0) }.map {
+            RankCandidate(type: $0.artifactType, isHandCurated: isHandCurated($0), createdAt: $0.createdAt, value: $0)
+        })
+    }
+
+    /// The SAME ranking as `ranked(_:)` above, over `SegmentPassValue` instead of
+    /// `Artifact` (source-model App slice A stage 1, #4954), through the
+    /// shared `rankCandidates` core — one algorithm, not two kept in step by
+    /// tests (review fix #3). Extracted as a pure function so it is directly
+    /// testable ahead of being wired in: `loadSelected` keeps calling the
+    /// artifact-based path above for now, and nothing production calls this
+    /// yet — stage 2 switches the overlays over.
+    ///
+    /// **Curation** takes BOTH signals `isHandCurated(_:Artifact)` takes,
+    /// just addressed per pass instead of per artifact (review fix #2, the
+    /// 2026-09-03 rule): a pass is hand-curated when its own
+    /// `provenanceKind == .human` (mirrors `provider == "user"`) OR any of
+    /// ITS segments is (`Segment.isHandCurated`, engine-set from the box's
+    /// own `provider`/`source`) — the common case, a person's marquee
+    /// written into an otherwise-machine pass. Ranking on `provenanceKind`
+    /// alone would let the next machine run of that SAME pass type cover the
+    /// person's region again.
+    ///
+    /// **`createdAt == nil`** (now possible — `PassRead.createdAt` is
+    /// optional) sorts as the OLDEST candidate within its tier, never
+    /// invented and never crashing the comparison: an unknown time is not
+    /// evidence of recency.
+    ///
+    /// **No `isKnownEmpty` equivalent**: that existed purely to skip a
+    /// FETCH for a candidate the lean list payload already proved was
+    /// empty. This function's caller already holds every segment (one
+    /// engine call, `source.one-store`), so "does this pass have any
+    /// segments" is answered directly from that list, not carried as a
+    /// field here.
+    nonisolated static func rankedPasses(_ passes: [SegmentPassValue], segments: [Segment]) -> [SegmentPassValue] {
+        let curatedPassIds = Set(segments.filter(\.isHandCurated).map(\.passId))
+        return rankCandidates(passes.compactMap { pass in
+            guard let type = pass.artifactType else { return nil }
+            let isHandCurated = pass.provenanceKind == .human || curatedPassIds.contains(pass.id)
+            return RankCandidate(type: type, isHandCurated: isHandCurated, createdAt: pass.createdAt ?? .distantPast, value: pass)
+        })
+    }
+
+    /// One candidate for `rankCandidates` — a plain struct rather than a
+    /// four-member tuple (SwiftLint `large_tuple`, caught on build 2).
+    private struct RankCandidate<T> {
+        let type: String
+        let isHandCurated: Bool
+        let createdAt: Date
+        let value: T
+    }
+
+    /// The one ranking algorithm (review fix #3): two tiers over
+    /// `geometryBearingTypes` — `text_geometry` alone at rank 0, every other
+    /// geometry-bearing type tied at rank 1 — plus a `-1` override for
+    /// hand-curated candidates, newest first as the tie-break within a rank.
+    /// Both `ranked(_:)` (artifacts) and `rankedPasses(_:segments:)`
+    /// (passes) build their candidate list and call this, so the
+    /// 2026-08-25 (type tiers) and 2026-09-03 (curation persists) rules live
+    /// in exactly one place.
+    nonisolated private static func rankCandidates<T>(_ candidates: [RankCandidate<T>]) -> [T] {
+        var ranked: [(rank: Int, candidate: RankCandidate<T>)] = []
+        for candidate in candidates {
+            guard let typeRank = geometryBearingTypes.firstIndex(of: candidate.type) else { continue }
+            let rank = candidate.isHandCurated ? -1 : (typeRank == 0 ? 0 : 1)
+            ranked.append((rank: rank, candidate: candidate))
         }
         ranked.sort { lhs, rhs in
             if lhs.rank != rhs.rank { return lhs.rank < rhs.rank }
-            return lhs.artifact.createdAt > rhs.artifact.createdAt
+            return lhs.candidate.createdAt > rhs.candidate.createdAt
         }
-        return ranked.map { $0.artifact }
+        return ranked.map { $0.candidate.value }
     }
 
     /// Whether a person drew this geometry rather than a pass measuring it.

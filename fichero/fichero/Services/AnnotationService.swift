@@ -89,6 +89,32 @@ struct AnnotationAnchor: Codable, Hashable {
     }
 }
 
+/// Where a stored anchor points NOW — the engine's `ResolvedAnchor` (#4990).
+///
+/// A mark is saved with the rectangle its line had at that moment, so moving
+/// the line used to leave the mark behind. The engine works the line's
+/// current place out from the kept block on every read and sends it beside
+/// the stored anchor, which it never rewrites.
+///
+/// `anchor` is the answer in EVERY case: for `stored` and `segment-deleted`
+/// the engine returns the stored place, because a mark somebody drew free
+/// was about a place and not about a line. So the app draws `anchor` and
+/// does not branch on `basis`.
+struct ResolvedAnnotationAnchor: Codable, Hashable {
+    var anchor: AnnotationAnchor
+    /// "stored" | "segment" | "segment-deleted". Carried so a later surface
+    /// can say "the line this was on is gone" without a second read; no
+    /// drawing decision depends on it.
+    var basis: String
+    var segmentId: String? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case anchor
+        case basis
+        case segmentId = "segment_id"
+    }
+}
+
 struct DocumentAnnotation: Codable, Identifiable, Hashable {
     let id: String
     let documentId: String?
@@ -102,6 +128,10 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
     /// carries `anchor`. New code reads `regionRect`, never this.
     var bbox: [Double]?
     var anchor: AnnotationAnchor?
+    /// Where `anchor` points NOW, when the read carried it (#4990). Only the
+    /// annotation reads answer it; the row create and delete responses do
+    /// not, so this is nil on a freshly created mark until it is read back.
+    var resolvedAnchor: ResolvedAnnotationAnchor?
     var kind: AnnotationKind
     var text: String?
     var rating: Int?
@@ -125,6 +155,7 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
         case charEnd = "char_end"
         case bbox
         case anchor
+        case resolvedAnchor = "resolved_anchor"
         case kind
         case text
         case rating
@@ -154,6 +185,9 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
         // only the retired field. Annotations were WRITTEN with anchors and
         // read back without them; every symptom was a valid nil.
         anchor = try container.decodeIfPresent(AnnotationAnchor.self, forKey: .anchor)
+        resolvedAnchor = try container.decodeIfPresent(
+            ResolvedAnnotationAnchor.self, forKey: .resolvedAnchor
+        )
         kind = try container.decodeIfPresent(AnnotationKind.self, forKey: .kind) ?? .unknown
         text = try container.decodeIfPresent(String.self, forKey: .text)
         rating = try container.decodeIfPresent(Int.self, forKey: .rating)
@@ -167,9 +201,17 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
         updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
     }
 
-    /// The drawable region: the typed anchor's rect when it names normalized
+    /// The drawable region: where the anchor points NOW when the read said
+    /// so (#4990), else the typed anchor's own rect when it names normalized
     /// space, else the legacy pixel-era `bbox` (pre-rename rows only).
-    var regionRect: [Double]? { anchor?.normalizedRect ?? bbox }
+    ///
+    /// THE ONE ACCESSOR. Every rectangle a mark draws — wash, underline,
+    /// strike, star, check, note glyph, the note editor's place, the hit
+    /// test, and the PDF renderer through `AnnotationMark` — comes from
+    /// here, which is why following a moved line costs one line of code.
+    var regionRect: [Double]? {
+        resolvedAnchor?.anchor.normalizedRect ?? anchor?.normalizedRect ?? bbox
+    }
 
     /// True when the annotation carries an image/PDF region (`[x, y, width, height]`).
     var hasRegion: Bool { (regionRect?.count ?? 0) >= 4 }
@@ -177,7 +219,12 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
     /// The frame `regionRect` was measured on — nil meaning the node's own
     /// image. The same identity `OCRGeometry.renditionId` carries for region
     /// boxes, so one `overlayFrameMatches` gate can govern both (2026-09-03).
-    var renditionId: String? { anchor?.renditionId }
+    var renditionId: String? {
+        // The SAME anchor `regionRect` came from: gating a resolved rect
+        // against the stored anchor's frame would hide it on the very page
+        // it belongs to.
+        resolvedAnchor?.anchor.renditionId ?? anchor?.renditionId
+    }
 
     /// True when the annotation carries a text span.
     var hasSpan: Bool { charStart != nil && charEnd != nil }
@@ -198,6 +245,7 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
         charEnd: Int? = nil,
         bbox: [Double]? = nil,
         anchor: AnnotationAnchor? = nil,
+        resolvedAnchor: ResolvedAnnotationAnchor? = nil,
         kind: AnnotationKind = .note,
         text: String? = nil,
         rating: Int? = nil,
@@ -220,6 +268,7 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
         self.charEnd = charEnd
         self.bbox = bbox
         self.anchor = anchor
+        self.resolvedAnchor = resolvedAnchor
         self.kind = kind
         self.text = text
         self.rating = rating

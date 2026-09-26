@@ -392,6 +392,55 @@ def fichero_artifacts(
         )
 
 
+@mcp.tool()
+def fichero_segments(
+    doc_id: str,
+    artifact_id: Optional[str] = None,
+    pass_id: Optional[str] = None,
+    kind: Optional[str] = None,
+) -> Any:
+    """Read a source's segments (source-model slice 1, read-only, writes nothing)."""
+    with _client() as client:
+        return client.list_segments(
+            doc_id, artifact_id=artifact_id, pass_id=pass_id, kind=kind
+        )
+
+
+@mcp.tool()
+def fichero_segment(segment_id: str) -> Any:
+    """Read one segment's live row, resolved through forwarding (merge,
+    split, or deleted-then-restored) when it is no longer live, and saying
+    so (source-model slice 4/5, read-only, writes nothing)."""
+    with _client() as client:
+        return client.get_segment(segment_id)
+
+
+@mcp.tool()
+def fichero_segment_versions(segment_id: str) -> Any:
+    """Read one segment's own version history (source-model slice 5,
+    read-only, writes nothing).
+
+    Answers the `{items, count}` envelope the route answers, not a bare
+    list: the three surfaces are pinned to agree byte for byte
+    (`test_segment_detail_versions_and_reference_hard_gate`), so this tool
+    mirrors the route's shape rather than the client helper's typed list.
+    """
+    with _client() as client:
+        rows = client.list_segment_versions(segment_id)
+        return {
+            "items": [row.model_dump(mode="json") for row in rows],
+            "count": len(rows),
+        }
+
+
+@mcp.tool()
+def fichero_segment_reference(segment_id: str) -> Any:
+    """Read a segment's citable, stable reference string (source-model
+    slice 4, read-only, writes nothing)."""
+    with _client() as client:
+        return client.segment_reference(segment_id)
+
+
 # -- knowledge graph -------------------------------------------------------
 @mcp.tool()
 def fichero_kg_entities(

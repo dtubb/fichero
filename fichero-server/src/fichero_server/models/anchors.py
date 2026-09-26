@@ -38,6 +38,16 @@ from __future__ import annotations
 
 from enum import Enum
 
+#: Ids minted by a READ SEAM rather than written as records: a box's position
+#: in today's `ocr_geometry` blob (`legacy:`) and an artifact's text read as a
+#: reading (`legacy-reading:`). Defined HERE, the lowest layer, because both
+#: `models/segments.py` (which re-exports them) and `SourceAnchor` below must
+#: refuse them, and anchors.py imports nothing from this package.
+#: `source.seam.provisional-ids-refused`.
+LEGACY_ID_PREFIX = "legacy:"
+LEGACY_READING_ID_PREFIX = "legacy-reading:"
+PROVISIONAL_ID_PREFIXES = (LEGACY_ID_PREFIX, LEGACY_READING_ID_PREFIX)
+
 from pydantic import BaseModel, ConfigDict, model_validator
 
 
@@ -110,6 +120,173 @@ def validate_rect(
                     f"{axis} must not exceed 1 for a normalized rect, got {extent}"
                 )
     return value
+
+
+def validate_points(
+    points: list[list[float]] | None,
+    *,
+    space: AnchorSpace = AnchorSpace.normalized,
+    minimum: int = 1,
+    exact: int | None = None,
+    label: str = "points",
+) -> list[list[float]] | None:
+    """Enforce the point-list invariant, as ``validate_rect`` does for a rect.
+
+    Slice 7 (#4925): the anchor grows past the rectangle, and the shapes that
+    arrive with it -- an open path along a slanted line, a lone point on a
+    signature, a polygon around a footnote -- need the SAME checks the rect
+    has always had, or the rule would read as guaranteed on one field and be
+    absent on four. Every number finite; every point inside the image for a
+    normalized anchor; and the count each kind requires.
+
+    The tolerance is ``_EDGE_TOLERANCE``, the one the polygon check already
+    uses (#4955): a point assembled as ``1/3 + 2/3`` lands a bit past 1.0 and
+    is geometrically perfect.
+    """
+    if points is None:
+        return points
+    if exact is not None and len(points) != exact:
+        raise ValueError(f"{label} must have exactly {exact} point(s), got {len(points)}")
+    if len(points) < minimum:
+        raise ValueError(f"{label} needs at least {minimum} point(s), got {len(points)}")
+    for index, point in enumerate(points):
+        if len(point) != 2:
+            raise ValueError(f"{label}[{index}] must be [x, y], got {len(point)} values")
+        for component in point:
+            # NaN is the only value not equal to itself.
+            if component != component or component in (float("inf"), float("-inf")):
+                raise ValueError(f"{label}[{index}] must be finite, got {point}")
+        if space is AnchorSpace.normalized and not all(
+            -_EDGE_TOLERANCE <= component <= 1 + _EDGE_TOLERANCE for component in point
+        ):
+            raise ValueError(
+                f"{label}[{index}] must be in [0, 1] for a normalized anchor, got {point}"
+            )
+    return points
+
+
+class AnchorShapeKind(str, Enum):
+    """The shapes an anchor may name (slice 7, #4925).
+
+    A closed set, like ``AnchorSpace`` and unlike ``granularity``: each kind
+    carries different data and is validated by its own rule, so a new one is a
+    change to every reader rather than a label that grows additively.
+    """
+
+    #: A rectangle given as its corner points. The same place ``rect`` names,
+    #: said in the shapes list so one anchor can hold a rectangle beside a
+    #: polygon without either being the odd one out.
+    rect = "rect"
+    #: A closed outline, three points or more.
+    polygon = "polygon"
+    #: An OPEN line, two points or more -- a slanted line's run, a rule, a
+    #: pen stroke. Closing it would claim an area nobody drew.
+    path = "path"
+    #: One place, exactly one point. A signature's position, a marginal mark.
+    point = "point"
+    #: A stretch of a recording, in seconds. Carries no points and no box.
+    time = "time"
+
+
+#: How many points each kind needs. A path of one point is a point that lies
+#: about being a line; a polygon of two is a path that lies about enclosing
+#: something. Both are refused rather than quietly reinterpreted.
+_SHAPE_MINIMUM_POINTS: dict[AnchorShapeKind, int] = {
+    # Two opposite corners are enough to mean a rectangle, and four corners
+    # mean the same one; the derived box is identical either way, so both are
+    # accepted rather than picking a spelling for callers.
+    # ponytail: minimum, not exact — the bound does not care how many corners.
+    AnchorShapeKind.rect: 2,
+    AnchorShapeKind.polygon: 3,
+    AnchorShapeKind.path: 2,
+    AnchorShapeKind.point: 1,
+}
+
+#: The kinds that enclose or trace an AREA of the page, and so have a box.
+#: ``time`` is the one that does not: it names a stretch of a recording.
+AREA_SHAPE_KINDS: frozenset[AnchorShapeKind] = frozenset(
+    {
+        AnchorShapeKind.rect,
+        AnchorShapeKind.polygon,
+        AnchorShapeKind.path,
+        AnchorShapeKind.point,
+    }
+)
+
+
+class AnchorShape(BaseModel):
+    """ONE shape on an anchor (slice 7, #4925).
+
+    An anchor may carry several, which is the point: a line and the marginal
+    mark beside it are one place as far as the record is concerned, and before
+    this there was no way to say that without inventing a second anchor.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    kind: AnchorShapeKind
+    #: ``[[x, y], ...]`` in the anchor's own space. ``None`` only for ``time``.
+    points: list[list[float]] | None = None
+    #: Seconds into the recording named by the anchor's ``media_ref``.
+    t_start: float | None = None
+    t_end: float | None = None
+
+    # The space is the ANCHOR's, so the point bounds cannot be checked here.
+    # This validator enforces everything that does not need it, and
+    # `SourceAnchor._check_rect` re-runs `validate_points` with the space.
+    @model_validator(mode="after")
+    def _check_shape(self) -> AnchorShape:
+        if self.kind is AnchorShapeKind.time:
+            if self.points:
+                raise ValueError("a time shape carries no points")
+            if self.t_start is None or self.t_end is None:
+                raise ValueError("a time shape needs t_start and t_end")
+            for name, value in (("t_start", self.t_start), ("t_end", self.t_end)):
+                if value != value or value in (float("inf"), float("-inf")):
+                    raise ValueError(f"{name} must be finite, got {value}")
+            if self.t_start < 0:
+                raise ValueError(f"t_start must be >= 0, got {self.t_start}")
+            if not self.t_start < self.t_end:
+                raise ValueError(
+                    f"t_start ({self.t_start}) must be < t_end ({self.t_end})"
+                )
+            return self
+        if self.t_start is not None or self.t_end is not None:
+            raise ValueError(f"only a time shape carries t_start/t_end, not {self.kind.value}")
+        validate_points(
+            self.points,
+            minimum=_SHAPE_MINIMUM_POINTS[self.kind],
+            exact=1 if self.kind is AnchorShapeKind.point else None,
+            label=f"{self.kind.value} points",
+            # Bounds are re-checked with the anchor's space; here only the
+            # shape and count of the list are in scope.
+            space=AnchorSpace.pixel,
+        )
+        if self.points is None:
+            raise ValueError(f"a {self.kind.value} shape needs points")
+        return self
+
+
+def shapes_bound(shapes: list[AnchorShape] | None) -> list[float] | None:
+    """The box around every AREA shape — the derived box (slice 7, #4925).
+
+    ``None`` when there is nothing with an extent: no shapes, or only time
+    spans. A lone point gives a box of zero width and height AT the point:
+    honest about where it is and honest that it encloses nothing. That box is
+    allowed in ``Segment.bbox_*``, which the engine writes, and never in
+    ``SourceAnchor.rect``, which promises a drawable rectangle.
+    """
+    points = [
+        point
+        for shape in shapes or ()
+        if shape.kind in AREA_SHAPE_KINDS
+        for point in shape.points or ()
+    ]
+    if not points:
+        return None
+    xs = [point[0] for point in points]
+    ys = [point[1] for point in points]
+    return [min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)]
 
 
 class RegionConfidence(str, Enum):
@@ -219,6 +396,18 @@ class SourceAnchor(BaseModel):
     polygon: list[list[float]] | None = None
     #: Degrees clockwise, for a region on a page that was never straight.
     rotation: float = 0.0
+    #: Shapes past the rectangle (slice 7, #4925): a point, an open path, a
+    #: polygon, several of them at once, a stretch of a recording. Optional,
+    #: so every anchor stored before this slice stays valid and keeps meaning
+    #: exactly what it meant -- ``rect``, or ``polygon``. When shapes ARE
+    #: present, ``rect`` is the bound of the area ones, worked out below; a
+    #: caller that sends a rect disagreeing with them is refused rather than
+    #: having one of its two answers silently preferred.
+    shapes: list[AnchorShape] | None = None
+    #: The recording a ``time`` shape is a stretch OF. The field only:
+    #: recordings themselves are a later slice, and a time shape without it
+    #: names seconds of nothing, so it is refused.
+    media_ref: str | None = None
 
     #: Character span within the owning artifact's content string.
     char_start: int | None = None
@@ -236,6 +425,55 @@ class SourceAnchor(BaseModel):
     #: a flat "any of these" list.
     refines: SourceAnchor | None = None
 
+    # ---- Source-model slice 8 (#4932/#4934): the LASTING references --------
+    #
+    # THE PROBLEM THESE SOLVE. Everything that points at a piece of a source
+    # -- a mark, a claim, a support, a reading's stretch -- has until now
+    # pointed with a RECTANGLE. Move the line and the pointer stays where the
+    # box used to be. `resolve_anchor` can recover the link afterwards, from
+    # the kept block, because a rectangle plus an artifact gives a repeatable
+    # id -- but recovering a link is not the same as having recorded one, and
+    # it only works for a box that came from a converted artifact.
+    #
+    # So an anchor may now name what it points at OUTRIGHT. One shape for
+    # readings, marks, supports and claims, because "where in the source" is
+    # ONE question and had accumulated one answer per caller.
+
+    #: The segment this anchor points at. When set it is AUTHORITATIVE and
+    #: `resolve_anchor` returns it without matching rectangles at all: a
+    #: recorded fact beats a recovered one. Never a provisional (`legacy:`)
+    #: id -- that names a position in a blob, so storing one would be a
+    #: lasting reference to something that does not last.
+    segment_id: str | None = None
+
+    #: The exact reading a character span was measured on
+    #: (`source.reading.stretch-names-its-reading`). Offsets without this are
+    #: meaningless the moment a second reading of the line exists, and when
+    #: the named reading is superseded the stretch is carried over by matching
+    #: CHARACTERS (`readings.replace_stretch`) or reported unplaced -- never
+    #: re-measured by position alone.
+    representation_id: str | None = None
+
+    @model_validator(mode="after")
+    def _check_lasting_references(self) -> SourceAnchor:
+        """A lasting reference must not be a provisional id (slice 8, #4932).
+
+        Checked ON THE MODEL, not only at the write paths, because an anchor
+        travels: it is embedded in claims, annotations, notes and readings, and
+        a caller that skipped a route's own check would otherwise store a
+        pointer that stops meaning anything the next time the page is re-run.
+        Old stored anchors have neither field, so nothing existing is refused.
+        """
+        for field_name in ("segment_id", "representation_id"):
+            value = getattr(self, field_name)
+            if value is not None and value.startswith(PROVISIONAL_ID_PREFIXES):
+                raise ValueError(
+                    f"{field_name} {value!r} is provisional (read from today's "
+                    "stored geometry, not a real record) and cannot be stored "
+                    "in an anchor"
+                )
+        return self
+
     # See NodeRegion._check_rect — same declaration-order trap, same fix.
     @model_validator(mode="after")
     def _check_rect(self) -> SourceAnchor:
@@ -250,8 +488,15 @@ class SourceAnchor(BaseModel):
                     raise ValueError(
                         f"polygon[{index}] must be [x, y], got {len(point)} values"
                     )
+                # #4955: the SAME `_EDGE_TOLERANCE` `validate_rect` allows past
+                # the image edge (float drift only, e.g. 1/3 + 2/3 landing at
+                # 1.0000000000000002) -- a polygon point drifting the same way
+                # used to drop the WHOLE polygon while the same drift in a
+                # rect or a baseline (`segments.py::_COORD_TOLERANCE`) was
+                # kept. One tolerance for every edge-of-image check.
                 if self.space is AnchorSpace.normalized and not all(
-                    0 <= component <= 1 for component in point
+                    -_EDGE_TOLERANCE <= component <= 1 + _EDGE_TOLERANCE
+                    for component in point
                 ):
                     raise ValueError(
                         f"polygon[{index}] must be in [0, 1] for a normalized anchor, got {point}"
@@ -261,7 +506,56 @@ class SourceAnchor(BaseModel):
                 raise ValueError(
                     f"char_end ({self.char_end}) must be >= char_start ({self.char_start})"
                 )
+        self._check_shapes()
         return self
+
+    def _check_shapes(self) -> None:
+        """The shapes' bounds, and the rect they derive (slice 7, #4925).
+
+        Split out only because ``_check_rect`` was already at its length; it
+        runs as part of the same single validator, so a shape can no more be
+        added past the check than a rect can.
+        """
+        if self.shapes is None:
+            return
+        if not self.shapes:
+            raise ValueError("shapes must not be empty; leave it unset instead")
+        for index, shape in enumerate(self.shapes):
+            # Now the space is known, so the bounds are in scope. The counts
+            # were already enforced on the shape itself.
+            validate_points(
+                shape.points,
+                space=self.space,
+                label=f"shapes[{index}] ({shape.kind.value})",
+            )
+            if shape.kind is AnchorShapeKind.time and not self.media_ref:
+                raise ValueError(
+                    f"shapes[{index}] is a time span, so the anchor needs a media_ref"
+                )
+        bound = shapes_bound(self.shapes)
+        if self.rect is not None:
+            if bound is None:
+                raise ValueError(
+                    "rect is set but no shape has an extent; a time-only anchor has no box"
+                )
+            if any(
+                abs(given - derived) > _EDGE_TOLERANCE
+                for given, derived in zip(self.rect, bound)
+            ):
+                raise ValueError(
+                    f"rect {self.rect} disagrees with the shapes' bound {bound}; "
+                    "the engine derives the rect -- send the shapes, or send a "
+                    "rect that matches them"
+                )
+            return
+        # Derive it, so every reader that already knows how to draw a rect can
+        # draw the new shapes' extent for free. A DEGENERATE bound -- a lone
+        # point, a level path -- is deliberately NOT written here: `rect`
+        # promises a drawable rectangle with width and height above zero, and
+        # `validate_rect` would refuse it. The box still exists for the engine
+        # through `shapes_bound`, which is where `Segment.bbox_*` gets it.
+        if bound is not None and bound[2] > 0 and bound[3] > 0:
+            self.rect = bound
 
 
 SourceAnchor.model_rebuild()

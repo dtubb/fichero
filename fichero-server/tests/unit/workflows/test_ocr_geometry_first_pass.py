@@ -417,11 +417,20 @@ class TestPdfTextLayerGeometry:
 # ---------------------------------------------------------------------------
 
 class TestArtifactResponseGeometry:
+    """`_artifact_response` takes a `db` since #4924: a CONVERTED artifact's
+    boxes are segment rows, and only `live_geometry` knows that.
 
-    def _artifact(self):
+    A REAL database, never a mock. The artifacts here are unconverted, so
+    the live-geometry and live-count paths short-circuit without a query --
+    but a mock would answer every attribute with a truthy mock, which is
+    exactly how a fixture ends up reading as a converted page and proving
+    nothing (#4924, the `test_merge_geometry_tool` lesson).
+    """
+
+    def _artifact(self, db):
         from fichero_server.models import Artifact
 
-        return Artifact(
+        artifact = Artifact(
             document_id="doc-1",
             artifact_type="transcription",
             content="Hello world",
@@ -429,17 +438,30 @@ class TestArtifactResponseGeometry:
             provider="apple",
             model="apple-vision",
         )
+        db.save(artifact)
+        return artifact
 
-    def test_single_get_includes_geometry(self):
+    def test_single_get_includes_geometry(self, db):
         from fichero_server.api.routes.document.artifacts import _artifact_response
 
-        response = _artifact_response(self._artifact(), include_geometry=True)
+        response = _artifact_response(db, self._artifact(db), include_geometry=True)
         assert response.ocr_geometry is not None
         assert response.ocr_geometry.provider == "apple_vision"
         assert len(response.ocr_geometry.boxes) == 3
 
-    def test_list_shape_omits_geometry(self):
+    def test_list_shape_omits_geometry(self, db):
         from fichero_server.api.routes.document.artifacts import _artifact_response
 
-        response = _artifact_response(self._artifact())
+        response = _artifact_response(db, self._artifact(db))
         assert response.ocr_geometry is None
+
+    def test_the_lean_list_shape_still_carries_the_count_and_the_frame(self, db):
+        """The two facts a list response needs without the boxes. They are
+        computed WITHOUT building the projection now (#4924), so they get
+        their own assertion rather than riding on the geometry's."""
+        from fichero_server.api.routes.document.artifacts import _artifact_response
+
+        response = _artifact_response(db, self._artifact(db))
+        assert response.ocr_geometry is None
+        assert response.region_count == 3
+        assert response.geometry_rendition_id is None

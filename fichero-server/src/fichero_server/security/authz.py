@@ -12,14 +12,27 @@ module returns allow so existing single-user behavior is unchanged.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from fichero_server.db.app import get_app_db
 from fichero_server.db.library_paths import nfc_path
-from fichero_server.models import AccountUser, Document
+from fichero_server.models import (
+    AccountUser,
+    Artifact,
+    Document,
+    Segment,
+    SegmentCarry,
+    SegmentForwarding,
+    SegmentMatch,
+    SegmentPass,
+    SegmentVersion,
+)
 from fichero_server.security.multiuser import multiuser_enabled as _multiuser_enabled
+
+logger = logging.getLogger(__name__)
 
 ROLE_OWNER = "owner"
 ROLE_EDITOR = "editor"
@@ -32,7 +45,34 @@ VALID_EFFECTS = frozenset({EFFECT_GRANT, EFFECT_DENY})
 
 
 class AuthorizationError(PermissionError):
-    """Raised when multi-user ACLs deny an operation."""
+    """Raised when multi-user ACLs deny an operation.
+
+    `required` (F4, 2026-09-20 review) names WHAT was denied -- "read",
+    "write", or "owner" -- so the handler that turns this into a 403 can
+    tell the app the truth instead of hard-coding "write" for every raise
+    site (this same class is also raised for "read access denied",
+    "owner access required" and "cannot revoke your own library role").
+    Read from this attribute, never parsed out of the message string.
+    """
+
+    def __init__(self, message: str, *, required: str = "write") -> None:
+        super().__init__(message)
+        self.required = required
+
+
+class AuthzResolutionError(RuntimeError):
+    """A target id's document/ancestor chain could not be resolved (#4917).
+
+    Raised by `_target_ancestor_ids` on any lookup failure -- a broken
+    library, a bad path, a dropped connection. `_matching_override_effect`
+    treats this as a DENY, never as "no ancestors, no restriction": a
+    resolution failure must never be indistinguishable from "nothing to
+    restrict".
+    """
+
+    def __init__(self, target_id: str) -> None:
+        self.target_id = target_id
+        super().__init__(f"could not resolve ancestors for target {target_id!r}")
 
 
 @dataclass(frozen=True)
@@ -77,12 +117,12 @@ def resolve_user(user: Any) -> ResolvedUser | None:
 
 def assert_can_read(user: Any, library: str | Path | None, target_id: str | None = None) -> None:
     if not can_read(user, library, target_id):
-        raise AuthorizationError("read access denied")
+        raise AuthorizationError("read access denied", required="read")
 
 
 def assert_can_write(user: Any, library: str | Path | None, target_id: str | None = None) -> None:
     if not can_write(user, library, target_id):
-        raise AuthorizationError("write access denied")
+        raise AuthorizationError("write access denied", required="write")
 
 
 def can_read(user: Any, library: str | Path | None, target_id: str | None = None) -> bool:
@@ -100,10 +140,10 @@ def require_owner(user: Any, library: str | Path | None) -> ResolvedUser:
     resolved = resolve_user(user)
     library_path = normalize_library_path(library)
     if resolved is None or library_path is None:
-        raise AuthorizationError("owner access required")
+        raise AuthorizationError("owner access required", required="owner")
     role = get_app_db().get_library_role(resolved.id, library_path)
     if role is None or role.role != ROLE_OWNER:
-        raise AuthorizationError("owner access required")
+        raise AuthorizationError("owner access required", required="owner")
     return resolved
 
 
@@ -138,7 +178,7 @@ def remove_role(*, actor: Any, library: str | Path | None, user: str) -> None:
     if target_user is None or library_path is None:
         raise ValueError("unknown user or library")
     if target_user.id == resolved_actor.id:
-        raise AuthorizationError("cannot revoke your own library role")
+        raise AuthorizationError("cannot revoke your own library role", required="owner")
     get_app_db().delete_library_role(target_user.id, library_path)
 
 
@@ -275,12 +315,30 @@ def _matching_override_effect(
     if not target_id:
         return None
 
-    target_and_ancestors = _target_ancestor_ids(library_path, target_id)
+    # Ruling 1 (cost, #4917): the cheap question first. No override at all
+    # for this user/library means none can possibly match, so resolving
+    # ancestors -- up to 7 indexed `db.get` calls for a non-document id --
+    # would be pure waste on EVERY audited write's EVERY target id,
+    # including claim/entity/note ids that will never resolve to anything.
+    # Only load overrides here (never inside the resolver, which stays
+    # pure ancestor-lookup); resolve ONLY once we know an override exists
+    # to check against.
+    overrides = get_app_db().list_library_acl_overrides(user_id, library_path)
+    if not overrides:
+        return None
+    by_target = {override.target_id: override.effect for override in overrides}
+
+    try:
+        target_and_ancestors = _target_ancestor_ids(library_path, target_id)
+    except AuthzResolutionError:
+        # Fail CLOSED (#4917): a lookup error is a real problem, not "no
+        # restriction applies" -- deny outright rather than let a broken
+        # resolution silently behave like an unrestricted target.
+        logger.warning("authz: treating unresolvable target %r as denied", target_id)
+        return EFFECT_DENY
     if not target_and_ancestors:
         target_and_ancestors = [target_id]
 
-    overrides = get_app_db().list_library_acl_overrides(user_id, library_path)
-    by_target = {override.target_id: override.effect for override in overrides}
     for candidate in target_and_ancestors:
         effect = by_target.get(candidate)
         if effect in VALID_EFFECTS:
@@ -288,20 +346,104 @@ def _matching_override_effect(
     return None
 
 
-def _target_ancestor_ids(library_path: str, target_id: str) -> list[str]:
-    """Return target id followed by document ancestors, if the target is a document."""
-    try:
-        from fichero_server.db.manager import db_manager
+#: (model, how to reach the document id it belongs to) -- an ORDERED
+#: table, not a chain of ifs, so a later slice can extend it (#4917).
+#: Each resolver takes `(db, row)` so a kind that names something else
+#: (a `SegmentCarry` names a match, not a document, directly) can do one
+#: more indexed get. Checked only when `target_id` is not itself a
+#: `Document` -- one indexed `db.get` per kind, in order, until one hits;
+#: never a scan.
+_DOCUMENT_ID_RESOLVERS: tuple[tuple[type, Callable[[Any, Any], "str | None"]], ...] = (
+    (Artifact, lambda db, row: row.document_id),
+    (Segment, lambda db, row: row.document_id),
+    (SegmentPass, lambda db, row: row.document_id),
+    (SegmentMatch, lambda db, row: row.document_id),
+    (SegmentVersion, lambda db, row: row.document_id),
+    (SegmentForwarding, lambda db, row: row.document_id),
+    (SegmentCarry, lambda db, row: _document_id_of_segment_match(db, row.match_id)),
+)
 
+
+def _document_id_of_segment_match(db: Any, match_id: str) -> str | None:
+    match = db.get(SegmentMatch, match_id)
+    return match.document_id if match else None
+
+
+def _resolve_owning_document_id(db: Any, target_id: str) -> str | None:
+    """The document id `target_id` belongs to, per `_DOCUMENT_ID_RESOLVERS`,
+    or `None` when it matches NONE of the known kinds (kept as "itself
+    only" by the caller -- today's honest behaviour for anything outside
+    the segment domain, e.g. a claim or entity id).
+
+    Raises `AuthzResolutionError` (F1, 2026-09-20 review) when a kind DOES
+    match but its owning document cannot be established -- an
+    empty/missing `document_id` on the row (a `SegmentCarry` whose match
+    was deleted; any row with a blank `document_id`), or a `document_id`
+    that names no `Document` row. This distinction matters: "no kind
+    matched" is honestly nothing to resolve, but "a kind matched, document
+    unknown" is the EXACT silent-unrestricted shape this fix exists to
+    remove (a row found, "itself only" returned, no override on the
+    document -- or folder -- ever able to match) -- it must deny, never
+    fall through the same way.
+    """
+    for model, get_document_id in _DOCUMENT_ID_RESOLVERS:
+        row = db.get(model, target_id)
+        if row is None:
+            continue
+        document_id = get_document_id(db, row)
+        if not document_id or db.get(Document, document_id) is None:
+            raise AuthzResolutionError(target_id)
+        return document_id
+    return None
+
+
+def _target_ancestor_ids(library_path: str, target_id: str) -> list[str]:
+    """Target id, then every document ancestor up to the root (#4917).
+
+    Resolves an id that BELONGS TO a document -- an artifact, a segment, a
+    segment pass, a match, a version, a forwarding note, a carry -- to its
+    owning document FIRST (`_resolve_owning_document_id`), then walks
+    `Document.parent_id` exactly as before. A grant/deny placed on the
+    document (or a folder above it) therefore reaches every one of these
+    child kinds, not just a literal document id -- `ActionRegistry.invoke`
+    checks each segment/pass id named by an action's params AS ITS OWN
+    target, so this is the ONE place that connection has to exist.
+
+    An id that matches nothing known is "itself only" -- unchanged
+    behaviour for ids outside the segment domain.
+
+    FAILS CLOSED: any lookup error raises `AuthzResolutionError`, which
+    `_matching_override_effect` treats as a deny -- never silently
+    "no ancestors, no restriction" (the exact shape of the bug this
+    replaces).
+    """
+    from fichero_server.db.manager import db_manager
+
+    try:
         db = db_manager.get_database(library_path)
         doc = db.get(Document, target_id)
         ids: list[str] = []
-        seen: set[str] = set()
+        if doc is None:
+            document_id = _resolve_owning_document_id(db, target_id)
+            if document_id is None:
+                return [target_id]
+            ids.append(target_id)
+            doc = db.get(Document, document_id)
+        seen: set[str] = set(ids)
         while doc is not None and doc.id not in seen:
             ids.append(doc.id)
             seen.add(doc.id)
             parent_id = doc.parent_id
             doc = db.get(Document, parent_id) if parent_id else None
         return ids
-    except Exception:
-        return [target_id]
+    except AuthzResolutionError:
+        # Already the right shape (raised by `_resolve_owning_document_id`
+        # itself, F1) -- re-raise as-is rather than wrapping it a second
+        # time under the generic handler below.
+        raise
+    except Exception as exc:
+        logger.warning(
+            "authz: ancestor resolution failed for target %r in %r: %s",
+            target_id, library_path, exc,
+        )
+        raise AuthzResolutionError(target_id) from exc

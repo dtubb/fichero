@@ -1,4 +1,5 @@
 @testable import Fichero
+import FicheroAPIClient
 import Foundation
 import Testing
 
@@ -271,5 +272,128 @@ struct OCRGeometrySelectionTests {
             .components(separatedBy: "}")[0]
         #expect(!shadow.contains("textGeometry"))
         #expect(!shadow.contains("text_geometry"))
+    }
+
+    // MARK: - rankedPasses (source-model App slice A stage 1, #4954)
+    //
+    // The SAME rule as `ranked(_:)` above, over `SegmentPassValue` — a case-by-case
+    // mirror of this file's own artifact-side coverage, not a rewrite.
+    // Behaviour: `source.app.overlays-draw-from-the-seam` (the ranking is part
+    // of "the same drawing decision, over the seam").
+
+    private func pass(
+        id: String,
+        type: String,
+        ageInHours: Double?,
+        humanCurated: Bool = false
+    ) -> SegmentPassValue {
+        SegmentPassValue(
+            id: id, provisional: true, documentId: "page-1", name: type,
+            provenanceKind: humanCurated ? .human : .workflow,
+            provider: nil, model: nil, runId: nil,
+            createdAt: ageInHours.map { Date(timeIntervalSince1970: 1_000_000 - $0 * 3600) },
+            text: nil, sourceArtifactId: id, artifactType: type
+        )
+    }
+
+    /// A segment whose only job is to prove per-segment curation — see
+    /// `SegmentMappingTests` for the field-mapping coverage this fixture
+    /// deliberately does not repeat.
+    private func segment(passId: String, humanCurated: Bool) -> Segment {
+        Segment(
+            id: "\(passId)-seg", provisional: true, documentId: "page-1", passId: passId,
+            kind: "word", kindRaw: nil, provenanceKind: humanCurated ? .human : .workflow,
+            anchor: SourceAnchorValue(generated: Components.Schemas.SourceAnchorOutput(documentId: "page-1")),
+            baseline: nil, text: nil, confidence: nil, sourceArtifactId: nil,
+            boxIndex: nil, pageIndex: nil, metadata: nil
+        )
+    }
+
+    @Test("rankedPasses: authority beats recency, mirroring ranked(_:)")
+    func rankedPassesAuthorityBeatsRecency() {
+        let ranked = OCRGeometrySelection.rankedPasses([
+            pass(id: "ocr", type: "transcription", ageInHours: 0),
+            pass(id: "geo", type: "text_geometry", ageInHours: 100)
+        ], segments: [])
+        #expect(ranked.first?.id == "geo")
+    }
+
+    @Test("rankedPasses: recency breaks ties inside one type")
+    func rankedPassesRecencyBreaksTies() {
+        let ranked = OCRGeometrySelection.rankedPasses([
+            pass(id: "old", type: "transcription", ageInHours: 10),
+            pass(id: "new", type: "transcription", ageInHours: 1)
+        ], segments: [])
+        #expect(ranked.map(\.id) == ["new", "old"])
+    }
+
+    @Test("rankedPasses: a fresh regions pass displaces a stale transcription pass")
+    func rankedPassesFreshRegionsDisplacesStaleTranscription() {
+        let ranked = OCRGeometrySelection.rankedPasses([
+            pass(id: "ocr-old", type: "transcription", ageInHours: 48),
+            pass(id: "regions-new", type: "regions", ageInHours: 0)
+        ], segments: [])
+        #expect(ranked.map(\.id) == ["regions-new", "ocr-old"])
+    }
+
+    @Test("rankedPasses: a hand-curated pass outranks every machine pass, any age")
+    func rankedPassesHandCuratedOutranksEverything() {
+        let ranked = OCRGeometrySelection.rankedPasses([
+            pass(id: "geo", type: "text_geometry", ageInHours: 0),
+            pass(id: "curated", type: "regions", ageInHours: 1000, humanCurated: true)
+        ], segments: [])
+        #expect(ranked.first?.id == "curated")
+    }
+
+    /// The 2026-09-03 defect, restated for the seam (review fix #2): a
+    /// person's marquee written INTO an otherwise-machine pass — the common
+    /// case — must still outrank a newer pure-machine pass of the same
+    /// type, even though the pass's own `provenanceKind` is `.workflow`.
+    @Test("rankedPasses: a machine pass carrying one human segment outranks a newer pure machine pass")
+    func rankedPassesSegmentCurationOutranksNewerMachinePass() {
+        let curatedByBox = pass(id: "machine-with-marquee", type: "regions", ageInHours: 100)
+        let newerPureMachine = pass(id: "newer-machine", type: "regions", ageInHours: 1)
+        let ranked = OCRGeometrySelection.rankedPasses(
+            [newerPureMachine, curatedByBox],
+            segments: [
+                segment(passId: "machine-with-marquee", humanCurated: true),
+                segment(passId: "newer-machine", humanCurated: false)
+            ]
+        )
+        #expect(ranked.first?.id == "machine-with-marquee")
+    }
+
+    @Test("rankedPasses: a pass with no createdAt sorts as the OLDEST in its tier, never crashes")
+    func rankedPassesNilCreatedAtSortsOldest() {
+        let ranked = OCRGeometrySelection.rankedPasses([
+            pass(id: "known-recent", type: "transcription", ageInHours: 1),
+            pass(id: "unknown-time", type: "transcription", ageInHours: nil)
+        ], segments: [])
+        #expect(ranked.map(\.id) == ["known-recent", "unknown-time"])
+    }
+
+    /// NOT a guarantee that a `nil` `artifactType` never reaches the app
+    /// (test audit, B2/F-none-numbered, 2026-09-20): today's engine handlers
+    /// only ever build a `SegmentPassValue` from a LEGACY artifact, which always
+    /// has a type. But `pass_read_from_row` (`models/segments.py:1099`)
+    /// returns `artifact_type=None` for a REAL converted-page record, and
+    /// #4924 (first-edit conversion) is what starts writing those. This test
+    /// pins today's EXCLUSION rule, not the CLAIM that it is harmless — the
+    /// day #4924 lands, a real pass with `artifactType == nil` is silently
+    /// dropped from the ranking by this same code path, and the first
+    /// converted page draws nothing while every test here stays green. The
+    /// engine lane is deciding what a real pass should report; this pin must
+    /// not be read as proof that case cannot occur.
+    @Test("rankedPasses: a pass whose artifactType is nil or unrecognised is excluded, not crashed on")
+    func rankedPassesUnrecognisedTypeExcluded() {
+        let unknownType = pass(id: "weird", type: "some_future_type", ageInHours: 0)
+        let noType = SegmentPassValue(
+            id: "no-type", provisional: true, documentId: "page-1", name: "?",
+            provenanceKind: .unknown, provider: nil, model: nil, runId: nil,
+            createdAt: nil, text: nil, sourceArtifactId: nil, artifactType: nil
+        )
+        let known = pass(id: "geo", type: "text_geometry", ageInHours: 0)
+        let ranked = OCRGeometrySelection.rankedPasses([unknownType, noType, known], segments: [])
+        #expect(ranked.map(\.id) == ["geo"])
     }
 }

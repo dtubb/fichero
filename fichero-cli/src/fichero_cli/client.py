@@ -75,6 +75,8 @@ from fichero_server.models import (
     LibraryCreateResponse,
     LibraryRegistryResponse,
     LibrarySnapshot,
+    SegmentListResponse,
+    SegmentVersion,
 )
 
 # https, not http (#4468): the engine MANDATES TLS on TCP (engine_manager
@@ -1104,6 +1106,83 @@ class FicheroClient:
             Artifact.model_validate(a)
             for a in _expect_list(raw, path)
         ]
+
+    def list_segments(
+        self,
+        doc_id: str,
+        *,
+        artifact_id: str | None = None,
+        pass_id: str | None = None,
+        kind: str | None = None,
+    ) -> SegmentListResponse:
+        """Fetch a source's segments (source-model slice 1, read-only).
+
+        Backed by ``GET /api/segments/document/{doc_id}``. Used by the
+        ``fichero_segments`` MCP tool and by hand -- the generated CLI
+        command hits the same route independently, and the hard-gate test
+        pins that both come back identical.
+        """
+        return SegmentListResponse.model_validate(
+            self.request(
+                "GET",
+                f"/api/segments/document/{doc_id}",
+                params={
+                    "artifact_id": artifact_id,
+                    "pass_id": pass_id,
+                    "kind": kind,
+                },
+            )
+        )
+
+    def get_segment(self, segment_id: str) -> "SegmentDetailResponse":
+        """One segment's live row, resolved through forwarding (merge,
+        split, or deleted-then-restored) when ``segment_id`` is no longer
+        live, and saying so (source-model slice 4/5, #4922/#4923).
+
+        Backed by ``GET /api/segments/{segment_id}``. Used by the
+        ``fichero_segment`` MCP tool and by hand -- the generated CLI
+        command (``segments get``) hits the same route independently, and
+        the parity test pins that both come back identical (#4955 item C).
+        """
+        from fichero_server.api.routes.document.segments import SegmentDetailResponse
+
+        return SegmentDetailResponse.model_validate(
+            self.request("GET", f"/api/segments/{segment_id}")
+        )
+
+    def list_segment_versions(self, segment_id: str) -> list[SegmentVersion]:
+        """One segment's own version history, newest last
+        (``source.segment.versioned-alone``).
+
+        Backed by ``GET /api/segments/{segment_id}/versions``. Used by the
+        ``fichero_segment_versions`` MCP tool and by hand -- the generated
+        CLI command (``segments list-versions``) hits the same route
+        independently, and the parity test pins that both come back
+        identical (#4955 item C).
+        """
+        path = f"/api/segments/{segment_id}/versions"
+        raw = self.request("GET", path)
+        # `{items, count}`, like every other list route (#1075's rule).
+        return [
+            SegmentVersion.model_validate(v)
+            for v in _expect_list(raw.get("items"), path)
+        ]
+
+    def segment_reference(self, segment_id: str) -> "SegmentReferenceResponse":
+        """A segment's citable, stable reference string
+        (``source.segment.citable``), never stored, worked out on request.
+
+        Backed by ``GET /api/segments/{segment_id}/reference``. Used by
+        the ``fichero_segment_reference`` MCP tool and by hand -- the
+        generated CLI command (``segments reference``) hits the same
+        route independently, and the parity test pins that both come back
+        identical (#4955 item C).
+        """
+        from fichero_server.api.routes.document.segments import SegmentReferenceResponse
+
+        return SegmentReferenceResponse.model_validate(
+            self.request("GET", f"/api/segments/{segment_id}/reference")
+        )
 
     # -- knowledge graph ---------------------------------------------------
     def list_entities(

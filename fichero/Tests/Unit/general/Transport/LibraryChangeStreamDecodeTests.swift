@@ -49,8 +49,12 @@ struct LibraryChangeStreamDecodeTests {
             "entity_ids": ["e1", "e2"],
             "claim_ids": ["c1"],
             "document_ids": ["d1"],
+            "artifact_ids": ["a1"],
             "citation_ids": ["ci1"],
             "reference_ids": ["r1"],
+            "interpretation_ids": ["in1"],
+            "segment_ids": ["s1"],
+            "pass_ids": ["p1"],
             "run_id": "run-9",
             "actor": "bob",
             "origin_window": "win-7",
@@ -59,8 +63,15 @@ struct LibraryChangeStreamDecodeTests {
         #expect(event.entityIds == ["e1", "e2"])
         #expect(event.claimIds == ["c1"])
         #expect(event.documentIds == ["d1"])
+        // source-model slice 2 (#4920, source.events.segment-ids): the
+        // engine has always sent artifact_ids/interpretation_ids; Swift
+        // dropped both until now. segment_ids/pass_ids are new on the wire.
+        #expect(event.artifactIds == ["a1"])
         #expect(event.citationIds == ["ci1"])
         #expect(event.referenceIds == ["r1"])
+        #expect(event.interpretationIds == ["in1"])
+        #expect(event.segmentIds == ["s1"])
+        #expect(event.passIds == ["p1"])
         #expect(event.runId == "run-9")
         #expect(event.actor == "bob")
         #expect(event.originWindow == "win-7")
@@ -75,8 +86,30 @@ struct LibraryChangeStreamDecodeTests {
         #expect(event.entityIds.isEmpty)
         #expect(event.claimIds.isEmpty)
         #expect(event.documentIds.isEmpty)
+        #expect(event.artifactIds.isEmpty)
         #expect(event.citationIds.isEmpty)
         #expect(event.referenceIds.isEmpty)
+        #expect(event.interpretationIds.isEmpty)
+        #expect(event.segmentIds.isEmpty)
+        #expect(event.passIds.isEmpty)
+    }
+
+    /// An OLDER event (today's real shape until every backend commit lands)
+    /// carrying none of the new keys still decodes — the tolerant-decode
+    /// half of `source.events.segment-ids` explicitly, not just implied by
+    /// the empty-defaults test above.
+    @Test("an event with none of the new keys still decodes, with empty lists for them")
+    func olderEventWithoutNewKeysStillDecodes() throws {
+        let event = try decode([
+            "type": "entity.updated",
+            "entity_ids": ["e1"],
+            "actor": "system"
+        ])
+        #expect(event.entityIds == ["e1"])
+        #expect(event.artifactIds.isEmpty)
+        #expect(event.interpretationIds.isEmpty)
+        #expect(event.segmentIds.isEmpty)
+        #expect(event.passIds.isEmpty)
     }
 
     @Test("absent actor defaults to system")

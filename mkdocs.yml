@@ -389,15 +389,29 @@ nav:
               - Git / Worktree / GitHub Workflow: contributor_manual/specs/harness/git-worktree-workflow.md
               - Release & Versioning: contributor_manual/specs/harness/release-and-versioning.md
           - KG:
-              - Archival Data Model: contributor_manual/specs/kg/archival-data-model-plan.md
               - Hermeneutic Layer: contributor_manual/specs/kg/hermeneutic-layer.md
-              - Historical Text Normalization: contributor_manual/specs/kg/historical-text-normalization.md
               - KG Enrichment, RDF & Linked Data: contributor_manual/specs/kg/kg-enrichment.md
               - KG Entity Inspector: contributor_manual/specs/kg/kg-entity-inspector.md
               - KG Interactions & Standards: contributor_manual/specs/kg/kg-interactions.md
               - KG Readable Representation: contributor_manual/specs/kg/kg-readable-representation.md
               - KG Tables: contributor_manual/specs/kg/kg-tables.md
-              - Segment Representations: contributor_manual/specs/kg/segment-representations.md
+          - Source:
+              - Source Model (foundation): contributor_manual/specs/source/source-model.md
+              - Survey of the Field: contributor_manual/specs/source/source-survey.md
+              - Segments & Geometry: contributor_manual/specs/source/segments-and-geometry.md
+              - Readings & Apparatus: contributor_manual/specs/source/readings-and-apparatus.md
+              - Languages, Scripts & Signs: contributor_manual/specs/source/languages-scripts-signs.md
+              - Segment Editor: contributor_manual/specs/source/segment-editor.md
+              - Formats & Training: contributor_manual/specs/source/formats-and-training.md
+              - Models, Chains & Projects: contributor_manual/specs/source/models-chains-and-projects.md
+              - Synced Folder: contributor_manual/specs/source/synced-folder.md
+              - Rights, Consent & Access: contributor_manual/specs/source/rights-and-access.md
+              - Build Notes (identity & storage): contributor_manual/specs/source/build-notes-identity-and-storage.md
+              - Build Notes (shapes & the anchor): contributor_manual/specs/source/build-notes-shapes-and-anchor.md
+              - Build Notes (readings, cascade, orders): contributor_manual/specs/source/build-notes-readings-cascade-orders.md
+              - Segment Representations (earlier; first slice): contributor_manual/specs/source/segment-representations.md
+              - Historical Text Normalization (earlier; the text side): contributor_manual/specs/source/historical-text-normalization.md
+              - Archival Data Model (earlier; staged plan): contributor_manual/specs/source/archival-data-model-plan.md
           - Testing:
               - Test Environment Contract: contributor_manual/specs/testing/test-environment-contract.md
               - UI-Test Harness: contributor_manual/specs/testing/ui-test-harness.md

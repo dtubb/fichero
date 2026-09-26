@@ -211,7 +211,12 @@ def test_set_override_validates_effect_and_target_and_specific_grant_beats_ances
         )
 
 
-def test_target_ancestor_ids_fails_closed_to_raw_target_when_lookup_breaks(db, monkeypatch):
+def test_target_ancestor_ids_fails_closed_when_lookup_breaks(db, monkeypatch):
+    """#4917: was `== ["doc-123"]` -- returning the bare target id on a
+    lookup failure IS the bug (`_matching_override_effect` then checks an
+    override against an id nothing was ever granted/denied on, finds no
+    match, and falls through to `base_allowed` -- often True). A lookup
+    error must refuse, never silently behave like "no restriction"."""
     library_path = _library_path(db)
     database = db_manager.get_database(library_path)
 
@@ -219,4 +224,5 @@ def test_target_ancestor_ids_fails_closed_to_raw_target_when_lookup_breaks(db, m
         raise RuntimeError("lookup failed")
 
     monkeypatch.setattr(database, "get", boom)
-    assert authz._target_ancestor_ids(library_path, "doc-123") == ["doc-123"]
+    with pytest.raises(authz.AuthzResolutionError):
+        authz._target_ancestor_ids(library_path, "doc-123")

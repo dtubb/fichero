@@ -971,7 +971,7 @@ def register_generated_openapi_commands(
                 "tags": tags,
                 "text": text,
             }, {
-                "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
+                "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'shapes': {'items': {'$ref': '#/components/schemas/AnchorShape'}, 'type': 'array', 'nullable': True, 'title': 'Shapes'}, 'media_ref': {'type': 'string', 'nullable': True, 'title': 'Media Ref'}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}, 'segment_id': {'type': 'string', 'nullable': True, 'title': 'Segment Id'}, 'representation_id': {'type': 'string', 'nullable': True, 'title': 'Representation Id'}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
                 "anchor_kind": {'type': 'string', 'nullable': True, 'title': 'Anchor Kind', 'x-cli-required': False},
                 "char_end": {'type': 'integer', 'nullable': True, 'title': 'Char End', 'x-cli-required': False},
                 "char_start": {'type': 'integer', 'nullable': True, 'title': 'Char Start', 'x-cli-required': False},
@@ -1026,7 +1026,7 @@ def register_generated_openapi_commands(
                 "page_label": page_label,
                 "text": text,
             }, {
-                "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
+                "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'shapes': {'items': {'$ref': '#/components/schemas/AnchorShape'}, 'type': 'array', 'nullable': True, 'title': 'Shapes'}, 'media_ref': {'type': 'string', 'nullable': True, 'title': 'Media Ref'}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}, 'segment_id': {'type': 'string', 'nullable': True, 'title': 'Segment Id'}, 'representation_id': {'type': 'string', 'nullable': True, 'title': 'Representation Id'}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
                 "char_end": {'type': 'integer', 'nullable': True, 'title': 'Char End', 'x-cli-required': False},
                 "char_start": {'type': 'integer', 'nullable': True, 'title': 'Char Start', 'x-cli-required': False},
                 "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
@@ -1120,7 +1120,7 @@ def register_generated_openapi_commands(
                 "tags": tags,
                 "text": text,
             }, {
-                "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
+                "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'shapes': {'items': {'$ref': '#/components/schemas/AnchorShape'}, 'type': 'array', 'nullable': True, 'title': 'Shapes'}, 'media_ref': {'type': 'string', 'nullable': True, 'title': 'Media Ref'}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}, 'segment_id': {'type': 'string', 'nullable': True, 'title': 'Segment Id'}, 'representation_id': {'type': 'string', 'nullable': True, 'title': 'Representation Id'}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
                 "anchor_kind": {'type': 'string', 'nullable': True, 'title': 'Anchor Kind', 'x-cli-required': False},
                 "char_end": {'type': 'integer', 'nullable': True, 'title': 'Char End', 'x-cli-required': False},
                 "char_start": {'type': 'integer', 'nullable': True, 'title': 'Char Start', 'x-cli-required': False},
@@ -1422,7 +1422,7 @@ def register_generated_openapi_commands(
                 "indices": {'items': {'type': 'integer'}, 'type': 'array', 'title': 'Indices', 'description': 'Positions into ocr_geometry.boxes (order irrelevant)', 'x-cli-required': False},
                 "level": {'type': 'string', 'enum': ['page', 'block', 'line', 'word', 'region'], 'title': 'OCRGeometryLevel', 'x-cli-required': False},
                 "op": {'type': 'string', 'enum': ['move', 'delete', 'add', 'combine'], 'title': 'RegionEditOp', 'description': 'A closed vocabulary — an enum in the schema, never a bare str (rule 4).', 'x-cli-required': True},
-                "text": {'type': 'string', 'title': 'Text', 'default': '', 'x-cli-required': False},
+                "text": {'type': 'string', 'title': 'Text', 'description': "Text for the new box on `add`. REFUSED on add until readings attach to segments (422, `TextNeedsReadings`): once a page's boxes are segment records there is nowhere lawful to keep typed words, and a page's first edit converts it (#4924). Draw the region, then transcribe it. Ignored by the other ops.", 'default': '', 'x-cli-required': False},
             }, required=True)
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -3500,7 +3500,7 @@ def register_generated_openapi_commands(
                 "quotation_kind": {'type': 'string', 'enum': ['verbatim', 'paraphrase', 'indirect', 'inference', 'free_indirect'], 'title': 'QuotationKind', 'description': "How literally a claim reproduces its source text.\n\nPicks up the warrant strength: a verbatim quotation supports a stronger\nepistemic status than an inferred one. Defaults to ``paraphrase`` —\nthat's the realistic default for an LLM extractor that summarised the\nsource rather than copying it verbatim.", 'x-cli-required': False},
                 "scribe_entity_id": {'type': 'string', 'nullable': True, 'title': 'Scribe Entity Id', 'x-cli-required': False},
                 "scribe_name": {'type': 'string', 'nullable': True, 'title': 'Scribe Name', 'x-cli-required': False},
-                "source_anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
+                "source_anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'shapes': {'items': {'$ref': '#/components/schemas/AnchorShape'}, 'type': 'array', 'nullable': True, 'title': 'Shapes'}, 'media_ref': {'type': 'string', 'nullable': True, 'title': 'Media Ref'}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}, 'segment_id': {'type': 'string', 'nullable': True, 'title': 'Segment Id'}, 'representation_id': {'type': 'string', 'nullable': True, 'title': 'Representation Id'}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
                 "source_char_end": {'type': 'integer', 'nullable': True, 'title': 'Source Char End', 'x-cli-required': False},
                 "source_char_start": {'type': 'integer', 'nullable': True, 'title': 'Source Char Start', 'x-cli-required': False},
                 "source_document_id": {'type': 'string', 'nullable': True, 'title': 'Source Document Id', 'x-cli-required': False},
@@ -3758,6 +3758,59 @@ def register_generated_openapi_commands(
         target_app = typer.Typer(help='Generated OpenAPI commands for content-representations endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='content-representations')
         existing_apps['content-representations'] = target_app
+
+    @target_app.command("create-route")
+    def content_representations_create_route_post(
+        ctx: typer.Context,
+        content: str = typer.Option(..., "--content", help="Request field: content."),
+        corrects_representation_id: Optional[str] = typer.Option(None, "--corrects-representation-id", help="Request field: corrects_representation_id."),
+        derived_from_artifact_id: Optional[str] = typer.Option(None, "--derived-from-artifact-id", help="Request field: derived_from_artifact_id."),
+        derived_from_representation_id: Optional[str] = typer.Option(None, "--derived-from-representation-id", help="Request field: derived_from_representation_id."),
+        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
+        guideline: Optional[str] = typer.Option(None, "--guideline", help="Request field: guideline."),
+        kind: str = typer.Option(..., "--kind", help="Request field: kind."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        level: Optional[str] = typer.Option(None, "--level", help="Request field: level."),
+        read_from_rendition_id: Optional[str] = typer.Option(None, "--read-from-rendition-id", help="Request field: read_from_rendition_id."),
+        script: Optional[str] = typer.Option(None, "--script", help="Request field: script."),
+        segment_id: Optional[str] = typer.Option(None, "--segment-id", help="Request field: segment_id."),
+        source_anchor: Optional[str] = typer.Option(None, "--source-anchor", help="Request field: source_anchor."),
+    ) -> None:
+        """Create Representation Route (POST /api/content-representations)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/content-representations"
+            params = None
+            payload = _build_json_payload({
+                "content": content,
+                "corrects_representation_id": corrects_representation_id,
+                "derived_from_artifact_id": derived_from_artifact_id,
+                "derived_from_representation_id": derived_from_representation_id,
+                "document_id": document_id,
+                "guideline": guideline,
+                "kind": kind,
+                "language": language,
+                "level": level,
+                "read_from_rendition_id": read_from_rendition_id,
+                "script": script,
+                "segment_id": segment_id,
+                "source_anchor": source_anchor,
+            }, {
+                "content": {'type': 'string', 'title': 'Content', 'x-cli-required': True},
+                "corrects_representation_id": {'type': 'string', 'nullable': True, 'title': 'Corrects Representation Id', 'x-cli-required': False},
+                "derived_from_artifact_id": {'type': 'string', 'nullable': True, 'title': 'Derived From Artifact Id', 'x-cli-required': False},
+                "derived_from_representation_id": {'type': 'string', 'nullable': True, 'title': 'Derived From Representation Id', 'x-cli-required': False},
+                "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
+                "guideline": {'type': 'string', 'nullable': True, 'title': 'Guideline', 'x-cli-required': False},
+                "kind": {'type': 'string', 'title': 'Kind', 'x-cli-required': True},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
+                "level": {'type': 'string', 'nullable': True, 'title': 'Level', 'x-cli-required': False},
+                "read_from_rendition_id": {'type': 'string', 'nullable': True, 'title': 'Read From Rendition Id', 'x-cli-required': False},
+                "script": {'type': 'string', 'nullable': True, 'title': 'Script', 'x-cli-required': False},
+                "segment_id": {'type': 'string', 'nullable': True, 'title': 'Segment Id', 'x-cli-required': False},
+                "source_anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'shapes': {'items': {'$ref': '#/components/schemas/AnchorShape'}, 'type': 'array', 'nullable': True, 'title': 'Shapes'}, 'media_ref': {'type': 'string', 'nullable': True, 'title': 'Media Ref'}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}, 'segment_id': {'type': 'string', 'nullable': True, 'title': 'Segment Id'}, 'representation_id': {'type': 'string', 'nullable': True, 'title': 'Representation Id'}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
 
     @target_app.command("list")
     def content_representations_list_get(
@@ -8829,9 +8882,10 @@ def register_generated_openapi_commands(
         bbox: Optional[str] = typer.Option(None, "--bbox", help="Request field: bbox."),
         charRange: Optional[str] = typer.Option(None, "--charRange", help="Request field: charRange."),
         claimId: Optional[str] = typer.Option(None, "--claimId", help="Request field: claimId."),
-        documentId: str = typer.Option(..., "--documentId", help="Request field: documentId."),
+        documentId: Optional[str] = typer.Option(None, "--documentId", help="Request field: documentId."),
         entityId: Optional[str] = typer.Option(None, "--entityId", help="Request field: entityId."),
         page: Optional[int] = typer.Option(None, "--page", help="Request field: page."),
+        segmentId: Optional[str] = typer.Option(None, "--segmentId", help="Request field: segmentId."),
         surface: Optional[str] = typer.Option(None, "--surface", help="Request field: surface."),
     ) -> None:
         """Resolve Location (POST /api/locations/resolve)."""
@@ -8845,14 +8899,16 @@ def register_generated_openapi_commands(
                 "documentId": documentId,
                 "entityId": entityId,
                 "page": page,
+                "segmentId": segmentId,
                 "surface": surface,
             }, {
                 "bbox": {'items': {'type': 'number'}, 'type': 'array', 'maxItems': 4, 'minItems': 4, 'nullable': True, 'title': 'Bbox', 'x-cli-required': False},
                 "charRange": {'properties': {'start': {'type': 'integer', 'minimum': 0.0, 'title': 'Start'}, 'end': {'type': 'integer', 'minimum': 0.0, 'title': 'End'}}, 'type': 'object', 'required': ['start', 'end'], 'title': 'CharacterRange', 'x-cli-required': False},
                 "claimId": {'type': 'string', 'nullable': True, 'title': 'Claimid', 'x-cli-required': False},
-                "documentId": {'type': 'string', 'minLength': 1, 'title': 'Documentid', 'x-cli-required': True},
+                "documentId": {'type': 'string', 'minLength': 1, 'nullable': True, 'title': 'Documentid', 'x-cli-required': False},
                 "entityId": {'type': 'string', 'nullable': True, 'title': 'Entityid', 'x-cli-required': False},
                 "page": {'type': 'integer', 'minimum': 1.0, 'nullable': True, 'title': 'Page', 'x-cli-required': False},
+                "segmentId": {'type': 'string', 'nullable': True, 'title': 'Segmentid', 'x-cli-required': False},
                 "surface": {'type': 'string', 'enum': ['preview', 'reader', 'inspector', 'both'], 'title': 'LocationSurface', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
@@ -12537,6 +12593,463 @@ def register_generated_openapi_commands(
                 "use_fuzzy_match": {'type': 'boolean', 'title': 'Use Fuzzy Match', 'default': False, 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    target_app = existing_apps.get('segments')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for segments endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='segments')
+        existing_apps['segments'] = target_app
+
+    @target_app.command("create")
+    def segments_create_post(
+        ctx: typer.Context,
+        anchor: str = typer.Option(..., "--anchor", help="Request field: anchor."),
+        baseline: Optional[str] = typer.Option(None, "--baseline", help="Request field: baseline."),
+        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
+        kind: str = typer.Option(..., "--kind", help="Request field: kind."),
+        kind_raw: Optional[str] = typer.Option(None, "--kind-raw", help="Request field: kind_raw."),
+        parent_segment_id: Optional[str] = typer.Option(None, "--parent-segment-id", help="Request field: parent_segment_id."),
+        pass_id: str = typer.Option(..., "--pass-id", help="Request field: pass_id."),
+    ) -> None:
+        """Create Segment (POST /api/segments)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments"
+            params = None
+            payload = _build_json_payload({
+                "anchor": anchor,
+                "baseline": baseline,
+                "document_id": document_id,
+                "kind": kind,
+                "kind_raw": kind_raw,
+                "parent_segment_id": parent_segment_id,
+                "pass_id": pass_id,
+            }, {
+                "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'shapes': {'items': {'$ref': '#/components/schemas/AnchorShape'}, 'type': 'array', 'nullable': True, 'title': 'Shapes'}, 'media_ref': {'type': 'string', 'nullable': True, 'title': 'Media Ref'}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}, 'segment_id': {'type': 'string', 'nullable': True, 'title': 'Segment Id'}, 'representation_id': {'type': 'string', 'nullable': True, 'title': 'Representation Id'}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': True},
+                "baseline": {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Baseline', 'x-cli-required': False},
+                "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
+                "kind": {'type': 'string', 'title': 'Kind', 'x-cli-required': True},
+                "kind_raw": {'type': 'string', 'nullable': True, 'title': 'Kind Raw', 'x-cli-required': False},
+                "parent_segment_id": {'type': 'string', 'nullable': True, 'title': 'Parent Segment Id', 'x-cli-required': False},
+                "pass_id": {'type': 'string', 'title': 'Pass Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("create-bulk")
+    def segments_create_bulk_post(
+        ctx: typer.Context,
+        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
+        pass_id: str = typer.Option(..., "--pass-id", help="Request field: pass_id."),
+        segments: str = typer.Option(..., "--segments", help="Request field: segments."),
+    ) -> None:
+        """Create Segments Bulk (POST /api/segments/bulk)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/bulk"
+            params = None
+            payload = _build_json_payload({
+                "document_id": document_id,
+                "pass_id": pass_id,
+                "segments": segments,
+            }, {
+                "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
+                "pass_id": {'type': 'string', 'title': 'Pass Id', 'x-cli-required': True},
+                "segments": {'items': {'$ref': '#/components/schemas/SegmentSpec'}, 'type': 'array', 'title': 'Segments', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("carry-across-match")
+    def segments_carry_across_match_post(
+        ctx: typer.Context,
+        expected_versions: str = typer.Option(..., "--expected-versions", help="Request field: expected_versions."),
+        kinds: str = typer.Option(..., "--kinds", help="Request field: kinds."),
+        match_id: str = typer.Option(..., "--match-id", help="Request field: match_id."),
+    ) -> None:
+        """Carry Across Match (POST /api/segments/carry)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/carry"
+            params = None
+            payload = _build_json_payload({
+                "expected_versions": expected_versions,
+                "kinds": kinds,
+                "match_id": match_id,
+            }, {
+                "expected_versions": {'additionalProperties': {'type': 'integer'}, 'type': 'object', 'title': 'Expected Versions', 'x-cli-required': True},
+                "kinds": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Kinds', 'x-cli-required': True},
+                "match_id": {'type': 'string', 'title': 'Match Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("delete")
+    def segments_delete_post(
+        ctx: typer.Context,
+        expected_versions: str = typer.Option(..., "--expected-versions", help="Request field: expected_versions."),
+        reason: Optional[str] = typer.Option(None, "--reason", help="Request field: reason."),
+        segment_ids: str = typer.Option(..., "--segment-ids", help="Request field: segment_ids."),
+    ) -> None:
+        """Delete Segments (POST /api/segments/delete)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/delete"
+            params = None
+            payload = _build_json_payload({
+                "expected_versions": expected_versions,
+                "reason": reason,
+                "segment_ids": segment_ids,
+            }, {
+                "expected_versions": {'additionalProperties': {'type': 'integer'}, 'type': 'object', 'title': 'Expected Versions', 'x-cli-required': True},
+                "reason": {'type': 'string', 'maxLength': 200, 'nullable': True, 'title': 'Reason', 'x-cli-required': False},
+                "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Segment Ids', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-document")
+    def segments_list_document_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        area: Optional[str] = typer.Option(None, "--area", help="Query parameter: area."),
+        artifact_id: Optional[str] = typer.Option(None, "--artifact-id", help="Query parameter: artifact_id."),
+        kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
+        pass_id: Optional[str] = typer.Option(None, "--pass-id", help="Query parameter: pass_id."),
+    ) -> None:
+        """List Document Segments (GET /api/segments/document/{doc_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/document/{doc_id}"
+            params = {
+                "area": area,
+                "artifact_id": artifact_id,
+                "kind": kind,
+                "pass_id": pass_id,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-document-text")
+    def segments_get_document_text_get(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        include_furniture: Optional[bool] = typer.Option(None, "--include-furniture/--no-include-furniture", help="Query parameter: include_furniture."),
+        kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
+        pass_id: Optional[str] = typer.Option(None, "--pass-id", help="Query parameter: pass_id."),
+    ) -> None:
+        """Get Document Text (GET /api/segments/document/{document_id}/text)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/document/{document_id}/text"
+            params = {
+                "include_furniture": include_furniture,
+                "kind": kind,
+                "pass_id": pass_id,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("propose-match")
+    def segments_propose_match_post(
+        ctx: typer.Context,
+        certainty: Optional[float] = typer.Option(None, "--certainty", help="Request field: certainty."),
+        from_segment_id: str = typer.Option(..., "--from-segment-id", help="Request field: from_segment_id."),
+        note: Optional[str] = typer.Option(None, "--note", help="Request field: note."),
+        to_segment_id: str = typer.Option(..., "--to-segment-id", help="Request field: to_segment_id."),
+    ) -> None:
+        """Propose Match (POST /api/segments/matches)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/matches"
+            params = None
+            payload = _build_json_payload({
+                "certainty": certainty,
+                "from_segment_id": from_segment_id,
+                "note": note,
+                "to_segment_id": to_segment_id,
+            }, {
+                "certainty": {'type': 'number', 'nullable': True, 'title': 'Certainty', 'x-cli-required': False},
+                "from_segment_id": {'type': 'string', 'title': 'From Segment Id', 'x-cli-required': True},
+                "note": {'type': 'string', 'maxLength': 200, 'nullable': True, 'title': 'Note', 'x-cli-required': False},
+                "to_segment_id": {'type': 'string', 'title': 'To Segment Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("accept-match")
+    def segments_accept_match_post(
+        ctx: typer.Context,
+        match_id: str = typer.Argument(..., help="Path parameter: match_id."),
+    ) -> None:
+        """Accept Match (POST /api/segments/matches/{match_id}/accept)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/matches/{match_id}/accept"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("reject-match")
+    def segments_reject_match_post(
+        ctx: typer.Context,
+        match_id: str = typer.Argument(..., help="Path parameter: match_id."),
+    ) -> None:
+        """Reject Match (POST /api/segments/matches/{match_id}/reject)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/matches/{match_id}/reject"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("merge")
+    def segments_merge_post(
+        ctx: typer.Context,
+        expected_versions: str = typer.Option(..., "--expected-versions", help="Request field: expected_versions."),
+        keep_id: str = typer.Option(..., "--keep-id", help="Request field: keep_id."),
+        segment_ids: str = typer.Option(..., "--segment-ids", help="Request field: segment_ids."),
+    ) -> None:
+        """Merge Segments (POST /api/segments/merge)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/merge"
+            params = None
+            payload = _build_json_payload({
+                "expected_versions": expected_versions,
+                "keep_id": keep_id,
+                "segment_ids": segment_ids,
+            }, {
+                "expected_versions": {'additionalProperties': {'type': 'integer'}, 'type': 'object', 'title': 'Expected Versions', 'x-cli-required': True},
+                "keep_id": {'type': 'string', 'title': 'Keep Id', 'x-cli-required': True},
+                "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Segment Ids', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("create-pass")
+    def segments_create_pass_post(
+        ctx: typer.Context,
+        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        run_id: Optional[str] = typer.Option(None, "--run-id", help="Request field: run_id."),
+        source_artifact_id: Optional[str] = typer.Option(None, "--source-artifact-id", help="Request field: source_artifact_id."),
+    ) -> None:
+        """Create Pass (POST /api/segments/passes)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/passes"
+            params = None
+            payload = _build_json_payload({
+                "document_id": document_id,
+                "name": name,
+                "run_id": run_id,
+                "source_artifact_id": source_artifact_id,
+            }, {
+                "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
+                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
+                "run_id": {'type': 'string', 'nullable': True, 'title': 'Run Id', 'x-cli-required': False},
+                "source_artifact_id": {'type': 'string', 'nullable': True, 'title': 'Source Artifact Id', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("delete-pass")
+    def segments_delete_pass_delete(
+        ctx: typer.Context,
+        pass_id: str = typer.Argument(..., help="Path parameter: pass_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Delete Pass (DELETE /api/segments/passes/{pass_id})."""
+        if not yes:
+            typer.confirm("Delete segments?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/passes/{pass_id}"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("split")
+    def segments_split_post(
+        ctx: typer.Context,
+        expected_version: int = typer.Option(..., "--expected-version", help="Request field: expected_version."),
+        parts: str = typer.Option(..., "--parts", help="Request field: parts."),
+        segment_id: str = typer.Option(..., "--segment-id", help="Request field: segment_id."),
+    ) -> None:
+        """Split Segment (POST /api/segments/split)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/split"
+            params = None
+            payload = _build_json_payload({
+                "expected_version": expected_version,
+                "parts": parts,
+                "segment_id": segment_id,
+            }, {
+                "expected_version": {'type': 'integer', 'title': 'Expected Version', 'x-cli-required': True},
+                "parts": {'items': {'$ref': '#/components/schemas/SegmentSplitPart'}, 'type': 'array', 'title': 'Parts', 'x-cli-required': True},
+                "segment_id": {'type': 'string', 'title': 'Segment Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("undelete")
+    def segments_undelete_post(
+        ctx: typer.Context,
+        segment_ids: str = typer.Option(..., "--segment-ids", help="Request field: segment_ids."),
+    ) -> None:
+        """Undelete Segments (POST /api/segments/undelete)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/undelete"
+            params = None
+            payload = _build_json_payload({
+                "segment_ids": segment_ids,
+            }, {
+                "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Segment Ids', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("get")
+    def segments_get_get(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+    ) -> None:
+        """Get Segment (GET /api/segments/{segment_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/{segment_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("update")
+    def segments_update_put(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+        anchor: Optional[str] = typer.Option(None, "--anchor", help="Request field: anchor."),
+        baseline: Optional[str] = typer.Option(None, "--baseline", help="Request field: baseline."),
+        expected_version: int = typer.Option(..., "--expected-version", help="Request field: expected_version."),
+        is_furniture: Optional[bool] = typer.Option(None, "--is-furniture/--no-is-furniture", help="Request field: is_furniture."),
+        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
+        kind_raw: Optional[str] = typer.Option(None, "--kind-raw", help="Request field: kind_raw."),
+        parent_segment_id: Optional[str] = typer.Option(None, "--parent-segment-id", help="Request field: parent_segment_id."),
+        segment_id_2: str = typer.Option(..., "--segment-id", help="Request field: segment_id."),
+    ) -> None:
+        """Update Segment (PUT /api/segments/{segment_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/{segment_id}"
+            params = None
+            payload = _build_json_payload({
+                "anchor": anchor,
+                "baseline": baseline,
+                "expected_version": expected_version,
+                "is_furniture": is_furniture,
+                "kind": kind,
+                "kind_raw": kind_raw,
+                "parent_segment_id": parent_segment_id,
+                "segment_id": segment_id,
+            }, {
+                "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'shapes': {'items': {'$ref': '#/components/schemas/AnchorShape'}, 'type': 'array', 'nullable': True, 'title': 'Shapes'}, 'media_ref': {'type': 'string', 'nullable': True, 'title': 'Media Ref'}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}, 'segment_id': {'type': 'string', 'nullable': True, 'title': 'Segment Id'}, 'representation_id': {'type': 'string', 'nullable': True, 'title': 'Representation Id'}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
+                "baseline": {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Baseline', 'x-cli-required': False},
+                "expected_version": {'type': 'integer', 'title': 'Expected Version', 'x-cli-required': True},
+                "is_furniture": {'type': 'boolean', 'nullable': True, 'title': 'Is Furniture', 'x-cli-required': False},
+                "kind": {'type': 'string', 'nullable': True, 'title': 'Kind', 'x-cli-required': False},
+                "kind_raw": {'type': 'string', 'nullable': True, 'title': 'Kind Raw', 'x-cli-required': False},
+                "parent_segment_id": {'type': 'string', 'nullable': True, 'title': 'Parent Segment Id', 'x-cli-required': False},
+                "segment_id": {'type': 'string', 'title': 'Segment Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("a-s-picture-cut-to-its-shape")
+    def segments_a_s_picture_cut_to_its_shape_get(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+        margin: Optional[float] = typer.Option(None, "--margin", help="Query parameter: margin."),
+        mask: Optional[bool] = typer.Option(None, "--mask/--no-mask", help="Query parameter: mask."),
+        size: Optional[int] = typer.Option(None, "--size", help="Query parameter: size."),
+        straighten: Optional[bool] = typer.Option(None, "--straighten/--no-straighten", help="Query parameter: straighten."),
+    ) -> None:
+        """A segment's picture, cut to its shape (GET /api/segments/{segment_id}/picture)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/{segment_id}/picture"
+            params = {
+                "margin": margin,
+                "mask": mask,
+                "size": size,
+                "straighten": straighten,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-readings")
+    def segments_list_readings_get(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+        kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
+    ) -> None:
+        """List Segment Readings (GET /api/segments/{segment_id}/readings)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/{segment_id}/readings"
+            params = {
+                "kind": kind,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("choose-reading")
+    def segments_choose_reading_post(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+        kind: str = typer.Option(..., "--kind", help="Request field: kind."),
+        representation_id: str = typer.Option(..., "--representation-id", help="Request field: representation_id."),
+    ) -> None:
+        """Choose Segment Reading (POST /api/segments/{segment_id}/readings/choice)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/{segment_id}/readings/choice"
+            params = None
+            payload = _build_json_payload({
+                "kind": kind,
+                "representation_id": representation_id,
+            }, {
+                "kind": {'type': 'string', 'title': 'Kind', 'x-cli-required': True},
+                "representation_id": {'type': 'string', 'title': 'Representation Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("reference")
+    def segments_reference_get(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+    ) -> None:
+        """Segment Reference (GET /api/segments/{segment_id}/reference)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/{segment_id}/reference"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("restore-version")
+    def segments_restore_version_post(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+        expected_version: int = typer.Option(..., "--expected-version", help="Request field: expected_version."),
+        version: int = typer.Option(..., "--version", help="Request field: version."),
+    ) -> None:
+        """Restore Segment Version (POST /api/segments/{segment_id}/restore-version)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/{segment_id}/restore-version"
+            params = None
+            payload = _build_json_payload({
+                "expected_version": expected_version,
+                "version": version,
+            }, {
+                "expected_version": {'type': 'integer', 'title': 'Expected Version', 'x-cli-required': True},
+                "version": {'type': 'integer', 'title': 'Version', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-versions")
+    def segments_list_versions_get(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+    ) -> None:
+        """List Segment Versions (GET /api/segments/{segment_id}/versions)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/{segment_id}/versions"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('settings')

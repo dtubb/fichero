@@ -2851,6 +2851,19 @@ async def _propagate_to_page_children(
                                 _page_geometry["rendition_id"] = _crop.id
                     if matched:
                         art = matched[0]
+                        # #4924: the ONE in-place geometry write in the engine.
+                        # Once this artifact's boxes have become segment rows
+                        # its block is frozen -- replacing it would leave the
+                        # rows holding one page's shapes and the block another
+                        # page's words, and the projection would serve them
+                        # together. Refused with a typed reason; a tool with
+                        # NEW boxes saves a NEW artifact, as every other
+                        # producer already does.
+                        from fichero_server.api.routes.document.segment_conversion import (
+                            assert_geometry_writable,
+                        )
+
+                        assert_geometry_writable(art)
                         art.content = artifact_content
                         art.ocr_geometry = (
                             page_geometries[page_idx]
