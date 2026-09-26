@@ -471,9 +471,20 @@ and what to do when it is missing:
 | Xcode build / test | **xcode** MCP (`BuildProject`, `RunAllTests`) | raw `xcodebuild` + `-skipPackagePluginValidation` |
 | Apple API docs | **xcode** MCP `DocumentationSearch`, or sosumi | say you could not check; do not guess new API |
 
-`XcodeBuildMCP`'s tools mostly target iOS simulators — Fichero is macOS, so use the
-macOS / device-less variants. Prefer the `xcode` MCP over raw `xcodebuild`: it shares
-Xcode.app's cache and avoids `build.db` lock contention.
+`XcodeBuildMCP` supports macOS targets as well as simulators (it did not always —
+prefer the macOS / device-less variants, but do not assume macOS is unsupported).
+Prefer the `xcode` MCP over raw `xcodebuild`: it shares Xcode.app's cache, avoids
+`build.db` lock contention, and — see the LaunchServices pitfall below — is the only
+path that reliably launches an app-hosted test bundle on this machine.
+
+**The `xcode` MCP needs Xcode.app running.** It reports `CONNECTION_CLOSED` when
+Xcode is closed, which reads like a broken server rather than a closed editor. Open
+Xcode, and it connects. Its actions also need a `tabIdentifier` — the error names the
+open windows, so call one action, read the identifier out of the error, and reuse it.
+
+**Switch to `Fichero (Dev Local)` before running tests.** The `Dev Embedded` scheme's
+TEST action builds `FicheroAPIClient` without `-enable-testing`, so the test build
+fails to resolve the module. `XcodeSwitchScheme` does it in one call.
 
 **Two tools are not optional.** Every worker navigates with **jcodemunch** and writes
 **ponytail** code (shortest working diff; stdlib → native → existing dep → one line;
@@ -515,6 +526,7 @@ in a chat transcript is lost at the next compaction.
 
 The ones that cost hours, and that no test catches for you:
 
+- **`HOST NEVER STARTED` / `Assertion failed: childPID > 0` means LaunchServices, not your code.** Every build product, DMG staging dir, gate snapshot, deleted agent worktree and mounted `.dmg` registers ANOTHER `Fichero.app` under the SAME bundle id. Once dozens accumulate — most pointing at paths that no longer exist — `IDELaunchServicesLauncher` can resolve the id to a dead path and the test host never launches. The CLI gate reports only `HOST NEVER STARTED`, which reads like a broken test. Diagnose, don't retry: `lsregister -dump | grep -i 'path:.*Fichero\.app'`, then check which of those directories still exist. `lsregister -kill` NO LONGER EXISTS on current macOS; purge dead entries individually with `lsregister -u <path>`, and delete stale build products so they stop re-registering. Running tests through the `xcode` MCP sidesteps the whole thing.
 - **New `.swift` files just work — never run `add-swift-file.rb` on the app target.** It's a synchronized folder; explicit registration DUPLICATES the build file. Never hand-edit `project.pbxproj`.
 - **`PYTHONPATH=fichero-server/src` on every Python command.** The shared `.venv` is editable-installed against your MAIN checkout, not this worktree — without it, a worktree gates the *stale* tree.
 - **Never bare `uvicorn`.** The app pins `https://127.0.0.1:8765` fail-closed. Use `fichero-server/scripts/start_fichero_server.sh`.
