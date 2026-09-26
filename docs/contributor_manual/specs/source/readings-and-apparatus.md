@@ -208,36 +208,36 @@ any other: several can exist, one is chosen, none is overwritten.
 ## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
 
 Readings
-- `source.reading.set` — **[GAP]** (#4934) a segment can have many readings; adding one never changes another.
-- `source.reading.kinds` — **[GAP]** (#4934) a reading has a kind from an extendable list whose shipped defaults
+- `source.reading.set` — **[OK]** (#4934; pinned by `tests/unit/api/test_segment_readings.py::TestReadingsAreWritten::test_three_readings_of_one_line_coexist_and_adding_one_changes_no_other`) a segment can have many readings; adding one never changes another.
+- `source.reading.kinds` — **[OK]** (#4934; pinned by `tests/unit/models/test_reading_kinds_and_choices.py::TestTheKindsListIsOpen::test_an_unknown_kind_is_refused_and_the_list_is_named`) a reading has a kind from an extendable list whose shipped defaults
   are: as written, expanded, normalised, as read aloud, transliteration, translation,
   description, coordinate, music, drawing.
-- `source.reading.level-recorded` — **[GAP]** (#4934) every reading says how normalised it is; the level is
+- `source.reading.level-recorded` — **[OK]** (#4934; pinned by `tests/unit/models/test_reading_kinds_and_choices.py::TestTheGrownRecord::test_level_is_never_inferred`) every reading says how normalised it is; the level is
   never inferred or silently converted.
-- `source.reading.read-from` — **[GAP]** (#4934) a reading names the image it was read from, and the reading it
+- `source.reading.read-from` — **[OK]** (#4934; pinned by `tests/unit/api/test_segment_readings.py::TestReadingsAreWritten::test_the_image_it_was_read_from_is_recorded`) a reading names the image it was read from, and the reading it
   was made from if it has one.
-- `source.reading.author-and-guideline` — **[GAP]** (#4934) a reading names its author (person, or model and
+- `source.reading.author-and-guideline` — **[OK]** (#4934; pinned by `tests/unit/api/test_segment_readings.py::TestReadingsAreWritten::test_a_reading_names_its_author_not_only_the_kind_of_author`) a reading names its author (person, or model and
   run) and any guideline it follows.
-- `source.reading.corrections-are-new` — **[GAP]** (#4934) a correction is a new reading that names what it
+- `source.reading.corrections-are-new` — **[OK]** (#4934; pinned by `tests/unit/api/test_segment_readings.py::TestReadingsAreWritten::test_a_correction_names_its_target_and_leaves_its_text_alone`) a correction is a new reading that names what it
   corrects.
-- `source.reading.equal-alternatives` — **[GAP]** (#4934) several readings of one kind can stand as equally
+- `source.reading.equal-alternatives` — **[OK]** (#4934; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestStrictProject::test_three_peoples_readings_coexist_and_nothing_counts_until_one_is_chosen`) several readings of one kind can stand as equally
   valid, apart from a machine's ranked guesses.
-- `source.reading.chosen-is-worked-out` — **[GAP]** (#4934) "which reading counts" is worked out from recorded
+- `source.reading.chosen-is-worked-out` — **[OK]** (#4934; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestALiveHumanChoiceWinsInAnyProject::test_a_superseded_choice_is_history_not_a_vote`) "which reading counts" is worked out from recorded
   human choices, who made each reading, how recent it is and the project's rule; it is never a
   flag stored on a reading, so changing the project's rule rewrites nothing.
-- `source.reading.chosen-follows-project-rule` — **[GAP]** (#4934) in a strict project only a person chooses the
+- `source.reading.chosen-follows-project-rule` — **[OK]** (#4934; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestRelaxedProject::test_the_newest_of_several_peoples_readings_counts`) in a strict project only a person chooses the
   reading that counts; in a relaxed project the newest counts and a person's outranks a
   machine's; a new project is strict; the choice is recorded and changing it rewrites nothing.
-- `source.reading.machine-is-labelled` — **[GAP]** (#4934) a machine's reading is always shown as a machine's,
+- `source.reading.machine-is-labelled` — **[OK]** (#4934; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestALiveHumanChoiceWinsInAnyProject::test_choosing_a_machines_reading_does_not_make_it_a_persons`) a machine's reading is always shown as a machine's,
   and in a strict project as unchosen; exports mark it machine-made.
-- `source.reading.maker-set-by-engine` — **[GAP]** (#4934) whether a person or a machine made a reading or a pass
+- `source.reading.maker-set-by-engine` — **[OK]** (#4934; pinned by `tests/unit/api/test_segment_readings.py::TestReadingsAreWritten::test_the_maker_is_the_engines_answer_not_the_callers`) whether a person or a machine made a reading or a pass
   is the existing engine-set `ProvenanceKind` (the one claims use, → #4868, → #4869), not a new
   field, and is never claimed by the sender.
-- `source.reading.stretch-names-its-reading` — **[GAP]** (#4934) a stretch of text names the exact reading it was
+- `source.reading.stretch-names-its-reading` — **[OK]** (#4934; pinned by `tests/unit/api/test_document_derived_text.py::TestAStretchSurvivesTheReadingChanging::test_the_offsets_move_rather_than_being_kept`) a stretch of text names the exact reading it was
   measured on; when that reading is replaced it is carried over or reported unplaced.
-- `source.reading.written-read-pair` — **[GAP]** (#4934) two readings can be joined as written and read, apart
+- `source.reading.written-read-pair` — **[OK]** (#4934; pinned by `tests/unit/api/test_segment_readings.py::TestReadingsAreWritten::test_a_written_and_read_pair_is_joined_and_can_be_undone`) two readings can be joined as written and read, apart
   from error and correction.
-- `source.reading.char-confidence-on-line` — **[GAP]** (#4934) per-character positions and confidence ride on a
+- `source.reading.char-confidence-on-line` — **[OK]** (#4934; pinned by `tests/unit/api/test_segment_readings.py::TestPerCharacterDetailRidesOnTheLine::test_a_character_can_be_pointed_at_with_no_character_segment`) per-character positions and confidence ride on a
   line's reading without character segments existing.
 
 Hands and ink

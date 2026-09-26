@@ -546,7 +546,7 @@ identity and storage* (slices 1 to 6); *source-model: shapes and readings* (7 to
 
 The foundation has two of its own. Everything else is in the slices.
 
-- `source.one-store` — **[GAP]** (#4919) only one engine call returns a segment's shape, and only one returns
+- `source.one-store` — **[OK]** (#4919; engine half pinned by `tests/unit/api/test_segments_route.py::TestReadEitherStore::test_one_provisional_segment_per_box_rect_for_rect`, app half by `fichero/Tests/Unit/general/Models/SegmentMappingTests.swift` (52 passing)) only one engine call returns a segment's shape, and only one returns
   its picture; the Source view, Reader, Inspector, agents, training and export all use them,
   and the app keeps no second store of segments.
 - `source.builds-on-the-anchor` — **[GAP]** (#4925) a segment's place is a `SourceAnchor`, and the other three

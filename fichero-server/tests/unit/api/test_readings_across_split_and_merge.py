@@ -526,6 +526,63 @@ class TestTheAnchorCanNameWhatItPointsAt:
         assert resolved.basis is AnchorBasis.segment
         assert resolved.segment_id == rows[1].id
 
+    def test_all_four_carriers_gain_the_lasting_id_with_no_new_column(self):
+        """`source.point.anchor-names-its-segment`: "One shape for all four, no
+        new column on any of them; an old record reads as having none."
+
+        This is the load-bearing half of that behaviour and the reason the field
+        went on `SourceAnchor` rather than on each record. A reading, a mark, a
+        claim and a supporting source all carry the SAME anchor type, so one
+        field gave all four the lasting id — and if anyone ever "helpfully" gives
+        one of them its own `segment_id` column, this test is what notices.
+        """
+        from fichero_server.models.knowledge import (
+            Annotation,
+            KnowledgeClaim,
+            SourceSupport,
+        )
+
+        carriers = {
+            ContentRepresentation: "source_anchor",
+            Annotation: "anchor",
+            KnowledgeClaim: "source_anchor",
+            SourceSupport: "source_anchor",
+        }
+        for model, field in carriers.items():
+            annotation = str(model.model_fields[field].annotation)
+            assert "SourceAnchor" in annotation, f"{model.__name__} lost the shared anchor"
+
+        # "No new column on any of them" is about POINTING. Two of the four have
+        # a segment-id column for a DIFFERENT and documented reason, and running
+        # a blanket version of this assertion is what surfaced the distinction:
+        #
+        # * `ContentRepresentation.segment_id` is OWNERSHIP — "the segment it
+        #   reads", required by slice 8's own field table, indexed, and queried
+        #   once per line by `document_text`. A reading of a LINE may still carry
+        #   an anchor pointing at a WORD inside it, so the two are not redundant:
+        #   the column says which segment this is a reading OF, the anchor says
+        #   what its span points AT.
+        # * `KnowledgeClaim.source_segment_id` predates this model and names an
+        #   entry in a segmentation artifact. `source.statement.
+        #   old-segment-field-left-alone` says it keeps its meaning and must
+        #   NEVER be given a segment record's id — so its existence is mandated,
+        #   not an oversight.
+        #
+        # The two that had none must still have none: that is where a second
+        # answer to "which segment" would actually be created.
+        for model in (Annotation, SourceSupport):
+            assert not [n for n in model.model_fields if "segment_id" in n], (
+                f"{model.__name__} grew its own segment id — it should take the "
+                "lasting id from the shared anchor, which is the whole point of "
+                "putting it there"
+            )
+
+        # And an anchor written before this slice reads as having none, rather
+        # than being given one.
+        old_anchor = SourceAnchor(document_id="doc-1", rect=[0.1, 0.1, 0.2, 0.05])
+        assert old_anchor.segment_id is None
+        assert old_anchor.representation_id is None
+
     def test_a_provisional_id_can_never_be_stored_as_a_lasting_reference(self):
         for field, value in (
             ("segment_id", "legacy:art-1:3"),
