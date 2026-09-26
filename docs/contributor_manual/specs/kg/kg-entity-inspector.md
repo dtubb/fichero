@@ -172,7 +172,10 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
   selection changed mid-fetch) is never shown as a failure. `DocumentInspector
   .EntityInspectorArm`'s `.task(id:)` now checks `Task.isCancelled` first, logs the typed
   error with the entity id and library path, and shows that reason instead of the old generic
-  "Entity Unavailable." Pinned: `DocumentInspectorArmTests.testEntityInspectorArmGuardsCancellationBeforeMarkingFailure`.
+  "Entity Unavailable." Pinned: `DocumentInspectorArmTests.testARealFailureNamesTheLibraryAndTheCause` (the reason names the
+  library and the cause) and `.testACancelledFetchIsSupersededNotFailed` (a cancelled fetch is never
+  a failure), driving `EntityArmLoad.run`; `.testASuccessfulFetchIsLoaded`. Not pinned: the typed
+  error log line.
   Still open, not decided here: what Preview and Reader should show for a selected entity —
   today both say "No selection" regardless.
 - `kg.entity.focus-uses-the-bare-id` — **[PARTIAL]** (implemented and tested, f47f4b60d;

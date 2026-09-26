@@ -165,9 +165,13 @@ often the wrong subject; not multilingual.
   path so both call it); (c) the editor gained `time_start`/`time_end`/`time_precision`,
   threaded through `ClaimStore.patch` and `EntityService.patchClaim`. Not covered: the claim
   card's and `EntityKindBlock`'s editor mounts still pass no update callback (save correctly,
-  refresh only on the stream's echo), and the full `EditClaimSheet` still calls the action
-  directly rather than through this same path. Pinned: `InlineClaimEditorTests`
-  (`fichero/Tests/Unit/general/Views/Library/InlineClaimEditorTests.swift`), `ClaimStoreTests`
+  refresh only on the stream's echo), and the full `EditClaimSheet` now saves through the same path
+  (`ClaimPatchFields.sheet` → `ClaimStore.patch`, one shared payload builder). Pinned:
+  `ClaimPatchFieldsTests.subjectIdSentOnlyOnAChange`, `.dateFieldsTrimmedOrOmitted`,
+  `.inlineNeverSendsASubjectName`, `.sheetTrimsAndSendsTheSubjectName`
+  (`fichero/Tests/Unit/general/Models/ClaimPatchFieldsTests.swift`; the earlier
+  source-scrape suites for the two editors were deleted, and no
+  test now asserts the editors' `onSave` wiring or their rendered date fields), `ClaimStoreTests`
   (`fichero/Tests/Unit/general/Models/ClaimStoreTests.swift`),
   `KnowledgeGraphInspectorSectionTests`
   (`fichero/Tests/Unit/general/Views/Inspector/KnowledgeGraphInspectorSectionTests.swift`),
@@ -500,6 +504,17 @@ and tested, reachable from no screen.
   orphan this line describes — `render_entry` is wired into `api/routes/kg/render.py:129`. Pinned:
   `test_readable_representation.py::test_render_entry_every_sentence_carries_its_claim_id`,
   `test_readable_representation.py::test_render_entry_merge_keeps_every_source_claim_id_in_order`.
+- `kg.read.no-doubled-preposition` — **[PARTIAL]** (#5008, open for the date-as-subject half) a
+  sentence never says a preposition twice at the seam between verb and object: extraction stored
+  verb "arrived at" AND object "at Andagoya", which read "arrived at at Andagoya". `render_aggregation`
+  drops the OBJECT's copy when it is the same preposition as the verb's last word in the paragraph
+  language's own table (`_LEADING_PREPOSITIONS`), and never any other word. Pinned:
+  `test_readable_representation.py::test_a_preposition_on_both_sides_of_the_verb_and_object_is_said_once`.
+  NOT fixed, needs the stored claims (a read-only look, per the issue): a claim whose SUBJECT is a
+  date ("1933-01-31T13:30 Left in a plane") is rendered truthfully as stored, so the fault is in
+  extraction or storage, not here; and the engine composer is not the only renderer of the
+  entity card's biography (`kg.read.one-renderer`), so whether this fix reaches the card the
+  maintainer saw is unverified.
 - `kg.read.referring-expressions` — **[PARTIAL] — engine-only, and orphaned** (#4651)
   `referring_expression` (`readable.py:144`) is BUILT (a surname heuristic: "Asprilla", "Cruz"
   for "María de la Cruz") but stage 6 (`render_aggregation`/realisation) NEVER CALLS it

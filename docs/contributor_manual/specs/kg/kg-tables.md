@@ -108,15 +108,27 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
   `fichero-server/tests/unit/api/test_delete_clears_entity_links.py::TestEachFieldClearsOnDelete`,
   `::TestClaimCarryingSeveralFieldsAtOnce`, `::TestDisplayFieldsNeverTouched`.
 - `kg.entity.menu.merge` — **[GAP]** (#4828, → #1675) `EntityMergeSheet` merges duplicate
-  entities. Cross-references `kg.tables.entity.curate` above (#4801) rather than duplicating
-  it — the merge CAPABILITY is the same one that behavior already tracks; this entry is about
-  the sheet's own re-mount location specifically. → #1675 asks for more than the sheet: a
-  reversible AUDIT TRAIL for merge/split decisions (source ids, who/why, undo/re-split), not
-  built yet on either side.
+  entities, and the CAPABILITY is built end to end on the engine and the CLI: `POST /merge`,
+  `POST /audit/{id}/undo` and `GET /audit` (`entity_curation.py`), an `EntityMergeAudit` row per
+  merge/split/undo (source ids, target id, alias changes, `reversal_id`, `created_by`), and the CLI
+  `entity merge`, `audit list`, `audit undo`. Pinned:
+  `test_routes_entity_curation.py::TestMergeEntities::test_merge_writes_action_audit_and_emits`,
+  `::TestListEntityAudits::test_audit_appears_after_merge` and
+  `::TestUndoEntityOperation::test_undo_writes_action_audit_and_emits`. What is NOT built
+  (#1675, narrowed 2026-09-26): the sheet has no call site in the app (unmounted, #4828), and the audit
+  row has no reason, confidence, stage/run or approval-state field. Cross-references
+  `kg.tables.entity.curate` above (#4801) rather than duplicating it.
 - `kg.entity.menu.split` — **[GAP]** (#4828, → #1675) `EntitySplitSheet` splits a conflated
-  entity. Not named in any of the three KG specs before this pass. See #1675's audit-trail ask
-  above. → #1688 additionally asks for the SAME merge/unmerge/alias/edit surface reachable via
-  the CLI, not just the UI sheets — the CLI half is unbuilt on either side.
+  entity. Same state as merge: the engine (`POST /split`, undoable through the same audit undo,
+  `test_routes_entity_curation.py::TestSplitEntity::test_split_unmerges_entity`,
+  `::TestSplitEntity::test_split_moves_aliases`,
+  `::TestSplitEntityAction::test_split_is_undoable_via_the_existing_undo_endpoint`) and the CLI
+  (`entity split`) are built; the sheet is unmounted in the app.
+- `kg.tables.entity.alias-editing` — **[GAP]** (#1688, narrowed 2026-09-26) an entity's aliases
+  can be added and removed, in the UI and in the CLI. Not built on either side: the entity detail's
+  aliases section only DISPLAYS them, `EntityService.addEntityAliases` has no caller, and
+  `entity update` takes `--name`, `--description` and `--type` but no alias option. (Merge and
+  split do move aliases; that is not editing them.)
 - `kg.claim.contradiction-triage` — **[GAP]** (#4828, → #1677) `ContradictionTriageSheet`
   triages contradicting claims. Not named before this pass. → #1677 is the broader ask: a
   review UI covering EVERY workflow stage (transcript → imported entities → merge → KG →
@@ -159,6 +171,13 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   EVERYWHERE approve/reject/suppress live, single + multi, with confirm — the table's own
   delete is built; approve/reject/suppress-with-confirm is `kg.tables.claim.curate` below,
   still [PARTIAL].
+- `kg.tables.claim.delete-confirms` — **[GAP]** (#1787, narrowed 2026-09-26) deleting claims from
+  the Claims table and from the inspector asks for confirmation, as the entity detail's delete
+  does. Not built: `ClaimsLibraryContent.deleteClaims` deletes a multi-selection immediately, and
+  the inspector's action does the same (`KnowledgeGraphInspectorSection+Actions.swift`); only
+  `EntityDetailView+Claims` words a confirmation. The delete itself is built and pinned at the
+  store level (`ClaimStoreTests.testDeleteRemovesEachSucceededIdInPlaceWithoutReload`,
+  `.testDeletePartialFailureRemovesOnlyTheSucceededPrefix`).
 - `kg.tables.claim.curate` [PARTIAL] (#4691, → #1751) — bless / reject / merge from the table.
   Verified against code (2026-09-18): `ClaimsTableView.swift:158-184` (`claimMenu`) offers
   only Edit and Delete — no bless/reject/merge menu item. Curation is reachable only via
