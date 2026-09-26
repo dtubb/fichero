@@ -34,6 +34,8 @@ from fichero_server.models.knowledge import KnowledgeClaim
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
     EntityMergeOperationType,
+    EntityResolutionRule,
+    EntityResolutionRuleType,
     EntityType,
     KnowledgeEntity,
 )
@@ -139,6 +141,10 @@ class EntityUpdateActionParams(EntityCreateActionParams):
 class EntityDeleteActionParams(BaseModel):
     entity_id: str
     cascade_claims: bool = False
+    # #5072: a delete that CORRECTS an entity writes a `suppress` rule. The delete that is the
+    # inverse of a create / restore (an undo) is not a correction and must not, or a person who
+    # undoes a create could never recreate that entity.
+    record_rule: bool = True
 
 
 class EntityRestoreActionParams(BaseModel):
@@ -148,6 +154,162 @@ class EntityRestoreActionParams(BaseModel):
     # non-cascade `entity.delete` -- restored under a guard (only where the
     # field is STILL empty), never a blind overwrite like `claim_snapshots`.
     claim_field_clears: list[dict[str, str]] = Field(default_factory=list)
+    # #5072: the resolution rules the ORIGINAL verb wrote (undo deletes them, or a restored
+    # entity would still be suppressed / reclassified by its own undone correction) and the
+    # rules it superseded (undo puts them back).
+    rule_ids: list[str] = Field(default_factory=list)
+    superseded_rules: list[dict[str, Any]] = Field(default_factory=list)
+
+
+def _rule_names(*groups: list[str] | tuple[str, ...]) -> list[str]:
+    """Distinct surface forms, canonical name first, compared the way the resolver compares."""
+    seen: set[str] = set()
+    names: list[str] = []
+    for group in groups:
+        for name in group:
+            key = " ".join(str(name or "").split()).casefold()
+            if key and key not in seen:
+                seen.add(key)
+                names.append(str(name).strip())
+    return names
+
+
+def _write_resolution_rule(db: Database, rule: EntityResolutionRule) -> str | None:
+    """Save `rule` unless an identical one exists. Returns the id of a row THIS call created.
+
+    NOT wrapped in a try: a rule that cannot be written must fail the verb (#5072). The verbs
+    run inside the registry's transaction, so the failure rolls the correction back with it.
+    """
+    from fichero_server.workflows.tools._entity_writer import _norm_rule_text
+
+    for existing in db.query(EntityResolutionRule):
+        if (
+            existing.rule_type == rule.rule_type
+            and _norm_rule_text(existing.match_canonical_name) == _norm_rule_text(rule.match_canonical_name)
+            and existing.match_entity_type == rule.match_entity_type
+            and existing.target_entity_type == rule.target_entity_type
+            and _norm_rule_text(existing.target_canonical_name) == _norm_rule_text(rule.target_canonical_name)
+        ):
+            return None
+    db.save(rule)
+    return rule.id
+
+
+def record_delete_rules(db: Database, entity: KnowledgeEntity, actor: str) -> list[str]:
+    """`suppress` for a deleted entity's name and aliases, so the next import does not recreate it
+    (#5072). Written BEFORE the delete, inside the same action."""
+    created: list[str] = []
+    for name in _rule_names([entity.canonical_name], entity.aliases or []):
+        rule_id = _write_resolution_rule(
+            db,
+            EntityResolutionRule(
+                rule_type=EntityResolutionRuleType.suppress,
+                match_canonical_name=name,
+                match_entity_type=entity.entity_type,
+                reason=f"deleted by {actor}",
+                created_by=actor,
+            ),
+        )
+        if rule_id:
+            created.append(rule_id)
+    return created
+
+
+def record_reclassify_rules(
+    db: Database,
+    *,
+    old_type: EntityType,
+    new_type: EntityType,
+    names: list[str],
+    actor: str,
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """`reclassify` old_type -> new_type for each name, so the next import does not mint the same
+    name again at the old type beside the corrected one (#5072).
+
+    Also SUPERSEDES the opposite rule (new_type -> old_type): reclassifying A -> B -> A must not
+    leave a cycle, which the resolver answers by suppressing the mention. Returns (created rule
+    ids, snapshots of the rules deleted) so undo can put both back the way they were.
+    """
+    from fichero_server.workflows.tools._entity_writer import _norm_rule_text
+
+    superseded: list[dict[str, Any]] = []
+    wanted = {_norm_rule_text(n) for n in names}
+    for existing in list(db.query(EntityResolutionRule)):
+        if (
+            existing.rule_type == EntityResolutionRuleType.reclassify
+            and existing.match_entity_type == new_type
+            and existing.target_entity_type == old_type
+            and _norm_rule_text(existing.match_canonical_name) in wanted
+        ):
+            superseded.append(existing.model_dump(mode="json"))
+            db.delete(existing)
+
+    created: list[str] = []
+    for name in names:
+        rule_id = _write_resolution_rule(
+            db,
+            EntityResolutionRule(
+                rule_type=EntityResolutionRuleType.reclassify,
+                match_canonical_name=name,
+                match_entity_type=old_type,
+                target_canonical_name=None,
+                target_entity_type=new_type,
+                reason=f"reclassified {old_type.value} -> {new_type.value} by {actor}",
+                created_by=actor,
+            ),
+        )
+        if rule_id:
+            created.append(rule_id)
+    return created, superseded
+
+
+def record_rename_rules(
+    db: Database,
+    *,
+    old_name: str,
+    new_name: str,
+    old_type: EntityType,
+    new_type: EntityType,
+    actor: str,
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """`alias` old_name -> new_name, so the next import of the OLD name resolves to this entity
+    instead of minting a duplicate beside it (#5073).
+
+    Written for the old type, and also for the new one when the type changed in the same update:
+    the resolver applies a reclassify rule first and then looks the name up AGAIN at the new type,
+    so a rule keyed only to the old type would stop matching after the reclassify. Supersedes the
+    opposite rule (new_name -> old_name), so renaming A -> B -> A does not leave a cycle, which
+    the resolver answers by suppressing the mention. Returns (created ids, deleted snapshots).
+    """
+    from fichero_server.workflows.tools._entity_writer import _norm_rule_text
+
+    superseded: list[dict[str, Any]] = []
+    for existing in list(db.query(EntityResolutionRule)):
+        if (
+            existing.rule_type in {EntityResolutionRuleType.alias, EntityResolutionRuleType.merge_into}
+            and _norm_rule_text(existing.match_canonical_name) == _norm_rule_text(new_name)
+            and _norm_rule_text(existing.target_canonical_name) == _norm_rule_text(old_name)
+        ):
+            superseded.append(existing.model_dump(mode="json"))
+            db.delete(existing)
+
+    created: list[str] = []
+    for match_type in dict.fromkeys([old_type, new_type]):
+        rule_id = _write_resolution_rule(
+            db,
+            EntityResolutionRule(
+                rule_type=EntityResolutionRuleType.alias,
+                match_canonical_name=old_name,
+                match_entity_type=match_type,
+                target_canonical_name=new_name,
+                target_entity_type=new_type,
+                reason=f"renamed {old_name!r} -> {new_name!r} by {actor}",
+                created_by=actor,
+            ),
+        )
+        if rule_id:
+            created.append(rule_id)
+    return created, superseded
 
 
 def _invert_create_entity(
@@ -158,7 +320,7 @@ def _invert_create_entity(
     entity_id = after.get("entity_id") or after.get("id")
     if not entity_id:
         return None
-    return ("entity.delete", {"entity_id": entity_id, "cascade_claims": False})
+    return ("entity.delete", {"entity_id": entity_id, "cascade_claims": False, "record_rule": False})
 
 
 def _invert_restore_entity(
@@ -170,7 +332,7 @@ def _invert_restore_entity(
         entity_id = after.get("id")
         if not entity_id:
             return None
-        return ("entity.delete", {"entity_id": entity_id, "cascade_claims": False})
+        return ("entity.delete", {"entity_id": entity_id, "cascade_claims": False, "record_rule": False})
     return ("entity.restore", {"snapshot": before})
 
 
@@ -179,7 +341,14 @@ def _invert_update_entity(
 ) -> tuple[str, dict] | None:
     if not before:
         return None
-    return ("entity.restore", {"snapshot": before})
+    return (
+        "entity.restore",
+        {
+            "snapshot": before,
+            "rule_ids": list((after or {}).get("rule_ids", [])),
+            "superseded_rules": list((after or {}).get("superseded_rules", [])),
+        },
+    )
 
 
 def _invert_delete_entity(
@@ -195,6 +364,7 @@ def _invert_delete_entity(
             # #4863: guarded per-(claim, field) restore for the non-cascade
             # delete's cleared links -- see `_action_restore_entity`.
             "claim_field_clears": before.get("claim_field_clears", []),
+            "rule_ids": list((after or {}).get("rule_ids", [])),
         },
     )
 
@@ -670,6 +840,40 @@ def _action_update_entity(
             status_code=404,
             detail=f"entity {params.entity_id!r} not found",
         )
+    # #5072: a change of TYPE is a correction of what the thing IS, so the rule that makes the
+    # next import respect it is part of the SAME action, written first. If it cannot be written
+    # the action fails and nothing changes.
+    rule_ids: list[str] = []
+    superseded_rules: list[dict[str, Any]] = []
+    from fichero_server.workflows.tools._entity_writer import _norm_rule_text
+
+    old_type = existing.entity_type
+    new_name = params.canonical_name.strip()
+    if _norm_rule_text(new_name) != _norm_rule_text(existing.canonical_name):
+        # #5073: a rename to a DIFFERENT name. The old name stays resolvable, or the next import
+        # of it mints a duplicate beside the renamed entity.
+        rule_ids, superseded_rules = record_rename_rules(
+            db,
+            old_name=existing.canonical_name,
+            new_name=new_name,
+            old_type=old_type,
+            new_type=params.entity_type,
+            actor=ctx.actor,
+        )
+    if params.entity_type != old_type:
+        type_rule_ids, type_superseded = record_reclassify_rules(
+            db,
+            old_type=old_type,
+            new_type=params.entity_type,
+            names=_rule_names(
+                [existing.canonical_name, params.canonical_name],
+                existing.aliases or [],
+                params.aliases,
+            ),
+            actor=ctx.actor,
+        )
+        rule_ids += type_rule_ids
+        superseded_rules += type_superseded
     entity = update_entity_impl(
         db,
         params.entity_id,
@@ -684,7 +888,11 @@ def _action_update_entity(
         domains=["entity"],
         target_ids=[entity.id],
         before=existing.model_dump(mode="json"),
-        after={"entity_id": entity.id},
+        after={
+            "entity_id": entity.id,
+            "rule_ids": rule_ids,
+            "superseded_rules": superseded_rules,
+        },
         emit_type="entity.updated",
         entity_ids=[entity.id],
         emit_fn=_emit_entity_change_spec,
@@ -821,6 +1029,9 @@ def _action_delete_entity(
         claim.model_dump(mode="json")
         for claim in _claims_referencing_entity_ids(db, [params.entity_id])
     ]
+    # #5072: a delete is a correction ("this is not a real entity"), so the suppress rule that
+    # keeps the next import from recreating it is written FIRST, in this same action.
+    rule_ids = record_delete_rules(db, entity, ctx.actor) if params.record_rule else []
     result, claim_field_clears = delete_entity_impl(
         db,
         params.entity_id,
@@ -845,7 +1056,7 @@ def _action_delete_entity(
             # action ever be invoked with `claim_field_clears` alone.
             "claim_field_clears": claim_field_clears,
         },
-        after=result,
+        after={**result, "rule_ids": rule_ids},
         emit_type="entity.deleted",
         entity_ids=[params.entity_id],
     )
@@ -882,6 +1093,15 @@ def _action_restore_entity(
         setattr(claim, field, record["old_entity_id"])
         claim.updated_at = utc_now()
         db.save(claim)
+
+    # #5072: undo removes the rules the undone correction wrote, and puts back the ones it
+    # superseded; otherwise the restored entity would be suppressed by its own undone delete.
+    for rule_id in params.rule_ids:
+        rule = db.get(EntityResolutionRule, rule_id)
+        if rule is not None:
+            db.delete(rule)
+    for snapshot in params.superseded_rules:
+        db.save(EntityResolutionRule.model_validate(snapshot))
 
     spec = ChangeSpec(
         domains=["entity"],
@@ -948,6 +1168,7 @@ def list_entities_impl(
     q: str | None = None,
     entity_type: EntityType | None = None,
     document_id: str | None = None,
+    include_descendants: bool = True,
     limit: int = 50,
     offset: int = 0,
 ) -> list[KnowledgeEntity]:
@@ -962,7 +1183,10 @@ def list_entities_impl(
     if document_id:
         from fichero_server.api.routes.claim.claims import _descendant_doc_ids
 
-        doc_ids = _descendant_doc_ids(db, document_id)
+        # #5065: one answer to "does a folder query recurse", shared with the claim
+        # list and the knowledge-graph route: yes by default, `include_descendants=false`
+        # for the document alone (this filter used to recurse with no way to turn it off).
+        doc_ids = _descendant_doc_ids(db, document_id) if include_descendants else {document_id}
         # Claims for this document and any descendant page/chunk docs. Push
         # the source_document_id filter to SQL (IN) instead of scanning every
         # claim row in Python — the O(claims) melt at GHG scale (#1815).
@@ -1021,6 +1245,7 @@ async def list_entities(
     q: Annotated[str | None, Query()] = None,
     entity_type: Annotated[EntityType | None, Query()] = None,
     document_id: Annotated[str | None, Query()] = None,
+    include_descendants: Annotated[bool, Query()] = True,
     limit: Annotated[int, Query(ge=1, le=25000)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     db: Database = Depends(get_library_database),
@@ -1028,13 +1253,15 @@ async def list_entities(
     """List knowledge entities with optional filtering.
 
     When `document_id` is provided, returns only entities mentioned by claims
-    from that document (source-scoped aggregation).
+    from that document AND every descendant document (``include_descendants=true``,
+    the default); pass ``include_descendants=false`` for the document alone.
     """
     items = list_entities_impl(
         db,
         q=q,
         entity_type=entity_type,
         document_id=document_id,
+        include_descendants=include_descendants,
         limit=limit,
         offset=offset,
     )
@@ -1929,6 +2156,10 @@ class EntityListActionParams(BaseModel):
     document_id: str | None = Field(
         default=None, description="Scope to entities mentioned by a document's claims"
     )
+    include_descendants: bool = Field(
+        default=True,
+        description="With document_id: include every descendant document (default); false = the document alone",
+    )
     limit: int = Field(default=50, ge=1, le=500)
     offset: int = Field(default=0, ge=0)
 
@@ -1948,6 +2179,7 @@ def _action_list_entities(
         q=params.q,
         entity_type=params.entity_type,
         document_id=params.document_id,
+        include_descendants=params.include_descendants,
         limit=params.limit,
         offset=params.offset,
     )

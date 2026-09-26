@@ -225,13 +225,25 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   `::TestUpsertEntity::test_merge_into_rule_folds_name_into_target`,
   `::TestUpsertEntity::test_reclassify_rule_overrides_type`,
   `::TestWriterGateRules::test_import_rule_then_second_import_honors_persistent_merge`, and the rule
-  CRUD routes in `test_routes_kg_curation_rules.py`. NOT built (checked by running each verb, then
-  re-importing the same surface form): the inspector/table VERBS do not write rules. A UI **merge**
-  holds on re-import, but through the survivor's alias, not a rule. A UI **delete** does not: the
-  re-import re-creates the entity (no tombstone). A manual **reclassify** does not: the re-import
-  mints the same name again at the OLD type beside the corrected one. A **split** has no anti-merge
-  rule type at all (`EntityResolutionRuleType` has no such member), so nothing stops the next pass
-  recombining what a person separated. Ties to the standing curation-persists-and-constrains-imports
+  CRUD routes in `test_routes_kg_curation_rules.py`. Built from #5072: the verbs write their rule in the SAME audited action, before the change, so a rule that
+  cannot be written fails the verb and nothing changes. Entity **delete** writes a `suppress` rule for its name and
+  aliases, scoped to its type; an entity **type change** writes a `reclassify` rule (and supersedes the opposite one,
+  so A -> B -> A cannot form a cycle, which the resolver answers by suppressing the mention); undo removes what the
+  undone action wrote and restores what it superseded; the delete that is the inverse of a create is not a correction
+  and writes nothing. Entity **rename to a different name** writes an `alias` rule (old name -> new name,
+  for the old type and, when the type changed too, the new one, and superseding the opposite rule so A -> B -> A
+  is not a cycle); a case-only rename writes none. Pinned by the full round trip (verb -> rule row -> re-import ->
+  correction held) in `test_entity_verbs_write_rules.py::TestDeleteWritesASuppressRule`,
+  `::TestReclassifyWritesAReclassifyRule` and `::TestRenameWritesAnAliasRule`, including that a rule which cannot be
+  written fails the verb with the entity unchanged. A **merge** holds through the absorbed entity's tombstone
+  (`merged_into_id`), not a rule row; #5079 fixed the claim half: `upsert_entity` resolves every match to the LIVE
+  entity through `follow_merge_chain` (any number of hops; a cycle, a dangling pointer or a runaway chain raises
+  `MergeChainError`), and the mention scan maps an absorbed spelling to the live entity. Pinned:
+  `test_entity_writer.py::TestWriterGateRules::test_a_claim_written_after_a_merge_names_the_survivor`,
+  `::TestFollowMergeChain::test_two_real_merges_deep_a_reimport_lands_on_the_final_survivor`,
+  `::TestFollowMergeChain::test_a_cycle_is_a_typed_error_not_a_hang`.
+  NOT built: **claim delete** (#5074), **split** (no anti-merge rule type exists), and the entity-**reject**
+  attachment of new claims. Ties to the standing curation-persists-and-constrains-imports
   ruling; the importer's own NLP-draft half is `importer.md`'s
   `importer.nlp-never-overwrites-curated-rows`.
 
@@ -300,13 +312,19 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   OK: the engine's three inconsistent recursion switches this behavior originally named are
   still open**, tracked as their own gap immediately below — this fix routes the CLIENT through
   the one already-recursing seam, it does not unify the engine's own three knobs.
-- `kg.tables.folder-recursion-inconsistent-across-routes` — **[GAP]** (#4885, same evidence as
-  above) three separate engine routes disagree on whether folder scoping recurses into
-  subfolders: `include_descendants` on `/api/claims` is opt-in, the entities `document_id` filter
-  is always-on, and `include_children` on the document knowledge-graph route is its own third
-  knob. Expected, stated as intent not a decided mechanism: one consistent default (or one
-  consistent flag name/semantics) across all three, so a caller does not need to know which
-  route silently recurses and which needs an explicit flag.
+- `kg.tables.folder-recursion-inconsistent-across-routes` — **[PARTIAL]** (#4885; ruled and built in #5065, not yet
+  built through the generated clients) one flag, one default: `include_descendants`, default TRUE, on
+  `GET /api/claims`, the entity list (`document_id`) and the document knowledge-graph route, with
+  `include_descendants=false` meaning the document alone. Replaces `include_children`, which an implicit
+  `or len(descendant_ids) > 1` had made a no-op wherever it mattered. Pinned:
+  `test_folder_recursion_consistency.py::TestFolderQueriesRecurseByDefault::test_all_three_routes_agree_with_no_flags`,
+  `::TestFolderQueriesRecurseByDefault::test_shared_query_functions_default_to_recursive`, and, for the
+  opt-out, `::TestNonRecursiveIsStillExpressible::test_knowledge_graph_route_false_is_the_folder_alone`;
+  the walk is `test_descendant_doc_ids.py::TestDescendantDocIds`. Remaining, so this stays [PARTIAL]: the
+  knowledge-graph RESPONSE still names its echoed field `include_children`, and the Swift client, the
+  generated CLI surface and `openapi.json` still describe the old parameter until they are regenerated;
+  the app's Inspector "include children" toggle sends the retired parameter and so has no effect on this
+  route (it had none for a folder before either).
 - `kg.tables.filter-bar-and-footer-are-two-controls` — **[GAP, DESIGN]** (#4856) the two-bars
   state is BUILT AWAY (c98abbfa7): each table now draws no bar of its own, and the Library's bottom
   bar is the one footer, holding the filter, the type menu and the add control (a plus that creates

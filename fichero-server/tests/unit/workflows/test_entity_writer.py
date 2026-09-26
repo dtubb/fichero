@@ -1209,6 +1209,84 @@ class TestWriterGateRules:
         assert db.query(KnowledgeClaim, source_document_id="doc-noise") == []
 
     def test_import_rule_then_second_import_honors_persistent_merge(self, db):
+        """The verb round trip (#5072): run the real `entity.merge`, then re-import the absorbed
+        name. The durable record a merge leaves is the TOMBSTONE row (`merged_into_id` on the absorbed
+        entity, which the writer follows; no rule row and, unless the caller passes
+        `merged_aliases`, no alias), so that is what is asserted. The previous version of this test saved
+        a `merge_into` rule by hand; it proved the writer honours a rule and could not fail if
+        no verb ever wrote one. That test lives on, honestly named, right below."""
+        import fichero_server.api.routes.kg_entity_curation  # noqa: F401  (registers entity.merge)
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.workflows.tools.extractors import _write_kg_rows
+
+        def _import(name, doc):
+            _write_kg_rows(
+                db,
+                section={"name": "people", "entity_type": EntityType.person},
+                items=[{"name": name, "verb": "signed", "object": "the deed"}],
+                container_id=doc,
+                page_label="1",
+                source_excerpt=f"{name} signed the deed.",
+            )
+
+        _import("John Marshall", "doc-a")
+        _import("the Major", "doc-a")
+        by_name = {e.canonical_name: e for e in db.query(KnowledgeEntity)}
+        registry.invoke(
+            db,
+            "entity.merge",
+            {
+                "absorbing_entity_id": by_name["John Marshall"].id,
+                "absorbed_entity_ids": [by_name["the Major"].id],
+            },
+            ActionContext(actor="ui", library_path="/lib/test.fichero"),
+        )
+        survivor = db.get(KnowledgeEntity, by_name["John Marshall"].id)
+        absorbed = db.get(KnowledgeEntity, by_name["the Major"].id)
+        assert absorbed.merged_into_id == survivor.id, "the merge left nothing that points the old name at the survivor"
+
+        _import("the Major", "doc-b")
+
+        live = [e for e in db.query(KnowledgeEntity) if e.merged_into_id is None]
+        assert [e.canonical_name for e in live] == ["John Marshall"]
+
+    def test_a_claim_written_after_a_merge_names_the_survivor(self, db):
+        """The claim half of the round trip above (#5079): the ENTITY list held (one live entity)
+        while the claim the re-import wrote pointed at the tombstone, invisible on the survivor's
+        page. `upsert_entity` now resolves every match to the live entity."""
+        import fichero_server.api.routes.kg_entity_curation  # noqa: F401
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.workflows.tools.extractors import _write_kg_rows
+
+        def _import(name, doc):
+            _write_kg_rows(
+                db,
+                section={"name": "people", "entity_type": EntityType.person},
+                items=[{"name": name, "verb": "signed", "object": "the deed"}],
+                container_id=doc,
+                page_label="1",
+                source_excerpt=f"{name} signed the deed.",
+            )
+
+        _import("John Marshall", "doc-a")
+        _import("the Major", "doc-a")
+        by_name = {e.canonical_name: e for e in db.query(KnowledgeEntity)}
+        registry.invoke(
+            db,
+            "entity.merge",
+            {
+                "absorbing_entity_id": by_name["John Marshall"].id,
+                "absorbed_entity_ids": [by_name["the Major"].id],
+            },
+            ActionContext(actor="ui", library_path="/lib/test.fichero"),
+        )
+        _import("the Major", "doc-b")
+        (new_claim,) = [c for c in db.query(KnowledgeClaim) if c.source_document_id == "doc-b"]
+        assert new_claim.subject_entity_id == by_name["John Marshall"].id
+
+    def test_a_stored_merge_rule_is_honored_by_the_writer(self, db):
+        """Proves the STORE only: the rule is saved by hand, so this cannot fail when no verb
+        writes one. The verb round trips are `test_entity_verbs_write_rules.py` and the test above."""
         from fichero_server.workflows.tools.extractors import _write_kg_rows
 
         _write_kg_rows(
@@ -1928,3 +2006,89 @@ class TestMergeVectorFailureIsLoud:
             "failed to refresh merged entity vector" in r.message
             for r in caplog.records
         ), "merge-path vector failure must be logged, not silently passed"
+
+
+class TestFollowMergeChain:
+    """#5079: a mention of a merged-away spelling resolves to the LIVE entity, however many merges deep."""
+
+    @staticmethod
+    def _tombstone(db, name, into=None):
+        entity = KnowledgeEntity(canonical_name=name, entity_type=EntityType.person, merged_into_id=into)
+        db.save(entity)
+        return entity
+
+    def test_a_live_entity_resolves_to_itself(self, db):
+        from fichero_server.workflows.tools._entity_writer import follow_merge_chain
+
+        live = self._tombstone(db, "Live")
+        assert follow_merge_chain(db, live.id) == live.id
+
+    def test_a_chain_of_merges_resolves_to_the_end_not_the_next_hop(self, db):
+        from fichero_server.workflows.tools._entity_writer import follow_merge_chain
+
+        c = self._tombstone(db, "C")
+        b = self._tombstone(db, "B", into=c.id)
+        a = self._tombstone(db, "A", into=b.id)
+        assert follow_merge_chain(db, a.id) == c.id
+
+    def test_a_cycle_is_a_typed_error_not_a_hang(self, db):
+        from fichero_server.workflows.tools._entity_writer import MergeChainError, follow_merge_chain
+
+        a = self._tombstone(db, "A")
+        b = self._tombstone(db, "B", into=a.id)
+        a.merged_into_id = b.id
+        db.save(a)
+        with pytest.raises(MergeChainError, match="cycle"):
+            follow_merge_chain(db, a.id)
+
+    def test_a_pointer_at_a_missing_entity_is_a_typed_error(self, db):
+        from fichero_server.workflows.tools._entity_writer import MergeChainError, follow_merge_chain
+
+        a = self._tombstone(db, "A", into="does-not-exist")
+        with pytest.raises(MergeChainError, match="does not exist"):
+            follow_merge_chain(db, a.id)
+
+    def test_two_real_merges_deep_a_reimport_lands_on_the_final_survivor(self, db):
+        """A merged into B, then B into C, both through the real verb: the old spelling of A
+        resolves to C, and the claim it writes names C."""
+        import fichero_server.api.routes.kg_entity_curation  # noqa: F401
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.workflows.tools.extractors import _write_kg_rows
+
+        def _import(name, doc):
+            _write_kg_rows(
+                db,
+                section={"name": "people", "entity_type": EntityType.person},
+                items=[{"name": name, "verb": "signed", "object": "the deed"}],
+                container_id=doc,
+                page_label="1",
+                source_excerpt=f"{name} signed the deed.",
+            )
+
+        for name in ("Alpha Vega", "Beta Ruiz", "Gamma Soto"):
+            _import(name, "doc-a")
+        by = {e.canonical_name: e for e in db.query(KnowledgeEntity)}
+        ctx = ActionContext(actor="ui", library_path="/lib/test.fichero")
+        registry.invoke(db, "entity.merge", {"absorbing_entity_id": by["Beta Ruiz"].id,
+                                             "absorbed_entity_ids": [by["Alpha Vega"].id]}, ctx)
+        registry.invoke(db, "entity.merge", {"absorbing_entity_id": by["Gamma Soto"].id,
+                                             "absorbed_entity_ids": [by["Beta Ruiz"].id]}, ctx)
+
+        _import("Alpha Vega", "doc-b")
+
+        (claim,) = [c for c in db.query(KnowledgeClaim) if c.source_document_id == "doc-b"]
+        assert claim.subject_entity_id == by["Gamma Soto"].id
+        live = [e.canonical_name for e in db.query(KnowledgeEntity) if e.merged_into_id is None]
+        assert live == ["Gamma Soto"]
+
+    def test_the_alias_scan_maps_an_absorbed_spelling_to_the_live_entity(self, db):
+        """The sibling of the writer fix: the mention scan that attaches entities to a claim by
+        name must not hand back a tombstone's id."""
+        from fichero_server.workflows.tools import extractors
+
+        live = self._tombstone(db, "Gamma Soto")
+        gone = self._tombstone(db, "Beta Ruiz", into=live.id)
+        pairs = dict(extractors._build_alias_index(db))
+        assert pairs["beta ruiz"] == live.id
+        assert gone.id not in pairs.values()
+

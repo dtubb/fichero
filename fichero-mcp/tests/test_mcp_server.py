@@ -484,9 +484,13 @@ def test_document_kg_builds_path(monkeypatch):
         "catalogue": [],
     }
     with _mock_client(monkeypatch, body=body) as seen:
-        mcp_server.fichero_document_kg("doc-1", include_children=True)
+        mcp_server.fichero_document_kg("doc-1", include_descendants=False)
+        mcp_server.fichero_document_kg("doc-1")
     assert seen[0].url.path == "/api/documents/doc-1/knowledge-graph"
-    assert dict(seen[0].url.params)["include_children"] == "true"
+    # #5065: the flag is include_descendants, and recursion is the DEFAULT.
+    assert dict(seen[0].url.params)["include_descendants"] == "false"
+    assert dict(seen[1].url.params)["include_descendants"] == "true"
+    assert "include_children" not in dict(seen[0].url.params)
 
 
 def test_artifact_get_builds_path(monkeypatch):

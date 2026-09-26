@@ -489,6 +489,9 @@ class KGEntityGroup(BaseModel):
 
 class DocumentKnowledgeGraphResponse(BaseModel):
     document_id: str
+    # Echoes the request's `include_descendants` (#5065). The NAME is kept because the
+    # generated Swift/CLI clients decode it as a required field; rename it in the same
+    # commit that regenerates them, never alone.
     include_children: bool
     groups: list[KGEntityGroup]
     claims: list[KnowledgeClaim]
@@ -574,7 +577,7 @@ def _build_knowledge_graph(
 ) -> DocumentKnowledgeGraphResponse:
     """Group/dedup/merge-resolve a claim set into kind buckets.
 
-    Shared by the leaf-document path and the include_children
+    Shared by the leaf-document path and the include_descendants
     parent-PDF aggregation path.
 
     ``linked_entities`` are entities that reference a scoped document through
@@ -718,11 +721,15 @@ def _build_knowledge_graph(
         "groups in display order. The list-view row and the KG "
         "inspector tab both render this verbatim so they can no "
         "longer disagree (#1068).\n\n"
-        "With ``include_children=true`` the query walks the document "
-        "tree (BFS) and aggregates every descendant's claims onto the "
-        "parent. extract_all writes claims to PAGE doc ids, never the "
-        "parent PDF — so a parent PDF queried without this flag looks "
-        "empty even though its pages are full of entities (#1069).\n\n"
+        "By default (``include_descendants=true``) the query walks the "
+        "document tree (BFS) and aggregates every descendant's claims onto "
+        "the parent. extract_all writes claims to PAGE doc ids, never the "
+        "parent PDF — so a parent PDF queried without recursion looks "
+        "empty even though its pages are full of entities (#1069). Pass "
+        "``include_descendants=false`` for the document alone. This is the "
+        "same flag, with the same default, as the claim and entity lists "
+        "(#5065); it replaces ``include_children``, whose implicit "
+        "``or len(descendants) > 1`` made it a no-op wherever it mattered.\n\n"
         "The ``catalogue`` field carries any catalogue artifacts on the "
         "document (narrative / timeline / keywords), narrative-first, so "
         "a catalogued folder can render its readable synthesis above the "
@@ -731,7 +738,7 @@ def _build_knowledge_graph(
 )
 async def knowledge_graph(
     document_id: str,
-    include_children: Annotated[bool, Query()] = False,
+    include_descendants: Annotated[bool, Query()] = True,
     db: Database = Depends(get_library_database),
 ) -> DocumentKnowledgeGraphResponse:
     doc = db.get(Document, document_id)
@@ -740,9 +747,7 @@ async def knowledge_graph(
 
     from fichero_server.api.routes.claim.claims import _descendant_doc_ids
 
-    descendant_ids = _descendant_doc_ids(db, document_id)
-    should_include_children = include_children or len(descendant_ids) > 1
-    doc_ids = descendant_ids if should_include_children else {document_id}
+    doc_ids = _descendant_doc_ids(db, document_id) if include_descendants else {document_id}
 
     doc_claims = [
         c for c in db.query(KnowledgeClaim)
@@ -757,9 +762,9 @@ async def knowledge_graph(
     ]
     # Catalogue artifacts live on the inspected document itself (the
     # container), never its page children — so this is queried on
-    # document_id directly, independent of include_children.
+    # document_id directly, independent of include_descendants.
     catalogue = _catalogue_artifacts(db, document_id)
     return _build_knowledge_graph(
-        db, document_id, doc_claims, should_include_children, catalogue,
+        db, document_id, doc_claims, include_descendants, catalogue,
         linked_entities=linked_entities, scope_doc_ids=doc_ids,
     )

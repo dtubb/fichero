@@ -831,14 +831,18 @@ class FicheroClient:
         )
 
     def document_knowledge_graph(
-        self, doc_id: str, *, include_children: bool = False
+        self, doc_id: str, *, include_descendants: bool = True
     ) -> DocumentKnowledgeGraphResponse:
-        """Canonical KG grouping for a document — deduped, merge-resolved (#1068)."""
+        """Canonical KG grouping for a document — deduped, merge-resolved (#1068).
+
+        Includes every descendant document by default; pass ``include_descendants=False``
+        for the document alone (#5065; replaces the old ``include_children``).
+        """
         return DocumentKnowledgeGraphResponse.model_validate(
             self.request(
                 "GET",
                 f"/api/documents/{doc_id}/knowledge-graph",
-                params={"include_children": include_children},
+                params={"include_descendants": include_descendants},
             )
         )
 
@@ -1251,7 +1255,10 @@ class FicheroClient:
         claim_type: str | None = None,
         limit: int = 50,
         offset: int = 0,
+        include_descendants: bool = True,
     ) -> list[KnowledgeClaim]:
+        """With ``source_document_id``, includes every descendant document by default;
+        ``include_descendants=False`` is the document alone (#5065)."""
         raw = self.request(
             "GET",
             "/api/claims",
@@ -1262,6 +1269,7 @@ class FicheroClient:
                 "claim_type": claim_type,
                 "limit": limit,
                 "offset": offset,
+                "include_descendants": include_descendants,
             },
         )
         return [

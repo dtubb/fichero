@@ -1689,8 +1689,76 @@ def _record_source_page(
     db.save(entity)
 
 
-@_serialized_entity_upsert
+class MergeChainError(RuntimeError):
+    """A `merged_into_id` chain that cannot be followed to a live entity (#5079).
+
+    Raised, never swallowed: a cycle (A -> B -> A) or a pointer at a row that no longer exists
+    means the tombstones are corrupt, and quietly picking a survivor would attach claims to the
+    wrong entity for as long as the data stays wrong.
+    """
+
+
+#: A merge chain this long is not a chain, it is a cycle the seen-set missed or runaway data.
+_MAX_MERGE_CHAIN = 32
+
+
+def follow_merge_chain(db: Database, entity_id: str) -> str:
+    """The id of the LIVE entity `entity_id` was merged into, following `merged_into_id` however
+    many hops (A merged into B merged into C -> C). Returns `entity_id` itself when it is not
+    a tombstone. Raises `MergeChainError` on a cycle, a dangling pointer or a runaway chain.
+
+    Deliberately not `api/routes/document/inspector.py::_resolve_canonical`, which does the
+    same walk: that one lives in an API route module (a workflow writer must not import the API
+    layer) and it BREAKS OUT of a cycle and returns an entity inside it, which is right for a
+    read-only display and wrong for a write. If you unify them, keep the loud failure.
+    """
+    seen: list[str] = []
+    current = entity_id
+    for _ in range(_MAX_MERGE_CHAIN):
+        entity = db.get(KnowledgeEntity, current)
+        if entity is None:
+            raise MergeChainError(
+                f"entity {current!r} does not exist (merge chain from {entity_id!r}: {seen + [current]})"
+            )
+        if not entity.merged_into_id:
+            return current
+        seen.append(current)
+        if entity.merged_into_id in seen:
+            raise MergeChainError(
+                f"merge cycle from {entity_id!r}: {seen + [entity.merged_into_id]}"
+            )
+        current = entity.merged_into_id
+    raise MergeChainError(f"merge chain from {entity_id!r} is longer than {_MAX_MERGE_CHAIN}: {seen}")
+
+
 def upsert_entity(
+    db: Database,
+    canonical_name: str,
+    entity_type: EntityType,
+    aliases: Optional[list[str]] = None,
+    description: Optional[str] = None,
+    source_document_id: Optional[str] = None,
+) -> str | None:
+    """`_upsert_entity_matched`, with the answer resolved to the LIVE entity (#5079).
+
+    Every match path (exact name, type-conflict, admin qualifier, embedding, fuzzy) can land on a
+    row that was merged away: the merge leaves the absorbed entity as a tombstone, and a mention of
+    its old spelling matches it. Returning the tombstone's id attached the new claim to an entity
+    nobody sees. Resolving here, at the one door, covers every path instead of patching each.
+    """
+    entity_id = _upsert_entity_matched(
+        db,
+        canonical_name,
+        entity_type,
+        aliases=aliases,
+        description=description,
+        source_document_id=source_document_id,
+    )
+    return follow_merge_chain(db, entity_id) if entity_id else None
+
+
+@_serialized_entity_upsert
+def _upsert_entity_matched(
     db: Database,
     canonical_name: str,
     entity_type: EntityType,

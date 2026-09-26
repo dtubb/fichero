@@ -1158,7 +1158,7 @@ def list_claims_impl(
     claim_type: ClaimType | None = None,
     epistemic_status: EpistemicStatus | None = None,
     source_document_id: str | None = None,
-    include_descendants: bool = False,
+    include_descendants: bool = True,
     source_language: str | None = None,
     source_type: SourceType | None = None,
     limit: int = 200,
@@ -1211,7 +1211,7 @@ async def list_claims(
     claim_type: Annotated[ClaimType | None, Query()] = None,
     epistemic_status: Annotated[EpistemicStatus | None, Query()] = None,
     source_document_id: Annotated[str | None, Query()] = None,
-    include_descendants: Annotated[bool, Query()] = False,
+    include_descendants: Annotated[bool, Query()] = True,
     source_language: Annotated[str | None, Query()] = None,
     source_type: Annotated[SourceType | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=25000)] = 200,
@@ -1220,11 +1220,12 @@ async def list_claims(
 ) -> ClaimListResponse:
     """List knowledge claims with optional filtering.
 
-    When ``include_descendants=true`` is combined with
-    ``source_document_id=<folder_id>``, claims for the folder AND every
-    descendant doc are returned — required by the folder KG view
-    because extract_all writes claims to PAGE docs, not the container
-    (#826).
+    ``source_document_id=<folder_id>`` returns the claims of the folder AND
+    every descendant document by default (``include_descendants=true``): a
+    folder query means everything under it, and extract_all writes claims to
+    PAGE docs, not the container (#826). Pass ``include_descendants=false`` for
+    the document alone. The default was ``false`` until #5065; it is now the
+    same answer as the entity list and the knowledge-graph route.
     """
     items = list_claims_impl(
         db,
@@ -1509,7 +1510,7 @@ class ClaimListActionParams(BaseModel):
     claim_type: ClaimType | None = None
     epistemic_status: EpistemicStatus | None = None
     source_document_id: str | None = None
-    include_descendants: bool = False
+    include_descendants: bool = True
     source_language: str | None = None
     source_type: SourceType | None = None
     limit: int = Field(default=200, ge=1, le=1000)

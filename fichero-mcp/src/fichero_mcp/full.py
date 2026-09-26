@@ -179,10 +179,10 @@ def document_inspector(input: DocumentInput) -> Any:
 
 
 @mcp.tool()
-def document_knowledge_graph(input: DocumentInput, include_children: bool = False) -> Any:
+def document_knowledge_graph(input: DocumentInput, include_descendants: bool = True) -> Any:
     with _client() as client:
         return client.document_knowledge_graph(
-            input.doc_id, include_children=include_children
+            input.doc_id, include_descendants=include_descendants
         )
 
 
