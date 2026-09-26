@@ -335,6 +335,25 @@ chosen size, with or without a margin, from a chosen image of the page. For a li
 straightened along its baseline, which is what a recogniser wants. Pictures are made when
 asked for and may be cached; they are never the record.
 
+### What a tool is given (ruled 2026-09-26, #5026; design, not built)
+
+A vision tool may be given the whole page, the page with its boxes, a region, a line, a word, or a
+single character; that flexibility is the requirement. It needs **no new vocabulary**: those sizes
+are exactly the words `granularity` (and a segment's kind) already is. So what a tool is given is
+**a set of segments**, plus a choice of whether the picture comes too. Nothing named "scope" or
+"size" exists in the design: anything that can be said as an anchor can be said as a scope,
+including a stretch of characters inside one reading. A table-extraction tool today receives one
+downscaled image and a prompt and nothing else, even when the page already has a corrected
+reading and boxes; the boxes matter most for a table, since the x positions of the numbers cluster
+into columns and the y positions into rows, which a model gets wrong from pixels alone.
+
+The text it is given is the reading the working pass says (see "Passes"), one line per segment in
+reading order, marked by who made it, in a compact form such as
+`L07 | 0.12 0.41 0.18 0.03 | person | Quibdó`, not SVG (the picture already carries the picture).
+What it returns is anchored: each result names the segment ids it was read from, so a table cell
+can light up its ink. When the page has no reading or boxes yet, the tool runs on the picture
+alone and says so in the run log.
+
 ### Storage (the one big change)
 
 Today all the boxes of a result are one block of data. This design needs **one record per
@@ -466,6 +485,27 @@ Shape and images
   only through a known alignment; otherwise Fichero says it cannot.
 - `source.segment.picture-by-shape` — **[OK]** (#4925 closed; `test_segment_pictures.py::TestAShapeIsMaskedNotBoxed`) any segment's picture can be had, cut to its shape, from
   a chosen image, at a chosen size; a line's can be straightened.
+
+Giving a tool a piece of a page (#5026)
+- `source.tool.scope-is-a-segment-selection` — **[GAP]** (#5026) what a tool is given is a set of
+  segments, not a size word: a page, a page with its boxes, a region, a line, a word and a
+  character stretch of one reading are all "some segments", and any anchor is expressible as a
+  scope. There is no second list of sizes beside `granularity`.
+- `source.tool.picture-is-optional-and-separate` — **[GAP]** (#5026) whether the picture comes with
+  the text is a choice made on its own, not implied by the scope. A job on one character or one
+  word gets the picture cut to the shape (`segment_picture(..., mask=...)`, which already does
+  this, `source.segment.picture-by-shape`), not its box.
+- `source.tool.text-follows-the-working-pass` — **[GAP]** (#5026) the text a tool is given comes from
+  the working pass (`source.pass.working`), marked by its maker, a person's corrected line
+  outranking a machine's; the builder never invents a second answer to "which reading counts".
+- `source.tool.results-name-their-segments` — **[GAP]** (#5026) a tool's result names the segment
+  ids it was read from (a table cell names its lines), so the output is anchored instead of
+  free text that must be matched back; this is what `Tables and forms` means by a table becoming
+  cell segments, and it changes what a tool RETURNS.
+- `source.tool.budget-reports-itself` — **[GAP]** (#5026) a whole page at word granularity is
+  large; the builder states how much it is sending and, if it must send less, what it left out.
+  It never truncates silently: a tool that quietly did a smaller job than it was asked to is worse
+  than one that refused.
 
 Structure
 - `source.segment.one-primitive` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestOnePrimitiveOpenKinds::test_region_line_word_picture_all_segments_unknown_kind_roundtrips_kind_raw_kept`) every level of the ladder, and every non-text thing, is a
@@ -662,3 +702,13 @@ image and picture from the engine, MCP, the command line and the app.
 
 Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
 `source-model.md`.
+
+Still open, from #5026 ("What a tool is given"): (1) the **budget**: how many tokens or segments a
+tool may be sent, who sets it (the tool, the model, the project), and what is left out first when
+it is exceeded; nothing rules this yet. (2) how a **character stretch** inside one reading is
+addressed as a scope, and whether it needs the anchor's text-position form or a segment of its
+own. (3) how the **maker mark** is written into the compact line, and how a project's own working-pass
+rule shows up there when the page holds several readings. (4) whether **more than one model**
+receiving the same scope is one call or several. Settled and not reopened here: the trust order
+(a person's line outranks a machine's), the compact text form rather than SVG, and cutting the
+picture to the shape.
