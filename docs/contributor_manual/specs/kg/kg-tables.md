@@ -248,8 +248,13 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   (`match_source_document_id`, new; None means the whole library, as every earlier rule), so the same statement on
   another page is still written. A claim with no complete triple (hand-authored) writes no rule. Pinned:
   `test_claim_delete_writes_rule.py::TestClaimDeleteWritesAPruneRule` (round trip through the real extraction writer,
-  scope, undo, undo-of-create, failure leaves the claim). NOT built: **split** (no anti-merge rule type exists) and
-  the entity-**reject** attachment of new claims. Ties to the standing curation-persists-and-constrains-imports
+  scope, undo, undo-of-create, failure leaves the claim). **Split** needs no rule: its durable record is the
+  un-merged row (`merged_into_id=None`), which the writer matches by name and the dedupe planner never recombines.
+  The one gap was the absorbed spelling a merge can leave as an alias on the primary, so the split now removes the
+  split-off names from the primary in the same action (undo restores them). Pinned:
+  `test_split_survives_reimport.py::TestSplitSurvivesReimport`. **Reject**: a re-import that matches a rejected
+  entity drops the mention (`upsert_entity` returns None), as a suppress rule does. Pinned:
+  `test_entity_reject_survives_reimport.py::TestRejectedEntityStaysRejectedOnReimport`. Ties to the standing curation-persists-and-constrains-imports
   ruling; the importer's own NLP-draft half is `importer.md`'s
   `importer.nlp-never-overwrites-curated-rows`.
 

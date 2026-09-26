@@ -31,6 +31,7 @@ from fichero_server.models.knowledge import (
     ClaimSuppressionRuleAction,
     ClaimType,
     ClaimRelationType,
+    EntityCurationState,
     EntityResolutionRule,
     EntityResolutionRuleType,
     EntityType,
@@ -1759,7 +1760,15 @@ def upsert_entity(
         description=description,
         source_document_id=source_document_id,
     )
-    return follow_merge_chain(db, entity_id) if entity_id else None
+    if not entity_id:
+        return None
+    live_id = follow_merge_chain(db, entity_id)
+    # #5072: rejecting an entity says "this is not a real one". A re-import that matched it attached
+    # new claims to it anyway; the mention is dropped, as a suppress rule drops one.
+    live = db.get(KnowledgeEntity, live_id)
+    if live is not None and live.curation_state == EntityCurationState.rejected:
+        return None
+    return live_id
 
 
 @_serialized_entity_upsert
