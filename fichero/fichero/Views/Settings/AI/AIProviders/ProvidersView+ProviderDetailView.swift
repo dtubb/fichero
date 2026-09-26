@@ -24,6 +24,11 @@ enum KeyTestOutcome: Equatable {
         return verified == true ? .verified : .savedNotVerified
     }
 
+    /// The one derivation the view uses, so the icon can never be keyed on `success` alone (#4816).
+    static func from(_ result: Components.Schemas.ConnectionTestResponse) -> KeyTestOutcome {
+        from(success: result.success, verified: result.verified)
+    }
+
     var systemImage: String {
         switch self {
         case .verified: "checkmark.circle.fill"
@@ -159,7 +164,7 @@ struct ProviderDetailView: View {
 
                         if let result = testResult {
                             // #4816: three states, not two — see `KeyTestOutcome`.
-                            let outcome = KeyTestOutcome.from(success: result.success, verified: result.verified)
+                            let outcome = KeyTestOutcome.from(result)
                             HStack(spacing: 4) {
                                 Image(systemName: outcome.systemImage)
                                     .foregroundColor(outcome.tint)

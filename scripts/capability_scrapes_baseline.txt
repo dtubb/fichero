@@ -235,3 +235,20 @@ fichero/Tests/Unit/general/Views/Workflow/NodeProviderModelSelectorVisionModeTes
 fichero/Tests/Unit/general/Views/Workflow/WorkflowEditorRunGateTests.swift
 fichero/Tests/Unit/general/Views/Workflow/WorkflowRunProviderCacheTests.swift
 fichero/Tests/Unit/mac/AppleScriptSurfaceTests.swift
+
+# --- Legitimate guardrail-scans (#5052): a behaviour test is IMPOSSIBLE, not merely hard, because the
+# --- property is the ABSENCE or UNIQUENESS of something across the whole source tree.
+# Every non-optional @Environment read of an @Observable type, anywhere: a nil/absent environment value is only a
+# crash at run time in the one view that reads it, so only a tree-wide scan can prove none remain (#4703).
+fichero/Tests/Unit/general/Views/Shell/EnvironmentOptionalObservableGuardrailTests.swift
+# "No second model-row struct exists anywhere under Views/": proving a type is absent is a claim about the whole tree.
+fichero/Tests/Unit/general/Views/Shell/ModelRowSourceGuardrailTests.swift
+# Every shortcut literal minted in App/ and Views/Shell/ is unique: the property spans all literals at once,
+# and the menus are not mountable in a unit target.
+fichero/Tests/Unit/general/Views/Shell/MenuShortcutUniquenessTests.swift
+# Shrinking allowlist of bespoke takeover views the Library router may still mount, plus "deleted type appears
+# nowhere in the target": forbidden-pattern absence over the router and the whole tree.
+fichero/Tests/Unit/general/Views/Shell/LibraryPaneNeverMountsModeSurfaceTests.swift
+# The dead `paneKindOverrides` field must not be populated by capture/applyLayoutSnapshot: absence of a
+# pattern in a method that cannot be run without a live ContentView. Split out so it exempts ONE test.
+fichero/Tests/Unit/general/Views/Shell/DeadPaneKindOverridesGuardrailTests.swift

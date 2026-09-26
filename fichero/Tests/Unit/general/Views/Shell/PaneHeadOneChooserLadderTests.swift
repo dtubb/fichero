@@ -15,26 +15,13 @@ import Testing
 /// only that the code READS this way; it does not prove the tick or the
 /// chevron actually draws. That needs a screen check.
 struct PaneHeadOneChooserLadderTests {
-    private static let realLeafPaneHeadFiles = [
-        "Views/Library/LibraryView+PaneHead.swift",
-        "Views/Shell/ContentView/Layout/ContentView+PreviewPaneHead.swift",
-        "Views/Reader/Page/ReadingPaneView.swift",
-    ]
-
     private static func paneKindSelectorSource() throws -> String {
         try AppSource.text("Views/Shell/PaneHead/PaneKindSelector.swift")
     }
 
     // MARK: - No kind merges its two controls into one any more
-
-    @Test("no real-leaf pane head passes collapsesKindIntoLens", arguments: realLeafPaneHeadFiles)
-    func noPaneHeadPassesCollapsesKindIntoLens(relativePath: String) throws {
-        let source = try AppSource.text(relativePath)
-        #expect(
-            !source.contains("collapsesKindIntoLens"),
-            "\(relativePath) still passes collapsesKindIntoLens — #4880 removed the always-merged mode so every kind renders the same two-control row."
-        )
-    }
+    // (A head PASSING `collapsesKindIntoLens` is a compile error now that the parameter is gone,
+    // so no test is needed for that half.)
 
     @Test("PaneKindSelector no longer declares collapsesKindIntoLens or a permanent merged mode")
     func paneKindSelectorHasNoPermanentMergeSwitch() throws {

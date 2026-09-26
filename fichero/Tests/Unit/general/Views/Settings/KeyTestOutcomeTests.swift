@@ -1,4 +1,5 @@
 @testable import Fichero
+import FicheroAPIClient
 import SwiftUI
 import XCTest
 
@@ -62,27 +63,23 @@ final class KeyTestOutcomeTests: XCTestCase {
         XCTAssertEqual(icons.count, 3, "three outcomes must not collapse back onto the same icon")
     }
 
-    // MARK: - Source-scan: the view must not key its icon on `result.success` alone
+    // MARK: - The view's derivation: a successful round-trip alone never shows the green check
 
-    private static func appSource(_ relativePath: String) throws -> String {
-        try AppSource.text(relativePath)
+    func testAResponseThatSucceededButWasNotVerifiedNeverShowsTheCheckmark() {
+        for verified in [false, nil] as [Bool?] {
+            let response = Components.Schemas.ConnectionTestResponse(
+                success: true, providerType: "openrouter", message: "ok", verified: verified
+            )
+            let outcome = KeyTestOutcome.from(response)
+            XCTAssertEqual(outcome, .savedNotVerified, "verified: \(String(describing: verified))")
+            XCTAssertNotEqual(outcome.systemImage, KeyTestOutcome.verified.systemImage)
+        }
     }
 
-    func testProviderDetailViewDoesNotKeyTheTestIconOnSuccessAlone() throws {
-        let source = try Self.appSource(
-            "Views/Settings/AI/AIProviders/ProvidersView+ProviderDetailView.swift"
+    func testAVerifiedResponseShowsTheCheckmark() {
+        let response = Components.Schemas.ConnectionTestResponse(
+            success: true, providerType: "openai", message: "ok", verified: true
         )
-
-        // The regression this whole delivery fixes: a ternary that only ever
-        // looks at `result.success` for the icon/color. If this string is
-        // back, `verified` has been dropped from the render path again.
-        XCTAssertFalse(
-            source.contains(#"result.success ? "checkmark.circle.fill" : "xmark.circle.fill""#),
-            "the connection-test icon must not go back to a binary success-only ternary (#4816)"
-        )
-        XCTAssertTrue(
-            source.contains("KeyTestOutcome.from(success: result.success, verified: result.verified)"),
-            "the connection-test icon must derive from KeyTestOutcome, not result.success alone"
-        )
+        XCTAssertEqual(KeyTestOutcome.from(response), .verified)
     }
 }

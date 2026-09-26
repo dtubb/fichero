@@ -126,13 +126,10 @@ struct EditClaimSheet: View {
                 // never the stale one this sheet was opened with.
                 let updated = try await claimStore.patch(
                     claimId: claimId,
-                    text: text.trimmingCharacters(in: .whitespacesAndNewlines),
-                    subjectCanonical: trimmedOrNil(subject),
-                    predicateVerb: trimmedOrNil(predicate),
-                    objectPhrase: trimmedOrNil(object),
-                    sourcePageLabel: trimmedOrNil(sourcePageLabel),
-                    claimType: Components.Schemas.ClaimType(rawValue: claimType),
-                    epistemicStatus: Components.Schemas.EpistemicStatus(rawValue: epistemicStatus)
+                    fields: .sheet(
+                        text: text, subject: subject, predicate: predicate, object: object,
+                        sourcePageLabel: sourcePageLabel, claimType: claimType, epistemicStatus: epistemicStatus
+                    )
                 )
                 onSave(updated)
                 dismiss()
@@ -141,11 +138,6 @@ struct EditClaimSheet: View {
                 isSaving = false
             }
         }
-    }
-
-    private func trimmedOrNil(_ value: String) -> String? {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 }
 
@@ -264,19 +256,12 @@ struct InlineClaimEditor: View {
                 // never the stale `claim` this editor was opened with.
                 let updated = try await claimStore.patch(
                     claimId: claimId,
-                    // #4833: subject_entity_id only, never a name made up on
-                    // the client — engine commit 69fba6090 updates entity_ids
-                    // and regenerates the sentence's subject text server-side
-                    // when none is sent. Sent only when it actually changed.
-                    subjectEntityId: subjectEntityId != claim.subjectEntityId ? subjectEntityId : nil,
-                    predicateVerb: trimmedOrNil(predicate),
-                    objectPhrase: trimmedOrNil(object),
-                    sourcePageLabel: trimmedOrNil(sourcePageLabel),
-                    claimType: Components.Schemas.ClaimType(rawValue: claimType),
-                    epistemicStatus: Components.Schemas.EpistemicStatus(rawValue: epistemicStatus),
-                    timeStart: trimmedOrNil(timeStart),
-                    timeEnd: trimmedOrNil(timeEnd),
-                    timePrecision: trimmedOrNil(timePrecision)
+                    fields: .inline(
+                        subjectEntityId: subjectEntityId, originalSubjectEntityId: claim.subjectEntityId,
+                        predicate: predicate, object: object, sourcePageLabel: sourcePageLabel,
+                        claimType: claimType, epistemicStatus: epistemicStatus,
+                        timeStart: timeStart, timeEnd: timeEnd, timePrecision: timePrecision
+                    )
                 )
                 onSave(updated)
             } catch {
@@ -284,11 +269,6 @@ struct InlineClaimEditor: View {
                 isSaving = false
             }
         }
-    }
-
-    private func trimmedOrNil(_ value: String) -> String? {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 }
 
