@@ -55,13 +55,39 @@ def sh(*args: str) -> str:
     return subprocess.run(args, capture_output=True, text=True, check=False).stdout
 
 
+class Blind(Exception):
+    """An input could not be read. The check has gone blind; it has not passed."""
+
+
 def closed_since(hours: int) -> dict[int, str]:
-    """Issue number -> closedAt, for issues closed within the window."""
+    """Issue number -> closedAt, for issues closed within the window.
+
+    A failed `gh` is BLIND, never an empty list. `sh` runs with `check=False`, so
+    an unreachable GitHub or an expired token returns "" — and `json.loads(raw or
+    "[]")` turned that into zero closed issues, which this script then reported as
+    "OK: no issues closed in the last 24h" and exited 0. The check was at its most
+    confident exactly when it could see nothing, which is the one failure mode a
+    guardrail may not have (AGENTS.md rule 0).
+    """
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
-    raw = sh("gh", "issue", "list", "--state", "closed", "--limit", "400",
-             "--json", "number,closedAt,title")
+    try:
+        proc = subprocess.run(
+            ["gh", "issue", "list", "--state", "closed", "--limit", "400",
+             "--json", "number,closedAt,title"],
+            capture_output=True, text=True, check=False,
+        )
+    except OSError as exc:
+        # `gh` not installed at all raises rather than returning non-zero — a
+        # separate path from an unreachable GitHub, and just as blind.
+        raise Blind(f"cannot run gh: {exc}") from exc
+    if proc.returncode != 0:
+        raise Blind(f"cannot list closed issues: {proc.stderr.strip()[:200]}")
+    try:
+        rows = json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        raise Blind(f"cannot parse the issue listing: {exc}") from exc
     out = {}
-    for row in json.loads(raw or "[]"):
+    for row in rows:
         if not row.get("closedAt"):
             continue
         if datetime.fromisoformat(row["closedAt"].replace("Z", "+00:00")) >= cutoff:
@@ -115,7 +141,12 @@ def main() -> int:
         print(f"FAIL: {args.remote} does not resolve. Run `git fetch` first.", file=sys.stderr)
         return 1
 
-    closed = closed_since(args.hours)
+    try:
+        closed = closed_since(args.hours)
+    except Blind as exc:
+        print(f"BLIND: {exc}", file=sys.stderr)
+        print("Refusing to report success on input I could not read.", file=sys.stderr)
+        return 2
     if not closed:
         print(f"OK: no issues closed in the last {args.hours}h.")
         return 0

@@ -80,3 +80,36 @@ def test_docstring_keeps_the_corpus_warning(mod):
     doc = mod.__doc__ or ""
     assert "git log --all" in doc
     assert "cannot fail" in doc.lower() or "CANNOT FAIL" in doc
+
+
+def test_a_failed_gh_is_blind_not_zero_closed_issues(monkeypatch):
+    """An unreachable GitHub must NOT read as "nothing was closed".
+
+    `sh` runs with check=False, so a failed `gh` returned "" and
+    `json.loads(raw or "[]")` turned that into an empty dict — which this script
+    reported as "OK: no issues closed in the last 24h" and exited 0. The check
+    was at its most confident exactly when it could see nothing.
+    """
+    import subprocess
+
+    mod = _load()
+
+    def fails(*a, **k):
+        return subprocess.CompletedProcess(a, 1, stdout="", stderr="gh: not authenticated")
+
+    monkeypatch.setattr(mod.subprocess, "run", fails)
+    with pytest.raises(mod.Blind):
+        mod.closed_since(24)
+
+
+def test_a_missing_gh_binary_is_also_blind(monkeypatch):
+    """`gh` absent raises OSError rather than returning non-zero — a separate
+    path from an unreachable GitHub, and just as blind."""
+    mod = _load()
+
+    def missing(*a, **k):
+        raise FileNotFoundError(2, "No such file or directory: 'gh'")
+
+    monkeypatch.setattr(mod.subprocess, "run", missing)
+    with pytest.raises(mod.Blind):
+        mod.closed_since(24)
