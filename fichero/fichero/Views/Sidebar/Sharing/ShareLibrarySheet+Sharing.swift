@@ -72,16 +72,9 @@ extension ShareLibrarySheet {
         }
     }
 
-    /// Derives https://<hostname>.local:<port> from the system Bonjour name — the
-    /// same automatic address `ShareSettingsView` derives, so both agree.
-    static var autoLocalBaseURL: String {
-        var host = ProcessInfo.processInfo.hostName.lowercased()
-        if !host.hasSuffix(".local") {
-            host = (host.components(separatedBy: ".").first ?? host) + ".local"
-        }
-        let port = URL(string: EngineConfig.defaultHostString)?.port ?? 8765
-        return "https://\(host):\(port)"
-    }
+    /// Forwards to the single definition in `RemoteAccessConfig` so this sheet and
+    /// `ShareSettingsView` cannot derive different addresses (#5042).
+    static var autoLocalBaseURL: String { RemoteAccessConfig.autoLocalBaseURL }
 
     func loadSPKIPin() {
         spkiPin = RemoteAccessConfig.hostedBackendSPKIPin(hostString: publicBaseURL) ?? ""
@@ -146,6 +139,22 @@ extension ShareLibrarySheet {
                     "Fichero is still minting the certificate for this address — try again in a moment.")
         }
         return nil
+    }
+
+    /// An honest note about what the working link actually reaches (#5042).
+    ///
+    /// A `.local` address is mDNS: it works on the same local network and nowhere
+    /// else, and plenty of managed networks — university campuses especially —
+    /// do not resolve it at all, so the link looks valid and is dead.
+    ///
+    /// This is deliberately NOT part of `shareLinkUnavailableReason`, which means
+    /// "cannot proceed". The link is genuinely valid on a LAN, so it is still
+    /// offered; we just say what its reach is and where to widen it.
+    var localNetworkOnlyAdvisory: String? {
+        guard RemoteAccessConfig.isLocalNetworkOnly(publicBaseURL) else { return nil }
+        return "This address only works on the same local network, and some networks "
+            + "(many campus and office ones) can't reach it at all. To connect from "
+            + "anywhere, set a Tailscale address in Settings → Sharing → Advanced."
     }
 
     var sharedPersonName: String {

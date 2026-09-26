@@ -49,16 +49,9 @@ struct ShareSettingsView: View {
 
     let qrContext = CIContext()
 
-    // Derives https://<hostname>.local:<port> from the system Bonjour name.
-    // Port mirrors EngineConfig.defaultHostString so both stay in sync.
-    static var autoLocalBaseURL: String {
-        var host = ProcessInfo.processInfo.hostName.lowercased()
-        if !host.hasSuffix(".local") {
-            host = (host.components(separatedBy: ".").first ?? host) + ".local"
-        }
-        let port = URL(string: EngineConfig.defaultHostString)?.port ?? 8765
-        return "https://\(host):\(port)"
-    }
+    // Forwards to the single definition in `RemoteAccessConfig` so this pane and
+    // the Share sheet cannot derive different addresses (#5042).
+    static var autoLocalBaseURL: String { RemoteAccessConfig.autoLocalBaseURL }
 
     var body: some View {
         Form {
