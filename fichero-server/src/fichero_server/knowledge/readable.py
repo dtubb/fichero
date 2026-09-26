@@ -325,8 +325,15 @@ def _join_list(items: list[str], conjunction: str) -> str:
     return f"{', '.join(parts[:-1])} {conjunction} {parts[-1]}"
 
 
-def render_aggregation(agg: "Aggregation", language: str = "es") -> str:
+def render_aggregation(agg: "Aggregation", language: str) -> str:
     """Stage 6 — realise one Aggregation into a sentence in `language`.
+
+    `language` is REQUIRED. It defaulted to "es" until 2026-09-26, which meant a
+    caller who simply forgot it got Spanish glue around English words and no
+    error — the exact silent-wrong-default that `kg.read.source-language-only`
+    forbids. Nothing in the engine called it without a language (every caller
+    passes `agg.language`), so requiring it broke nothing and closed the trap
+    before the first caller fell into it.
 
     Deterministic, no LLM. The subject/verb are the claim's own words (source
     language); this only phrases the conjunction between objects and the

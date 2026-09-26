@@ -233,6 +233,28 @@ def test_a_declared_language_with_no_glue_table_never_merges():
     rendered = " ".join(render_aggregation(g, g.language or "en") for g in result)
     assert " and " not in rendered
 
+def test_realisation_refuses_to_guess_a_language():
+    """`render_aggregation` has no default language, so forgetting it is an
+    error rather than silent Spanish glue around English words (#4839).
+
+    This is the whole of `kg.read.source-language-only` in one call: the module
+    may phrase a sentence in a language it is TOLD, and may never pick one.
+    """
+    import pytest
+
+    from fichero_server.knowledge.readable import Aggregation, render_aggregation
+
+    # Built OUTSIDE the raises block on purpose: constructed inside it, a wrong
+    # constructor call would raise TypeError too and the test would pass while
+    # proving nothing about the signature under test.
+    agg = Aggregation(
+        subject="Ana", verb="nacio en", objects=["Quibdo"], places=[], count=1, claim_ids=["c1"],
+        language="es",
+    )
+    with pytest.raises(TypeError):
+        render_aggregation(agg)  # type: ignore[call-arg]
+
+
 def test_aggregation_never_crosses_languages_even_with_matching_text():
     """The bug, run: two claims whose subject/verb TEXT happens to match --
     one Spanish, one English -- used to merge into one group because the old

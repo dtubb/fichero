@@ -447,23 +447,29 @@ often the wrong subject; not multilingual.
 
 ### E. Ruling 4 — source language only
 
-- `kg.read.source-language-only` — **[BROKEN, partially]** (→ #4839) the ruling itself (no gloss, no
-  cross-language realisation, ever) has nothing to remove — grep of `paragraph.py`, `readable.py`,
-  `document_view.html`, `EntityDigestView.swift`, and `ClaimLine.swift` shows none of them read
-  the `_en` gloss fields on a claim. But the DEFAULT the ruling implies — each sentence in ITS
-  OWN source language — is not honored either: `readable.py`'s `language` is a PARAMETER for the
-  WHOLE paragraph, defaulting to `"es"`, that nothing derives from the claim (`:185`); an unknown
-  language silently falls back to English glue (`:191`); and the app's live renderer hard-codes
-  English words directly (`"they"` at `EntityDigestView.swift:663`; `" and "`/Oxford comma at
-  `paragraph.py:91-92`; `"source:"`/`"excerpt:"`/`"Footnotes:"`/`"p."` at `paragraph.py:263-267,
-  329-333`; fixed S-V-O word order in three places). A claim has no single language field today —
-  only `source_languages: list[str]` (`models/knowledge.py:1648`) — so "language per claim" means
-  reading `source_languages[0]`. **Deferred, recorded not built (ruling 4 itself, not a gap):**
-  multilingual gloss / cross-language realisation — explicitly out of scope, not forgotten.
-- `kg.read.aggregation-never-crosses-languages` — **[BROKEN]** (#4839) `readable.py`'s aggregation key is
-  subject + verb ONLY (`:126`) — it would merge claims across languages into one sentence with one
-  glue language, the opposite of "language per claim." No test catches this because the pipeline
-  has never been run on a genuinely mixed-language entity page.
+- `kg.read.source-language-only` — **[OK]** (#4839 closed 2026-09-26) each sentence is realised in
+  its own claim's language, and the module never picks one for itself. `_claim_language` reads
+  `source_languages[0]` (`readable.py:128`), that value rides on the `Aggregation` as `language`
+  (`:124`), and `render_aggregation` now REQUIRES the language as an argument (`:328`). The
+  hard-coded English glue this line listed is gone from `paragraph.py` and `EntityDigestView`.
+  Pinned: `test_readable_representation.py::test_render_entry_language_is_none_when_claim_carries_none`,
+  `test_readable_representation.py::test_object_slot_is_prepositional_matches_the_claims_own_language`,
+  `test_readable_representation.py::test_realisation_refuses_to_guess_a_language` (298 passing in `tests/unit/knowledge/`).
+  Corrected 2026-09-26: this stayed [BROKEN] after the work landed. The last piece was real
+  though — `render_aggregation` still DEFAULTED to `"es"`, so a caller who forgot the argument
+  got Spanish glue around English words with no error. Nothing called it that way, so the default
+  was removed rather than documented, and the third test above pins that forgetting is now an
+  error. **Deferred, recorded not built (ruling 4 itself, not a gap):** multilingual gloss /
+  cross-language realisation — explicitly out of scope, not forgotten.
+- `kg.read.aggregation-never-crosses-languages` — **[OK]** (#4839 closed 2026-09-26) the aggregation
+  key is `(subject identity, verb, language)` (`readable.py:262`), so two claims that share a
+  subject and verb but declare different languages land in different groups and are realised as
+  separate sentences. A claim declaring NO language never merges with anything. Pinned by four
+  tests that run the mixed-language page this line said had never been run:
+  `test_readable_representation.py::test_aggregation_never_crosses_languages_even_with_matching_text`,
+  `test_readable_representation.py::test_aggregation_groups_share_a_language_field`,
+  `test_readable_representation.py::test_a_claim_that_declares_no_language_never_merges`,
+  `test_readable_representation.py::test_render_entry_never_merges_across_languages`.
 
 ### F. The six-stage NLG pipeline — retagged against what a screen actually shows
 
@@ -487,12 +493,13 @@ and tested, reachable from no screen.
   citations: `Aggregation.claim_ids` (`readable.py:112`) keeps the ids, but `render_aggregation`
   returns a bare `str`, so the ids are gone by the time there is a sentence to click — this is
   why `kg.read.every-sentence-sourced` below is [BROKEN], not [PARTIAL].
-- `kg.read.every-sentence-sourced` — **[BROKEN]** (#4840) every rendered sentence must carry >= 1 claim id
-  through to the click target. Today it does not survive aggregation (see above); the app's live
-  renderer (A) DOES carry a source per sentence (`fichero-claim://<id>` link,
-  `EntityDigestView.swift:393-397`) since it never aggregates — so the property holds only in the
-  UNAGGREGATED, wrong-subject path, and fails in the aggregated, engine path. The entry composer
-  (`kg.read.biography` below) must fix both at once.
+- `kg.read.every-sentence-sourced` — **[OK]** (#4840 closed 2026-09-26) every rendered sentence carries
+  at least one claim id through to the click target, and provenance now survives aggregation:
+  `Aggregation.claim_ids` (`readable.py:123`) keeps every contributing claim, in order, so a
+  merged sentence cites all of its sources rather than one. The engine path is no longer the
+  orphan this line describes — `render_entry` is wired into `api/routes/kg/render.py:129`. Pinned:
+  `test_readable_representation.py::test_render_entry_every_sentence_carries_its_claim_id`,
+  `test_readable_representation.py::test_render_entry_merge_keeps_every_source_claim_id_in_order`.
 - `kg.read.referring-expressions` — **[PARTIAL] — engine-only, and orphaned** (#4651)
   `referring_expression` (`readable.py:144`) is BUILT (a surname heuristic: "Asprilla", "Cruz"
   for "María de la Cruz") but stage 6 (`render_aggregation`/realisation) NEVER CALLS it

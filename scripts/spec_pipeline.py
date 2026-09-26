@@ -743,15 +743,23 @@ def _collect_findings(offline: bool, strict: bool) -> tuple[list[Finding], list[
         idx = _issue_index(issues)
         for b in behaviors:
             if b.tag in BROKEN_LIKE_TAGS:
-                for n in b.issues:
-                    issue = idx.get(n)
-                    if issue and issue.get("state") == "CLOSED":
-                        failures.append(Finding(
-                            "b", f"{b.id}:{n}", b.spec_path,
-                            f"{b.spec_path}:{b.line}: `{b.id}` [{b.tag}] cites #{n} which is "
-                            f"CLOSED — retag `[OK]` with a pinning test, or reopen the issue "
-                            f"if the tag is right (rule b)."
-                        ))
+                # The rule is that a broken behaviour must have an OPEN OWNER — not that
+                # every issue it names is open. A `[PARTIAL]` routinely cites the closed
+                # issue whose specific finding it DID fix plus the open one tracking the
+                # rest ("fixed for #4843's finding by 8aa6c8e12, remainder in #4844"), and
+                # flagging that is a false positive with nothing to do about it. On
+                # 2026-09-26 two of this rule's five findings were exactly that shape, and
+                # a guard wrong two times in five teaches people to baseline it — which is
+                # how the debt it guards against accumulated in the first place.
+                known = [(n, idx[n]) for n in b.issues if n in idx]
+                if known and not any(i.get("state") == "OPEN" for _, i in known):
+                    shown = ", ".join(f"#{n}" for n, _ in known)
+                    failures.append(Finding(
+                        "b", f"{b.id}:{known[0][0]}", b.spec_path,
+                        f"{b.spec_path}:{b.line}: `{b.id}` [{b.tag}] cites only CLOSED "
+                        f"issues ({shown}) — retag `[OK]` with a pinning test, or reopen "
+                        f"one if the tag is right (rule b)."
+                    ))
             if b.spec_milestone:
                 # Rule (c) only binds a PLAIN "#N" citation to the spec's own milestone. An
                 # arrow citation ("→ #4705 increment 6") is a deliberate pointer to another

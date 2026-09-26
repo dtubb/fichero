@@ -138,6 +138,43 @@ def test_rule_b_closed_issue_still_broken_fails(tmp_path, monkeypatch):
     assert _check() == 1
 
 
+RULE_B_PARTIAL_SPEC = """# Spec
+
+## Behaviors
+
+- `m2p.partly-fixed` — **[PARTIAL]** fixed for #200's finding; rest tracked. (#200, #201)
+"""
+
+
+def test_rule_b_passes_when_one_cited_issue_is_still_open(tmp_path, monkeypatch):
+    """A broken behaviour needs an OPEN OWNER, not all-open citations.
+
+    The common shape is a `[PARTIAL]` naming the closed issue whose specific
+    finding it DID fix alongside the open issue tracking the remainder. That is
+    a correct, fully-tracked state with no action available, and flagging it
+    was two of this rule's five findings on 2026-09-26.
+    """
+    _seed(tmp_path, RULE_B_PARTIAL_SPEC)
+    _fake_issues(monkeypatch, [
+        {"number": 200, "state": "CLOSED", "milestone": None, "labels": [], "title": "x", "assignees": []},
+        {"number": 201, "state": "OPEN", "milestone": None, "labels": [], "title": "y", "assignees": []},
+    ])
+    assert _check() == 0
+
+
+def test_rule_b_still_fails_when_every_cited_issue_is_closed(tmp_path, monkeypatch):
+    """The carve-out above must not widen into "cites more than one issue".
+
+    Two closed issues is still a behaviour tagged broken with nobody owning it.
+    """
+    _seed(tmp_path, RULE_B_PARTIAL_SPEC)
+    _fake_issues(monkeypatch, [
+        {"number": 200, "state": "CLOSED", "milestone": None, "labels": [], "title": "x", "assignees": []},
+        {"number": 201, "state": "CLOSED", "milestone": None, "labels": [], "title": "y", "assignees": []},
+    ])
+    assert _check() == 1
+
+
 # Rule (c): cited issue's milestone != the spec's declared milestone — PLAIN citation only.
 RULE_C_SPEC = """# Spec
 
