@@ -138,6 +138,51 @@ def test_rule_b_closed_issue_still_broken_fails(tmp_path, monkeypatch):
     assert _check() == 1
 
 
+RULE_E_ARROW_SPEC = """# Spec
+
+## Behaviors
+
+- `m2p.done` — **[OK]** works. Pinned by `SomeTests`. See → #300 for the badge.
+"""
+
+
+def test_rule_e_ignores_an_arrow_citation(tmp_path, monkeypatch):
+    """"→ #300" points at related work; it does not claim the issue owns this.
+
+    This project's convention is that an arrow citation is a deliberate pointer
+    at another tracked issue. Rule (c) already honours it via `plain_issues`;
+    rule (e) read it as "you ticked this while its issue is open" and flagged
+    `source.reading.maker-set-by-engine`, which is [OK] with a passing test and
+    points at two open defects about the badge that READS its value. One
+    convention, understood the same way by both rules.
+    """
+    _seed(tmp_path, RULE_E_ARROW_SPEC)
+    _seed_test_file(tmp_path, "fichero/Tests/SomeTests.swift", "struct SomeTests {}")
+    _fake_issues(monkeypatch, [
+        {"number": 300, "state": "OPEN", "milestone": None, "labels": [], "title": "x", "assignees": []},
+    ])
+    assert _check() == 0
+
+
+RULE_E_PLAIN_SPEC = """# Spec
+
+## Behaviors
+
+- `m2p.ticked-early` — **[OK]** works. Pinned by `SomeTests`. (#301)
+"""
+
+
+def test_rule_e_still_flags_a_plain_citation_of_an_open_issue(tmp_path, monkeypatch):
+    """The carve-out must not swallow the case rule (e) exists for: a behaviour
+    ticked [OK] whose OWN issue is still open."""
+    _seed(tmp_path, RULE_E_PLAIN_SPEC)
+    _seed_test_file(tmp_path, "fichero/Tests/SomeTests.swift", "struct SomeTests {}")
+    _fake_issues(monkeypatch, [
+        {"number": 301, "state": "OPEN", "milestone": None, "labels": [], "title": "x", "assignees": []},
+    ])
+    assert _check() == 1
+
+
 RULE_B_PARTIAL_SPEC = """# Spec
 
 ## Behaviors

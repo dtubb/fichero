@@ -778,7 +778,15 @@ def _collect_findings(offline: bool, strict: bool) -> tuple[list[Finding], list[
                             f"(rule c)."
                         ))
             if b.tag == "OK":
-                for n in b.issues:
+                # PLAIN citations only, exactly as rule (c) does. A "→ #1234" is this
+                # project's convention for a deliberate pointer at related work, not a
+                # claim that the issue owns this behaviour — `source.reading.maker-set-by-engine`
+                # is [OK] with a passing test and points at #4868/#4869, two open defects
+                # about the badge that reads its value. Reading that as "you ticked this
+                # while its issue is open" was wrong, and the parser already separates the
+                # two (`plain_issues`), so rule (c) honoured the convention while rule (e)
+                # did not. One convention, understood the same way by both rules.
+                for n in b.plain_issues:
                     issue = idx.get(n)
                     if issue and issue.get("state") == "OPEN":
                         failures.append(Finding(

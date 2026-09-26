@@ -455,16 +455,16 @@ Identity and versions
   that pointed at it.
 
 Shape and images
-- `source.segment.shape-kinds` — **[GAP]** (#4925) a segment's shape is a point, a line, an area or a stretch of
+- `source.segment.shape-kinds` — **[OK]** (#4925 closed; `test_anchor_shapes.py::TestEachKindStoresAndReadsBack`) a segment's shape is a point, a line, an area or a stretch of
   time; it may have more than one.
 - `source.segment.box-is-derived` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestBoxIsDerived::test_bbox_columns_match_anchor_for_rect_and_polygon_supplying_them_is_refused`) the box is worked out from the shape and cannot be edited
   apart from it.
-- `source.segment.curved-baseline` — **[GAP]** (#4925) a line's baseline can curve; direction can follow it.
+- `source.segment.curved-baseline` — **[OK]** (#4925 closed; `test_segment_pictures.py::TestATiltedLineIsLevelledOnItsBaseline`) a line's baseline can curve; direction can follow it.
 - `source.segment.names-its-image` — **[OK]** (#4919; pinned by `tests/unit/api/test_segments_route.py::TestNamesItsImage::test_every_segment_names_the_results_rendition`) every shape names the image it was measured on; the image
   has a size and a checksum.
 - `source.segment.no-guessing-across-images` — **[GAP]** (#4926) a shape is shown on another image of the page
   only through a known alignment; otherwise Fichero says it cannot.
-- `source.segment.picture-by-shape` — **[GAP]** (#4925) any segment's picture can be had, cut to its shape, from
+- `source.segment.picture-by-shape` — **[OK]** (#4925 closed; `test_segment_pictures.py::TestAShapeIsMaskedNotBoxed`) any segment's picture can be had, cut to its shape, from
   a chosen image, at a chosen size; a line's can be straightened.
 
 Structure
@@ -569,7 +569,7 @@ Identity, continued
   in millimetres.
 - `source.edit.stale-is-refused` — **[OK]** (#4923; pinned by `tests/unit/api/test_segments_versions.py::TestStaleIsRefused::test_two_updates_against_version_one_the_second_is_refused`) an edit made against an old version of a segment is
   refused, with what changed.
-- `source.derived.recomputable` — **[GAP]** (#4925) pictures, search entries, vectors and word-level analysis
+- `source.derived.recomputable` — **[OK]** (#4925 closed; `test_segment_pictures.py::TestAPictureIsWorkedOutNeverARecord`) pictures, search entries, vectors and word-level analysis
   name the segment, reading, model and version they came from, and are absent when not made.
 
 The read seam and events

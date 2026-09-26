@@ -549,7 +549,7 @@ The foundation has two of its own. Everything else is in the slices.
 - `source.one-store` — **[OK]** (#4919; engine half pinned by `tests/unit/api/test_segments_route.py::TestReadEitherStore::test_one_provisional_segment_per_box_rect_for_rect`, app half by `fichero/Tests/Unit/general/Models/SegmentMappingTests.swift` (52 passing)) only one engine call returns a segment's shape, and only one returns
   its picture; the Source view, Reader, Inspector, agents, training and export all use them,
   and the app keeps no second store of segments.
-- `source.builds-on-the-anchor` — **[GAP]** (#4925) a segment's place is a `SourceAnchor`, and the other three
+- `source.builds-on-the-anchor` — **[OK]** (#4925 closed; `test_readings_across_split_and_merge.py::TestTheAnchorCanNameWhatItPointsAt`) a segment's place is a `SourceAnchor`, and the other three
   ways of saying "where" (`OCRGeometryBox`'s own box, `AgentNoteSourceAnchor`, and any new
   one) are retired onto it, slice by slice; no new addressing scheme is introduced. This is a
   migration, the largest in the programme, and each slice that retires one says so.
