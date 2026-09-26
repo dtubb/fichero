@@ -1697,21 +1697,26 @@ def _build_alias_index(db) -> list[tuple[str, str]]:
     """
     from fichero_server.models.knowledge import KnowledgeEntity
 
+    from fichero_server.workflows.tools._entity_writer import follow_merge_chain
+
     pairs: list[tuple[str, str]] = []
     for ent in db.query(KnowledgeEntity):
+        # #5079: a merged-away entity's names still occur in the text, and they must resolve to the
+        # LIVE entity, or a mention would attach the claim to a tombstone.
+        live_id = follow_merge_chain(db, ent.id) if ent.merged_into_id else ent.id
         if (
             ent.canonical_name
             and len(ent.canonical_name) >= _MIN_ALIAS_LENGTH
             and ent.canonical_name.lower() not in _ALIAS_SCAN_STOPLIST
         ):
-            pairs.append((ent.canonical_name.lower(), ent.id))
+            pairs.append((ent.canonical_name.lower(), live_id))
         for alias in (ent.aliases or []):
             if (
                 alias
                 and len(alias) >= _MIN_ALIAS_LENGTH
                 and alias.lower() not in _ALIAS_SCAN_STOPLIST
             ):
-                pairs.append((alias.lower(), ent.id))
+                pairs.append((alias.lower(), live_id))
     pairs.sort(key=lambda p: -len(p[0]))
     return pairs
 

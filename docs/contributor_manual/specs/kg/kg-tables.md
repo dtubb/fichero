@@ -230,13 +230,20 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   aliases, scoped to its type; an entity **type change** writes a `reclassify` rule (and supersedes the opposite one,
   so A -> B -> A cannot form a cycle, which the resolver answers by suppressing the mention); undo removes what the
   undone action wrote and restores what it superseded; the delete that is the inverse of a create is not a correction
-  and writes nothing. Pinned by the full round trip (verb -> rule row -> re-import -> correction held) in
-  `test_entity_verbs_write_rules.py::TestDeleteWritesASuppressRule` and `::TestReclassifyWritesAReclassifyRule`, including
-  that a rule which cannot be written fails the verb with the entity unchanged. A **merge** holds through the
-  absorbed entity's tombstone (`merged_into_id`), not a rule row; the ENTITY list holds, but the claim a re-import writes
-  afterwards names the absorbed entity (#5079, strict xfail `TestWriterGateRules::test_a_claim_written_after_a_merge_names_the_survivor`).
-  NOT built: **rename to a different name** (#5073), **claim delete** (#5074), **split** (no anti-merge rule type
-  exists), and the entity-**reject** attachment of new claims. Ties to the standing curation-persists-and-constrains-imports
+  and writes nothing. Entity **rename to a different name** writes an `alias` rule (old name -> new name,
+  for the old type and, when the type changed too, the new one, and superseding the opposite rule so A -> B -> A
+  is not a cycle); a case-only rename writes none. Pinned by the full round trip (verb -> rule row -> re-import ->
+  correction held) in `test_entity_verbs_write_rules.py::TestDeleteWritesASuppressRule`,
+  `::TestReclassifyWritesAReclassifyRule` and `::TestRenameWritesAnAliasRule`, including that a rule which cannot be
+  written fails the verb with the entity unchanged. A **merge** holds through the absorbed entity's tombstone
+  (`merged_into_id`), not a rule row; #5079 fixed the claim half: `upsert_entity` resolves every match to the LIVE
+  entity through `follow_merge_chain` (any number of hops; a cycle, a dangling pointer or a runaway chain raises
+  `MergeChainError`), and the mention scan maps an absorbed spelling to the live entity. Pinned:
+  `test_entity_writer.py::TestWriterGateRules::test_a_claim_written_after_a_merge_names_the_survivor`,
+  `::TestFollowMergeChain::test_two_real_merges_deep_a_reimport_lands_on_the_final_survivor`,
+  `::TestFollowMergeChain::test_a_cycle_is_a_typed_error_not_a_hang`.
+  NOT built: **claim delete** (#5074), **split** (no anti-merge rule type exists), and the entity-**reject**
+  attachment of new claims. Ties to the standing curation-persists-and-constrains-imports
   ruling; the importer's own NLP-draft half is `importer.md`'s
   `importer.nlp-never-overwrites-curated-rows`.
 

@@ -263,6 +263,55 @@ def record_reclassify_rules(
     return created, superseded
 
 
+def record_rename_rules(
+    db: Database,
+    *,
+    old_name: str,
+    new_name: str,
+    old_type: EntityType,
+    new_type: EntityType,
+    actor: str,
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """`alias` old_name -> new_name, so the next import of the OLD name resolves to this entity
+    instead of minting a duplicate beside it (#5073).
+
+    Written for the old type, and also for the new one when the type changed in the same update:
+    the resolver applies a reclassify rule first and then looks the name up AGAIN at the new type,
+    so a rule keyed only to the old type would stop matching after the reclassify. Supersedes the
+    opposite rule (new_name -> old_name), so renaming A -> B -> A does not leave a cycle, which
+    the resolver answers by suppressing the mention. Returns (created ids, deleted snapshots).
+    """
+    from fichero_server.workflows.tools._entity_writer import _norm_rule_text
+
+    superseded: list[dict[str, Any]] = []
+    for existing in list(db.query(EntityResolutionRule)):
+        if (
+            existing.rule_type in {EntityResolutionRuleType.alias, EntityResolutionRuleType.merge_into}
+            and _norm_rule_text(existing.match_canonical_name) == _norm_rule_text(new_name)
+            and _norm_rule_text(existing.target_canonical_name) == _norm_rule_text(old_name)
+        ):
+            superseded.append(existing.model_dump(mode="json"))
+            db.delete(existing)
+
+    created: list[str] = []
+    for match_type in dict.fromkeys([old_type, new_type]):
+        rule_id = _write_resolution_rule(
+            db,
+            EntityResolutionRule(
+                rule_type=EntityResolutionRuleType.alias,
+                match_canonical_name=old_name,
+                match_entity_type=match_type,
+                target_canonical_name=new_name,
+                target_entity_type=new_type,
+                reason=f"renamed {old_name!r} -> {new_name!r} by {actor}",
+                created_by=actor,
+            ),
+        )
+        if rule_id:
+            created.append(rule_id)
+    return created, superseded
+
+
 def _invert_create_entity(
     before: dict | None, after: dict | None, ctx: ActionContext
 ) -> tuple[str, dict] | None:
@@ -796,9 +845,23 @@ def _action_update_entity(
     # the action fails and nothing changes.
     rule_ids: list[str] = []
     superseded_rules: list[dict[str, Any]] = []
+    from fichero_server.workflows.tools._entity_writer import _norm_rule_text
+
     old_type = existing.entity_type
+    new_name = params.canonical_name.strip()
+    if _norm_rule_text(new_name) != _norm_rule_text(existing.canonical_name):
+        # #5073: a rename to a DIFFERENT name. The old name stays resolvable, or the next import
+        # of it mints a duplicate beside the renamed entity.
+        rule_ids, superseded_rules = record_rename_rules(
+            db,
+            old_name=existing.canonical_name,
+            new_name=new_name,
+            old_type=old_type,
+            new_type=params.entity_type,
+            actor=ctx.actor,
+        )
     if params.entity_type != old_type:
-        rule_ids, superseded_rules = record_reclassify_rules(
+        type_rule_ids, type_superseded = record_reclassify_rules(
             db,
             old_type=old_type,
             new_type=params.entity_type,
@@ -809,6 +872,8 @@ def _action_update_entity(
             ),
             actor=ctx.actor,
         )
+        rule_ids += type_rule_ids
+        superseded_rules += type_superseded
     entity = update_entity_impl(
         db,
         params.entity_id,

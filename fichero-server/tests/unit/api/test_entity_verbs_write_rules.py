@@ -285,3 +285,92 @@ class TestReclassifyWritesAReclassifyRule:
 
         assert db.get(KnowledgeEntity, entity.id).entity_type == EntityType.person
         assert _rules(db) == []
+
+
+class TestRenameWritesAnAliasRule:
+    """#5073: renaming to a DIFFERENT name keeps the old name resolvable."""
+
+    @staticmethod
+    def _rename(db, old: str, new: str, **extra):
+        entity = _entity(db, old)
+        return registry.invoke(
+            db,
+            "entity.update",
+            {
+                "entity_id": entity.id,
+                "canonical_name": new,
+                "entity_type": extra.pop("entity_type", entity.entity_type.value),
+                **extra,
+            },
+            _ctx(),
+        )
+
+    def test_the_old_name_no_longer_mints_a_duplicate(self, db):
+        _import(db, "the Major")
+        self._rename(db, "the Major", "John Marshall")
+
+        (rule,) = _rules(db, EntityResolutionRuleType.alias)
+        assert rule.match_canonical_name == "the Major"
+        assert rule.target_canonical_name == "John Marshall"
+        assert rule.match_entity_type == EntityType.person
+
+        _import(db, "the Major", doc="b")
+        assert _live(db) == [("John Marshall", "person")], "the old name minted a duplicate"
+        renamed = _entity(db, "John Marshall")
+        (new_claim,) = [c for c in db.query(KnowledgeClaim) if c.source_document_id == "b"]
+        assert new_claim.subject_entity_id == renamed.id
+
+    def test_a_case_only_rename_writes_no_rule(self, db):
+        _import(db, "the major")
+        self._rename(db, "the major", "The Major")
+        assert _rules(db) == []
+
+    def test_renaming_back_supersedes_the_rule_instead_of_forming_a_cycle(self, db):
+        _import(db, "the Major")
+        self._rename(db, "the Major", "John Marshall")
+        self._rename(db, "John Marshall", "the Major")
+
+        rules = _rules(db, EntityResolutionRuleType.alias)
+        assert [(r.match_canonical_name, r.target_canonical_name) for r in rules] == [
+            ("John Marshall", "the Major")
+        ]
+        _import(db, "the Major", doc="b")
+        assert _live(db) == [("the Major", "person")]
+
+    def test_a_rename_and_a_type_change_in_one_update_both_hold(self, db):
+        """The resolver applies the reclassify rule and then looks the name up AGAIN at the new
+        type; the alias rule must still match there."""
+        _import(db, "Quibdo Creek")
+        self._rename(db, "Quibdo Creek", "Rio Quibdo", entity_type="location")
+
+        _import(db, "Quibdo Creek", doc="b")
+        assert _live(db) == [("Rio Quibdo", "location")]
+
+    def test_undo_removes_the_rule_and_the_old_name_is_the_name_again(self, db):
+        _import(db, "the Major")
+        forward = self._rename(db, "the Major", "John Marshall")
+        _undo(db, forward.audit_id)
+
+        assert _rules(db) == []
+        assert _live(db) == [("the Major", "person")]
+        _import(db, "the Major", doc="b")
+        assert _live(db) == [("the Major", "person")]
+
+    def test_a_rule_that_cannot_be_written_fails_the_rename_and_the_name_is_unchanged(self, db, monkeypatch):
+        _import(db, "the Major")
+        entity = _entity(db, "the Major")
+        real_save = type(db).save
+
+        def failing_save(self, obj, *args, **kwargs):
+            if isinstance(obj, EntityResolutionRule):
+                raise RuntimeError("rule store unavailable")
+            return real_save(self, obj, *args, **kwargs)
+
+        monkeypatch.setattr(type(db), "save", failing_save)
+        with pytest.raises(RuntimeError, match="rule store unavailable"):
+            self._rename(db, "the Major", "John Marshall")
+        monkeypatch.undo()
+
+        assert db.get(KnowledgeEntity, entity.id).canonical_name == "the Major"
+        assert _rules(db) == []
+
