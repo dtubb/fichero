@@ -2,6 +2,27 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.09.26
+
+- Connections: pairing a second Mac works again, over Tailscale and on a signed build.
+
+**Pairing a second Mac works again.** Two separate faults were stopping it, and each one hid
+the other.
+
+A shipped build could not save the key it had just been given. The keychain item asked for a
+protection class that, on a Mac, sends it to a keychain only entitled apps may write — an
+entitlement development builds have and released ones do not. So pairing appeared to succeed on
+the Mac sharing the library while the joining Mac quietly stored nothing, and every request
+afterwards arrived unauthenticated. The key now goes to the login keychain where it belongs, and
+if a keychain ever does refuse, the message says what it actually said rather than a bare number.
+
+Connecting over Tailscale was refused outright. The invitation carried a fingerprint of the
+sharing Mac's own certificate, but a Tailscale address answers with Tailscale's certificate — so
+the joining Mac checked a fingerprint against the wrong certificate and, quite correctly, refused
+to connect. An invitation for such an address no longer claims a certificate the Mac does not
+hold, and a Mac receiving one ignores a claim an older build may still send. An ordinary address
+still requires its fingerprint, and an invitation without one is still refused.
+
 ## 2026.09.20
 
 - Knowledge: click a sentence to see its source; Entities and Claims panes work as master and detail; a folder shows the people in its subfolders.
