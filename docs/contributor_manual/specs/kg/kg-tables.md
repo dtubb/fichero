@@ -210,12 +210,25 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   modal sheets (`EditClaimSheet`, `OntologyBrowser`'s create sheet, `EntityMergeSheet`/
   `EntitySplitSheet`) — the ask is inline editing / navigation-with-Back instead of a sheet
   stack, matching the Finder-like direct-manipulation principle the rest of the tables follow.
-- `kg.tables.entity-resolution-registry` — **[GAP]** (#1761) a persisted "entity checker":
-  human merge/alias/reclassify/split fixes on existing entities should CONSTRAIN future
-  imports — re-importing the same folder should respect corrections already made rather than
-  re-creating the entities a human already fixed. Ties to the standing curation-persists-and-
-  constrains-imports ruling; this behavior is the KG-entity half specifically (the importer's
-  own NLP-draft half is `importer.md`'s `importer.nlp-never-overwrites-curated-rows`).
+- `kg.tables.entity-resolution-registry` — **[PARTIAL]** (#1761, audited 2026-09-26) a persisted "entity
+  checker": human fixes on existing entities CONSTRAIN future imports. BUILT: an
+  `EntityResolutionRule` store (types `suppress`, `merge_into`, `reclassify`, `alias`), CRUD routes
+  (`/api/kg/curation-rules`), and enforcement in `upsert_entity` before the 3-stage match, under the
+  entity upsert lock (suppress skips, reclassify overrides the type, merge_into/alias redirect;
+  matching is case-insensitive and trimmed; a redirect cycle suppresses the write). Pinned:
+  `test_entity_writer.py::TestUpsertEntity::test_suppress_rule_returns_none`,
+  `::TestUpsertEntity::test_merge_into_rule_folds_name_into_target`,
+  `::TestUpsertEntity::test_reclassify_rule_overrides_type`,
+  `::TestWriterGateRules::test_import_rule_then_second_import_honors_persistent_merge`, and the rule
+  CRUD routes in `test_routes_kg_curation_rules.py`. NOT built (checked by running each verb, then
+  re-importing the same surface form): the inspector/table VERBS do not write rules. A UI **merge**
+  holds on re-import, but through the survivor's alias, not a rule. A UI **delete** does not: the
+  re-import re-creates the entity (no tombstone). A manual **reclassify** does not: the re-import
+  mints the same name again at the OLD type beside the corrected one. A **split** has no anti-merge
+  rule type at all (`EntityResolutionRuleType` has no such member), so nothing stops the next pass
+  recombining what a person separated. Ties to the standing curation-persists-and-constrains-imports
+  ruling; the importer's own NLP-draft half is `importer.md`'s
+  `importer.nlp-never-overwrites-curated-rows`.
 
 ### D. Cross-cutting (both tables)
 - `kg.tables.crud.cross-surface` (creative-director ruling, 2026-09-08) — every KG CRUD
