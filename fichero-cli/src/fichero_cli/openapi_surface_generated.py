@@ -12925,11 +12925,14 @@ def register_generated_openapi_commands(
         segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
         anchor: Optional[str] = typer.Option(None, "--anchor", help="Request field: anchor."),
         baseline: Optional[str] = typer.Option(None, "--baseline", help="Request field: baseline."),
+        direction: Optional[str] = typer.Option(None, "--direction", help="Request field: direction."),
         expected_version: int = typer.Option(..., "--expected-version", help="Request field: expected_version."),
         is_furniture: Optional[bool] = typer.Option(None, "--is-furniture/--no-is-furniture", help="Request field: is_furniture."),
         kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
         kind_raw: Optional[str] = typer.Option(None, "--kind-raw", help="Request field: kind_raw."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
         parent_segment_id: Optional[str] = typer.Option(None, "--parent-segment-id", help="Request field: parent_segment_id."),
+        script: Optional[str] = typer.Option(None, "--script", help="Request field: script."),
         segment_id_2: str = typer.Option(..., "--segment-id", help="Request field: segment_id."),
     ) -> None:
         """Update Segment (PUT /api/segments/{segment_id})."""
@@ -12939,20 +12942,26 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "anchor": anchor,
                 "baseline": baseline,
+                "direction": direction,
                 "expected_version": expected_version,
                 "is_furniture": is_furniture,
                 "kind": kind,
                 "kind_raw": kind_raw,
+                "language": language,
                 "parent_segment_id": parent_segment_id,
+                "script": script,
                 "segment_id": segment_id,
             }, {
                 "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'shapes': {'items': {'$ref': '#/components/schemas/AnchorShape'}, 'type': 'array', 'nullable': True, 'title': 'Shapes'}, 'media_ref': {'type': 'string', 'nullable': True, 'title': 'Media Ref'}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}, 'segment_id': {'type': 'string', 'nullable': True, 'title': 'Segment Id'}, 'representation_id': {'type': 'string', 'nullable': True, 'title': 'Representation Id'}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
                 "baseline": {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Baseline', 'x-cli-required': False},
+                "direction": {'type': 'string', 'nullable': True, 'title': 'Direction', 'x-cli-required': False},
                 "expected_version": {'type': 'integer', 'title': 'Expected Version', 'x-cli-required': True},
                 "is_furniture": {'type': 'boolean', 'nullable': True, 'title': 'Is Furniture', 'x-cli-required': False},
                 "kind": {'type': 'string', 'nullable': True, 'title': 'Kind', 'x-cli-required': False},
                 "kind_raw": {'type': 'string', 'nullable': True, 'title': 'Kind Raw', 'x-cli-required': False},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
                 "parent_segment_id": {'type': 'string', 'nullable': True, 'title': 'Parent Segment Id', 'x-cli-required': False},
+                "script": {'type': 'string', 'nullable': True, 'title': 'Script', 'x-cli-required': False},
                 "segment_id": {'type': 'string', 'title': 'Segment Id', 'x-cli-required': True},
             }, required=True)
             return client.request("PUT", endpoint_path, params=params, json=payload)
@@ -13347,6 +13356,54 @@ def register_generated_openapi_commands(
                 "selected_url": {'type': 'string', 'title': 'Selected Url', 'description': 'URL of the endpoint the enrichment uses by default.', 'default': 'https://query.wikidata.org/sparql', 'x-cli-required': False},
             }, required=True)
             return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    target_app = existing_apps.get('source-settings')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for source-settings endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='source-settings')
+        existing_apps['source-settings'] = target_app
+
+    @target_app.command("put")
+    def source_settings_put_put(
+        ctx: typer.Context,
+        key: str = typer.Option(..., "--key", help="Request field: key."),
+        level: str = typer.Option(..., "--level", help="Request field: level."),
+        target_id: Optional[str] = typer.Option(None, "--target-id", help="Request field: target_id."),
+        value: Optional[str] = typer.Option(None, "--value", help="Request field: value."),
+    ) -> None:
+        """Put Source Setting (PUT /api/source-settings)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/source-settings"
+            params = None
+            payload = _build_json_payload({
+                "key": key,
+                "level": level,
+                "target_id": target_id,
+                "value": value,
+            }, {
+                "key": {'type': 'string', 'title': 'Key', 'x-cli-required': True},
+                "level": {'type': 'string', 'title': 'Level', 'x-cli-required': True},
+                "target_id": {'type': 'string', 'nullable': True, 'title': 'Target Id', 'x-cli-required': False},
+                "value": {'type': 'string', 'nullable': True, 'title': 'Value', 'x-cli-required': False},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("resolve")
+    def source_settings_resolve_get(
+        ctx: typer.Context,
+        document_id: Optional[str] = typer.Option(None, "--document-id", help="Query parameter: document_id."),
+        segment_id: Optional[str] = typer.Option(None, "--segment-id", help="Query parameter: segment_id."),
+    ) -> None:
+        """Resolve Source Settings (GET /api/source-settings/resolve)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/source-settings/resolve"
+            params = {
+                "document_id": document_id,
+                "segment_id": segment_id,
+            }
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('sources')

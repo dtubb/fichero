@@ -4080,6 +4080,130 @@
         }
       }
     },
+    "/api/source-settings/resolve": {
+      "get": {
+        "tags": [
+          "source-settings"
+        ],
+        "summary": "Resolve Source Settings",
+        "description": "`GET /api/source-settings/resolve` \u2014 the three facts and the encoding, each\nwith the rung that answered (`source.lang.says-where-from`).\n\nFor ONE selection, not for a list: resolving every segment of a page here\nwould be one walk per row, which is why the seam carries what is SET and this\nanswers what is RESOLVED.",
+        "operationId": "resolve_source_settings_api_source_settings_resolve_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "The document, when no segment",
+              "title": "Document Id"
+            },
+            "description": "The document, when no segment"
+          },
+          {
+            "name": "segment_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "The segment to resolve for",
+              "title": "Segment Id"
+            },
+            "description": "The segment to resolve for"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedSourceSettings"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/source-settings": {
+      "put": {
+        "tags": [
+          "source-settings"
+        ],
+        "summary": "Put Source Setting",
+        "description": "`PUT /api/source-settings` \u2014 state a fact, or stop stating it.",
+        "operationId": "put_source_setting_api_source_settings_put",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceSettingWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Put Source Setting Api Source Settings Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{document_id}/renditions": {
       "get": {
         "tags": [
@@ -46615,6 +46739,32 @@
             "title": "Language Meta",
             "description": "Language provenance: status (known|unknown), source, confidence, basis. None = never determined."
           },
+          "script": {
+            "type": "string",
+            "nullable": true,
+            "title": "Script",
+            "description": "ISO 15924 script code this document is written in (#4938)."
+          },
+          "script_meta": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Script Meta",
+            "description": "Script provenance: status (known|unknown), source, confidence, basis, level. None = never determined."
+          },
+          "direction": {
+            "type": "string",
+            "nullable": true,
+            "title": "Direction",
+            "description": "Which way this document's text runs: ltr|rtl|ttb|btt|alternating|follows-baseline (#4938)."
+          },
+          "direction_meta": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Direction Meta",
+            "description": "Direction provenance: status, source, confidence, basis, level. None = never determined."
+          },
           "is_workspace": {
             "type": "boolean",
             "title": "Is Workspace",
@@ -54198,6 +54348,11 @@
             "type": "string",
             "nullable": true,
             "title": "Script"
+          },
+          "glottocode": {
+            "type": "string",
+            "nullable": true,
+            "title": "Glottocode"
           }
         },
         "type": "object",
@@ -63297,6 +63452,32 @@
         "title": "ResolvedPrototypeResponse",
         "description": "A prototype's EFFECTIVE attributes \u2014 parent chain merged root\u2192leaf."
       },
+      "ResolvedSourceSettings": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Id"
+          },
+          "segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Segment Id"
+          },
+          "settings": {
+            "items": {
+              "$ref": "#/components/schemas/SettingResolution"
+            },
+            "type": "array",
+            "title": "Settings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "settings"
+        ],
+        "title": "ResolvedSourceSettings"
+      },
       "ResolvedTextRegion": {
         "properties": {
           "char_start": {
@@ -66003,6 +66184,21 @@
             "nullable": true,
             "title": "Confidence"
           },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "script": {
+            "type": "string",
+            "nullable": true,
+            "title": "Script"
+          },
+          "direction": {
+            "type": "string",
+            "nullable": true,
+            "title": "Direction"
+          },
           "source_artifact_id": {
             "type": "string",
             "nullable": true,
@@ -66235,6 +66431,21 @@
             "type": "boolean",
             "nullable": true,
             "title": "Is Furniture"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "script": {
+            "type": "string",
+            "nullable": true,
+            "title": "Script"
+          },
+          "direction": {
+            "type": "string",
+            "nullable": true,
+            "title": "Direction"
           }
         },
         "additionalProperties": false,
@@ -66300,6 +66511,44 @@
             "type": "boolean",
             "title": "Is Furniture",
             "default": false
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "script": {
+            "type": "string",
+            "nullable": true,
+            "title": "Script"
+          },
+          "direction": {
+            "type": "string",
+            "nullable": true,
+            "title": "Direction"
+          },
+          "language_meta": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Language Meta"
+          },
+          "script_meta": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Script Meta"
+          },
+          "direction_meta": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Direction Meta"
+          },
+          "line_progression": {
+            "type": "string",
+            "nullable": true,
+            "title": "Line Progression"
           },
           "deleted": {
             "type": "boolean",
@@ -66548,6 +66797,46 @@
         ],
         "title": "SetLibraryRoleRequest",
         "description": "Typed body for ``PUT /api/authz/members`` \u2014 assign/change a library role.\n\nA typed OpenAPI surface over the ``acl.set`` registry action so the Swift\nclient gets a generated method instead of hand-rolling ``/actions/invoke``."
+      },
+      "SettingResolution": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "value": {
+            "type": "string",
+            "nullable": true,
+            "title": "Value"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "basis": {
+            "type": "string",
+            "title": "Basis"
+          },
+          "level": {
+            "type": "string",
+            "nullable": true,
+            "title": "Level"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "value",
+          "status",
+          "source",
+          "basis"
+        ],
+        "title": "SettingResolution",
+        "description": "One resolved fact, with the rung that answered."
       },
       "ShareRequest": {
         "properties": {
@@ -67186,6 +67475,35 @@
         "type": "object",
         "title": "SourceMetadataProvenance",
         "description": "Per-field provenance tracking for source metadata."
+      },
+      "SourceSettingWrite": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "title": "Level"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "value": {
+            "type": "string",
+            "nullable": true,
+            "title": "Value"
+          },
+          "target_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "level",
+          "key"
+        ],
+        "title": "SourceSettingWrite"
       },
       "SourceSupport": {
         "properties": {

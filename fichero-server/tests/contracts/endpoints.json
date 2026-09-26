@@ -8998,6 +8998,39 @@
         "response_model": "SparqlEndpointsConfig"
       }
     ],
+    "source-settings": [
+      {
+        "method": "PUT",
+        "path": "/source-settings",
+        "operation_id": "put_source_setting_api_source_settings_put",
+        "summary": "Put Source Setting",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SourceSettingWrite",
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/source-settings/resolve",
+        "operation_id": "resolve_source_settings_api_source_settings_resolve_get",
+        "summary": "Resolve Source Settings",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "document_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "segment_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ResolvedSourceSettings"
+      }
+    ],
     "sources": [
       {
         "method": "GET",
