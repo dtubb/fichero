@@ -133,6 +133,15 @@ extension DocumentStore {
 
     /// Move a document to a new parent.
     func moveDocument(_ documentId: String, toParent parentId: String?) async throws -> Document {
+        // A move that moves nothing must not write: every move is an audited action (change
+        // event, audit row), and a phantom "moved" entry in a research library's record is worse
+        // than none. Every caller (drag, the Move to Folder menu, Library cell drop) lands here.
+        // ponytail: trusts the cached parent; a stale cache would skip a real move, and the
+        // change stream keeps the cache live, so a re-drop after refresh moves it.
+        if let current = resolveDocument(documentId), current.parentId == parentId {
+            logger.info("Skipped move of \(documentId): already in parent \(parentId ?? "nil (root)")")
+            return current
+        }
         logger.info("Moving \(documentId) to parent: \(parentId ?? "nil (root)")")
 
         // Generated move_document op via the typed service (#3030).

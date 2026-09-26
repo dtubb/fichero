@@ -23,12 +23,18 @@ import XCTest
 /// GUI, no network — `updateLocal` is pure bookkeeping over `collections`,
 /// `currentDocuments` and `childrenCache`, which is exactly the part that was
 /// never checked.
+// File scope, not a method: `DocumentStoreReorderOutcomeTests` further down is a
+// SECOND class in this file, and an instance method of the first is unreachable from
+// it whatever its access level.
+@MainActor
+private func makeStore() -> DocumentStore {
+    DocumentStore(apiClient: APIClient())
+}
+
 @MainActor
 final class DocumentStoreOperationOutcomeTests: XCTestCase {
 
-    private func makeStore() -> DocumentStore {
-        DocumentStore(apiClient: APIClient())
-    }
+
 
     private func doc(
         _ id: String,
@@ -358,5 +364,36 @@ final class DocumentStoreReorderOutcomeTests: XCTestCase {
 
         XCTAssertEqual(recordedOrders(of: "a", in: store), [1, 2],
                        "if this reads a single value, the agreement tests are vacuous")
+    }
+
+    // MARK: - MOVE to where it already is writes nothing
+
+    /// The store's client points at no server: a move that reaches the network THROWS, and one
+    /// that is skipped returns. So "no throw" here means "no write was attempted".
+    func testMovingADocumentIntoItsCurrentParentIssuesNoWrite() async throws {
+        let store = makeStore()
+        store.childrenCache["folderA"] = [doc("d1", parent: "folderA")]
+        let result = try await store.moveDocument("d1", toParent: "folderA")
+        XCTAssertEqual(result.id, "d1")
+        XCTAssertEqual(result.parentId, "folderA")
+    }
+
+    func testMovingARootDocumentToTheRootIssuesNoWrite() async throws {
+        let store = makeStore()
+        store.collections = [doc("d1", parent: nil)]
+        let result = try await store.moveDocument("d1", toParent: nil)
+        XCTAssertEqual(result.id, "d1")
+    }
+
+    /// The control: a move to a DIFFERENT parent does reach the network (and so throws here).
+    func testMovingADocumentToAnotherParentStillAttemptsTheWrite() async {
+        let store = makeStore()
+        store.childrenCache["folderA"] = [doc("d1", parent: "folderA")]
+        do {
+            _ = try await store.moveDocument("d1", toParent: "folderB")
+            XCTFail("a real move must attempt the write; the client has no server, so it must throw")
+        } catch {
+            // expected: the write was attempted
+        }
     }
 }
