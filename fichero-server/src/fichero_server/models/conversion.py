@@ -150,6 +150,29 @@ class ConversionRun(BaseModel):
     #: must not be tidied away by a retention rule.
     seen_at: datetime | None = None
 
+    #: THE LOCK (slice 8b part 3). An unfinished run with a RECENT heartbeat is
+    #: a runner that is working, and a second opening must not start another:
+    #: "a project has one engine, so one runner".
+    #:
+    #: Why a heartbeat and not simply the row's existence. A lock that is only
+    #: "an unfinished row exists" wedges the project forever the first time an
+    #: app is force-quit mid-conversion — and the rules REQUIRE the next open to
+    #: carry on, so a lock nobody can reclaim would contradict the design it is
+    #: meant to protect. Stamped after each page, which is the same boundary
+    #: everything else in this runner uses.
+    #:
+    #: It is not a liveness guarantee and does not pretend to be: a stale
+    #: heartbeat means "no runner has touched this for a while", and taking over
+    #: is safe because converting again can only write the same records —
+    #: `converted_segment_id` makes every id follow from its result and position.
+    #: That property is what lets the lock be advisory rather than exclusive.
+    heartbeat_at: datetime | None = None
+
+    @property
+    def is_running(self) -> bool:
+        """A claim that has neither finished nor been abandoned."""
+        return self.verdict is ConversionVerdict.ready and self.finished_at is None
+
     @property
     def snapshot_may_be_unpinned(self) -> bool:
         """The snapshot is only ordinary once the run is done AND seen."""

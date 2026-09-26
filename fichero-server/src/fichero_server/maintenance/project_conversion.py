@@ -461,6 +461,66 @@ def _convert_one_page(db: Any, document_id: str, run_id: str) -> str:
     return "converted"
 
 
+#: How long an unfinished run may go untouched before another opening may take
+#: it over. Generous on purpose: a page of a dense manuscript can take a while at
+#: background priority, and stealing a lock from a runner that is merely slow
+#: would start a second writer, which is the thing the lock exists to prevent.
+#: The cost of waiting too long is a conversion that starts at the next open;
+#: the cost of waiting too little is two runners.
+STALE_HEARTBEAT_SECONDS = 600.0
+
+
+class ConversionAlreadyRunning(RuntimeError):
+    """Another opening of this project is already converting it.
+
+    Not an error the caller should retry in a loop: the other runner will
+    finish, and every later open finds nothing to do. Raised rather than
+    returned so a caller cannot mistake it for "nothing to convert" — those two
+    look identical from the outside and mean opposite things.
+    """
+
+    def __init__(self, run_id: str, heartbeat_at: Any) -> None:
+        self.run_id = run_id
+        super().__init__(
+            f"conversion run {run_id} is already in progress "
+            f"(last heartbeat {heartbeat_at})"
+        )
+
+
+def running_conversion(db: Any) -> ConversionRun | None:
+    """The run another opening is working on, or None.
+
+    "Another opening" and not "another thread": the rule is about a project
+    being opened twice — a second app, or a remote client's engine — which is
+    why the lock lives in the PROJECT's database rather than in memory.
+    """
+    now = utc_now()
+    for run in db.query(ConversionRun):
+        if not run.is_running:
+            continue
+        beat = run.heartbeat_at or run.started_at
+        if (now - beat).total_seconds() <= STALE_HEARTBEAT_SECONDS:
+            return run
+    return None
+
+
+def abandoned_conversions(db: Any) -> list[ConversionRun]:
+    """Claims whose runner stopped without finishing — a force-quit, a crash.
+
+    Left in the table rather than deleted. "The app was killed halfway through
+    converting this project" is a fact about the library worth keeping, and it is
+    the only evidence a person has that a conversion they started never ended.
+    """
+    now = utc_now()
+    return [
+        run
+        for run in db.query(ConversionRun)
+        if run.is_running
+        and (now - (run.heartbeat_at or run.started_at)).total_seconds()
+        > STALE_HEARTBEAT_SECONDS
+    ]
+
+
 def convert_project(
     db: Any,
     library_path: str | Path,
@@ -491,6 +551,39 @@ def convert_project(
     one engine, so there is one runner.
     """
     library_path = Path(library_path)
+
+    # The lock FIRST, before the snapshot: a second runner must not take a
+    # snapshot of a project the first one is already converting.
+    held = running_conversion(db)
+    if held is not None:
+        raise ConversionAlreadyRunning(held.run_id, held.heartbeat_at or held.started_at)
+    for abandoned in abandoned_conversions(db):
+        # Mark it as what it was, so the row stops being a lock and starts being
+        # a record. `failed` rather than `completed`: nobody knows whether its
+        # pages finished, and the markers -- not this row -- say what is left.
+        logger.info(
+            "taking over from run %s, abandoned without finishing", abandoned.run_id
+        )
+        db.save(
+            abandoned.model_copy(
+                update={
+                    "verdict": ConversionVerdict.failed,
+                    "finished_at": utc_now(),
+                    "failures": [
+                        *abandoned.failures,
+                        ConversionFailure(
+                            document_id="",
+                            reason=(
+                                "the runner stopped without finishing; a later "
+                                "opening took over. What was converted is "
+                                "recorded in the markers, not here."
+                            ),
+                        ),
+                    ],
+                }
+            )
+        )
+
     run = plan_conversion(db, library_path)
     if run is None:
         return None
@@ -508,6 +601,7 @@ def convert_project(
         logger.warning("could not lower this thread's priority: %s", exc)
 
     started = run.started_at
+    run.heartbeat_at = utc_now()
     db.save(run)
 
     for document_id in documents_to_convert(db):
@@ -529,6 +623,11 @@ def convert_project(
                 run.pages_converted += 1
             else:
                 run.pages_skipped += 1
+        # Stamped per page, the same boundary everything else here uses. This
+        # is what keeps the lock held while the work is real, and what lets a
+        # later opening tell "working" from "abandoned".
+        run.heartbeat_at = utc_now()
+        db.save(run)
         if on_page is not None:
             try:
                 on_page(run)
