@@ -48,8 +48,6 @@ RULE_DOC = "#4211"
 # Engine fields the Swift client deliberately does not decode. Each needs a
 # reason: an unexplained entry here is indistinguishable from an oversight.
 ENGINE_ONLY_FIELDS: dict[str, str] = {
-    "artifact_ids": "no artifact-scoped store on the client yet",
-    "interpretation_ids": "no interpretation-scoped store on the client yet",
     "metadata": "free-form diagnostic payload; nothing client-side reads it",
     "origin_user": "multi-user self-echo de-dup is server-side (#2023)",
     "event_id": "replay bookkeeping; the client reconnects rather than replays",
