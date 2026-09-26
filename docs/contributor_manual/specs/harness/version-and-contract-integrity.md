@@ -71,12 +71,33 @@ wrong thing to compare: two builds can share a contract, and one build can chang
 compatibility is decided by the **contract**, which nothing currently reports and nothing
 compares.
 
-- The engine reports the served schema's `info.version` plus a hash of the document, computed
-  once at startup — not per request; the document is large.
-- The client carries the contract identity it was generated from, baked in at build time so the
-  two cannot be skewed by hand.
+**Corrected 2026-09-26.** This section first said the engine should hash the SERVED schema at
+startup. That is wrong and would never have worked: `app.openapi()` is OpenAPI 3.1, raw, and its
+path set depends on `FICHERO_FEATURE_TIER` (default `release`), while the committed
+`openapi.json` the client is generated from is 3.0.3, exported at tier `dev`, with injected
+Input/Output split variants and down-converted nullables. The two documents are not the same
+bytes and never can be, so a hash comparison would have refused **every** remote connection on a
+false premise — a guard failing closed for a reason that is not true, which is unfalsifiable from
+the user's side and worse than no guard.
+
+Both ends bake their identity from the SAME bytes — the committed contract:
+
+- `export_openapi_schema.py` writes a generated `contract_identity_generated.py` beside
+  `openapi.json`, hashing the bytes it just wrote, so a sync cannot produce one without the other
+  (the `feature_tiers_generated.py` precedent).
+- The engine reads it once at import into a module constant — zero per-request cost, which is
+  what "at startup, not per request" was reaching for.
+- The client carries the same identity from the same file, baked at build time so the two cannot
+  be skewed by hand.
 - Compared on connect and after pairing. Same version with a different hash is its own defect —
   one version published twice with different content — and must be loud.
+- A missing identity is reported as `null`, never fabricated. An engine too old to send the field
+  yields the same. Both mean "cannot be verified", and under ruling 1 both refuse.
+
+**Boundary, stated so nobody erases it.** This check CANNOT tell you that an engine's live routes
+have drifted from its own committed contract, and must not try. That is
+`contract.version-tracks-code`'s job; it belongs in the repository, where it runs every day, not
+at connect time on someone's machine. Two checks, two questions.
 
 Whether a mismatch refuses or warns is a **ruling, not an assumption**. Refusing is safest and
 matches rule 0; warning is kinder during a staged rollout where a user cannot upgrade both
