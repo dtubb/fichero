@@ -6877,6 +6877,19 @@ class Database(DatabaseEmbeddingMixin):
                 execute(f"ALTER TABLE {sql_table} ALTER COLUMN {name} TYPE BIGINT")
                 logger.info("widened %s.%s from %s to BIGINT (#5059)", table, name, current[name])
             except Exception as exc:
+                # The usual cause is an INDEX on the column: DuckDB refuses
+                # "Cannot change the type of this column: an index depends on
+                # it!". Dropping and recreating the index at every library open
+                # would be real DDL surgery for a column that cannot overflow,
+                # so this warns and carries on rather than doing it — and the
+                # column still holds every value it ever held.
+                #
+                # Known and deliberate (#5059): `references.year` and
+                # `canvas_layout.z_index` in libraries created before this. A
+                # publication year and a layout stacking order are inherently
+                # bounded — these are cases where, as the reviewer put it, the
+                # DECLARATION should be narrower rather than the column wider.
+                # Their CREATE TABLE is BIGINT now, so new libraries are clean.
                 logger.warning(
                     "could not widen %s.%s from %s to BIGINT; it still holds every "
                     "value it held before, but large ones will be refused: %s",

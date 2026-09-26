@@ -752,7 +752,7 @@ def migrate_references_table(
                 bibtex TEXT NOT NULL,
                 authors JSON DEFAULT '[]',
                 title VARCHAR DEFAULT '',
-                year INTEGER,
+                year BIGINT,
                 kind VARCHAR NOT NULL DEFAULT 'misc',
                 journal_or_book VARCHAR,
                 publisher VARCHAR,
@@ -929,7 +929,7 @@ def migrate_canvas_layout_table(
                 h DOUBLE,
                 d DOUBLE,
                 angle DOUBLE DEFAULT 0.0,
-                z_index INTEGER DEFAULT 0,
+                z_index BIGINT DEFAULT 0,
                 style VARCHAR,
                 updated_at TIMESTAMP NOT NULL
             )
