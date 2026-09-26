@@ -276,7 +276,7 @@ struct OCRGeometrySelectionTests {
 
     // MARK: - rankedPasses (source-model App slice A stage 1, #4954)
     //
-    // The SAME rule as `ranked(_:)` above, over `SegmentPass` — a case-by-case
+    // The SAME rule as `ranked(_:)` above, over `SegmentPassValue` — a case-by-case
     // mirror of this file's own artifact-side coverage, not a rewrite.
     // Behaviour: `source.app.overlays-draw-from-the-seam` (the ranking is part
     // of "the same drawing decision, over the seam").
@@ -286,8 +286,8 @@ struct OCRGeometrySelectionTests {
         type: String,
         ageInHours: Double?,
         humanCurated: Bool = false
-    ) -> SegmentPass {
-        SegmentPass(
+    ) -> SegmentPassValue {
+        SegmentPassValue(
             id: id, provisional: true, documentId: "page-1", name: type,
             provenanceKind: humanCurated ? .human : .workflow,
             provider: nil, model: nil, runId: nil,
@@ -372,10 +372,22 @@ struct OCRGeometrySelectionTests {
         #expect(ranked.map(\.id) == ["known-recent", "unknown-time"])
     }
 
+    /// NOT a guarantee that a `nil` `artifactType` never reaches the app
+    /// (test audit, B2/F-none-numbered, 2026-09-20): today's engine handlers
+    /// only ever build a `SegmentPassValue` from a LEGACY artifact, which always
+    /// has a type. But `pass_read_from_row` (`models/segments.py:1099`)
+    /// returns `artifact_type=None` for a REAL converted-page record, and
+    /// #4924 (first-edit conversion) is what starts writing those. This test
+    /// pins today's EXCLUSION rule, not the CLAIM that it is harmless — the
+    /// day #4924 lands, a real pass with `artifactType == nil` is silently
+    /// dropped from the ranking by this same code path, and the first
+    /// converted page draws nothing while every test here stays green. The
+    /// engine lane is deciding what a real pass should report; this pin must
+    /// not be read as proof that case cannot occur.
     @Test("rankedPasses: a pass whose artifactType is nil or unrecognised is excluded, not crashed on")
     func rankedPassesUnrecognisedTypeExcluded() {
         let unknownType = pass(id: "weird", type: "some_future_type", ageInHours: 0)
-        let noType = SegmentPass(
+        let noType = SegmentPassValue(
             id: "no-type", provisional: true, documentId: "page-1", name: "?",
             provenanceKind: .unknown, provider: nil, model: nil, runId: nil,
             createdAt: nil, text: nil, sourceArtifactId: nil, artifactType: nil

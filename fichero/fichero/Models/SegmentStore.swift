@@ -16,7 +16,7 @@ import Observation
 @Observable
 final class SegmentStore {
     private(set) var segmentsByDocument: [String: [Segment]] = [:]
-    private(set) var passesByDocument: [String: [SegmentPass]] = [:]
+    private(set) var passesByDocument: [String: [SegmentPassValue]] = [:]
     private(set) var loadingDocumentIds: Set<String> = []
     private(set) var loadErrorsByDocumentId: [String: String] = [:]
 
@@ -52,7 +52,7 @@ final class SegmentStore {
         segmentsByDocument[documentId] ?? []
     }
 
-    func passes(documentId: String) -> [SegmentPass] {
+    func passes(documentId: String) -> [SegmentPassValue] {
         passesByDocument[documentId] ?? []
     }
 

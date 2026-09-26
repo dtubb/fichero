@@ -41,7 +41,7 @@ enum SegmentDisplay {
     /// overlay until stage 2, so adding that override now would be
     /// untestable and untested. It is the acknowledged gap when this
     /// function is actually wired in.
-    nonisolated static func geometry(passes: [SegmentPass], segments: [Segment]) -> OCRGeometry? {
+    nonisolated static func geometry(passes: [SegmentPassValue], segments: [Segment]) -> OCRGeometry? {
         let ranked = OCRGeometrySelection.rankedPasses(passes, segments: segments)
         let segmentsByPass = Dictionary(grouping: segments, by: \.passId)
         for pass in ranked {

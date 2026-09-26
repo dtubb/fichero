@@ -74,7 +74,7 @@ enum OCRGeometrySelection {
         })
     }
 
-    /// The SAME ranking as `ranked(_:)` above, over `SegmentPass` instead of
+    /// The SAME ranking as `ranked(_:)` above, over `SegmentPassValue` instead of
     /// `Artifact` (source-model App slice A stage 1, #4954), through the
     /// shared `rankCandidates` core — one algorithm, not two kept in step by
     /// tests (review fix #3). Extracted as a pure function so it is directly
@@ -103,7 +103,7 @@ enum OCRGeometrySelection {
     /// engine call, `source.one-store`), so "does this pass have any
     /// segments" is answered directly from that list, not carried as a
     /// field here.
-    nonisolated static func rankedPasses(_ passes: [SegmentPass], segments: [Segment]) -> [SegmentPass] {
+    nonisolated static func rankedPasses(_ passes: [SegmentPassValue], segments: [Segment]) -> [SegmentPassValue] {
         let curatedPassIds = Set(segments.filter(\.isHandCurated).map(\.passId))
         return rankCandidates(passes.compactMap { pass in
             guard let type = pass.artifactType else { return nil }

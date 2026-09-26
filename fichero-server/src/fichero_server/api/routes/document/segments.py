@@ -2205,12 +2205,49 @@ def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionConte
             ))
         live_new_rows[new_id] = new_row
 
+    audit_id = uuid.uuid4().hex
+    now = utc_now()
+
+    # SOFT delete, with a forwarding note for each part (#4957 owed item).
+    # This was the ONE hard delete left in the segment store, and it took
+    # the parts' ids away with the rows: anything that had referred to a
+    # part -- a mark, a claim, another segment's forwarding chain -- was
+    # left pointing at nothing, with no record that the part had ever
+    # existed. Soft-deleted, the id stays resolvable for good and
+    # `resolve_segment` can say what became of it. NO SEGMENT is hard-
+    # deleted anywhere any more; `match_withdraw` and `uncarry` still
+    # remove a `SegmentMatch` and a `SegmentCarry` outright, and those are
+    # the rest of the same owed item (#4957), not done here.
+    #
+    # It also makes "the count of all segments ever made in a pass"
+    # monotonic again. Nothing depends on that any more -- the add id
+    # scheme that did was dropped in slice 6 step 5 -- but it was a real
+    # trap and it is worth saying it is gone.
     deleted_ids = []
     for new_id, new_row in live_new_rows.items():
-        db.delete(new_row)
+        snapshot_segment_version(
+            db, new_row, deleted=True, actor=ctx.actor, audit_id=audit_id,
+            reason="unsplit",
+        )
+        new_row.deleted_at = now
+        new_row.deleted_by = ctx.actor
+        db.save(new_row)
+        db.save(SegmentForwarding(
+            document_id=new_row.document_id,
+            old_segment_id=new_id,
+            # `merged`, from the closed vocabulary, not a new word: the
+            # part was folded back into the segment the split had taken it
+            # from, which is exactly what a merged note means -- "not live
+            # any more, look over there". `_forwarding_walk` already
+            # follows it, so a reference to a part reaches the whole with
+            # no new rule anywhere.
+            kind="merged",
+            new_segment_ids=[params.segment_id],
+            actor=ctx.actor,
+            audit_id=audit_id,
+            sequence=db.next_forwarding_sequence(),
+        ))
         deleted_ids.append(new_id)
-
-    audit_id = uuid.uuid4().hex
     # The version only ever goes UP: a fresh preimage of the CURRENT
     # (post-split) state, then apply the target's fields -- never
     # `row.version = params.version` (that would move it BACKWARDS).

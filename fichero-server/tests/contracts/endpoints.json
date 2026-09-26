@@ -732,7 +732,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "Annotation"
+        "response_model": "AnnotationRead"
       },
       {
         "method": "PATCH",
@@ -8746,6 +8746,39 @@
         "query_params": [],
         "request_model": "SegmentUpdateParams",
         "response_model": "SegmentRead"
+      },
+      {
+        "method": "GET",
+        "path": "/segments/{segment_id}/picture",
+        "operation_id": "get_segment_picture_api_segments__segment_id__picture_get",
+        "summary": "A segment's picture, cut to its shape",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [
+          {
+            "name": "margin",
+            "required": false,
+            "type": "number"
+          },
+          {
+            "name": "mask",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "size",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "straighten",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
       },
       {
         "method": "GET",

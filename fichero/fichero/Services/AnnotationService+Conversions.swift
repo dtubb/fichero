@@ -10,7 +10,7 @@ import Foundation
 //      container, which serialized a loose
 //      container back to JSON and ran it through the hand-written
 //      `DocumentAnnotation.init(from:)`. It had NO callers.
-//   2. `annotation(from: Components.Schemas.Annotation)`.
+//   2. `annotation(from:)` taking the generated row.
 //   3. `folderAnnotation(from:)` — a verbatim copy of (2) with one guard
 //      changed.
 //
@@ -27,6 +27,50 @@ import Foundation
 // Now the scope guard is the ONLY difference between the two entry points,
 // and every field is mapped in one place. A new field on the generated schema
 // is added there or not at all.
+//
+// #4990 adds a SECOND generated shape for the same row: reads answer
+// `AnnotationRead` (the annotation plus where its anchor points now) while
+// create and delete still answer the plain `Annotation`. That is two wire
+// types for one mapping, and the whole point of this file is that there is
+// only ever one mapping. So both conform to `AnnotationWireRow` below and
+// `mapped` takes the protocol: the field list stays in one place, and a new
+// field is still added there or not at all.
+
+/// The fields an annotation arrives with, whichever read shape carried it.
+///
+/// `AnnotationRead` is `Annotation` plus `resolvedAnchor`, so it satisfies
+/// this as generated. The plain `Annotation` has no such field and answers
+/// nil for it below: create and delete return a row and nothing has resolved
+/// it, which is exactly what nil means on `DocumentAnnotation.resolvedAnchor`.
+protocol AnnotationWireRow {
+    var id: String? { get }
+    var documentId: String? { get }
+    var pageId: String? { get }
+    var folderId: String? { get }
+    var pageIndex: Int? { get }
+    var pageLabel: String? { get }
+    var charStart: Int? { get }
+    var charEnd: Int? { get }
+    var anchor: Components.Schemas.SourceAnchorOutput? { get }
+    var kind: Components.Schemas.AnnotationKind { get }
+    var text: String? { get }
+    var rating: Int? { get }
+    var color: String? { get }
+    var tags: [String]? { get }
+    var linkedClaimIds: [String]? { get }
+    var linkedEntityIds: [String]? { get }
+    var linkedNoteIds: [String]? { get }
+    var createdBy: String? { get }
+    var createdAt: Date? { get }
+    var updatedAt: Date? { get }
+    /// Where `anchor` points now (#4990); nil on the shapes that never carry it.
+    var resolvedAnchor: Components.Schemas.ResolvedAnchor? { get }
+}
+
+extension Components.Schemas.Annotation: AnnotationWireRow {
+    var resolvedAnchor: Components.Schemas.ResolvedAnchor? { nil }
+}
+extension Components.Schemas.AnnotationRead: AnnotationWireRow {}
 
 extension AnnotationService {
     /// A document-scoped annotation, or nil when the row is not one.
@@ -34,12 +78,12 @@ extension AnnotationService {
     /// `documentId` is optional on the wire since #1759 — folder-scoped
     /// annotations carry `folder_id` instead — so this converter surfaces
     /// only annotations bound to a document.
-    func annotation(from generated: Components.Schemas.Annotation) -> DocumentAnnotation? {
+    func annotation(from generated: some AnnotationWireRow) -> DocumentAnnotation? {
         Self.documentScopedAnnotation(from: generated)
     }
 
     /// A folder-scoped annotation, or nil when the row is not one.
-    func folderAnnotation(from generated: Components.Schemas.Annotation) -> DocumentAnnotation? {
+    func folderAnnotation(from generated: some AnnotationWireRow) -> DocumentAnnotation? {
         Self.folderScopedAnnotation(from: generated)
     }
 
@@ -47,7 +91,7 @@ extension AnnotationService {
     /// exercised without standing up a client (the instance methods above are
     /// forwarders; the call sites keep their existing spelling).
     static func documentScopedAnnotation(
-        from generated: Components.Schemas.Annotation
+        from generated: some AnnotationWireRow
     ) -> DocumentAnnotation? {
         guard let id = generated.id, generated.documentId != nil else { return nil }
         return mapped(generated, id: id)
@@ -55,7 +99,7 @@ extension AnnotationService {
 
     /// The folder-scope decision, likewise.
     static func folderScopedAnnotation(
-        from generated: Components.Schemas.Annotation
+        from generated: some AnnotationWireRow
     ) -> DocumentAnnotation? {
         guard let id = generated.id, generated.folderId != nil else { return nil }
         return mapped(generated, id: id)
@@ -67,7 +111,7 @@ extension AnnotationService {
     /// `static` so the mapping can be exercised without a live service — the
     /// field-completeness guardrail is the point of having one copy.
     static func mapped(
-        _ generated: Components.Schemas.Annotation, id: String
+        _ generated: some AnnotationWireRow, id: String
     ) -> DocumentAnnotation {
         DocumentAnnotation(
             id: id,
@@ -94,6 +138,23 @@ extension AnnotationService {
                     renditionId: anchor.renditionId,
                     charStart: anchor.charStart,
                     charEnd: anchor.charEnd
+                )
+            },
+            // Where that anchor points NOW (#4990). Mapped through the same
+            // partial anchor shape, so a resolved rect and a stored one are
+            // read by exactly the same rules -- if one is drawable as
+            // fractions, so is the other.
+            resolvedAnchor: generated.resolvedAnchor.map { resolved in
+                ResolvedAnnotationAnchor(
+                    anchor: AnnotationAnchor(
+                        rect: resolved.anchor.rect,
+                        space: resolved.anchor.space?.rawValue,
+                        renditionId: resolved.anchor.renditionId,
+                        charStart: resolved.anchor.charStart,
+                        charEnd: resolved.anchor.charEnd
+                    ),
+                    basis: resolved.basis.rawValue,
+                    segmentId: resolved.segmentId
                 )
             },
             kind: AnnotationKind(rawValue: generated.kind.rawValue) ?? .unknown,

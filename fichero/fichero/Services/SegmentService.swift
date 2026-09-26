@@ -28,7 +28,7 @@ final class SegmentService {
         artifactId: String? = nil,
         passId: String? = nil,
         kind: String? = nil
-    ) async throws -> (passes: [SegmentPass], segments: [Segment]) {
+    ) async throws -> (passes: [SegmentPassValue], segments: [Segment]) {
         let response = try await client.api.listDocumentSegmentsApiSegmentsDocumentDocIdGet(
             path: .init(docId: documentId),
             query: .init(artifactId: artifactId, passId: passId, kind: kind)
@@ -38,7 +38,7 @@ final class SegmentService {
         case .ok(let okResponse):
             let body = try okResponse.body.json
             return (
-                passes: body.passes.map { SegmentPass(generated: $0) },
+                passes: body.passes.map { SegmentPassValue(generated: $0) },
                 segments: body.segments.map { Segment(generated: $0) }
             )
         case .unprocessableContent(let error):

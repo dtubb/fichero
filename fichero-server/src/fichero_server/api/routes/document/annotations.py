@@ -20,6 +20,11 @@ from fichero_server.api.auth import action_context
 from fichero_server.api.change_stream import emit_change
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.actions.registry import registry
+from fichero_server.api.routes.document.segment_conversion import (
+    AnchorBasis,
+    ResolvedAnchor,
+    resolve_anchor,
+)
 from fichero_server.models.anchors import SourceAnchor
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
@@ -37,10 +42,33 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/annotations")
 
 
+class AnnotationRead(Annotation):
+    """One annotation, plus WHERE IT POINTS NOW (#4990).
+
+    A mark is stored with the rectangle its line had when the mark was
+    made. Move the line and the mark stays behind, because every rectangle
+    a mark draws comes from that stored one. `resolved_anchor` says where
+    the line is now, worked out through the kept block -- and the STORED
+    anchor beside it is never rewritten, so nothing is lost and a mark
+    drawn free keeps exactly the place it was drawn.
+
+    A READ shape, never saved: `Annotation` stays the row, so no column is
+    added and no library is migrated for this.
+    """
+
+    resolved_anchor: ResolvedAnchor | None = None
+
+
+def _read(db: Database, ann: Annotation) -> AnnotationRead:
+    return AnnotationRead(
+        **ann.model_dump(), resolved_anchor=resolve_anchor(db, ann.anchor)
+    )
+
+
 class AnnotationListResponse(BaseModel):
     """Typed annotation list envelope for the OpenAPI client."""
 
-    items: list[Annotation]
+    items: list[AnnotationRead]
     count: int
 
 
@@ -233,18 +261,20 @@ async def list_annotations(
     if min_rating is not None:
         rows = [r for r in rows if r.rating is not None and r.rating >= min_rating]
     rows.sort(key=lambda r: r.created_at, reverse=True)
-    return AnnotationListResponse(items=rows, count=len(rows))
+    return AnnotationListResponse(
+        items=[_read(db, r) for r in rows], count=len(rows)
+    )
 
 
-@router.get("/{annotation_id}", response_model=Annotation)
+@router.get("/{annotation_id}", response_model=AnnotationRead)
 async def get_annotation(
     annotation_id: str,
     db: Database = Depends(get_library_database),
-) -> Annotation:
+) -> AnnotationRead:
     ann = db.get(Annotation, annotation_id)
     if ann is None:
         raise HTTPException(404, f"Annotation not found: {annotation_id}")
-    return ann
+    return _read(db, ann)
 
 
 class AnnotationPatchRequest(BaseModel):
@@ -404,6 +434,13 @@ def _crop_response(db: Database, ann: Annotation):
         raise HTTPException(404, f"Document not found: {ann.document_id}")
 
     source_path = resolve_source(doc, library_root=db.path.parent)
+    # #4990: cut the picture from where the line IS. Cropping the stored
+    # rectangle after the box moved gives a picture of the OLD place --
+    # the same fault as the mark being drawn there, made permanent in an
+    # image. `ann` is not saved, so the stored anchor is untouched.
+    resolved = resolve_anchor(db, ann.anchor)
+    if resolved is not None and resolved.basis is AnchorBasis.segment:
+        ann = ann.model_copy(update={"anchor": resolved.anchor})
     if source_path and ann.anchor and ann.anchor.rect:
         suffix = source_path.suffix.lower()
         if suffix == ".pdf":

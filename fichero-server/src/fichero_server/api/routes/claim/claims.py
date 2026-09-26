@@ -68,6 +68,15 @@ def _resolved_claim_copy(claim: KnowledgeClaim) -> KnowledgeClaim:
     """A NEW claim object with `provenance_kind` resolved to its effective,
     read-time value (#4869: `kg.claim.provenance-kind-is-server-stated`).
 
+    #4990 note: a claim's source anchor has the SAME "left behind when the
+    line moves" fault a mark does, and `resolve_anchor` would answer it in
+    one line here. It is deliberately NOT wired in yet, for two measured
+    reasons: nothing consumes it (the app half of #4990 is the annotation
+    accessor and the PDF page view), and this function feeds a list the app
+    fetches with `limit: 500`, so resolving here would add an artifact
+    query and a block parse PER CLAIM to the hottest knowledge read. Wire
+    it when there is a reader, on the single GET first.
+
     Returns a COPY (`model_copy`) rather than mutating `claim` in place, so
     the original, DB-loaded object is never touched -- there is no risk of
     an unrelated later `db.save(claim)` in the same request accidentally

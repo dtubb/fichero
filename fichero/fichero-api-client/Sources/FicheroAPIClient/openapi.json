@@ -2264,7 +2264,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Annotation"
+                  "$ref": "#/components/schemas/AnnotationRead"
                 }
               }
             }
@@ -3716,6 +3716,93 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/segments/{segment_id}/picture": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "A segment's picture, cut to its shape",
+        "description": "PNG bytes of the segment's own area, cropped to its derived box plus `margin`, masked outside its polygon when `mask` is set, and levelled along its baseline when `straighten` is set. A worked-out thing, never a record: cached per segment version and remade when the segment changes. Refuses rather than returning a picture of the wrong place when the segment was measured on an image that is not the one here. (#4925)",
+        "operationId": "get_segment_picture_api_segments__segment_id__picture_get",
+        "parameters": [
+          {
+            "name": "segment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Segment Id"
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 8192,
+              "minimum": 1,
+              "nullable": true,
+              "description": "Largest edge in pixels; the default is bounded, not unlimited",
+              "title": "Size"
+            },
+            "description": "Largest edge in pixels; the default is bounded, not unlimited"
+          },
+          {
+            "name": "margin",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "description": "Extra room around the shape, as a fraction of its own size",
+              "default": 0.0,
+              "title": "Margin"
+            },
+            "description": "Extra room around the shape, as a fraction of its own size"
+          },
+          {
+            "name": "straighten",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Level the line along its baseline",
+              "default": false,
+              "title": "Straighten"
+            },
+            "description": "Level the line along its baseline"
+          },
+          {
+            "name": "mask",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Make everything outside the polygon transparent",
+              "default": false,
+              "title": "Mask"
+            },
+            "description": "Make everything outside the polygon transparent"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The segment's picture, cut to its shape",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "image/png": {}
+            }
+          },
+          "422": {
+            "description": "The picture cannot be made honestly; the reason says why"
           }
         }
       }
@@ -37753,6 +37840,63 @@
         "title": "AlignTranscriptResponse",
         "description": "Outcome of forced transcript\u2194Kraken-baseline alignment.\n\n``aligned`` is the honest bottom line: an exact line-count match saved a new\n``aligned_transcript`` artifact (returned with geometry); a mismatch saved\nnothing and the counts say why, so the UI can tell the user \"28 transcript\nlines, 31 baselines \u2014 not aligned\" instead of showing wrong text."
       },
+      "AnchorBasis": {
+        "type": "string",
+        "enum": [
+          "stored",
+          "segment",
+          "segment-deleted"
+        ],
+        "title": "AnchorBasis",
+        "description": "How a resolved anchor got its place."
+      },
+      "AnchorShape": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/AnchorShapeKind"
+          },
+          "points": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Points"
+          },
+          "t_start": {
+            "type": "number",
+            "nullable": true,
+            "title": "T Start"
+          },
+          "t_end": {
+            "type": "number",
+            "nullable": true,
+            "title": "T End"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "AnchorShape",
+        "description": "ONE shape on an anchor (slice 7, #4925).\n\nAn anchor may carry several, which is the point: a line and the marginal\nmark beside it are one place as far as the record is concerned, and before\nthis there was no way to say that without inventing a second anchor."
+      },
+      "AnchorShapeKind": {
+        "type": "string",
+        "enum": [
+          "rect",
+          "polygon",
+          "path",
+          "point",
+          "time"
+        ],
+        "title": "AnchorShapeKind",
+        "description": "The shapes an anchor may name (slice 7, #4925).\n\nA closed set, like ``AnchorSpace`` and unlike ``granularity``: each kind\ncarries different data and is validated by its own rule, so a new one is a\nchange to every reader rather than a label that grows additively."
+      },
       "AnchorSpace": {
         "type": "string",
         "enum": [
@@ -38097,7 +38241,7 @@
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/Annotation"
+              "$ref": "#/components/schemas/AnnotationRead"
             },
             "type": "array",
             "title": "Items"
@@ -38247,6 +38391,177 @@
         },
         "type": "object",
         "title": "AnnotationPatchRequest"
+      },
+      "AnnotationRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Id"
+          },
+          "page_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Id"
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id"
+          },
+          "page_index": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Page Index"
+          },
+          "page_label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Label"
+          },
+          "char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char End"
+          },
+          "anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Output",
+            "nullable": true,
+            "description": "Where this annotation points: the region and/or span, naming the rendition its coordinates belong to."
+          },
+          "anchor_kind": {
+            "type": "string",
+            "nullable": true,
+            "title": "Anchor Kind"
+          },
+          "paragraph_index": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Paragraph Index"
+          },
+          "ink_payload": {
+            "type": "string",
+            "nullable": true,
+            "title": "Ink Payload"
+          },
+          "ocr_text": {
+            "type": "string",
+            "nullable": true,
+            "title": "Ocr Text"
+          },
+          "ocr_provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Ocr Provider"
+          },
+          "ocr_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Ocr Model"
+          },
+          "ocr_confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Ocr Confidence"
+          },
+          "ocr_recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Ocr Recorded At"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AnnotationKind"
+          },
+          "text": {
+            "type": "string",
+            "nullable": true,
+            "title": "Text"
+          },
+          "rating": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "nullable": true,
+            "title": "Rating"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "title": "Color",
+            "description": "Hex colour for highlight tint, e.g. '#FFFF00'"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "linked_claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Claim Ids"
+          },
+          "linked_entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Entity Ids"
+          },
+          "linked_note_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Note Ids"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By",
+            "default": "human"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "resolved_anchor": {
+            "$ref": "#/components/schemas/ResolvedAnchor",
+            "nullable": true
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "AnnotationRead",
+        "description": "One annotation, plus WHERE IT POINTS NOW (#4990).\n\nA mark is stored with the rectangle its line had when the mark was\nmade. Move the line and the mark stays behind, because every rectangle\na mark draws comes from that stored one. `resolved_anchor` says where\nthe line is now, worked out through the kept block -- and the STORED\nanchor beside it is never rewritten, so nothing is lost and a mark\ndrawn free keeps exactly the place it was drawn.\n\nA READ shape, never saved: `Annotation` stays the row, so no column is\nadded and no library is migrated for this."
       },
       "AppleIntelligenceProbeResponse": {
         "properties": {
@@ -61926,6 +62241,28 @@
         "type": "object",
         "title": "ResolveRequest"
       },
+      "ResolvedAnchor": {
+        "properties": {
+          "anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Output"
+          },
+          "basis": {
+            "$ref": "#/components/schemas/AnchorBasis"
+          },
+          "segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Segment Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "anchor",
+          "basis"
+        ],
+        "title": "ResolvedAnchor",
+        "description": "Where a stored anchor points NOW.\n\nTHE PROBLEM THIS SOLVES, which is older than the source model: a mark a\nperson makes on a line is stored with the rectangle that line had at\nthat moment. Move the line and the mark stays where the box used to be.\nEvery rectangle a mark draws comes from that stored rectangle, and\nnothing on that path ever asked where the box went.\n\nTHE WAY BACK, and it needs nothing stored: the KEPT BLOCK never\nchanges, so it is a permanent table from \"the rectangle a box had\" to\n\"that box's position\", and a position plus the artifact gives the\nrepeatable segment id (`converted_segment_id`). So the link from a\nremembered rectangle to a line can be recovered at ANY later time,\nhowever often the line has moved since.\n\nThe stored anchor is NEVER rewritten. This rides beside it."
+      },
       "ResolvedLocation": {
         "properties": {
           "documentId": {
@@ -65516,6 +65853,19 @@
             "title": "Rotation",
             "default": 0.0
           },
+          "shapes": {
+            "items": {
+              "$ref": "#/components/schemas/AnchorShape"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Shapes"
+          },
+          "media_ref": {
+            "type": "string",
+            "nullable": true,
+            "title": "Media Ref"
+          },
           "char_start": {
             "type": "integer",
             "nullable": true,
@@ -65587,6 +65937,19 @@
             "type": "number",
             "title": "Rotation",
             "default": 0.0
+          },
+          "shapes": {
+            "items": {
+              "$ref": "#/components/schemas/AnchorShape"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Shapes"
+          },
+          "media_ref": {
+            "type": "string",
+            "nullable": true,
+            "title": "Media Ref"
           },
           "char_start": {
             "type": "integer",

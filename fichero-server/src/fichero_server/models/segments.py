@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from enum import Enum
 from datetime import datetime
 from typing import Any
 
@@ -32,7 +33,7 @@ from fichero_server.media.ocr_geometry import (
     OCRGeometryResult,
     reading_order,
 )
-from fichero_server.models.anchors import SourceAnchor
+from fichero_server.models.anchors import SourceAnchor, shapes_bound
 from fichero_server.models.knowledge import ProvenanceKind
 
 logger = logging.getLogger(__name__)
@@ -588,6 +589,13 @@ def bbox_and_tile_from_anchor(anchor: SourceAnchor) -> tuple[float, float, float
     least one, so this is a defensive backstop, not a normal path."""
     if anchor.rect is not None:
         x, y, w, h = anchor.rect
+    elif (bound := shapes_bound(anchor.shapes)) is not None:
+        # Slice 7 (#4925): a lone point, or a level path, has a real place and
+        # no extent, so the anchor leaves `rect` unset -- `rect` promises a
+        # drawable rectangle. `bbox_*` is engine-written and makes no such
+        # promise, so it takes the zero-size box AT the point, which is what
+        # lets a point be found by an area read like anything else.
+        x, y, w, h = bound
     elif anchor.polygon:
         xs = [point[0] for point in anchor.polygon]
         ys = [point[1] for point in anchor.polygon]
@@ -1478,6 +1486,61 @@ def rows_from_reads(
             )
         )
     return pass_row, rows
+
+
+# ---------------------------------------------------------------------------
+# Slice 6b (#4990) -- the READ SHAPES for "where does this anchor point now".
+#
+# They live HERE, beside the segment they resolve to, rather than with the
+# resolver in `api/routes/document/segment_conversion.py`, for one reason:
+# `models/__init__.py` has to name `ResolvedAnchor` to type the claim read,
+# and a model cannot import a route module. Typed rather than left loose --
+# an untyped field generates a loose container in every client, which is the
+# same defect the annotation list's own schema test exists to prevent.
+#
+# The RESOLVER stays with the conversion, because that is what it knows about.
+# ---------------------------------------------------------------------------
+
+class AnchorBasis(str, Enum):
+    """How a resolved anchor got its place."""
+
+    #: Nothing resolved it: no rectangle, no converted result on this page,
+    #: or no block box with that rectangle. The stored place is the answer,
+    #: and it is the RIGHT answer -- a mark somebody drew free was about a
+    #: place, not about a line.
+    stored = "stored"
+    #: It matched a box, and that box's segment is live. The answer is where
+    #: the segment is NOW.
+    segment = "segment"
+    #: It matched a box whose segment has been deleted. The stored place is
+    #: the answer, and the caller is told the line is gone rather than being
+    #: shown a rectangle with nothing behind it.
+    segment_deleted = "segment-deleted"
+
+
+class ResolvedAnchor(BaseModel):
+    """Where a stored anchor points NOW.
+
+    THE PROBLEM THIS SOLVES, which is older than the source model: a mark a
+    person makes on a line is stored with the rectangle that line had at
+    that moment. Move the line and the mark stays where the box used to be.
+    Every rectangle a mark draws comes from that stored rectangle, and
+    nothing on that path ever asked where the box went.
+
+    THE WAY BACK, and it needs nothing stored: the KEPT BLOCK never
+    changes, so it is a permanent table from "the rectangle a box had" to
+    "that box's position", and a position plus the artifact gives the
+    repeatable segment id (`converted_segment_id`). So the link from a
+    remembered rectangle to a line can be recovered at ANY later time,
+    however often the line has moved since.
+
+    The stored anchor is NEVER rewritten. This rides beside it.
+    """
+
+    anchor: SourceAnchor
+    basis: AnchorBasis
+    segment_id: str | None = None
+
 
 
 class SegmentPassChoice(BaseModel):

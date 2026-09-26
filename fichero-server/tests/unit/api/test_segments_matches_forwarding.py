@@ -1151,7 +1151,21 @@ class TestMissingActionCoverage:
         undo = client.post(f"/api/actions/audit/{split_result.audit_id}/undo")
         assert undo.status_code == 200, undo.text
 
-        assert db.get(Segment, new_id) is None  # hard-deleted, existed only for this action
+        # SOFT-deleted (#4957 owed item): the part's id stays resolvable
+        # for good, so anything that referred to it -- a mark, a claim,
+        # another segment's forwarding chain -- can still be followed to
+        # what became of it. No SEGMENT is hard-deleted anywhere now.
+        retired = db.get(Segment, new_id)
+        assert retired is not None
+        assert retired.deleted_at is not None
+        assert retired.deleted_by is not None
+        # And a forwarding note says where it went: back into the whole.
+        notes = [
+            f for f in db.query(SegmentForwarding, old_segment_id=new_id)
+            if f.kind == "merged"
+        ]
+        assert len(notes) == 1
+        assert notes[0].new_segment_ids == [original.id]
         restored = db.get(Segment, original.id)
         assert restored.anchor.rect == original_rect
         assert restored.deleted_at is None
@@ -1866,14 +1880,17 @@ class TestRedoOfAMintingActionComesBackUnderTheSameId:
         undo_again = client.post(f"/api/actions/audit/{redo.json()['audit_id']}/undo")
         assert undo_again.status_code == 200, undo_again.text
 
-        # Exactly the kept line is live; BOTH the first split's part (long
-        # gone) and the second (redo's own, this undo's real target) are
-        # gone -- nothing stray survives the round trip. `_action_unsplit`
-        # HARD-deletes the new parts it retires (not a soft delete).
+        # Exactly the kept line is LIVE; both the first split's part and
+        # the second (redo's own, this undo's real target) are retired.
+        # Nothing stray survives the round trip.
         live = [s for s in db.query(Segment, document_id=doc.id) if s.deleted_at is None]
         assert [s.id for s in live] == [seg.id]
-        assert db.get(Segment, first_new_id) is None
-        assert db.get(Segment, second_new_id) is None
+        # They are SOFT-deleted now, not gone (#4957 owed item): both rows
+        # are still there, both marked, so both ids stay resolvable.
+        for retired_id in (first_new_id, second_new_id):
+            retired = db.get(Segment, retired_id)
+            assert retired is not None, retired_id
+            assert retired.deleted_at is not None, retired_id
 
     def test_carry_do_undo_redo_undo_leaves_zero_copies(self, db, client):
         doc = _make_doc(db)
@@ -2055,3 +2072,81 @@ class TestRedoOfAMintingActionComesBackUnderTheSameId:
         restored = db.get(Segment, seg_a.id)
         assert restored.deleted_at is None
         assert restored.kind_raw == "edited-before-merge"  # the EDIT, not the original
+
+
+class TestNoSegmentIsEverHardDeleted:
+    """#4957's owed item, and the property the whole id model rests on:
+    an id, once given, can always be followed to what became of it.
+
+    `unsplit` was the last place a `Segment` row was removed outright.
+    """
+
+    def test_a_retired_part_can_still_be_followed_to_the_whole(self, db, client):
+        doc = _make_doc(db)
+        pass_row = _make_pass(db, doc.id)
+        original = _make_segment(
+            db, document_id=doc.id, pass_id=pass_row.id, rect=[0.0, 0.0, 0.2, 0.2]
+        )
+        ctx = _ctx(db, actor="daniel")
+        split = _invoke_versioned(
+            db, "segment.split",
+            {
+                "segment_id": original.id,
+                "parts": [
+                    {"anchor": {"document_id": doc.id, "rect": [0.0, 0.0, 0.1, 0.1]}},
+                    {"anchor": {"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]}},
+                ],
+            },
+            ctx,
+        )
+        part_ids = split.result["new_segment_ids"]
+        undo = client.post(f"/api/actions/audit/{split.audit_id}/undo")
+        assert undo.status_code == 200, undo.text
+
+        for part_id in part_ids:
+            resolved = resolve_segment(db, part_id)
+            # FOLLOWED HOME: the part's id still resolves, and it leads
+            # back into the segment the split had taken it from. Before
+            # this change the row was gone and there was nothing to follow.
+            assert resolved.requested_id == part_id
+            assert resolved.live_segment_ids == [original.id], resolved
+            # The FIRST hop is the note that took it home; the rest of the
+            # trail is the destination's own history, which is right --
+            # following an id reports everything it walked through.
+            assert resolved.trail[0].kind == "merged"
+            assert resolved.trail[0].old_segment_id == part_id
+            assert resolved.trail[0].new_segment_ids == [original.id]
+
+    def test_no_segment_row_is_removed_by_any_action_in_this_file(self, db):
+        """A source scan, deliberately: the rule is about the WHOLE store,
+        and a behaviour test can only ever cover the paths it happens to
+        walk. `match_withdraw` and `uncarry` still remove a `SegmentMatch`
+        and a `SegmentCarry`; those are the rest of #4957's owed item and
+        are NOT claimed here.
+        """
+        import ast
+        import pathlib
+
+        # From `__file__`, never the working directory: a scan that reads a
+        # relative path passes or fails depending on where pytest was
+        # started, which makes it worse than no scan at all.
+        source = (
+            pathlib.Path(__file__).resolve().parents[3]
+            / "src/fichero_server/api/routes/document/segments.py"
+        ).read_text()
+        tree = ast.parse(source)
+        removed_kinds = set()
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            # `db.delete(row)` only -- never `@router.delete("/path")`,
+            # which is a route declaration and not a removal at all.
+            if getattr(func, "attr", None) != "delete" or not node.args:
+                continue
+            if getattr(getattr(func, "value", None), "id", None) != "db":
+                continue
+            removed_kinds.add(ast.unparse(node.args[0]))
+        assert removed_kinds == {"match", "copy_row", "carry"}, (
+            f"a new hard delete appeared: {removed_kinds}"
+        )

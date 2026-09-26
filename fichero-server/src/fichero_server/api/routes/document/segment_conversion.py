@@ -37,14 +37,15 @@ from fichero_server.models.knowledge import (
     Annotation,
     KnowledgeClaim,
     ProvenanceKind,
-    SourceSupport,
 )
 from fichero_server.models.segments import (
     Segment,
     SegmentPass,
     SegmentPassChoice,
-    SEGMENT_CONVERSION_NAMESPACE,
+    AnchorBasis,
+    ResolvedAnchor,
     _derive_pass_provenance_kind,
+    converted_segment_id,
     words_for_row,
     converted_pass_id,
     rows_from_reads,
@@ -1467,3 +1468,76 @@ action(
     # something undo is run on.
     undoable=False,
 )(_action_uncombine)
+
+
+# ---------------------------------------------------------------------------
+# Slice 6b (#4990) -- a mark follows its line when the line's box moves
+# ---------------------------------------------------------------------------
+
+
+def _anchor_matches_box(anchor: SourceAnchor, box: OCRGeometryBox, block_frame: str | None) -> bool:
+    """Slice 4's one matching rule, against a BLOCK box rather than a row.
+
+    Same tolerance on all four numbers and the same frame test as
+    `_anchor_matches_segment`, because it is the same question asked of the
+    other store. Never by overlap or nearness: a rectangle that NEARLY
+    matches a box is about something else, and moving a historian's mark
+    onto a line they never marked is worse than leaving it where they put it.
+    """
+    if anchor.rect is None:
+        return False
+    if anchor.rendition_id != block_frame:
+        return False
+    return all(abs(a - b) <= _ANCHOR_TOLERANCE for a, b in zip(anchor.rect, box.bbox))
+
+
+def resolve_anchor(db: Any, anchor: SourceAnchor | None) -> ResolvedAnchor | None:
+    """The one resolver every mark reader calls (#4990).
+
+    Pure apart from its reads, writes nothing, and rewrites no stored
+    anchor. Returns `None` only when there is no anchor at all, so a caller
+    can pass whatever it holds.
+
+    Only anchors that matched a box EXACTLY are helped, which is exactly
+    the set slice 6 would have re-pointed. A mark drawn free stays where it
+    was drawn.
+    """
+    if anchor is None:
+        return None
+    if anchor.rect is None or not anchor.document_id:
+        return ResolvedAnchor(anchor=anchor, basis=AnchorBasis.stored)
+
+    for artifact in db.query(Artifact, document_id=anchor.document_id):
+        if not is_converted(artifact):
+            continue
+        # raw-geometry-ok: the kept block IS the permanent rectangle-to-position table
+        block = artifact.ocr_geometry
+        if block is None:
+            continue
+        position = next(
+            (
+                index for index, box in enumerate(block.boxes)
+                if _anchor_matches_box(anchor, box, block.rendition_id)
+            ),
+            None,
+        )
+        if position is None:
+            continue
+        segment = db.get(Segment, converted_segment_id(artifact.id, position))
+        if segment is None:
+            # The block remembers the box, but no row was ever made for it
+            # (or it was removed outright). Nothing to follow.
+            continue
+        if segment.deleted_at is not None:
+            return ResolvedAnchor(
+                anchor=anchor,
+                basis=AnchorBasis.segment_deleted,
+                segment_id=segment.id,
+            )
+        return ResolvedAnchor(
+            anchor=segment.anchor,
+            basis=AnchorBasis.segment,
+            segment_id=segment.id,
+        )
+
+    return ResolvedAnchor(anchor=anchor, basis=AnchorBasis.stored)

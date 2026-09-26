@@ -42,10 +42,23 @@ struct SourceAnchorValue: Codable, Hashable {
     /// `additionalProperties` (the model's `extra="allow"` catch-all —
     /// `Segment.metadata` below is where a box's own unrecognised data
     /// already travels in this slice; carrying the ANCHOR's separately would
-    /// be a second place to look for the same kind of thing). Both are
-    /// exercised by `SegmentMappingCoverageTests`, which fails if the
-    /// generated `SourceAnchorOutput` gains a field neither this list nor
-    /// the mapping below accounts for.
+    /// be a second place to look for the same kind of thing).
+    ///
+    /// Dropped for now, and the distinction matters: `shapes` and `media_ref`
+    /// (source-model slice 7, #4925 — a point, an open path, several shapes
+    /// at once, a stretch of a recording). They are NOT carried because this
+    /// draw model cannot draw them: every surface it feeds renders a
+    /// rectangle, and the engine already fills `rect` with the bound of the
+    /// area shapes, so a segment that has them is drawn in the right place
+    /// today with no Swift change at all. Carrying a field nothing reads is
+    /// how a second, staler answer to "what shape is this" gets started —
+    /// and the spec is explicit that nothing of slices 6 to 8b reaches the
+    /// app until the whole programme is done. They arrive with the overlay
+    /// that can actually draw a polygon (app stage 2), not before.
+    ///
+    /// Every one of these is exercised by the contract-coverage guards in
+    /// `SegmentMappingTests`, which fail if `SourceAnchor-Output` gains a
+    /// field neither this list nor the mapping below accounts for.
     init(generated: Components.Schemas.SourceAnchorOutput) {
         self.documentId = generated.documentId
         self.pageId = generated.pageId
@@ -117,7 +130,16 @@ struct Segment: Codable, Hashable, Identifiable {
 
 /// One pass, read either from today's blob (one per artifact) or (later) a
 /// real `Pass` row.
-struct SegmentPass: Codable, Hashable, Identifiable {
+///
+/// Named `…Value` for the same reason `SourceAnchorValue` above is: the
+/// obvious name is taken by a GENERATED type. `Components.Schemas.SegmentPass`
+/// is the segment-pass ROW, answered by `POST /api/segments/passes`; what
+/// this maps from is `Components.Schemas.PassRead`, the seam's read shape.
+/// Two different things, and a manual type shadowing a generated name is
+/// what `scripts/check_openapi_shadow_types.py` exists to stop -- it is the
+/// shape that let a hand-written decoder drift from the wire unnoticed
+/// (2026-08-23).
+struct SegmentPassValue: Codable, Hashable, Identifiable {
     var id: String
     var provisional: Bool
     var documentId: String
@@ -183,7 +205,7 @@ extension Segment {
     }
 }
 
-extension SegmentPass {
+extension SegmentPassValue {
     /// Map the generated read shape into the app model. Every field of
     /// `Components.Schemas.PassRead` is mapped; none is dropped.
     init(generated: Components.Schemas.PassRead) {

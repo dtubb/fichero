@@ -50,15 +50,20 @@ struct SegmentDisplayTests {
     /// segment's position in `boxes` (and every later segment's) is
     /// undisturbed.
     @Test("a segment with an unset rect maps to a zero-size box, not a dropped one and not an invented rect")
-    func unsetRectBecomesZeroSizeBox() {
+    func unsetRectBecomesZeroSizeBox() throws {
         let segments = [
             segment(id: "good", boxIndex: 0, rect: [0.1, 0.1, 0.2, 0.2], text: "kept"),
             segment(id: "degenerate", boxIndex: 1, rect: nil, text: "still here")
         ]
-        let geometry = SegmentDisplay.geometry(from: segments, provider: "transcription", model: nil, renditionId: nil)
-        #expect(geometry?.boxes.count == 2)
-        #expect(geometry?.boxes[1].bbox == [0, 0, 0, 0])
-        #expect(geometry?.boxes[1].text == "still here")
+        // F18 (test audit): a plain #expect(count == n) followed by a
+        // subscript traps the whole test process, not just this test, if the
+        // count regresses. `try #require` fails THIS test instead.
+        let geometry = try #require(
+            SegmentDisplay.geometry(from: segments, provider: "transcription", model: nil, renditionId: nil)
+        )
+        try #require(geometry.boxes.count == 2)
+        #expect(geometry.boxes[1].bbox == [0, 0, 0, 0])
+        #expect(geometry.boxes[1].text == "still here")
     }
 
     /// Review fix #1, second design: position in `boxes` IS the engine's
@@ -68,20 +73,24 @@ struct SegmentDisplayTests {
     /// placeholder box — never dropped, so the box after it keeps its
     /// place (2) and its own array offset, both at once.
     @Test("an undrawable segment stays in the list as a zero-size placeholder at its own boxIndex, so no later box shifts")
-    func undrawableSegmentStaysAsZeroSizePlaceholder() {
+    func undrawableSegmentStaysAsZeroSizePlaceholder() throws {
         let segments = [
             segment(id: "s0", boxIndex: 0, rect: [0, 0, 1, 1], text: "first"),
             segment(id: "s1", boxIndex: 1, rect: nil, text: "dropped"),
             segment(id: "s2", boxIndex: 2, rect: [0, 0, 1, 1], text: "third")
         ]
-        let geometry = SegmentDisplay.geometry(from: segments, provider: "transcription", model: nil, renditionId: nil)
-        #expect(geometry?.boxes.count == 3)
-        #expect(geometry?.boxes[1].bbox == [0, 0, 0, 0])
-        #expect(geometry?.boxes[2].text == "third")
+        // F18: require the count before subscripting — see unsetRectBecomesZeroSizeBox.
+        let geometry = try #require(
+            SegmentDisplay.geometry(from: segments, provider: "transcription", model: nil, renditionId: nil)
+        )
+        try #require(geometry.boxes.count == 3)
+        #expect(geometry.boxes[1].bbox == [0, 0, 0, 0])
+        #expect(geometry.boxes[2].text == "third")
         // Position IS the index: the third segment sits at array offset 2,
         // matching its own boxIndex, exactly as displayIndexedBoxes expects.
-        #expect(geometry?.displayIndexedBoxes[2].index == 2)
-        #expect(geometry?.displayIndexedBoxes[2].box.text == "third")
+        try #require(geometry.displayIndexedBoxes.count == 3)
+        #expect(geometry.displayIndexedBoxes[2].index == 2)
+        #expect(geometry.displayIndexedBoxes[2].box.text == "third")
     }
 
     /// Review fix #1: two segments of one pass sharing a `boxIndex` is
@@ -118,13 +127,13 @@ struct SegmentDisplayTests {
     @Test("geometry(passes:segments:) skips a pass refused for duplicate boxIndex and falls through to the next")
     func passSelectionSkipsARefusedPass() {
         let passes = [
-            SegmentPass(
+            SegmentPassValue(
                 id: "bad", provisional: true, documentId: "doc-1", name: "regions",
                 provenanceKind: .workflow, provider: nil, model: nil, runId: nil,
                 createdAt: Date(timeIntervalSince1970: 100), text: nil,
                 sourceArtifactId: "bad", artifactType: "regions"
             ),
-            SegmentPass(
+            SegmentPassValue(
                 id: "good", provisional: true, documentId: "doc-1", name: "transcription",
                 provenanceKind: .workflow, provider: nil, model: nil, runId: nil,
                 createdAt: Date(timeIntervalSince1970: 0), text: nil,
