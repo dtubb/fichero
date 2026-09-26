@@ -522,6 +522,11 @@ class SegmentConvertAndEditParams(BaseModel):
     #: given. Comes WITH `artifact_id` or not at all; with neither, this is
     #: the eager form of A1 (convert, edit nothing).
     edit: "ArtifactRegionsEditRequest | None" = None  # noqa: F821
+    #: The rows `edit.indices` named when the edit was made, one id per index in the same order
+    #: (#4991). Positions only mean what the app was last given; ids do not move. A REPLAY (redo)
+    #: re-reads the recorded params, so without these it edits whatever sits at the position now.
+    #: None (old callers) keeps the positions as they were.
+    edit_targets: list[str] | None = None
 
     @model_validator(mode="after")
     def _artifact_and_edit_travel_together(self) -> "SegmentConvertAndEditParams":
@@ -928,9 +933,16 @@ def _convert_execute(
                 artifact_ids.append(working.id)
         else:
             working_pass = converted_pass_of(db, working)
-        edit_record = apply_edit_to_segments(
-            db, working_pass, working.id, params.edit, ctx
-        )
+        edit = params.edit
+        if params.edit_targets is not None and is_converted(working):
+            live = {row.id: position for position, row in enumerate(live_rows_in_order(db, working_pass.id))}
+            positions = []
+            for segment_id in params.edit_targets:
+                if segment_id not in live:
+                    raise EditTargetGone(segment_id)
+                positions.append(live[segment_id])
+            edit = edit.model_copy(update={"indices": positions})
+        edit_record = apply_edit_to_segments(db, working_pass, working.id, edit, ctx)
         choice_id = _record_working_pass(db, working_pass, ctx)
 
     report = repointing_report(db, all_rows)
@@ -1102,6 +1114,22 @@ class TextNeedsReadings(ConversionRefusal, ValueError):
             "a region added to a converted page cannot carry text yet: a "
             "segment's words live in readings, which arrive in a later slice "
             "(#4924). Draw the region, then transcribe it"
+        )
+
+
+class EditTargetGone(ConversionRefusal, ValueError):
+    """A replayed edit names a box that is no longer on the page (#4991).
+
+    Redo used to edit whatever sat at the recorded position. It now edits the row it edited the
+    first time, and when that row has been deleted or merged away says so instead of picking
+    another."""
+
+    status_code = 409
+
+    def __init__(self, segment_id: str) -> None:
+        self.segment_id = segment_id
+        super().__init__(
+            f"segment {segment_id!r} is no longer on this page, so the edit cannot be replayed on it"
         )
 
 
@@ -1281,6 +1309,21 @@ def apply_edit_to_segments(
         except ValidationError as exc:
             raise RegionEditShapeRefused(f"invalid region box: {exc}") from exc
 
+    def carried(points, old_rect, new_rect):
+        """A polygon/baseline mapped from the old rectangle onto the new one: translate, and
+        scale when the size changed (#4992). A zero-size old side keeps only the translation.
+
+        WHAT IS AND IS NOT CARRIED: polygon and baseline only. `anchor.shapes` (slice 7 multi-shape
+        geometry), `rotation` and a rotated frame are NOT mapped -- nothing on this route sets them
+        today, but a box that has them would keep the old ones through a move."""
+        if not points or not old_rect:
+            return points
+        ox, oy, ow, oh = old_rect
+        nx, ny, nw, nh = new_rect
+        sx = nw / ow if ow else 1.0
+        sy = nh / oh if oh else 1.0
+        return [[nx + (x - ox) * sx, ny + (y - oy) * sy] for x, y in points]
+
     def run(execute, params) -> dict:
         _result, spec = execute(db, params, ctx)
         return {"before": spec.before, "after": spec.after, "segment_ids": spec.segment_ids}
@@ -1289,12 +1332,18 @@ def apply_edit_to_segments(
         if len(indices) != 1 or edit.bbox is None:
             raise RegionEditShapeRefused("move needs exactly one index and a bbox")
         row = _rows_for_indices(rows, indices)[0]
+        moved = anchor_for(edit.bbox, like=row.anchor)
+        if moved.polygon:
+            # the shape moves with the box (#4992); the anchor is re-validated by anchor_for
+            moved = anchor_for(edit.bbox, like=row.anchor.model_copy(
+                update={"polygon": carried(row.anchor.polygon, row.anchor.rect, edit.bbox)}))
         recorded = run(
             _action_segment_update,
             SegmentUpdateParams(
                 segment_id=row.id,
                 expected_version=row.version,
-                anchor=anchor_for(edit.bbox, like=row.anchor),
+                anchor=moved,
+                baseline=carried(row.baseline, row.anchor.rect, edit.bbox),
             ),
         )
         return {"action": "segment.update", **recorded}
@@ -1365,7 +1414,12 @@ def apply_edit_to_segments(
         rects = [r.anchor.rect for r in picked if r.anchor.rect is not None]
         starts = [r.anchor.char_start for r in picked]
         ends = [r.anchor.char_end for r in picked]
-        anchor_update: dict = {}
+        # The kept row's polygon and baseline outline ONE member's line, not the union, so once the
+        # rect is the union they would lie about where the combined box is (#4992's sibling). A
+        # combined box has no single outline or baseline, and one is never invented from a
+        # rectangle, so the rect is the shape; the members' own shapes stay in their preimages and
+        # come back on uncombine.
+        anchor_update: dict = {"polygon": None}
         if rects:
             anchor_update["rect"] = _union_rect(rects)
         if all(v is not None for v in starts) and all(v is not None for v in ends):
@@ -1391,6 +1445,7 @@ def apply_edit_to_segments(
         # texts from. Written straight onto the row: it is not geometry, so
         # it is not part of the update action's compare-and-set.
         reshaped = db.get(Segment, keep_row.id)
+        reshaped.baseline = None  # see the note above `anchor_update`; `segment.update` cannot clear it
         metadata = dict(reshaped.metadata)
         existing = metadata.get("member_box_indexes") or []
         metadata["member_box_indexes"] = sorted(set(existing) | set(member_indexes))

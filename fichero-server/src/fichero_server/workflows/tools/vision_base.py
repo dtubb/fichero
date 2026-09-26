@@ -2744,6 +2744,12 @@ async def _propagate_to_page_children(
     """
     created_artifact_ids: list[str] = []
 
+    from fichero_server.api.routes.document.segment_conversion import (
+        ConversionRefusal,
+        is_converted,
+    )
+    from fichero_server.workflows.curation_guard import page_text_is_derived
+
     try:
         from fichero_server.db import db_manager
         from fichero_server.models import Artifact, Document, Status
@@ -2764,7 +2770,12 @@ async def _propagate_to_page_children(
             page_text = page_texts[page_idx]
             is_blank = not page_text or not page_text.strip()
 
-            if not is_blank:
+            # #4993/#5081: once a page's boxes have become segment rows its text is DERIVED from them
+            # (a person's edits and corrections live there), so a rerun writes nothing onto the page
+            # itself: no page_content, no re-embed. It saves a new artifact below, as every other
+            # producer does, and the guard runs before anything is written.
+            page_is_converted = page_text_is_derived(db, page_doc.id)
+            if not is_blank and not page_is_converted:
                 if not isinstance(page_doc.metadata, dict):
                     page_doc.metadata = {}
                 page_doc.page_content = page_text
@@ -2795,6 +2806,9 @@ async def _propagate_to_page_children(
                         a for a in existing_arts
                         if getattr(a, "provider", None) == provider
                         and getattr(a, "model", None) == model
+                        # A converted artifact is never rewritten in place; the rerun's
+                        # result becomes a NEW artifact beside it (#4993).
+                        and not is_converted(a)
                     ]
                     # Save even for blank pages so the inspector can
                     # distinguish "blank page" from "tool didn't run" (#1082).
@@ -2866,6 +2880,9 @@ async def _propagate_to_page_children(
                             assert_geometry_writable,
                         )
 
+                        # Unreachable today BY DESIGN: `matched` above already drops converted
+                        # artifacts, so a rerun saves a new one. Kept as the tripwire if that filter
+                        # is ever loosened -- do not delete it as dead code (#4993).
                         assert_geometry_writable(art)
                         art.content = artifact_content
                         art.ocr_geometry = (
@@ -2893,6 +2910,10 @@ async def _propagate_to_page_children(
                         )
                     db.save(art)
                     created_artifact_ids.append(art.id)
+                except ConversionRefusal:
+                    # A typed refusal has a meaning; it must reach the caller, not hide among
+                    # per-page failures (#4993).
+                    raise
                 except Exception as artifact_err:
                     logger.warning(
                         "Failed to save per-page artifact for %s page %d: %s",
@@ -2903,6 +2924,8 @@ async def _propagate_to_page_children(
             f"Propagated OCR to {len(page_docs)} page children of {parent_id}"
         )
         return created_artifact_ids
+    except ConversionRefusal:
+        raise
     except Exception as e:
         logger.warning(f"Failed to propagate OCR to page children of {parent_id}: {e}")
         return None

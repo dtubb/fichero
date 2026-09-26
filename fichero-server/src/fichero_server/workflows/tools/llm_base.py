@@ -711,12 +711,13 @@ def _save_artifact_sync(
         if doc is not None:
             from fichero_server.workflows.curation_guard import (
                 page_content_is_user_edited,
+                page_text_is_derived,
             )
 
             # Ensure metadata is a mutable dict (NULL in DB parses as None)
             if not isinstance(doc.metadata, dict):
                 doc.metadata = {}
-            user_edited = page_content_is_user_edited(doc)
+            user_edited = page_content_is_user_edited(doc) or page_text_is_derived(db, doc.id)
             # A low-confidence recogniser (Kraken/McCATMuS) must not overwrite a
             # good existing transcription: promote only into an EMPTY page. The
             # artifact above is still saved, so the result is discoverable and

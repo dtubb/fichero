@@ -2,7 +2,7 @@
 the things that come after it -- a vision rerun, an undo/redo. Built on `seeded_converted_page`.
 
 What is pinned here was OBSERVED, not assumed (2026-09-26). Passing tests are the negative results
-(the premise HOLDS there); the strict xfails are the defects, each naming its issue. They are
+(the premise HOLDS there); any strict xfail is an open defect, each naming its issue. They are
 written as the behaviour the spec wants, so fixing the defect turns the xfail into an XPASS failure
 and the marker has to come off -- nothing is fixed by this file.
 """
@@ -60,7 +60,6 @@ def _rerun_pdf_page_path(db, test_package, parent):
 
 
 class TestAMovedBoxKeepsItsShape:
-    @pytest.mark.xfail(strict=True, reason="#4992: anchor_for replaces rect only; polygon and baseline stay where the line was")
     def test_the_polygon_and_baseline_follow_the_move(self, db, client):
         _, _, art = seed_page(db)
         _move(client, art.id, 1, [0.5, 0.5, 0.3, 0.05])
@@ -68,6 +67,32 @@ class TestAMovedBoxKeepsItsShape:
         assert row.anchor.rect == [0.5, 0.5, 0.3, 0.05]
         assert min(y for _, y in row.anchor.polygon) == pytest.approx(0.5)
         assert min(y for _, y in row.baseline) >= 0.5
+
+    def test_a_resize_scales_the_shape_and_undo_puts_it_back(self, db, client):
+        _, _, art = seed_page(db)
+        _move(client, art.id, 0, [0.1, 0.1, 0.6, 0.05])  # converts; box 0 moves nowhere
+        was = _rows(db, art.id)[1]
+        was_poly, was_base = [list(p) for p in was.anchor.polygon], [list(p) for p in was.baseline]
+        _move(client, art.id, 1, [0.2, 0.2, 0.3, 0.10])  # half as wide, twice as tall
+        row = _rows(db, art.id)[1]
+        xs = [x for x, _ in row.anchor.polygon]
+        ys = [y for _, y in row.anchor.polygon]
+        assert (min(xs), max(xs)) == (pytest.approx(0.2), pytest.approx(0.5))
+        assert (min(ys), max(ys)) == (pytest.approx(0.2), pytest.approx(0.3))
+        assert row.baseline[0][0] == pytest.approx(0.2) and row.baseline[1][0] == pytest.approx(0.5)
+        first = [a for a in db.all(ActionAudit) if a.action_name == "segment.convert_and_edit"][-1]
+        assert client.post(f"/api/actions/audit/{first.id}/undo").status_code == 200
+        back = _rows(db, art.id)[1]
+        assert back.anchor.polygon == was_poly and back.baseline == was_base
+
+    def test_a_box_with_no_polygon_stays_without_one(self, db, client):
+        _, _, art = seed_page(db)
+        a = db.get(Artifact, art.id)
+        a.ocr_geometry.boxes[1].metadata = {}
+        db.save(a)
+        _move(client, art.id, 1, [0.5, 0.5, 0.3, 0.05])
+        row = _rows(db, art.id)[1]
+        assert row.anchor.polygon is None and row.baseline is None
 
     def test_the_bbox_columns_do_follow_the_rect(self, db, client):
         """The part of #4992 that is fine: reads by area are right."""
@@ -77,7 +102,41 @@ class TestAMovedBoxKeepsItsShape:
         assert (row.bbox_x, row.bbox_y) == (0.5, 0.5)
 
 
+class TestOtherPathsThatChangeARect:
+    def test_a_combined_box_does_not_keep_one_members_outline(self, db, client):
+        _, _, art = seed_page(db)
+        assert client.put(f"/api/artifacts/{art.id}/regions", json={"op": "combine", "indices": [0, 1]}).status_code == 200
+        kept = _rows(db, art.id)[0]
+        assert kept.anchor.rect == pytest.approx([0.1, 0.1, 0.6, 0.20])
+        assert kept.anchor.polygon is None and kept.baseline is None
+        first = [a for a in db.all(ActionAudit) if a.action_name == "segment.convert_and_edit"][-1]
+        assert client.post(f"/api/actions/audit/{first.id}/undo").status_code == 200
+        back = _rows(db, art.id)[0]
+        assert back.anchor.polygon is not None and back.baseline is not None, "uncombine restores the member's own shape"
+
+    def test_an_added_box_has_no_shape_to_go_stale(self, db, client):
+        _, _, art = seed_page(db)
+        assert client.put(f"/api/artifacts/{art.id}/regions", json={"op": "add", "bbox": [0.5, 0.9, 0.1, 0.05], "level": "line"}).status_code == 200
+        new = _rows(db, art.id)[-1]
+        assert new.anchor.polygon is None and new.baseline is None
+
+
 class TestARerunOnAnEditedPage:
+    def test_the_image_path_does_not_promote_a_rerun_onto_an_edited_pages_text(self, db, client, test_package):
+        """#5081's sibling: `update_page_content=True` overwrote `page_content` on a converted page."""
+        from fichero_server.workflows.tools.llm_base import LLMToolConfig, save_file_artifact
+
+        _, page, art = seed_page(db)
+        was = db.get(Document, page.id).page_content
+        _move(client, art.id, 1, [0.5, 0.5, 0.3, 0.05])
+        asyncio.run(save_file_artifact(
+            None, "brand new", page.id, str(test_package), CFG, "run-2",
+            LLMToolConfig(artifact_type="transcription", update_page_content=True),
+            ocr_geometry=_new_result(), document=db.get(Document, page.id),
+        ))
+        assert db.get(Document, page.id).page_content == was
+        assert len(db.query(Artifact, document_id=page.id)) == 2, "the run's result is still saved"
+
     def test_the_image_path_saves_a_new_artifact_and_leaves_the_edited_rows_alone(self, db, client, test_package):
         """Negative result: the path every producer but one takes already does what the spec wants."""
         _, page, art = seed_page(db)
@@ -102,7 +161,6 @@ class TestARerunOnAnEditedPage:
         text = client.get(f"/api/segments/document/{page.id}/text").json()["text"]
         assert "fifty-three" in text
 
-    @pytest.mark.xfail(strict=True, reason="#4993 (as observed, worse than filed): the in-place branch's refusal is swallowed by the per-page except; the run reports nothing failed and the new result is dropped")
     def test_a_pdf_page_rerun_is_not_silently_dropped(self, db, client, test_package):
         parent, page, art = seed_page(db)
         _move(client, art.id, 1, [0.5, 0.5, 0.3, 0.05])
@@ -110,18 +168,28 @@ class TestARerunOnAnEditedPage:
         assert ids, "the run saved nothing and said nothing"
         assert len(db.query(Artifact, document_id=page.id)) == 2
 
-    def test_a_pdf_page_rerun_does_not_raise_it_logs_and_returns_no_artifact(self, db, client, test_package, caplog):
-        """What actually happens today, so the change is visible when it comes."""
+    def test_a_pdf_page_rerun_saves_a_new_artifact_and_says_nothing_failed(self, db, client, test_package, caplog):
+        """#4993: the outlier path now behaves like the image path."""
         parent, page, art = seed_page(db)
         _move(client, art.id, 1, [0.5, 0.5, 0.3, 0.05])
         with caplog.at_level(logging.WARNING):
             ids = _rerun_pdf_page_path(db, test_package, parent)
-        assert ids == []
-        assert any("was converted to segments" in r.getMessage() for r in caplog.records)
-        assert len(db.query(Artifact, document_id=page.id)) == 1
+        assert len(ids) == 1 and ids[0] != art.id
+        assert not any("Failed to save per-page" in r.getMessage() for r in caplog.records)
+        assert len(db.query(Artifact, document_id=page.id)) == 2
         assert _rows(db, art.id)[1].anchor.rect == [0.5, 0.5, 0.3, 0.05]
 
-    @pytest.mark.xfail(strict=True, reason="#5081: the page-child path writes Document.page_content BEFORE the artifact save the refusal then blocks, so the page text becomes the rerun's while the artifact and rows keep the old one")
+    def test_a_typed_conversion_refusal_is_not_swallowed(self, db, client, test_package, monkeypatch):
+        """Were the in-place guard ever reached, the run must see the refusal, not `[]`/`None`."""
+        from fichero_server.api.routes.document import segment_conversion as sc
+
+        parent, page, art = seed_page(db)
+        _move(client, art.id, 1, [0.5, 0.5, 0.3, 0.05])
+        monkeypatch.setattr(sc, "is_converted", lambda a: False)
+        monkeypatch.setattr(sc, "assert_geometry_writable", lambda a: (_ for _ in ()).throw(sc.GeometryFrozenByConversion(a.id, "p")))
+        with pytest.raises(sc.GeometryFrozenByConversion):
+            _rerun_pdf_page_path(db, test_package, parent)
+
     def test_a_refused_pdf_page_rerun_leaves_the_page_text_alone(self, db, client, test_package):
         parent, page, art = seed_page(db)
         was = db.get(Document, page.id).page_content
@@ -131,7 +199,6 @@ class TestARerunOnAnEditedPage:
 
 
 class TestRedoOfAFirstEdit:
-    @pytest.mark.xfail(strict=True, reason="#4991: redo replays the recorded POSITION, so after a delete above it the redo moves a different box")
     def test_redo_moves_the_box_that_was_moved_not_whatever_sits_there_now(self, db, client):
         _, _, art = seed_page(db)
         _move(client, art.id, 1, [0.5, 0.5, 0.3, 0.05])
@@ -143,3 +210,56 @@ class TestRedoOfAFirstEdit:
         assert client.post(f"/api/actions/audit/{undo_audit.id}/undo").status_code == 200
         by_id = {r.id: r for r in _rows(db, art.id)}
         assert by_id[moved_id].anchor.rect == [0.5, 0.5, 0.3, 0.05]
+
+    def test_redo_of_a_delete_deletes_the_same_box_after_another_delete_above_it(self, db, client):
+        _, _, art = seed_page(db)
+        assert client.put(f"/api/artifacts/{art.id}/regions", json={"op": "delete", "indices": [2]}).status_code == 200
+        first = [a for a in db.all(ActionAudit) if a.action_name == "segment.convert_and_edit"][-1]
+        assert client.post(f"/api/actions/audit/{first.id}/undo").status_code == 200
+        victim = _rows(db, art.id)[2].id
+        assert client.put(f"/api/artifacts/{art.id}/regions", json={"op": "delete", "indices": [0]}).status_code == 200
+        undo_audit = [a for a in db.all(ActionAudit) if a.inverse_of == first.id][-1]
+        assert client.post(f"/api/actions/audit/{undo_audit.id}/undo").status_code == 200
+        assert victim not in {r.id for r in _rows(db, art.id)}
+        assert len(_rows(db, art.id)) == 2, "box 0 (deleted meanwhile) and the redone victim are both gone"
+
+    def test_redo_refuses_when_its_box_is_gone_instead_of_editing_another(self, db, client):
+        _, _, art = seed_page(db)
+        _move(client, art.id, 1, [0.5, 0.5, 0.3, 0.05])
+        first = [a for a in db.all(ActionAudit) if a.action_name == "segment.convert_and_edit"][-1]
+        assert client.post(f"/api/actions/audit/{first.id}/undo").status_code == 200
+        assert client.put(f"/api/artifacts/{art.id}/regions", json={"op": "delete", "indices": [1]}).status_code == 200
+        before = [(r.id, r.anchor.rect) for r in _rows(db, art.id)]
+        undo_audit = [a for a in db.all(ActionAudit) if a.inverse_of == first.id][-1]
+        r = client.post(f"/api/actions/audit/{undo_audit.id}/undo")
+        assert r.status_code == 409, r.text
+        assert [(x.id, x.anchor.rect) for x in _rows(db, art.id)] == before
+
+
+class TestCallersThatSendNoIds:
+    """Pinned so they are not rediscovered as a mystery: an audit row recorded before `edit_targets`
+    existed, and every other caller of `segment.convert_and_edit` (chat/workflow tools), send
+    positions only. They behave exactly as before -- positions -- and a redo of them still
+    replays by position (the #4991 gap stays open for them by design of the old record)."""
+
+    def _invoke(self, db, art, page, indices, bbox):
+        ctx = ActionContext(actor="historian", library_path=None, is_bootstrap=True)
+        return registry.invoke(db, "segment.convert_and_edit", {
+            "document_id": page.id, "artifact_id": art.id,
+            "edit": {"op": "move", "indices": indices, "bbox": bbox}}, ctx)
+
+    def test_a_call_without_ids_edits_the_box_at_the_position(self, db):
+        _, page, art = seed_page(db)
+        self._invoke(db, art, page, [1], [0.5, 0.5, 0.3, 0.05])
+        assert _rows(db, art.id)[1].anchor.rect == [0.5, 0.5, 0.3, 0.05]
+
+    def test_redo_of_a_record_without_ids_still_replays_by_position(self, db, client):
+        _, page, art = seed_page(db)
+        result = self._invoke(db, art, page, [1], [0.5, 0.5, 0.3, 0.05])
+        assert client.post(f"/api/actions/audit/{result.audit_id}/undo").status_code == 200
+        assert client.put(f"/api/artifacts/{art.id}/regions", json={"op": "delete", "indices": [0]}).status_code == 200
+        undo_audit = [a for a in db.all(ActionAudit) if a.inverse_of == result.audit_id][-1]
+        assert client.post(f"/api/actions/audit/{undo_audit.id}/undo").status_code == 200
+        moved = [r for r in _rows(db, art.id) if r.anchor.rect == [0.5, 0.5, 0.3, 0.05]]
+        assert len(moved) == 1
+        assert moved[0].metadata["box_index"] == 2, "the OLD record moves whatever sits at position 1 now"
