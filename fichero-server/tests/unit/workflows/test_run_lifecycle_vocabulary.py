@@ -220,7 +220,24 @@ class TestDeletePausedRun:
             classmethod(lambda _cls, _path: _FakeCkpt()),
         )
 
-        result = await threads.delete_thread("t-paused-delete", db=temp_db)
+        # `delete_thread` gained a `registry.invoke(..., ctx)` call, and this
+        # test calls the route function DIRECTLY, so FastAPI never resolves the
+        # `ctx: ActionContext = Depends(action_context)` default and the raw
+        # `Depends` object reached the action layer. The route is healthy —
+        # through HTTP the dependency resolves — but this test stopped
+        # exercising the success path and failed with
+        # `'Depends' object has no attribute 'is_bootstrap'`.
+        #
+        # Supplying a real context is the fix, not relaxing the assertion: the
+        # sibling 409 test still passes only because it returns BEFORE reaching
+        # the action, so nothing else here covers the delete.
+        from fichero_server.actions.registry import ActionContext
+
+        result = await threads.delete_thread(
+            "t-paused-delete",
+            db=temp_db,
+            ctx=ActionContext(actor="test", library_path=str(temp_db.path.parent)),
+        )
         assert "deleted" in result.message
         run = await store.get_workflow_run("t-paused-delete")
         assert run.status == "deleted"
