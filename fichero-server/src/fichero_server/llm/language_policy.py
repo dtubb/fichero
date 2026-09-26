@@ -62,6 +62,16 @@ SOURCE_USER = "user"
 SOURCE_DETECTED = "detected"
 SOURCE_METADATA = "metadata"
 
+#: Computed from the resolved script rather than stated anywhere
+#: (`source.dir.per-segment`, and the encoding read of `three-facts`). It belongs
+#: on the SOURCE axis and was briefly, wrongly, a fifth `level`: a derivation is
+#: not a rung, it is a way of determining, and a `level` field that sometimes
+#: holds a non-rung cannot be reasoned about — the same conflation refused when
+#: `source` was proposed as the home for the rung. A derived answer's `level` is
+#: `None`, which is the accurate reading of the rule that `None` means NOT
+#: STATED: no rung stated it, because nobody did.
+SOURCE_DERIVED_FROM_SCRIPT = "derived-from-script"
+
 # ``language_meta["level"]`` values — WHICH LEVEL of the cascade supplied the
 # value (source-model slice 9, #4938, `source.lang.says-where-from`).
 #
@@ -118,12 +128,41 @@ class LanguageResolution:
 
     ``basis`` is a short human-readable phrase naming what decided it, so the
     answer can be shown to a user rather than silently applied.
+
+    ONE TYPE FOR EVERY LANGUAGE-LIKE FACT (source-model slice 9, #4938): this
+    also carries a resolved SCRIPT, DIRECTION and ENCODING. The four fields
+    answer the same four questions for each of them — what the value is, whether
+    it is known, how it was determined, and which rung it came from — so three
+    dataclasses with identical fields would be three copies of one idea and three
+    sets of readers to keep in step.
+
+    The cost is that ``language`` holds a script at a `resolve_script` call site,
+    which reads oddly and is said here rather than softened with a second name
+    for the same type (an alias was tried and dropped: it renamed the type and
+    not the field, so the awkwardness survived at the exact call site it was
+    meant to help, while two names for one type made either one ungreppable on
+    its own). If the field name is what grates, renaming it is a deliberate
+    change to a type load-bearing at four levels, not a slice-9 edit.
     """
 
     language: str | None
     status: str
     source: str
     basis: str
+    #: WHICH RUNG of the cascade the answer came from — the same
+    #: `LEVEL_PROJECT`/`LEVEL_DOCUMENT`/`LEVEL_SEGMENT`/`LEVEL_READING`
+    #: vocabulary `language_meta["level"]` uses, never a second spelling
+    #: (source-model slice 9, #4938, `source.lang.says-where-from`).
+    #:
+    #: It is the rung the answer CAME FROM, not the rung that asked: a caller
+    #: resolving for a segment that states nothing gets `LEVEL_DOCUMENT` back,
+    #: because that is where the value was found. That is the whole purpose of
+    #: the field — a caller already knows what it asked about.
+    #:
+    #: `None` means NOT STATED, never "unknown". `STATUS_UNKNOWN` already
+    #: carries unknown and the two must not begin to overlap: a resolution can
+    #: be unknown and still say which rung established that.
+    level: str | None = None
 
     @property
     def is_known(self) -> bool:
@@ -349,22 +388,183 @@ def set_user_language(document: Any, language: str | None) -> None:
 # ---------------------------------------------------------------------------
 
 
+#: The ISO 15924 codes that let a script be recorded honestly rather than
+#: guessed (`source.lang.registries`). Without these a reader is forced to
+#: either invent a script or leave the fact blank, and blank already means
+#: "never determined".
+SCRIPT_UNWRITTEN = "Zxxx"     # a spoken source, a recording: no script at all
+SCRIPT_UNDETERMINED = "Zyyy"  # written, and which script is not established
+
+#: ISO 15924 reserves `Qaaa` to `Qabx` for private use, and
+#: `source.lang.project-declared` rests on it: a project can declare a script no
+#: registry has without minting a code that will one day collide with a real one.
+SCRIPT_PRIVATE_USE_PREFIX = "Q"
+
+
+def script_is_private_use(code: str | None) -> bool:
+    """Whether a code LOOKS like a private-use script code: four letters, first `Q`.
+
+    Says what it does rather than what the range is. ISO 15924's private-use
+    range stops at `Qabx`, so `Qzzz` is not assignable — and this returns True
+    for it anyway, deliberately: treating an unassignable Q-code as a project's
+    own is harmless, while treating it as registered would let a project mint a
+    code that collides the day the registry grows. The range is not checked
+    because a predicate whose comment and behaviour disagree is worse than no
+    predicate: the comment is what the next reader trusts.
+    """
+    return bool(code) and len(code) == 4 and code[0] == SCRIPT_PRIVATE_USE_PREFIX
+
+
+def _stated_fact(
+    holder: Any, *, value_field: str, meta_field: str, level: str, noun: str
+) -> LanguageResolution | None:
+    """What one record says about one fact, or None if it says nothing.
+
+    ONE reader for language and script, parameterised by field name, because the
+    three states are the same three for every fact: stated, examined-and-
+    undetermined, never examined. `None` here means the third — it FALLS THROUGH
+    to the next rung, while an examined-and-undetermined answer stops the walk
+    (`source.lang.unknown-is-not-unexamined` as control flow).
+    """
+    value = _doc_get(holder, value_field)
+    meta = _doc_get(holder, meta_field) or {}
+    if value:
+        return LanguageResolution(
+            language=value,
+            status=RESOLVED,
+            source=meta.get("source") or SOURCE_METADATA,
+            basis=f"recorded on this {noun}",
+            level=level,
+        )
+    if meta.get("status") == STATUS_UNKNOWN:
+        return LanguageResolution(
+            language=None,
+            status=UNKNOWN,
+            source=meta.get("source") or SOURCE_DETECTED,
+            basis=f"this {noun} was examined and its {value_field} could not be determined",
+            level=level,
+        )
+    return None
+
+
+def resolve_script(
+    *,
+    requested: str | None = None,
+    reading: Any = None,
+    segment: Any = None,
+    document: Any = None,
+    project: Any = None,
+) -> LanguageResolution:
+    """Which script a thing is written in, and which rung said so (#4938).
+
+    A SIMPLER cascade than language's, deliberately, and not a copy of it:
+    there is no script policy to consult and no script detector to run, so the
+    walk is reading → segment → document and then honestly unknown. Inventing a
+    project-wide script setting to make the two symmetrical would be adding a
+    feature nobody asked for so that two functions could look alike.
+
+    `source.lang.reading-overrides`: a reading's own script wins for that
+    reading — a transliterated reading of a Latin-script line is Arabic script,
+    and the line is not.
+
+    Returns `Zyyy` (undetermined) for nothing found? **No.** It returns an
+    UNKNOWN resolution with `level=None`, because `Zyyy` is a positive claim
+    that somebody looked and could not tell, and "nobody has looked" is a
+    different state. Writing `Zyyy` here would collapse exactly the distinction
+    `unknown-is-not-unexamined` protects.
+    """
+    if requested and _norm(requested) not in {"", "auto"}:
+        return LanguageResolution(
+            language=requested.strip(),
+            status=RESOLVED,
+            source="requested",
+            basis="pinned on the workflow node",
+            level=None,
+        )
+
+    for holder, level, noun in (
+        (reading, LEVEL_READING, "reading"),
+        (segment, LEVEL_SEGMENT, "segment"),
+        (document, LEVEL_DOCUMENT, "document"),
+        # The PROJECT rung. A plain holder like the three above -- a
+        # `ProjectFacts` record read once by the caller -- so adding a level cost
+        # this walk one line and no new way of reading a fact. There is still no
+        # project SCRIPT POLICY: the project states a script or it does not.
+        (project, LEVEL_PROJECT, "project"),
+    ):
+        if holder is None:
+            continue
+        stated = _stated_fact(
+            holder, value_field="script", meta_field="script_meta", level=level, noun=noun
+        )
+        if stated is not None:
+            return stated
+
+    return LanguageResolution(
+        language=None,
+        status=UNKNOWN,
+        source=NEVER_DETERMINED,
+        basis="no script has been recorded at any level",
+        level=None,
+    )
+
+
+def _segment_stated_language(segment: Any) -> LanguageResolution | None:
+    """What a segment says about its own language, or None if it says nothing.
+
+    `None` is the answer for a segment that has never been examined, and it is
+    deliberately different from a segment recorded as unknown: the first falls
+    through to the document, the second is an answer. That is
+    `source.lang.unknown-is-not-unexamined` expressed as control flow.
+    """
+    language = _doc_get(segment, "language")
+    meta = _doc_get(segment, "language_meta") or {}
+    if language:
+        return LanguageResolution(
+            language=language,
+            status=RESOLVED,
+            source=meta.get("source") or SOURCE_METADATA,
+            basis="recorded on this segment",
+            level=LEVEL_SEGMENT,
+        )
+    if meta.get("status") == STATUS_UNKNOWN:
+        # Examined and undetermined AT THIS LEVEL. It does not fall through:
+        # somebody looked at this region and could not tell, and the document's
+        # broader answer would overwrite that finding with a guess.
+        return LanguageResolution(
+            language=None,
+            status=UNKNOWN,
+            source=meta.get("source") or SOURCE_DETECTED,
+            basis="this segment was examined and its language could not be determined",
+            level=LEVEL_SEGMENT,
+        )
+    return None
+
+
 def resolve_language(
     *,
     requested: str | None = None,
     document: Any = None,
+    segment: Any = None,
     text: str = "",
     policy: LanguagePolicy | None = None,
     detect: bool = True,
 ) -> LanguageResolution:
-    """Resolve the language to use for one document.
+    """Resolve the language to use for one document, or one segment of one.
 
     Precedence, highest first:
 
     1. ``requested`` — an explicit language pinned on the workflow node. The
        user typed it into this run; nothing outranks that. ``""``/``auto`` mean
        "no request".
-    2. A **user-set** document language. A human correction outranks the global
+    2. **The segment's own language**, when a segment is given (source-model
+       slice 9, #4938). Below a pinned request and above everything about the
+       document, because `source.lang.many-per-page` means a page can hold
+       several languages at once: a Latin marginal note beside a Spanish entry
+       is a fact about the REGION, and the document's answer is the wrong one
+       for it. A segment that states nothing falls through — stating nothing is
+       not stating unknown.
+    3. A **user-set** document language. A human correction outranks the global
        default, which is the whole point of an override; the global setting is a
        default, not an instruction to overwrite people's work.
     3. The policy:
@@ -390,7 +590,19 @@ def resolve_language(
             status=RESOLVED,
             source="requested",
             basis="pinned on the workflow node",
+            # The caller's own rung: a language pinned on this run is not
+            # inherited from anywhere, so it is not one of the four.
+            level=None,
         )
+
+    # The SEGMENT rung. Read before the document's, and it returns only when the
+    # segment actually states a language: `Segment.language` is `None` until
+    # something determines one, and `None` means never determined, so falling
+    # through is correct rather than a missed case.
+    if segment is not None:
+        segment_language = _segment_stated_language(segment)
+        if segment_language is not None:
+            return segment_language
 
     doc_language = read_document_language(document) if document is not None else None
 
@@ -400,6 +612,7 @@ def resolve_language(
             status=RESOLVED,
             source=SOURCE_USER,
             basis="set on this document by a user",
+            level=LEVEL_DOCUMENT,
         )
 
     if policy.mode == "one":
@@ -408,6 +621,7 @@ def resolve_language(
             status=RESOLVED,
             source="policy",
             basis="the library's language policy",
+            level=LEVEL_PROJECT,
         )
 
     # A language recorded ON the document outranks detecting one from its text
@@ -423,6 +637,7 @@ def resolve_language(
                 status=RESOLVED,
                 source=doc_language.source,
                 basis="recorded on this document",
+                level=LEVEL_DOCUMENT,
             )
         return LanguageResolution(
             language=None,
@@ -432,6 +647,10 @@ def resolve_language(
                 f"the document's language ({doc_language.language}) is not one of "
                 f"the languages this library processes ({', '.join(policy.languages)})"
             ),
+            # The PROJECT's policy refused the document's own answer, so the
+            # project is the rung that decided — an unknown still says where
+            # the decision was made.
+            level=LEVEL_PROJECT,
         )
 
     if policy.mode == "unset":
@@ -519,3 +738,153 @@ def describe(resolution: LanguageResolution) -> dict[str, Any]:
         "language_source": resolution.source,
         "language_basis": resolution.basis,
     }
+
+
+# ---------------------------------------------------------------------------
+# Direction (`source.dir.per-segment`, `source.dir.logical-order-stored`; #4938)
+# ---------------------------------------------------------------------------
+
+#: The four straight directions, plus the two a manuscript actually needs: a
+#: boustrophedon inscription that turns at the end of every line, and a line
+#: that follows a curved or slanted baseline rather than any axis.
+DIRECTION_LTR = "ltr"
+DIRECTION_RTL = "rtl"
+DIRECTION_TTB = "ttb"
+DIRECTION_BTT = "btt"
+DIRECTION_ALTERNATING = "alternating"
+DIRECTION_FOLLOWS_BASELINE = "follows-baseline"
+DIRECTIONS: tuple[str, ...] = (
+    DIRECTION_LTR,
+    DIRECTION_RTL,
+    DIRECTION_TTB,
+    DIRECTION_BTT,
+    DIRECTION_ALTERNATING,
+    DIRECTION_FOLLOWS_BASELINE,
+)
+
+#: Scripts written right to left. Short and deliberately so: this is a DEFAULT
+#: for a value nobody set, not a claim to know every script's direction. A
+#: script absent from here derives `ltr`, which is what an unlabelled page gets
+#: today, and any level can override it.
+_RTL_SCRIPTS = frozenset(
+    {"Arab", "Hebr", "Syrc", "Thaa", "Nkoo", "Samr", "Mand", "Armi", "Phnx", "Adlm"}
+)
+
+#: Scripts that MAY be written vertically. They resolve `ltr` all the same,
+#: because "may be vertical" is not a direction and a page of modern horizontal
+#: Japanese is the common case. Kept as a named set because the honest answer
+#: for these is "ask the source", and a caller that wants to prompt for one
+#: needs to know which they are.
+_MAYBE_VERTICAL_SCRIPTS = frozenset({"Hani", "Hans", "Hant", "Hira", "Kana", "Jpan", "Hang", "Kore", "Mong", "Phag"})
+
+
+def script_may_be_vertical(script: str | None) -> bool:
+    """Whether this script is one whose direction genuinely needs asking about."""
+    return bool(script) and script in _MAYBE_VERTICAL_SCRIPTS
+
+
+def direction_is_known(direction: str | None) -> bool:
+    """Whether a value is one of the six directions."""
+    return direction in DIRECTIONS
+
+
+class BadDirection(ValueError):
+    """Raised when a direction outside the six is recorded."""
+
+    def __init__(self, direction: str) -> None:
+        self.direction = direction
+        super().__init__(
+            f"unknown direction {direction!r}; allowed: " + ", ".join(DIRECTIONS)
+        )
+
+
+def assert_known_direction(direction: str | None) -> None:
+    """Refuse a direction outside the list. `None` is allowed: it means nothing
+    has been set at this level, which is what the cascade walks past.
+
+    NO WRITER CALLS THIS YET, and that is stated rather than hidden: nothing in
+    the engine sets a segment's language, script or direction today — the action
+    that will (`source_setting.set`) is the next chunk of this slice. It is
+    called on a `requested` direction by `resolve_direction`, which is the one
+    place a caller-supplied value arrives, so it is not dead code; it is a guard
+    waiting for the writer it was designed with.
+    """
+    if direction is None:
+        return
+    if not direction_is_known(direction):
+        raise BadDirection(direction)
+
+
+def resolve_direction(
+    *,
+    requested: str | None = None,
+    reading: Any = None,
+    segment: Any = None,
+    document: Any = None,
+    project: Any = None,
+    script: str | None = None,
+) -> LanguageResolution:
+    """Which direction a thing is written in, and which rung said so (#4938).
+
+    The SAME walk as `resolve_script`, through the same `_stated_fact` reader,
+    and then one thing neither of the other two facts has: a **derivation**. A
+    page with nothing set anywhere still has to be laid out, and `Arab` gives
+    `rtl` far more often than it does not — so the last step works the answer
+    out from the resolved script and reports `level=derived-from-script`.
+
+    Why that is not the same mistake as writing `Zyyy` for an unexamined script:
+    a derived direction is a DISPLAY decision that must be made either way (the
+    text is drawn somewhere), while a script is a CLAIM about the source that
+    nobody has to make. Naming the level is what keeps the two apart — a reader
+    is told the direction was worked out, not chosen, and any level overrides it.
+
+    `script` is passed in rather than resolved here so one caller can resolve
+    the script once and use it for both facts; when it is omitted the script is
+    resolved from the same records.
+    """
+    if requested and _norm(requested) not in {"", "auto"}:
+        assert_known_direction(requested.strip())
+        return LanguageResolution(
+            language=requested.strip(),
+            status=RESOLVED,
+            source="requested",
+            basis="pinned on the workflow node",
+            level=None,
+        )
+
+    for holder, level, noun in (
+        (reading, LEVEL_READING, "reading"),
+        (segment, LEVEL_SEGMENT, "segment"),
+        (document, LEVEL_DOCUMENT, "document"),
+        (project, LEVEL_PROJECT, "project"),
+    ):
+        if holder is None:
+            continue
+        stated = _stated_fact(
+            holder, value_field="direction", meta_field="direction_meta",
+            level=level, noun=noun,
+        )
+        if stated is not None:
+            return stated
+
+    if script is None:
+        resolved_script = resolve_script(
+            reading=reading, segment=segment, document=document, project=project
+        )
+        script = resolved_script.language
+
+    derived = DIRECTION_RTL if script in _RTL_SCRIPTS else DIRECTION_LTR
+    return LanguageResolution(
+        language=derived,
+        status=RESOLVED,
+        source=SOURCE_DERIVED_FROM_SCRIPT,
+        basis=(
+            f"worked out from the script ({script})" if script
+            else "no script is recorded either, so the reading order of the text is assumed"
+        ),
+        # No rung stated this. The distinction a reader needs -- a direction
+        # worked out versus one a person chose -- is carried by `source`, which
+        # is the field a caller already inspects to decide whether to trust a
+        # value, and `level` stays four pure rungs.
+        level=None,
+    )

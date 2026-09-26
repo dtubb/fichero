@@ -100,7 +100,10 @@ def _last_snapshot_bytes(library_path: Path) -> int | None:
         # `list_snapshots` filters by library_NAME, not path (checked, not
         # assumed). A `.fichero` package's name is its stem.
         snapshots = list_snapshots(library_name=library_path.stem)
-    except Exception as exc:  # a missing app database, a fresh machine
+    except (OSError, RuntimeError, ValueError) as exc:
+        # NARROWED (#4420 sweep): a missing app database or a fresh machine. The
+        # fallback is the project's own size, which is a worse estimate and not
+        # a wrong answer.
         logger.debug("no snapshot history to size against: %s", exc)
         return None
     # There is no single `size_bytes`: a snapshot records three parts, and the
@@ -201,7 +204,9 @@ def prove_snapshot(db: Any, snapshot: Any) -> dict[str, Any]:
 
     try:
         snapshot_counts = db.row_counts_of_database_file(str(restore_source))
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError) as exc:
+        # NARROWED (#4420 sweep): an unreadable or empty snapshot is a refusal,
+        # a programming error is not.
         return {
             "tables": 0,
             "rows": 0,
@@ -285,10 +290,12 @@ def plan_conversion(db: Any, library_path: str | Path) -> ConversionRun | None:
         # close, so this is within the runner's rights over a connection it
         # borrowed; it costs one write and it is the difference between a way
         # back and an empty file that looks like one.
-        try:
-            db.checkpoint()
-        except Exception as exc:
-            logger.warning("could not checkpoint before snapshotting: %s", exc)
+        # NOT wrapped in its own try (#4420 sweep). A failed flush before a
+        # snapshot was the shape of #5070: the copy silently lacked the recent
+        # writes and looked fine. If the checkpoint cannot be taken, the
+        # conversion must refuse rather than snapshot an incomplete file — so
+        # this is allowed to fall through to the refusal below.
+        db.checkpoint()
 
         snapshot = snapshot_library(
             str(library_path),
@@ -299,7 +306,14 @@ def plan_conversion(db: Any, library_path: str | Path) -> ConversionRun | None:
             initiator="system",
             run_id=run.run_id,
         )
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError) as exc:
+        # NARROWED (#4420 sweep). These are what a snapshot genuinely fails
+        # with: `snapshot_library` wraps its own failures in `RuntimeError`
+        # (including the new "copy has NO TABLES"), the filesystem raises
+        # `OSError`, and a bad library path raises `ValueError`. Anything else —
+        # a `TypeError` from my own code, say — is a BUG and must not read as
+        # "no snapshot was available", which is the reassuring-log-line shape
+        # that let #5070 hide for so long.
         logger.warning("project conversion refused: no snapshot (%s)", exc)
         run.verdict = ConversionVerdict.refused_snapshot
         run.finished_at = utc_now()
@@ -346,7 +360,13 @@ def _pin(snapshot: Any) -> None:
 
         snapshot.is_pinned = True
         _save_snapshot_record(snapshot)
-    except Exception as exc:
+    except (OSError, ValueError, TypeError) as exc:
+        # NARROWED (#4420 sweep) to what writing a JSON registry actually fails
+        # with: the filesystem (`OSError`) and serialisation (`ValueError`,
+        # `TypeError`). The tolerance is deliberate — a snapshot that is proved
+        # but not pinned is still a way back, so refusing a conversion over a
+        # bookkeeping flag would be refusing over the wrong thing — but it is
+        # tolerance for a NAMED set of failures, not for anything at all.
         logger.warning(
             "could not pin snapshot %s; it is still the way back, but retention "
             "may tidy it: %s", snapshot.id, exc,
@@ -557,7 +577,10 @@ def convert_project(
 
     try:
         set_background_qos()
-    except Exception as exc:
+    except (OSError, AttributeError, ImportError, NotImplementedError) as exc:
+        # NARROWED (#4420 sweep): a platform that does not offer the API. The
+        # consequence is only that the machine feels this more than it should,
+        # which is worth a line and not worth refusing to convert over.
         # A missing QoS API is not a reason to refuse to convert; it is a reason
         # the machine will feel this more than it should, which is worth a line.
         logger.warning("could not lower this thread's priority: %s", exc)
@@ -572,10 +595,28 @@ def convert_project(
             break
         try:
             outcome = _convert_one_page(db, document_id, run.run_id)
-        except Exception as exc:
-            # A page that cannot convert is RECORDED AND SKIPPED. It does not
-            # stop the others, and it still reads from its block exactly as
-            # before, so the library is not worse for the failure.
+        except Exception as exc:  # noqa: BLE001 — see below; baselined in #4420
+            # DELIBERATELY BROAD, and baselined with this reason rather than
+            # narrowed (#4420 sweep).
+            #
+            # This is the rule "a page at a time, each page all or nothing": a
+            # page that cannot convert is RECORDED AND SKIPPED. It does not stop
+            # the others, and it still reads from its block exactly as before, so
+            # the library is not worse for the failure.
+            #
+            # It cannot be narrowed honestly. The page action reaches the whole
+            # audited write path, and what arrives here includes typed conversion
+            # refusals, `HTTPException`, pydantic `ValidationError`, DuckDB
+            # errors, and anything a workflow tool in the chain raises. Listing
+            # today's set would be a list that silently stops covering the case
+            # the moment somebody adds a refusal — and an uncaught one would
+            # abandon a whole project's conversion over a single bad page, which
+            # is the opposite of the rule.
+            #
+            # The exception is NOT lost, which is what makes this different from
+            # the handlers the sweep exists to catch: it is recorded on the run
+            # with the document that failed, it is in the report a person is
+            # shown, and it is logged. Nothing is silent.
             run.failures.append(
                 ConversionFailure(document_id=document_id, reason=str(exc))
             )
@@ -593,7 +634,18 @@ def convert_project(
         if on_page is not None:
             try:
                 on_page(run)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — a caller's callback
+                # DELIBERATELY BROAD, baselined (#4420 sweep). `on_page` is a
+                # CALLER'S function and can raise literally anything; there is no
+                # type to narrow to, and saying so is better than pretending
+                # otherwise with a list that means nothing.
+                #
+                # It must not fail a page that in fact converted: the conversion
+                # is committed by the time this runs, so letting a progress
+                # callback abort the run would record a failure that did not
+                # happen. `debug` rather than `warning` because a caller's own
+                # bug is the caller's to see, and it is not evidence about the
+                # library.
                 logger.debug("conversion progress callback raised: %s", exc)
 
     run.verdict = ConversionVerdict.completed

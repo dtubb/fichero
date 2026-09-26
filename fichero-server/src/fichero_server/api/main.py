@@ -1909,6 +1909,7 @@ from fichero_server.api.routes.document import (  # noqa: E402
     segment_pictures as document_segment_pictures,
     segment_readings as document_segment_readings,
     segments as document_segments,
+    source_settings as document_source_settings,
     sources,
     view as document_view,
 )
@@ -2001,6 +2002,11 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # the representation table AND from the artifacts the engine's text still
     # lives in, and the caller cannot tell which (source.one-store).
     (document_segment_readings.router, "/api", ["segments"]),
+    # Source-model slice 9 (#4938): the cascade's facts at the project and node
+    # levels, and the one resolve read that says which rung answered. A SEGMENT's
+    # facts are set through `segment.update` (ruled 2026-09-26) -- see that
+    # module's docstring for why the asymmetry is deliberate.
+    (document_source_settings.router, "/api", ["source-settings"]),
     # Renditions — alternative pixels of one node; ordered engine-side so the
     # preview and any card surface agree what "next" means (2026-08-20).
     (renditions.router, "/api", ["renditions"]),

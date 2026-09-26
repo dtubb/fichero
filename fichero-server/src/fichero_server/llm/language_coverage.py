@@ -40,6 +40,25 @@ class LanguageSpec(BaseModel):
     code: str
     name: str
     script: str | None = None
+    #: A Glottolog code, beside the BCP 47 tag in `code` above — source-model
+    #: slice 9 (#4938), `source.lang.registries`: "language holds a BCP 47 tag
+    #: and, separately, a Glottolog code (a second code on the engine's existing
+    #: language record, NOT a new registry)".
+    #:
+    #: SEPARATELY is the point, and it is not redundancy. BCP 47 answers "how do
+    #: I tag this text so software handles it correctly" and is deliberately
+    #: coarse: hundreds of languages a historian works in share `es` or have no
+    #: tag at all. Glottolog answers "which language is this, as linguists
+    #: individuate them" and has a code for every one, including unwritten ones
+    #: and ones with no ISO 639-3 entry. A colonial document in an Indigenous
+    #: language may be untaggable in BCP 47 and precisely identified in
+    #: Glottolog, and collapsing the two would force a choice between software
+    #: correctness and scholarly accuracy.
+    #:
+    #: `None` means not stated, the same as everywhere else in this cascade — a
+    #: language that has a BCP 47 tag and no glottocode is an ordinary state,
+    #: not an incomplete record.
+    glottocode: str | None = None
 
 
 class LanguageTierCounts(BaseModel):

@@ -1202,6 +1202,7 @@ class Database(DatabaseEmbeddingMixin):
             ReferenceProvenance,
         )
         from fichero_server.models.conversion import ConversionRun
+        from fichero_server.models.source_declarations import LibraryScript
         from fichero_server.models import (
             ActionAudit,
             AgentNote,
@@ -1303,6 +1304,12 @@ class Database(DatabaseEmbeddingMixin):
             KnowledgePredictionRun,
             LibraryEntityType,
             LibraryItemLink,
+            # Source-model slice 9 (#4938): a project's declared scripts.
+            # Position here is NOT load-bearing, unlike the slice-8 entries
+            # above: nothing at open reads this table and it carries no index
+            # on another table's column. It sits with the other Library*
+            # vocabulary tables so a reader finds them together.
+            LibraryScript,
             LibraryReadingKind,
             Milestone,
             MutationLog,

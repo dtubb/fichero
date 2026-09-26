@@ -133,6 +133,7 @@ loaders/kreuzberg_cache.py::prewarm_for_extraction 1
 loaders/pdf_loader.py::PDFTextLoader.load 1
 loaders/xmp_loader.py::_extract_xmp_fields 1
 loaders/xmp_loader.py::_parse_xmp_file 1
+maintenance/project_conversion.py::convert_project 1
 mcp/manager.py::MCPManager.load_all_tools 1
 security/keychain.py::_invalidate_llm_api_key_cache 1
 security/path_security.py::configured_library_allowed_roots 1

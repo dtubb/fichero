@@ -135,6 +135,28 @@ class SegmentRead(BaseModel):
     baseline: list[list[float]] | None = None
     text: str | None = None
     confidence: float | None = None
+    #: The language and script SET ON THIS SEGMENT -- not resolved
+    #: (`source.lang.many-per-page`, slice 9, #4938). Two reasons they are the
+    #: stored values and not the cascade's answer: resolving every segment of a
+    #: page in a list call would be one walk per row, and a resolved value
+    #: copied into a list row is indistinguishable from one a person set on the
+    #: region, which is exactly the confusion `says-where-from` exists to
+    #: prevent. The app asks for the resolved value of the SELECTION.
+    #:
+    #: ``None`` means this segment states nothing, which falls through the
+    #: cascade; it does not mean unknown. The `language_meta`/`script_meta`
+    #: that tell those two apart are deliberately not here -- a list row is not
+    #: where that distinction is read, and the resolve call carries it.
+    #: A provisional segment always reads ``None``: a box inside an artifact
+    #: blob has nowhere to have stored one.
+    language: str | None = None
+    script: str | None = None
+    #: Set on this segment, like the two above -- NOT the derived direction. A
+    #: list row that carried `ltr` for every segment because the cascade derives
+    #: it would look like somebody chose it for every one of them.
+    #: (`line_progression` is deliberately not here: no surface reads it yet,
+    #: and a field the app never asks for is a field nobody keeps correct.)
+    direction: str | None = None
     source_artifact_id: str | None = None
     #: Position inside the owning artifact's ``ocr_geometry.boxes`` -- only
     #: meaningful (and only ever set) for a provisional segment.
@@ -569,6 +591,52 @@ class Segment(BaseModel):
     doc_kind: str
     #: Machine confidence of the SHAPE (not a reading), if the tool gave one.
     confidence: float | None = None
+
+    # ---- Source-model slice 9 (#4938): the missing middle of the cascade ----
+    #
+    # Language and script already existed at the top (`LanguagePolicy`, the
+    # project/app level), at the document (`Document.language` +
+    # `language_meta`) and at the reading (`ContentRepresentation.language` +
+    # `.script` + their metas). THE SEGMENT HAD NEITHER — so a cascade the
+    # source model is about skipped the level the source model is about.
+    #
+    # WHY A SEGMENT NEEDS ITS OWN, and it is not symmetry for its own sake:
+    # `source.lang.many-per-page` says one page can hold several languages and
+    # scripts at once. A marginal note in Latin beside a Spanish entry, a Greek
+    # quotation inside a Latin text, a bilingual ledger — the page has no single
+    # answer, and the reading is too low a level to carry it because a line can
+    # have several readings in the SAME language. The region is where "this part
+    # of the page is in this language" belongs.
+    #
+    # `None` at every one of these means NEVER DETERMINED, not unknown. The
+    # cascade's job is to supply a value when a segment does not state one; it
+    # is not to write a guess here.
+    language: str | None = None
+    script: str | None = None
+    #: Where this segment's language and script came from, in the same
+    #: `{status, source, confidence, basis, level}` shape `Document.language_meta`
+    #: and `ContentRepresentation.language_meta` already use, built by
+    #: `llm.language_policy.build_language_meta`. One shape for one idea.
+    language_meta: dict[str, Any] | None = None
+    script_meta: dict[str, Any] | None = None
+    #: Which way this segment is written: one of the six in
+    #: `llm.language_policy.DIRECTIONS` (`source.dir.per-segment`). The third
+    #: fact of the cascade, carried the same way as the first two, so one walk
+    #: answers all three instead of direction getting a mechanism of its own.
+    #:
+    #: `None` here does NOT fall through to a guess: it falls through to a
+    #: DERIVATION from the resolved script, reported at level
+    #: `derived-from-script`, because a page has to be laid out either way. That
+    #: is the one place this cascade supplies an answer nobody stated, and
+    #: naming the level is what keeps it from looking like a choice someone made.
+    direction: str | None = None
+    direction_meta: dict[str, Any] | None = None
+    #: For a REGION only: the way its lines or columns succeed one another,
+    #: which is a separate fact from the way each line runs. Vertical Japanese
+    #: is `ttb` text whose columns progress `rtl`; a right-to-left line in a
+    #: European book still progresses `ttb`. One field could not say both.
+    line_progression: str | None = None
+
     is_furniture: bool = False
     provenance_kind: ProvenanceKind
     created_by: str | None = None
@@ -770,6 +838,11 @@ def segment_read_from_row(
         # row's words come from the box or boxes it was made from.
         text=words,
         confidence=row.confidence,
+        # Slice 9 (#4938): what this segment itself says, so one page comes back
+        # as several languages and scripts rather than one.
+        language=row.language,
+        script=row.script,
+        direction=row.direction,
         # The artifact this row's PASS was converted from, when the caller
         # knows it (#4924 review). A segment made from scratch has none and
         # still reads `None`; a converted one reports the same artifact the
@@ -903,6 +976,18 @@ class SegmentVersion(BaseModel):
     anchor: SourceAnchor
     baseline: list[list[float]] | None = None
     is_furniture: bool = False
+    #: The cascade's three facts, snapshotted with everything else (slice 9,
+    #: #4938). They are here because the preimage is what undo restores from:
+    #: a field `segment.update` can change and `SegmentVersion` does not carry
+    #: is a field undo silently leaves at its new value, which is worse than
+    #: not being editable at all.
+    language: str | None = None
+    script: str | None = None
+    direction: str | None = None
+    language_meta: dict[str, Any] | None = None
+    script_meta: dict[str, Any] | None = None
+    direction_meta: dict[str, Any] | None = None
+    line_progression: str | None = None
     #: True when this snapshot is the state a delete (or a merge's
     #: soft-delete of an absorbed segment) acted on -- "writes a deleted
     #: version" -- never on an ordinary update's snapshot.
@@ -977,6 +1062,9 @@ def snapshot_segment_version(
         kind=row.kind, kind_raw=row.kind_raw, anchor=row.anchor, baseline=row.baseline,
         is_furniture=row.is_furniture, deleted=deleted, actor=actor,
         provenance_kind=row.provenance_kind, audit_id=audit_id, reason=reason,
+        language=row.language, script=row.script, direction=row.direction,
+        language_meta=row.language_meta, script_meta=row.script_meta,
+        direction_meta=row.direction_meta, line_progression=row.line_progression,
     )
     db.save(version)
     row.version += 1
