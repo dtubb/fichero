@@ -197,14 +197,64 @@ def snapshot_library(
     db_path = library_path_p / "fichero.duckdb"
     if db_path.exists():
         try:
-            _quiesce_library_database(library_path_p, close=False)
+            # ONE atomic step: checkpoint and copy without releasing the lock
+            # (#5070 review). The old pair — `_quiesce_library_database(...)` then
+            # `shutil.copy2(...)` — released the write lock between them, so a
+            # managed write could land in the window and tear the copy. That
+            # mattered little while the copy was an unproved spare; it matters
+            # entirely now that the copy is what the export reads and what a
+            # restore restores.
+            from fichero_server.db.manager import db_manager
+
             duckdb_copy_path = duckdb_file_dir / "fichero.duckdb"
-            shutil.copy2(db_path, duckdb_copy_path)
+            db_manager.copy_database_file(
+                library_path_p, duckdb_copy_path, source=db_path
+            )
             duckdb_size = duckdb_copy_path.stat().st_size
 
-            export_conn = connect_utc(str(db_path), read_only=True)
+            # EXPORT FROM THE COPY, never from the live file (#5070).
+            #
+            # This used to open `db_path` read-only — and DuckDB refuses a
+            # read-only connection to a file that is already open read-write
+            # with a different configuration, which is the state a library is in
+            # WHENEVER ANYONE IS USING THE APP. `_quiesce_library_database`
+            # above checkpoints the managed connection but deliberately does not
+            # release it (see `quiesce_database`: taking the lock to CHECKPOINT
+            # quiesces managed WRITES, which is not the same as freeing the file
+            # for a second connection). So every snapshot taken from inside a
+            # request failed here.
+            #
+            # The copy above is a complete, quiesced, private file. Opening THAT
+            # conflicts with nothing, and it is the better thing to read anyway:
+            # the export now describes the artifact a restore would actually use
+            # rather than a sidecar derived from a file that may have moved on.
+            export_conn = connect_utc(str(duckdb_copy_path), read_only=True)
             # Get list of tables
             tables = export_conn.execute("SHOW TABLES").fetchall()
+
+            # PROVE THE COPY BEFORE CALLING IT A SNAPSHOT (#5070, second defect).
+            #
+            # A copy taken while a connection outside the manager holds unflushed
+            # writes contains NO TABLES — a valid-looking, entirely empty DuckDB
+            # file. Measured: copy without CHECKPOINT gives `NO TABLES`, copy
+            # after CHECKPOINT gives the full schema. `_quiesce_library_database`
+            # only checkpoints MANAGER-owned connections (`quiesce_database`
+            # iterates its own cache), so any other live connection's writes are
+            # not flushed and the copy silently loses them.
+            #
+            # That is worse than failing: `duckdb_size` is non-zero, the record is
+            # written, and the snapshot looks fine right up until somebody
+            # restores it and gets an empty library. So a copy with no tables is
+            # not a snapshot and must not be reported as one.
+            if not tables:
+                export_conn.close()
+                raise RuntimeError(
+                    f"the snapshot copy at {duckdb_copy_path} has NO TABLES, so it "
+                    "would restore an empty library. The usual cause is unflushed "
+                    "writes on a connection the manager does not own: CHECKPOINT "
+                    "it before snapshotting."
+                )
+
             for (table_name,) in tables:
                 out_path = duckdb_export_dir / f"{table_name}.parquet"
                 safe_out_path = str(out_path).replace("'", "''")
@@ -686,14 +736,42 @@ def _enforce_retention(
     return deleted
 
 
+class SnapshotRefused(RuntimeError):
+    """No snapshot could be taken, so the destructive operation must not run.
+
+    **This used to be a warning and a `None` nobody checked (#5070), and that is
+    why it went unnoticed for so long.** Every caller treated the snapshot as a
+    bonus: call it, ignore the result, proceed. Under that contract a silent
+    failure is not merely unlikely, it is STRUCTURALLY UNREPORTABLE — a safety
+    net nobody depends on cannot be observed to be missing. It took the first
+    caller whose own rules said "no snapshot, no conversion" (source-model slice
+    8b) to notice that snapshots had not been happening at all while a library
+    was open, which is whenever anyone is using the app.
+
+    So the posture is inverted: refusing loudly beats proceeding quietly. A
+    recursive hard delete with no way back is not a degraded success.
+    """
+
+
 def auto_snapshot_before_risky_operation(
     library_path: str | Path,
     *,
     reason: str,
     initiator: str = "system",
     include_files: bool = False,
-) -> "LibrarySnapshot | None":
-    """Best-effort helper for callers to run before destructive operations."""
+    required: bool = True,
+) -> "LibrarySnapshot":
+    """Take the snapshot a destructive operation depends on, or REFUSE.
+
+    Raises :class:`SnapshotRefused` when no usable snapshot could be made.
+    Callers must not proceed with the destructive work — that is the whole point
+    of calling this.
+
+    `required=False` is for callers that genuinely want best-effort (a scheduled
+    background snapshot, where the next attempt is minutes away and nothing is
+    about to be destroyed). It returns `None` and logs, the old behaviour, and it
+    must never be used before something irreversible.
+    """
     try:
         return snapshot_library(
             str(library_path),
@@ -703,12 +781,20 @@ def auto_snapshot_before_risky_operation(
             include_files=include_files,
         )
     except Exception as exc:
-        logger.warning(
-            "Auto-snapshot skipped before risky operation for %s: %s",
+        if not required:
+            logger.warning(
+                "Auto-snapshot skipped (not required) for %s: %s", library_path, exc
+            )
+            return None  # type: ignore[return-value]
+        logger.error(
+            "REFUSING a destructive operation on %s: no snapshot could be taken (%s)",
             library_path,
             exc,
         )
-        return None
+        raise SnapshotRefused(
+            f"no snapshot could be taken of {library_path}, so this operation is "
+            f"refused rather than done without a way back: {exc}"
+        ) from exc
 
 
 def has_scheduled_snapshots_enabled() -> bool:

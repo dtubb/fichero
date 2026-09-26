@@ -45,6 +45,10 @@ from types import UnionType
 from typing import TYPE_CHECKING, ClassVar, TypeVar, Type, get_origin, get_args, Union, Any, Sequence, cast, Callable, Literal
 
 if TYPE_CHECKING:
+    # F821: `unconverted_geometry_scope`'s quoted return annotation names this,
+    # and a forward reference to a type nothing imports resolves for no reader —
+    # a checker, an IDE or a generator all get nothing (#5059 follow-up).
+    from fichero_server.models.conversion import UnconvertedScope
     from fichero_server.models import Artifact, Workflow
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -4522,6 +4526,38 @@ class Database(DatabaseEmbeddingMixin):
             counts[table] = int((row[0] if row else 0) or 0)
         return counts
 
+    def row_counts_of_database_file(self, path: str) -> dict[str, int]:
+        """Every table and its row count in ANOTHER DuckDB file, read-only.
+
+        For proving a snapshot against the artefact a restore would actually use
+        — the copied `.duckdb` file — rather than against a Parquet sidecar
+        derived from it. Opening a DIFFERENT path read-only conflicts with
+        nothing, which is the whole reason #5070's fix works.
+
+        Raises rather than returning `{}` on a file it cannot read or one with no
+        tables: an empty answer and an unreadable snapshot are the same value and
+        opposite facts, and this is the check that decides whether there is a way
+        back.
+        """
+        from fichero_server.core.duckdb_session import connect_utc
+
+        conn = connect_utc(str(path), read_only=True)
+        try:
+            tables = [row[0] for row in conn.execute("SHOW TABLES").fetchall()]
+            if not tables:
+                raise RuntimeError(
+                    f"{path} has no tables, so it would restore an empty library"
+                )
+            counts: dict[str, int] = {}
+            for table in tables:
+                if not _VALID_IDENTIFIER.match(table):
+                    raise ValueError(f"refusing to count a table with an odd name: {table!r}")
+                row = conn.execute(f'SELECT count(*) FROM "{table}"').fetchone()
+                counts[table] = int((row[0] if row else 0) or 0)
+            return counts
+        finally:
+            conn.close()
+
     def parquet_row_count(self, path: str) -> int:
         """Rows in a Parquet file, read through this connection.
 
@@ -4533,6 +4569,24 @@ class Database(DatabaseEmbeddingMixin):
         if row is None:
             raise RuntimeError(f"counting {path} returned no row")
         return int(row[0] or 0)
+
+    def checkpoint(self) -> None:
+        """Flush this connection's pending writes to the library file (#5070).
+
+        A FLUSH, not a close: the connection stays usable afterwards.
+
+        Needed because a file-level copy — which is what a snapshot is — reads
+        the FILE, and writes still sitting in this connection's WAL are not in
+        it. `db_manager.quiesce_database` checkpoints connections the MANAGER
+        owns; a `Database` constructed directly is not one of those, so anything
+        about to copy the file has to be able to ask this one to flush.
+
+        Measured on DuckDB: copying without a checkpoint produced a file with NO
+        TABLES, copying after one produced the full schema. That failure was
+        silent — the copy was a valid, non-empty, entirely empty database.
+        """
+        with self._lock:
+            self.conn.execute("CHECKPOINT")
 
     def count(self, model: Type[T], **filters) -> int:
         """Count objects matching filters."""
@@ -6890,6 +6944,16 @@ class Database(DatabaseEmbeddingMixin):
                 # bounded — these are cases where, as the reviewer put it, the
                 # DECLARATION should be narrower rather than the column wider.
                 # Their CREATE TABLE is BIGINT now, so new libraries are clean.
+                #
+                # THOSE TWO ARE NOT A PRECEDENT, and the reason is luck. The
+                # obstacle (an index) and the exemption (a column that cannot
+                # overflow) coincided BY CHANCE. Had the index sat on a genuine
+                # byte count, skipping the widening would have left the original
+                # bug in place on a real library — so a future index-blocked
+                # column must be judged on whether ITS values can exceed
+                # 2,147,483,647, not on these two having been let through.
+                # If one can, the answer is to drop the index, alter, and
+                # recreate it, verifying the recreate.
                 logger.warning(
                     "could not widen %s.%s from %s to BIGINT; it still holds every "
                     "value it held before, but large ones will be refused: %s",

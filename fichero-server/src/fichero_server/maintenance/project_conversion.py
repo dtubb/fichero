@@ -168,55 +168,61 @@ def _live_row_counts(db: Any) -> dict[str, int]:
 
 
 def prove_snapshot(db: Any, snapshot: Any) -> dict[str, Any]:
-    """Read the snapshot back and compare row counts, table by table.
+    """Open the snapshot and compare row counts, table by table.
 
     **The rule is "snapshot first, AND PROVED RESTORABLE" — so the snapshot
     having been written is not the check.** A snapshot is a promise about a bad
     day; the only way to know it is real is to open it and count. That is the
     same discipline that caught the missing indexes: assert against what is
-    there, never against the fact that the code that should have made it
+    there, never against the fact that the code which should have made it
     returned without raising.
+
+    Proved against the COPIED `.duckdb` FILE, which is what `restore_snapshot`
+    actually puts back — not the Parquet sidecar beside it. Proving the sidecar
+    would be proving a derivative: it could be complete while the restore source
+    was not, or missing while the restore source was fine (#5070, where an
+    earlier version of this function looked in the wrong directory and reported
+    every table as "no parquet file" on a perfectly good snapshot).
 
     Returns the proof: `{"tables": n, "rows": n, "mismatches": {...}}`. A
     non-empty `mismatches` means the caller must refuse — this function reports,
     it does not decide.
     """
     live = _live_row_counts(db)
-    export_dir = Path(snapshot.snapshot_path) / Path(snapshot.duckdb_path).name
-    if not export_dir.is_dir():
-        # Try the documented layout directly; a snapshot whose exports are not
-        # where its own record says they are is exactly what this proves.
-        export_dir = Path(snapshot.snapshot_path) / "duckdb_export"
-    if not export_dir.is_dir():
+    restore_source = Path(snapshot.snapshot_path) / "duckdb_file" / "fichero.duckdb"
+    if not restore_source.is_file():
         return {
             "tables": 0,
             "rows": 0,
-            "mismatches": {"__exports__": f"no exported tables at {export_dir}"},
+            "mismatches": {
+                "__restore_source__": f"no database to restore from at {restore_source}"
+            },
+        }
+
+    try:
+        snapshot_counts = db.row_counts_of_database_file(str(restore_source))
+    except Exception as exc:
+        return {
+            "tables": 0,
+            "rows": 0,
+            "mismatches": {"__restore_source__": f"unreadable: {exc}"},
         }
 
     mismatches: dict[str, Any] = {}
-    proved_rows = 0
     for table, expected in sorted(live.items()):
-        parquet = export_dir / f"{table}.parquet"
-        if not parquet.is_file():
+        found = snapshot_counts.get(table)
+        if found is None:
             if expected == 0:
-                # An empty table the export skipped is not a discrepancy worth
-                # refusing over: there is nothing in it to lose.
+                # A table the snapshot does not have and the project has nothing
+                # in is not a discrepancy worth refusing over.
                 continue
-            mismatches[table] = {"expected": expected, "found": "no parquet file"}
-            continue
-        try:
-            found = db.parquet_row_count(str(parquet))
-        except Exception as exc:
-            mismatches[table] = {"expected": expected, "found": f"unreadable: {exc}"}
-            continue
-        proved_rows += found
-        if found != expected:
+            mismatches[table] = {"expected": expected, "found": "table missing"}
+        elif found != expected:
             mismatches[table] = {"expected": expected, "found": found}
 
     return {
         "tables": len(live),
-        "rows": proved_rows,
+        "rows": sum(snapshot_counts.values()),
         "mismatches": mismatches,
     }
 
@@ -270,6 +276,19 @@ def plan_conversion(db: Any, library_path: str | Path) -> ConversionRun | None:
 
     try:
         from fichero_server.db.storage_snapshots import snapshot_library
+
+        # FLUSH BEFORE SNAPSHOTTING (#5070). The snapshot copies the library
+        # FILE, and a file whose recent writes are still in a connection's WAL
+        # copies without them — `_quiesce_library_database` only checkpoints
+        # connections the manager owns, and the runner cannot know whether the
+        # one it was handed is one of those. A CHECKPOINT is a flush, not a
+        # close, so this is within the runner's rights over a connection it
+        # borrowed; it costs one write and it is the difference between a way
+        # back and an empty file that looks like one.
+        try:
+            db.checkpoint()
+        except Exception as exc:
+            logger.warning("could not checkpoint before snapshotting: %s", exc)
 
         snapshot = snapshot_library(
             str(library_path),

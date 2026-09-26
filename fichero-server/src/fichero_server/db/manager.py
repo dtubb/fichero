@@ -241,6 +241,63 @@ class DatabaseManager:
                     self._databases.pop(key).close()
                     logger.info("Closed database connection: %s", package_str)
 
+    def copy_database_file(
+        self,
+        package_path: str | Path,
+        dest: str | Path,
+        *,
+        source: str | Path | None = None,
+    ) -> Path:
+        """A CONSISTENT copy of this library's database file.
+
+        Checkpoint and copy as ONE step, without releasing the lock in between
+        (#5070 review). `quiesce_database` cannot be used for this: it takes the
+        locks, checkpoints, and RETURNS — so a caller that then copies the file
+        has given every other writer a window, and the copy can be torn.
+
+        That was survivable while the copy was a belt-and-braces artefact nobody
+        proved. It stops being survivable the moment the copy becomes the thing a
+        snapshot exports from and a restore restores: a torn copy either fails to
+        open or, worse, opens and restores a state the library was never in. That
+        is the one thing the record of "what this operation was about to destroy"
+        must not be.
+
+        THE LOCK THAT MATTERS IS THE CONNECTION'S, not the registry's. Writes
+        serialize on each `Database._lock` (#2508); `self._lock` only protects the
+        manager's own cache. So both are held, the inner ones across the copy.
+
+        A library with no managed connection is copied directly — there is no
+        writer to exclude, which is the case for a `Database` built outside the
+        manager. Such a caller must checkpoint its own connection first; that is
+        what `Database.checkpoint()` is for and what the conversion runner does.
+        """
+        import contextlib
+        import shutil
+
+        package = Path(nfc_path(str(package_path)))
+        src = Path(source) if source is not None else package / "fichero.duckdb"
+        destination = Path(dest)
+        package_str = self._cache_key(package_path)
+
+        with self._lock:
+            managed = [
+                self._databases[key] for key in list(self._databases) if key == package_str
+            ]
+            with contextlib.ExitStack() as stack:
+                # Every managed connection's write lock, held across BOTH the
+                # checkpoint and the copy. Normally there is exactly one.
+                for database in managed:
+                    stack.enter_context(database._lock)
+                for database in managed:
+                    database.conn.execute("CHECKPOINT")
+                if managed:
+                    logger.info(
+                        "Checkpointed %d connection(s) and copied %s under one lock",
+                        len(managed), package_str,
+                    )
+                shutil.copy2(src, destination)
+        return destination
+
     def close_current_thread(self) -> None:
         """No-op under the single-connection model (#2508).
 
