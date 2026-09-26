@@ -122,7 +122,8 @@ def _selfcheck() -> None:
         '</testsuite>'
     )
     fd, p = tempfile.mkstemp(suffix=".xml")
-    os.write(fd, xml.encode()); os.close(fd)
+    os.write(fd, xml.encode())
+    os.close(fd)
     f = failures(p)
     os.unlink(p)
     assert [n for n, _ in f] == [

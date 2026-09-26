@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import pathlib
 import re
-import sys
 
 SPECS_DIR = pathlib.Path("docs/contributor_manual/specs")
 MANUAL_RE = re.compile(r"Manual:\s*(.+)")

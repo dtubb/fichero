@@ -17,12 +17,10 @@ Run: python scripts/check_spec_milestones.py
 
 from __future__ import annotations
 
-import json
 import pathlib
 import re
 import shutil
 import subprocess
-import sys
 
 SPECS_DIR = pathlib.Path("docs/contributor_manual/specs")
 MILESTONE_RE = re.compile(r"Milestone:\s*(\S+)")

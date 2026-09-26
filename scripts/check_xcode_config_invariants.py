@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import pathlib
 import re
-import sys
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 PBXPROJ = REPO / "fichero" / "fichero.xcodeproj" / "project.pbxproj"

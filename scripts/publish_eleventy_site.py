@@ -37,7 +37,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import shutil
 import sys
@@ -621,7 +620,6 @@ def main() -> int:
     src_dir = output_dir / "src"
     # Count entities/claims from the emitted pages.
     entity_count = len(list((src_dir / "entities").glob("*.md"))) if (src_dir / "entities").is_dir() else 0
-    claim_files = list((src_dir / "claims").glob("*.md")) if (src_dir / "claims").is_dir() else []
     claim_count = result_claim_count(output_dir)
     cfg["doc_count"] = result.document_count
     cfg["entity_count"] = entity_count
