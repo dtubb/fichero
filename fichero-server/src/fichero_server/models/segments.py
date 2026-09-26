@@ -569,6 +569,35 @@ class Segment(BaseModel):
     doc_kind: str
     #: Machine confidence of the SHAPE (not a reading), if the tool gave one.
     confidence: float | None = None
+
+    # ---- Source-model slice 9 (#4938): the missing middle of the cascade ----
+    #
+    # Language and script already existed at the top (`LanguagePolicy`, the
+    # project/app level), at the document (`Document.language` +
+    # `language_meta`) and at the reading (`ContentRepresentation.language` +
+    # `.script` + their metas). THE SEGMENT HAD NEITHER — so a cascade the
+    # source model is about skipped the level the source model is about.
+    #
+    # WHY A SEGMENT NEEDS ITS OWN, and it is not symmetry for its own sake:
+    # `source.lang.many-per-page` says one page can hold several languages and
+    # scripts at once. A marginal note in Latin beside a Spanish entry, a Greek
+    # quotation inside a Latin text, a bilingual ledger — the page has no single
+    # answer, and the reading is too low a level to carry it because a line can
+    # have several readings in the SAME language. The region is where "this part
+    # of the page is in this language" belongs.
+    #
+    # `None` at every one of these means NEVER DETERMINED, not unknown. The
+    # cascade's job is to supply a value when a segment does not state one; it
+    # is not to write a guess here.
+    language: str | None = None
+    script: str | None = None
+    #: Where this segment's language and script came from, in the same
+    #: `{status, source, confidence, basis, level}` shape `Document.language_meta`
+    #: and `ContentRepresentation.language_meta` already use, built by
+    #: `llm.language_policy.build_language_meta`. One shape for one idea.
+    language_meta: dict[str, Any] | None = None
+    script_meta: dict[str, Any] | None = None
+
     is_furniture: bool = False
     provenance_kind: ProvenanceKind
     created_by: str | None = None
