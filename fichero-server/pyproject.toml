@@ -457,4 +457,13 @@ markers = [
     "transport: engine transport contract (spec: transport-http-uds) — UDS / HTTPS / in-memory",
     "build_config: Xcode build/test/run config invariants (spec: xcode-build-configs)",
     "source_model: source model behaviours (spec: docs/contributor_manual/specs/source/source-model.md, milestone 322)",
+    # A test whose assertion is a DURATION rather than a fact. Excluded from a
+    # contended gate with `-m 'not timing'` and run deliberately on a quiet
+    # machine, because a bound measured against a loaded machine is a bound about
+    # the load: the same suite took 5:53 quiet and 39:43 beside other work
+    # (#4924). These tests are not optional — a rule the spec states as "a
+    # measured number, not a comment" needs one — but a duration asserted under
+    # contention is a flaky test, and a flaky test in a gate teaches people to
+    # ignore the gate.
+    "timing: asserts a DURATION; run on a quiet machine, exclude with -m 'not timing'",
 ]

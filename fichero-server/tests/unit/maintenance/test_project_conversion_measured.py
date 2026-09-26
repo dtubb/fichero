@@ -14,6 +14,19 @@ against a loaded machine is a bound about the load**, so the numbers below were
 taken with nothing else of mine running, and they are ceilings by a wide margin
 rather than targets.
 
+**The two duration assertions carry `@pytest.mark.timing` and belong OUT of a
+contended gate** (`-m 'not timing'`), because generous ceilings are not enough:
+this very directory took 5:53 on a quiet machine and 39:43 beside other work, a
+factor of 6.7, and no ceiling survives that honestly. They are still run — a
+rule the spec states as "a measured number, not a comment" needs a measurement —
+just deliberately, on a machine where the number means something.
+
+Everything else here asserts a FACT and stays in the ordinary gate: that opening
+converts nothing, that the runner yields once per page, that a restore puts the
+project back. Those do not care how fast the machine is, and separating them is
+the point — a suite that mixes facts and durations gets excluded wholesale the
+first time a duration flakes, and the facts go with it.
+
 The RESTORE test uses a real snapshot and a real restore — not the stub the
 other files use — because "the way back from a conversion that went wrong is the
 snapshot" is worth nothing if the snapshot has only ever been faked.
@@ -133,6 +146,7 @@ class TestOpeningIsNotHeldUp:
         finally:
             reopened.close()
 
+    @pytest.mark.timing
     def test_opening_is_no_slower_with_work_waiting_than_without(self, tmp_path):
         """If opening triggered conversion, a library with five unconverted pages
         would take measurably longer than an empty one. It does not, because it
@@ -183,6 +197,7 @@ class TestTheMachineStaysUsable:
     make the test's own contention the thing under test.
     """
 
+    @pytest.mark.timing
     def test_a_persons_read_and_edit_both_finish_while_a_conversion_runs(
         self, db, test_package, tmp_path, monkeypatch, client
     ):
