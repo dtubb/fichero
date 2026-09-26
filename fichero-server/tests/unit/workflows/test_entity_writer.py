@@ -1209,6 +1209,88 @@ class TestWriterGateRules:
         assert db.query(KnowledgeClaim, source_document_id="doc-noise") == []
 
     def test_import_rule_then_second_import_honors_persistent_merge(self, db):
+        """The verb round trip (#5072): run the real `entity.merge`, then re-import the absorbed
+        name. The durable record a merge leaves is the TOMBSTONE row (`merged_into_id` on the absorbed
+        entity, which the writer follows; no rule row and, unless the caller passes
+        `merged_aliases`, no alias), so that is what is asserted. The previous version of this test saved
+        a `merge_into` rule by hand; it proved the writer honours a rule and could not fail if
+        no verb ever wrote one. That test lives on, honestly named, right below."""
+        import fichero_server.api.routes.kg_entity_curation  # noqa: F401  (registers entity.merge)
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.workflows.tools.extractors import _write_kg_rows
+
+        def _import(name, doc):
+            _write_kg_rows(
+                db,
+                section={"name": "people", "entity_type": EntityType.person},
+                items=[{"name": name, "verb": "signed", "object": "the deed"}],
+                container_id=doc,
+                page_label="1",
+                source_excerpt=f"{name} signed the deed.",
+            )
+
+        _import("John Marshall", "doc-a")
+        _import("the Major", "doc-a")
+        by_name = {e.canonical_name: e for e in db.query(KnowledgeEntity)}
+        registry.invoke(
+            db,
+            "entity.merge",
+            {
+                "absorbing_entity_id": by_name["John Marshall"].id,
+                "absorbed_entity_ids": [by_name["the Major"].id],
+            },
+            ActionContext(actor="ui", library_path="/lib/test.fichero"),
+        )
+        survivor = db.get(KnowledgeEntity, by_name["John Marshall"].id)
+        absorbed = db.get(KnowledgeEntity, by_name["the Major"].id)
+        assert absorbed.merged_into_id == survivor.id, "the merge left nothing that points the old name at the survivor"
+
+        _import("the Major", "doc-b")
+
+        live = [e for e in db.query(KnowledgeEntity) if e.merged_into_id is None]
+        assert [e.canonical_name for e in live] == ["John Marshall"]
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason="#5079: after a merge the re-import's claim names the ABSORBED entity as its subject",
+    )
+    def test_a_claim_written_after_a_merge_names_the_survivor(self, db):
+        """The claim half of the round trip above. The ENTITY list holds (one live entity) but the
+        claim written by the re-import points at the tombstone. Strict xfail: it flips to a failure
+        the day #5079 is fixed, and the marker must then be removed."""
+        import fichero_server.api.routes.kg_entity_curation  # noqa: F401
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.workflows.tools.extractors import _write_kg_rows
+
+        def _import(name, doc):
+            _write_kg_rows(
+                db,
+                section={"name": "people", "entity_type": EntityType.person},
+                items=[{"name": name, "verb": "signed", "object": "the deed"}],
+                container_id=doc,
+                page_label="1",
+                source_excerpt=f"{name} signed the deed.",
+            )
+
+        _import("John Marshall", "doc-a")
+        _import("the Major", "doc-a")
+        by_name = {e.canonical_name: e for e in db.query(KnowledgeEntity)}
+        registry.invoke(
+            db,
+            "entity.merge",
+            {
+                "absorbing_entity_id": by_name["John Marshall"].id,
+                "absorbed_entity_ids": [by_name["the Major"].id],
+            },
+            ActionContext(actor="ui", library_path="/lib/test.fichero"),
+        )
+        _import("the Major", "doc-b")
+        (new_claim,) = [c for c in db.query(KnowledgeClaim) if c.source_document_id == "doc-b"]
+        assert new_claim.subject_entity_id == by_name["John Marshall"].id
+
+    def test_a_stored_merge_rule_is_honored_by_the_writer(self, db):
+        """Proves the STORE only: the rule is saved by hand, so this cannot fail when no verb
+        writes one. The verb round trips are `test_entity_verbs_write_rules.py` and the test above."""
         from fichero_server.workflows.tools.extractors import _write_kg_rows
 
         _write_kg_rows(

@@ -225,13 +225,18 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   `::TestUpsertEntity::test_merge_into_rule_folds_name_into_target`,
   `::TestUpsertEntity::test_reclassify_rule_overrides_type`,
   `::TestWriterGateRules::test_import_rule_then_second_import_honors_persistent_merge`, and the rule
-  CRUD routes in `test_routes_kg_curation_rules.py`. NOT built (checked by running each verb, then
-  re-importing the same surface form): the inspector/table VERBS do not write rules. A UI **merge**
-  holds on re-import, but through the survivor's alias, not a rule. A UI **delete** does not: the
-  re-import re-creates the entity (no tombstone). A manual **reclassify** does not: the re-import
-  mints the same name again at the OLD type beside the corrected one. A **split** has no anti-merge
-  rule type at all (`EntityResolutionRuleType` has no such member), so nothing stops the next pass
-  recombining what a person separated. Ties to the standing curation-persists-and-constrains-imports
+  CRUD routes in `test_routes_kg_curation_rules.py`. Built from #5072: the verbs write their rule in the SAME audited action, before the change, so a rule that
+  cannot be written fails the verb and nothing changes. Entity **delete** writes a `suppress` rule for its name and
+  aliases, scoped to its type; an entity **type change** writes a `reclassify` rule (and supersedes the opposite one,
+  so A -> B -> A cannot form a cycle, which the resolver answers by suppressing the mention); undo removes what the
+  undone action wrote and restores what it superseded; the delete that is the inverse of a create is not a correction
+  and writes nothing. Pinned by the full round trip (verb -> rule row -> re-import -> correction held) in
+  `test_entity_verbs_write_rules.py::TestDeleteWritesASuppressRule` and `::TestReclassifyWritesAReclassifyRule`, including
+  that a rule which cannot be written fails the verb with the entity unchanged. A **merge** holds through the
+  absorbed entity's tombstone (`merged_into_id`), not a rule row; the ENTITY list holds, but the claim a re-import writes
+  afterwards names the absorbed entity (#5079, strict xfail `TestWriterGateRules::test_a_claim_written_after_a_merge_names_the_survivor`).
+  NOT built: **rename to a different name** (#5073), **claim delete** (#5074), **split** (no anti-merge rule type
+  exists), and the entity-**reject** attachment of new claims. Ties to the standing curation-persists-and-constrains-imports
   ruling; the importer's own NLP-draft half is `importer.md`'s
   `importer.nlp-never-overwrites-curated-rows`.
 

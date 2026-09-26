@@ -110,9 +110,20 @@ def test_hand_merged_entity_survives_a_rerun(tmp_path: Path):
     library_path, parent_doc_id = _seed_merge_dedup_library(tmp_path)
     db = db_manager.get_database(library_path)
 
+    # #5072: the curation state is set by the REAL verb (batch curation, one MutationLog row per
+    # entity), not by saving the field. The merge-audit row below is still written by hand:
+    # nothing in the app produces "kept apart on purpose", so there is no verb to run for it.
+    from fichero_server.actions.registry import ActionContext, registry
+    import fichero_server.api.routes.kg_entity_curation  # noqa: F401  (registers entity.batch_curation)
+
+    registry.invoke(
+        db,
+        "entity.batch_curation",
+        {"entity_ids": ["ent-jd"], "curation_state": EntityCurationState.verified.value},
+        ActionContext(actor="dtubb", library_path=str(library_path)),
+    )
     entity = db.get(KnowledgeEntity, "ent-jd")
-    entity.curation_state = EntityCurationState.verified
-    db.save(entity)
+    assert entity.curation_state == EntityCurationState.verified
     db.save(
         EntityMergeAudit(
             operation_type=EntityMergeOperationType.merge,
