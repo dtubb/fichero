@@ -1908,6 +1908,7 @@ from fichero_server.api.routes.document import (  # noqa: E402
     notes,
     segment_pictures as document_segment_pictures,
     segment_readings as document_segment_readings,
+    reading_orders as document_reading_orders,
     segments as document_segments,
     source_settings as document_source_settings,
     sources,
@@ -2007,6 +2008,11 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # facts are set through `segment.update` (ruled 2026-09-26) -- see that
     # module's docstring for why the asymmetry is deliberate.
     (document_source_settings.router, "/api", ["source-settings"]),
+    # Source-model slice 10 (#4930): named reading orders. `neighbours` is always
+    # of a NAMED order -- there is no "next segment" call without one, because a
+    # page holds several orders and answering from a default would be the engine
+    # choosing a reading without saying so.
+    (document_reading_orders.router, "/api", ["reading-orders"]),
     # Renditions — alternative pixels of one node; ordered engine-side so the
     # preview and any card surface agree what "next" means (2026-08-20).
     (renditions.router, "/api", ["renditions"]),

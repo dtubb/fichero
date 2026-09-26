@@ -654,18 +654,43 @@ order different things.** This section previously cited `_reading_order` in
 `api/routes/document/artifacts.py`; there is no such function anywhere in the engine, and the
 description that followed it was right about one of the two:
 
-1. **`reading_order(pairs)`** in `media/ocr_geometry.py` orders **BOXES**: by character span when
-   every member has one ("the transcript IS the reading order"), else top-then-left by bbox. It
-   lives beside `union_bbox` because the old store's combine and the new store's joined text both
-   need it, and "a second copy of this rule is how two combines would start disagreeing about word
-   order" (#4924).
-2. **`_segment_row_sort_key(row)`** in `api/routes/document/segments.py` orders **ROWS**:
-   `metadata["box_index"]` when a converted box recorded one, else `(created_at, id)` — **never the
-   bare `id`, a random uuid the app's index mapping cannot use (#4921 review)**. `live_rows_in_order`
-   imports it rather than copying it, for the same anti-drift reason.
+**THREE ordering rules, and the third is the one `as-written` must use.** They agree wherever
+`box_index` exists and diverge exactly where slice 10 is exercised.
 
-After slice 6 a converted segment remembers its old place as `metadata.box_index`, which is what
-the second rule reads.
+| Rule | Orders | Key | Tie-break with no `box_index` |
+|---|---|---|---|
+| `reading_order(pairs)` (`media/ocr_geometry.py`) | boxes | char span when every member has one, else top-then-left | — |
+| `_segment_row_sort_key(row)` (`routes/document/segments.py`) | rows, for the app's index mapping | `box_index` | `(created_at, id)` — **creation order** |
+| `_segment_order_key(row)` (`routes/document/segment_readings.py`) | rows, for derived text | `box_index` | `(bbox_y, bbox_x, id)` — **page order** |
+
+`reading_order` lives beside `union_bbox` because the old store's combine and the new store's
+joined text both need it, and "a second copy of this rule is how two combines would start
+disagreeing about word order" (#4924). `_segment_row_sort_key` never falls back to the bare `id`,
+"a random uuid the app's index mapping cannot use" (#4921 review); `live_rows_in_order` imports it
+rather than copying it. In all three, `id` is only ever the LAST resort that makes the sort total,
+never a meaningful position.
+
+**RULED 2026-09-26: `as-written` is PAGE order, so slice 10 imports `_segment_order_key`.** The
+argument is in the name. *As written* means the order the source was written in — down the page and
+across the line. A line a person drew last but positioned third **was written third**, and an order
+that put it last would report the order of the editing session, not the order of the source: a
+claim about a scholar's working habits dressed as a claim about a manuscript. Creation order is
+right where it is used — the app's index mapping must hand rows back in the order the app sent
+them, or the indices mean nothing — and that is a different question from what the page says. **Two
+row orderings that disagree on purpose is correct here; what was missing was anyone writing down
+why.**
+
+After slice 6 a converted segment remembers its old place as `metadata.box_index`, which all three
+rules read first, which is why they agree on a converted page.
+
+**One of the three had a defect, found 2026-09-26 while enumerating them for this slice.**
+`_segment_order_key` sorted `(box_index, bbox_y, id)` with no `bbox_x`: two segments on one line
+share a `bbox_y`, and a hand-drawn word has no `box_index`, so **the words of a hand-segmented line
+came out of the derived text in uuid order** — precisely the paleography case, where a scholar
+segments words by hand. Fixed in `a79b901d8`; never released (the commit that introduced it is not
+in `v2026.09.20` or `main`). The lesson for slice 10: `reading_order` was cited in a comment beside
+that key and a nearly identical rule was written from memory anyway, so **import the rule or say in
+a comment why you cannot**.
 
 **Models.** `ReadingOrder` (table `readingorders`): `id`; `document_id`; `pass_id` (an order
 belongs to one pass); `name` (`as-written` is made with every pass; others are free);
@@ -691,7 +716,18 @@ pages of one document group** (`document_id` is then the group's node id, and ea
 segment names its own page). That is the one place an order crosses pages.
 
 **Indexes:** `readingorders(document_id)`, `readingorders(pass_id)`,
-`readingorderentrys(order_id)`, `readingorderentrys(segment_id)`.
+`readingorderentrys(order_id)`, `readingorderentrys(segment_id)`, declared in
+`db/migrations/schema.py`'s `(name, SQL, reason)` list beside slice 8's, each with its reason
+stated — that list is the one place indexes are declared and the guardrail reads it.
+
+**Grounded 2026-09-26: the `neighbours` read needs a FIFTH index, `(order_id, position)`.** With the
+four above, answering "what is before and after this segment in this order" means reading the
+order's entries and picking the neighbours in memory: bounded by the ORDER's size, which is fine for
+a fifty-line page and is not fine for a flow across a codex, where one order can hold thousands of
+entries. The bounded form is two indexed lookups — `ORDER BY position LIMIT 1` either side of the
+segment's own position — and that wants a composite `(order_id, position)`. It also wants a typed
+persistence method rather than SQL in the route (#1876: raw SQL only behind a typed method in the
+persistence layer), which is where `source.store.bounded-reads` and the architecture rule meet.
 
 **Actions.** `reading_order.create` (`document_id`, `pass_id`, `name`, `kind`);
 `reading_order.place` (`order_id`, `segment_id`, `after_entry_id | None`, `parent_entry_id?`,
@@ -720,11 +756,12 @@ no order named (422); `OrderNeedsRenumbering`; a `legacy:` id.
 - Moving one entry writes one row (count the rows whose `version` changed); a forced
   renumber is its own audit row.
 - **Two tests, not one** (corrected 2026-09-26): a converted page's `as-written` order equals
-  `live_rows_in_order` for that pass — the rows ordered by `_segment_row_sort_key`, which is how a
-  converted row remembers its place — and an unconverted page's `as-written` order equals
-  `reading_order` over the artifact's boxes. The earlier single test paired the row order against
-  the box sorter, which is the wrong pairing for the case it named, and it cited a function that
-  does not exist, so written literally it could not import.
+  **`_segment_order_key`** over that pass's live rows — page order, per the ruling above, not
+  `live_rows_in_order`, which is the app's index mapping and answers a different question — and an
+  unconverted page's `as-written` order equals `reading_order` over the artifact's boxes. The
+  earlier single test paired the row order against the box sorter, which is the wrong pairing for
+  the case it named, and it cited a function that does not exist, so written literally it could not
+  import.
 - **The ordering rule is IMPORTED, never re-implemented.** `ReadingOrderEntry.position` is a float
   placed by midpoint, so the fallback when positions tie or are absent decides the order — in a
   record with no `box_index` of its own. The lazy fallback is `id`, which is exactly what #4921
@@ -767,6 +804,41 @@ captions, labels, continues, translates, same-as, names) **and** the existing fo
 words (follows, references, contradicts, supports, free, next_logical, refines,
 derived_from, interprets), so that when the other records converge no word is lost. A project
 can add keys.
+
+**Grounded 2026-09-26 (#4930/#4931): that seed list COLLIDES with the KG's own vocabulary, and one
+collision is a near-miss spelling.** `ClaimRelationType` — already shared by `KnowledgeClaimLink`
+and `LibraryItemLink` — holds `caused_by`, `cites`, `contradicts`, `corroborates`, `derives_from`,
+`duplicate_of`, `follows`, `refines`, `related_to`, `supports`. Against the seed list above:
+
+- **Four exact duplicates**: `follows`, `refines`, `supports`, `contradicts`. Seeding them as new
+  keys would give one library two keys per idea, one of which the KG already uses.
+- **One spelling collision, which is the dangerous kind**: the seed list's `derived_from` versus
+  `ClaimRelationType.derives_from`. Two keys, one relation, differing by a single letter — nothing
+  would ever report them as the same thing, and a query for one would silently miss the other.
+- **One near-synonym to rule on rather than seed blind**: `references` (from `NoteLink`) beside
+  `cites` (from the KG). They may be the same relation under two names, or a deliberate distinction;
+  either is fine, but not by accident.
+- **Genuinely new and worth having**: the manuscript-facing words the KG has no equivalent for —
+  glosses, comments-on, answers, quotes, expands, reorders, marks, captions, labels, continues,
+  translates, same-as, names — plus `interprets` from `SpatialConnection`.
+
+**THE RULE, not just this instance: a vocabulary is seeded from every set that already holds the
+idea, with the overlap collapsed to one key each — never as a second list beside an existing one.**
+Where a plan and stored data disagree about a SPELLING, the stored data wins: changing stored data
+means a migration, changing a plan means editing a line. So the four duplicates take
+`ClaimRelationType`'s spelling, and `derived_from` becomes `derives_from`.
+
+Otherwise the record built to remove four vocabularies ships a fifth that disagrees with the one two
+records already share — the drift this consolidation exists to remove, reintroduced by its own seed.
+That is the same shape as a third sort key beside two existing ones and a second copy of a
+provenance rule beside its own docstring: **before adding any list, set or key, ask what already
+holds that idea.**
+
+**A guard, because a list nobody re-checks drifts the first time someone adds a word:** a test
+asserting that no pair across the seeded keys and `ClaimRelationType`'s values differs only by
+inflection or underscore. `derives_from`/`derived_from` is the near-miss that test exists for —
+two keys, one relation, one letter apart, where a query for one silently misses the other and looks
+like an answer.
 
 **Convergence is routed, not done here** (each is its own later slice, with its own tests and
 its owner's spec): notes (`NoteLink` rows read through a view of `TypedLink`, then written
