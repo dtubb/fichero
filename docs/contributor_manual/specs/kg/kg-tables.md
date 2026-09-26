@@ -61,8 +61,8 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
   `test_routes_entity_curation.py::TestBatchEntityCuration::test_batch_updates_entities_and_logs_mutations`
   (state set, one `MutationLog` per changed entity, with the real actor) and
   `::test_batch_skips_unchanged_entities`; app `EntityStoreTests.testSetCurationUpdatesMatchingRowsInPlace`
-  (the store updates the matching rows in place). Merge from the TABLE is not reachable (the sheet is
-  unmounted, `kg.entity.menu.merge`), which is why this stays [PARTIAL]. → #1786 asked for entity rename + "Add entity" specifically — both
+  (the store updates the matching rows in place). Merge from the table IS reachable (see `kg.entity.menu.merge`); it stays [PARTIAL] because split is not
+  (see `kg.entity.menu.split`), and bless/reject of CLAIMS from their table is not (`kg.tables.claim.curate`). → #1786 asked for entity rename + "Add entity" specifically — both
   are now [OK] (`kg.tables.entity.rename-inline`/`.create` above); kept open as a verify-close
   candidate rather than closed by this pass, since curate (bless/reject/merge) itself is still
   only [PARTIAL]. → #1765 is the broader origin ask (approve/reject/edit entities AND claims,
@@ -112,17 +112,22 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
   96e928783, see above). Pinned:
   `fichero-server/tests/unit/api/test_delete_clears_entity_links.py::TestEachFieldClearsOnDelete`,
   `::TestClaimCarryingSeveralFieldsAtOnce`, `::TestDisplayFieldsNeverTouched`.
-- `kg.entity.menu.merge` — **[GAP]** (#4828, → #1675) `EntityMergeSheet` merges duplicate
-  entities, and the CAPABILITY is built end to end on the engine and the CLI: `POST /merge`,
-  `POST /audit/{id}/undo` and `GET /audit` (`entity_curation.py`), an `EntityMergeAudit` row per
-  merge/split/undo (source ids, target id, alias changes, `reversal_id`, `created_by`), and the CLI
-  `entity merge`, `audit list`, `audit undo`. Pinned:
-  `test_routes_entity_curation.py::TestMergeEntities::test_merge_writes_action_audit_and_emits`,
+- `kg.entity.menu.merge` — **[PARTIAL]** (#4828, → #1675) merging duplicate entities is reachable in the app
+  on two surfaces today: the Entities table's row menu, "Merge N duplicates" (accessibility id
+  `kg.entity.menu.merge`, `EntitiesTableView`; the survivor is the selected row with the most claims,
+  `EntitiesLibraryContent`), and the Inspector's Entities tab, whose Merge menu offers the survivor
+  choices (`DocumentInspectorEntitiesTab+Menus`), plus `EntityReconciliationSheet`. What #4828 found
+  unreachable is the standalone `EntityMergeSheet`, which has no call site: a THIRD merge surface, so
+  whether to remount it or retire it is one-code-path-per-thing, not a missing capability. Underneath,
+  the engine and CLI are built: `POST /merge`, `POST /audit/{id}/undo` and `GET /audit`
+  (`entity_curation.py`), an `EntityMergeAudit` row per merge/split/undo (source ids, target id, alias
+  changes, `reversal_id`, `created_by`), and the CLI `entity merge`, `audit list`, `audit undo`.
+  Pinned: `test_routes_entity_curation.py::TestMergeEntities::test_merge_writes_action_audit_and_emits`,
   `::TestListEntityAudits::test_audit_appears_after_merge` and
-  `::TestUndoEntityOperation::test_undo_writes_action_audit_and_emits`. What is NOT built
-  (#1675, narrowed 2026-09-26): the sheet has no call site in the app (unmounted, #4828), and the audit
-  row has no reason, confidence, stage/run or approval-state field. Cross-references
-  `kg.tables.entity.curate` above (#4801) rather than duplicating it.
+  `::TestUndoEntityOperation::test_undo_writes_action_audit_and_emits`. Not built (#1675, narrowed
+  2026-09-26): the audit row has no reason, confidence, stage/run or approval-state field, and the
+  audit-history view lives inside the unmounted `EntityDetailView` chain. Cross-references
+  `kg.tables.entity.curate` above (#4801).
 - `kg.entity.menu.split` — **[GAP]** (#4828, → #1675) `EntitySplitSheet` splits a conflated
   entity. Same state as merge: the engine (`POST /split`, undoable through the same audit undo,
   `test_routes_entity_curation.py::TestSplitEntity::test_split_unmerges_entity`,
