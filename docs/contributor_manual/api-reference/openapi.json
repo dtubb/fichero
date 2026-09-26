@@ -43216,6 +43216,25 @@
         ],
         "title": "ContentReviewState"
       },
+      "ContractIdentity": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "sha256"
+        ],
+        "title": "ContractIdentity",
+        "description": "Which OpenAPI contract a build speaks, surfaced at ``GET /api/health``\n(#5047, spec behaviour ``contract.runtime-compatibility``).\n\nTwo machines on a remote connection are two builds from two different days.\n``backend_version`` cannot decide whether they can talk: two builds can share\na contract and one build can change it. This pair can \u2014 it is the identity of\nthe contract document itself, baked in when the contract was generated.\n\n``sha256`` is over the exact bytes of the committed ``openapi.json``. Same\nversion with a different digest is its own defect \u2014 one version published\ntwice with different content \u2014 and the client must be loud about it rather\nthan treating the version match as sufficient."
+      },
       "ContradictionEvidence": {
         "properties": {
           "claim_id": {
@@ -49029,6 +49048,10 @@
             },
             "type": "array",
             "title": "Migration Failures"
+          },
+          "contract": {
+            "$ref": "#/components/schemas/ContractIdentity",
+            "nullable": true
           }
         },
         "type": "object",

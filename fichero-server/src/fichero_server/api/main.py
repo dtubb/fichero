@@ -65,6 +65,7 @@ from fichero_server.api.routes.ai.local_inference import shutdown_managed_local_
 from fichero_server.db import Database, db_manager
 from fichero_server.security.discovery import start_bonjour_advertiser
 from fichero_server.models import (
+    ContractIdentity,
     EmbeddingStatsResponse,
     HealthResponse,
     LibraryStatsResponse,
@@ -114,6 +115,44 @@ def _resolve_engine_version() -> str:
 
 
 _ENGINE_VERSION = _resolve_engine_version()
+
+
+def _resolve_contract_identity() -> ContractIdentity | None:
+    """The contract this engine's wire speaks (#5047, `contract.runtime-compatibility`).
+
+    Read from the module the contract export bakes, ONCE at import — the check is
+    per-connection but the answer never changes within a process, and the document
+    it describes is ~2 MB, so hashing anything per request would be absurd.
+
+    Deliberately not derived from `app.openapi()`: that is the raw 3.1 document for
+    whatever `FICHERO_FEATURE_TIER` is live, while the contract is the exported,
+    post-processed 3.0.3 document at the `dev` tier. They differ by construction,
+    so a runtime hash of the served schema would mismatch the client's baked
+    identity on every single connection — a guard that always refuses is not a
+    guard. Both ends hash the same committed bytes instead.
+
+    Returns `None` — never a placeholder — when the generated module is absent, so
+    the engine reports "cannot state my contract" honestly rather than asserting an
+    identity it does not have. Under ruling 1 the client refuses an unverifiable
+    remote connection, which is the loud failure rule 0 asks for; the engine still
+    serves this machine.
+    """
+    try:
+        from fichero_server.api.contract_identity_generated import (
+            CONTRACT_SHA256,
+            CONTRACT_VERSION,
+        )
+    except ImportError:
+        logger.error(
+            "Contract identity is missing: fichero_server/api/contract_identity_generated.py "
+            "was not generated. Remote clients will refuse to connect to this engine. "
+            "Run fichero-server/scripts/sync_openapi_schema.sh to regenerate it."
+        )
+        return None
+    return ContractIdentity(version=CONTRACT_VERSION, sha256=CONTRACT_SHA256)
+
+
+_CONTRACT_IDENTITY = _resolve_contract_identity()
 
 
 class LibraryAccessDeniedError(HTTPException):
@@ -1652,6 +1691,7 @@ async def health_check(
                     database=str(db.path),
                     document_count=doc_count,
                     backend_version=_ENGINE_VERSION,
+                    contract=_CONTRACT_IDENTITY,
                     dependencies=_dependency_versions(),
                     # #4983 phase 1: schema-migration failures recorded on
                     # THIS cached `Database` instance — empty for a healthy
@@ -1676,6 +1716,7 @@ async def health_check(
                     library_path=x_fichero_library_path,
                     error=str(e),
                     backend_version=_ENGINE_VERSION,
+                    contract=_CONTRACT_IDENTITY,
                 ),
                 nonce or x_fichero_client_nonce,
             )
@@ -1685,6 +1726,7 @@ async def health_check(
             HealthResponse(
                 status="healthy",
                 backend_version=_ENGINE_VERSION,
+                contract=_CONTRACT_IDENTITY,
                 active_libraries=db_manager.active_count,
                 remote_backend=build_remote_backend_status().as_dict(),
                 engine_pid=os.getpid(),

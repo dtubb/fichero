@@ -1743,6 +1743,25 @@ class MigrationFailureResponse(BaseModel):
     occurred_at: datetime
 
 
+class ContractIdentity(BaseModel):
+    """Which OpenAPI contract a build speaks, surfaced at ``GET /api/health``
+    (#5047, spec behaviour ``contract.runtime-compatibility``).
+
+    Two machines on a remote connection are two builds from two different days.
+    ``backend_version`` cannot decide whether they can talk: two builds can share
+    a contract and one build can change it. This pair can — it is the identity of
+    the contract document itself, baked in when the contract was generated.
+
+    ``sha256`` is over the exact bytes of the committed ``openapi.json``. Same
+    version with a different digest is its own defect — one version published
+    twice with different content — and the client must be loud about it rather
+    than treating the version match as sufficient.
+    """
+
+    version: str
+    sha256: str
+
+
 class HealthResponse(BaseModel):
     """Response from ``GET /api/health`` endpoint.
 
@@ -1777,6 +1796,12 @@ class HealthResponse(BaseModel):
     # `Database` instance), so a fresh recorded failure only ever shows up
     # after the app restarts and reopens the library.
     migration_failures: list[MigrationFailureResponse] = Field(default_factory=list)
+    # #5047: the contract this engine's wire speaks, for the connect-time
+    # compatibility check. `None` means this engine cannot state its contract —
+    # either the generated identity is missing, or it predates this field. Both
+    # mean "cannot be verified", and ruling 1 says an unverifiable remote
+    # connection is refused; never treat absence as agreement.
+    contract: ContractIdentity | None = None
 
 
 class EmbeddingStatsResponse(BaseModel):

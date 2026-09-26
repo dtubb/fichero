@@ -62,12 +62,25 @@ check_venv() {
   [ -n "$pyproject_ver" ] || { bad "cannot parse version from pyproject.toml"; return; }
   ok "pyproject.toml declares $pyproject_ver"
 
-  for p in "$REPO_ROOT/fichero-server/.venv" "$REPO_ROOT/.venv" "$HOME/code/fichero/.venv"; do
+  # The canonical venv is editable-installed against the MAIN checkout, not a
+  # worktree — derive it from git rather than hard-coding a path, so this works
+  # for anyone whose checkout is not at ~/code/fichero.
+  local main_checkout
+  main_checkout="$(cd "$(git -C "$REPO_ROOT" rev-parse --git-common-dir 2>/dev/null)/.." 2>/dev/null && pwd)"
+  for p in "$REPO_ROOT/fichero-server/.venv" "$REPO_ROOT/.venv" "${main_checkout:-/nonexistent}/.venv"; do
     [ -x "$p/bin/python" ] || continue
     v="$("$p/bin/python" -c 'import importlib.metadata as m; print(m.version("fichero-server"))' 2>/dev/null)"
     [ -n "$v" ] || { warn "$p — engine not installed"; continue; }
     printf '    %s → %s\n' "$p" "$v"
-    [ -z "$best" ] && { best="$p"; best_ver="$v"; }
+    # Prefer a venv whose metadata MATCHES pyproject — picking merely the first
+    # one found is how a stale interpreter gets exported, which is what makes
+    # sync_openapi_schema.sh refuse and tempts someone to sed info.version
+    # instead (#5046). Fall back to the first only if none matches.
+    if [ "$v" = "$pyproject_ver" ] && [ "$best_ver" != "$pyproject_ver" ]; then
+      best="$p"; best_ver="$v"
+    elif [ -z "$best" ]; then
+      best="$p"; best_ver="$v"
+    fi
   done
 
   if [ -z "$best" ]; then
