@@ -25,29 +25,10 @@ import time
 import warnings
 from importlib.metadata import PackageNotFoundError, version as package_version
 
-# Sub-splits within this module's own import (route imports, tiered-route
-# registration, lifespan pre-yield) — see #4690. Relative to this module's
-# own import start, not __main__'s epoch; __main__'s "FastAPI app imported"
-# stamp already covers the whole of this file's import cost, this just opens
-# that interval up.
-_API_MAIN_EPOCH = time.monotonic()
-
-
-def _api_stamp(label: str) -> None:
-    logging.getLogger(__name__).info(
-        "engine-launch: %s @ %.0fms (api.main)", label, (time.monotonic() - _API_MAIN_EPOCH) * 1000
-    )
-
-# Disable tokenizers parallelism so the Rust tokenizer's thread pool
-# doesn't deadlock across a fork (subprocess spawns count). Must be set
-# before any import that pulls in transformers / tokenizers.
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-
-# Route the kreuzberg extraction cache to ~/Library/Caches/ and run the
-# one-time legacy-location migration. Imported here (not lazily via loaders)
-# so the side effect fires at engine startup regardless of whether the
-# user triggers an extraction this session.
-from fichero_server.loaders import kreuzberg_cache  # noqa: F401, E402
+# MUST be the first fichero import: running it sets TOKENIZERS_PARALLELISM
+# before anything can pull in transformers, primes the kreuzberg cache, and
+# starts the import-timing epoch. See _startup.py (#5051).
+from fichero_server.api._startup import api_stamp as _api_stamp
 
 import logging
 from contextlib import asynccontextmanager, suppress
