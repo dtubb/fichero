@@ -428,8 +428,9 @@ class TestDocumentOutline:
         result = asyncio.run(document_inspector.knowledge_graph(folder.id, db=db))
         assert [a.artifact_type for a in result.catalogue] == ["catalogue"]
 
-    def test_include_children_aggregates_page_claims_onto_parent(self, db):
-        """include_children walks the doc tree and surfaces page-child KG (#1069)."""
+    def test_include_descendants_aggregates_page_claims_onto_parent(self, db):
+        """include_descendants (was include_children, #5065) walks the doc tree and
+        surfaces page-child KG (#1069). Passed explicitly here; it is also the default."""
         from fichero_server.api.routes.document import inspector as document_inspector
 
         parent = Document(name="Preface.pdf", doc_type=DocType.file)
@@ -449,7 +450,7 @@ class TestDocumentOutline:
         db.save(KnowledgeClaim(text="Deloro is north.", source_document_id=page2.id, entity_ids=[place.id]))
 
         result = asyncio.run(
-            document_inspector.knowledge_graph(parent.id, include_children=True, db=db)
+            document_inspector.knowledge_graph(parent.id, include_descendants=True, db=db)
         )
         assert result.include_children is True
         assert result.claim_count == 3

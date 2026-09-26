@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+**Behaviour change: a folder query includes everything under the folder, by default, everywhere.**
+Three engine surfaces answered "what knowledge belongs to this folder" three ways: `GET /api/claims`
+matched the folder's own documents only unless `include_descendants=true`; the entity list with
+`document_id` always recursed with no way to turn it off; and the document knowledge-graph route took
+`include_children`, which an implicit `or len(descendants) > 1` made a no-op wherever it mattered. All three now
+take one flag, `include_descendants`, and default to **true** (#5065). What changes for you:
+- `GET /api/claims?source_document_id=<folder>` and the chat `claim.list` action now return the claims
+  of every document under the folder. Pass `include_descendants=false` for the old exact match. The app
+  always sent the flag explicitly and is unaffected.
+- `GET /api/entities?document_id=` gains `include_descendants` (default true, so nothing changes unless you set it false).
+- `GET /api/documents/{id}/knowledge-graph` takes `include_descendants` instead of `include_children`.
+  `include_children` is ignored; a client that still sends `include_children=false` gets the recursive
+  answer it already got for any folder with contents. The response field keeps its old name, `include_children`,
+  until the generated clients are regenerated.
+- CLI: `docs kg`, `kg claims` and `claims list` take `--include-descendants/--no-include-descendants`
+  (default: included). `docs kg --include-children` still works but is deprecated and hidden. `list_claims`
+  and `document_knowledge_graph` in the CLI client, and the MCP tools `fichero_document_kg` and `document_knowledge_graph`,
+  take `include_descendants` (default true) in place of `include_children`.
+- Not changed: the bulk-write requests that also carry `include_descendants` (assign time period,
+  prototype assign, library-item columns) still default to false. Recursing a WRITE by default is a different decision.
+
 ## 2026-09-26
 
 **Pairing a second Mac works again.** A signed build could not save the key it had just been

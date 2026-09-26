@@ -22,12 +22,12 @@ class FakeParityClient:
         self.calls: list[tuple] = []
 
     def document_knowledge_graph(
-        self, doc_id: str, *, include_children: bool = False
+        self, doc_id: str, *, include_descendants: bool = True
     ) -> DocumentKnowledgeGraphResponse:
-        self.calls.append(("document_knowledge_graph", doc_id, include_children))
+        self.calls.append(("document_knowledge_graph", doc_id, include_descendants))
         return DocumentKnowledgeGraphResponse(
             document_id=doc_id,
-            include_children=include_children,
+            include_children=include_descendants,  # the response field keeps its old name
             groups=[],
             claims=[],
             entity_count=0,
@@ -113,9 +113,13 @@ def _json_for(args: list[str]) -> object:
 def test_cli_kg_parity_commands_emit_stable_json(monkeypatch):
     fake = _install_fake_client(monkeypatch)
 
-    docs_kg = _json_for(["docs", "kg", "doc-1", "--include-children"])
+    # #5065: recursion is the DEFAULT; --no-include-descendants is the explicit opt-out;
+    # the old --include-children is still accepted (deprecated, hidden) so scripts don't break.
+    docs_kg = _json_for(["docs", "kg", "doc-1"])
     assert docs_kg["document_id"] == "doc-1"
     assert docs_kg["include_children"] is True
+    assert _json_for(["docs", "kg", "doc-1", "--no-include-descendants"])["include_children"] is False
+    assert _json_for(["docs", "kg", "doc-1", "--include-children"])["include_children"] is True
 
     entities = _json_for(["kg", "entities", "--type", "location", "--limit", "7"])
     assert entities[0]["canonical_name"] == "Bogotá"

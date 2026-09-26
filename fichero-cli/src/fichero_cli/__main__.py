@@ -2520,6 +2520,12 @@ def kg_claims(
         None, "--doc", "-d", help="Document ID (flag form; overrides positional)."
     ),
     limit: int = typer.Option(50, "--limit"),
+    include_descendants: bool = typer.Option(
+        True,
+        "--include-descendants/--no-include-descendants",
+        help="Include claims from every descendant document (child pages, subfolders). "
+        "Default: included; use --no-include-descendants for this document alone.",
+    ),
 ) -> None:
     """List knowledge-graph claims sourced from a document.
 
@@ -2530,7 +2536,9 @@ def kg_claims(
     doc_id = _resolve_required_doc_id(doc_flag=doc, doc_positional=doc_id_positional)
     _invoke(
         ctx,
-        lambda c: c.list_claims(source_document_id=doc_id, limit=limit),
+        lambda c: c.list_claims(
+            source_document_id=doc_id, limit=limit, include_descendants=include_descendants
+        ),
     )
 
 
@@ -3132,14 +3140,30 @@ def docs_inspector(
 def docs_kg(
     ctx: typer.Context,
     doc_id: str = typer.Argument(..., help="Document ID."),
+    include_descendants: bool = typer.Option(
+        True,
+        "--include-descendants/--no-include-descendants",
+        help="Include every descendant document (child pages, subfolders). "
+        "Default: included; use --no-include-descendants for this document alone.",
+    ),
     include_children: bool = typer.Option(
-        False, "--include-children", help="Include child page documents."
+        False,
+        "--include-children",
+        hidden=True,
+        help="Deprecated (#5065): recursion is now the default. Accepted so existing scripts keep working.",
     ),
 ) -> None:
     """Show the deduped knowledge graph for a document."""
+    # Not in --json mode: a machine consumer's stream must stay pure data.
+    if include_children and not ctx.obj["json"]:
+        typer.secho(
+            "--include-children is deprecated: descendants are included by default now "
+            "(use --no-include-descendants for this document alone).",
+            err=True,
+        )
     _invoke(
         ctx,
-        lambda c: c.document_knowledge_graph(doc_id, include_children=include_children),
+        lambda c: c.document_knowledge_graph(doc_id, include_descendants=include_descendants),
     )
 
 
@@ -3292,17 +3316,27 @@ def claim_list(
         None, "--doc", help="Filter claims to this document ID."
     ),
     limit: int = typer.Option(50, "--limit"),
+    include_descendants: bool = typer.Option(
+        True,
+        "--include-descendants/--no-include-descendants",
+        help="With --doc: include claims from every descendant document (child pages, "
+        "subfolders). Default: included; use --no-include-descendants for the document alone.",
+    ),
 ) -> None:
     """List knowledge claims, optionally filtered to a document."""
     if ctx.obj["json"]:
         _invoke(
             ctx,
-            lambda c: c.list_claims(source_document_id=doc_id, limit=limit),
+            lambda c: c.list_claims(
+                source_document_id=doc_id, limit=limit, include_descendants=include_descendants
+            ),
         )
         return
     try:
         with _client(ctx) as client:
-            claims = client.list_claims(source_document_id=doc_id, limit=limit)
+            claims = client.list_claims(
+                source_document_id=doc_id, limit=limit, include_descendants=include_descendants
+            )
     except FicheroError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc

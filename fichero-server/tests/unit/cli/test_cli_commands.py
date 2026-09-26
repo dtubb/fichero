@@ -418,7 +418,7 @@ class FakeClient:
         from fichero_server.api.routes.document.inspector import DocumentKnowledgeGraphResponse
         return DocumentKnowledgeGraphResponse(
             document_id=doc_id,
-            include_children=kw.get("include_children", False),
+            include_children=kw.get("include_descendants", True),
             groups=[],
             claims=[],
             entity_count=0,

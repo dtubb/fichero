@@ -948,6 +948,7 @@ def list_entities_impl(
     q: str | None = None,
     entity_type: EntityType | None = None,
     document_id: str | None = None,
+    include_descendants: bool = True,
     limit: int = 50,
     offset: int = 0,
 ) -> list[KnowledgeEntity]:
@@ -962,7 +963,10 @@ def list_entities_impl(
     if document_id:
         from fichero_server.api.routes.claim.claims import _descendant_doc_ids
 
-        doc_ids = _descendant_doc_ids(db, document_id)
+        # #5065: one answer to "does a folder query recurse", shared with the claim
+        # list and the knowledge-graph route: yes by default, `include_descendants=false`
+        # for the document alone (this filter used to recurse with no way to turn it off).
+        doc_ids = _descendant_doc_ids(db, document_id) if include_descendants else {document_id}
         # Claims for this document and any descendant page/chunk docs. Push
         # the source_document_id filter to SQL (IN) instead of scanning every
         # claim row in Python — the O(claims) melt at GHG scale (#1815).
@@ -1021,6 +1025,7 @@ async def list_entities(
     q: Annotated[str | None, Query()] = None,
     entity_type: Annotated[EntityType | None, Query()] = None,
     document_id: Annotated[str | None, Query()] = None,
+    include_descendants: Annotated[bool, Query()] = True,
     limit: Annotated[int, Query(ge=1, le=25000)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     db: Database = Depends(get_library_database),
@@ -1028,13 +1033,15 @@ async def list_entities(
     """List knowledge entities with optional filtering.
 
     When `document_id` is provided, returns only entities mentioned by claims
-    from that document (source-scoped aggregation).
+    from that document AND every descendant document (``include_descendants=true``,
+    the default); pass ``include_descendants=false`` for the document alone.
     """
     items = list_entities_impl(
         db,
         q=q,
         entity_type=entity_type,
         document_id=document_id,
+        include_descendants=include_descendants,
         limit=limit,
         offset=offset,
     )
@@ -1929,6 +1936,10 @@ class EntityListActionParams(BaseModel):
     document_id: str | None = Field(
         default=None, description="Scope to entities mentioned by a document's claims"
     )
+    include_descendants: bool = Field(
+        default=True,
+        description="With document_id: include every descendant document (default); false = the document alone",
+    )
     limit: int = Field(default=50, ge=1, le=500)
     offset: int = Field(default=0, ge=0)
 
@@ -1948,6 +1959,7 @@ def _action_list_entities(
         q=params.q,
         entity_type=params.entity_type,
         document_id=params.document_id,
+        include_descendants=params.include_descendants,
         limit=params.limit,
         offset=params.offset,
     )

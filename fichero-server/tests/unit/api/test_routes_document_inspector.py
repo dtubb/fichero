@@ -75,7 +75,7 @@ def test_document_kg_surfaces_claimless_linked_entity(db):
         )
     )
 
-    resp = asyncio.run(knowledge_graph("page-1", include_children=False, db=db))
+    resp = asyncio.run(knowledge_graph("page-1", include_descendants=False, db=db))
 
     names = [item.canonical_name for group in resp.groups for item in group.items]
     assert "Alejandro Piedrahita" in names, "page KG dropped a claim-less linked entity"
@@ -118,7 +118,7 @@ def test_claim_surfaced_entity_is_not_duplicated_by_the_link(db):
         )
     )
 
-    resp = asyncio.run(knowledge_graph("page-2", include_children=False, db=db))
+    resp = asyncio.run(knowledge_graph("page-2", include_descendants=False, db=db))
 
     rows = [
         i for g in resp.groups for i in g.items if i.canonical_name == "María García López"

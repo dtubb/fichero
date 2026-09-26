@@ -293,13 +293,19 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   OK: the engine's three inconsistent recursion switches this behavior originally named are
   still open**, tracked as their own gap immediately below — this fix routes the CLIENT through
   the one already-recursing seam, it does not unify the engine's own three knobs.
-- `kg.tables.folder-recursion-inconsistent-across-routes` — **[GAP]** (#4885, same evidence as
-  above) three separate engine routes disagree on whether folder scoping recurses into
-  subfolders: `include_descendants` on `/api/claims` is opt-in, the entities `document_id` filter
-  is always-on, and `include_children` on the document knowledge-graph route is its own third
-  knob. Expected, stated as intent not a decided mechanism: one consistent default (or one
-  consistent flag name/semantics) across all three, so a caller does not need to know which
-  route silently recurses and which needs an explicit flag.
+- `kg.tables.folder-recursion-inconsistent-across-routes` — **[PARTIAL]** (#4885; ruled and built in #5065, not yet
+  built through the generated clients) one flag, one default: `include_descendants`, default TRUE, on
+  `GET /api/claims`, the entity list (`document_id`) and the document knowledge-graph route, with
+  `include_descendants=false` meaning the document alone. Replaces `include_children`, which an implicit
+  `or len(descendant_ids) > 1` had made a no-op wherever it mattered. Pinned:
+  `test_folder_recursion_consistency.py::TestFolderQueriesRecurseByDefault::test_all_three_routes_agree_with_no_flags`,
+  `::TestFolderQueriesRecurseByDefault::test_shared_query_functions_default_to_recursive`, and, for the
+  opt-out, `::TestNonRecursiveIsStillExpressible::test_knowledge_graph_route_false_is_the_folder_alone`;
+  the walk is `test_descendant_doc_ids.py::TestDescendantDocIds`. Remaining, so this stays [PARTIAL]: the
+  knowledge-graph RESPONSE still names its echoed field `include_children`, and the Swift client, the
+  generated CLI surface and `openapi.json` still describe the old parameter until they are regenerated;
+  the app's Inspector "include children" toggle sends the retired parameter and so has no effect on this
+  route (it had none for a folder before either).
 - `kg.tables.filter-bar-and-footer-are-two-controls` — **[GAP, DESIGN]** (#4856) the two-bars
   state is BUILT AWAY (c98abbfa7): each table now draws no bar of its own, and the Library's bottom
   bar is the one footer, holding the filter, the type menu and the add control (a plus that creates

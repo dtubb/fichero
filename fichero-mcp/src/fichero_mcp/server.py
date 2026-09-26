@@ -663,16 +663,18 @@ def fichero_kg_neighborhood(
 
 
 @mcp.tool()
-def fichero_document_kg(doc_id: str, include_children: bool = False) -> Any:
+def fichero_document_kg(doc_id: str, include_descendants: bool = True) -> Any:
     """Canonical knowledge graph for a document — deduped, merge-resolved.
 
     Args:
         doc_id: The document ID.
-        include_children: Include child docs (e.g. PDF pages) in the rollup.
+        include_descendants: Include every descendant document (child pages, subfolders)
+            in the rollup. Default true; false is the document alone (#5065; replaces
+            include_children).
     """
     with _client() as client:
         return client.document_knowledge_graph(
-            doc_id, include_children=include_children
+            doc_id, include_descendants=include_descendants
         )
 
 
