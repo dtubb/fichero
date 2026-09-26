@@ -234,3 +234,32 @@ class TestRedoOfAFirstEdit:
         r = client.post(f"/api/actions/audit/{undo_audit.id}/undo")
         assert r.status_code == 409, r.text
         assert [(x.id, x.anchor.rect) for x in _rows(db, art.id)] == before
+
+
+class TestCallersThatSendNoIds:
+    """Pinned so they are not rediscovered as a mystery: an audit row recorded before `edit_targets`
+    existed, and every other caller of `segment.convert_and_edit` (chat/workflow tools), send
+    positions only. They behave exactly as before -- positions -- and a redo of them still
+    replays by position (the #4991 gap stays open for them by design of the old record)."""
+
+    def _invoke(self, db, art, page, indices, bbox):
+        ctx = ActionContext(actor="historian", library_path=None, is_bootstrap=True)
+        return registry.invoke(db, "segment.convert_and_edit", {
+            "document_id": page.id, "artifact_id": art.id,
+            "edit": {"op": "move", "indices": indices, "bbox": bbox}}, ctx)
+
+    def test_a_call_without_ids_edits_the_box_at_the_position(self, db):
+        _, page, art = seed_page(db)
+        self._invoke(db, art, page, [1], [0.5, 0.5, 0.3, 0.05])
+        assert _rows(db, art.id)[1].anchor.rect == [0.5, 0.5, 0.3, 0.05]
+
+    def test_redo_of_a_record_without_ids_still_replays_by_position(self, db, client):
+        _, page, art = seed_page(db)
+        result = self._invoke(db, art, page, [1], [0.5, 0.5, 0.3, 0.05])
+        assert client.post(f"/api/actions/audit/{result.audit_id}/undo").status_code == 200
+        assert client.put(f"/api/artifacts/{art.id}/regions", json={"op": "delete", "indices": [0]}).status_code == 200
+        undo_audit = [a for a in db.all(ActionAudit) if a.inverse_of == result.audit_id][-1]
+        assert client.post(f"/api/actions/audit/{undo_audit.id}/undo").status_code == 200
+        moved = [r for r in _rows(db, art.id) if r.anchor.rect == [0.5, 0.5, 0.3, 0.05]]
+        assert len(moved) == 1
+        assert moved[0].metadata["box_index"] == 2, "the OLD record moves whatever sits at position 1 now"

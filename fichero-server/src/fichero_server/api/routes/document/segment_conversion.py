@@ -526,7 +526,7 @@ class SegmentConvertAndEditParams(BaseModel):
     #: (#4991). Positions only mean what the app was last given; ids do not move. A REPLAY (redo)
     #: re-reads the recorded params, so without these it edits whatever sits at the position now.
     #: None (old callers) keeps the positions as they were.
-    target_segment_ids: list[str] | None = None
+    edit_targets: list[str] | None = None
 
     @model_validator(mode="after")
     def _artifact_and_edit_travel_together(self) -> "SegmentConvertAndEditParams":
@@ -849,10 +849,10 @@ def _convert_execute(
         else:
             working_pass = converted_pass_of(db, working)
         edit = params.edit
-        if params.target_segment_ids is not None and is_converted(working):
+        if params.edit_targets is not None and is_converted(working):
             live = {row.id: position for position, row in enumerate(live_rows_in_order(db, working_pass.id))}
             positions = []
-            for segment_id in params.target_segment_ids:
+            for segment_id in params.edit_targets:
                 if segment_id not in live:
                     raise EditTargetGone(segment_id)
                 positions.append(live[segment_id])
@@ -1226,7 +1226,11 @@ def apply_edit_to_segments(
 
     def carried(points, old_rect, new_rect):
         """A polygon/baseline mapped from the old rectangle onto the new one: translate, and
-        scale when the size changed (#4992). A zero-size old side keeps only the translation."""
+        scale when the size changed (#4992). A zero-size old side keeps only the translation.
+
+        WHAT IS AND IS NOT CARRIED: polygon and baseline only. `anchor.shapes` (slice 7 multi-shape
+        geometry), `rotation` and a rotated frame are NOT mapped -- nothing on this route sets them
+        today, but a box that has them would keep the old ones through a move."""
         if not points or not old_rect:
             return points
         ox, oy, ow, oh = old_rect
@@ -1325,7 +1329,12 @@ def apply_edit_to_segments(
         rects = [r.anchor.rect for r in picked if r.anchor.rect is not None]
         starts = [r.anchor.char_start for r in picked]
         ends = [r.anchor.char_end for r in picked]
-        anchor_update: dict = {}
+        # The kept row's polygon and baseline outline ONE member's line, not the union, so once the
+        # rect is the union they would lie about where the combined box is (#4992's sibling). A
+        # combined box has no single outline or baseline, and one is never invented from a
+        # rectangle, so the rect is the shape; the members' own shapes stay in their preimages and
+        # come back on uncombine.
+        anchor_update: dict = {"polygon": None}
         if rects:
             anchor_update["rect"] = _union_rect(rects)
         if all(v is not None for v in starts) and all(v is not None for v in ends):
@@ -1351,6 +1360,7 @@ def apply_edit_to_segments(
         # texts from. Written straight onto the row: it is not geometry, so
         # it is not part of the update action's compare-and-set.
         reshaped = db.get(Segment, keep_row.id)
+        reshaped.baseline = None  # see the note above `anchor_update`; `segment.update` cannot clear it
         metadata = dict(reshaped.metadata)
         existing = metadata.get("member_box_indexes") or []
         metadata["member_box_indexes"] = sorted(set(existing) | set(member_indexes))

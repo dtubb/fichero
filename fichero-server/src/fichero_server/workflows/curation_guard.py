@@ -271,6 +271,20 @@ def page_content_is_user_edited(doc: Any) -> bool:
     return bool(isinstance(metadata, dict) and metadata.get(PAGE_CONTENT_USER_EDITED_KEY))
 
 
+def page_text_is_derived(db: Any, document_id: str) -> bool:
+    """True once any of this page's results has become segment rows (#5081).
+
+    From a page's first edit its text is WORKED OUT from the working pass and each line's counting
+    reading, so a later machine run must not promote its own text onto ``page_content``: it would
+    disagree with what the page reads and with every correction a person made. The run still saves
+    its artifact. The sibling of ``page_content_is_user_edited``; one question per way a page's
+    text stops being the machine's to overwrite."""
+    from fichero_server.api.routes.document.segment_conversion import is_converted
+    from fichero_server.models import Artifact
+
+    return any(is_converted(a) for a in db.query(Artifact, document_id=document_id))
+
+
 def sweep_replaceable(
     db,
     rows: list,
