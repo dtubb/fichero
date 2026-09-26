@@ -6935,7 +6935,13 @@ class Database(DatabaseEmbeddingMixin):
             try:
                 execute(f"ALTER TABLE {sql_table} ALTER COLUMN {name} TYPE BIGINT")
                 logger.info("widened %s.%s from %s to BIGINT (#5059)", table, name, current[name])
-            except Exception as exc:
+            except (duckdb.CatalogException, duckdb.DependencyException) as exc:
+                # NARROW on purpose (#4395): only the two refusals we understand
+                # are swallowed. A broad `except Exception` here would also hide
+                # a full disk or a corrupt file behind a warning, and the whole
+                # point of this migration is that a widening either happens or
+                # is reported — the same silent-failure shape #5070 was.
+                #
                 # The usual cause is an INDEX on the column: DuckDB refuses
                 # "Cannot change the type of this column: an index depends on
                 # it!". Dropping and recreating the index at every library open
