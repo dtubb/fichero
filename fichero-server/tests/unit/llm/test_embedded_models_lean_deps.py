@@ -31,16 +31,22 @@ import pytest
 # even mlx-lm/mlx-vlm must not be imported into the engine.
 #
 # THE RULE IS ABOUT SIZE, NOT ABOUT THE WORD "ML". Every name here costs
-# hundreds of megabytes — torch and its dependents, pykeen (which is torch),
-# OpenCV. That is the class #2615 was written to keep out, and those
-# exclusions are unchanged and asserted below.
+# hundreds of megabytes — torch and its dependents, OpenCV. That is the class
+# #2615 was written to keep out.
+#
+# READ THIS BEFORE TRUSTING THE LIST: torch IS IN THE SHIPPED BUNDLE, as a
+# dependency of pykeen, which Daniel ruled in on 2026-09-20 (see
+# `_ALLOWED_BY_RULING`). So this set no longer means "absent from the bundle".
+# It means NOT DECLARED DIRECTLY — a name here may not be added to a shipped
+# dependency list on someone's own initiative. Keeping `torch` here is still
+# worth doing: it stops a second, independent reason for torch being added,
+# which would outlive the pykeen ruling if that were ever reversed.
 _FORBIDDEN_SHIPPED = {
     "torch",
     "torchvision",
     "transformers",
     "sentence-transformers",
     "accelerate",
-    "pykeen",
     "mlx",
     "mlx-lm",
     "mlx-vlm",
@@ -64,16 +70,25 @@ _FORBIDDEN_SHIPPED = {
 # Daniel ruled it in. This list is the ONLY thing that may enter the bundle on
 # that ruling — named exactly, versions and all, so "spaCy is allowed" cannot
 # quietly become "spaCy plus whatever else someone adds next".
-# Two Daniel rulings ship packages the leanness guard would otherwise forbid:
-# spaCy (2026-09-04, the ~54 MB SVO grammar gate) and OpenCV (2026-09-06, so the
+# Three Daniel rulings ship packages the leanness guard would otherwise forbid:
+# spaCy (2026-09-04, the ~54 MB SVO grammar gate), OpenCV (2026-09-06, so the
 # image-enhance / background-removal / deskew demo feature works on-device rather
-# than no-opping — ~hundreds of MB, accepted for that). Named exactly so "spaCy
-# and OpenCV are allowed" cannot quietly become "plus whatever else someone adds".
+# than no-opping — ~hundreds of MB, accepted for that), and pykeen (2026-09-20).
+# Named exactly so "these are allowed" cannot quietly become "plus whatever else
+# someone adds".
+#
+# pykeen is the expensive one and the reason the head comment above carries a
+# warning: it brings TORCH, roughly half a gigabyte more, as `pyproject.toml`
+# says at its own entry. It was ruled in with that cost stated, not by erosion.
+# It is also why `test_the_expensive_neighbours_stay_out` in
+# `test_spacy_model_catalog.py` no longer names pykeen: spaCy shipping was never
+# the precedent for it, and it did not become one — a separate ruling did.
 _ALLOWED_BY_RULING = {
     "spacy",
     "es_core_news_sm",
     "en_core_web_sm",
     "opencv-python-headless",
+    "pykeen",
 }
 
 
@@ -124,9 +139,22 @@ def test_the_heavy_class_is_still_excluded_by_name():
     for the hundreds-of-MB class, and the easiest way for that to erode is for
     someone to read "the leanness guard allows an ML package now" and stop
     there. These names stay forbidden, explicitly.
+
+    pykeen MOVED on 2026-09-20, by a maintainer ruling with its cost stated, and
+    this test caught the move — which is the point of it. So pykeen must now be
+    in `_ALLOWED_BY_RULING` and not merely ABSENT from the forbidden set: a
+    package that is neither forbidden nor ruled in is one that fell out of the
+    list unnoticed, which is the erosion this guard exists to catch. The rest of
+    the torch class stays forbidden regardless of pykeen dragging torch in
+    transitively, because a second, independent reason to add torch would
+    outlive the pykeen ruling if that were ever reversed.
     """
-    for heavy in ("torch", "pykeen", "transformers"):
+    for heavy in ("torch", "transformers"):
         assert heavy in _FORBIDDEN_SHIPPED, heavy
+    assert "pykeen" in _ALLOWED_BY_RULING, (
+        "pykeen must be ruled in explicitly, never merely dropped from the forbidden set"
+    )
+    assert "pykeen" not in _FORBIDDEN_SHIPPED
     assert not (_FORBIDDEN_SHIPPED & _ALLOWED_BY_RULING), (
         "a package cannot be both forbidden and allowed by ruling"
     )

@@ -158,8 +158,17 @@ class TestItActuallyShips:
         )
 
     def test_the_expensive_neighbours_stay_out(self):
-        # spaCy shipping is not a precedent for pykeen (torch) — an order of
-        # magnitude more. (OpenCV was ruled INTO the bundle 2026-09-06 for the
-        # image-enhance demo feature; it is no longer an excluded neighbour.)
+        # spaCy shipping is not a precedent for a torch-class dependency, and
+        # that is still the claim worth pinning. What changed is WHICH packages
+        # are excluded, twice and both by ruling, never by erosion: OpenCV in on
+        # 2026-09-06 for the image-enhance demo, pykeen in on 2026-09-20 with
+        # torch and ~half a gigabyte, stated at its `pyproject.toml` entry.
+        #
+        # So this asserts the remaining neighbours, and asserting pykeen's
+        # ABSENCE here would now contradict the ruling while looking principled.
         requires = " ".join(self._briefcase_requires())
-        assert "pykeen" not in requires
+        for excluded in ("sentence-transformers", "transformers", "mlx-lm"):
+            assert excluded not in requires, (
+                f"{excluded} entered the bundle without a ruling — spaCy's "
+                "presence is not a precedent for it"
+            )
