@@ -44697,6 +44697,18 @@
             "nullable": true,
             "title": "Segment Id"
           },
+          "language_meta": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Language Meta"
+          },
+          "script_meta": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Script Meta"
+          },
           "level": {
             "type": "string",
             "nullable": true,
@@ -62640,6 +62652,18 @@
             "type": "string",
             "nullable": true,
             "title": "Read From Rendition Id"
+          },
+          "language_meta": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Language Meta"
+          },
+          "script_meta": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Script Meta"
           }
         },
         "additionalProperties": false,
