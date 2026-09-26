@@ -466,6 +466,58 @@ class TestIndex:
     py_top_level_funcs: dict[str, set[str]] = field(default_factory=dict)  # filename -> defs
 
 
+def _swift_brace_delta(line: str, in_multiline: bool) -> tuple[int, bool]:
+    """Net brace depth for one Swift line, ignoring strings and comments.
+
+    Counting braces with `line.count("{")` reads them inside string literals and
+    comments as real scope. That was live: `SelectAllVisibleSurfaceTests` has
+    braces inside literals, the running count hit zero at line 155, and every
+    method below that was invisible to the index — so the spec's citation of
+    `entitiesTablePublishesVisibleIds` was reported missing when the method is
+    right there. A guard that says a real test does not exist is worse than no
+    guard: the honest fix is to delete the citation, which loses a true pin.
+
+    Not a Swift parser, and does not need to be. It tracks `"` strings with
+    backslash escapes, `\"""` multiline strings, and `//` comments — which is
+    every way a brace hides in this repo's test files.
+    """
+    depth, i, n = 0, 0, len(line)
+    in_string = False
+    while i < n:
+        if in_multiline:
+            if line.startswith('"""', i):
+                in_multiline = False
+                i += 3
+                continue
+            i += 1
+            continue
+        c = line[i]
+        if in_string:
+            if c == "\\":
+                i += 2
+                continue
+            if c == '"':
+                in_string = False
+            i += 1
+            continue
+        if line.startswith('"""', i):
+            in_multiline = True
+            i += 3
+            continue
+        if c == '"':
+            in_string = True
+            i += 1
+            continue
+        if line.startswith("//", i):
+            break  # rest of the line is a comment
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+        i += 1
+    return depth, in_multiline
+
+
 def _index_swift_classes(text: str, idx: TestIndex) -> None:
     lines = text.splitlines()
     i, n = 0, len(lines)
@@ -476,11 +528,13 @@ def _index_swift_classes(text: str, idx: TestIndex) -> None:
             continue
         name = m.group(1)
         idx.known_names.add(name)
-        depth = lines[i].count("{") - lines[i].count("}")
+        delta, in_multiline = _swift_brace_delta(lines[i], False)
+        depth = delta
         methods: set[str] = set()
         j = i + 1
         while j < n and depth > 0:
-            depth += lines[j].count("{") - lines[j].count("}")
+            delta, in_multiline = _swift_brace_delta(lines[j], in_multiline)
+            depth += delta
             fm = _SWIFT_FUNC_RE.search(lines[j])
             if fm:
                 methods.add(fm.group(1))

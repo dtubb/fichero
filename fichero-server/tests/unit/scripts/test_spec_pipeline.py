@@ -138,6 +138,48 @@ def test_rule_b_closed_issue_still_broken_fails(tmp_path, monkeypatch):
     assert _check() == 1
 
 
+BRACE_IN_STRING_SPEC = """# Spec
+
+## Behaviors
+
+- `m2p.late-method` — **[OK]** works. Pinned by `BracesTests.testLateMethod`.
+"""
+
+# A brace inside a string literal and inside a comment. Counting braces textually
+# closes the class at the literal and hides every method below it.
+BRACES_SWIFT = """final class BracesTests: XCTestCase {
+    func testEarlyMethod() {
+        let json = "{\\"a\\": 1}"
+        let closing = "}"
+        // a brace in a comment: }
+        XCTAssertNotNil(json + closing)
+    }
+
+    func testLateMethod() {
+        XCTAssertTrue(true)
+    }
+}
+"""
+
+
+def test_a_brace_inside_a_string_does_not_end_the_class(tmp_path, monkeypatch):
+    """Methods below a string containing a brace must still be indexed.
+
+    Live case: `SelectAllVisibleSurfaceTests` has braces inside literals, the
+    running depth hit zero part-way down, and every method after that was
+    invisible — so the spec's citation of a method that genuinely exists was
+    reported missing.
+
+    That direction of failure is the dangerous one. A guard saying a real test
+    does not exist invites the honest fix of deleting the citation, which loses
+    a true pin and leaves the behaviour looking unproven.
+    """
+    _seed(tmp_path, BRACE_IN_STRING_SPEC)
+    _seed_test_file(tmp_path, "fichero/Tests/BracesTests.swift", BRACES_SWIFT)
+    _fake_issues(monkeypatch, [])
+    assert _check() == 0
+
+
 RULE_D_PARTIAL_DANGLING_SPEC = """# Spec
 
 ## Behaviors
