@@ -4418,6 +4418,122 @@ class Database(DatabaseEmbeddingMixin):
                 created_at=link.created_at,
             ))
 
+    # ---- Source-model slice 8b (#4924): the conversion runner's questions ----
+    #
+    # These live HERE, not in `maintenance/project_conversion.py`, because of
+    # rule #1876: raw SQL belongs in the persistence layer behind typed methods.
+    # The runner had them inline and the guardrail was right to refuse it — and
+    # the rule improved the code: `unconverted_geometry_scope` was two queries in
+    # the runner and is one here, and the next person needing "what is left to
+    # convert" can find it where the other queries are instead of inside a
+    # maintenance pass.
+
+    def unconverted_geometry_scope(self) -> "UnconvertedScope":
+        """How much of this library still has stored geometry, in ONE query.
+
+        An unconverted result is an `Artifact` with boxes and no
+        `geometry_superseded_by_pass_id`. That marker IS the progress record, so
+        this is a question rather than a stored counter: ask it again after a
+        crash and the answer is still right.
+
+        A missing `artifacts` table means a library with no artifacts, which
+        genuinely has nothing to convert — the one case where an empty answer is
+        the true answer rather than blindness.
+        """
+        from fichero_server.models.conversion import UnconvertedScope
+
+        sql = """
+            SELECT
+                count(*) AS results,
+                count(DISTINCT document_id) AS documents,
+                coalesce(sum(json_array_length(json_extract(ocr_geometry, '$.boxes'))), 0) AS boxes
+            FROM artifacts
+            WHERE ocr_geometry IS NOT NULL
+              AND geometry_superseded_by_pass_id IS NULL
+              AND json_array_length(json_extract(ocr_geometry, '$.boxes')) > 0
+        """
+        try:
+            row = self._execute(sql, fetch="one")
+        except Exception as exc:
+            message = str(exc).lower()
+            if "artifacts" in message and ("not exist" in message or "catalog" in message):
+                return UnconvertedScope()
+            raise
+        if row is None:
+            raise RuntimeError(
+                "counting unconverted geometry returned no row at all, which is "
+                "not the same as counting zero"
+            )
+        return UnconvertedScope(
+            results=int(row[0] or 0), documents=int(row[1] or 0), boxes=int(row[2] or 0)
+        )
+
+    def documents_with_unconverted_geometry(self) -> list[str]:
+        """Document ids with an unconverted result, OLDEST FIRST.
+
+        Oldest first because a person working through an archive starts at the
+        beginning, and because it is STABLE: the same order on a resumed run,
+        which is what lets "stop after page n and start again" end somewhere a
+        test can compare.
+        """
+        sql = """
+            SELECT document_id, min(created_at) AS first_seen
+            FROM artifacts
+            WHERE ocr_geometry IS NOT NULL
+              AND geometry_superseded_by_pass_id IS NULL
+              AND json_array_length(json_extract(ocr_geometry, '$.boxes')) > 0
+            GROUP BY document_id
+            ORDER BY first_seen, document_id
+        """
+        try:
+            rows = self._execute(sql, fetch="all")
+        except Exception as exc:
+            message = str(exc).lower()
+            if "artifacts" in message and ("not exist" in message or "catalog" in message):
+                return []
+            raise
+        return [row[0] for row in rows or []]
+
+    def table_row_counts(self) -> dict[str, int]:
+        """Every table in this library and its row count.
+
+        Used to PROVE a snapshot: the counts here are compared table by table
+        against the snapshot's exported Parquet, because a snapshot having been
+        written is not evidence that it can be read back.
+
+        Raises when the library reports no tables at all: an open library always
+        has dozens, so an empty answer means this has gone blind rather than
+        found an empty project.
+        """
+        rows = self._execute("SHOW TABLES", fetch="all") or []
+        tables = [row[0] for row in rows]
+        if not tables:
+            raise RuntimeError(
+                "the library reports NO tables, which cannot be true of an open "
+                "library — this has gone blind rather than found an empty project"
+            )
+        counts: dict[str, int] = {}
+        for table in tables:
+            if not _VALID_IDENTIFIER.match(table):
+                # A table name that is not an identifier cannot be quoted
+                # safely, and skipping it silently would understate the proof.
+                raise ValueError(f"refusing to count a table with an odd name: {table!r}")
+            row = self._execute(f'SELECT count(*) FROM "{table}"', fetch="one")
+            counts[table] = int((row[0] if row else 0) or 0)
+        return counts
+
+    def parquet_row_count(self, path: str) -> int:
+        """Rows in a Parquet file, read through this connection.
+
+        For reading a SNAPSHOT's exports back. Raises rather than returning 0 on
+        an unreadable file: "I could not read it" and "it holds nothing" are the
+        same number and opposite facts.
+        """
+        row = self._execute("SELECT count(*) FROM read_parquet(?)", [str(path)], fetch="one")
+        if row is None:
+            raise RuntimeError(f"counting {path} returned no row")
+        return int(row[0] or 0)
+
     def count(self, model: Type[T], **filters) -> int:
         """Count objects matching filters."""
         sql_table = self._sql_table_name(model)
@@ -6683,6 +6799,23 @@ class Database(DatabaseEmbeddingMixin):
                 col_type = self._python_to_duckdb_type(field_info.annotation)
                 _execute_locked(f"ALTER TABLE {sql_table} ADD COLUMN {name} {col_type}")
 
+            # WIDEN INT32 COLUMNS TO INT64 (#5059). Changing the type map above
+            # only helps libraries created afterwards; every existing library
+            # keeps its INTEGER columns and keeps the ceiling — including the
+            # real research libraries, which are the ones that matter.
+            #
+            # INT32 to INT64 is LOSSLESS, so there is no backfill and no decision
+            # about data: every value that fitted still fits, and the rows are
+            # untouched. That is why this can sit beside the ADD COLUMN reconcile
+            # rather than being a migration somebody has to run — it is the same
+            # mechanism ("a pre-existing library keeps its old table and CREATE
+            # TABLE IF NOT EXISTS is a no-op for it") extended to a column whose
+            # type changed rather than a column that is missing.
+            #
+            # Idempotent: a column already BIGINT is skipped, so a second open
+            # does nothing.
+            self._widen_int_columns(model, sql_table, table, _execute_locked)
+
             self._tables_created.add(table)
 
             # Apply knowledge-table indices once both knowledgeclaims AND
@@ -6709,11 +6842,65 @@ class Database(DatabaseEmbeddingMixin):
                 from fichero_server.db.migrations.schema import migrate_segment_indices
                 migrate_segment_indices(self.conn)
 
+    #: DuckDB's narrower integer types, all of which a Python `int` field may
+    #: now legitimately overflow. Widening any of them to BIGINT is lossless.
+    _NARROW_INT_TYPES = frozenset({"INTEGER", "INT", "INT4", "SIGNED", "SMALLINT",
+                                   "INT2", "SHORT", "TINYINT", "INT1"})
+
+    def _widen_int_columns(self, model, sql_table: str, table: str, execute) -> None:
+        """Widen this table's INT32 columns to BIGINT where the model says `int`.
+
+        Only columns the MODEL declares as `int` are touched, and only when the
+        database currently has them narrower. A column the model declares as
+        something else is left alone whatever its type, because this is about one
+        specific mismatch and not about reconciling every type in general —
+        changing a VARCHAR to a DOUBLE, say, is a data decision and this is not.
+
+        Best-effort per column: a library that cannot be widened is a library
+        that still works exactly as it did, and refusing to open it over a column
+        that has held every value it ever needed would be worse than the ceiling.
+        The warning names the column so it is findable.
+        """
+        try:
+            rows = execute(f"PRAGMA table_info({sql_table})").fetchall()
+        except Exception as exc:
+            logger.debug("cannot read %s's column types to widen them: %s", table, exc)
+            return
+        # PRAGMA table_info: (cid, name, type, notnull, dflt_value, pk)
+        current = {row[1]: str(row[2] or "").upper() for row in rows}
+        for name, field_info in model.model_fields.items():
+            if self._python_to_duckdb_type(field_info.annotation) != "BIGINT":
+                continue
+            if current.get(name) not in self._NARROW_INT_TYPES:
+                continue
+            try:
+                execute(f"ALTER TABLE {sql_table} ALTER COLUMN {name} TYPE BIGINT")
+                logger.info("widened %s.%s from %s to BIGINT (#5059)", table, name, current[name])
+            except Exception as exc:
+                logger.warning(
+                    "could not widen %s.%s from %s to BIGINT; it still holds every "
+                    "value it held before, but large ones will be refused: %s",
+                    table, name, current.get(name), exc,
+                )
+
     def _python_to_duckdb_type(self, python_type) -> str:
         """Map Python types to DuckDB types."""
         type_map = {
             str: "VARCHAR",
-            int: "INTEGER",
+            # BIGINT, not INTEGER (#5059). Python's `int` is arbitrary-precision,
+            # so a field declared `int` reads as "any whole number" — while
+            # INTEGER is INT32 and stops at 2,147,483,647. A disk with 20 GB free
+            # is 20,688,982,016 and the save failed outright with "value is out of
+            # range for the destination type INT32". Found by handing a real value
+            # to the real database, not by reading this line.
+            #
+            # Ruled 2026-09-26 (maintainer): fix the type system rather than the
+            # one field that tripped over it. An `int` that means bytes,
+            # microseconds or a row count of a large table is ordinary, and the
+            # declaration should not have to know about a storage limit the model
+            # never mentions. INT64 costs four bytes a row more and removes a
+            # whole class of silent-ceiling bug.
+            int: "BIGINT",
             float: "DOUBLE",
             bool: "BOOLEAN",
             datetime: "TIMESTAMP",

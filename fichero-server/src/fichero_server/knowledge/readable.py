@@ -325,6 +325,21 @@ def _join_list(items: list[str], conjunction: str) -> str:
     return f"{', '.join(parts[:-1])} {conjunction} {parts[-1]}"
 
 
+def _without_repeated_preposition(verb: str | None, obj: str, language: str | None) -> str:
+    """"arrived at" + "at Andagoya" reads "arrived at at Andagoya" (#5008): extraction left the
+    preposition on BOTH sides. When the verb's last word and the object's first word are the same
+    preposition in this language's own table, say it once. Only ever drops the object's copy of a
+    word that is a preposition, never any other text (an English "a" is not in `en`'s table)."""
+    if not verb or not obj:
+        return obj
+    table = _LEADING_PREPOSITIONS.get(language or "", set())
+    last = _fold(verb.split()[-1]) if verb.split() else ""
+    first, _, rest = obj.strip().partition(" ")
+    if rest and last in table and _fold(first) == last:
+        return rest.strip()
+    return obj
+
+
 def render_aggregation(agg: "Aggregation", language: str) -> str:
     """Stage 6 — realise one Aggregation into a sentence in `language`.
 
@@ -350,7 +365,8 @@ def render_aggregation(agg: "Aggregation", language: str) -> str:
     glue = _REALISATION.get(language, _REALISATION["en"])
     head = " ".join(part for part in (agg.subject, agg.verb) if part).strip()
     if agg.objects:
-        body = f"{head} {_join_list(agg.objects, glue['and'])}".strip()
+        objects = [_without_repeated_preposition(agg.verb, agg.objects[0], language), *agg.objects[1:]]
+        body = f"{head} {_join_list(objects, glue['and'])}".strip()
     else:
         body = head
     if not body:

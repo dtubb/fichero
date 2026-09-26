@@ -73,58 +73,23 @@ class ConversionPreflightFailed(RuntimeError):
 
 
 def conversion_scope(db: Any) -> tuple[int, int]:
-    """``(results_to_convert, documents_to_convert)`` — step 1, ONE query.
+    """``(results_to_convert, documents_to_convert)`` — step 1.
 
-    An unconverted result is an `Artifact` that has boxes and no conversion
-    marker (`geometry_superseded_by_pass_id`). That marker IS the progress
-    record, which is why this is a question and not a stored counter: ask it
-    again after a crash and the answer is still right.
-
-    Counted in SQL rather than by hydrating artifacts, because this runs at
-    EVERY project open and a project of twenty thousand pages must not pay for
-    a scan that loads every geometry blob to count them.
-
-    A missing `artifacts` table means a library with no artifacts, which
-    genuinely has nothing to convert — the one case where an empty answer is
-    the true answer rather than blindness.
-    """
-    sql = """
-        SELECT count(*) AS results, count(DISTINCT document_id) AS documents
-        FROM artifacts
-        WHERE ocr_geometry IS NOT NULL
-          AND geometry_superseded_by_pass_id IS NULL
-          AND json_array_length(json_extract(ocr_geometry, '$.boxes')) > 0
+    One question, asked of the persistence layer
+    (`Database.unconverted_geometry_scope`) rather than answered with SQL here.
+    Rule #1876 keeps raw SQL behind typed methods, and the gate was right to
+    refuse this module's first version — moving it IMPROVED it: what was two
+    queries inline is one query there, and the next person needing "what is left
+    to convert" finds it beside the other library queries instead of inside a
+    maintenance pass.
     """
     try:
-        row = db.conn.execute(sql).fetchone()
+        scope = db.unconverted_geometry_scope()
     except Exception as exc:
-        message = str(exc).lower()
-        if "artifacts" in message and ("not exist" in message or "catalog" in message):
-            return 0, 0
         raise ConversionPreflightFailed(
             f"could not count what is left to convert: {exc}"
         ) from exc
-    if row is None:
-        raise ConversionPreflightFailed(
-            "counting what is left to convert returned no row at all, which is "
-            "not the same as counting zero"
-        )
-    return int(row[0] or 0), int(row[1] or 0)
-
-
-def _boxes_to_convert(db: Any) -> int:
-    """Total boxes across every unconverted result — the record-count estimate."""
-    sql = """
-        SELECT coalesce(sum(json_array_length(json_extract(ocr_geometry, '$.boxes'))), 0)
-        FROM artifacts
-        WHERE ocr_geometry IS NOT NULL
-          AND geometry_superseded_by_pass_id IS NULL
-    """
-    try:
-        row = db.conn.execute(sql).fetchone()
-    except Exception:
-        return 0
-    return int((row[0] if row else 0) or 0)
+    return scope.results, scope.documents
 
 
 def _last_snapshot_bytes(library_path: Path) -> int | None:
@@ -176,7 +141,7 @@ def estimate_space(db: Any, library_path: Path) -> tuple[int, int]:
     disk halfway through writing records, which is the state nobody chose.
     """
     snapshot_bytes = _last_snapshot_bytes(library_path) or _library_bytes(library_path)
-    records_bytes = _boxes_to_convert(db) * BYTES_PER_BOX_ESTIMATE
+    records_bytes = db.unconverted_geometry_scope().boxes * BYTES_PER_BOX_ESTIMATE
     required = int((snapshot_bytes + records_bytes) * DISK_MARGIN)
     try:
         available = shutil.disk_usage(library_path).free
@@ -188,21 +153,18 @@ def estimate_space(db: Any, library_path: Path) -> tuple[int, int]:
 
 
 def _live_row_counts(db: Any) -> dict[str, int]:
-    """Every table in the project and its row count, for the snapshot proof."""
+    """Every table in the project and its row count, for the snapshot proof.
+
+    `Database.table_row_counts` raises when the library reports no tables, which
+    is the property that matters here: an open library always has dozens, so an
+    empty answer is blindness and not an empty project.
+    """
     try:
-        tables = [r[0] for r in db.conn.execute("SHOW TABLES").fetchall()]
+        return db.table_row_counts()
     except Exception as exc:
-        raise ConversionPreflightFailed(f"could not list the project's tables: {exc}") from exc
-    if not tables:
         raise ConversionPreflightFailed(
-            "the project reports NO tables, which cannot be true of an open "
-            "library — this check has gone blind rather than found an empty project"
-        )
-    counts: dict[str, int] = {}
-    for table in tables:
-        row = db.conn.execute(f'SELECT count(*) FROM "{table}"').fetchone()
-        counts[table] = int((row[0] if row else 0) or 0)
-    return counts
+            f"could not read the project's table row counts: {exc}"
+        ) from exc
 
 
 def prove_snapshot(db: Any, snapshot: Any) -> dict[str, Any]:
@@ -244,13 +206,10 @@ def prove_snapshot(db: Any, snapshot: Any) -> dict[str, Any]:
             mismatches[table] = {"expected": expected, "found": "no parquet file"}
             continue
         try:
-            row = db.conn.execute(
-                "SELECT count(*) FROM read_parquet(?)", [str(parquet)]
-            ).fetchone()
+            found = db.parquet_row_count(str(parquet))
         except Exception as exc:
             mismatches[table] = {"expected": expected, "found": f"unreadable: {exc}"}
             continue
-        found = int((row[0] if row else 0) or 0)
         proved_rows += found
         if found != expected:
             mismatches[table] = {"expected": expected, "found": found}
@@ -398,31 +357,15 @@ SYSTEM_ACTOR = "system"
 def documents_to_convert(db: Any) -> list[str]:
     """Every document with an unconverted result, OLDEST FIRST.
 
-    Oldest first because a person working through an archive starts at the
-    beginning, so the pages they are most likely to open next are the ones
-    already done. It is also stable: the same order on a resumed run, which is
-    what lets "stop after page n and start again" end up somewhere a test can
-    compare.
-    """
-    sql = """
-        SELECT a.document_id, min(a.created_at) AS first_seen
-        FROM artifacts a
-        WHERE a.ocr_geometry IS NOT NULL
-          AND a.geometry_superseded_by_pass_id IS NULL
-          AND json_array_length(json_extract(a.ocr_geometry, '$.boxes')) > 0
-        GROUP BY a.document_id
-        ORDER BY first_seen, a.document_id
+    The ordering and the reasons for it live with the query, in
+    `Database.documents_with_unconverted_geometry`.
     """
     try:
-        rows = db.conn.execute(sql).fetchall()
+        return db.documents_with_unconverted_geometry()
     except Exception as exc:
-        message = str(exc).lower()
-        if "artifacts" in message and ("not exist" in message or "catalog" in message):
-            return []
         raise ConversionPreflightFailed(
             f"could not list the documents left to convert: {exc}"
         ) from exc
-    return [row[0] for row in rows]
 
 
 def _convert_one_page(db: Any, document_id: str, run_id: str) -> str:

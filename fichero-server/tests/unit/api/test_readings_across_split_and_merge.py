@@ -310,8 +310,22 @@ class TestSplittingALineWithAReading:
             assert row is not None, "a retraction keeps the row"
             assert row.retracted_at is not None
         # And the reading the split did NOT add is exactly as it was.
-        assert db.get(ContentRepresentation, source_id).retracted_at is None
-        assert _real_contents(db, original.id) == ["en el nombre"]
+        #
+        # Asserted BY ID, not by comparing a list of contents. Since slice 8b
+        # conversion writes its own reading of the same line, so this segment has
+        # two recorded readings with IDENTICAL words — a content list cannot tell
+        # them apart, and a test that compared one would pass or fail for reasons
+        # that have nothing to do with the undo.
+        source = db.get(ContentRepresentation, source_id)
+        assert source.retracted_at is None
+        assert source.content == "en el nombre"
+        live = {
+            row.id
+            for row in db.query(ContentRepresentation, segment_id=original.id)
+            if row.retracted_at is None
+        }
+        assert source_id in live
+        assert not (set(added) & live), "a retracted reading is still counting"
 
 
 class TestMergingTwoLinesWithReadings:
@@ -414,9 +428,13 @@ class TestMergingTwoLinesWithReadings:
         assert db.get(ContentRepresentation, joined_id).retracted_at is not None
         assert db.get(Segment, rows[1].id).deleted_at is None
         # "Comes back with an unmerge": nothing had to be restored, because the
-        # reading never left the segment.
-        assert _real_contents(db, rows[1].id) == ["de dios amen"]
-        assert db.get(ContentRepresentation, absorbed_reading).retracted_at is None
+        # reading never left the segment. Asserted by ID for the same reason as
+        # the split's undo — conversion's own reading of this line has the same
+        # words as the person's.
+        restored = db.get(ContentRepresentation, absorbed_reading)
+        assert restored.retracted_at is None
+        assert restored.segment_id == rows[1].id
+        assert restored.content == "de dios amen"
 
     def test_a_kind_only_one_member_had_is_not_joined_with_itself(self, db, client):
         doc, artifact, rows = _page(db, client)

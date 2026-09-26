@@ -791,3 +791,21 @@ def test_a_claim_that_declares_no_language_never_merges():
     assert len(groups) == 2
     rendered = " ".join(render_aggregation(g, g.language or "en") for g in groups)
     assert " and a " not in rendered and " y a " not in rendered
+
+
+def test_a_preposition_on_both_sides_of_the_verb_and_object_is_said_once():
+    """#5008: extraction stored verb "arrived at" AND object "at Andagoya"; the sentence must not
+    read "arrived at at Andagoya". Only a real preposition of that language is deduplicated."""
+    from fichero_server.knowledge.readable import render_aggregation
+    doubled = _svo("Ana", "arrived at", "at Andagoya.", subject_entity_id="ana", source_languages=["en"])
+    assert render_aggregation(aggregate_claims([doubled])[0], "en") == "Ana arrived at Andagoya."
+    # not a preposition in `en`'s table -> left exactly as extracted
+    article = _svo("Ana", "bought a", "a mine", subject_entity_id="ana", source_languages=["en"])
+    assert render_aggregation(aggregate_claims([article])[0], "en") == "Ana bought a a mine."
+    # a different preposition is not the same word
+    other = _svo("Ana", "arrived at", "in Andagoya", subject_entity_id="ana", source_languages=["en"])
+    assert render_aggregation(aggregate_claims([other])[0], "en") == "Ana arrived at in Andagoya."
+    # Spanish: the same rule from the Spanish table
+    es = _svo("Ana", "llegó a", "a Andagoya", subject_entity_id="ana", source_languages=["es"])
+    assert render_aggregation(aggregate_claims([es])[0], "es") == "Ana llegó a Andagoya."
+

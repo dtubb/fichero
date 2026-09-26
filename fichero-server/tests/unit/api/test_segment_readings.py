@@ -44,6 +44,7 @@ from fichero_server.models import (
 )
 from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.knowledge import ProvenanceKind
+from fichero_server.api.routes.document.segment_readings import readings_of_segment
 from fichero_server.models.readings import CountingBasis, legacy_reading_segment_id
 
 pytestmark = pytest.mark.source_model
@@ -135,6 +136,12 @@ class TestReadingsAreWritten:
         _convert(client, artifact.id)
         segment = _converted_segments(db, artifact.id)[1]
 
+        # Conversion already wrote this line's machine reading (slice 8b), so
+        # this test asserts a DELTA: three more, and nothing existing touched.
+        # An absolute count would now be a count of two different things.
+        from_conversion = len(db.query(ContentRepresentation, segment_id=segment.id))
+        assert from_conversion == 1, "conversion should have written exactly one"
+
         first = _write(db, segment, content="nombre")
         second = _write(db, segment, content="nõbre", level="as_written")
         before = {
@@ -145,7 +152,7 @@ class TestReadingsAreWritten:
         third = _write(db, segment, content="nomine", language="la")
 
         rows = db.query(ContentRepresentation, segment_id=segment.id)
-        assert len(rows) == 3
+        assert len(rows) == from_conversion + 3
         for rid, snapshot in before.items():
             assert db.get(ContentRepresentation, rid).model_dump(mode="json") == snapshot
         assert db.get(ContentRepresentation, third.result["id"]).language == "la"
@@ -254,7 +261,11 @@ class TestReadingsAreWritten:
         # without a second lookup per reading.
         items = client.get(f"/api/segments/{segment.id}/readings").json()["items"]
         authors = {item["created_by"] for item in items if not item["provisional"]}
-        assert authors == {"maria", "juan"}
+        # Two people and the machine, each named. That the machine's conversion
+        # reading sits beside theirs with its OWN author is the behaviour, not
+        # noise: an apparatus has to say who read each way.
+        assert {"maria", "juan"} <= authors
+        assert "qwen" in authors, "the machine's own reading lost its author"
         # A provisional reading's author is the run that produced it -- the only
         # author that text has.
         provisional = [item for item in items if item["provisional"]]
@@ -376,7 +387,11 @@ class TestRetraction:
         assert answer["basis"] == CountingBasis.newest_machine_unchosen.value
         assert answer["labelled_machine"] is True
         assert answer["representation_id"] != created.result["id"]
-        assert [item["retracted"] for item in after["items"] if not item["provisional"]] == [True]
+        # Two recorded readings now: conversion's machine one, and the person's
+        # withdrawn one. Exactly one is retracted, and it is theirs.
+        recorded = {i["id"]: i["retracted"] for i in after["items"] if not i["provisional"]}
+        assert recorded[created.result["id"]] is True
+        assert sum(1 for r in recorded.values() if r) == 1
 
 
 class TestTheAuditChainCarriesNoText:
@@ -428,8 +443,13 @@ class TestTheReadSeamAnswersFromBothStores:
         segment = _converted_segments(db, artifact.id)[2]
 
         items = client.get(f"/api/segments/{segment.id}/readings").json()["items"]
-        assert [item["content"] for item in items] == ["nombre"]
-        assert items[0]["provisional"] is True
+        provisional = [i for i in items if i["provisional"]]
+        # The provisional reading is STILL offered after conversion -- the seam
+        # does not stop answering from the block just because a record exists.
+        assert [i["content"] for i in provisional] == ["nombre"]
+        # And conversion's own recorded reading says the same words.
+        recorded = [i for i in items if not i["provisional"]]
+        assert [i["content"] for i in recorded] == ["nombre"]
 
     def test_a_real_reading_and_a_provisional_one_stand_side_by_side(self, db, client):
         doc = _make_doc(db)
@@ -439,8 +459,10 @@ class TestTheReadSeamAnswersFromBothStores:
         _write(db, segment, content="nombre (corrected)")
 
         payload = client.get(f"/api/segments/{segment.id}/readings").json()
-        assert payload["count"] == 2
-        assert sorted(item["provisional"] for item in payload["items"]) == [False, True]
+        # Three: conversion's machine reading, the person's correction, and the
+        # provisional one still read out of the block.
+        assert payload["count"] == 3
+        assert sorted(i["provisional"] for i in payload["items"]) == [False, False, True]
         # And the counting answer rides on the same read, so no client renders
         # a machine's guess unlabelled while it fetches the answer separately.
         answer = payload["counting"]["transcription"]
@@ -715,3 +737,143 @@ class TestRefusals:
             },
         )
         assert response.status_code == 422
+
+
+class TestConversionWritesReadings:
+    """Slice 8b: each converted segment's words become a READING on it (#4924).
+
+    Spec: `build-notes-readings-cascade-orders.md`, "Slice 8b" — "With readings
+    on segments (why 8 comes first)". Until this, a converted page's shapes lived
+    in rows and its WORDS lived only in the artifact's kept block: one home for
+    the geometry, another for the text.
+    """
+
+    def test_every_converted_line_gets_a_reading_of_its_own_words(self, db, client):
+        doc = _make_doc(db)
+        artifact = _artifact(db, doc)
+
+        _convert(client, artifact.id)
+
+        rows = _converted_segments(db, artifact.id)
+        for row in rows:
+            real = [
+                item
+                for item in readings_of_segment(db, row.id)
+                if not item.provisional
+            ]
+            assert len(real) == 1, f"segment {row.id} has {len(real)} recorded readings"
+            # The words are the box's own, taken from the SAME answer the rows
+            # came from rather than re-derived.
+            assert real[0].content
+            assert real[0].segment_id == row.id
+
+    def test_the_words_match_the_boxes_they_came_from(self, db, client):
+        doc = _make_doc(db)
+        artifact = _artifact(db, doc)
+
+        _convert(client, artifact.id)
+
+        for index, row in enumerate(_converted_segments(db, artifact.id)):
+            real = [i for i in readings_of_segment(db, row.id) if not i.provisional]
+            start, end = SPANS[index]
+            assert real[0].content == PAGE_TEXT[start:end]
+
+    def test_converting_is_not_authorship_and_the_reading_inherits_that(self, db, client):
+        """`source.store.converted-boxes-keep-their-maker`, extended to the
+        words: the machine wrote these, and converting them does not make them
+        the person whose project happened to be open."""
+        doc = _make_doc(db)
+        artifact = _artifact(db, doc)
+
+        _convert(client, artifact.id)
+
+        for row in _converted_segments(db, artifact.id):
+            real = [i for i in readings_of_segment(db, row.id) if not i.provisional]
+            assert real[0].provenance_kind is row.provenance_kind
+            assert real[0].provenance_kind is ProvenanceKind.workflow
+            assert real[0].created_by == row.created_by == "qwen"
+
+    def test_the_reading_names_the_artifact_it_came_from(self, db, client):
+        """The one link between the two stores, pointing from the new record to
+        the old output — never a copy of the words in the other direction."""
+        doc = _make_doc(db)
+        artifact = _artifact(db, doc)
+
+        _convert(client, artifact.id)
+
+        row = _converted_segments(db, artifact.id)[0]
+        real = [i for i in readings_of_segment(db, row.id) if not i.provisional][0]
+        assert real.derived_from_artifact_id == artifact.id
+        # `producer_model` is on the stored row; `ReadingRead` deliberately does
+        # not carry it, so this asserts where the field actually lives.
+        assert db.get(ContentRepresentation, real.id).producer_model == "qwen-vl"
+
+    def test_a_translation_results_boxes_become_translations_not_transcriptions(
+        self, db, client
+    ):
+        doc = _make_doc(db)
+        artifact = _artifact(db, doc, artifact_type="translation")
+
+        _convert(client, artifact.id)
+
+        row = _converted_segments(db, artifact.id)[0]
+        real = [i for i in readings_of_segment(db, row.id) if not i.provisional][0]
+        assert real.kind == "translation"
+
+    def test_a_result_whose_type_is_not_a_reading_kind_still_gets_transcriptions(
+        self, db, client
+    ):
+        """A PDF's own text layer arrives as `text_geometry`, which is not a kind
+        of reading — but its words are still what the line says."""
+        doc = _make_doc(db)
+        artifact = _artifact(db, doc, artifact_type="text_geometry")
+
+        _convert(client, artifact.id)
+
+        row = _converted_segments(db, artifact.id)[0]
+        real = [i for i in readings_of_segment(db, row.id) if not i.provisional][0]
+        assert real.kind == "transcription"
+
+    def test_an_empty_box_gets_no_reading(self, db, client):
+        """An empty reading would assert that a machine read this line and found
+        nothing, which is not the same as the line not having been read."""
+        doc = _make_doc(db)
+        artifact = Artifact(
+            document_id=doc.id, artifact_type="transcription", provider="qwen",
+            content="en",
+            ocr_geometry=OCRGeometryResult(
+                provider="qwen", text="en",
+                boxes=[
+                    OCRGeometryBox(text="en", bbox=[0.1, 0.1, 0.2, 0.05], level="line",
+                                   char_start=0, char_end=2),
+                    OCRGeometryBox(text="", bbox=[0.1, 0.3, 0.2, 0.05], level="line"),
+                ],
+            ),
+        )
+        db.save(artifact)
+
+        _convert(client, artifact.id)
+
+        rows = _converted_segments(db, artifact.id)
+        assert [i for i in readings_of_segment(db, rows[0].id) if not i.provisional]
+        assert [i for i in readings_of_segment(db, rows[1].id) if not i.provisional] == []
+
+    def test_the_derived_page_text_now_comes_from_records_not_the_block(self, db, client):
+        """The point of the whole step: a converted page's text is the join of
+        readings that exist as rows, rather than of words that live only inside
+        an artifact."""
+        from fichero_server.api.routes.document.segment_readings import document_text
+
+        doc = _make_doc(db)
+        artifact = _artifact(db, doc)
+        _convert(client, artifact.id)
+
+        derived = document_text(db, doc.id)
+
+        assert derived.text == PAGE_TEXT
+        assert len(derived.spans) == len(SPANS)
+        # Every span names a REAL reading, not a provisional one read out of the
+        # artifact.
+        for span in derived.spans:
+            assert span.representation_id is not None
+            assert not span.representation_id.startswith("legacy-reading:")

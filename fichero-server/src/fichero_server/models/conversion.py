@@ -44,6 +44,29 @@ def _new_id() -> str:
     return uuid.uuid4().hex
 
 
+class UnconvertedScope(BaseModel):
+    """How much of a project still has stored geometry rather than records.
+
+    The answer to "is there anything to do?", and the input to the disk
+    estimate. All three numbers come from ONE query over the conversion markers
+    (`Database.unconverted_geometry_scope`), because this is asked at every
+    project open and a project of twenty thousand pages must not pay for a scan
+    that loads every geometry blob to count it.
+
+    There is no cursor anywhere in this design: what is left is always asked of
+    the database, so a quit, a crash or a second run cannot make it wrong.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    #: Results with boxes and no conversion marker.
+    results: int = 0
+    #: Distinct documents those results sit on.
+    documents: int = 0
+    #: Total boxes across them — what the new records will cost.
+    boxes: int = 0
+
+
 class ConversionVerdict(str, Enum):
     """How a conversion run ended, or why it never began.
 
@@ -120,22 +143,13 @@ class ConversionRun(BaseModel):
     #: on a nearly full disk.
     results_to_convert: int = 0
     documents_to_convert: int = 0
-    #: FLOAT, not int, and the reason is a real defect this slice tripped over:
-    #: `Database._python_to_duckdb_type` maps Python `int` to DuckDB `INTEGER`,
-    #: which is INT32 and caps at 2,147,483,647. A disk with 20 GB free is
-    #: 20,688,982,016, so saving this record as `int` fails outright with
-    #: "value is out of range for the destination type INT32" — found by running
-    #: the runner, not by reading it. DOUBLE holds every integer exactly up to
-    #: 2^53 (about 9 petabytes), which is comfortably beyond any disk this will
-    #: meet, and it stays queryable ("which projects refused with under a
-    #: gigabyte free") in a way a string would not.
-    #:
-    #: ponytail: a local workaround for a layer-wide trap. EVERY persisted `int`
-    #: field in this codebase silently caps at 2.1 billion; the real fix is for
-    #: the type map to emit BIGINT, which changes every table's DDL and is not
-    #: this slice's to make. Reported separately.
-    disk_required_bytes: float | None = None
-    disk_available_bytes: float | None = None
+    #: Bytes. Plain `int` since #5059 made the type map emit BIGINT and widen
+    #: existing INTEGER columns on open: a field that means bytes should not have
+    #: to know about a storage ceiling the model never mentions. This pair is
+    #: what found that ceiling — a disk with 20 GB free is 20,688,982,016, and
+    #: saving this record used to fail outright.
+    disk_required_bytes: int | None = None
+    disk_available_bytes: int | None = None
 
     pages_converted: int = 0
     #: A page an edit converted first, or that had nothing to convert. NOT a

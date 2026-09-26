@@ -1420,15 +1420,16 @@ Creative director, running the app (the one-renderer + old split/close wiring st
   window tabs on different libraries the crumb showed whichever window wrote last — the same
   singleton-pointer mistake `kg.entity.focus-is-per-window` (`kg-entity-inspector.md`) fixed
   for entity focus. Fixed: `LibraryView+PaneHead.swift`'s root crumb and drag payload now read
-  the WINDOW's own library. **Found in the same audit, not fixed here, named honestly as
-  remaining rather than implied closed**: the identical app-wide-pointer mistake still sits in
-  the workflow editor's crumbs, the Reader's crumb drag payload and new-window paths, three
-  artifact-lens sites, a few claim-card and PDF-toolbar sites, and an unused helper that
-  prefers the app-wide pointer. A deliberate app-level use of `currentLibraryId` (which
-  library File > New targets) stays explicit and out of scope, as before. Pinned:
-  `LibraryPaneHeadOwnWindowTests` (file
-  `fichero/Tests/Unit/general/Views/Library/LibraryPaneHeadOwnWindowTests.swift`, suite
-  `LibraryPaneHeadOwnWindowTests`; both cases, the breadcrumb root and the drag payload).
+  the WINDOW's own library. **Found in the same audit, since resolved (2026-09-26)**: the same
+  app-wide-pointer mistake in the workflow editor's crumbs, the Reader's crumb drag payload and
+  new-window paths, the artifact-lens sites, the claim-card and PDF-toolbar sites and the unused
+  helper. No view under `Views/` reads the app-wide pointer now. A deliberate app-level use of `currentLibraryId` (which
+  library File > New targets) stays explicit and out of scope, as before. Pinned tree-wide, a STRONGER pin than the per-site tests it replaced
+  (the earlier per-site suites checked ten named
+  sites and were deleted): `LibraryPointerGuardrailTests.noViewReadsTheAppWideLibraryPointer`
+  (file `fichero/Tests/Unit/general/Views/Shell/LibraryPointerGuardrailTests.swift`) scans every
+  file under `Views/` for `LibraryManager.shared.currentLibraryId`, so a NEW view reading it
+  fails too. Not pinned: the positive half, that each site reads its own `windowState.libraryId`.
 
 - `panes.instance-safe` — **[FIXED 2026-09-15]** a workspace may mount more than one pane of the
   same kind in one window (Compare: two previews, two readers, two libraries). Applying it used to
