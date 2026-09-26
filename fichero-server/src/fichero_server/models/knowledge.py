@@ -825,6 +825,11 @@ class ClaimSuppressionRule(BaseModel):
     match_predicate_verb: str | None = None
     match_subject_name: str | None = None
     match_object_phrase: str | None = None
+    # #5074: scope a rule to ONE source document. None = the whole library (every rule that
+    # existed before this field). A rule written by DELETING a claim is scoped to that claim's
+    # document: deleting "Ana signed a deed" from page 1 must not suppress the same triple where
+    # page 2 really says it.
+    match_source_document_id: str | None = None
     suppress_is_a_copulas: bool = False
     reason: str
     created_by: str = "human"

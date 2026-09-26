@@ -242,8 +242,14 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   `test_entity_writer.py::TestWriterGateRules::test_a_claim_written_after_a_merge_names_the_survivor`,
   `::TestFollowMergeChain::test_two_real_merges_deep_a_reimport_lands_on_the_final_survivor`,
   `::TestFollowMergeChain::test_a_cycle_is_a_typed_error_not_a_hang`.
-  NOT built: **claim delete** (#5074), **split** (no anti-merge rule type exists), and the entity-**reject**
-  attachment of new claims. Ties to the standing curation-persists-and-constrains-imports
+  **Claim delete** writes a `ClaimSuppressionRule` with action `prune` in the same action (#5074): `disable` and
+  `demote` still write the claim, as `rejected`, so it would come back as a row to dismiss again; only `prune`
+  makes the writer skip it. The rule matches the claim's subject/verb/object AND is scoped to its source document
+  (`match_source_document_id`, new; None means the whole library, as every earlier rule), so the same statement on
+  another page is still written. A claim with no complete triple (hand-authored) writes no rule. Pinned:
+  `test_claim_delete_writes_rule.py::TestClaimDeleteWritesAPruneRule` (round trip through the real extraction writer,
+  scope, undo, undo-of-create, failure leaves the claim). NOT built: **split** (no anti-merge rule type exists) and
+  the entity-**reject** attachment of new claims. Ties to the standing curation-persists-and-constrains-imports
   ruling; the importer's own NLP-draft half is `importer.md`'s
   `importer.nlp-never-overwrites-curated-rows`.
 
