@@ -564,6 +564,11 @@ _SEARCH_STOPWORDS: frozenset[str] = frozenset(
         "they", "this", "to", "up", "us", "was", "we", "were", "what", "when",
         "where", "which", "who", "whom", "why", "will", "with", "would", "you",
         "your",
+        # Question fillers (#5029): "what is Quibdó like?" matched every page containing "like".
+        # ponytail: closed list of words that are never the subject of a question; add more when a
+        # real question shows one. "about"/"tell"/"please" only strip inside a longer query (see
+        # `_search_match_terms`), so a literal one-word search still works.
+        "about", "like", "please", "tell",
         # Spanish
         "al", "como", "con", "cual", "cuando", "de", "del", "donde", "el",
         "ella", "ellos", "en", "era", "es", "esa", "ese", "esta", "este",
