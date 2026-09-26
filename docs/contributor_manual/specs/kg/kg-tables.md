@@ -248,7 +248,11 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   not just this table — now has its own spec and guardrail: → #4831,
   `harness/audited-action-layer.md` (`audit.every-mutating-route-uses-the-registry`,
   `scripts/check_routes_use_action_layer.py`). Not duplicated here.
-- `kg.tables.crud.in-place` — **[OK]** (#4389, e00eb0260) a create/edit/delete updates that one row
+- `kg.tables.crud.in-place` — **[PARTIAL]** (#4389, e00eb0260) a create/edit/delete updates that one row
+  in place. **The residue is the rest of #4389's own acceptance**: that the selection and the scroll
+  position survive the update. `e00eb0260` explicitly did not address either, so the row is right and
+  the view around it still jumps. Retagged from `[OK]` on 2026-09-26 when the issue was reopened —
+  the tag had recorded the fix, not the acceptance
   in place; the table is not wholesale re-rendered (stores update one item, not the list).
   Merging entities now removes the absorbed rows in place and patches the survivor from ONE
   `getEntity`, with no inspector re-fetch. Pinned:
@@ -261,7 +265,10 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
 
 ### D2. Maintainer test findings, 2026-09-19 (B1-B4)
 
-- `kg.tables.pane-kind-mismatch` — **[OK]** (#4884, bba51e49f; the design root is tracked
+- `kg.tables.pane-kind-mismatch` — **[PARTIAL]** (#4884, bba51e49f; NOT YET SEEN ON SCREEN — this was
+  reported as a visual symptom, the chip saying Claims while the pane rendered Entities, and passing
+  unit tests are not that symptom being gone. Retagged from `[OK]` 2026-09-26; needs a human at a
+  screen to close. The design root is tracked
   as `panes.model.per-pane-scope-and-kind-unread` in `panes-workspaces.md`) a Library pane with
   its kind chip set to Claims renders the CLAIMS table: the decision is one pure function,
   `LibraryView.effectiveKind` — a pane with an explicit kind shows it (choosing Documents is as

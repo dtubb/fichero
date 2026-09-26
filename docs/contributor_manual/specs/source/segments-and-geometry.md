@@ -568,14 +568,14 @@ Canvas
   the source model.
 
 Pointing and statements
-- `source.point.by-id-or-span` — **[OK]** (#4932; pinned by `tests/unit/api/test_readings_across_split_and_merge.py::TestTheAnchorCanNameWhatItPointsAt::test_a_stretch_names_the_exact_reading_it_was_measured_on`) a thing points at a segment by id, or at a stretch of one of
+- `source.point.by-id-or-span` — **[OK]** (→ #4932; pinned by `tests/unit/api/test_readings_across_split_and_merge.py::TestTheAnchorCanNameWhatItPointsAt::test_a_stretch_names_the_exact_reading_it_was_measured_on`) a thing points at a segment by id, or at a stretch of one of
   its readings.
-- `source.point.text-is-derived` — **[OK]** (#4932; pinned by `tests/unit/api/test_document_derived_text.py::TestTheDerivedText::test_the_page_text_is_the_join_of_its_lines_readings_in_order`) a page's text is worked out from segments and a reading
+- `source.point.text-is-derived` — **[OK]** (→ #4932; pinned by `tests/unit/api/test_document_derived_text.py::TestTheDerivedText::test_the_page_text_is_the_join_of_its_lines_readings_in_order`) a page's text is worked out from segments and a reading
   order; it is never the master.
 - `source.statement.on-segment` — **[GAP]** (#4932) a claim or mention points at a segment id, keeps a copy of
   its anchor beside it, and survives re-segmentation and re-transcription; a claim on an
   unconverted page points by its anchor alone.
-- `source.point.anchor-names-its-segment` — **[OK]** (#4932; pinned by `tests/unit/api/test_readings_across_split_and_merge.py::TestTheAnchorCanNameWhatItPointsAt::test_all_four_carriers_gain_the_lasting_id_with_no_new_column`) the one anchor every reading, mark and claim
+- `source.point.anchor-names-its-segment` — **[OK]** (→ #4932; pinned by `tests/unit/api/test_readings_across_split_and_merge.py::TestTheAnchorCanNameWhatItPointsAt::test_all_four_carriers_gain_the_lasting_id_with_no_new_column`) the one anchor every reading, mark and claim
   carries (three stored kinds), and every supporting source embedded in a claim or an entity,
   gains an optional lasting segment id; the id is the pointer and the
   stored shape is the record of where the ink was; one resolver answers with the live
