@@ -480,6 +480,35 @@ Xcode.app's cache and avoids `build.db` lock contention.
 delete over add; no speculative abstraction; a `ponytail:` comment on any deliberate
 simplification). Both are enforced by review, not by a script.
 
+### Prefer the harness's own tools over a plugin that wraps them
+
+The default is the built-in. A plugin earns its place only by doing something the
+harness cannot, because every enabled plugin costs context in *every* session —
+its skill names and tool schemas are loaded whether or not they are ever used.
+
+| Need | Use | Not |
+|---|---|---|
+| Review a diff or PR | built-in `/code-review` | a review plugin |
+| Tidy code after a change | built-in `/simplify` (quality only — `/code-review` finds bugs) | a simplifier plugin |
+| Write or refresh a CLAUDE.md | built-in `/init` | a CLAUDE.md plugin |
+| Plan non-trivial work before coding | **plan mode** (rule 5 below) | a planning plugin |
+| Anything on GitHub — issues, PRs, labels, milestones, releases | **`gh` via Bash** | a GitHub MCP |
+
+**GitHub goes through `gh`, never an MCP.** Measured on five issues: `gh` with a
+`--json`/`--jq` projection is ~500 bytes; the same five as full JSON objects — the
+shape an MCP returns — is ~11.7 KB. 23×. An MCP serialises its whole schema
+(`author`, `labels`, `assignees`, `body`, timestamps…) on every item; with `gh`
+you name the two fields you want and nothing else is ever produced.
+
+That saving is a DISCIPLINE, not a property of the tool: bare `gh issue list` is
+already half again as large as a projection. So always pass `--json <fields>` with
+a `--jq` projection, and never `--json` a field you are not about to read.
+
+**Issues ARE the task list.** There is no separate to-do surface, and the harness may
+not expose a to-do tool at all — check rather than assume. Work that is real enough
+to track is real enough to be an issue: file it, then work it. A plan that lives only
+in a chat transcript is lost at the next compaction.
+
 ---
 
 ## Common Pitfalls
