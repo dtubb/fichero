@@ -154,6 +154,37 @@ check_test_host() {
   return 0
 }
 
+# The spec is what this project builds from, and a behaviour tagged broken against
+# a CLOSED issue sends someone to fix what is already fixed — silently, because they
+# find working code and conclude they misread the spec. `spec_pipeline check` has
+# caught that since it was written (rule b), but it is a manual dispatch step, so
+# nobody ran it and five stale tags accumulated by 2026-09-26. Running it HERE makes
+# it deterministic: once per lane, before any work is chosen.
+#
+# Reported, never repaired — each finding is one of two things (the tag is stale, or
+# the issue was closed too early) and only a person can say which.
+check_spec_hygiene() {
+  head_ "Spec/issue hygiene"
+  local py="${FICHERO_PYTHON_BIN:-python3}" out new
+  [ -r "$REPO_ROOT/scripts/spec_pipeline.py" ] || { bad "cannot read scripts/spec_pipeline.py — check is BLIND"; return; }
+  out="$("$py" "$REPO_ROOT/scripts/spec_pipeline.py" check 2>&1)"
+  new="$(printf '%s\n' "$out" | grep -c '^FAIL NEW' || true)"
+  if printf '%s\n' "$out" | grep -q '^FAIL spec_pipeline check:'; then
+    if [ "${new:-0}" -gt 0 ]; then
+      warn "$new NEW illegal spec/issue state(s) — run: scripts/spec_pipeline.py check"
+      printf '%s\n' "$out" | grep '^FAIL NEW' | head -5 | sed 's/^/      /'
+      [ "${new:-0}" -gt 5 ] && printf '      … and %d more\n' "$((new - 5))"
+    else
+      ok "no new illegal spec/issue states"
+    fi
+  else
+    # No summary line at all means it did not get far enough to have an opinion.
+    bad "spec_pipeline printed no summary — check is BLIND, not passing"
+    printf '%s\n' "$out" | tail -3 | sed 's/^/      /'
+  fi
+  return 0
+}
+
 # Each check must FAIL on input it cannot read, not pass blind. Asserted on the
 # checks' OUTPUT, not on $BLOCKERS: a check called inside command substitution runs
 # in a SUBSHELL, so its counter increments never reach here — reading the counter
@@ -169,6 +200,10 @@ self_test() {
   out="$(REPO_ROOT=/nonexistent check_worktree 2>&1)"
   case "$out" in *"cannot enter"*|*"not a git repository"*) printf '  ✓ check_worktree fails on a missing repo\n';;
     *) printf '  ✗ check_worktree did not fail on a missing repo\n'; fails=1;; esac
+
+  out="$(REPO_ROOT=/nonexistent check_spec_hygiene 2>&1)"
+  case "$out" in *BLIND*) printf '  ✓ check_spec_hygiene fails blind when the pipeline is unreadable\n';;
+    *) printf '  ✗ check_spec_hygiene did not report BLIND\n'; fails=1;; esac
 
   local tmp; tmp="$(mktemp -d)"; mkdir -p "$tmp/fichero-server"
   printf 'version = "9999.1.1"\n' > "$tmp/fichero-server/pyproject.toml"
@@ -195,6 +230,7 @@ check_venv
 check_contract
 check_swift_path
 check_test_host
+check_spec_hygiene
 
 head_ "Summary"
 if [ "$BLOCKERS" -gt 0 ]; then

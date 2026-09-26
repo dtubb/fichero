@@ -116,7 +116,18 @@ regeneration. Each was cheap to check and expensive to diagnose.
 
 The preflight answers, deterministically and in one place: the right worktree and branch; a venv
 that can actually run the sync; whether the contract matches the code; whether the Swift test
-path is available at all; and whether stale processes or registrations will sabotage a test host.
+path is available at all; whether stale processes or registrations will sabotage a test host; and
+whether the spec's own tags still match GitHub.
+
+That last one is here because a check nobody runs is not a check. `spec_pipeline check` has caught
+behaviours tagged broken against closed issues since it was written, but it is network-dependent
+and therefore a manual dispatch step — so it went unrun and five stale tags accumulated by
+2026-09-26. A stale tag is expensive in a specific way: work is chosen by reading which behaviours
+are broken, so it sends someone to fix what is already fixed, and they find working code and
+conclude they misread the spec rather than that the spec is wrong. Running it once per lane, before
+any work is chosen, is the cheapest point at which that cannot happen. It is a NOTE, never a
+blocker: each finding is either a stale tag or an issue closed too early, and only a person can
+say which.
 
 It **reports** rather than repairs. Repair is a decision — reinstalling an editable package
 changes the contract version, which is a release decision, not housekeeping.
