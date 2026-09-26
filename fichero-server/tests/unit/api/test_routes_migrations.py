@@ -100,6 +100,42 @@ class TestRunMigration:
             })
         assert r.status_code == 200
 
+    def test_run_reports_error_status_when_result_status_is_failed(self, client):
+        """#4983 item 5: `repair_rtf_escapes`'s boundary except sets
+        `result.status = failed` WITHOUT raising — before this, the route
+        answered 200 either way, so a failure was invisible to anything
+        that checks the HTTP status rather than the JSON body. Checked
+        callers first: nothing hand-written calls this route today (only
+        the generated CLI surface references it), so nothing depended on
+        the old always-200 shape."""
+        from fichero_server.db.migrations.runner import MigrationStatus
+
+        result = _make_migration_result("repair_rtf_escapes", status="failed")
+        result.status = MigrationStatus.failed
+        result.error_message = "synthetic RTF repair failure"
+        with patch("fichero_server.api.routes.system.migrations.MigrationRunner") as MockRunner:
+            MockRunner.return_value.repair_rtf_escapes.return_value = result
+            r = client.post(f"{BASE}/run", json={
+                "command": "repair_rtf_escapes",
+                "dry_run": False,
+            })
+        assert r.status_code == 500
+        assert "synthetic RTF repair failure" in r.json()["detail"]
+
+    def test_run_still_returns_200_for_a_completed_result(self, client):
+        """The `MigrationStatus.failed` check must not catch completed runs."""
+        from fichero_server.db.migrations.runner import MigrationStatus
+
+        result = _make_migration_result("repair_rtf_escapes", status="completed")
+        result.status = MigrationStatus.completed
+        with patch("fichero_server.api.routes.system.migrations.MigrationRunner") as MockRunner:
+            MockRunner.return_value.repair_rtf_escapes.return_value = result
+            r = client.post(f"{BASE}/run", json={
+                "command": "repair_rtf_escapes",
+                "dry_run": False,
+            })
+        assert r.status_code == 200
+
 
 # ---------------------------------------------------------------------------
 # GET /api/migrations/integrity-check

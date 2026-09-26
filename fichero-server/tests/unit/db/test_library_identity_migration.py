@@ -36,3 +36,23 @@ def test_read_library_uuid_none_before_migration():
     conn = connect_utc(":memory:")
     # No table yet — reader degrades to None rather than raising.
     assert read_library_uuid(conn) is None
+
+
+def test_database_read_library_uuid_is_the_persistence_layer_entry_point(tmp_path):
+    """#1876: `api/routes/library/sync.py` used to call
+    `read_library_uuid(db.conn)` directly — a raw-connection reach outside
+    the persistence layer. `Database.read_library_uuid()` is the typed
+    method routes must call instead; it wraps the same migrations-layer
+    function and degrades to `None` exactly the same way (verified here
+    against a REAL `Database`, not just the bare connection the function
+    above tests)."""
+    from fichero_server.db import Database
+
+    db = Database(path=tmp_path / "lib" / "fichero.duckdb")
+    try:
+        uuid = db.read_library_uuid()
+        assert uuid is not None and len(uuid) == 36
+        # Stable across calls, and across whatever else __init__ ran.
+        assert db.read_library_uuid() == uuid
+    finally:
+        db.conn.close()

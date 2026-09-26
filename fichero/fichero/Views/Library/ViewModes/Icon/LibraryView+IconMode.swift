@@ -16,17 +16,63 @@ extension LibraryView {
         return (min: minimum, max: minimum + 16)
     }
 
+    /// #4966 (C8: "narrowing the left Library pushes its content off the
+    /// left edge instead of shrinking it"): the item bounds above, clamped
+    /// to what the PANE actually has. `LazyVGrid`'s `.adaptive` always draws
+    /// a column at least `minimum` wide, even when that minimum is wider
+    /// than the container it's given — a pane narrower than the scale-ideal
+    /// tile size is exactly how a wide-scale grid overflowed a narrow pane.
+    /// Clamping the minimum (and the maximum along with it) to the pane's
+    /// own width, minus the grid's own horizontal padding, guarantees a
+    /// column that always fits — "down to one column, never off an edge" —
+    /// without a separate narrow-only layout.
+    nonisolated static func iconGridItemBounds(
+        scale: Double,
+        paneWidth: CGFloat,
+        horizontalInset: CGFloat = 32
+    ) -> (min: CGFloat, max: CGFloat) {
+        let ideal = iconGridItemBounds(scale: scale)
+        let available = max(1, paneWidth - horizontalInset)
+        let clampedMin = min(ideal.min, available)
+        let clampedMax = max(clampedMin, min(ideal.max, available))
+        return (min: clampedMin, max: clampedMax)
+    }
+
+    /// #4966: how many columns fit a pane this wide, given the (already
+    /// pane-clamped) item minimum — the pure core of what
+    /// `.onChange(of: geometry.size.width)`/`.onAppear` compute below for
+    /// `gridColumnCount`, extracted so it is directly testable at the exact
+    /// widths that matter: the one-column floor, and a pane narrower than a
+    /// single thumbnail.
+    nonisolated static func iconColumnCount(
+        paneWidth: CGFloat,
+        itemMin: CGFloat,
+        spacing: CGFloat = 20,
+        horizontalInset: CGFloat = 32
+    ) -> Int {
+        guard itemMin > 0 else { return 1 }
+        let available = max(0, paneWidth - horizontalInset)
+        let count = Int((available + spacing) / (itemMin + spacing))
+        return max(1, count)
+    }
+
     /// The scale the grid draws at RIGHT NOW: the in-flight pinch value when
     /// a gesture is live, the persisted one otherwise.
     private var effectiveIconScale: Double { liveIconScale ?? iconViewScale }
 
     var iconsView: some View {
-        let (itemMin, itemMax) = Self.iconGridItemBounds(scale: effectiveIconScale)
         // Parsed ONCE per render, not twice per tile (2026-08-31 perf): the
         // raw @AppStorage string was re-split into a Set inside the ForEach
         // for every document, on both the identity and the thumbnail.
         let showsName = LibraryRowAttribute.set(from: rowAttributesRaw).contains(.name)
         return GeometryReader { geometry in
+            // #4966: clamped to THIS pane's own measured width, not scale
+            // alone — the fix for C8 (thumbnails pushed off the left edge
+            // instead of shrinking).
+            let (itemMin, itemMax) = Self.iconGridItemBounds(
+                scale: effectiveIconScale,
+                paneWidth: geometry.size.width
+            )
             // Clamp pinch max so a single thumbnail never exceeds the visible
             // grid width. In the wide content grid this lets us zoom way in;
             // in a narrow sidebar grid the ceiling stays small. Cell width is
@@ -236,6 +282,13 @@ extension LibraryView {
                 .focusable()
                 .focusEffectDisabled()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // #4966 defense-in-depth: the pane-clamped item bounds above
+                // are the actual fix (content reflows, it does not need to
+                // be hidden) — this backstops the rare case some OTHER
+                // ancestor still proposes a wider-than-pane size than this
+                // view expected, so a tile can never bleed into a
+                // neighbouring pane even then.
+                .clipped()
                 .padding(.leading, browserLeadingInset)
                 // #4589 (Daniel): load a folder's thumbnails when it OPENS,
                 // bounded, instead of lazy-loading on scroll — the grid
@@ -276,9 +329,13 @@ extension LibraryView {
                         }
                 )
                 .onChange(of: geometry.size.width) { _, newWidth in
-                    let cellWidth = CGFloat(120 * iconViewScale) + 20
-                    let availableWidth = newWidth - 32
-                    gridColumnCount = max(1, Int(availableWidth / cellWidth))
+                    // #4966: the SAME pane-clamped minimum the grid itself
+                    // renders with, not a second, parallel formula — this is
+                    // what makes `gridColumnCount` (arrow-key nav, thumbnail
+                    // prefetch windowing) agree with what is actually on
+                    // screen at any width, including one column.
+                    let clampedMin = Self.iconGridItemBounds(scale: iconViewScale, paneWidth: newWidth).min
+                    gridColumnCount = Self.iconColumnCount(paneWidth: newWidth, itemMin: clampedMin)
                     // If the pane just shrank (e.g. a sidebar panel), also
                     // shrink iconViewScale so a single icon can't be wider
                     // than its container.
@@ -289,9 +346,8 @@ extension LibraryView {
                     }
                 }
                 .onAppear {
-                    let cellWidth = CGFloat(120 * iconViewScale) + 20
-                    let availableWidth = geometry.size.width - 32
-                    gridColumnCount = max(1, Int(availableWidth / cellWidth))
+                    let clampedMin = Self.iconGridItemBounds(scale: iconViewScale, paneWidth: geometry.size.width).min
+                    gridColumnCount = Self.iconColumnCount(paneWidth: geometry.size.width, itemMin: clampedMin)
 
                     // Restored-from-launch selection scroll (#808). On launch
                     // the previous selection is restored but the LazyVGrid

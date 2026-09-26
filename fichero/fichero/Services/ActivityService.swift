@@ -147,6 +147,57 @@ class ActivityService {
         }
     }
 
+    // MARK: - Workflow runs (#4960: ONE SOURCE — the runs table, not the event log)
+
+    /// List runs straight from the engine's `workflow_runs` table — the SAME
+    /// record `/activity/jobs` (the popover) already reads, so the Activity
+    /// window/browser agree with it instead of a lossy 7-day/100-event log
+    /// (the review's verified cause of the two surfaces disagreeing).
+    /// `status` filters server-side; omit for every non-deleted run, newest
+    /// first. Paged so a caller can page in further rows.
+    func listWorkflowRuns(
+        status: [String]? = nil,
+        limit: Int = 50,
+        offset: Int = 0
+    ) async throws -> Components.Schemas.WorkflowRunListResponse {
+        let response = try await client.api.listWorkflowRunsRouteApiWorkflowExecutionRunsGet(
+            query: .init(status: status, limit: limit, offset: offset),
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, _):
+            throw ActivityServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
+    /// Bulk-delete runs by explicit id OR by a status filter — "Clear
+    /// Failed" is this SAME call with `statuses: ["failed"]`. The ONE delete
+    /// every surface (popover, window, browser) routes through (#4960).
+    /// `skippedIds` names ids requested but not removed — never a silent no-op.
+    func deleteWorkflowRuns(
+        threadIds: [String]? = nil,
+        statuses: [String]? = nil
+    ) async throws -> Components.Schemas.WorkflowRunDeleteResult {
+        let response = try await client.api.deleteWorkflowRunsRouteApiWorkflowExecutionRunsDeletePost(
+            body: .json(.init(threadIds: threadIds, statuses: statuses)),
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, _):
+            throw ActivityServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
     // MARK: - Background jobs (#user-machine-always-useful FIX 2)
 
     /// Snapshot of currently-running background jobs + rough process CPU%.

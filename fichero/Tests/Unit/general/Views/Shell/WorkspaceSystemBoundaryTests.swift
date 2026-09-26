@@ -35,20 +35,29 @@ final class WorkspaceSystemBoundaryTests: XCTestCase {
     /// The built-in workspaces are the SIX v2 compositions and ⌘⌥1–6 apply them through the window
     /// command bus (`WorkspaceCommandsSection` → `applyWorkspaceLayout`), using each layout's
     /// `defaultSlot`. One list, one shortcut binding.
+    ///
+    /// #4968: the built-in list and the apply verb now live in `WorkspacesMenuBody.swift` — the
+    /// ONE shared definition `WorkspaceCommandsSection` (the menu bar) and the toolbar's
+    /// Workspaces menu both render, so the two cannot list the built-ins differently. The
+    /// shortcut MINT stays on `WorkspaceCommandsSection` in `ViewMenuPaneSections.swift`
+    /// (`MenuShortcutUniquenessTests` calls it there by name), which is why that file is checked
+    /// for the chord assertion below and the shared file for the list/verb ones.
     func testCommandOptionNumbersApplyTheV2Workspaces() throws {
-        let source = try Self.appSource("App/Menus/ViewMenuPaneSections.swift")
+        let sharedBody = try Self.appSource("App/Menus/WorkspacesMenuBody.swift")
         XCTAssertTrue(
-            source.contains("ForEach(BuiltInWorkspaceLayout.allCases)"),
-            "The menu-bar Workspaces section iterates the one built-in system (BuiltInWorkspaceLayout).")
+            sharedBody.contains("ForEach(BuiltInWorkspaceLayout.allCases)"),
+            "The ONE shared Workspaces body iterates the one built-in system (BuiltInWorkspaceLayout).")
         XCTAssertTrue(
-            source.contains("commands?.applyWorkspaceLayout(layout)"),
+            sharedBody.contains("commands?.applyWorkspaceLayout(layout)"),
             "⌘⌥1–6 must apply a v2 workspace via the command bus's applyWorkspaceLayout verb.")
-        XCTAssertTrue(
-            source.contains("modifiers: [.command, .option]"),
-            "The workspace slots are ⌘⌥ chords.")
         XCTAssertFalse(
-            source.contains("BuiltInWorkspace.allCases"),
+            sharedBody.contains("BuiltInWorkspace.allCases"),
             "The menu must not iterate the retired BuiltInWorkspace enum — one built-in list only.")
+
+        let shortcutMint = try Self.appSource("App/Menus/ViewMenuPaneSections.swift")
+        XCTAssertTrue(
+            shortcutMint.contains("modifiers: [.command, .option]"),
+            "The workspace slots are ⌘⌥ chords.")
     }
 
     /// The centre renders through ONE path (`panes.one-renderer`). This used to assert that BOTH
@@ -167,6 +176,7 @@ final class WorkspaceSystemBoundaryTests: XCTestCase {
     func testNoParallelLayoutPresetSystemBesideWorkspaces() throws {
         let menuFiles = [
             "App/Menus/ViewMenuPaneSections.swift",
+            "App/Menus/WorkspacesMenuBody.swift",
             "Views/Shell/ContentView/ContentView+LayoutChooser.swift"
         ]
         for path in menuFiles {

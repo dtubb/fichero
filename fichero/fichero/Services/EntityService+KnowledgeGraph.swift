@@ -227,9 +227,10 @@ extension EntityService {
         try await endpointData(path: "/api/kg/render/paragraph", method: "POST", jsonBody: body)
     }
 
-    func resetKnowledgeGraph(_ body: [String: Any] = [:]) async throws -> Data {
-        try await endpointData(path: "/api/kg/reset", method: "POST", jsonBody: body)
-    }
+    // #4982: `resetKnowledgeGraph` removed with the server route it called
+    // (`POST /api/kg/reset`) — an unaudited, unfiltered, unconfirmed bulk
+    // delete of every entity/claim/link, curated or not. This method had no
+    // caller anywhere in the app (verified by grep before removal).
 
     func kgReviewGraphCandidates(limit: Int = 50) async throws -> Data {
         try await endpointData(

@@ -144,66 +144,49 @@ class TestDownloadModel:
 
 
 # ---------------------------------------------------------------------------
-# Kraken install/status (~1 GB user-chosen segmentation runtime)
+# Kraken status/install/remove (#4959, 2026-09-20: bundled at build time).
+# The routes STAY (the MCP tool `fichero_kraken_install` and the generated
+# CLI surface still call them) but do nothing real any more: install is an
+# idempotent no-op that reports bundled status, remove always refuses.
 # ---------------------------------------------------------------------------
 
 
-def _kraken_manager(installed: bool, job: dict | None = None) -> MagicMock:
-    mgr = MagicMock()
-    mgr.status.return_value = {
-        "installed": installed,
-        "kraken_version": "7.1.1" if installed else None,
-        "scipy_override": "scipy>=1.16" if installed else None,
-        "runtime_dir": "/tmp/kraken-runtime",
-        "disk_usage_bytes": 996_000_000 if installed else 0,
-        "reason": None if installed else "Kraken is not installed. ~1 GB download.",
-        "job": job,
-    }
-    mgr.start_install = AsyncMock(return_value=mgr.status.return_value)
-    return mgr
-
-
 class TestKrakenRuntime:
-    def test_status_reports_uninstalled_with_a_size_note(self, client):
-        with patch(
-            "fichero_server.llm.kraken_runtime.get_kraken_runtime",
-            return_value=_kraken_manager(installed=False),
-        ):
+    def test_status_reports_bundled_and_importable(self, client):
+        with patch("fichero_server.llm.kraken_runtime.is_installed", return_value=True), \
+             patch("fichero_server.llm.kraken_runtime.importlib.metadata.version", return_value="7.1.1"):
+            r = client.get("/api/local-models/kraken/status")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["installed"] is True
+        assert body["available"] is True
+        assert body["kraken_version"] == "7.1.1"
+        assert body["reason"] is None
+
+    def test_status_reports_a_packaging_problem_when_absent(self, client):
+        with patch("fichero_server.llm.kraken_runtime.is_installed", return_value=False):
             r = client.get("/api/local-models/kraken/status")
         assert r.status_code == 200
         body = r.json()
         assert body["installed"] is False
-        assert body["available"] is True
-        assert body["size_note"]  # the UI can warn about the ~1 GB cost
-        assert body["job"] is None
+        assert body["kraken_version"] is None
+        assert "not bundled" in body["reason"]
 
-    def test_install_starts_the_background_job(self, client):
-        job = {
-            "job_id": "abc",
-            "state": "running",
-            "current": 2,
-            "total": 4,
-            "percent": 50.0,
-            "message": "Installing kraken==7.1.1",
-            "error": None,
-        }
-        mgr = _kraken_manager(installed=False, job=job)
-        with patch(
-            "fichero_server.llm.kraken_runtime.get_kraken_runtime",
-            return_value=mgr,
-        ):
+    def test_install_is_a_noop_reporting_bundled_status(self, client):
+        """#4959: the MCP tool and the generated CLI still POST this route —
+        it must keep answering (no job, no venv build), never 404/405."""
+        with patch("fichero_server.llm.kraken_runtime.is_installed", return_value=True), \
+             patch("fichero_server.llm.kraken_runtime.importlib.metadata.version", return_value="7.1.1"):
             r = client.post("/api/local-models/kraken/install")
         assert r.status_code == 200
-        assert mgr.start_install.await_count == 1
-        assert r.json()["job"]["state"] == "running"
+        body = r.json()
+        assert body["installed"] is True
+        assert body["job"] is None
 
-    def test_remove_while_installing_returns_409(self, client):
-        mgr = _kraken_manager(installed=True)
-        mgr.remove.side_effect = RuntimeError("Kraken install is still running")
-        with patch(
-            "fichero_server.llm.kraken_runtime.get_kraken_runtime",
-            return_value=mgr,
-        ):
-            r = client.delete("/api/local-models/kraken")
+    def test_remove_always_refuses(self, client):
+        """#4959: there is no separate runtime to delete — bundled with the
+        signed app — so remove must always answer 409, never silently
+        succeed or 404 away the OpenAPI contract."""
+        r = client.delete("/api/local-models/kraken")
         assert r.status_code == 409
-        assert "still running" in r.json()["detail"]
+        assert "bundled with the app" in r.json()["detail"]

@@ -2,7 +2,28 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
-## 2026.09.19
+## 2026.09.26
+
+- Connections: pairing a second Mac works again, over Tailscale and on a signed build.
+
+**Pairing a second Mac works again.** Two separate faults were stopping it, and each one hid
+the other.
+
+A shipped build could not save the key it had just been given. The keychain item asked for a
+protection class that, on a Mac, sends it to a keychain only entitled apps may write — an
+entitlement development builds have and released ones do not. So pairing appeared to succeed on
+the Mac sharing the library while the joining Mac quietly stored nothing, and every request
+afterwards arrived unauthenticated. The key now goes to the login keychain where it belongs, and
+if a keychain ever does refuse, the message says what it actually said rather than a bare number.
+
+Connecting over Tailscale was refused outright. The invitation carried a fingerprint of the
+sharing Mac's own certificate, but a Tailscale address answers with Tailscale's certificate — so
+the joining Mac checked a fingerprint against the wrong certificate and, quite correctly, refused
+to connect. An invitation for such an address no longer claims a certificate the Mac does not
+hold, and a Mac receiving one ignores a claim an older build may still send. An ordinary address
+still requires its fingerprint, and an invitation without one is still refused.
+
+## 2026.09.20
 
 - Knowledge: click a sentence to see its source; Entities and Claims panes work as master and detail; a folder shows the people in its subfolders.
 - Panes: each Library pane shows the kind its own chip says.
@@ -54,6 +75,28 @@ on) alongside named models — pick a role and it always follows whatever you've
 **Kraken segmentation.** Kraken can now segment a single page of a PDF, matching what Apple
 Vision could already do. A finished workflow run now tells the app what it saved, so a
 segmentation overlay can appear on its own instead of waiting for a click.
+
+**Also in this build (build 11).**
+
+- **Kraken comes with the app.** Kraken segmentation is now installed inside Fichero, so there
+  is nothing to download before a run. If your Mac is short of memory, Kraken says so plainly and
+  waits for you, rather than risking a crash.
+- **Faster knowledge.** Opening an entity no longer reads the whole library first: a large
+  library that took seconds now answers at once.
+- **Activity.** The Activity window and its toolbar popover show the same list of runs, and
+  finished runs can be deleted.
+- **Safer upgrades.** When an update changes a library's database, each change now completes
+  fully or not at all, and a failure is reported instead of passing silently. The old command
+  that erased a library's whole knowledge graph in one step has been removed.
+- **Panes.** Dragging a divider now resizes only the panes on either side of it, a split no
+  longer leaves an empty band, and the bottom Library strip can be resized.
+- **Fewer repeated loads.** Clicking an item in another library, or turning to the next page,
+  no longer asks for the same data several times over.
+
+**Known issues in this build.** A second Library pane can show a different kind of item than
+its label says. Splitting a pane can leave its two halves unequal. The Claims list can appear
+empty at the top folder of a library that has claims. Some entity biographies put a date where
+the person should be. These are being worked on.
 
 ## 2026.09.18
 

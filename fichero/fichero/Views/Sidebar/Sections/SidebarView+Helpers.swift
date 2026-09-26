@@ -130,8 +130,8 @@ extension SidebarView {
         return libraryManager.getLibrary(id: libraryId)
     }
 
-    func buildLibraryHeader(for library: LibraryManager.LibraryReference) -> SidebarItem {
-        let libraryContent = SidebarItemBuilder.buildLibraryGroup(library: library)
+    func buildLibraryHeader(for library: LibraryManager.LibraryReference, reason: String = "all") -> SidebarItem {
+        let libraryContent = SidebarItemBuilder.buildLibraryGroup(library: library, reason: reason)
         return SidebarItem.libraryHeader(library: library, children: libraryContent)
     }
 
@@ -163,9 +163,11 @@ extension SidebarView {
     }
 
     /// Rebuild one library header in place, preserving every other library snapshot.
-    func rebuildCaches(for libraryId: UUID) {
+    /// `reason` names what asked (which store observer, or "direct" for an explicit call) — it
+    /// only reaches the builder's entry log, so a burst of rebuilds in the console says why.
+    func rebuildCaches(for libraryId: UUID, reason: String = "direct") {
         guard let library = libraryManager.getLibrary(id: libraryId) else { return }
-        let header = buildLibraryHeader(for: library)
+        let header = buildLibraryHeader(for: library, reason: reason)
         cacheLibraryDerivedState(header: header, library: library)
         // Same no-animation rule as the full rebuild above.
         var stillTree = Transaction()

@@ -19,6 +19,16 @@ class ArtifactService {
     /// Loading state per document
     private(set) var loadingDocuments: Set<String> = []
 
+    /// The fetch on its way per cache key, so callers share it. Not observed: plumbing.
+    @ObservationIgnored private var inFlightFetches: [String: InFlightFetch] = [:]
+    /// Bumped by every write and clear: a fetch that started earlier is neither joined nor stored.
+    @ObservationIgnored private var writeGeneration = 0
+
+    private struct InFlightFetch {
+        let task: Task<[Artifact], Error>
+        let generation: Int
+    }
+
     init(ficheroClient: FicheroClient) {
         self.client = ficheroClient
     }
@@ -55,36 +65,58 @@ class ArtifactService {
     ) async throws -> [Artifact] {
         // Cache key needs the scope flag so V1 and V2 don't share entries.
         let cacheKey = includeDescendants ? documentId : "\(documentId)|own"
-        if !forceRefresh, let cached = artifactsByDocument[cacheKey] {
-            if let type = type {
-                return cached.filter { $0.artifactType == type }
-            }
-            return cached
-        }
-
-        loadingDocuments.insert(documentId)
-        defer { loadingDocuments.remove(documentId) }
-
-        let response = try await client.api.listDocumentArtifactsApiArtifactsDocumentDocIdGet(
-            path: .init(docId: documentId),
-            query: .init(artifactType: type, includeDescendants: includeDescendants),
+        let all = try await allArtifacts(
+            documentId: documentId, cacheKey: cacheKey,
+            includeDescendants: includeDescendants, forceRefresh: forceRefresh
         )
+        guard let type else { return all }
+        return all.filter { $0.artifactType == type }
+    }
 
-        switch response {
-        case .ok(let okResponse):
-            let artifactList = try okResponse.body.json
-            let artifacts = artifactList.items.map { convertToArtifact($0) }
-
-            artifactsByDocument[cacheKey] = artifacts
-
-            logger.info("Fetched \(artifacts.count) artifacts for document \(documentId)")
-            return artifacts
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw ArtifactServiceError.serverError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw ArtifactServiceError.unexpectedResponse(statusCode)
+    /// The document's FULL artifact list, from the cache, from a fetch already on its way, or
+    /// from a new one. Two rules, at the one seam every caller shares (#5003): concurrent
+    /// callers JOIN the fetch in flight (a page change asks from five views at once, and the
+    /// cache only fills when a response arrives, so each used to send its own request); and the
+    /// server is always asked for EVERY type, because a typed request used to store its filtered
+    /// answer as the document's whole list. The type filter is applied locally.
+    private func allArtifacts(
+        documentId: String, cacheKey: String, includeDescendants: Bool, forceRefresh: Bool
+    ) async throws -> [Artifact] {
+        if let running = inFlightFetches[cacheKey], running.generation == writeGeneration {
+            return try await running.task.value
         }
+        if !forceRefresh, let cached = artifactsByDocument[cacheKey] { return cached }
+
+        let fetch = Task { @MainActor [client] () throws -> [Artifact] in
+            let response = try await client.api.listDocumentArtifactsApiArtifactsDocumentDocIdGet(
+                path: .init(docId: documentId),
+                query: .init(artifactType: nil, includeDescendants: includeDescendants),
+            )
+            switch response {
+            case .ok(let okResponse):
+                return try okResponse.body.json.items.map { self.convertToArtifact($0) }
+            case .unprocessableContent(let error):
+                let detail = try? error.body.json
+                throw ArtifactServiceError.serverError(detail?.detail?.description ?? "Validation error")
+            case .undocumented(let statusCode, _):
+                throw ArtifactServiceError.unexpectedResponse(statusCode)
+            }
+        }
+        let startedAt = writeGeneration
+        inFlightFetches[cacheKey] = InFlightFetch(task: fetch, generation: startedAt)
+        loadingDocuments.insert(documentId)
+        defer {
+            // Only clear the slot if it is still OURS: a newer fetch may have replaced it.
+            if inFlightFetches[cacheKey]?.generation == startedAt { inFlightFetches[cacheKey] = nil }
+            loadingDocuments.remove(documentId)
+        }
+        let artifacts = try await fetch.value
+        // A write landed while this was on its way: its answer may predate the write, and the
+        // write already patched the cache in place. Hand it to this caller, never to the cache.
+        guard startedAt == writeGeneration else { return artifacts }
+        artifactsByDocument[cacheKey] = artifacts
+        logger.info("Fetched \(artifacts.count) artifacts for document \(documentId)")
+        return artifacts
     }
 
     /// Get a specific artifact by ID
@@ -159,6 +191,7 @@ class ArtifactService {
             let json = try okResponse.body.json
             let updated = convertToArtifact(json)
 
+            writeGeneration += 1
             for key in [documentId, "\(documentId)|own"] {
                 if var cached = artifactsByDocument[key] {
                     if let index = cached.firstIndex(where: { $0.id == id }) {
@@ -188,6 +221,7 @@ class ArtifactService {
         case .noContent:
             // Update both cache scopes — V1 (aggregated) and V2 (own-only)
             // can both have entries for the doc keyed differently.
+            writeGeneration += 1
             for key in [documentId, "\(documentId)|own"] {
                 if var artifacts = artifactsByDocument[key] {
                     artifacts.removeAll { $0.id == id }
@@ -207,11 +241,13 @@ class ArtifactService {
 
     /// Clear cached artifacts for a document
     func clearCache(forDocumentId documentId: String) {
+        writeGeneration += 1
         artifactsByDocument.removeValue(forKey: documentId)
     }
 
     /// Clear all cached artifacts
     func clearAllCache() {
+        writeGeneration += 1
         artifactsByDocument.removeAll()
     }
 
@@ -313,6 +349,7 @@ extension ArtifactService {
         switch response {
         case .ok(let okResponse):
             let updated = convertToArtifact(try okResponse.body.json)
+            writeGeneration += 1
             for key in [documentId, "\(documentId)|own"] {
                 if var cached = artifactsByDocument[key],
                    let index = cached.firstIndex(where: { $0.id == artifactId }) {

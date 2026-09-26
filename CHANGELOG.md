@@ -2,6 +2,55 @@
 
 ## Unreleased
 
+## 2026-09-26
+
+**Pairing a second Mac works again.** A signed build could not save the key it had just been
+handed: `persistRemoteToken` set `kSecAttrAccessible`, which on macOS routes the item to the
+data-protection keychain — entitled in Debug and Dev Embedded, not in a Developer ID build. So
+the sharing Mac recorded the device while the joining Mac stored nothing, and every later request
+arrived unauthenticated. The add now retries without the explicit class, landing in the login
+keychain; iPhone and iPad keep it. `AuthTokenStorageError` reports the OSStatus message instead
+of a bare integer (#5040).
+
+**A pairing link no longer claims a certificate the Mac does not hold.** Behind `tailscale serve`
+the advertised `.ts.net` name answers with Tailscale's own certificate while the engine sits on
+loopback, but the link carried the ENGINE's self-signed pin. Pinning then refused the connection
+exactly as it would refuse an attacker. The exemption for such hosts already existed and was
+keyed on the ABSENCE of a pin — so the link itself revoked it. The host no longer records a pin
+for an address it does not terminate and clears any stale entry; the payload's `spki` is
+optional; and a client discards a pin advertised for a public-CA host, which matters while the
+other Mac is still on an older build. A host serving its own certificate still requires a valid
+pin (#5041).
+
+**A guardrail for a contract that stopped tracking the code.** `check_openapi_version_current.py`
+fails when a committed `openapi.json` disagrees with `pyproject.toml`. The existing #4199 guard
+refuses a version moving BACKWARDS, which a contract frozen four releases behind never does. Not
+wired into the gate yet: it fails today by design (#5046).
+
+**A lane verifies its ground before working.** `scripts/start-lane.sh` reports the worktree, the
+venv that can actually run the OpenAPI sync, whether the contract matches the code, whether the
+Swift test path exists at all, and stale bundle-id registrations — then starts Claude. It reports
+and never repairs (#5048).
+
+**AGENTS.md.** Prefer the harness's built-in tools over plugins that wrap them, with GitHub going
+through `gh` rather than an MCP (measured: 23× less output for the same five issues). Records the
+LaunchServices trap behind `HOST NEVER STARTED`, that `Mirror` cannot enumerate a generated type
+once it moves to copy-on-write storage, and that editing one field of a generated file is still
+editing it.
+
+## 2026-09-20
+
+**The app from the DMG can start its server.** The 2026.09.19 build's embedded engine exited on
+launch, so the app said it could not reach the server: the SPARQL route imports `rdflib` as the
+engine starts, and the embedded bundle did not carry it. `rdflib`, `pykeen` (with PyTorch) and
+`networkx` are now in the bundle. The release's engine rebuild also never refreshed its packages,
+so a package added to the list would not have reached a release; it does now. Two new tests work
+out exactly what the bundle carries and refuse any import the bundle would not have, at start-up
+and anywhere else in the engine; the second found an optional entity-recognition provider that
+needed a package this build does not include, and it now says so by name. The transport tests
+no longer touch a developer's real app database or token file (#4245), and the engine's test
+suite and the release gate were exercised leg by leg for the first time in a week.
+
 ## 2026-09-19
 
 **Knowledge and the source reveal.** Clicking a sentence in an entity's biography opens the claim

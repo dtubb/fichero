@@ -90,14 +90,15 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
             ])
         case .browse:
             // Icon view (vertical column), then preview, then reader — "like we had it".
-            // #4688: three peers, none should dominate, but the icon strip is a NAVIGATION aid
-            // (thumbnails) while preview/reader are the actual reading surfaces, so icons get the
-            // smallest share — 30:35:35. Reader is the last child and flexes to the remainder
-            // (~35%), so it can't drift out of step with preview's 35%.
+            // #4966 (2026-09-20): the Browse ratio is 15:60:25 — the icon strip is a
+            // NAVIGATION aid, not a reading surface, so it gets the smallest, fixed share;
+            // preview (the source image) gets most of the row; the reader is the last child
+            // and flexes to the remainder (~25%), so it can't drift out of step with the
+            // stated ratio. Was 30:35:35 (#4688) — superseded, not layered on top of.
             return PaneList([
                 .stableLeaf(.library, named: "\(rawValue).library",
-                            config: PaneConfig(libraryLayout: "icons", paneFraction: 0.30)),
-                .stableLeaf(.preview, named: "\(rawValue).preview", config: PaneConfig(paneFraction: 0.35)),
+                            config: PaneConfig(libraryLayout: "icons", paneFraction: 0.15)),
+                .stableLeaf(.preview, named: "\(rawValue).preview", config: PaneConfig(paneFraction: 0.60)),
                 .stableLeaf(.reading, named: "\(rawValue).reading")
             ])
         case .transcribe:

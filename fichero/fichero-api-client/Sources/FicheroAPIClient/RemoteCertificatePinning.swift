@@ -55,6 +55,29 @@ public enum RemoteCertificatePinning {
         return shouldEnforcePinning(forHost: host)
     }
 
+    /// Whether this host's TLS is terminated by something OTHER than our own
+    /// engine, with a publicly-trusted certificate of its own.
+    ///
+    /// `tailscale serve` is the case in hand: it answers the advertised
+    /// `.ts.net` name with its own Let's Encrypt certificate and forwards to a
+    /// loopback engine behind it. Fichero never holds that key, so it has no
+    /// business asserting a pin for it — and must not, twice over. The pin it
+    /// would send is its own self-signed certificate, which is simply the wrong
+    /// key; and the right key rotates every sixty to ninety days, so even a
+    /// correct pin would lapse into what looks exactly like an attack.
+    ///
+    /// Public CA trust is the honest guarantee here, and the one `shouldEnforcePinning`
+    /// already grants such a host. Reachability is fenced by the tailnet, not by us.
+    public static func usesPublicCertificateAuthority(host: String) -> Bool {
+        isTailscaleServeHost(host)
+    }
+
+    /// The same rule for a whole URL — what the pairing surfaces actually hold.
+    public static func usesPublicCertificateAuthority(url: URL) -> Bool {
+        guard let host = url.host else { return false }
+        return usesPublicCertificateAuthority(host: host)
+    }
+
     public static func validatedSPKIPin(_ raw: String) throws -> String {
         let collapsed = raw
             .components(separatedBy: .whitespacesAndNewlines)

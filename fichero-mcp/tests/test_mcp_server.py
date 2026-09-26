@@ -197,10 +197,17 @@ def test_workflow_list_tells_the_agent_what_it_cannot_run(monkeypatch):
         workflows = mcp_server.fichero_workflow_list()
 
     assert len(workflows) == 2, "fixture must contain a runnable AND a component"
-    by_name = {w.name: w for w in workflows}
-    assert by_name["Spanish Script Passes"].direct_runnable is False
-    assert by_name["Transcribe Spanish Script"].direct_runnable is True
-    assert by_name["Transcribe Spanish Script"].requires_vision is True
+    # #4983-adjacent fix: `fichero_workflow_list` returns LEAN DICTS, not
+    # model objects — deliberate since Aug 27 2026 (`e90907d0f`, "lean list
+    # payloads"): the full node/edge dump was 450KB, the same reason
+    # `fichero_docs_list` slims to dicts too (both tools are
+    # JSON-serialisable summaries an agent reads, not typed objects). This
+    # test predates that refactor (written for #3804, Aug 3) and was never
+    # updated to the dict contract — the code is right, the test was stale.
+    by_name = {w["name"]: w for w in workflows}
+    assert by_name["Spanish Script Passes"]["direct_runnable"] is False
+    assert by_name["Transcribe Spanish Script"]["direct_runnable"] is True
+    assert by_name["Transcribe Spanish Script"]["requires_vision"] is True
 
 
 def test_docs_get_builds_path(monkeypatch):

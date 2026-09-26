@@ -19,6 +19,7 @@ from typing import Any
 from fichero_server.workflows.types import State, PortDef, DataType
 from fichero_server.workflows.registry import register_tool
 from fichero_server.db import db_manager
+from fichero_server.db.embeddings import EmbeddingSpaceMismatchError
 from fichero_server.models import Document, DocType, FileType
 from fichero_server.llm import LLMConfig
 from fichero_server.retrieval.graph_rag import GraphAwareRetriever
@@ -1251,6 +1252,36 @@ async def search_tool(
             "context_count": len(doc_data),
             "kg_claims_used": getattr(retrieval, "kg_claims_used", 0),
             "kg_entities_used": getattr(retrieval, "kg_entities_used", 0),
+        }
+
+    except EmbeddingSpaceMismatchError as e:
+        # #4962: the refusal itself is correct (never search across two
+        # embedding spaces) — but this library's stored vectors don't match
+        # the active model, which is a library-state fact the string-matching
+        # `_is_reference_search_unavailable_error` below never recognizes (the
+        # message says "does not match", not "not found"/"missing"), so it
+        # used to fall through to the generic branch and set "error", which
+        # `builder.py` treats as a hard abort (#839's SystemicErrorDetected).
+        # A typed catch, ahead of the generic one, degrades the SAME way an
+        # empty-query search already does (#2613's "skipped" shape) — visible
+        # in the run log and result, never silent (prefer raise over silent
+        # fallback: here the degrade itself must be loud, not the fallback).
+        skip_reason = (
+            f"Library embeddings are out of date for the active model "
+            f"({e.active_model_id!r}); re-embed before reference search works "
+            f"again. Continuing without reference corpus context."
+        )
+        logger.warning("Search tool: %s — %s", skip_reason, e)
+        return {
+            "files": [],
+            "documents": [],
+            "count": 0,
+            "document_count": 0,
+            "context_count": 0,
+            "kg_claims_used": 0,
+            "kg_entities_used": 0,
+            "skipped": True,
+            "skip_reason": skip_reason,
         }
 
     except Exception as e:

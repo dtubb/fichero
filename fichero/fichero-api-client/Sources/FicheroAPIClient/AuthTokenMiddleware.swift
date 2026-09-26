@@ -310,7 +310,19 @@ public struct AuthTokenMiddleware: ClientMiddleware {
             var addQuery = query
             addQuery[kSecValueData as String] = data
             addQuery[kSecAttrAccessible as String] = remoteTokenAccessibility
-            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            var addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            #if os(macOS)
+            // On a Mac, an explicit kSecAttrAccessible routes the item to the
+            // data-protection keychain, which needs a keychain-access-groups
+            // entitlement. Debug builds have it; Developer ID release builds do
+            // not, so every Mac-to-Mac pairing failed to save its key there
+            // (2026-09-22, since #3772). The login keychain is the right home on
+            // a Mac; the explicit class matters on iPhone and iPad, which keep it.
+            if addStatus != errSecSuccess {
+                addQuery.removeValue(forKey: kSecAttrAccessible as String)
+                addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            }
+            #endif
             guard addStatus == errSecSuccess else {
                 throw AuthTokenStorageError.keychainWriteFailed(addStatus)
             }
@@ -512,7 +524,22 @@ public struct AuthTokenMiddleware: ClientMiddleware {
 }
 // swiftlint:enable type_body_length
 
-enum AuthTokenStorageError: Error, Equatable {
+enum AuthTokenStorageError: Error, Equatable, LocalizedError {
     case keychainReadFailed(OSStatus)
     case keychainWriteFailed(OSStatus)
+
+    /// Says what the keychain said, instead of "AuthTokenStorageError error 1".
+    var errorDescription: String? {
+        switch self {
+        case .keychainReadFailed(let status):
+            return "Could not read this connection's key from the keychain (\(Self.message(status)))."
+        case .keychainWriteFailed(let status):
+            return "Could not save this connection's key in the keychain (\(Self.message(status)))."
+        }
+    }
+
+    private static func message(_ status: OSStatus) -> String {
+        let text = SecCopyErrorMessageString(status, nil) as String? ?? "unknown error"
+        return "\(text), code \(status)"
+    }
 }

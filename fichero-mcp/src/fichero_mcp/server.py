@@ -810,14 +810,18 @@ def fichero_local_model_download(model_type: str, model_id: str) -> Any:
 
 @mcp.tool()
 def fichero_kraken_status() -> Any:
-    """Show the Kraken line-segmentation runtime install status."""
+    """Show whether Kraken line segmentation is bundled and importable in
+    this build (#4959: Kraken ships inside the signed app, not a runtime
+    install — this is a packaging fact, not something to fix here)."""
     with _client() as client:
         return client.request("GET", "/api/local-models/kraken/status")
 
 
 @mcp.tool()
 def fichero_kraken_install() -> Any:
-    """Install the Kraken runtime (~1 GB) so line segmentation / HTR is usable."""
+    """Report Kraken's bundled status (#4959: Kraken ships inside the signed
+    app now — there is nothing left to install; this call is a no-op that
+    just answers whether the bundle actually carries it)."""
     with _mutating_client() as client:
         return client.request("POST", "/api/local-models/kraken/install")
 

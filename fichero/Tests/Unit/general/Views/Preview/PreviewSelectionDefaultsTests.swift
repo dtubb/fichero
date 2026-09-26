@@ -171,17 +171,23 @@ struct PreviewSelectionDefaultsTests {
         #expect(nav.contains("stepWithinSearchResults(forward: false"))
     }
 
-    // MARK: - Show Sidebar never overflows
+    // MARK: - Sidebar toggle is the SYSTEM one, not merged into Back/Forward
 
-    @Test("the sidebar toggle is owned at .navigation placement on macOS")
-    func sidebarToggleNeverOverflows() throws {
+    /// #4970: a hand-placed toggle at `.navigation` placement shared that
+    /// toolbar section with Back/Forward (ContentView+Toolbar.swift), so all
+    /// three rendered as one capsule over the content area instead of living
+    /// in the sidebar's own chrome. Removed in favour of NavigationSplitView's
+    /// system-provided toggle, which the system slots correctly in both
+    /// sidebar states without competing with Back/Forward for a placement.
+    @Test("the sidebar toggle is the system's own, never hand-placed beside Back/Forward")
+    func sidebarToggleIsNotHandRolled() throws {
         let layout = try appSource(
             "Views/Shell/ContentView/Layout/ContentView+RootLayout.swift"
         )
-        #expect(layout.contains(".toolbar(removing: .sidebarToggle)"))
-        #expect(layout.contains("ToolbarItem(placement: .navigation)"),
-                "the owned toggle must sit where the ≫ overflow can't reach")
-        #expect(layout.contains(".ownSidebarToggle"))
+        #expect(!layout.contains(".toolbar(removing: .sidebarToggle)"),
+                "removing the system item re-opens #4970 — nothing should hand-roll a replacement")
+        #expect(!layout.contains(".ownSidebarToggle"))
+        #expect(!layout.contains("sidebarToggleOwned"))
     }
 
     // MARK: - Transient storage 404s retry quietly

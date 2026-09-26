@@ -1,70 +1,14 @@
 import SwiftUI
 
-// MARK: - Window-level split commands (Daniel, 2026-08-29)
-//
-// The toolbar's Split/Tab button (Xcode's ⊞+ idiom) must split WHICHEVER pane
-// has focus — chat included — through this same machinery, and the workspace
-// feature must capture/restore split counts. Each SplittablePane stays the
-// single owner of its live @SceneStorage state; the coordinator is a
-// per-window mailbox: commands are posted THROUGH it (its identity scopes a
-// notification to one window) and counts are MIRRORED into it so a workspace
-// save can read them. Extends, never forks, the existing split state.
-
-extension Notification.Name {
-    /// Toggle one axis of one pane: userInfo `storageKey` + `axis` (raw
-    /// `SplitPaneAxis`), object = the posting window's `PaneSplitCoordinator`.
-    static let paneSplitCommand = Notification.Name("fichero.paneSplitCommand")
-    /// Restore counts from a workspace: userInfo `splits` =
-    /// `[String: PaneSplitCounts]`; a mounted pane missing from the map
-    /// collapses to 1×1 (a workspace states the WHOLE arrangement).
-    static let paneSplitApply = Notification.Name("fichero.paneSplitApply")
-}
-
-enum SplitPaneAxis: String, Sendable {
-    case vertical
-    case horizontal
-}
-
-/// Per-window split mailbox + mirror. `recorded` is only ever READ from
-/// action closures (workspace capture), never from a view body, so mirroring
-/// on every count change cannot invalidate render trees.
-@MainActor
-@Observable
-final class PaneSplitCoordinator {
-    var recorded: [String: PaneSplitCounts] = [:]
-
-    /// Split counts worth persisting — panes actually split.
-    var splitCounts: [String: PaneSplitCounts] {
-        recorded.filter { $0.value.isSplit }
-    }
-
-    func requestSplit(storageKey: String, axis: SplitPaneAxis) {
-        NotificationCenter.default.post(
-            name: .paneSplitCommand,
-            object: self,
-            userInfo: ["storageKey": storageKey, "axis": axis.rawValue]
-        )
-    }
-
-    func applySplits(_ splits: [String: PaneSplitCounts]) {
-        NotificationCenter.default.post(
-            name: .paneSplitApply,
-            object: self,
-            userInfo: ["splits": splits]
-        )
-    }
-}
-
-private struct PaneSplitCoordinatorKey: EnvironmentKey {
-    static let defaultValue: PaneSplitCoordinator? = nil
-}
-
-extension EnvironmentValues {
-    var paneSplitCoordinator: PaneSplitCoordinator? {
-        get { self[PaneSplitCoordinatorKey.self] }
-        set { self[PaneSplitCoordinatorKey.self] = newValue }
-    }
-}
+// `Notification.Name.paneSplitCommand`/`.paneSplitApply`, `SplitPaneAxis`, and
+// `PaneSplitCoordinator` (+ its `\.paneSplitCoordinator` environment key) are DELETED (step F,
+// source-model panes recon, 2026-09-20): every pane reached through `kindContent` is now a
+// `PaneModelSplitHook` pass-through (slice A), so nothing ever called `requestSplit`, and
+// `ContentView+LayoutChooser.swift` no longer captures/applies `WindowLayoutSnapshot.splits`
+// (that field stays `Codable`, decode-only — an old saved workspace still decodes and simply
+// never acts on it, per the HARD rule: never delete or rewrite a user's saved state). Confirmed
+// via `find_references`-by-grep before deleting: their only OTHER callers were each other and
+// this file's own now-deleted legacy split UI.
 
 // MARK: - Environment: split controls (consumed by MiniToolbar)
 
@@ -142,50 +86,66 @@ enum ToolbarSearchRegistration {
     }
 }
 
-struct SplitPaneState {
-    var verticalPaneCount: Int = 1
-    var horizontalPaneCount: Int = 1
+// `SplitPaneState` DELETED (step F, 2026-09-20): it drove `SplittablePane`'s own legacy
+// grid/vertical/horizontal split containers, all removed below — see `SplittablePane.body`.
 
-    var hasVertical: Bool { verticalPaneCount > 1 }
-    var hasHorizontal: Bool { horizontalPaneCount > 1 }
+// MARK: - PaneModelSplitHook (ONE-CODE-PATH ruling, 2026-09-20)
 
-    var paneCount: Int {
-        max(verticalPaneCount, horizontalPaneCount)
-    }
+/// A pane the ONE-CODE-PATH ruling requires (source-model panes recon,
+/// slice A): when a `SplittablePane` is given this, it never splits ITSELF
+/// — the pane system (`PaneList`) is live for the leaf that pane wraps, and
+/// split/close already have a real, per-leaf owner
+/// (`PaneList.splittingLeaf`/`.removingLeaf`, both verified correct). Before
+/// this hook existed, `SplittablePane`'s own `content()` closure was
+/// captured ONCE per leaf and re-rendered N times by its internal grid/
+/// vertical/horizontal containers — every per-leaf seam injected ABOVE that
+/// view (`\.paneKindSwitcher`, `\.paneContentKindSwitcher`,
+/// `\.paneContentKind`) is set ONCE, for the ONE model leaf, so every
+/// rendered copy read the SAME switcher closure and the SAME environment
+/// value: changing "one" copy's kind or content-kind changed the one leaf
+/// both copies were drawn from (#4967, #4878, #4979 — confirmed by reading
+/// `SplittablePane.swift` and `PaneKindSelector.swift`; see the recon doc
+/// for the full trace).
+///
+/// Top-level, not nested in the generic `SplittablePane<Content>`: this
+/// hook does not depend on `Content`, and a caller building
+/// `widescreenCanvasPane`/`widescreenReadingPane` (which do not know
+/// `SplittablePane`'s `Content` type — it's inferred at the call site) would
+/// otherwise have no way to name this type in their own signature.
+struct PaneModelSplitHook {
+    /// Split THIS pane's own leaf along `axis` (the `PaneList` `SplitAxis`,
+    /// `.horizontal`/`.vertical` — NOT the same vocabulary as
+    /// `SplittablePane`'s OWN `toggleVertical`/`toggleHorizontal`, which
+    /// name a SCREEN DIRECTION (vertical divider = side-by-side) rather
+    /// than a stack axis. See `splitAxisActions()`'s mapping.
+    let split: (SplitAxis) -> Void
 
-    /// Both axes at once — the 2×2 grid (Daniel, 2026-08-23: "I should be
-    /// able to split a pane so we have two vertical and two horizontal —
-    /// when I try, it deletes the other").
-    var isGrid: Bool { hasVertical && hasHorizontal }
-
-    mutating func toggleVertical() {
-        // Splitting one axis no longer DELETES the other. In a grid each
-        // axis caps at 2 (2×2); third panes stay a single-axis affair.
-        verticalPaneCount = cyclePaneCount(verticalPaneCount, otherAxisActive: hasHorizontal)
-        if verticalPaneCount > 2 && hasHorizontal { verticalPaneCount = 2 }
-    }
-
-    mutating func toggleHorizontal() {
-        horizontalPaneCount = cyclePaneCount(horizontalPaneCount, otherAxisActive: hasVertical)
-        if horizontalPaneCount > 2 && hasVertical { horizontalPaneCount = 2 }
-    }
-
-    mutating func collapseOnePane() {
-        if horizontalPaneCount > 1 {
-            horizontalPaneCount -= 1
-            return
-        }
-        if verticalPaneCount > 1 {
-            verticalPaneCount -= 1
-        }
-    }
-
-    private func cyclePaneCount(_ count: Int, otherAxisActive: Bool) -> Int {
-        switch count {
-        case 1: return 2
-        case 2: return otherAxisActive ? 1 : 3
-        default: return 1
-        }
+    /// The `SplitAxisActions` a pass-through `SplittablePane` publishes into
+    /// `\.splitAxisActions` — pulled out of `SplittablePane.body` so the axis
+    /// mapping is a plain function, testable without mounting a view.
+    /// `hasVertical`/`hasHorizontal` are always `false`: a further split of
+    /// THIS pane produces a new SIBLING leaf in the model, rendered as its
+    /// own separate `SplittablePane`, never a second copy of this one — so
+    /// `PaneHead`'s close button (gated on `hasVertical || hasHorizontal`)
+    /// correctly falls through to the real per-leaf close for every pane
+    /// reached through this hook.
+    func splitAxisActions() -> SplitAxisActions {
+        SplitAxisActions(
+            hasVertical: false,
+            hasHorizontal: false,
+            paneCount: 1,
+            // The name swap is real, not a typo: `SplittablePane`'s OWN
+            // "vertical" means a VERTICAL DIVIDER (panes side by side —
+            // `verticalSplitContainer` is an `HStack`), which is `PaneList`'s
+            // `.horizontal` AXIS (`WorkspaceSplitStack(axis: .horizontal)` is
+            // also an `HStack`, confirmed at `ContentView.paneListRow`). Its
+            // "horizontal" means a horizontal divider (stacked, `VStack`) —
+            // `PaneList`'s `.vertical` axis. Get this backwards and "Split
+            // Vertical" stacks instead of siding.
+            onToggleVertical: { split(.horizontal) },
+            onToggleHorizontal: { split(.vertical) },
+            onCollapseSplit: {}  // never invoked: hasVertical/hasHorizontal are always false
+        )
     }
 }
 
@@ -206,368 +166,40 @@ struct SplitPaneState {
 /// **NSToolbar safety:** the divider lives in the content area and does not
 /// extend into the title bar, so toolbar chrome stays intact.
 struct SplittablePane<Content: View>: View {
-    private let storageKey: String
     private let content: () -> Content
+    /// The pane's own split/close owner (`PaneList`, via `PaneModelSplitHook`) — see the type's
+    /// own doc comment. Optional so `adaptiveSplittablePane`'s compact-width branch (which never
+    /// constructs a `SplittablePane` at all) and any future caller with nothing to split through
+    /// stay representable; every PRODUCTION caller today (`kindContent`, the one caller of
+    /// `adaptiveSplittablePane`) always supplies one — confirmed by grep before this file was
+    /// simplified (step F, source-model panes recon, 2026-09-20). `nil` here renders `content()`
+    /// alone, with no `\.splitAxisActions` published — the same "nothing to split" state a
+    /// compact-width pane already has, so `PaneChromeMenu`'s "+" correctly stays hidden.
+    private let modelSplit: PaneModelSplitHook?
 
-    /// Window-level split commands + workspace capture (Daniel, 2026-08-29).
-    /// nil (e.g. previews, panes outside the centre row) simply opts out.
-    @Environment(\.paneSplitCoordinator) private var splitCoordinator
-
-    /// Whether the WHOLE pane is already a secondary copy — set from above when an applied workspace
-    /// mounts this pane as a duplicate same-kind leaf (spec panes.instance-safe,
-    /// `ContentView.paneNodeView`). Its own unsplit primary would otherwise force
-    /// `isSecondarySplitPane = false` and defeat the guard, so `splitPane` ORs this in: a duplicate
-    /// leaf keeps ALL its sub-panes secondary, while a normal pane's primary/secondary split is
-    /// unchanged (false OR the split's own value).
-    @Environment(\.isSecondarySplitPane) private var inheritedSecondary
-
-    /// Number of panes in the active left/right layout.
-    @SceneStorage private var verticalPaneCount: Int
-    /// Number of panes in the active top/bottom layout.
-    @SceneStorage private var horizontalPaneCount: Int
-    /// Width of the first pane in a 2- or 3-column vertical layout.
-    @SceneStorage private var verticalPrimaryExtent: Double
-    /// Width of the middle pane in a 3-column vertical layout.
-    @SceneStorage private var verticalSecondaryExtent: Double
-    /// Height of the first pane in a 2- or 3-row horizontal layout.
-    @SceneStorage private var horizontalPrimaryExtent: Double
-    /// Height of the middle pane in a 3-row horizontal layout.
-    @SceneStorage private var horizontalSecondaryExtent: Double
-
-    init(storageKey: String, @ViewBuilder content: @escaping () -> Content) {
-        self.storageKey = storageKey
+    init(
+        storageKey: String,
+        modelSplit: PaneModelSplitHook? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        // `storageKey` is no longer stored — nothing in this simplified type keys anything by
+        // it any more (step F deleted the `@SceneStorage` counts/extents it used to key); kept
+        // as an init parameter so every call site (`adaptiveSplittablePane`) needs no change.
+        self.modelSplit = modelSplit
         self.content = content
-        self._verticalPaneCount = SceneStorage(wrappedValue: 1, "splittablePane.\(storageKey).verticalCount")
-        self._horizontalPaneCount = SceneStorage(wrappedValue: 1, "splittablePane.\(storageKey).horizontalCount")
-        self._verticalPrimaryExtent = SceneStorage(wrappedValue: 400, "splittablePane.\(storageKey).verticalPrimaryExtent")
-        self._verticalSecondaryExtent = SceneStorage(wrappedValue: 400, "splittablePane.\(storageKey).verticalSecondaryExtent")
-        self._horizontalPrimaryExtent = SceneStorage(wrappedValue: 320, "splittablePane.\(storageKey).horizontalPrimaryExtent")
-        self._horizontalSecondaryExtent = SceneStorage(wrappedValue: 320, "splittablePane.\(storageKey).horizontalSecondaryExtent")
     }
 
     var body: some View {
-        splitContainer
-            // Mirror counts into the window coordinator so a workspace save
-            // can read them; apply/act on window-level commands addressed to
-            // this pane's storage key (Daniel, 2026-08-29). NotificationCenter
-            // posts happen on the main actor (the coordinator is @MainActor),
-            // so onReceive delivers synchronously on main.
-            .onAppear { recordSplitCounts() }
-            .onChange(of: verticalPaneCount) { _, _ in recordSplitCounts() }
-            .onChange(of: horizontalPaneCount) { _, _ in recordSplitCounts() }
-            .onReceive(NotificationCenter.default.publisher(for: .paneSplitCommand)) { note in
-                handleSplitCommand(note)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .paneSplitApply)) { note in
-                handleSplitApply(note)
-            }
-    }
-
-    private var splitState: SplitPaneState {
-        SplitPaneState(
-            verticalPaneCount: verticalPaneCount,
-            horizontalPaneCount: horizontalPaneCount
-        )
-    }
-
-    private func updateSplitState(_ mutate: (inout SplitPaneState) -> Void) {
-        var state = splitState
-        mutate(&state)
-        verticalPaneCount = state.verticalPaneCount
-        horizontalPaneCount = state.horizontalPaneCount
-    }
-
-    private func toggleVertical() {
-        updateSplitState { $0.toggleVertical() }
-    }
-
-    private func toggleHorizontal() {
-        updateSplitState { $0.toggleHorizontal() }
-    }
-
-    private func collapseSplit() {
-        updateSplitState { $0.collapseOnePane() }
-    }
-
-    private var splitAxisActions: SplitAxisActions {
-        SplitAxisActions(
-            hasVertical: splitState.hasVertical,
-            hasHorizontal: splitState.hasHorizontal,
-            paneCount: splitState.paneCount,
-            verticalCount: splitState.verticalPaneCount,
-            horizontalCount: splitState.horizontalPaneCount,
-            onToggleVertical: toggleVertical,
-            onToggleHorizontal: toggleHorizontal,
-            onCollapseSplit: collapseSplit
-        )
-    }
-
-    // MARK: Split container
-
-    @ViewBuilder
-    private var splitContainer: some View {
-        if splitState.isGrid {
-            gridSplitContainer
-        } else if splitState.hasVertical {
-            verticalSplitContainer
-        } else if splitState.hasHorizontal {
-            horizontalSplitContainer
+        // ONE CODE PATH (2026-09-20 ruling): this leaf is owned by `PaneList` — it never splits
+        // ITSELF. The published actions never report a split in progress
+        // (`hasVertical`/`hasHorizontal` are always false, `PaneModelSplitHook.splitAxisActions()`),
+        // which also makes `PaneHead`'s close button (gated on those two flags: "collapse the
+        // split" vs. "close the leaf") correctly fall through to `\.paneCloseAction` (the real
+        // per-leaf close) for every pane reached through this hook.
+        if let modelSplit {
+            content().environment(\.splitAxisActions, modelSplit.splitAxisActions())
         } else {
-            splitPane(isSecondary: false)
+            content()
         }
-    }
-
-    // MARK: 2×2 grid (both axes)
-
-    /// Both rows share ONE column divider binding, so the grid stays a grid
-    /// (Xcode's editor-grid look) instead of two independently-torn rows.
-    @ViewBuilder
-    private var gridSplitContainer: some View {
-        GeometryReader { proxy in
-            let availableWidth = proxy.size.width > 0
-                ? Double(proxy.size.width) : verticalPrimaryExtent + 248
-            let availableHeight = proxy.size.height > 0
-                ? Double(proxy.size.height) : horizontalPrimaryExtent + 248
-            let minimumWidth = 240.0
-            let minimumHeight = 160.0
-            let maxPrimaryWidth = max(minimumWidth, availableWidth - 8 - minimumWidth)
-            let maxPrimaryHeight = max(minimumHeight, availableHeight - 8 - minimumHeight)
-            let primaryWidth = CGFloat(clamp(verticalPrimaryExtent, lower: minimumWidth, upper: maxPrimaryWidth))
-            let primaryHeight = CGFloat(clamp(horizontalPrimaryExtent, lower: minimumHeight, upper: maxPrimaryHeight))
-
-            VStack(spacing: 0) {
-                gridRow(primaryWidth: primaryWidth, maxPrimaryWidth: maxPrimaryWidth,
-                        minimumWidth: minimumWidth, isTopRow: true)
-                    .frame(maxWidth: .infinity).frame(height: primaryHeight)
-
-                ResizableDivider(
-                    width: $horizontalPrimaryExtent,
-                    minWidth: minimumHeight,
-                    maxWidth: maxPrimaryHeight,
-                    edge: .leading,
-                    axis: .vertical
-                )
-
-                gridRow(primaryWidth: primaryWidth, maxPrimaryWidth: maxPrimaryWidth,
-                        minimumWidth: minimumWidth, isTopRow: false)
-                    .frame(maxWidth: .infinity, minHeight: CGFloat(minimumHeight), maxHeight: .infinity)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    @ViewBuilder
-    private func gridRow(primaryWidth: CGFloat, maxPrimaryWidth: Double,
-                         minimumWidth: Double, isTopRow: Bool) -> some View {
-        HStack(spacing: 0) {
-            splitPane(isSecondary: !isTopRow)
-                .frame(width: primaryWidth)
-
-            ResizableDivider(
-                width: $verticalPrimaryExtent,
-                minWidth: minimumWidth,
-                maxWidth: maxPrimaryWidth,
-                edge: .leading
-            )
-
-            splitPane(isSecondary: true)
-                .frame(minWidth: CGFloat(minimumWidth), maxWidth: .infinity)
-        }
-    }
-
-    // MARK: Vertical split
-
-    @ViewBuilder
-    private var verticalSplitContainer: some View {
-        GeometryReader { proxy in
-            let available = proxy.size.width > 0
-                ? Double(proxy.size.width)
-                : verticalPrimaryExtent + 248
-            let paneCount = splitState.verticalPaneCount
-            let dividerWidth = 8.0
-            let minimumWidth = 240.0
-            let dividerSpace = Double(max(0, paneCount - 1)) * dividerWidth
-
-            if paneCount == 2 {
-                let maxPrimary = max(minimumWidth, available - dividerSpace - minimumWidth)
-                let primaryWidth = CGFloat(clamp(verticalPrimaryExtent, lower: minimumWidth, upper: maxPrimary))
-
-                HStack(spacing: 0) {
-                    splitPane(isSecondary: false)
-                        .frame(width: primaryWidth)
-
-                    ResizableDivider(
-                        width: $verticalPrimaryExtent,
-                        minWidth: minimumWidth,
-                        maxWidth: maxPrimary,
-                        edge: .leading
-                    )
-
-                    splitPane(isSecondary: true)
-                        .frame(minWidth: minimumWidth, maxWidth: .infinity)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                let maxPrimary = max(minimumWidth, available - dividerSpace - (minimumWidth * 2))
-                let primaryWidth = CGFloat(clamp(verticalPrimaryExtent, lower: minimumWidth, upper: maxPrimary))
-                let remainingAfterPrimary = available - dividerSpace - Double(primaryWidth)
-                let maxSecondary = max(minimumWidth, remainingAfterPrimary - minimumWidth)
-                let secondaryWidth = CGFloat(clamp(verticalSecondaryExtent, lower: minimumWidth, upper: maxSecondary))
-
-                HStack(spacing: 0) {
-                    splitPane(isSecondary: false)
-                        .frame(width: primaryWidth)
-
-                    ResizableDivider(
-                        width: $verticalPrimaryExtent,
-                        minWidth: minimumWidth,
-                        maxWidth: maxPrimary,
-                        edge: .leading
-                    )
-
-                    splitPane(isSecondary: true)
-                        .frame(width: secondaryWidth)
-
-                    ResizableDivider(
-                        width: $verticalSecondaryExtent,
-                        minWidth: minimumWidth,
-                        maxWidth: maxSecondary,
-                        edge: .leading
-                    )
-
-                    splitPane(isSecondary: true)
-                        .frame(minWidth: minimumWidth, maxWidth: .infinity)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: Horizontal split
-
-    @ViewBuilder
-    private var horizontalSplitContainer: some View {
-        GeometryReader { proxy in
-            let available = proxy.size.height > 0
-                ? Double(proxy.size.height)
-                : horizontalPrimaryExtent + 248
-            let paneCount = splitState.horizontalPaneCount
-            let dividerHeight = 8.0
-            let minimumHeight = 160.0
-            let dividerSpace = Double(max(0, paneCount - 1)) * dividerHeight
-
-            if paneCount == 2 {
-                let maxPrimary = max(minimumHeight, available - dividerSpace - minimumHeight)
-                let primaryHeight = CGFloat(clamp(horizontalPrimaryExtent, lower: minimumHeight, upper: maxPrimary))
-
-                VStack(spacing: 0) {
-                    splitPane(isSecondary: false)
-                        .frame(maxWidth: .infinity).frame(height: primaryHeight)
-
-                    ResizableDivider(
-                        width: $horizontalPrimaryExtent,
-                        minWidth: minimumHeight,
-                        maxWidth: maxPrimary,
-                        edge: .leading,
-                        axis: .vertical
-                    )
-
-                    splitPane(isSecondary: true)
-                        .frame(maxWidth: .infinity, minHeight: minimumHeight, maxHeight: .infinity)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                let maxPrimary = max(minimumHeight, available - dividerSpace - (minimumHeight * 2))
-                let primaryHeight = CGFloat(clamp(horizontalPrimaryExtent, lower: minimumHeight, upper: maxPrimary))
-                let remainingAfterPrimary = available - dividerSpace - Double(primaryHeight)
-                let maxSecondary = max(minimumHeight, remainingAfterPrimary - minimumHeight)
-                let secondaryHeight = CGFloat(clamp(horizontalSecondaryExtent, lower: minimumHeight, upper: maxSecondary))
-
-                VStack(spacing: 0) {
-                    splitPane(isSecondary: false)
-                        .frame(maxWidth: .infinity).frame(height: primaryHeight)
-
-                    ResizableDivider(
-                        width: $horizontalPrimaryExtent,
-                        minWidth: minimumHeight,
-                        maxWidth: maxPrimary,
-                        edge: .leading,
-                        axis: .vertical
-                    )
-
-                    splitPane(isSecondary: true)
-                        .frame(maxWidth: .infinity).frame(height: secondaryHeight)
-
-                    ResizableDivider(
-                        width: $horizontalSecondaryExtent,
-                        minWidth: minimumHeight,
-                        maxWidth: maxSecondary,
-                        edge: .leading,
-                        axis: .vertical
-                    )
-
-                    splitPane(isSecondary: true)
-                        .frame(maxWidth: .infinity, minHeight: minimumHeight, maxHeight: .infinity)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: Pane helpers
-
-    /// A secondary copy of `content()` with `isSecondarySplitPane = true`
-    /// so that views suppress duplicate NSToolbar registrations.
-    @ViewBuilder
-    private func splitPane(isSecondary: Bool) -> some View {
-        content()
-            // OR the inherited flag: if the whole pane is a duplicate leaf (applied workspace),
-            // every sub-pane — including this SplittablePane's own "primary" — stays secondary, so
-            // the window-scoped focused-value guard holds (spec panes.instance-safe). A normal
-            // pane inherits false, so its primary/secondary split is unchanged.
-            .environment(\.isSecondarySplitPane, isSecondary || inheritedSecondary)
-            .environment(\.splitAxisActions, splitAxisActions)
-    }
-
-    private func clamp(_ value: Double, lower: Double, upper: Double) -> Double {
-        min(max(value, lower), upper)
-    }
-}
-
-// MARK: - Window-level command handling (Daniel, 2026-08-29)
-//
-// An extension (not more struct body) per the type_body_length budget.
-
-extension SplittablePane {
-    private func recordSplitCounts() {
-        splitCoordinator?.recorded[storageKey] = PaneSplitCounts(
-            vertical: verticalPaneCount,
-            horizontal: horizontalPaneCount
-        )
-    }
-
-    /// The coordinator IDENTITY scopes commands to one window: two windows'
-    /// panes share storage-key names ("library-library" etc.), and an
-    /// unscoped notification would split every window at once.
-    private func handleSplitCommand(_ note: Notification) {
-        guard let splitCoordinator, (note.object as? PaneSplitCoordinator) === splitCoordinator,
-              note.userInfo?["storageKey"] as? String == storageKey,
-              let axisRaw = note.userInfo?["axis"] as? String,
-              let axis = SplitPaneAxis(rawValue: axisRaw) else { return }
-        switch axis {
-        case .vertical: toggleVertical()
-        case .horizontal: toggleHorizontal()
-        }
-    }
-
-    private func handleSplitApply(_ note: Notification) {
-        guard let splitCoordinator, (note.object as? PaneSplitCoordinator) === splitCoordinator,
-              let splits = note.userInfo?["splits"] as? [String: PaneSplitCounts] else { return }
-        let counts = (splits[storageKey] ?? PaneSplitCounts()).sanitized
-        verticalPaneCount = counts.vertical
-        horizontalPaneCount = counts.horizontal
     }
 }

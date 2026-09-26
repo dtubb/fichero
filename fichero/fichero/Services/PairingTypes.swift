@@ -6,7 +6,10 @@ struct PairingQRCodePayload: Codable {
     let apiURL: String
     let pairCode: String
     let expiresAt: Date
-    let spki: String
+    /// Absent when the advertised host's TLS is terminated by a public CA — a
+    /// `tailscale serve` endpoint — because the host does not hold that key and
+    /// must not claim it (#5041). Present for an engine serving its own cert.
+    let spki: String?
     let libraryPath: String?
 
     enum CodingKeys: String, CodingKey {
@@ -120,7 +123,7 @@ final class PairingService {
         self.client = FicheroClient(baseURL: apiRoot, transportMode: EngineConfig.transportMode)
     }
 
-    init(apiRoot: URL, expectedSPKIPin: String) throws {
+    init(apiRoot: URL, expectedSPKIPin: String?) throws {
         self.client = try FicheroClient(baseURL: apiRoot, expectedSPKIPin: expectedSPKIPin)
     }
 
@@ -235,7 +238,7 @@ final class PairingService {
     static func buildQRCodePayload(
         apiRoot: URL,
         from code: PairingCodeRecord,
-        spki: String = "",
+        spki: String? = nil,
         libraryPath: String? = nil
     ) -> PairingQRCodePayload {
         PairingQRCodePayload(

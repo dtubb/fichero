@@ -34,6 +34,20 @@ extension ShareLibrarySheet {
                     + "it carries a single-use code that expires. Share only with them.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if let localNetworkOnlyAdvisory {
+                    // Advisory, not a blocker: the link above is real and works on
+                    // this network. Same shape as the unavailable-reason card so it
+                    // reads as part of the same vocabulary, without pretending the
+                    // link is broken (#5042).
+                    Label {
+                        Text(localNetworkOnlyAdvisory)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } icon: {
+                        Image(systemName: "wifi.exclamationmark")
+                            .foregroundStyle(.secondary)
+                    }
+                }
             } else if let reason = shareLinkUnavailableReason {
                 // Honest fallback only — the common "sharing is off" case is now
                 // handled by Share itself (it turns hosting on), so this renders for

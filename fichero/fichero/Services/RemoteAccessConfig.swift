@@ -50,6 +50,42 @@ enum RemoteAccessConfig {
         !pairedLibraryPath.isEmpty
     }
 
+    /// Derives `https://<hostname>.local:<port>` from the system Bonjour name.
+    /// The ONE home for the automatic address (#5042): the Share sheet and the
+    /// Sharing settings pane both forward here, so they cannot drift apart.
+    /// Port mirrors `EngineConfig.defaultHostString` so both stay in sync.
+    static var autoLocalBaseURL: String {
+        var host = ProcessInfo.processInfo.hostName.lowercased()
+        if !host.hasSuffix(".local") {
+            host = (host.components(separatedBy: ".").first ?? host) + ".local"
+        }
+        let port = URL(string: EngineConfig.defaultHostString)?.port ?? 8765
+        return "https://\(host):\(port)"
+    }
+
+    /// Whether an advertised address can only be resolved from the same local
+    /// network. A `.local` name is mDNS, and many managed networks — university
+    /// campuses especially — do not resolve mDNS at all, so the link is
+    /// well-formed and completely dead off-LAN (#5042).
+    ///
+    /// Name shape only. A Tailscale `.ts.net` name and a literal IP both resolve
+    /// without mDNS, so neither is local-only by this test.
+    ///
+    /// Knows the same three-way host taxonomy as `hostedRemoteURLIsAllowed` below
+    /// — `.local`, `.ts.net`, IP literal — for a different question: that one
+    /// decides whether an address MAY be advertised, this one how far it reaches.
+    /// Kept separate on purpose, but a fourth address kind has to be taught to
+    /// BOTH, and nothing here will remind you.
+    /// ponytail: no live reachability probe and no Tailscale auto-detection —
+    /// rejected as over-built for #5042; the manual override already covers it.
+    static func isLocalNetworkOnly(_ rawURLString: String) -> Bool {
+        let trimmed = rawURLString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let host = URLComponents(string: trimmed)?.host?.lowercased(), !host.isEmpty else {
+            return false
+        }
+        return host.hasSuffix(".local")
+    }
+
     static func pairingBackendURL(from publicBaseURLString: String) -> URL? {
         try? validatedRemoteURL(from: publicBaseURLString, allowLocalhost: false, requireSecureTransportForRemote: true)
     }
@@ -187,6 +223,12 @@ func validatedHostedRemoteURL(from raw: String) throws -> URL {
     return url
 }
 
+/// Whether a host may be advertised at all — the policy gate behind
+/// `RemoteURLValidationError.hostPolicyNotAllowed`.
+///
+/// Shares its three-way taxonomy with `RemoteAccessConfig.isLocalNetworkOnly`
+/// above, which asks the other question (how far the address reaches, not whether
+/// it is allowed). A fourth address kind has to be taught to both.
 private func hostedRemoteURLIsAllowed(_ url: URL) -> Bool {
     guard let host = url.host?.lowercased(), !host.isEmpty else {
         return false

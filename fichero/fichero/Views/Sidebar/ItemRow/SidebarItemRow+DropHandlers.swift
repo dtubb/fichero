@@ -298,12 +298,21 @@ extension SidebarItemRow {
             skips.crossSection += 1
             return .skipped
         }
-        guard itemID != targetFolder.id else {
+        // #4980: refused at validation, before any move is attempted — the
+        // shared self-check every drop site uses (see SidebarDropFeedback).
+        // No alert follows (sidebarDropOutcomeMessage excludes selfDrop);
+        // only a log line, so the refusal still leaves a trace.
+        guard !sidebarDropIsSelfTarget(draggedId: itemID, targetId: targetFolder.id) else {
             skips.selfDrop += 1
+            DragDropLog.refused("sidebar-row", reason: "'\(itemID)' dropped onto itself — ignored, no alert")
             return .skipped
         }
         if isDescendant(targetFolder.id, of: itemID) {
             skips.circular += 1
+            DragDropLog.refused(
+                "sidebar-row",
+                reason: "'\(itemID)' would nest folder '\(targetFolder.id)' inside itself — refused"
+            )
             return .skipped
         }
 

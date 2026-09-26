@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 // MARK: - The layout a new window (or a relaunch) starts in (Daniel, 2026-09-04)
 
@@ -101,10 +102,37 @@ enum WorkspaceLayoutDefaults {
     /// change), or `nil` when nothing has ever been remembered — a fresh install, or a store
     /// written before this existed. The caller decides the fallback (the Read default), the same
     /// "absent is not a value" contract `pane(_:default:)` uses for the Bools.
+    ///
+    /// MEMOISED on the raw stored bytes. `ContentView.activePaneList`'s `@State` initial-value
+    /// expression calls this, and an initial-value expression runs on EVERY `ContentView.init`
+    /// — once per evaluation of the body that hosts it — though SwiftUI keeps only the first
+    /// result. That was a `JSONDecoder` run on the main thread per init (slowdown review,
+    /// 2026-09-20); a repeat read is now a `Data` equality check. Keyed by the bytes, not the
+    /// store: a write changes them, so it invalidates without `rememberPaneList` knowing the
+    /// memo exists, and so does a write from another process or a different `store`.
     static func rememberedPaneList(in store: UserDefaults = .standard) -> PaneList? {
         guard let data = store.data(forKey: appliedPaneListKey) else { return nil }
-        return try? JSONDecoder().decode(PaneList.self, from: data)
+        return paneListMemo.withLock { memo in
+            if let last = memo.last, last.data == data { return last.list }
+            memo.decodes += 1
+            let list = try? JSONDecoder().decode(PaneList.self, from: data)
+            memo.last = (data, list)
+            return list
+        }
     }
+
+    /// The last bytes decoded and what they decoded to (`nil` list = they did not decode;
+    /// remembered too, so malformed bytes are not re-tried on every init), plus how many times
+    /// the decoder has actually run. Behind a lock, not an actor: this enum is nonisolated and
+    /// has nonisolated callers, and a static `var` there is not concurrency-safe.
+    private struct PaneListMemo: Sendable {
+        var last: (data: Data, list: PaneList?)?
+        var decodes = 0
+    }
+    private static let paneListMemo = Mutex(PaneListMemo())
+    /// How many times `rememberedPaneList` has actually run the decoder — the tests' seam for
+    /// "a repeat read does not decode".
+    static var paneListDecodeCount: Int { paneListMemo.withLock { $0.decodes } }
 
     /// Remember `list` as the one to restore on the next launch (#4686 — "make sure workspace is
     /// saved when we quit" was ALSO true of the applied composition, not only pane visibility).

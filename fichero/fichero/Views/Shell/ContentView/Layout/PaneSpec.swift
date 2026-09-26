@@ -169,15 +169,17 @@ extension ContentView {
     /// independently — the per-window "canvas" key made splitting one
     /// preview split both.
     private func kindContent(
-        kind: PaneSpec.Kind, slotId: String, fixedWidth: CGFloat?
+        kind: PaneSpec.Kind, slotId: String, fixedWidth: CGFloat?,
+        splitLeaf: ((SplitAxis) -> Void)? = nil
     ) -> AnyView {
         let spec = PaneSpec(kind: kind, fixedWidth: fixedWidth)
         let splitKey = "\(slotId)-\(kind.rawValue)"
+        let modelSplit = splitLeaf.map { PaneModelSplitHook(split: $0) }
         switch spec.kind {
         case .library:
             return AnyView(
                 // Splittable (h/v) Library list pane — #2276.
-                adaptiveSplittablePane(storageKey: splitKey) {
+                adaptiveSplittablePane(storageKey: splitKey, modelSplit: modelSplit) {
                     contentWithOptionalModeRail
                 }
                 .frame(width: spec.fixedWidth)
@@ -194,13 +196,13 @@ extension ContentView {
             // so ⌘A over a clicked preview still went to the library (Daniel,
             // live 2026-08-23).
             return AnyView(
-                widescreenCanvasPane(splitKey: splitKey)
+                widescreenCanvasPane(splitKey: splitKey, modelSplit: modelSplit)
                     .simultaneousGesture(
                         TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview }
                     )
             )
         case .reading:
-            let reading = widescreenReadingPane(splitKey: splitKey)
+            let reading = widescreenReadingPane(splitKey: splitKey, modelSplit: modelSplit)
                 .simultaneousGesture(
                     TapGesture().onEnded { _ in focusedPane = .reading; paneFocusHint = .reading }
                 )
@@ -296,17 +298,30 @@ extension ContentView {
                     changeContentKind: { id, contentKind in
                         activePaneList = activePaneList.changingLeafContentKind(id, to: contentKind?.rawValue)
                         paneListDidChange()
+                    },
+                    // ONE CODE PATH (2026-09-20 ruling): the in-pane split control
+                    // (`SplittablePane`'s `\.splitAxisActions`, surfaced via
+                    // `PaneChromeMenu`'s "+") now calls THIS — the same
+                    // `PaneList.splittingLeaf` the Workspaces menu already uses —
+                    // instead of duplicating this leaf's own rendered content.
+                    splitLeaf: { id, axis in
+                        activePaneList = activePaneList.splittingLeaf(id, axis: axis)
+                        paneListDidChange()
                     }
                 ),
+                // ONE CODE PATH (2026-09-20 ruling, slice B): the pane's OWN id — a leaf's or a
+                // split's, both cases of `PaneNode.id` — not this column's array offset. This is
+                // what lets `WorkspaceSplitStack` tell "pane X moved to a new position" apart
+                // from "pane X closed and a different pane Y is now here" (#4976).
+                id: node.id,
                 sizing: extents[index]
             )
         }
-        // The leading node's own id makes the key workspace-unique (#4688): a bare "root" (or a
-        // tree-position string) is the SAME for every applied workspace, so Read's inner split and
-        // Transcribe's film strip — both at position "0" — shared one @SceneStorage slot. A node's
-        // id is fresh per applied `PaneList`, so two different workspaces' top-level rows never
-        // collide even though they're both "root".
-        let storageKey = WorkspaceSplitStack.storageKey(keyPath: "root", leadingChildID: list.nodes.first?.id)
+        // The key is this row's tree POSITION alone (#4994): the row keeps its view identity
+        // across an applied workspace, so a key that changed with the workspace changed under a
+        // live `@SceneStorage`. Sizes stay per-workspace because the stored value is keyed by
+        // each child's own pane id (`id: node.id` above) — see `WorkspaceSplitStack.storageKey`.
+        let storageKey = WorkspaceSplitStack.storageKey(keyPath: "root")
         WorkspaceSplitStack(axis: .horizontal, storageKey: storageKey, children: columns)
     }
 
@@ -316,7 +331,8 @@ extension ContentView {
         _ node: PaneNode, keyPath: String, secondaryIDs: Set<UUID> = [], isSole: Bool = false,
         closeLeaf: ((UUID) -> Void)? = nil,
         changeKind: ((UUID, PaneKind) -> Void)? = nil,
-        changeContentKind: ((UUID, LibraryContentKind?) -> Void)? = nil
+        changeContentKind: ((UUID, LibraryContentKind?) -> Void)? = nil,
+        splitLeaf: ((UUID, SplitAxis) -> Void)? = nil
     ) -> AnyView {
         switch node {
         case let .leaf(id, kind, _, config):
@@ -330,7 +346,11 @@ extension ContentView {
                 kindContent(
                     kind: paneSpecKind(kind),
                     slotId: "pane-\(keyPath)-\(kind.rawValue)",
-                    fixedWidth: nil
+                    fixedWidth: nil,
+                    // THIS leaf's own id, closed over here — the same per-leaf
+                    // seam `changeKind`/`changeContentKind` already use, now
+                    // extended to split (ONE CODE PATH ruling, 2026-09-20).
+                    splitLeaf: splitLeaf.map { leafSplit in { axis in leafSplit(id, axis) } }
                 )
                 .environment(\.isSecondarySplitPane, secondaryIDs.contains(id))
                 // Sole pane → the head collapses its close affordance (spec panes.head.sole-collapse).
@@ -403,7 +423,7 @@ extension ContentView {
             return paneSplitView(
                 axis: axis, children: children, keyPath: keyPath,
                 secondaryIDs: secondaryIDs, closeLeaf: closeLeaf, changeKind: changeKind,
-                changeContentKind: changeContentKind
+                changeContentKind: changeContentKind, splitLeaf: splitLeaf
             )
         }
     }
@@ -415,7 +435,8 @@ extension ContentView {
         axis: SplitAxis, children: [PaneNode], keyPath: String,
         secondaryIDs: Set<UUID> = [], closeLeaf: ((UUID) -> Void)? = nil,
         changeKind: ((UUID, PaneKind) -> Void)? = nil,
-        changeContentKind: ((UUID, LibraryContentKind?) -> Void)? = nil
+        changeContentKind: ((UUID, LibraryContentKind?) -> Void)? = nil,
+        splitLeaf: ((UUID, SplitAxis) -> Void)? = nil
     ) -> AnyView {
         let extents = childExtents(children, axis: axis)
         let views = children.enumerated().map { idx, child in
@@ -423,16 +444,16 @@ extension ContentView {
                 paneNodeView(
                     child, keyPath: "\(keyPath).\(idx)",
                     secondaryIDs: secondaryIDs, closeLeaf: closeLeaf, changeKind: changeKind,
-                    changeContentKind: changeContentKind
+                    changeContentKind: changeContentKind, splitLeaf: splitLeaf
                 ),
+                // Same as `paneListRow`: the child's own `PaneNode.id`, not its array index.
+                id: child.id,
                 sizing: extents[idx]
             )
         }
-        // Same workspace-unique-key fix as `paneListRow` (#4688): `keyPath` alone is a tree
-        // POSITION, identical across every workspace, so two different workspaces' splits at the
-        // same position collided. The leading child's own id (fresh per applied `PaneList`) makes
-        // this key unique per workspace, not just per position.
-        let storageKey = WorkspaceSplitStack.storageKey(keyPath: keyPath, leadingChildID: children.first?.id)
+        // Same rule as `paneListRow` (#4994): the tree position alone; per-workspace sizes ride
+        // the pane-id keys inside the stored value.
+        let storageKey = WorkspaceSplitStack.storageKey(keyPath: keyPath)
         return AnyView(WorkspaceSplitStack(axis: axis, storageKey: storageKey, children: views))
     }
 
@@ -447,13 +468,14 @@ extension ContentView {
         iconStrip + PaneHeadMetrics.barHeight + MiniToolbar<EmptyView, EmptyView>.standardHeight
     }
 
-    /// Per-child SIZING for a split's children: HARD-pinned (`PaneConfig.paneExtent` — the film
-    /// strip, absolute points, ignores stored drag state), PROPORTIONAL (`PaneConfig.paneFraction`
-    /// — a resizable column seeded from a fraction of the stack's own extent), or FLEX (fills
-    /// whatever the sized/pinned siblings leave over). An extent always wins over a fraction on the
-    /// same leaf (`Sizing.preferred`, pure + unit-tested). A `.library` leaf's `paneExtent` is
-    /// widened to include its own chrome (`libraryStripExtent`, #4848) before `Sizing.preferred`
-    /// ever sees it.
+    /// Per-child SIZING for a split's children: a DEFAULT extent (`PaneConfig.paneExtent` — the
+    /// film strip, absolute points; resizable and floored at this value since slice D, 2026-09-20,
+    /// #4876/#4848 — no longer a hard pin that ignores stored drag state), PROPORTIONAL
+    /// (`PaneConfig.paneFraction` — a resizable column seeded from a fraction of the stack's own
+    /// extent), or FLEX (fills whatever the sized/pinned siblings leave over). An extent always
+    /// wins over a fraction on the same leaf (`Sizing.preferred`, pure + unit-tested). A
+    /// `.library` leaf's `paneExtent` is widened to include its own chrome (`libraryStripExtent`,
+    /// #4848) before `Sizing.preferred` ever sees it.
     private func childExtents(_ nodes: [PaneNode], axis: SplitAxis) -> [WorkspaceSplitStack.Sizing] {
         let preferences: [WorkspaceSplitStack.Sizing?] = nodes.map { node in
             guard case let .leaf(_, kind, _, config) = node else { return nil }
@@ -481,9 +503,9 @@ extension ContentView {
     /// the mix so the pane list always has somewhere that absorbs a total that doesn't divide
     /// evenly, and preserves which slot flexes today: the FIRST peer when a pin is present (the
     /// rule that keeps the Transcribe/Compare film strip pinned while the content above it fills
-    /// the rest), the LAST peer when there is no pin (CD 2026-09-17's rule for the un-pinned
-    /// workspaces). With a pin and no peer at all, nothing is left to flex — every child is
-    /// either pinned or explicitly fractioned, so each just keeps its own preference.
+    /// the rest), the LAST peer when there is no pin (the rule for the un-pinned workspaces). With
+    /// NO peer at all, the last child that is not a pin flexes instead (every child a pin: the
+    /// last one), so a split can never be left with nothing to absorb the remainder.
     ///
     /// KNOWN LIMITATION, not exercised by any built-in and not part of #4849's reported shape
     /// (every built-in pairs a pin with exactly ONE peer, which is always correct): with a pin
@@ -510,12 +532,19 @@ extension ContentView {
             : max(0, 1 - explicitFractionSum) / Double(peerIndices.count)
 
         let hasPin = preferences.contains(where: isPinned)
-        let flexIndex: Int? = hasPin ? peerIndices.first : peerIndices.last
+        // A split ALWAYS has one flexing child (#5011, #5014). With no peer to flex, the explicit
+        // shares alone decide the layout: two halves that each copied a 0.4 share filled 0.8 of
+        // their split and left the rest empty, and closing the flexing pane of a row left its
+        // share as a gap. So when no peer exists, the LAST child that is not a pin gives up its
+        // explicit share and flexes; when every child is a pin, the last one does.
+        let lastUnpinned = preferences.indices.last { !isPinned(preferences[$0]) }
+        let flexIndex: Int = (hasPin ? peerIndices.first : peerIndices.last)
+            ?? lastUnpinned ?? (preferences.count - 1)
 
         return preferences.indices.map { idx in
+            if idx == flexIndex { return .flex }
             if isPinned(preferences[idx]) { return preferences[idx]! }
             if let preference = preferences[idx] { return preference }
-            if idx == flexIndex { return .flex }
             return .fraction(peerShare)
         }
     }

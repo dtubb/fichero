@@ -201,7 +201,21 @@ class TestLoopbackTrustFailsClosed:
 
     def test_existing_material_becomes_a_trust_anchor(self, monkeypatch, tmp_path):
         """A real self-signed cert on disk loads as an anchor (no
-        verify=False anywhere)."""
+        verify=False anywhere).
+
+        `_loopback_trust` deliberately DIALS the host:port to read what the
+        engine actually serves, then matches it byte-for-byte against
+        candidate files on disk (#4468's same-subject/wrong-anchor fix,
+        2026-08-27) — a real network call by design, for production use.
+        A unit test calling it directly against the literal default port
+        8765 must not let that dial reach whatever is actually listening
+        there: on a dev machine that is the maintainer's own running app,
+        and the test's outcome must never depend on whether that happens
+        to be up (found live, undialed: this repro'd against the real
+        app). Mock `ssl.get_server_certificate` to return the SAME material
+        this test just generated — "the engine serves this exact cert" is
+        precisely the scenario under test, without dialing anything.
+        """
         import ssl
 
         from fichero_cli import client as client_module
@@ -213,6 +227,15 @@ class TestLoopbackTrustFailsClosed:
             "https://127.0.0.1:8765", storage_root=root, allow_loopback=True
         )
         monkeypatch.setattr(tls, "DEFAULT_STORAGE_ROOT", root)
+        # Hermetic: the second search root (the app container) may hold real
+        # certs on a developer machine.
+        monkeypatch.setattr(client_module, "_CONTAINER_SUPPORT", tmp_path / "Container")
+        from pathlib import Path as _Path
+
+        served_pem = _Path(material.certificate_path).read_text(encoding="utf-8")
+        monkeypatch.setattr(
+            client_module.ssl, "get_server_certificate", lambda *_a, **_k: served_pem
+        )
         context = client_module._loopback_trust("https://127.0.0.1:8765")
         assert isinstance(context, ssl.SSLContext)
         assert context.verify_mode == ssl.CERT_REQUIRED

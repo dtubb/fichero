@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 #: QOS_CLASS_BACKGROUND from <sys/qos.h> — the lowest, throttled, yields-to-all
 #: class Apple's scheduler defines. Matches Daniel's `taskpolicy -b`, per thread.
 _QOS_CLASS_BACKGROUND = 0x09
+_QOS_CLASS_UTILITY = 0x11
 
 
 def cpu_count() -> int:
@@ -65,7 +66,7 @@ def embed_concurrency() -> int:
     return _env_positive_int("FICHERO_EMBED_WORKERS", 1)
 
 
-def set_background_qos() -> None:
+def set_background_qos(qos_class: int = _QOS_CLASS_BACKGROUND) -> None:
     """Drop the CALLING thread to background priority so its CPU yields to the
     foreground. Best-effort and never raises — a throttle that crashes the worker
     it throttles would be worse than the greed it prevents.
@@ -81,7 +82,7 @@ def set_background_qos() -> None:
 
             libsystem = ctypes.CDLL(ctypes.util.find_library("System"))
             # int pthread_set_qos_class_self_np(qos_class_t, int relative_priority)
-            if libsystem.pthread_set_qos_class_self_np(_QOS_CLASS_BACKGROUND, 0) == 0:
+            if libsystem.pthread_set_qos_class_self_np(qos_class, 0) == 0:
                 return
         except Exception as exc:  # noqa: BLE001 — best-effort, fall through to nice
             logger.debug("pthread QoS set failed (%s); falling back to nice", exc)
@@ -92,6 +93,16 @@ def set_background_qos() -> None:
         os.setpriority(os.PRIO_PROCESS, 0, 10)
     except (AttributeError, OSError) as exc:  # pragma: no cover - platform dependent
         logger.debug("nice fallback failed: %s", exc)
+
+
+def set_utility_qos() -> None:
+    """Drop the CALLING thread to UTILITY priority: below anything the person is
+    touching, above background. For work the person asked for and is WAITING on
+    (a page being segmented), where background is the wrong class: measured
+    2026-09-20 on one 3063x2000 page, warm, Kraken segmentation took 19 s at the
+    default class, 23 s at utility and 426 s at background (#4959). Background
+    stays right for work nobody is waiting on (embedding a library)."""
+    set_background_qos(_QOS_CLASS_UTILITY)
 
 
 def current_thread_qos_class() -> int | None:

@@ -14,7 +14,20 @@ struct LibraryContentKindControl: View {
     /// entities list, where the ids mean something else.
     @Binding var kind: LibraryContentKind
 
+    /// #4966: `ViewThatFits` — the SAME primitive `PaneKindSelector`'s own
+    /// header ladder and the bottom bar's `AdaptiveMiniToolbarRow` are both
+    /// built on, not a second collapse mechanism. Before this, `.fixedSize()`
+    /// held the label at its ideal ("Documents" + icon) width and let the
+    /// PARENT clip it mid-word ("Documen") instead of the control itself
+    /// choosing to drop to its icon — the exact defect #4966 named.
     var body: some View {
+        ViewThatFits(in: .horizontal) {
+            control(iconOnly: false)
+            control(iconOnly: true)
+        }
+    }
+
+    private func control(iconOnly: Bool) -> some View {
         Menu {
             Picker("Browse", selection: $kind) {
                 ForEach(LibraryContentKind.allCases) { candidate in
@@ -24,10 +37,15 @@ struct LibraryContentKindControl: View {
             .pickerStyle(.inline)
             .labelsHidden()
         } label: {
-            Label(kind.label, systemImage: kind.systemImage)
+            // Two label styles are two TYPES, so a ternary cannot choose between them.
+            if iconOnly {
+                Label(kind.label, systemImage: kind.systemImage).labelStyle(.iconOnly)
+            } else {
+                Label(kind.label, systemImage: kind.systemImage).labelStyle(.titleAndIcon)
+            }
         }
         .fixedSize()
         .help("Browse documents, claims, or entities in this folder")
-        .accessibilityLabel("Browse kind")
+        .accessibilityLabel("Browse kind: \(kind.label)")
     }
 }

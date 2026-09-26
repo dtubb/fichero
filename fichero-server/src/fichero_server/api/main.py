@@ -25,29 +25,10 @@ import time
 import warnings
 from importlib.metadata import PackageNotFoundError, version as package_version
 
-# Sub-splits within this module's own import (route imports, tiered-route
-# registration, lifespan pre-yield) — see #4690. Relative to this module's
-# own import start, not __main__'s epoch; __main__'s "FastAPI app imported"
-# stamp already covers the whole of this file's import cost, this just opens
-# that interval up.
-_API_MAIN_EPOCH = time.monotonic()
-
-
-def _api_stamp(label: str) -> None:
-    logging.getLogger(__name__).info(
-        "engine-launch: %s @ %.0fms (api.main)", label, (time.monotonic() - _API_MAIN_EPOCH) * 1000
-    )
-
-# Disable tokenizers parallelism so the Rust tokenizer's thread pool
-# doesn't deadlock across a fork (subprocess spawns count). Must be set
-# before any import that pulls in transformers / tokenizers.
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-
-# Route the kreuzberg extraction cache to ~/Library/Caches/ and run the
-# one-time legacy-location migration. Imported here (not lazily via loaders)
-# so the side effect fires at engine startup regardless of whether the
-# user triggers an extraction this session.
-from fichero_server.loaders import kreuzberg_cache  # noqa: F401, E402
+# MUST be the first fichero import: running it sets TOKENIZERS_PARALLELISM
+# before anything can pull in transformers, primes the kreuzberg cache, and
+# starts the import-timing epoch. See _startup.py (#5051).
+from fichero_server.api._startup import api_stamp as _api_stamp
 
 import logging
 from contextlib import asynccontextmanager, suppress
@@ -67,9 +48,11 @@ from fichero_server.api.routes.document.segment_conversion import ConversionRefu
 from fichero_server.security import authz
 from fichero_server.security.discovery import start_bonjour_advertiser
 from fichero_server.models import (
+    ContractIdentity,
     EmbeddingStatsResponse,
     HealthResponse,
     LibraryStatsResponse,
+    MigrationFailureResponse,
 )
 from fichero_server.db.paths import migrate_legacy_server_state
 from fichero_server.security.remote_backend import build_remote_backend_status
@@ -115,6 +98,44 @@ def _resolve_engine_version() -> str:
 
 
 _ENGINE_VERSION = _resolve_engine_version()
+
+
+def _resolve_contract_identity() -> ContractIdentity | None:
+    """The contract this engine's wire speaks (#5047, `contract.runtime-compatibility`).
+
+    Read from the module the contract export bakes, ONCE at import — the check is
+    per-connection but the answer never changes within a process, and the document
+    it describes is ~2 MB, so hashing anything per request would be absurd.
+
+    Deliberately not derived from `app.openapi()`: that is the raw 3.1 document for
+    whatever `FICHERO_FEATURE_TIER` is live, while the contract is the exported,
+    post-processed 3.0.3 document at the `dev` tier. They differ by construction,
+    so a runtime hash of the served schema would mismatch the client's baked
+    identity on every single connection — a guard that always refuses is not a
+    guard. Both ends hash the same committed bytes instead.
+
+    Returns `None` — never a placeholder — when the generated module is absent, so
+    the engine reports "cannot state my contract" honestly rather than asserting an
+    identity it does not have. Under ruling 1 the client refuses an unverifiable
+    remote connection, which is the loud failure rule 0 asks for; the engine still
+    serves this machine.
+    """
+    try:
+        from fichero_server.api.contract_identity_generated import (
+            CONTRACT_SHA256,
+            CONTRACT_VERSION,
+        )
+    except ImportError:
+        logger.error(
+            "Contract identity is missing: fichero_server/api/contract_identity_generated.py "
+            "was not generated. Remote clients will refuse to connect to this engine. "
+            "Run fichero-server/scripts/sync_openapi_schema.sh to regenerate it."
+        )
+        return None
+    return ContractIdentity(version=CONTRACT_VERSION, sha256=CONTRACT_SHA256)
+
+
+_CONTRACT_IDENTITY = _resolve_contract_identity()
 
 
 class LibraryAccessDeniedError(HTTPException):
@@ -1665,9 +1686,13 @@ def _dependency_versions() -> dict[str, str]:
         # is simply "not provisioned", so debug rather than warn.
         logger.debug("mlx runtime status unavailable: %s", exc)
     try:
-        from fichero_server.llm.kraken_runtime import get_kraken_runtime
+        # #4959, 2026-09-20: Kraken is bundled now (a STATIC dep, like the
+        # rest of `_static_dependency_versions()`), not runtime-provisioned
+        # — kept in this try/except only because status() still does an
+        # import-check, which can legitimately fail on a broken build.
+        from fichero_server.llm.kraken_runtime import runtime_status
 
-        kraken_version = get_kraken_runtime().status().get("kraken_version")
+        kraken_version = runtime_status().get("kraken_version")
         if kraken_version:
             deps["kraken"] = str(kraken_version)
     except Exception as exc:  # noqa: BLE001 -- same reasoning as the mlx branch above
@@ -1713,7 +1738,21 @@ async def health_check(
                     database=str(db.path),
                     document_count=doc_count,
                     backend_version=_ENGINE_VERSION,
+                    contract=_CONTRACT_IDENTITY,
                     dependencies=_dependency_versions(),
+                    # #4983 phase 1: schema-migration failures recorded on
+                    # THIS cached `Database` instance — empty for a healthy
+                    # migration run, or for a library not yet reopened since
+                    # this process last ran the migrations.
+                    migration_failures=[
+                        MigrationFailureResponse(
+                            migration=f.migration,
+                            error_type=f.error_type,
+                            message=_redact_local_path(f.message, db.path),
+                            occurred_at=f.occurred_at,
+                        )
+                        for f in db.migration_failures
+                    ],
                 ),
                 nonce or x_fichero_client_nonce,
             )
@@ -1724,6 +1763,7 @@ async def health_check(
                     library_path=x_fichero_library_path,
                     error=str(e),
                     backend_version=_ENGINE_VERSION,
+                    contract=_CONTRACT_IDENTITY,
                 ),
                 nonce or x_fichero_client_nonce,
             )
@@ -1733,6 +1773,7 @@ async def health_check(
             HealthResponse(
                 status="healthy",
                 backend_version=_ENGINE_VERSION,
+                contract=_CONTRACT_IDENTITY,
                 active_libraries=db_manager.active_count,
                 remote_backend=build_remote_backend_status().as_dict(),
                 engine_pid=os.getpid(),
@@ -1741,6 +1782,26 @@ async def health_check(
             ),
             nonce or x_fichero_client_nonce,
         )
+
+
+def _redact_local_path(message: str, db_path) -> str:
+    """Strip this library's local filesystem path out of an error message
+    before it reaches an API response (#4983 item 4).
+
+    The server may be remote (`no-local-paths-server-may-be-remote`): a
+    caller across the network gets nothing about the engine's own disk
+    layout. DuckDB's own exception text CAN embed the full path (verified:
+    opening a missing file raises `IOException('IO Error: Cannot open
+    file "/abs/path/x.duckdb": ...')`). The full, unredacted text still
+    reaches the server LOG via `logger.error` in
+    `db/migrations/schema.py` — only the API response is scrubbed.
+    """
+    from pathlib import Path
+
+    path = Path(db_path)
+    redacted = message.replace(str(path), "<library>")
+    redacted = redacted.replace(str(path.parent), "<library>")
+    return redacted
 
 
 def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthResponse:

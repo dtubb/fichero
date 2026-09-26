@@ -94,17 +94,19 @@ struct PaneToggleButton: View {
 
 // MARK: - Workspaces (Daniel, 2026-08-29)
 
-/// View ▸ Workspaces: the same commands as the toolbar's Workspaces and
-/// Views-chooser buttons — layout presets, the saved workspaces, and Save
-/// Workspace… — acting on the focused window via `windowLayoutCommands`
-/// (same mechanism as `InspectorButton`). Items disable when no window
+/// View ▸ Workspaces: renders the ONE shared `WorkspacesMenuBody` (#4968) — the same items,
+/// wording, order, shortcuts and enabled state as the toolbar's Workspaces menu. This wrapper's
+/// only job is fetching the focused window's own verb bundle: a Commands scene has no other way
+/// to reach the key window (same mechanism `InspectorButton` uses). Items disable when no window
 /// publishes the verbs rather than silently doing nothing.
 struct WorkspaceCommandsSection: View {
     @FocusedValue(\.windowLayoutCommands) private var commands
 
     /// ⌘⌥N for the v2 workspace at slot N (1–5), else nil. The pure position lives on
     /// `BuiltInWorkspaceLayout.defaultSlot`; the SwiftUI shortcut is minted here. ⌘⌥7–9 stay free
-    /// for user workspaces (spec §"v2 workspace design", the slot→workspace map).
+    /// for user workspaces (spec §"v2 workspace design", the slot→workspace map). Kept HERE
+    /// rather than on the shared `WorkspacesMenuBody` (#4968) because `MenuShortcutUniquenessTests`
+    /// calls it by this name; `WorkspacesMenuBody` reuses it rather than re-minting it.
     // #4902: `nonisolated` is load-bearing — MenuShortcutUniquenessTests is a
     // non-@MainActor Swift Testing suite calling this directly; pure over its
     // own parameter, no actor-isolated state read.
@@ -117,70 +119,7 @@ struct WorkspaceCommandsSection: View {
     var body: some View {
         // No inner title: the parent flyout is "View ▸ Workspaces ▸", so a
         // "Workspaces" header here would read as "Workspaces ▸ Workspaces".
-        // The "Layouts" section below keeps its title — it distinguishes the
-        // pane-visibility presets from the workspaces above.
-        Section {
-            // The v2 workspaces are the ONE built-in system (spec workspaces.one-system): real 2D
-            // PaneList compositions, applied to the focused window's `activePaneList` via the
-            // command bus. ⌘⌥1–5 switch between them. (The legacy `BuiltInWorkspace` show/hide
-            // presets — enum, wiring and tests — are deleted; this is the one built-in system.)
-            ForEach(BuiltInWorkspaceLayout.allCases) { layout in
-                Button {
-                    commands?.applyWorkspaceLayout(layout)
-                } label: {
-                    Label(layout.title, systemImage: layout.systemImage)
-                }
-                .keyboardShortcut(Self.shortcut(for: layout))
-                .disabled(commands == nil)
-            }
-
-            ForEach(WindowWorkspaceStore.shared.catalog.workspaces) { workspace in
-                Button {
-                    commands?.applyWorkspace(workspace)
-                } label: {
-                    // Icons on every row (Daniel, 2026-09-02), and the same
-                    // derived glyph the toolbar's Workspaces menu shows — one
-                    // arrangement must not wear two faces in two menus.
-                    Label(workspace.name, systemImage: workspace.systemImage)
-                }
-                .help(workspace.help)
-                .disabled(commands == nil)
-            }
-
-            Button("Save Workspace…") {
-                commands?.saveWorkspace()
-            }
-            .disabled(commands == nil)
-        }
-        // The legacy "Layouts" preset section (WindowLayoutPreset) is gone (CD 2026-09-16): a
-        // workspace IS the layout, so showing pane-visibility presets beside the workspaces was the
-        // "why are layouts different from workspaces" duplication (spec workspaces.one-system).
-
-        // Split / New Tab (#4685 addendum): previously reachable ONLY from the toolbar's
-        // Workspaces menu, not the menu bar — given a home here now that Split routes through
-        // the `PaneList` model instead of the dead slot-id space.
-        Section("Split") {
-            Button {
-                commands?.newTab()
-            } label: {
-                Label("New Tab", systemImage: "plus.rectangle.on.rectangle")
-            }
-            .disabled(commands == nil)
-
-            Button {
-                commands?.splitFocusedLeaf(.vertical)
-            } label: {
-                Label("Split Right", systemImage: "square.split.2x1")
-            }
-            .disabled(commands?.canSplitFocusedLeaf != true)
-
-            Button {
-                commands?.splitFocusedLeaf(.horizontal)
-            } label: {
-                Label("Split Below", systemImage: "square.split.1x2")
-            }
-            .disabled(commands?.canSplitFocusedLeaf != true)
-        }
+        WorkspacesMenuBody(commands: commands)
     }
 }
 

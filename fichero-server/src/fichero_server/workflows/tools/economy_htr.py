@@ -31,7 +31,6 @@ from __future__ import annotations
 
 import logging
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -174,53 +173,26 @@ def trocr_transcribe_lines(
 
 
 def kraken_transcribe_page(image_path: str, model_path: str) -> str:
-    """Full-page kraken CLI run: baseline segmentation + recognition.
+    """Full-page kraken run: baseline segmentation + recognition.
 
     ``model_path`` is either a catalog model id ("kraken-mccatmus",
     "kraken-catmus-medieval") — resolved to the copy the app downloaded — or a
-    literal ``.mlmodel`` path. The kraken CLI is the app's OWN runtime venv
-    binary (installed from Settings), falling back to a system ``kraken`` only
-    if the runtime is absent — so installing Kraken + a model in Settings
-    actually feeds HTR.
+    literal ``.mlmodel`` path.
+
+    #4959, 2026-09-20: Kraken ships INSIDE the engine bundle now — there is
+    no runtime venv, so no `kraken` CLI binary to shell out to. Routes
+    through `kraken_runtime.recognize_lines`, which runs IN-PROCESS behind
+    the SAME seam `segment_to_geometry`/`recognize_to_geometry` already use
+    — one call path, not a second.
     """
     from fichero_server.llm import kraken_runtime
 
     # A catalog model id resolves to the downloaded .mlmodel; a path is literal.
-    if model_path in kraken_runtime.KRAKEN_RECOGNITION_MODELS:
-        resolved = kraken_runtime.recognition_model_path(model_path)
-        if not resolved:
-            raise RuntimeError(
-                f"Kraken recognition model '{model_path}' is not downloaded — "
-                "install it from Settings -> AI (the on-device model catalog)."
-            )
-        model_path = resolved
-    if not model_path:
-        raise RuntimeError(
-            "economy_htr kraken backend needs kraken_model_path — a catalog "
-            "model id (e.g. 'kraken-mccatmus') or a path to a .mlmodel."
-        )
-    if not Path(model_path).exists():
-        raise RuntimeError(f"kraken model not found: {model_path}")
-    runtime_bin = kraken_runtime.kraken_bin()
-    kraken_exe = str(runtime_bin) if runtime_bin else shutil.which("kraken")
-    if not kraken_exe:
-        raise RuntimeError(
-            "economy_htr kraken backend needs the Kraken runtime — install it "
-            "from Settings -> AI -> Local Inference (or a system 'kraken' on PATH)."
-        )
-    with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as handle:
-        out_path = handle.name
-    result = subprocess.run(
-        [kraken_exe, "-i", str(image_path), out_path, "segment", "-bl", "ocr", "-m", model_path],
-        capture_output=True,
-        text=True,
-        timeout=600,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"kraken failed ({result.returncode}): {result.stderr.strip()[:500]}")
-    text = Path(out_path).read_text(encoding="utf-8")
-    Path(out_path).unlink(missing_ok=True)
-    return text.strip()
+    resolved_path, _catalog_id = kraken_runtime.resolve_recognition_model(model_path)
+
+    payload = kraken_runtime.recognize_lines(image_path, resolved_path)
+    lines = payload.get("lines") or []
+    return "\n".join(str(line.get("text") or "") for line in lines).strip()
 
 
 def economy_htr_file(

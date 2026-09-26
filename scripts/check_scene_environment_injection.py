@@ -87,6 +87,14 @@ KNOWN_GAPS: dict[str, str] = {}
 # ActivityDetailWindow reader was reached through an `AnyView`/erased edge no
 # static walk sees, which is exactly why the tripwire exists.
 DETACHED_SCENES: dict[str, str] = {
+    "loove-coverage (Window)":
+        "LooveCoverageView owns its own LooveCoverageService, which talks to "
+        "the existing /api/model-comparison/language-fit route through the "
+        "generated client (#1820/#2116) — an app-level call, not a "
+        "library-scoped one, so no .libraryServiceEnvironment(library) is "
+        "needed. The scene injects appExecutionObserver directly, the same "
+        "#4703 fallback every scene root carries (FicheroApp.swift, the "
+        "comment on the scene).",
     "sparql-console (Window)":
         "SPARQLConsoleView reads KGQueryStore (optional, #4703 house rule — "
         "degrades to an unavailable state, never traps) and is self-contained "

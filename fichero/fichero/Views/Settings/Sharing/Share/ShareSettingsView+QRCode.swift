@@ -8,8 +8,12 @@ import SwiftUI
 extension ShareSettingsView {
     // MARK: - Pairing payload
 
+    /// True once this address has whatever credential it actually needs: a
+    /// valid pin for an engine serving its own certificate, nothing at all for
+    /// a publicly-trusted one (#5041).
     var hasValidSPKIPin: Bool {
-        (try? RemoteCertificatePinning.validatedSPKIPin(spkiPin)) != nil
+        guard let url = validatedPublicURL else { return false }
+        return (try? RemoteClientPairing.advertisableSPKIPin(spkiPin, for: url)) != nil
     }
 
     var validatedPublicURL: URL? {
@@ -23,11 +27,13 @@ extension ShareSettingsView {
 
     var pairingQRPayload: PairingQRCodePayload? {
         guard let pairingCode, let advertisedPairingRoot else { return nil }
-        guard let normalizedPin = try? RemoteCertificatePinning.validatedSPKIPin(spkiPin) else { return nil }
+        guard let advertisedPin = try? RemoteClientPairing.advertisableSPKIPin(
+            spkiPin, for: advertisedPairingRoot
+        ) else { return nil }
         return PairingService.buildQRCodePayload(
             apiRoot: advertisedPairingRoot,
             from: pairingCode,
-            spki: normalizedPin,
+            spki: advertisedPin,
             libraryPath: sharedLibraryPath
         )
     }

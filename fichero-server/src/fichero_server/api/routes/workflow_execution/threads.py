@@ -7,11 +7,13 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.responses import Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from starlette.concurrency import run_in_threadpool
 
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero_server.api.auth import action_context
 from fichero_server.db import Database
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.models import Artifact, Document
@@ -687,6 +689,228 @@ async def list_threads(
         raise workflow_internal_error("Failed to list workflow threads")
 
 
+class WorkflowRunSummary(BaseModel):
+    """One row of ``GET /workflow-execution/runs`` — slim, for a list/table.
+
+    #4960: the single source both the toolbar popover (``/activity/jobs``)
+    and the Activity window should read, so a run that never got an
+    ``activities`` event (the "recovered on startup" rows, #4384) still
+    shows up correctly instead of being missing or stuck "running". The
+    full per-step payload (log, snapshot, steps) stays on the existing
+    ``GET /threads/{id}/run`` — this is deliberately thin so listing
+    hundreds of runs for a table stays cheap.
+    """
+
+    thread_id: str
+    workflow_id: str
+    workflow_name: str
+    status: str
+    started_at: str | None = None
+    completed_at: str | None = None
+    duration_ms: float | None = None
+    error: str | None = None
+    document_count: int | None = None
+    cost_usd: float | None = None
+    models_used: list[str] = Field(default_factory=list)
+
+
+class WorkflowRunListResponse(BaseModel):
+    items: list[WorkflowRunSummary]
+    count: int
+
+
+def _run_document_count(run: WorkflowRun) -> int | None:
+    """Resolved document count from ``resolved_scope`` (#4384/#4396).
+
+    Mirrors ``run_comparison._resolved_ids`` (same field, same shape) rather
+    than re-deriving it — that function is the existing reader of this
+    column, kept private to its module by convention, not by contract, so
+    this is a thin duplicate of ONE dict-get + isinstance check rather than
+    an import across an unrelated module boundary.
+    """
+    scope = run.resolved_scope
+    if not isinstance(scope, dict):
+        return None
+    ids = scope.get("resolved_ids")
+    return len(ids) if isinstance(ids, list) else None
+
+
+def _run_cost_and_models(run: WorkflowRun) -> tuple[float | None, list[str]]:
+    usage = run.run_usage or {}
+    cost = usage.get("cost_usd")
+    if cost is None:
+        cost = run.estimated_cost
+    calls = usage.get("calls") or []
+    models = sorted(
+        {c.get("model") for c in calls if isinstance(c, dict) and c.get("model")}
+    )
+    return cost, models
+
+
+def _run_to_summary(run: WorkflowRun) -> WorkflowRunSummary:
+    cost_usd, models_used = _run_cost_and_models(run)
+    return WorkflowRunSummary(
+        thread_id=run.thread_id,
+        workflow_id=run.workflow_id,
+        workflow_name=run.workflow_name,
+        status=run.status,
+        started_at=_iso(run.started_at),
+        completed_at=_iso(run.completed_at),
+        duration_ms=run.duration_ms,
+        error=run.error,
+        document_count=_run_document_count(run),
+        cost_usd=cost_usd,
+        models_used=models_used,
+    )
+
+
+@router.get("/runs", response_model=WorkflowRunListResponse)
+async def list_workflow_runs_route(
+    db: Database = Depends(get_library_database),
+    status: list[str] | None = Query(
+        default=None,
+        description=(
+            "Filter to these statuses (e.g. ?status=failed). Omit for every "
+            "non-deleted run, newest first."
+        ),
+    ),
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+) -> WorkflowRunListResponse:
+    """List workflow runs from the runs table (#4960).
+
+    The SAME record the toolbar popover already reads (``/activity/jobs``
+    calls this store's ``list_workflow_runs`` too) — not the lossy event
+    log ``GET /activity`` reads, which is why the popover and the Activity
+    window disagreed (verified: `agent-work/reviews/
+    activity-system-review-2026-09-20.md` §2). A run with no ``activities``
+    rows at all still appears here, and paging/sorting/filtering are all
+    pushed to SQL (``ORDER BY started_at DESC, thread_id DESC LIMIT ...
+    OFFSET ...`` in ``ActivityStore.list_workflow_runs``), so listing cost
+    does not grow with the total number of runs in the library.
+    """
+    tracker = get_activity_tracker(str(db.path))
+    runs = await tracker.store.list_workflow_runs(
+        limit=limit, offset=offset, statuses=status
+    )
+    items = [_run_to_summary(r) for r in runs]
+    return WorkflowRunListResponse(items=items, count=len(items))
+
+
+class WorkflowRunDeleteParams(BaseModel):
+    """``workflow_run.delete`` — delete by explicit ids, or by a status
+    filter. #4960's "Clear Failed" is this SAME action with
+    ``statuses=["failed"]``, never a second action. Exactly one of the two
+    must be given.
+    """
+
+    thread_ids: list[str] | None = Field(
+        default=None, description="Explicit run ids to delete"
+    )
+    statuses: list[str] | None = Field(
+        default=None,
+        description=(
+            "Delete every non-deleted run whose status is one of these "
+            "(e.g. ['failed'] for 'Clear Failed')"
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _exactly_one_selector(self) -> "WorkflowRunDeleteParams":
+        if bool(self.thread_ids) == bool(self.statuses):
+            raise ValueError(
+                "give exactly one of thread_ids or statuses, not both or neither"
+            )
+        return self
+
+
+class WorkflowRunDeleteResult(BaseModel):
+    """Response of the bulk delete — names what happened, not just a count.
+
+    ``skipped_ids`` are ids that were requested (by id or matched by the
+    status filter) but not removed: a still-RUNNING run is never deleted
+    out from under itself, and an unknown/already-deleted id has nothing to
+    do. Neither is an error; the caller sees exactly what did and didn't
+    happen.
+    """
+
+    deleted_ids: list[str]
+    skipped_ids: list[str]
+    count: int
+
+
+@action(
+    "workflow_run.delete",
+    WorkflowRunDeleteParams,
+    domains=["workflow_execution"],
+    undoable=False,
+)
+def _action_delete_workflow_runs(
+    db: Database, params: WorkflowRunDeleteParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Delete workflow-RUN RECORDS — never the work they produced (#4960).
+
+    Soft-deletes the ``workflow_runs`` row (``status='deleted'``, as
+    before) AND hard-deletes the thread's ``activities`` rows in the same
+    pass, so the run cannot resurrect on the next rebuild (the review's
+    verified defect: the old single-delete path only APPENDED a
+    ``workflow_deleted`` event that nothing in the app reads, leaving the
+    run's earlier ``workflow_failed``/``workflow_started`` events in place
+    to be read back as "still here").
+
+    Deliberately leaves untouched: checkpoints (the single-thread HTTP
+    route below still clears those itself — a thread/execution-engine
+    concern, not a run-record concern), episodes, and any artifact the run
+    produced (still stamped with ``run_id`` and still resolvable — #4960
+    explicitly defers the separate, destructive
+    ``activity.delete-by-workflow-run`` / #1830 verb). No hard delete of
+    the run row itself either: it stays as a ``deleted``-status row so a
+    future Trash feature has something to restore from; a real hard-delete
+    (rows gone, unrecoverable) would need this action's ``status='deleted'``
+    UPDATE to become a real ``DELETE`` — a one-line change in
+    ``delete_workflow_runs_sync`` — once that policy is decided.
+    """
+    tracker = get_activity_tracker(str(db.path))
+    if params.statuses:
+        candidate_ids = tracker.store.workflow_run_ids_by_status_sync(params.statuses)
+    else:
+        # Dedup while keeping first-seen order — a repeated id must not be
+        # double-counted in the audit record's target_ids.
+        candidate_ids = list(dict.fromkeys(params.thread_ids or []))
+
+    deleted_ids = tracker.store.delete_workflow_runs_sync(candidate_ids)
+    deleted_set = set(deleted_ids)
+    skipped_ids = [tid for tid in candidate_ids if tid not in deleted_set]
+
+    result = {
+        "deleted_ids": deleted_ids,
+        "skipped_ids": skipped_ids,
+        "count": len(deleted_ids),
+    }
+    spec = ChangeSpec(
+        domains=["workflow_execution"],
+        target_ids=deleted_ids,
+        before={"thread_ids": params.thread_ids, "statuses": params.statuses},
+        after=result,
+        emit_type="workflow_run.deleted",
+    )
+    return result, spec
+
+
+@router.post("/runs/delete", response_model=WorkflowRunDeleteResult)
+async def delete_workflow_runs_route(
+    request: WorkflowRunDeleteParams,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> WorkflowRunDeleteResult:
+    """Bulk-delete workflow runs, or "Clear Failed" via a status filter —
+    the SAME audited action either way (#4960). Checkpoints are untouched;
+    delete one thread's checkpoint too via ``DELETE /threads/{thread_id}``.
+    """
+    result = registry.invoke(db, "workflow_run.delete", request.model_dump(), ctx)
+    return WorkflowRunDeleteResult.model_validate(result.result)
+
+
 @router.get("/threads/{thread_id}/episodes")
 async def get_thread_episodes(
     thread_id: str,
@@ -716,11 +940,18 @@ async def get_thread_episodes(
 async def delete_thread(
     thread_id: str,
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> ThreadDeletedResponse:
     """
     Delete a workflow execution thread and its checkpoints.
 
-    Removes all checkpoint data for the specified thread.
+    Removes all checkpoint data for the specified thread, and the run
+    RECORD (``workflow_runs`` row + its events) through the SAME audited
+    ``workflow_run.delete`` action the bulk route uses (#4960) — a single
+    delete was, before this, the one run operation NOT recorded by the
+    action layer. The checkpoint-specific work (cancellation signal,
+    checkpoint deletion) stays here; it is a thread/execution-engine
+    concern the bulk action deliberately does not touch.
 
     Args:
         thread_id: Thread ID to delete
@@ -769,14 +1000,10 @@ async def delete_thread(
             request_cancellation(thread_id)
 
         deleted = await checkpointer.adelete_thread(thread_id) if checkpoint_tuple else 0
-        if run:
-            get_activity_tracker(str(db.path)).workflow_deleted(
-                workflow_id=run.workflow_id,
-                thread_id=thread_id,
-                workflow_name=run.workflow_name,
-                previous_status=run.status,
-            )
-        activity_deleted = await activity_store.delete_workflow_run(thread_id)
+        delete_result = registry.invoke(
+            db, "workflow_run.delete", {"thread_ids": [thread_id]}, ctx
+        )
+        activity_deleted = delete_result.result.get("count", 0)
 
         logger.info(
             "Deleted thread: %s (checkpoint_rows=%s, activity_rows=%s)",

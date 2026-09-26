@@ -5644,16 +5644,6 @@
         "response_model": "ParagraphRenderResponse"
       },
       {
-        "method": "POST",
-        "path": "/kg/reset",
-        "operation_id": "reset_kg_api_kg_reset_post",
-        "summary": "Wipe all KG rows so extraction can run fresh",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "KGResetResponse"
-      },
-      {
         "method": "GET",
         "path": "/kg/review/graph-candidates",
         "operation_id": "graph_candidates_api_kg_review_graph_candidates_get",
@@ -9711,6 +9701,42 @@
         "query_params": [],
         "request_model": "ExecuteWorkflowRequest",
         "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/workflow-execution/runs",
+        "operation_id": "list_workflow_runs_route_api_workflow_execution_runs_get",
+        "summary": "List Workflow Runs Route",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "status",
+            "required": false,
+            "type": "array"
+          }
+        ],
+        "request_model": null,
+        "response_model": "WorkflowRunListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/workflow-execution/runs/delete",
+        "operation_id": "delete_workflow_runs_route_api_workflow_execution_runs_delete_post",
+        "summary": "Delete Workflow Runs Route",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "WorkflowRunDeleteParams",
+        "response_model": "WorkflowRunDeleteResult"
       },
       {
         "method": "GET",

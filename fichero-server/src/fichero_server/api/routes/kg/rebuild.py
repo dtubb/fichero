@@ -19,50 +19,16 @@ from fichero_server.db import Database
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/kg")
 
-
-class KGResetResponse(BaseModel):
-    """Counts of rows deleted by a KG reset."""
-    entities_deleted: int
-    claims_deleted: int
-    links_deleted: int
-
-
-@router.post(
-    "/reset",
-    response_model=KGResetResponse,
-    summary="Wipe all KG rows so extraction can run fresh",
-    description=(
-        "Deletes every KnowledgeEntity, KnowledgeClaim, and KnowledgeClaimLink "
-        "row in the library. Documents and Artifacts are not touched. "
-        "Use before re-running Catalogue/Extract workflows to get a clean slate."
-    ),
-)
-async def reset_kg(
-    db: Database = Depends(get_library_database_for_write),
-) -> KGResetResponse:
-    """Delete all KG rows (entities, claims, links)."""
-    from fichero_server.models.knowledge import KnowledgeEntity, KnowledgeClaim, KnowledgeClaimLink
-
-    entities = db.query(KnowledgeEntity)
-    claims = db.query(KnowledgeClaim)
-    links = db.query(KnowledgeClaimLink)
-
-    for e in entities:
-        db.delete(KnowledgeEntity, e.id)
-    for c in claims:
-        db.delete(KnowledgeClaim, c.id)
-    for lnk in links:
-        db.delete(KnowledgeClaimLink, lnk.id)
-
-    logger.info(
-        "KG reset: %d entities, %d claims, %d links deleted",
-        len(entities), len(claims), len(links),
-    )
-    return KGResetResponse(
-        entities_deleted=len(entities),
-        claims_deleted=len(claims),
-        links_deleted=len(links),
-    )
+# #4982: `POST /kg/reset` (a bulk, unaudited, unfiltered, unconfirmed delete
+# of every KnowledgeEntity/KnowledgeClaim/KnowledgeClaimLink row, curated or
+# not) lived here and is DELETED, not repaired. It could never actually run
+# — it called `db.delete(Model, id)` with two arguments against a
+# one-argument method, and its only test passed by faking that wrong
+# signature. Per the safety-net spec (`docs/contributor_manual/specs/safety/
+# safety-net.md` §E, `safety.net.reset-never-touches-curated-work`): a real
+# reset, when it exists, is an audited `kg.reset` action that touches only
+# machine-made/uncurated rows by default, snapshots first, is confirmable
+# and undoable as one step, and is owner-only in a shared library.
 
 
 class RebuildRequest(BaseModel):

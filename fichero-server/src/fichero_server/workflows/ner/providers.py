@@ -236,7 +236,16 @@ class TransformersNERProvider(BaseNERProvider):
     model_name: str | None = "dslim/bert-base-NER"
 
     def _load_pipeline(self):
-        import transformers
+        # `transformers` is NOT in the embedded bundle. Say so by name rather
+        # than let a bare ModuleNotFoundError reach the run log (2026-09-20).
+        try:
+            import transformers
+        except ImportError as exc:
+            raise RuntimeError(
+                "The Transformers entity-recognition provider needs the "
+                "'transformers' package, which this build of Fichero does not include. "
+                "Choose the spaCy provider, or an LLM provider, instead."
+            ) from exc
 
         return transformers.pipeline(
             "token-classification",

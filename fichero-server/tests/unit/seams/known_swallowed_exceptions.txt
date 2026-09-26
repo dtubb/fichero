@@ -67,12 +67,6 @@ db/embeddings.py::DatabaseEmbeddingMixin._schedule_embedding_task._runner 1
 db/embeddings.py::DatabaseEmbeddingMixin.flush_deferred_embeddings._flush 1
 db/embeddings.py::DatabaseEmbeddingMixin.migrate_embedding_space 1
 db/manager.py::DatabaseManager.get_database 1
-db/migrations/schema.py::migrate_activity_tables 1
-db/migrations/schema.py::migrate_canvas_layout_table 1
-db/migrations/schema.py::migrate_catalogue_chunk_artifact_type 1
-db/migrations/schema.py::migrate_checkpoint_tables 1
-db/migrations/schema.py::migrate_document_language_fields 1
-db/migrations/schema.py::migrate_document_table 1
 db/migrations/schema.py::migrate_knowledge_indices 2
 db/migrations/schema.py::migrate_known_libraries_table 1
 db/migrations/schema.py::migrate_library_entity_types_table 1
@@ -133,8 +127,8 @@ knowledge/graph_reasoning.py::NetworkXReasoner.get_graph_metrics 1
 knowledge/rebuild.py::rebuild_kg 3
 knowledge/triangulation.py::compute_support_counts 1
 llm/__init__.py::_log_provider_quota_hit 1
-llm/language_coverage.py::_ensure_derived_coverage 1
 llm/__init__.py::_model_has_capability 1
+llm/language_coverage.py::_ensure_derived_coverage 1
 llm/local_inference.py::ManagedLocalInferenceProcess._environment 1
 llm/mlx_model_store.py::MLXModelStore.cancel 1
 llm/multilingual.py::detect_language 1

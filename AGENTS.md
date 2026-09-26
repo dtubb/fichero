@@ -359,6 +359,16 @@ When seed-data shape changes, the shape change and every filter that reads it sh
    commits produced one dead feature (#4418). Declared as an enum, the generated client
    turns that mismatch into a **compile error**. The same applies to any status, kind,
    mode, or event-type vocabulary — including `ChangeEvent.type` (#4427).
+
+   **The one carve-out: a genuinely OPEN vocabulary.** When a library can define a value
+   the engine never shipped — reading kinds, segment kinds — a closed JSON Schema enum
+   cannot express it, and forcing one would forbid the extensibility the design asks for.
+   Such a field is a `str` on the wire ONLY when the server validates it against the
+   vocabulary and refuses an unknown value with a typed error that **names the valid
+   list**. That refusal is what replaces the compile error; without it you have the #4418
+   defect with extra steps. `UnknownReadingKind` (`models/readings.py`, 2026-09-26) is the
+   reference implementation. A table existing is NOT by itself a reason to widen a type —
+   a fixed set that merely lives in a table for seeding and display stays an enum.
 5. **A structured payload is a typed field, never `dict[str, Any]`.**
    `ExecuteWorkflowRequest` has no selection field: `selected_doc_ids` rides untyped
    inside `inputs`, which is why nothing could reject a client that sent a whole folder
@@ -471,14 +481,54 @@ and what to do when it is missing:
 | Xcode build / test | **xcode** MCP (`BuildProject`, `RunAllTests`) | raw `xcodebuild` + `-skipPackagePluginValidation` |
 | Apple API docs | **xcode** MCP `DocumentationSearch`, or sosumi | say you could not check; do not guess new API |
 
-`XcodeBuildMCP`'s tools mostly target iOS simulators — Fichero is macOS, so use the
-macOS / device-less variants. Prefer the `xcode` MCP over raw `xcodebuild`: it shares
-Xcode.app's cache and avoids `build.db` lock contention.
+`XcodeBuildMCP` supports macOS targets as well as simulators (it did not always —
+prefer the macOS / device-less variants, but do not assume macOS is unsupported).
+Prefer the `xcode` MCP over raw `xcodebuild`: it shares Xcode.app's cache, avoids
+`build.db` lock contention, and — see the LaunchServices pitfall below — is the only
+path that reliably launches an app-hosted test bundle on this machine.
+
+**The `xcode` MCP needs Xcode.app running.** It reports `CONNECTION_CLOSED` when
+Xcode is closed, which reads like a broken server rather than a closed editor. Open
+Xcode, and it connects. Its actions also need a `tabIdentifier` — the error names the
+open windows, so call one action, read the identifier out of the error, and reuse it.
+
+**Switch to `Fichero (Dev Local)` before running tests.** The `Dev Embedded` scheme's
+TEST action builds `FicheroAPIClient` without `-enable-testing`, so the test build
+fails to resolve the module. `XcodeSwitchScheme` does it in one call.
 
 **Two tools are not optional.** Every worker navigates with **jcodemunch** and writes
 **ponytail** code (shortest working diff; stdlib → native → existing dep → one line;
 delete over add; no speculative abstraction; a `ponytail:` comment on any deliberate
 simplification). Both are enforced by review, not by a script.
+
+### Prefer the harness's own tools over a plugin that wraps them
+
+The default is the built-in. A plugin earns its place only by doing something the
+harness cannot, because every enabled plugin costs context in *every* session —
+its skill names and tool schemas are loaded whether or not they are ever used.
+
+| Need | Use | Not |
+|---|---|---|
+| Review a diff or PR | built-in `/code-review` | a review plugin |
+| Tidy code after a change | built-in `/simplify` (quality only — `/code-review` finds bugs) | a simplifier plugin |
+| Write or refresh a CLAUDE.md | built-in `/init` | a CLAUDE.md plugin |
+| Plan non-trivial work before coding | **plan mode** (rule 5 below) | a planning plugin |
+| Anything on GitHub — issues, PRs, labels, milestones, releases | **`gh` via Bash** | a GitHub MCP |
+
+**GitHub goes through `gh`, never an MCP.** Measured on five issues: `gh` with a
+`--json`/`--jq` projection is ~500 bytes; the same five as full JSON objects — the
+shape an MCP returns — is ~11.7 KB. 23×. An MCP serialises its whole schema
+(`author`, `labels`, `assignees`, `body`, timestamps…) on every item; with `gh`
+you name the two fields you want and nothing else is ever produced.
+
+That saving is a DISCIPLINE, not a property of the tool: bare `gh issue list` is
+already half again as large as a projection. So always pass `--json <fields>` with
+a `--jq` projection, and never `--json` a field you are not about to read.
+
+**Issues ARE the task list.** There is no separate to-do surface, and the harness may
+not expose a to-do tool at all — check rather than assume. Work that is real enough
+to track is real enough to be an issue: file it, then work it. A plan that lives only
+in a chat transcript is lost at the next compaction.
 
 ---
 
@@ -486,6 +536,12 @@ simplification). Both are enforced by review, not by a script.
 
 The ones that cost hours, and that no test catches for you:
 
+- **A suite that stalls with NO output is usually `| tail`, not a hang.** Piping a long run through `tail`/`head` buffers everything until exit, so a slow suite is indistinguishable from a dead one — 45 minutes of silence from a run that was merely slow (2026-09-26). Redirect to a log and read the log. This is the most common cause by far; rule it out first.
+  A genuine stall is different and rarer: check `pgrep -fl pytest` for a concurrent run, and `lsof` its PID to see WHICH worktree it is in. Two runs in the SAME worktree contend on the DuckDB files the suite opens there; two runs in different worktrees only compete for CPU, which is slow but finishes. One observed same-tree stall (a gate stuck at 16% for 15 minutes with the log file — not a pipe — going silent) was resolved by killing the gate, but the lock mechanism was never proven, so treat this as a thing to CHECK rather than a diagnosis to assume. The gate is the one that should yield either way: it re-runs cheaply, a lane's run has someone waiting on it.
+- **Never use `Mirror` to enumerate a generated type's fields.** `swift-openapi-generator` switches a schema to copy-on-write `storage` indirection once it grows past a size threshold: the fields become COMPUTED properties over one stored `storage`, and `Mirror` — which sees only STORED properties — returns `["storage"]` and nothing else. Adding two fields to `SourceAnchor` (11 → 13 properties) crossed that line and blinded a field-coverage guard that had been passing (2026-09-26, slice 7 / #4925). Nothing in the contract or the Swift source changed shape; only the property COUNT did. A coverage guard must key on the CONTRACT — decode a JSON object carrying every field, or drive it from `CodingKeys` — never on the struct's storage layout. Per rule 0 it must FAIL when a new contract field goes unmapped; a `Mirror` version can just as easily return an empty set and match an empty expectation, passing while blind.
+- **The Xcode build-tool-plugin output and SwiftPM's `.build` output are DIFFERENT generations.** On 2026-09-26 the Xcode plugin emitted 1 MB with no component schemas at all while SwiftPM's `.build` copy was 10 MB and held every type — and the tests compiled against the SwiftPM one. Before concluding anything from generated sources, check WHICH copy you are reading and when it was written (`find . -name Types.swift -path '*GeneratedSources*'`).
+- **A worktree's venv drifts from `pyproject.toml`, and the OpenAPI sync guard is right to refuse.** When the interpreter reports an older version than the committed contract, `sync_openapi_schema.sh` aborts (the #4199 guard) and `verify_python.sh`'s freshness step cannot pass. That is the ENVIRONMENT being wrong, not the guard. Reinstall the editable package rather than hand-pinning `info.version`; hand-pinning has been needed twice and is not a process to rely on (#5043).
+- **`HOST NEVER STARTED` / `Assertion failed: childPID > 0` means LaunchServices, not your code.** Every build product, DMG staging dir, gate snapshot, deleted agent worktree and mounted `.dmg` registers ANOTHER `Fichero.app` under the SAME bundle id. Once dozens accumulate — most pointing at paths that no longer exist — `IDELaunchServicesLauncher` can resolve the id to a dead path and the test host never launches. The CLI gate reports only `HOST NEVER STARTED`, which reads like a broken test. Diagnose, don't retry: `lsregister -dump | grep -i 'path:.*Fichero\.app'`, then check which of those directories still exist. `lsregister -kill` NO LONGER EXISTS on current macOS; purge dead entries individually with `lsregister -u <path>`, and delete stale build products so they stop re-registering. Running tests through the `xcode` MCP sidesteps the whole thing.
 - **New `.swift` files just work — never run `add-swift-file.rb` on the app target.** It's a synchronized folder; explicit registration DUPLICATES the build file. Never hand-edit `project.pbxproj`.
 - **`PYTHONPATH=fichero-server/src` on every Python command.** The shared `.venv` is editable-installed against your MAIN checkout, not this worktree — without it, a worktree gates the *stale* tree.
 - **Never bare `uvicorn`.** The app pins `https://127.0.0.1:8765` fail-closed. Use `fichero-server/scripts/start_fichero_server.sh`.
@@ -674,7 +730,13 @@ Key Paths below. Pure crud or superseded material is `git rm`-ed, not parked at 
    **A guardrail must know when it has gone blind** — not just when input is missing, but when it's present and only half-parsed: finding no violations in the part it managed to read and reporting success is a lie, not a gap. Every parsing/discovery check must assert a floor on what it found and FAIL with a distinct exit code when it comes up short, paired with a `--self-test` that synthesises (never borrows from a shrinking baseline) a known defect and asserts the check catches it. Distinguish BLIND (*my own committed inputs are missing* → exit 2) from NOT ARMED (*the thing I measure doesn't exist here yet* → exit 0). Worked examples: `scripts/check_environment_forwarding.py`, `scripts/check_release_size_ratchet.py`.
 1. Never push directly to `main` — always go through a PR (create it and merge it yourself).
 2. Never skip build, test, lint before marking work complete.
-3. Never modify genuinely auto-generated files: `openapi.json`, or anything under `fichero/fichero-api-client/.build/` or `.../Sources/FicheroAPIClient/` produced by the OpenAPI generator. Regen via `fichero-server/scripts/sync_openapi_schema.sh` and commit the output — what's forbidden is hand-editing it.
+3. **Never modify genuinely auto-generated files** — `openapi.json`, or anything under `fichero/fichero-api-client/.build/` or `.../Sources/FicheroAPIClient/` produced by the OpenAPI generator. Regen via `fichero-server/scripts/sync_openapi_schema.sh` and commit the output.
+   **ONE FIELD IS STILL HAND-EDITING.** The tempting version is not rewriting the document, it is `sed`-ing `info.version` so a guard stops complaining. That happened during slice 7 (2026-09-26) and it is how the contract came to lag four releases behind the code (#5046): the abort was real, the workaround hid it, and nothing downstream could tell.
+   **When the sync refuses, the ENVIRONMENT is wrong, not the guard.** `check_openapi_version_regression.py` (#4199) aborts when the interpreter reports an older version than the committed contract. The canonical venv is editable-installed against the MAIN checkout (`~/code/fichero/.venv`) and drifts; point the script at one that holds a current install rather than editing its output:
+   ```sh
+   FICHERO_PYTHON_BIN=/path/to/.venv/bin/python ./fichero-server/scripts/sync_openapi_schema.sh
+   ```
+   The script regenerates all three `openapi.json` copies, the contract fixtures and the CLI surface together — which is exactly what keeps the shadow-type, typed-field and client-parity guardrails agreeing. A hand-edit updates one of them and silently desynchronises the rest.
 4. When editing a service wrapper that builds a request body, **always use the OpenAPI-typed fields** on `Components.Schemas.*`, not `additionalProperties`, for any field declared in `openapi.json` — dumping declared fields into `additionalProperties` silently loses writes under Pydantic `extra="allow"` (commit 31fc4141; `docs/contributor_manual/architecture/fichero/api_client.md`).
 5. Never start coding before a plan exists for non-trivial work.
 6. `PYTHONPATH` must be set to `fichero-server/src` for all Python commands.

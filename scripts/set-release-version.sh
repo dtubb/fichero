@@ -312,9 +312,18 @@ grep -q "^MARKETING_VERSION = $APP_VERSION\$" "$XCCONFIG" \
   && grep -q "^CURRENT_PROJECT_VERSION = $BUILD_INT\$" "$XCCONFIG" \
   || { echo "error: Version.xcconfig stamp did not land (missing setting lines?)" >&2; exit 1; }
 
-# ── backend: both [tool.briefcase] and [project] version lines ───────────────
-# Anchored to a digit so a hypothetical `version = "<string>"` dep key is untouched.
-sed -i '' -E "s/^version = \"[0-9].*\"/version = \"$ENGINE_VERSION\"/" "$PY"
+# ── backend: the [project] and [tool.briefcase] version lines, THOSE TWO ONLY ─
+# Restricted to each table's own range (2026-09-20): a bare `^version = "<digit>`
+# substitution also rewrote `[tool.fichero.kraken_bundle]`'s `version = "7.1.1"`,
+# which pins the Kraken WHEEL. The release lane then tried to install
+# `kraken==<the app's release version>`, which does not exist, and the DMG's
+# engine would have shipped without Kraken. Any new table carrying its own
+# version is safe here; `scripts/../tests/unit/scripts` has the fixture.
+stamp_table_version() {  # $1 = table header, e.g. '[project]'
+  sed -i '' -E "/^\\$1\$/,/^\\[/ s/^version = \"[0-9].*\"/version = \"$ENGINE_VERSION\"/" "$PY"
+}
+stamp_table_version '[project]'
+stamp_table_version '[tool.briefcase]'
 
 # ── verify ───────────────────────────────────────────────────────────────────
 echo

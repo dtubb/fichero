@@ -110,16 +110,19 @@ class TestDatabaseBasics:
         monkeypatch.delenv("FICHERO_BASE_PATH", raising=False)
         monkeypatch.setattr(duckdb, "connect", lambda _path: FakeConn())
         import fichero_server.db.migrations.schema as _db_migrations
-        monkeypatch.setattr(_db_migrations, "migrate_document_table", lambda _conn: None)
-        monkeypatch.setattr(_db_migrations, "migrate_workflow_table", lambda _conn: None)
-        monkeypatch.setattr(_db_migrations, "migrate_saved_search_table", lambda _conn: None)
-        monkeypatch.setattr(_db_migrations, "migrate_provider_refs_table", lambda _conn: None)
-        monkeypatch.setattr(_db_migrations, "migrate_known_libraries_table", lambda _conn: None)
-        monkeypatch.setattr(_db_migrations, "migrate_library_entity_types_table", lambda _conn: None)
-        monkeypatch.setattr(_db_migrations, "migrate_canvas_layout_table", lambda _conn: None)
-        monkeypatch.setattr(_db_migrations, "migrate_spatial_node_layout_fields", lambda _conn: None)
-        monkeypatch.setattr(_db_migrations, "migrate_references_table", lambda _conn: None)
-        monkeypatch.setattr(_db_migrations, "migrate_reference_provenance_table", lambda _conn: None)
+        # #4983 phase 1: every migration now takes an optional `failures`
+        # list as a second positional arg — these stubs accept (and ignore)
+        # it so `Database.__init__`'s real call shape keeps working.
+        monkeypatch.setattr(_db_migrations, "migrate_document_table", lambda _conn, _f=None: None)
+        monkeypatch.setattr(_db_migrations, "migrate_workflow_table", lambda _conn, _f=None: None)
+        monkeypatch.setattr(_db_migrations, "migrate_saved_search_table", lambda _conn, _f=None: None)
+        monkeypatch.setattr(_db_migrations, "migrate_provider_refs_table", lambda _conn, _f=None: None)
+        monkeypatch.setattr(_db_migrations, "migrate_known_libraries_table", lambda _conn, _f=None: None)
+        monkeypatch.setattr(_db_migrations, "migrate_library_entity_types_table", lambda _conn, _f=None: None)
+        monkeypatch.setattr(_db_migrations, "migrate_canvas_layout_table", lambda _conn, _f=None: None)
+        monkeypatch.setattr(_db_migrations, "migrate_spatial_node_layout_fields", lambda _conn, _f=None: None)
+        monkeypatch.setattr(_db_migrations, "migrate_references_table", lambda _conn, _f=None: None)
+        monkeypatch.setattr(_db_migrations, "migrate_reference_provenance_table", lambda _conn, _f=None: None)
         import fichero_server.db.storage as _storage_mod
         from importlib import reload as _reload
         _reload(_storage_mod)

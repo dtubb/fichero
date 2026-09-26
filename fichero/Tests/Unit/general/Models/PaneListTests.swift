@@ -140,6 +140,11 @@ struct PaneListTests {
         #expect(after.nodes.reduce(0) { $0 + $1.leafCount } == 4)  // exactly one more pane
     }
 
+    // The slice-A "split an already-split pair, then change one child's kind" test
+    // (#4967/#4878) moved to `PaneListIdentityTests.swift` (2026-09-20, slice B/C prep):
+    // this file was over the lint size limits and team-lead asked for new cases to go in
+    // a new suite rather than growing this one — the long test was split into two there.
+
     @Test("removing or splitting an id that isn't present is a no-op")
     func missingIdIsNoOp() {
         let list = PaneList([.leaf(.library), .leaf(.preview)])

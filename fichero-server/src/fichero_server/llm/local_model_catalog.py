@@ -8,10 +8,11 @@ dispatches installs/deletes to each runtime's own mechanism, so Settings
 renders and drives all four local runtimes through one catalog and one
 download/progress/delete path (Shape A, agreed with lane-local-ui).
 
-The install mechanisms genuinely differ — a pip model package (spaCy), a whole
-venv (Kraken), a snapshot into the MLX runtime (Whisper) — so the dispatcher
-translates each into the one ``ManagedModelDownloadJob`` shape the UI already
-polls, rather than pretending they are the same underneath.
+The install mechanisms genuinely differ — a pip model package (spaCy), a
+BUNDLED runtime (Kraken, #4959, 2026-09-20: no install at all, only
+importable-or-not), a snapshot into the MLX runtime (Whisper) — so the
+dispatcher translates each into the one ``ManagedModelDownloadJob`` shape the
+UI already polls, rather than pretending they are the same underneath.
 """
 
 from __future__ import annotations
@@ -23,10 +24,8 @@ from fichero_server.llm.mlx_model_store import ManagedModelDownloadJob
 from fichero_server.llm.providers import ProviderType
 
 #: Kraken is one runtime with one segmentation model (blla), so it is a single
-#: catalog entry whose "installed" is whether the venv is provisioned.
+#: catalog entry whose "installed" is whether Kraken is importable.
 KRAKEN_MODEL_ID = "kraken-blla"
-#: Smallest working set measured at install time (kraken_runtime docstring).
-KRAKEN_DOWNLOAD_SIZE_BYTES = 996_000_000
 
 
 def _make_entry(**kwargs: Any):
@@ -80,35 +79,37 @@ def spacy_catalog_entries() -> list[Any]:
 
 
 def kraken_catalog_entries() -> list[Any]:
+    # #4959, 2026-09-20: Kraken is bundled at build time — the segmenter
+    # entry below is "installed" exactly when `import kraken` succeeds
+    # (`kr.is_installed()`), never a download this coordinator drives.
     from fichero_server.llm import kraken_runtime as kr
 
-    status = kr.get_kraken_runtime().status()
-    installed = bool(status.get("installed"))
+    installed = kr.is_installed()
     entries = [
-        # The built-in neural segmenter — ships in the venv, so it is installed
-        # exactly when the runtime is.
+        # The built-in neural segmenter — ships in the bundle, so it is
+        # installed exactly when Kraken itself is importable.
         _make_entry(
             provider_type=ProviderType.kraken,
             model_id=KRAKEN_MODEL_ID,
             display_name="Kraken line segmenter (blla)",
             capabilities=["segmentation"],
             installed=installed,
-            download_size_bytes=KRAKEN_DOWNLOAD_SIZE_BYTES,
-            disk_usage_bytes=int(status.get("disk_usage_bytes", 0)),
+            download_size_bytes=0,
+            disk_usage_bytes=0,
             min_memory_bytes=None,
             memory_class=None,
-            # Kraken runs in its own subprocess venv; there is no host gate the
-            # way audio/MLX has one, so it is always installable.
+            # Bundled with the app; there is no host gate the way audio/MLX
+            # has one.
             supported=True,
-            unsupported_reason=None,
+            unsupported_reason=None if installed else "Not bundled in this build (packaging problem).",
             note=(
                 "Finds line polygons and baselines on historical hands where "
-                "Apple Vision localises badly. Built into the ~1 GB Kraken "
-                "runtime, never installed automatically. Verified on "
+                "Apple Vision localises badly. Ships INSIDE the app, signed "
+                "and notarized with it — nothing to install. Verified on "
                 "17th-century secretary hand."
             ),
             tested_status="verified",
-            license_label="user-managed",
+            license_label="Apache-2.0",
             source=_source(installed),
         )
     ]
@@ -127,10 +128,12 @@ def kraken_catalog_entries() -> list[Any]:
                 min_memory_bytes=None,
                 memory_class=None,
                 supported=True,
-                # It needs the runtime venv first; the install enforces that
-                # with a typed error rather than a silent no-op.
+                # It needs Kraken itself importable first; the install
+                # enforces that with a typed error rather than a silent
+                # no-op. Should be unreachable in a real release (Kraken is
+                # bundled), a real "packaging is broken" signal if it fires.
                 unsupported_reason=(
-                    None if installed else "Install the Kraken runtime first."
+                    None if installed else "Kraken is not bundled in this build."
                 ),
                 note=str(spec["note"]),
                 # Provisional shortlist — not yet run inside Fichero.
@@ -216,7 +219,10 @@ class LocalModelInstallCoordinator:
         from fichero_server.llm.whisper_runtime import WHISPER_MLX_MODELS
 
         if model_id == KRAKEN_MODEL_ID:
-            return await self._start_kraken()
+            # #4959: nothing to install — Kraken is bundled. Answer with an
+            # immediately-terminal job so a caller that still polls (an old
+            # client, or a diagnostic) resolves instead of hanging.
+            return self._kraken_bundled_job()
         if model_id in KRAKEN_RECOGNITION_MODELS:
             return await self._start_thread_install(
                 model_id, "kraken-htr", self._install_kraken_recognition
@@ -239,38 +245,22 @@ class LocalModelInstallCoordinator:
             )
         raise KeyError(f"No local runtime installs model: {model_id}")
 
-    async def _start_kraken(self) -> ManagedModelDownloadJob:
-        from fichero_server.llm.kraken_runtime import get_kraken_runtime
+    def _kraken_bundled_job(self) -> ManagedModelDownloadJob:
+        """#4959: Kraken is bundled, so there is no install job to run — a
+        synchronous, always-terminal job report (completed when the bundle
+        is healthy, failed when it is not) for a caller that still polls
+        the job shape."""
+        from fichero_server.llm.kraken_runtime import is_installed
 
-        await get_kraken_runtime().start_install()
-        return self._kraken_job()
-
-    def _kraken_job(self) -> ManagedModelDownloadJob:
-        from fichero_server.llm.kraken_runtime import get_kraken_runtime
-
-        raw = get_kraken_runtime().status().get("job")
-        if raw is None:
-            # Already installed, or never started — report a terminal job so the
-            # UI's poll resolves instead of hanging on a missing job.
-            from fichero_server.llm.kraken_runtime import is_installed
-
-            done = is_installed()
-            return ManagedModelDownloadJob(
-                job_id=f"kraken:{KRAKEN_MODEL_ID}",
-                model_id=KRAKEN_MODEL_ID,
-                state="completed" if done else "idle",
-                current=1 if done else 0,
-                total=1,
-                message="Kraken already installed" if done else "Not started",
-            )
+        done = is_installed()
         return ManagedModelDownloadJob(
-            job_id=f"kraken:{raw['job_id']}",
+            job_id=f"kraken:{KRAKEN_MODEL_ID}",
             model_id=KRAKEN_MODEL_ID,
-            state=raw["state"],
-            current=int(raw["current"]),
-            total=int(raw["total"]),
-            message=raw["message"],
-            error=raw.get("error"),
+            state="completed" if done else "failed",
+            current=1 if done else 0,
+            total=1,
+            message="Kraken is bundled with the app" if done else "Kraken is not bundled in this build",
+            error=None if done else "Not bundled in this build (packaging problem).",
         )
 
     async def _start_thread_install(self, model_id, prefix, worker) -> ManagedModelDownloadJob:
@@ -330,7 +320,7 @@ class LocalModelInstallCoordinator:
 
     def job(self, job_id: str) -> ManagedModelDownloadJob | None:
         if job_id.startswith("kraken:"):
-            return self._kraken_job()
+            return self._kraken_bundled_job()
         return self._jobs.get(job_id)
 
     def delete(self, model_id: str) -> int:
@@ -339,10 +329,8 @@ class LocalModelInstallCoordinator:
         from fichero_server.llm.whisper_runtime import WHISPER_MLX_MODELS
 
         if model_id == KRAKEN_MODEL_ID:
-            from fichero_server.llm.kraken_runtime import get_kraken_runtime
-
-            get_kraken_runtime().remove()
-            return 0
+            # #4959: bundled with the app — nothing here to delete.
+            raise RuntimeError("Kraken is bundled with the app and cannot be removed.")
         if model_id in KRAKEN_RECOGNITION_MODELS:
             from fichero_server.llm.kraken_runtime import remove_recognition_model
 
@@ -366,7 +354,6 @@ def get_local_model_coordinator() -> LocalModelInstallCoordinator:
 
 __all__ = [
     "KRAKEN_MODEL_ID",
-    "KRAKEN_DOWNLOAD_SIZE_BYTES",
     "LocalModelInstallCoordinator",
     "catalog_entries",
     "get_local_model_coordinator",

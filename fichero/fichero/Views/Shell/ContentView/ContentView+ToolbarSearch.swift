@@ -39,10 +39,14 @@ extension ContentView {
     /// is file-scoped).
     func nativeToolbarSearch<Content: View>(_ content: Content) -> some View {
         let searchable = content
+            // #4971: placeholder is just "Search" (Finder's own field says
+            // "Search", not "Search this Mac") — scoping is conveyed by the
+            // Ask/Keyword scopes and the options loupe beside it, not by the
+            // placeholder text.
             .searchable(
                 text: $toolbarSearchText,
                 placement: .toolbar,
-                prompt: "Search your library"
+                prompt: "Search"
             )
             .searchScopes(searchFieldModeBinding, activation: .onSearchPresentation) {
                 Text("Ask").tag(SearchFieldMode.ask)

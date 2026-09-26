@@ -45,18 +45,21 @@ struct EntitiesLibraryContent: View {
     /// `kg.view.keyboard-delete`; same `onVisibleIds` shape
     /// `DatasetModeView` already reports through).
     var onVisibleIds: (([String]) -> Void)?
+    /// #4856: the filter TEXT and TYPE now live in the shared bottom bar's
+    /// filter slot — `LibraryView` owns the state, this view only reads and
+    /// writes it, the same as `selection`.
+    @Binding var filterText: String
+    @Binding var filterType: String?
+    /// #4856: set true by the shared footer's "+" when this content kind is
+    /// active. Drives the SAME create sheet the old in-table "New Entity"
+    /// button opened — only where the trigger lives has moved.
+    @Binding var addRequested: Bool
+    /// Reports this scope's loaded entity types UP so the shared footer's
+    /// type menu (§ `filterType`) has rows to offer — only the content knows
+    /// what its own loaded rows contain.
+    var onAvailableTypesChanged: (([String]) -> Void)?
 
     @Environment(EntityStore.self) private var store
-
-    /// Per-table filter (spec: kg-tables, filter.text / filter.entity-type). Intersects
-    /// with the shared ⌘F `searchQuery`; empty text + nil type = no per-table filter.
-    @State private var filterText = ""
-    @State private var filterType: String?
-
-    /// Presents the manual-create sheet (spec: kg-tables `entity.create`). A researcher
-    /// hand-authors an entity, not only curating AI output. Reuses the existing
-    /// `NewEntitySheet` (create/edit) rather than a parallel form.
-    @State private var showingCreateSheet = false
 
     /// The entity being edited (spec: kg-tables entity edit-from-table). Presents the
     /// same `NewEntitySheet` in its editing mode. A tiny Identifiable wrapper is needed
@@ -69,20 +72,17 @@ struct EntitiesLibraryContent: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            EntitiesTableView(
-                items: items,
-                selection: $selection,
-                isLoading: isLoadingCurrentScope,
-                emptyMessage: emptyMessage,
-                actions: actions
-            )
-            // #4850: the filter bar belongs at the BOTTOM, matching the
-            // Library pane's own filter (`MiniToolbarPlacement.
-            // preferredForReader` — "bottom of library and reader is where
-            // we can filter"). Was first in this VStack (top).
-            filterBar
-        }
+        // #4856: no second bar here any more — the filter and the add
+        // control both moved into the shared bottom bar's slots
+        // (`LibraryView+BottomActionBar.swift`), so a table pane spends
+        // exactly one bar's height, not two.
+        EntitiesTableView(
+            items: items,
+            selection: $selection,
+            isLoading: isLoadingCurrentScope,
+            emptyMessage: emptyMessage,
+            actions: actions
+        )
         // A high limit: we filter to the folder client-side, so the library-wide
         // list must be complete enough not to drop the folder's entities (the
         // default page size is small). The store dedups repeat loads.
@@ -99,7 +99,7 @@ struct EntitiesLibraryContent: View {
         // library-wide list. Keyed on the folder id too, so switching
         // folders (not just libraries) refires the load.
         .task(id: "\(ObjectIdentifier(store))|\(folderId ?? "")") { await reloadScope(force: false) }
-        .sheet(isPresented: $showingCreateSheet) {
+        .sheet(isPresented: $addRequested) {
             // Reuse the Ontology create/edit sheet; it reads its own EntityService
             // from the environment (the library it mutates). On commit, force a
             // reload of THIS scope so the new row appears here and select it.
@@ -119,13 +119,22 @@ struct EntitiesLibraryContent: View {
         // #4851/#4794: report the visible ids on every input that can change
         // them — the filter inputs directly, and the store's own load
         // finishing (covers the initial load and a library switch). Mirrors
-        // `DatasetModeView.reportVisible()`'s trigger set.
-        .onChange(of: items.map(\.id)) { _, newIds in onVisibleIds?(newIds) }
+        // `DatasetModeView.reportVisible()`'s trigger set. #4856 folds in
+        // reporting the scope's available TYPES on the same triggers — the
+        // shared footer's type menu (§ `filterType`) needs them the moment
+        // this content becomes the active one, same as the visible ids.
+        .onChange(of: items.map(\.id)) { _, newIds in
+            onVisibleIds?(newIds)
+            onAvailableTypesChanged?(availableTypes)
+        }
         .onChange(of: filterText) { _, _ in onVisibleIds?(items.map(\.id)) }
         .onChange(of: filterType) { _, _ in onVisibleIds?(items.map(\.id)) }
         .onChange(of: searchQuery) { _, _ in onVisibleIds?(items.map(\.id)) }
         .onChange(of: isLoadingCurrentScope) { _, loading in
-            if !loading { onVisibleIds?(items.map(\.id)) }
+            if !loading {
+                onVisibleIds?(items.map(\.id))
+                onAvailableTypesChanged?(availableTypes)
+            }
         }
     }
 
@@ -158,7 +167,11 @@ struct EntitiesLibraryContent: View {
             await reloadScope(force: true)
             let parent = Document(id: entity.sourceDocumentIds?.first ?? "unknown",
                                   name: entity.canonicalName)
-            selection = [LibraryOutlineNode.entityItem(entity, parent: parent).id]
+            // Land on exactly the new row, through the grammar (#4436) — this
+            // view has no anchor/cursor of its own to update, only the shared
+            // selection set, so `.selection` is the one field it can honestly
+            // write.
+            selection = SelectionGrammar.select(LibraryOutlineNode.entityItem(entity, parent: parent).id).selection
         }
     }
 
@@ -193,40 +206,6 @@ struct EntitiesLibraryContent: View {
     /// types that exist — filter.entity-type).
     private var availableTypes: [String] {
         Array(Set(scopedEntities.compactMap { $0.entityType?.rawValue })).sorted()
-    }
-
-    @ViewBuilder
-    private var filterBar: some View {
-        // Reuses the shared bottom-toolbar-strip component (#4362) instead of
-        // a hand-placed HStack, matching the Library pane's own filter chrome.
-        PaneFilterBar(placement: .bottom) {
-            Image(systemName: "line.3.horizontal.decrease.circle")
-                .foregroundStyle(.secondary)
-            TextField("Filter entities", text: $filterText)
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: 220)
-            Menu {
-                Button("All types") { filterType = nil }
-                Divider()
-                ForEach(availableTypes, id: \.self) { type in
-                    Button(type.capitalized) { filterType = type }
-                }
-            } label: {
-                Label(filterType?.capitalized ?? "All types", systemImage: "tag")
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            Spacer()
-            // Manual create (spec: kg-tables `entity.create`) — hand-author an entity
-            // from the table, not only via the Ontology sheet.
-            Button {
-                showingCreateSheet = true
-            } label: {
-                Label("New Entity", systemImage: "plus")
-            }
-            .help("Create an entity by hand")
-            .accessibilityIdentifier("kg.entity.new")
-        }
     }
 
     private var emptyMessage: String {

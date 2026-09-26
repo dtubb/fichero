@@ -147,6 +147,29 @@ final class ToolbarDuplicateRegistrationGuardTests: XCTestCase {
         }
     }
 
+    // MARK: - #4971: placeholder is "Search", not "Search your library"
+
+    /// Source-level only (no running app to mount a search field on): pins the
+    /// prompt text at the one live `.searchable(` registration. A behavioural
+    /// check of the rendered field needs a build; this at least catches the
+    /// text regressing back to "Search your library" or drifting elsewhere.
+    func testToolbarSearchPlaceholderIsJustSearch() throws {
+        let source = try String(
+            contentsOf: Self.appSourceRoot
+                .appendingPathComponent("Views/Shell/ContentView/ContentView+ToolbarSearch.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(
+            source.contains(#"prompt: "Search""#),
+            "The toolbar search field's prompt must be exactly \"Search\" (Finder's own "
+                + "wording), not a longer phrase like \"Search your library\" (#4971)."
+        )
+        XCTAssertFalse(
+            source.contains("Search your library"),
+            "The old, longer placeholder must not come back (#4971)."
+        )
+    }
+
     // MARK: - 2. Fixed toolbar-item ids are unique per window
 
     /// Every explicit `ToolbarItem(id: …)` id must be registered by exactly

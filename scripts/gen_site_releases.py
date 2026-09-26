@@ -56,7 +56,11 @@ if hidden.strip():
     )
 
 (OUT_DIR / "_releases.md").write_text(releases_md, encoding="utf-8")
+# The landing page shows this under its Download button: the newest release's version (which
+# IS its date), linked to that release on GitHub. It comes from RELEASE_NOTES.md, so it names
+# what the release lane publishes and never needs typing by hand (#4986).
 (OUT_DIR / "_latest.md").write_text(
-    f"Latest release: **{releases[0][0]}**\n", encoding="utf-8"
+    f"[{latest_version}](https://github.com/dtubb/fichero/releases/tag/v{latest_version})\n",
+    encoding="utf-8",
 )
 print(f"gen_site_releases: {len(releases)} releases, teaser {cut}/{len(blocks)} blocks of latest {latest_version}")

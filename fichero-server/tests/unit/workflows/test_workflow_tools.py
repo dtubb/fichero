@@ -210,6 +210,62 @@ class TestSearchTool:
         assert result["count"] == 0
 
     @pytest.mark.asyncio
+    async def test_search_degrades_on_embedding_space_mismatch(self, mock_llm_config, mock_state):
+        """#4962: a library whose stored vectors don't match the active
+        embedding model must degrade the reference-corpus step (skip it,
+        say why) rather than abort the whole workflow. Before the fix, this
+        exact error fell through to the generic branch and set "error",
+        which `builder.py` treats as a hard SystemicErrorDetected abort."""
+        from fichero_server.db.embeddings import EmbeddingSpaceMismatchError
+        from fichero_server.workflows.tools.sources import search_tool
+
+        mock_db = MagicMock()
+        mock_retriever = MagicMock()
+        mock_retriever.retrieve.side_effect = EmbeddingSpaceMismatchError(
+            table_name="embeddings",
+            active_model_id="BAAI/bge-m3|pooling=mean|normalization=l2|format=raw-v1",
+            stored_model_ids={
+                "intfloat/multilingual-e5-large|pooling=mean|normalization=l2|format=e5-role-prefix-v1"
+            },
+        )
+
+        with (
+            patch("fichero_server.workflows.tools.sources.db_manager") as mock_manager,
+            patch("fichero_server.workflows.tools.sources.GraphAwareRetriever", return_value=mock_retriever),
+        ):
+            mock_manager.get_database.return_value = mock_db
+            result = await search_tool({"query": "Popayan"}, mock_state, mock_llm_config)
+
+        assert result.get("error") is None, "must degrade, not abort the run"
+        assert result["skipped"] is True
+        assert "re-embed" in result["skip_reason"].lower()
+        assert "bge-m3" in result["skip_reason"]
+        assert result["files"] == []
+        assert result["documents"] == []
+        assert result["count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_search_still_fails_on_a_genuinely_different_error(self, mock_llm_config, mock_state):
+        """A real, unrelated failure in the search step must still fail the
+        run — the #4962 fix degrades ONLY the embedding-space mismatch, not
+        every exception the step can raise."""
+        from fichero_server.workflows.tools.sources import search_tool
+
+        mock_db = MagicMock()
+        mock_retriever = MagicMock()
+        mock_retriever.retrieve.side_effect = RuntimeError("boom: unrelated failure")
+
+        with (
+            patch("fichero_server.workflows.tools.sources.db_manager") as mock_manager,
+            patch("fichero_server.workflows.tools.sources.GraphAwareRetriever", return_value=mock_retriever),
+        ):
+            mock_manager.get_database.return_value = mock_db
+            result = await search_tool({"query": "Popayan"}, mock_state, mock_llm_config)
+
+        assert result.get("skipped") is None
+        assert result["error"] == "boom: unrelated failure"
+
+    @pytest.mark.asyncio
     async def test_search_includes_kg_context_in_documents(self, mock_llm_config, mock_state):
         """Graph-aware retrieval returns docs + KG context for researcher flows."""
         from fichero_server.workflows.tools.sources import search_tool

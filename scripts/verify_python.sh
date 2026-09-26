@@ -87,6 +87,12 @@ else
   echo "✅ openapi freshness"
 fi
 
+# 7b. Contract currency — info.version must equal pyproject.toml (#5046). The
+#     regression guard in sync_openapi_schema.sh refuses a version moving
+#     BACKWARDS; a contract frozen releases behind never does, so it needs its
+#     own check or the drift is invisible between releases.
+run "openapi contract currency" "$PY" scripts/check_openapi_version_current.py
+
 # 8. Feature-tier freshness — regenerate into a temp copy and confirm the
 #    committed feature-tier artifacts still match features.yaml.
 run "feature tier freshness" "$PY" scripts/check_features_freshness.py

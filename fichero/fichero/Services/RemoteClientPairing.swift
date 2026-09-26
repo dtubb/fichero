@@ -7,7 +7,9 @@ import UIKit
 struct RemoteClientPairingFields: Equatable {
     let remoteURL: String
     let pairCode: String
-    let spkiPin: String
+    /// Nil when the host's TLS is terminated by a public CA (#5041): there is
+    /// no Fichero-held key to pin, and default trust evaluation is the check.
+    let spkiPin: String?
     let libraryPath: String
 }
 
@@ -107,7 +109,7 @@ enum RemoteClientPairing {
             allowLocalhost: false,
             requireSecureTransportForRemote: true
         )
-        let validatedSPKIPin = try RemoteCertificatePinning.validatedSPKIPin(payload.spki)
+        let validatedSPKIPin = try resolvedSPKIPin(payload.spki, for: validatedURL)
         guard let libraryPath = normalizedLibraryPath(payload.libraryPath) else {
             throw RemoteClientPairingError.missingLibraryPath
         }
@@ -117,6 +119,35 @@ enum RemoteClientPairing {
             spkiPin: validatedSPKIPin,
             libraryPath: libraryPath
         )
+    }
+
+    /// The pin a share surface should ADVERTISE for `url` — the mint-side twin
+    /// of `resolvedSPKIPin`, so the two sides of a link agree by construction
+    /// rather than by two surfaces remembering the same rule.
+    ///
+    /// Nil for a publicly-trusted host: there is nothing of ours to pin, and a
+    /// link that named one would be asserting a key we do not hold. Throws when
+    /// a host that serves its OWN certificate has no usable pin yet — the
+    /// "still minting the certificate" state, which is a real blocker and must
+    /// not quietly mint a pinless link for an engine that needs one (#5041).
+    static func advertisableSPKIPin(_ raw: String, for url: URL) throws -> String? {
+        guard !RemoteCertificatePinning.usesPublicCertificateAuthority(url: url) else { return nil }
+        return try RemoteCertificatePinning.validatedSPKIPin(raw)
+    }
+
+    /// The pin this client should hold for `url`, from what the link advertised.
+    ///
+    /// A host that serves its own certificate MUST supply one — that is the only
+    /// thing standing between the device and any machine answering to the same
+    /// name, so an absent or malformed pin is still rejected. A host whose TLS a
+    /// public CA terminates (`tailscale serve`) has no Fichero-held key to pin,
+    /// so nil is the correct answer and any pin the link carried is discarded
+    /// rather than trusted: it cannot describe the certificate that host
+    /// presents (#5041).
+    static func resolvedSPKIPin(_ advertised: String?, for url: URL) throws -> String? {
+        guard !RemoteCertificatePinning.usesPublicCertificateAuthority(url: url) else { return nil }
+        guard let advertised else { throw RemoteCertificatePinningError.missingSPKIPin }
+        return try RemoteCertificatePinning.validatedSPKIPin(advertised)
     }
 
     private static func payloadFromInviteLink(_ message: String) -> PairingQRCodePayload? {
@@ -169,7 +200,7 @@ enum RemoteClientPairing {
         remoteURL: String,
         pairCode: String,
         deviceName: String,
-        expectedSPKIPin: String
+        expectedSPKIPin: String?
     ) async throws -> PairingExchangeResult {
         let code = pairCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let name = deviceName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -186,7 +217,7 @@ enum RemoteClientPairing {
             allowLocalhost: false,
             requireSecureTransportForRemote: true
         )
-        let normalizedSPKIPin = try RemoteCertificatePinning.validatedSPKIPin(expectedSPKIPin)
+        let normalizedSPKIPin = try expectedSPKIPin.map(RemoteCertificatePinning.validatedSPKIPin)
         let response = try await PairingService(apiRoot: url, expectedSPKIPin: normalizedSPKIPin)
             .pairDeviceUnauthenticated(code: code, deviceName: name)
         return PairingExchangeResult(
@@ -199,11 +230,19 @@ enum RemoteClientPairing {
     @MainActor
     static func persistPairedHost(
         _ result: PairingExchangeResult,
-        expectedSPKIPin: String,
+        expectedSPKIPin: String?,
         libraryPath: String?
     ) throws {
         try PairingService.persistAuthToken(result.deviceToken, for: result.apiRoot)
-        try RemoteCertificatePinning.persistSPKIPin(expectedSPKIPin, hostString: result.apiRoot.absoluteString)
+        // No pin for a publicly-trusted host. Storing one would be worse than
+        // useless: `shouldEnforcePinning` only grants the public-CA exemption
+        // while NO pin is recorded, so writing one here re-arms enforcement
+        // against a key we do not hold (#5041).
+        if let expectedSPKIPin {
+            try RemoteCertificatePinning.persistSPKIPin(expectedSPKIPin, hostString: result.apiRoot.absoluteString)
+        } else {
+            RemoteCertificatePinning.clearPersistedSPKIPin(hostString: result.apiRoot.absoluteString)
+        }
         // Record the token's expiry so renewal can fire before it lapses (#3096).
         DeviceTokenRenewal.storeExpiry(result.expiresAt, host: result.apiRoot.absoluteString)
         EngineConfig.defaults.set(result.apiRoot.absoluteString, forKey: EngineConfig.userDefaultsKey)
@@ -240,7 +279,7 @@ enum RemoteClientPairing {
         remoteURL: String,
         pairCode: String,
         deviceName: String,
-        expectedSPKIPin: String,
+        expectedSPKIPin: String?,
         libraryPath: String? = nil
     ) async throws -> URL {
         let result = try await pairDevice(
@@ -249,7 +288,7 @@ enum RemoteClientPairing {
             deviceName: deviceName,
             expectedSPKIPin: expectedSPKIPin
         )
-        let normalizedSPKIPin = try RemoteCertificatePinning.validatedSPKIPin(expectedSPKIPin)
+        let normalizedSPKIPin = try expectedSPKIPin.map(RemoteCertificatePinning.validatedSPKIPin)
         // #3372: the QR/deep-link carries `libraryPath`, but that value is
         // attacker-supplied — nothing in the exchange so far proves the Mac
         // actually shares it with this device. Confirm it against the server's
@@ -282,7 +321,7 @@ enum RemoteClientPairing {
     static func confirmLibraryAccess(
         libraryPath: String?,
         apiRoot: URL,
-        expectedSPKIPin: String
+        expectedSPKIPin: String?
     ) async throws {
         guard normalizedLibraryPath(libraryPath) != nil else { return }
         let accessible = try await PairingService(apiRoot: apiRoot, expectedSPKIPin: expectedSPKIPin)

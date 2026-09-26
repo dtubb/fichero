@@ -422,6 +422,14 @@ if [ -d "$ENGINE_APP_STAGE" ]; then
       echo "       PDFs would import with no searchable text. Refusing to ship that." >&2
       exit 1
     }
+  # Kraken (#4959) is installed by preflight-embedded-engine.sh --rebuild, the
+  # one place every staged engine comes through. Absence must never read as
+  # success: verify it is really there before signing.
+  if ! ls "$ENGINE_APP_STAGE/Contents/Resources/app_packages"/kraken-*.dist-info >/dev/null 2>&1; then
+    echo "error: the staged engine carries no Kraken (no kraken-*.dist-info in app_packages)." >&2
+    echo "       Kraken segmentation and recognition would be unusable. Refusing to ship that." >&2
+    exit 1
+  fi
 else
   echo "error: no engine bundle at $ENGINE_APP_STAGE after the rebuild" >&2
   exit 1

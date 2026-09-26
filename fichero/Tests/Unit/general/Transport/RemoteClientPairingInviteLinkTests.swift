@@ -31,7 +31,12 @@ final class RemoteClientPairingInviteLinkTests: XCTestCase {
 
         XCTAssertEqual(fields.remoteURL, "https://machine.tailnet.ts.net:8765")
         XCTAssertEqual(fields.pairCode, "PAIR-ABC1")
-        XCTAssertEqual(fields.spkiPin, validSPKIPin)
+        // #5041: a `.ts.net` host is served by Tailscale's own publicly-trusted
+        // certificate, so the link carries no pin for it and the client stores
+        // none — pinning a key Fichero does not hold is what broke Mac-to-Mac
+        // pairing. Pin round-trip for a self-certificate host is covered in
+        // RemoteAccessConfigTests.
+        XCTAssertNil(fields.spkiPin)
         XCTAssertEqual(fields.libraryPath, "/Users/testuser/Library.fichero")
     }
 

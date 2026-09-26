@@ -1,46 +1,17 @@
-"""Coverage for KG reset and derived-store rebuild routes."""
+"""Coverage for derived-store rebuild routes.
+
+#4982: the KG reset route (`POST /kg/reset`, `reset_kg`) and its ONLY test
+(`test_reset_deletes_all_knowledge_graph_rows`, against a `FakeDB` whose
+`delete(model, row_id)` faked a two-argument signature `Database.delete`
+never actually had) are both deleted, not repaired — see
+`test_routes_kg_reset_removed.py` for what replaces them.
+"""
 
 from __future__ import annotations
 
 import asyncio
-from types import SimpleNamespace
 
 from fichero_server.api.routes import kg_rebuild as routes
-from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeClaimLink, KnowledgeEntity
-
-
-class FakeDB:
-    def __init__(self):
-        self.rows = {
-            KnowledgeEntity: [SimpleNamespace(id="entity-1")],
-            KnowledgeClaim: [SimpleNamespace(id="claim-1"), SimpleNamespace(id="claim-2")],
-            KnowledgeClaimLink: [SimpleNamespace(id="link-1")],
-        }
-        self.deleted = []
-
-    def query(self, model):
-        return list(self.rows[model])
-
-    def delete(self, model, row_id):
-        self.deleted.append((model, row_id))
-
-
-def test_reset_deletes_all_knowledge_graph_rows():
-    db = FakeDB()
-
-    response = asyncio.run(routes.reset_kg(db=db))
-
-    assert response.model_dump() == {
-        "entities_deleted": 1,
-        "claims_deleted": 2,
-        "links_deleted": 1,
-    }
-    assert {(model, row_id) for model, row_id in db.deleted} == {
-        (KnowledgeEntity, "entity-1"),
-        (KnowledgeClaim, "claim-1"),
-        (KnowledgeClaim, "claim-2"),
-        (KnowledgeClaimLink, "link-1"),
-    }
 
 
 def test_rebuild_uses_default_options(monkeypatch):

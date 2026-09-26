@@ -55,6 +55,25 @@ struct BuiltInWorkspaceLayoutTests {
         }
     }
 
+    /// #4966: Browse opens 15% library / 60% preview / 25% reader (the reader
+    /// is the flexing peer — no explicit fraction of its own). Was 30/35/35
+    /// (#4688) — superseded, not layered on top of.
+    @Test("Browse opens 15/60/25 — library/preview/reader")
+    func browseOpensFifteenSixtyTwentyFive() {
+        let nodes = BuiltInWorkspaceLayout.browse.panes.nodes
+        guard case let .leaf(_, libraryKind, _, libraryConfig) = nodes[0],
+              case let .leaf(_, previewKind, _, previewConfig) = nodes[1],
+              case let .leaf(_, readingKind, _, readingConfig) = nodes[2] else {
+            Issue.record("Browse should be three top-level leaves"); return
+        }
+        #expect(libraryKind == .library)
+        #expect(libraryConfig.paneFraction == 0.15)
+        #expect(previewKind == .preview)
+        #expect(previewConfig.paneFraction == 0.60)
+        #expect(readingKind == .reading)
+        #expect(readingConfig.paneFraction == nil, "the reader is the flexing peer, no explicit fraction")
+    }
+
     @Test("Transcribe is icons along the bottom, preview + reader above")
     func transcribeIconsBottom() {
         // One column: a vertical split whose TOP is a horizontal preview|reader and BOTTOM is the

@@ -149,11 +149,11 @@ struct WikidataEnrichmentSheet: View {
     }
 
     private func toggle(_ id: String) {
-        if selection.contains(id) {
-            selection.remove(id)
-        } else {
-            selection.insert(id)
-        }
+        // Reuses the shared toggle rule (#4436) rather than a private
+        // if/insert/else/remove — the anchor/cursor fields on its `Result`
+        // are not meaningful for a checkbox list with no click/marquee
+        // gestures, so only `.selection` is read.
+        selection = SelectionGrammar.toggle(id: id, in: selection).selection
     }
 
     private func load() async {
@@ -187,7 +187,7 @@ struct WikidataEnrichmentSheet: View {
                 entityId: entityId, qid: preview.qid, rows: rows
             )
             statusMessage = "Imported \(count) Wikidata-sourced claim\(count == 1 ? "" : "s")."
-            selection.removeAll()
+            selection = SelectionGrammar.clear().selection
         } catch {
             statusMessage = "Import failed: \(error.localizedDescription)"
         }

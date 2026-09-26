@@ -3,13 +3,116 @@ DuckDB schema migrations for Fichero.
 
 Each function takes an open DuckDB connection and is idempotent.
 Called by Database.__init__ and DatabaseManager.get_database.
+
+#4983 phase 1 (atomic + loud + recorded, deliberately NOT "refuse to open" —
+that is phase 2, for the maintainer to decide with evidence from phase 1 in
+hand): every migration below that issues several statements now runs them
+as ONE transaction via `_run_atomic_migration`, so a failure partway leaves
+the schema exactly as it was, never half-applied. DuckDB's DDL and UPDATE
+backfills are fully transactional (verified directly: ALTER ADD COLUMN,
+CREATE INDEX, CREATE UNIQUE INDEX and UPDATE all roll back together inside
+one BEGIN/ROLLBACK) — no statement kind used here needed an exception to
+that.
+
+The helper logs at ERROR and appends a `MigrationFailure` to the caller's
+`failures` list, then swallows — the library still opens, exactly as every
+migration in this file did before this phase. Two swallows are intentionally
+LEFT AS interior try/excepts, not routed through the helper (see their own
+functions for why): the `DROP INDEX IF EXISTS` loop in
+`migrate_knowledge_indices`, and `read_library_uuid`.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime
 import logging
+from typing import Callable
+
+from fichero_server.core.timeutil import utc_now
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class MigrationFailure:
+    """One recorded schema-migration failure (#4983 phase 1).
+
+    Not a Pydantic model — this lives at the persistence layer, not the API
+    layer. `api/main.py`'s health route converts a `Database`'s
+    `migration_failures` list into the API response shape.
+    """
+
+    migration: str
+    error_type: str
+    message: str
+    occurred_at: datetime
+
+
+def _run_atomic_migration(
+    conn,
+    name: str,
+    step: Callable[[], None],
+    failures: list[MigrationFailure] | None = None,
+    *,
+    swallow: bool = True,
+) -> None:
+    """Run one migration's statements as ONE transaction (#4983 phase 1).
+
+    On failure: ROLLBACK (the schema is left exactly as it was — nothing
+    partially applied), log at ERROR with `name` and the exception, and
+    append a `MigrationFailure` to `failures` (a bare `None` default keeps
+    every existing call site — many tests pass a raw in-memory `conn` with
+    no failures list at all — working unchanged; the two real callers,
+    `Database.__init__` and `DatabaseManager.get_database`, pass a real
+    shared list so a failure looks the same from either).
+
+    `swallow=False` (used only by `migrate_workflow_table`, the one
+    migration that already raised before this phase) still rolls back,
+    logs and records, but then re-raises — preserving that function's
+    existing "fails loudly" contract instead of quietly changing it under
+    a phase-1 sweep the maintainer did not ask to widen.
+
+    Defensive against a nested transaction: BEGIN itself is inside the
+    try (traced both real call sites — `Database.__init__` runs on a
+    connection that was JUST opened by `_connect()`, before anything else
+    could start a transaction on it; `DatabaseManager.get_database` calls
+    this only after `Database.__init__` has already returned, by which
+    point every transaction it opened has been committed or rolled back —
+    so a nested BEGIN cannot happen today). If it ever did (DuckDB raises
+    immediately: "cannot start a transaction within a transaction"),
+    ROLLBACK is skipped (nothing of THIS call's to roll back) and the
+    failure is still logged and recorded rather than propagating raw.
+    """
+    if failures is None:
+        failures = []
+    began = False
+    try:
+        conn.execute("BEGIN TRANSACTION")
+        began = True
+        step()
+        conn.execute("COMMIT")
+    except Exception as exc:
+        message = str(exc)
+        if began:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception as rollback_exc:
+                # Not a bare log-and-drop: folded into the SAME failure
+                # record below, so a rollback that itself failed is never
+                # less visible than an ordinary migration failure.
+                message = f"{message} (ROLLBACK also failed: {rollback_exc})"
+        logger.error("Migration '%s' failed and was rolled back: %s", name, message)
+        failures.append(
+            MigrationFailure(
+                migration=name,
+                error_type=type(exc).__name__,
+                message=message,
+                occurred_at=utc_now(),
+            )
+        )
+        if not swallow:
+            raise
 
 
 def migrate_paired_device_owner(conn) -> None:
@@ -68,103 +171,133 @@ def migrate_paired_device_owner(conn) -> None:
     conn.commit()
 
 
-def migrate_workflow_table(conn) -> None:
-    """Migrate workflows table to new schema if needed."""
-    from fichero_server.errors import ErrorCategory, handle_error
+def migrate_workflow_table(
+    conn, failures: list[MigrationFailure] | None = None
+) -> None:
+    """Migrate workflows table to new schema if needed.
 
+    #4983 phase 1: NOT wrapped in `_run_atomic_migration` — the one
+    migration in this file left non-atomic, on purpose, verified. DuckDB
+    1.5.5's transactional DDL does not cover this shape: `ALTER TABLE ...
+    ADD COLUMN ... JSON DEFAULT []` on a table with existing rows requires
+    materialising that default across every row, and a SECOND statement of
+    ANY kind against the same table inside the same explicit transaction
+    then fails on COMMIT with `TransactionException: ... another
+    transaction has altered this table` (reproduced directly: one such
+    ALTER alone commits fine; a second ALTER, even a trivial scalar-default
+    one, right after it does not). This migration has three `DEFAULT []`
+    columns (`nodes`, `edges`, `tags`) plus six more statements against the
+    same table — there is no way to make it one transaction under this
+    engine version. Per the phase-1 instruction ("where one does not
+    cover it, say so and leave that migration as it is"): left exactly as
+    it was — still raises after logging. `failures` IS populated on this
+    path (recorded, then re-raised) so a caller/operator inspecting
+    `Database.migration_failures` sees this one too, even though the
+    library never actually opens on this specific failure (see the
+    call-site note below on what the app sees).
+    """
+    if failures is None:
+        failures = []
     try:
-        table_exists = (
-            conn.execute("""
-            SELECT COUNT(*) FROM information_schema.tables
-            WHERE table_name = 'workflows'
-        """).fetchone()[0]
-            > 0
-        )
-
-        if not table_exists:
-            logger.debug("Workflows table does not exist, skipping migration")
-            return
-
-        result = conn.execute("PRAGMA table_info('workflows')").fetchall()
-        columns = [row[1] for row in result]
-
-        if "steps" in columns and "format" not in columns:
-            logger.info("Migrating workflows table to new schema...")
-
-            conn.execute("""
-                ALTER TABLE workflows
-                ADD COLUMN format VARCHAR DEFAULT 'steps'
-            """)
-            conn.execute("""
-                ALTER TABLE workflows
-                ADD COLUMN nodes JSON DEFAULT []
-            """)
-            conn.execute("""
-                ALTER TABLE workflows
-                ADD COLUMN edges JSON DEFAULT []
-            """)
-            conn.execute("""
-                ALTER TABLE workflows
-                ADD COLUMN folder_path VARCHAR DEFAULT '/'
-            """)
-            conn.execute("""
-                ALTER TABLE workflows
-                ADD COLUMN sort_order INTEGER DEFAULT 0
-            """)
-            conn.execute("""
-                ALTER TABLE workflows
-                ADD COLUMN is_template BOOLEAN DEFAULT FALSE
-            """)
-            conn.execute("""
-                ALTER TABLE workflows
-                ADD COLUMN tags JSON DEFAULT []
-            """)
-            conn.execute("""
-                ALTER TABLE workflows
-                ADD COLUMN provider VARCHAR DEFAULT ''
-            """)
-            conn.execute("""
-                ALTER TABLE workflows
-                ADD COLUMN model VARCHAR DEFAULT ''
-            """)
-            conn.execute("""
-                UPDATE workflows
-                SET format = 'steps'
-                WHERE format IS NULL OR format = ''
-            """)
-
-            logger.info("Workflows table migration completed")
-
-        # Idempotent per-column checks for columns added after the initial
-        # steps→format migration. Each runs regardless of the old-schema gate
-        # above so fresh-installed tables also pick them up if the model
-        # evolved past _ensure_table's snapshot.
-        result = conn.execute("PRAGMA table_info('workflows')").fetchall()
-        columns = {row[1] for row in result}
-
-        if "is_system" not in columns:
-            logger.info("Migrating workflows table: adding is_system column...")
-            conn.execute("""
-                ALTER TABLE workflows
-                ADD COLUMN is_system BOOLEAN DEFAULT FALSE
-            """)
-            # Backfill any NULLs that may exist from a partial prior migration.
-            conn.execute("""
-                UPDATE workflows SET is_system = FALSE WHERE is_system IS NULL
-            """)
-
+        _migrate_workflow_table_body(conn)
     except Exception as e:
-        error = handle_error(
-            e,
-            default_message="Workflow table migration failed",
-            category=ErrorCategory.DATABASE,
-            context={"operation": "workflow_table_migration"},
+        logger.warning("Migration failed: %s", e)
+        failures.append(
+            MigrationFailure(
+                migration="migrate_workflow_table",
+                error_type=type(e).__name__,
+                message=str(e),
+                occurred_at=utc_now(),
+            )
         )
-        logger.warning("Migration failed: %s", error.message)
         raise
 
 
-def migrate_document_table(conn) -> None:
+def _migrate_workflow_table_body(conn) -> None:
+    table_exists = (
+        conn.execute("""
+        SELECT COUNT(*) FROM information_schema.tables
+        WHERE table_name = 'workflows'
+    """).fetchone()[0]
+        > 0
+    )
+
+    if not table_exists:
+        logger.debug("Workflows table does not exist, skipping migration")
+        return
+
+    result = conn.execute("PRAGMA table_info('workflows')").fetchall()
+    columns = [row[1] for row in result]
+
+    if "steps" in columns and "format" not in columns:
+        logger.info("Migrating workflows table to new schema...")
+
+        conn.execute("""
+            ALTER TABLE workflows
+            ADD COLUMN format VARCHAR DEFAULT 'steps'
+        """)
+        conn.execute("""
+            ALTER TABLE workflows
+            ADD COLUMN nodes JSON DEFAULT []
+        """)
+        conn.execute("""
+            ALTER TABLE workflows
+            ADD COLUMN edges JSON DEFAULT []
+        """)
+        conn.execute("""
+            ALTER TABLE workflows
+            ADD COLUMN folder_path VARCHAR DEFAULT '/'
+        """)
+        conn.execute("""
+            ALTER TABLE workflows
+            ADD COLUMN sort_order INTEGER DEFAULT 0
+        """)
+        conn.execute("""
+            ALTER TABLE workflows
+            ADD COLUMN is_template BOOLEAN DEFAULT FALSE
+        """)
+        conn.execute("""
+            ALTER TABLE workflows
+            ADD COLUMN tags JSON DEFAULT []
+        """)
+        conn.execute("""
+            ALTER TABLE workflows
+            ADD COLUMN provider VARCHAR DEFAULT ''
+        """)
+        conn.execute("""
+            ALTER TABLE workflows
+            ADD COLUMN model VARCHAR DEFAULT ''
+        """)
+        conn.execute("""
+            UPDATE workflows
+            SET format = 'steps'
+            WHERE format IS NULL OR format = ''
+        """)
+
+        logger.info("Workflows table migration completed")
+
+    # Idempotent per-column checks for columns added after the initial
+    # steps→format migration. Each runs regardless of the old-schema gate
+    # above so fresh-installed tables also pick them up if the model
+    # evolved past _ensure_table's snapshot.
+    result = conn.execute("PRAGMA table_info('workflows')").fetchall()
+    columns = {row[1] for row in result}
+
+    if "is_system" not in columns:
+        logger.info("Migrating workflows table: adding is_system column...")
+        conn.execute("""
+            ALTER TABLE workflows
+            ADD COLUMN is_system BOOLEAN DEFAULT FALSE
+        """)
+        # Backfill any NULLs that may exist from a partial prior migration.
+        conn.execute("""
+            UPDATE workflows SET is_system = FALSE WHERE is_system IS NULL
+        """)
+
+
+def migrate_document_table(
+    conn, failures: list[MigrationFailure] | None = None
+) -> None:
     """Migrate documents table to add the sort_order column.
 
     Older installations (pre-0.0.2 reorder work, pre-`#607`) created the
@@ -180,8 +313,15 @@ def migrate_document_table(conn) -> None:
     with default 0. Idempotent — skips if the column already exists,
     or if the table hasn't been created yet (first-launch path uses
     `_ensure_table` which picks up the current schema automatically).
+
+    #4983 phase 1: this is the migration the issue named — three
+    independent statements (two `ALTER TABLE ADD COLUMN` + one
+    `CREATE INDEX`), previously with no transaction, so a failure between
+    them left the library with `sort_order` added but not
+    `exclude_from_search`, silently. Now atomic: all three or none.
     """
-    try:
+
+    def _step() -> None:
         table_exists = (
             conn.execute("""
             SELECT COUNT(*) FROM information_schema.tables
@@ -224,11 +364,12 @@ def migrate_document_table(conn) -> None:
 
         logger.info("Documents table migration completed")
 
-    except Exception as e:
-        logger.warning(f"Documents migration check failed: {e}")
+    _run_atomic_migration(conn, "migrate_document_table", _step, failures)
 
 
-def migrate_document_language_fields(conn) -> None:
+def migrate_document_language_fields(
+    conn, failures: list[MigrationFailure] | None = None
+) -> None:
     """Add `language` / `language_meta` to documents (#2092).
 
     The Pydantic Document model gained both fields, so an existing library
@@ -252,7 +393,7 @@ def migrate_document_language_fields(conn) -> None:
     table has not been created yet (first launch materialises the current
     schema directly).
     """
-    try:
+    def _step() -> None:
         table_exists = (
             conn.execute("""
             SELECT COUNT(*) FROM information_schema.tables
@@ -277,13 +418,15 @@ def migrate_document_language_fields(conn) -> None:
 
         logger.info("Documents language migration completed")
 
-    except Exception as e:
-        logger.warning(f"Documents language migration check failed: {e}")
+    _run_atomic_migration(conn, "migrate_document_language_fields", _step, failures)
 
 
-def migrate_saved_search_table(conn) -> None:
+def migrate_saved_search_table(
+    conn, failures: list[MigrationFailure] | None = None
+) -> None:
     """Migrate saved_searches table to add missing columns."""
-    try:
+
+    def _step() -> None:
         table_exists = (
             conn.execute("""
             SELECT COUNT(*) FROM information_schema.tables
@@ -324,17 +467,19 @@ def migrate_saved_search_table(conn) -> None:
 
         logger.info("Saved searches table migration completed")
 
-    except Exception as e:
-        logger.warning(f"Saved searches migration check failed: {e}")
+    _run_atomic_migration(conn, "migrate_saved_search_table", _step, failures)
 
 
-def migrate_provider_refs_table(conn) -> None:
+def migrate_provider_refs_table(
+    conn, failures: list[MigrationFailure] | None = None
+) -> None:
     """Create provider_refs table if it doesn't exist.
 
     This table tracks which app-wide providers a library references.
     Actual provider config is stored in app.duckdb.
     """
-    try:
+
+    def _step() -> None:
         table_exists = (
             conn.execute("""
             SELECT COUNT(*) FROM information_schema.tables
@@ -365,17 +510,30 @@ def migrate_provider_refs_table(conn) -> None:
 
         logger.info("provider_refs table created successfully")
 
-    except Exception as e:
-        logger.warning(f"provider_refs table creation failed: {e}")
+    _run_atomic_migration(conn, "migrate_provider_refs_table", _step, failures)
 
 
-def migrate_activity_tables(conn) -> None:
+def migrate_activity_tables(
+    conn, failures: list[MigrationFailure] | None = None
+) -> None:
     """Ensure activity tracking tables exist.
 
     Creates the activities table for storing workflow execution events.
     This enables the Activity sidebar to show historical data.
+
+    #4983 item 6, traced end to end (was INFERRED, now VERIFIED): if this
+    migration fails and rolls back, `ActivityStore._init_database()`
+    (`workflows/activity_store.py`) DOES independently re-create the same
+    `activities` TABLE the first time `get_activity_tracker(db_path)` is
+    called for this library — but that call is LAZY (fired by the first
+    activity-logging code path, e.g. a workflow run), not guaranteed at
+    open time, and it does NOT recreate this migration's 6 performance
+    indices. So the table itself is very likely papered over eventually;
+    the indices are not, and a library that never runs a workflow in a
+    session may go the whole session without either.
     """
-    try:
+
+    def _step() -> None:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS activities (
                 id TEXT PRIMARY KEY,
@@ -420,8 +578,7 @@ def migrate_activity_tables(conn) -> None:
 
         logger.info("Activity tables migration completed")
 
-    except Exception as e:
-        logger.warning(f"Activity tables migration failed: {e}")
+    _run_atomic_migration(conn, "migrate_activity_tables", _step, failures)
 
 
 def migrate_knowledge_indices(conn) -> None:
@@ -466,6 +623,13 @@ def migrate_knowledge_indices(conn) -> None:
         "idx_claims_status",
         "idx_claims_created",
     ]
+    # #4983 phase 1: LEFT AS an interior per-item try/except, not routed
+    # through `_run_atomic_migration` — this is one of the two swallows the
+    # sweep judged genuinely defensible. Each DROP is independent and
+    # idempotent by construction (IF EXISTS); a real failure here is
+    # "the index was already gone," never a half-applied state to roll
+    # back, and batching six independent drops into one transaction would
+    # only make one unrelated failure block the other five for no reason.
     for index_name in drop_indexes:
         try:
             conn.execute(f"DROP INDEX IF EXISTS {index_name}")
@@ -477,6 +641,10 @@ def migrate_knowledge_indices(conn) -> None:
     # these tables — queries fall back to table scans, which is correct and
     # fine at single-user scale. Keep this list empty rather than re-adding any
     # claims/entity index until DuckDB's ART delete path is safe for the churn.
+    # #4983 phase 1: also left as an interior swallow, for the same reason —
+    # `statements` is empty today, so this loop is dead; if it is ever
+    # populated, each entry is independent and idempotent (IF NOT EXISTS)
+    # the same way the drops above are.
     statements: list[tuple[str, str]] = []
     created = 0
     for name, ddl in statements:
@@ -493,13 +661,16 @@ def migrate_knowledge_indices(conn) -> None:
                     created, len(statements))
 
 
-def migrate_checkpoint_tables(conn) -> None:
+def migrate_checkpoint_tables(
+    conn, failures: list[MigrationFailure] | None = None
+) -> None:
     """Ensure LangGraph checkpoint tables exist.
 
     Creates the checkpoints and checkpoint_writes tables for workflow
     state persistence. This enables viewing Graph history in Activity sidebar.
     """
-    try:
+
+    def _step() -> None:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS checkpoints (
                 thread_id TEXT NOT NULL,
@@ -529,17 +700,19 @@ def migrate_checkpoint_tables(conn) -> None:
 
         logger.info("Checkpoint tables migration completed")
 
-    except Exception as e:
-        logger.warning(f"Checkpoint tables migration failed: {e}")
+    _run_atomic_migration(conn, "migrate_checkpoint_tables", _step, failures)
 
 
-def migrate_known_libraries_table(conn) -> None:
+def migrate_known_libraries_table(
+    conn, failures: list[MigrationFailure] | None = None
+) -> None:
     """Ensure known_libraries registry table exists (#1131).
 
     Stores a persistent registry of known .fichero libraries for CLI
     operations (list available libraries, switch between them).
     """
-    try:
+
+    def _step() -> None:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS known_libraries (
                 id VARCHAR PRIMARY KEY,
@@ -550,18 +723,28 @@ def migrate_known_libraries_table(conn) -> None:
             )
         """)
         logger.info("Known libraries registry table migration completed")
-    except Exception as e:
-        logger.warning("Known libraries table migration failed: %s", e)
+
+    _run_atomic_migration(conn, "migrate_known_libraries_table", _step, failures)
 
 
-def migrate_references_table(conn) -> None:
+def migrate_references_table(
+    conn, failures: list[MigrationFailure] | None = None
+) -> None:
     """Ensure references storage exists (#1103).
 
     References are first-class bibliographic records, separate from the
     documents they may eventually map to.
+
+    #4983 phase 1: the two `CREATE UNIQUE INDEX` statements (DOI, ISBN) are
+    the only thing enforcing "no duplicate reference by DOI/ISBN" — the
+    highest-stakes migration in this file for silent swallowing, since a
+    failed unique index used to mean the constraint just didn't exist, with
+    duplicate inserts succeeding uncaught afterward. Now atomic with the
+    table and the perf index: any failure rolls all four statements back
+    and is recorded, rather than leaving the constraint quietly absent.
     """
 
-    try:
+    def _step() -> None:
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS "references" (
@@ -609,14 +792,16 @@ def migrate_references_table(conn) -> None:
             """
         )
         logger.info("References table migration completed")
-    except Exception as e:
-        logger.warning("References table migration failed: %s", e)
+
+    _run_atomic_migration(conn, "migrate_references_table", _step, failures)
 
 
-def migrate_reference_provenance_table(conn) -> None:
+def migrate_reference_provenance_table(
+    conn, failures: list[MigrationFailure] | None = None
+) -> None:
     """Ensure reference provenance tracking exists (#1103)."""
 
-    try:
+    def _step() -> None:
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS reference_provenance (
@@ -644,17 +829,20 @@ def migrate_reference_provenance_table(conn) -> None:
             """
         )
         logger.info("Reference provenance table migration completed")
-    except Exception as e:
-        logger.warning("Reference provenance table migration failed: %s", e)
+
+    _run_atomic_migration(conn, "migrate_reference_provenance_table", _step, failures)
 
 
-def migrate_library_entity_types_table(conn) -> None:
+def migrate_library_entity_types_table(
+    conn, failures: list[MigrationFailure] | None = None
+) -> None:
     """Ensure library_entity_types table exists (#874).
 
     Per-library entity type customization: links each library to the
     entity_type ClassificationValue keys it allows for extraction.
     """
-    try:
+
+    def _step() -> None:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS library_entity_types (
                 id VARCHAR PRIMARY KEY,
@@ -671,11 +859,13 @@ def migrate_library_entity_types_table(conn) -> None:
             ON library_entity_types(library_id)
         """)
         logger.info("Library entity types table migration completed")
-    except Exception as e:
-        logger.warning("Library entity types table migration failed: %s", e)
+
+    _run_atomic_migration(conn, "migrate_library_entity_types_table", _step, failures)
 
 
-def migrate_spatial_node_layout_fields(conn) -> None:
+def migrate_spatial_node_layout_fields(
+    conn, failures: list[MigrationFailure] | None = None
+) -> None:
     """Add 2D/3D layout + style fields to spatialnode table (#2293).
 
     Existing rows keep their positions; new columns default to 0 / empty dict.
@@ -690,7 +880,8 @@ def migrate_spatial_node_layout_fields(conn) -> None:
         ("angle", "DOUBLE DEFAULT 0.0"),
         ("style_data", "VARCHAR DEFAULT '{}'"),
     ]
-    try:
+
+    def _step() -> None:
         table_exists = (
             conn.execute("""
                 SELECT COUNT(*) FROM information_schema.tables
@@ -709,11 +900,13 @@ def migrate_spatial_node_layout_fields(conn) -> None:
                 conn.execute(f"ALTER TABLE spatialnode ADD COLUMN {col} {col_def}")
 
         logger.info("spatialnode layout fields migration completed")
-    except Exception as e:
-        logger.warning("spatialnode layout migration failed: %s", e)
+
+    _run_atomic_migration(conn, "migrate_spatial_node_layout_fields", _step, failures)
 
 
-def migrate_canvas_layout_table(conn) -> None:
+def migrate_canvas_layout_table(
+    conn, failures: list[MigrationFailure] | None = None
+) -> None:
     """Ensure the real canvas_layout table exists and backfill legacy document positions.
 
     #3078 retires the document-row-only persistence path. Keep old saved folder
@@ -721,7 +914,8 @@ def migrate_canvas_layout_table(conn) -> None:
     the first time a library sees this migration. Idempotent: create-if-missing
     plus insert-only-when-absent on the deterministic ``scope_id::item_id`` key.
     """
-    try:
+
+    def _step() -> None:
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS canvas_layout (
@@ -799,11 +993,13 @@ def migrate_canvas_layout_table(conn) -> None:
             """
         )
         logger.info("canvas_layout table migration completed")
-    except Exception as e:
-        logger.warning("canvas_layout migration failed: %s", e)
+
+    _run_atomic_migration(conn, "migrate_canvas_layout_table", _step, failures)
 
 
-def migrate_catalogue_chunk_artifact_type(conn) -> None:
+def migrate_catalogue_chunk_artifact_type(
+    conn, failures: list[MigrationFailure] | None = None
+) -> None:
     """Collapse ``catalogue.chunk.{n}`` artifact types to ``catalogue.chunk`` (#4426).
 
     The catalogue tool used to mint a NEW artifact_type per summary chunk —
@@ -824,7 +1020,7 @@ def migrate_catalogue_chunk_artifact_type(conn) -> None:
     run updates nothing. The chunk index moves into ``data`` to match what the
     writer now records.
     """
-    try:
+    def _step() -> None:
         table_exists = (
             conn.execute(
                 """
@@ -862,11 +1058,13 @@ def migrate_catalogue_chunk_artifact_type(conn) -> None:
             "'catalogue.chunk' type (#4426)",
             pending,
         )
-    except Exception as e:
-        logger.warning("catalogue.chunk artifact_type migration failed: %s", e)
+
+    _run_atomic_migration(conn, "migrate_catalogue_chunk_artifact_type", _step, failures)
 
 
-def migrate_library_identity_table(conn) -> None:
+def migrate_library_identity_table(
+    conn, failures: list[MigrationFailure] | None = None
+) -> None:
     """Mint a stable per-library UUID for sync identity (D1).
 
     ``actions/audit_chain.py`` derives ``library_id = sha256(library_path)``,
@@ -883,9 +1081,7 @@ def migrate_library_identity_table(conn) -> None:
     """
     from uuid import uuid4
 
-    from fichero_server.core.timeutil import utc_now
-
-    try:
+    def _step() -> None:
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS library_identity (
@@ -903,8 +1099,8 @@ def migrate_library_identity_table(conn) -> None:
                 [str(uuid4()), utc_now()],
             )
         logger.info("Library identity table migration completed")
-    except Exception as e:
-        logger.warning("Library identity table migration failed: %s", e)
+
+    _run_atomic_migration(conn, "migrate_library_identity_table", _step, failures)
 
 
 def read_library_uuid(conn) -> str | None:
@@ -915,6 +1111,12 @@ def read_library_uuid(conn) -> str | None:
     manifests and checkpoints by a move-stable identity rather than the package
     path. Returns ``None`` rather than raising if the table is missing, so a
     caller on a not-yet-migrated library degrades gracefully.
+
+    #4983 phase 1: LEFT AS its own try/except, not routed through the
+    migration helper — this is not a migration (it writes nothing) and its
+    swallow is the other one the sweep judged defensible: a missing table
+    means "not yet minted," which is exactly the caller-visible `None` this
+    function already promises, not a hidden failure.
     """
     try:
         row = conn.execute(

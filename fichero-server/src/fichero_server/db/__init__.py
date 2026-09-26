@@ -1007,6 +1007,13 @@ class Database(DatabaseEmbeddingMixin):
         # Per-table count of LanceDB appends since the last compaction. Drives
         # the bounded auto-compaction trigger in save_vectors (#2542).
         self._vector_append_counts: dict[str, int] = {}
+        # #4983 phase 1: schema-migration failures recorded here (atomic
+        # rollback + ERROR log happen in `_run_atomic_migration`; the
+        # library still opens). ONE list shared by every migration this
+        # `__init__` runs AND by `DatabaseManager.get_database`'s own batch
+        # (it appends to this SAME instance's list) — a failure looks the
+        # same from either caller. Surfaced at `GET /api/health`.
+        self.migration_failures: list = []
 
         # Migrate tables if needed
         from fichero_server.db.migrations.schema import (
@@ -1023,18 +1030,18 @@ class Database(DatabaseEmbeddingMixin):
             migrate_references_table,
             migrate_reference_provenance_table,
         )
-        migrate_document_table(self.conn)
-        migrate_document_language_fields(self.conn)
-        migrate_workflow_table(self.conn)
-        migrate_saved_search_table(self.conn)
-        migrate_provider_refs_table(self.conn)
-        migrate_known_libraries_table(self.conn)
-        migrate_library_entity_types_table(self.conn)
-        migrate_library_identity_table(self.conn)
-        migrate_canvas_layout_table(self.conn)
-        migrate_spatial_node_layout_fields(self.conn)
-        migrate_references_table(self.conn)
-        migrate_reference_provenance_table(self.conn)
+        migrate_document_table(self.conn, self.migration_failures)
+        migrate_document_language_fields(self.conn, self.migration_failures)
+        migrate_workflow_table(self.conn, self.migration_failures)
+        migrate_saved_search_table(self.conn, self.migration_failures)
+        migrate_provider_refs_table(self.conn, self.migration_failures)
+        migrate_known_libraries_table(self.conn, self.migration_failures)
+        migrate_library_entity_types_table(self.conn, self.migration_failures)
+        migrate_library_identity_table(self.conn, self.migration_failures)
+        migrate_canvas_layout_table(self.conn, self.migration_failures)
+        migrate_spatial_node_layout_fields(self.conn, self.migration_failures)
+        migrate_references_table(self.conn, self.migration_failures)
+        migrate_reference_provenance_table(self.conn, self.migration_failures)
         self._materialize_schema()
         self._seed_builtin_document_prototypes()
         self._seed_builtin_node_classes()
@@ -6737,27 +6744,40 @@ class Database(DatabaseEmbeddingMixin):
     def _migrate_workflow_table(self) -> None:
         """Delegate to db_migrations.migrate_workflow_table."""
         from fichero_server.db.migrations.schema import migrate_workflow_table
-        migrate_workflow_table(self.conn)
+        migrate_workflow_table(self.conn, self.migration_failures)
 
     def _migrate_saved_search_table(self) -> None:
         """Delegate to db_migrations.migrate_saved_search_table."""
         from fichero_server.db.migrations.schema import migrate_saved_search_table
-        migrate_saved_search_table(self.conn)
+        migrate_saved_search_table(self.conn, self.migration_failures)
 
     def _migrate_provider_refs_table(self) -> None:
         """Delegate to db_migrations.migrate_provider_refs_table."""
         from fichero_server.db.migrations.schema import migrate_provider_refs_table
-        migrate_provider_refs_table(self.conn)
+        migrate_provider_refs_table(self.conn, self.migration_failures)
 
     def _migrate_activity_tables(self) -> None:
         """Delegate to db_migrations.migrate_activity_tables."""
         from fichero_server.db.migrations.schema import migrate_activity_tables
-        migrate_activity_tables(self.conn)
+        migrate_activity_tables(self.conn, self.migration_failures)
 
     def _migrate_checkpoint_tables(self) -> None:
         """Delegate to db_migrations.migrate_checkpoint_tables."""
         from fichero_server.db.migrations.schema import migrate_checkpoint_tables
-        migrate_checkpoint_tables(self.conn)
+        migrate_checkpoint_tables(self.conn, self.migration_failures)
+
+    def read_library_uuid(self) -> str | None:
+        """The library's stable sync UUID, or ``None`` if not yet minted.
+
+        Typed persistence-layer entry point (#1876) for
+        ``db_migrations.read_library_uuid`` — a route reaching ``db.conn``
+        directly (as ``api/routes/library/sync.py`` used to) bypasses this
+        choke point. Delegates verbatim: degrades to ``None`` on a
+        not-yet-migrated library rather than raising, same as the
+        migrations-layer function it wraps.
+        """
+        from fichero_server.db.migrations.schema import read_library_uuid
+        return read_library_uuid(self.conn)
 
 
 # Backward-compatibility alias used by older tests/tooling that patch `fichero_server.db.db`.

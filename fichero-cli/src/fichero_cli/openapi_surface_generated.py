@@ -8103,17 +8103,6 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("wipe-all-rows-so-extraction-can-run-fresh")
-    def kg_wipe_all_rows_so_extraction_can_run_fresh_post(
-        ctx: typer.Context,
-    ) -> None:
-        """Wipe all KG rows so extraction can run fresh (POST /api/kg/reset)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/kg/reset"
-            params = None
-            return client.request("POST", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
     @target_app.command("propose-entity-merge-candidates-from-co-occurrence-overlap")
     def kg_propose_entity_merge_candidates_from_co_occurrence_overlap_get(
         ctx: typer.Context,
@@ -14243,6 +14232,44 @@ def register_generated_openapi_commands(
                 "skip_cache": {'type': 'boolean', 'title': 'Skip Cache', 'default': False, 'x-cli-required': False},
                 "thread_id": {'type': 'string', 'nullable': True, 'title': 'Thread Id', 'x-cli-required': False},
                 "workflow_id": {'type': 'string', 'title': 'Workflow Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-runs-route")
+    def workflow_execution_list_runs_route_get(
+        ctx: typer.Context,
+        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
+        status: Optional[str] = typer.Option(None, "--status", help="Query parameter: status."),
+    ) -> None:
+        """List Workflow Runs Route (GET /api/workflow-execution/runs)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/workflow-execution/runs"
+            params = {
+                "limit": limit,
+                "offset": offset,
+                "status": status,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("delete-runs-route")
+    def workflow_execution_delete_runs_route_post(
+        ctx: typer.Context,
+        statuses: Optional[str] = typer.Option(None, "--statuses", help="Request field: statuses."),
+        thread_ids: Optional[str] = typer.Option(None, "--thread-ids", help="Request field: thread_ids."),
+    ) -> None:
+        """Delete Workflow Runs Route (POST /api/workflow-execution/runs/delete)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/workflow-execution/runs/delete"
+            params = None
+            payload = _build_json_payload({
+                "statuses": statuses,
+                "thread_ids": thread_ids,
+            }, {
+                "statuses": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Statuses', 'description': "Delete every non-deleted run whose status is one of these (e.g. ['failed'] for 'Clear Failed')", 'x-cli-required': False},
+                "thread_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Thread Ids', 'description': 'Explicit run ids to delete', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

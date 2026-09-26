@@ -220,6 +220,64 @@ class TestListEntities:
         names = [e["canonical_name"] for e in r.json()["items"]]
         assert "1960" in names
 
+    def test_pagination_never_repeats_or_skips_a_row(self, client, db):
+        """#4975 Phase 1 required test: paging through the whole list with a
+        fixed page size must visit every row exactly once, in the SAME order
+        the unpaged list uses (stable sort by canonical_name). Guards the
+        exact regression #1815's "Honest pagination" comment (list_entities_
+        impl) already fixed once — offset silently ignored looped a reader
+        forever on page one."""
+        for i in range(37):
+            _make_entity(db, f"Entity {i:03d}")
+
+        full = client.get("/api/entities?limit=1000").json()["items"]
+        full_ids = [e["id"] for e in full]
+        assert len(full_ids) == 37
+
+        paged_ids: list[str] = []
+        page_size = 10
+        for offset in range(0, 37, page_size):
+            r = client.get(f"/api/entities?limit={page_size}&offset={offset}")
+            assert r.status_code == 200
+            paged_ids.extend(e["id"] for e in r.json()["items"])
+
+        assert paged_ids == full_ids, "paged traversal must match the full list, in order"
+        assert len(set(paged_ids)) == 37, "no row repeated across pages"
+
+    def test_claim_counts_match_true_per_entity_counts(self, client, db):
+        """#4975 Phase 1 required test: /api/entities/claim-counts must equal
+        the true number of claims citing each entity — including zero for an
+        entity no claim ever mentions (the issue's exact evidence shape)."""
+        from fichero_server.models.knowledge import KnowledgeClaim
+
+        busy = _make_entity(db, "Busy Entity")
+        quiet = _make_entity(db, "Quiet Entity")
+        lonely = _make_entity(db, "Zero Claim Entity")  # never cited — true count 0
+
+        for i in range(5):
+            db.save(
+                KnowledgeClaim(
+                    text=f"Claim {i} about Busy.",
+                    source_document_id="doc-1",
+                    entity_ids=[busy.id],
+                )
+            )
+        db.save(
+            KnowledgeClaim(
+                text="One claim about Quiet, mentions Busy too.",
+                source_document_id="doc-1",
+                entity_ids=[quiet.id, busy.id],
+            )
+        )
+
+        r = client.get("/api/entities/claim-counts")
+        assert r.status_code == 200
+        counts = r.json()["counts"]
+
+        assert counts.get(busy.id) == 6
+        assert counts.get(quiet.id) == 1
+        assert lonely.id not in counts  # zero means absent, never a phantom 0 entry
+
 
 # ---------------------------------------------------------------------------
 # POST /api/entities (upsert)

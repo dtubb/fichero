@@ -89,11 +89,15 @@ struct SidebarView: View {
     // Library the "Share Library…" header context-menu entry is presenting (#3149).
     @State var libraryToShare: LibraryManager.LibraryReference?
 
-    // Store Combine subscriptions
-    @State var cancellables = Set<AnyCancellable>()
+    /// The store-observer chains, held by reference so `setupServiceObservers()` can supersede
+    /// the set a previous call armed (see `SidebarObserverChains`).
+    @State var observerChains = SidebarObserverChains()
     // Internal (not private) so the extracted `handleSelectionChange` routing in
     // SidebarView+SelectionHandling.swift can read/update it (#2548).
     @State var lastHandledSelectionDestination: SidebarDestination?
+    /// A selection from ANOTHER library, held until the window's library switch lands
+    /// (#4995/#4996) — see `CrossLibraryRoute`.
+    @State var pendingCrossLibraryRoute: CrossLibraryRoute.Pending?
 
     init(
         sidebarMode: Binding<SidebarMode>,
@@ -154,6 +158,13 @@ struct SidebarView: View {
             // The title is now shown centred in the main window toolbar by another
             // worker; the redundant sidebar column header is removed here.
             .navigationTitle("")
+            // Opt-in (FICHERO_PRINT_CHANGES=1): a disappear/appear pair on a click is a re-mount.
+            .onAppear {
+                if RenderDiagnostics.printChanges { sidebarViewLogger.info("◆ SidebarView appeared") }
+            }
+            .onDisappear {
+                if RenderDiagnostics.printChanges { sidebarViewLogger.info("◆ SidebarView disappeared") }
+            }
             .task {
                 // Check cancellation before starting
                 guard !Task.isCancelled else { return }
@@ -220,8 +231,13 @@ struct SidebarView: View {
                 // lastHandledSelectionDestination and main-actor tasks run in
                 // enqueue order.
                 Task { @MainActor in
-                    handleSelectionChange(newDestination)
+                    handleSelectionChange(newDestination, reason: "click")
                 }
+            }
+            .onChange(of: windowState.libraryId) { _, landedLibraryId in
+                // The window now shows this library and the content column holds ITS stores:
+                // route the cross-library selection that asked for the switch.
+                routePendingCrossLibrarySelection(landedLibraryId: landedLibraryId)
             }
             .onChange(of: libraryManager.openLibraries.count) { _, _ in
                 // Rebuild when libraries are added/removed
