@@ -57,7 +57,6 @@ from fichero_server.models.knowledge import (
     KnowledgeClaim,
     KnowledgeEntity,
     LibraryItemLink,
-    Note,
     ProvenanceKind,
 )
 
@@ -2808,7 +2807,6 @@ __all__ = [
     "Workflow",
     "Run",
     "Trace",
-    "Note",
     "Event",
     # New config models
     "Provider",
