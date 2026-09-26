@@ -18,6 +18,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -179,8 +180,8 @@ def test_exporter_bakes_the_identity_of_the_bytes_it_wrote(tmp_path):
         REPO_ROOT / "fichero-server" / "scripts" / "export_openapi_schema.py",
     )
     assert spec is not None and spec.loader is not None
-    # Importing the exporter constructs the FastAPI app, which is slow but is
-    # also the only honest way to test the real writer rather than a copy of it.
+    # The exporter imports the FastAPI app lazily (inside `build_openapi_schema`),
+    # so importing it here is cheap and we test the REAL writer rather than a copy.
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
@@ -200,3 +201,75 @@ def test_exporter_bakes_the_identity_of_the_bytes_it_wrote(tmp_path):
     before = out.stat().st_mtime_ns
     module.write_contract_identity(contract.read_bytes(), path=out)
     assert out.stat().st_mtime_ns == before
+
+
+SWIFT_IDENTITY = (
+    REPO_ROOT / "fichero" / "fichero-api-client" / "Sources" / "FicheroAPIClient"
+    / "ContractIdentity.generated.swift"
+)
+
+
+def test_client_and_engine_bake_the_same_identity():
+    """#5047 client half: the Swift identity must be the SAME identity.
+
+    The whole check is a comparison between these two constants. If the generation
+    step could produce them from different documents, the plumbing would
+    manufacture the very mismatch the feature exists to detect — and the symptom
+    would be every remote connection refusing, indistinguishable from a real
+    version skew.
+
+    Asserted from Python because it is checkable without building the app, every
+    day, which is where a drift guard belongs.
+    """
+    assert SWIFT_IDENTITY.is_file(), f"Swift contract identity missing: {SWIFT_IDENTITY}"
+    swift = SWIFT_IDENTITY.read_text()
+
+    raw = _committed_contract_bytes()
+    expected_version = json.loads(raw)["info"]["version"]
+    expected_sha = hashlib.sha256(raw).hexdigest()
+
+    # Parsed, not merely substring-searched: a `contains` check would pass on a
+    # file that also declared a second, stale constant.
+    baked = dict(
+        re.findall(r'public static let (version|sha256) = "([^"]*)"', swift)
+    )
+    assert baked, f"no baked constants found in {SWIFT_IDENTITY.name}"
+    assert baked["version"] == expected_version
+    assert baked["sha256"] == expected_sha
+
+    # And the two ends agree with each other, which is what the runtime check compares.
+    identity = api_main._resolve_contract_identity()
+    assert identity is not None
+    assert baked["version"] == identity.version
+    assert baked["sha256"] == identity.sha256
+
+
+def test_rebake_mode_refuses_unreadable_input(tmp_path):
+    """`--bake-identity-from` FAILS on input it cannot read (rule 0).
+
+    `sync_openapi_schema.sh` calls this on its abort path, where the identities
+    must be restored alongside the rolled-back schema. Silently succeeding there
+    would leave both ends describing a contract that no longer exists, with every
+    other guard still green.
+    """
+    import subprocess
+    import sys
+
+    script = REPO_ROOT / "fichero-server" / "scripts" / "export_openapi_schema.py"
+    env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "fichero-server" / "src")}
+
+    missing = subprocess.run(
+        [sys.executable, str(script), "--bake-identity-from", str(tmp_path / "nope.json")],
+        capture_output=True, text=True, env=env,
+    )
+    assert missing.returncode != 0, "a missing contract must fail, not pass quietly"
+    assert "not readable" in missing.stderr
+
+    empty = tmp_path / "empty.json"
+    empty.write_bytes(b"")
+    blank = subprocess.run(
+        [sys.executable, str(script), "--bake-identity-from", str(empty)],
+        capture_output=True, text=True, env=env,
+    )
+    assert blank.returncode != 0, "an empty contract must fail — hashing b'' yields a real digest"
+    assert "empty" in blank.stderr

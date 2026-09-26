@@ -43,6 +43,11 @@ enum RemoteClientPairingError: LocalizedError, Equatable {
     case missingLibraryPath
     case invalidInviteLink
     case libraryPathNotConfirmed
+    /// #5047: this app and the Mac were built from different API contracts, so
+    /// the wire would be misread. Refuses rather than pairing into a connection
+    /// that fails later in ways nobody could diagnose (design ruling 1). Carries
+    /// the rendered mismatch so both versions reach the user.
+    case contractMismatch(headline: String, detail: String)
 
     var errorDescription: String? {
         switch self {
@@ -57,6 +62,8 @@ enum RemoteClientPairingError: LocalizedError, Equatable {
         case .libraryPathNotConfirmed:
             return "The Mac did not confirm access to the library named in this QR code. "
                 + "Show a fresh QR code on the Mac and scan it again."
+        case .contractMismatch(let headline, let detail):
+            return headline + ". " + detail
         }
     }
 }
@@ -268,6 +275,16 @@ enum RemoteClientPairing {
             let health = try okResponse.body.json
             guard isAcceptableHealthStatus(health.status) else {
                 throw APIError.badRequest("Remote host health check failed.")
+            }
+            // #5047: a healthy engine we cannot speak to is still unusable. This
+            // probe is remote by definition, so the check always applies here —
+            // unlike the app's own health check, where an embedded engine always
+            // matches its app by construction.
+            if let mismatch = ContractCompatibility.mismatch(engine: health.contract) {
+                throw RemoteClientPairingError.contractMismatch(
+                    headline: mismatch.headline,
+                    detail: mismatch.detail
+                )
             }
         default:
             throw APIError.httpError(statusCode: -1, message: "API returned error status")

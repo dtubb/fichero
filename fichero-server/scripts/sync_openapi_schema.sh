@@ -59,6 +59,13 @@ if [ -n "$PREV_SCHEMA" ]; then
   if ! "$PYTHON_BIN" "$SCRIPT_DIR/check_openapi_version_regression.py" \
       --previous "$PREV_SCHEMA" --current "$NEW_SCHEMA"; then
     cp "$PREV_SCHEMA" "$NEW_SCHEMA"
+    # #5047: the export already baked both contract identities from the REJECTED
+    # bytes. Restoring the schema without re-baking would leave the engine and the
+    # client both claiming a contract that was just rolled back — and every
+    # remaining guard would still report green, which is the #5046 shape.
+    PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" "$API_ROOT/scripts/export_openapi_schema.py" \
+      --bake-identity-from "$NEW_SCHEMA" >&2 \
+      || echo "⚠️  Could not re-bake the contract identity; it may describe the rejected schema." >&2
     echo "↩︎  Restored the previous schema; nothing was copied downstream." >&2
     exit 1
   fi
