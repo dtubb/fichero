@@ -102,7 +102,41 @@ class TestAMovedBoxKeepsItsShape:
         assert (row.bbox_x, row.bbox_y) == (0.5, 0.5)
 
 
+class TestOtherPathsThatChangeARect:
+    def test_a_combined_box_does_not_keep_one_members_outline(self, db, client):
+        _, _, art = seed_page(db)
+        assert client.put(f"/api/artifacts/{art.id}/regions", json={"op": "combine", "indices": [0, 1]}).status_code == 200
+        kept = _rows(db, art.id)[0]
+        assert kept.anchor.rect == pytest.approx([0.1, 0.1, 0.6, 0.20])
+        assert kept.anchor.polygon is None and kept.baseline is None
+        first = [a for a in db.all(ActionAudit) if a.action_name == "segment.convert_and_edit"][-1]
+        assert client.post(f"/api/actions/audit/{first.id}/undo").status_code == 200
+        back = _rows(db, art.id)[0]
+        assert back.anchor.polygon is not None and back.baseline is not None, "uncombine restores the member's own shape"
+
+    def test_an_added_box_has_no_shape_to_go_stale(self, db, client):
+        _, _, art = seed_page(db)
+        assert client.put(f"/api/artifacts/{art.id}/regions", json={"op": "add", "bbox": [0.5, 0.9, 0.1, 0.05], "level": "line"}).status_code == 200
+        new = _rows(db, art.id)[-1]
+        assert new.anchor.polygon is None and new.baseline is None
+
+
 class TestARerunOnAnEditedPage:
+    def test_the_image_path_does_not_promote_a_rerun_onto_an_edited_pages_text(self, db, client, test_package):
+        """#5081's sibling: `update_page_content=True` overwrote `page_content` on a converted page."""
+        from fichero_server.workflows.tools.llm_base import LLMToolConfig, save_file_artifact
+
+        _, page, art = seed_page(db)
+        was = db.get(Document, page.id).page_content
+        _move(client, art.id, 1, [0.5, 0.5, 0.3, 0.05])
+        asyncio.run(save_file_artifact(
+            None, "brand new", page.id, str(test_package), CFG, "run-2",
+            LLMToolConfig(artifact_type="transcription", update_page_content=True),
+            ocr_geometry=_new_result(), document=db.get(Document, page.id),
+        ))
+        assert db.get(Document, page.id).page_content == was
+        assert len(db.query(Artifact, document_id=page.id)) == 2, "the run's result is still saved"
+
     def test_the_image_path_saves_a_new_artifact_and_leaves_the_edited_rows_alone(self, db, client, test_package):
         """Negative result: the path every producer but one takes already does what the spec wants."""
         _, page, art = seed_page(db)

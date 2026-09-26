@@ -2748,6 +2748,7 @@ async def _propagate_to_page_children(
         ConversionRefusal,
         is_converted,
     )
+    from fichero_server.workflows.curation_guard import page_text_is_derived
 
     try:
         from fichero_server.db import db_manager
@@ -2773,9 +2774,7 @@ async def _propagate_to_page_children(
             # (a person's edits and corrections live there), so a rerun writes nothing onto the page
             # itself: no page_content, no re-embed. It saves a new artifact below, as every other
             # producer does, and the guard runs before anything is written.
-            page_is_converted = any(
-                is_converted(a) for a in db.query(Artifact, document_id=page_doc.id)
-            )
+            page_is_converted = page_text_is_derived(db, page_doc.id)
             if not is_blank and not page_is_converted:
                 if not isinstance(page_doc.metadata, dict):
                     page_doc.metadata = {}
@@ -2881,6 +2880,9 @@ async def _propagate_to_page_children(
                             assert_geometry_writable,
                         )
 
+                        # Unreachable today BY DESIGN: `matched` above already drops converted
+                        # artifacts, so a rerun saves a new one. Kept as the tripwire if that filter
+                        # is ever loosened -- do not delete it as dead code (#4993).
                         assert_geometry_writable(art)
                         art.content = artifact_content
                         art.ocr_geometry = (

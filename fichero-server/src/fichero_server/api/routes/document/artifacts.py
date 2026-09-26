@@ -1488,6 +1488,26 @@ async def edit_artifact_regions(
     if artifact is None:
         raise HTTPException(status_code=404, detail=f"Artifact not found: {artifact_id}")
 
+    # #4991: name the boxes by id beside the positions, so a redo replays on the SAME boxes.
+    # Positions are read against the page as it is now: the live rows once converted, and the
+    # repeatable conversion ids (box order) when it is not. Out-of-range positions are left for
+    # the action's own typed 422.
+    from fichero_server.api.routes.document.segment_conversion import (
+        is_converted as _is_converted,
+        live_rows_in_order as _live_rows,
+    )
+    from fichero_server.models.segments import converted_segment_id as _converted_segment_id
+
+    target_ids: list[str] | None = None
+    if edit.indices:
+        if _is_converted(artifact):
+            ordered = _live_rows(db, artifact.geometry_superseded_by_pass_id)
+            if all(0 <= i < len(ordered) for i in edit.indices):
+                target_ids = [ordered[i].id for i in edit.indices]
+        else:
+            box_count = len(artifact.ocr_geometry.boxes) if artifact.ocr_geometry else 0
+            if all(0 <= i < box_count for i in edit.indices):
+                target_ids = [_converted_segment_id(artifact_id, i) for i in edit.indices]
     registry.invoke(
         db,
         "segment.convert_and_edit",
@@ -1495,6 +1515,7 @@ async def edit_artifact_regions(
             "document_id": artifact.document_id,
             "artifact_id": artifact_id,
             "edit": edit.model_dump(mode="json"),
+            "edit_targets": target_ids,
         },
         ctx,
     )
