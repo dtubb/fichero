@@ -497,8 +497,14 @@ Passes, orders, links
 - `source.pass.working-follows-project-rule` — **[OK]** (#4929; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestTheWorkingPass::test_untouched_machine_passes_fall_back_to_the_newest`) in a strict project a machine's pass never
   becomes the working pass until a person makes it so; in a relaxed project the newest pass
   counts and a person's outranks a machine's; a new project is strict.
-- `source.pass.working` — **[OK]** (#4929; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestTheWorkingPass::test_a_machine_pass_carrying_one_human_segment_outranks_a_newer_machine_pass`) the Reader, search and export use one pass: the one a person chose,
-  or the newest, labelled unchosen, if nobody has; it is worked out, never a stored flag.
+- `source.pass.working` — **[PARTIAL]** (#4929; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestTheWorkingPass::test_a_machine_pass_carrying_one_human_segment_outranks_a_newer_machine_pass`) the working pass is
+  the one a person chose, or the newest, labelled unchosen, if nobody has; it is worked out, never a
+  stored flag. **The ENGINE half is proven by the citation above. The claim that "the Reader, search
+  and export use one pass" is NOT.** Downgraded from [OK] 2026-09-26: the citation proves the
+  ranking function and says nothing about which surfaces consult it, and the Reader is known NOT to
+  — it reads `Document.page_content`, and the app contains no reference to the derived-text route at
+  all (#5077). Search and export are unverified in either direction. A behaviour naming three
+  surfaces needs evidence from those surfaces; a passing engine test is not it.
 - `source.order.named-multiple` — **[GAP]** (#4930) a source can have several named reading orders, each with an
   author and certainty.
 - `source.order.next-previous` — **[GAP]** (#4930) next and previous are always asked of a named order.
