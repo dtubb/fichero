@@ -32,8 +32,10 @@ from fichero_server.api.routes.document.segment_readings import _segment_order_k
 from fichero_server.api.routes.document.segments import provenance_kind_from_ctx
 from fichero_server.db import Database
 from fichero_server.models import Segment
+from fichero_server.models.knowledge import ProvenanceKind
 from fichero_server.models.reading_orders import (
     AS_WRITTEN,
+    POSITION_GAP_FLOOR,
     AlreadyInOrder,
     OrderNotNamed,
     OrderNeedsRenumbering,
@@ -101,7 +103,12 @@ def as_written_order(db: Database, pass_id: str) -> ReadingOrder | None:
 
 
 def ensure_as_written_order(
-    db: Database, *, document_id: str, pass_id: str, ctx: ActionContext
+    db: Database,
+    *,
+    document_id: str,
+    pass_id: str,
+    provenance_kind: ProvenanceKind,
+    created_by: str | None = None,
 ) -> ReadingOrder:
     """The pass's `as-written` order, made if it is missing.
 
@@ -119,9 +126,12 @@ def ensure_as_written_order(
         name=AS_WRITTEN,
         kind=ReadingOrderKind.as_written.value,
         # The MACHINE's order until a person edits it: it is derived from where
-        # the boxes are, which is an observation and not a reading.
-        provenance_kind=provenance_kind_from_ctx(ctx),
-        created_by=ctx.actor or None,
+        # the boxes are, which is an observation and not a reading. Taken as an
+        # ARGUMENT rather than from a `ctx`, because two of the three callers have
+        # no action context: conversion builds its pass from an artifact, and the
+        # empty-pass bootstrap runs inside an edit that is already underway.
+        provenance_kind=provenance_kind,
+        created_by=created_by,
     )
     db.save(order)
     return order
@@ -162,6 +172,16 @@ def place_in_page_order(db: Database, order: ReadingOrder, segment: Segment) -> 
     )
     db.save(entry)
     return entry
+
+
+def order_for_text(db: Database, order_id: str) -> ReadingOrder:
+    """One live order, for the derived text to follow.
+
+    Its own function so the text path and the entry reads refuse a deleted or
+    missing order the same way: a text assembled from an order nobody can read
+    back would be a page whose sequence has no record.
+    """
+    return _live_order(db, order_id)
 
 
 # ---------------------------------------------------------------------------
@@ -464,6 +484,50 @@ class ReadingOrderRestorePlaceParams(BaseModel):
     segment_id: Optional[str] = None
 
 
+def _restored_position(
+    db: Database,
+    entry: ReadingOrderEntry,
+    requested: float,
+    parent_entry_id: str | None,
+) -> float:
+    """The position to restore to, which is USUALLY the requested one.
+
+    **Found by a test 2026-09-26, and it is the gap in "undo across a renumber is
+    correct because renumbering preserves the order".** That is true when the
+    restored position falls strictly between two others — 2.5 still lands between
+    whatever is now 2.0 and 3.0. It is NOT true when the position is one a
+    renumber has since handed to somebody else: restoring at 1.0 after a renumber
+    put another entry at 1.0 makes two entries share a position, and the sequence
+    falls through to the tie-break — a uuid deciding which line reads first, which
+    is exactly what #4921 forbids and what the renumber existed to prevent.
+
+    So a collision is resolved by landing immediately BEFORE the entry now holding
+    that position, which preserves what the stored position MEANT (this entry came
+    before that one) rather than the number it was written as.
+    """
+    taken = next(
+        (
+            row
+            for row in db.query(ReadingOrderEntry, order_id=entry.order_id)
+            if row.id != entry.id
+            and row.parent_entry_id == parent_entry_id
+            and abs(row.position - requested) < POSITION_GAP_FLOOR
+        ),
+        None,
+    )
+    if taken is None:
+        return requested
+
+    siblings = [
+        row
+        for row in entries_in_sequence(db, entry.order_id, parent_entry_id=parent_entry_id)
+        if row.id != entry.id
+    ]
+    index = next(i for i, row in enumerate(siblings) if row.id == taken.id)
+    previous = siblings[index - 1].position if index > 0 else None
+    return midpoint(entry.order_id, previous, taken.position)
+
+
 @action(
     "reading_order.restore_place",
     ReadingOrderRestorePlaceParams,
@@ -491,7 +555,9 @@ def _action_order_restore_place(
             parent_entry_id=params.parent_entry_id,
         )
     else:
-        entry.position = params.position
+        entry.position = _restored_position(
+            db, entry, params.position, params.parent_entry_id
+        )
         entry.parent_entry_id = params.parent_entry_id
         entry.version += 1
     db.save(entry)
@@ -540,6 +606,17 @@ def _action_order_renumber(
 
     The app never calls this on its own: it is what `OrderNeedsRenumbering` tells
     a caller to run when midpoints have run out of room.
+
+    **IT MUST STAY ORDER-PRESERVING, and that property is load-bearing somewhere
+    else entirely.** `reading_order.restore_place` undoes a move by restoring an
+    EXACT position. If a renumber happens between a move and its undo, that
+    position is now expressed in different numbers — and the undo is still correct
+    only because renumbering preserves the sequence: an entry restored at 2.5
+    still falls between whatever is now 2.0 and 3.0, which are the same two
+    neighbours it fell between before. Anything cleverer than order-preserving
+    rescaling here (dropping entries, reordering ties, compacting levels
+    together) silently breaks undo in a different action. The test
+    `TestRenumberingIsOrderPreserving` is what would catch that.
     """
     order = _live_order(db, params.order_id)
     rows = list(db.query(ReadingOrderEntry, order_id=order.id))
@@ -765,15 +842,18 @@ async def order_neighbours(
             detail=f"segment {segment_id} is not in order {order_id}",
         )
 
-    siblings = entries_in_sequence(db, order_id, parent_entry_id=entry.parent_entry_id)
-    index = next(i for i, row in enumerate(siblings) if row.id == entry.id)
+    # TWO indexed lookups, not a read of the order: a flow across a codex holds
+    # thousands of entries, and picking neighbours in memory would cost the
+    # manuscript's length per call (`source.store.bounded-reads`). The SQL lives
+    # in the persistence layer behind this typed method (#1876).
+    previous_segment_id, next_segment_id = db.reading_order_neighbours(
+        order_id, position=entry.position, parent_entry_id=entry.parent_entry_id
+    )
     return NeighboursResponse(
         order_id=order_id,
         segment_id=segment_id,
-        previous_segment_id=siblings[index - 1].segment_id if index > 0 else None,
-        next_segment_id=(
-            siblings[index + 1].segment_id if index + 1 < len(siblings) else None
-        ),
+        previous_segment_id=previous_segment_id,
+        next_segment_id=next_segment_id,
     )
 
 

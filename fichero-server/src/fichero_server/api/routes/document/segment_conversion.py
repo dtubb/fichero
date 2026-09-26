@@ -602,6 +602,32 @@ def _convert_one(db: Any, artifact: Artifact) -> tuple[SegmentPass, list[Segment
     # so the rows and this action's audit row commit or roll back together.
     db.save_many(rows)
 
+    # Slice 10 (#4930): the converted page's `as-written` order, IN THIS
+    # TRANSACTION. Atomic or absent: a page that converted and then failed to get
+    # its order would be a half-converted page wearing a converted page's
+    # clothes, and "the order arrives shortly afterwards" is the shape that
+    # produces a page nobody can explain.
+    #
+    # The entries are written directly rather than through `place_in_page_order`
+    # per row: `rows` is already in `box_index` sequence (`rows_from_reads`
+    # refuses non-contiguous indexes), and a dense page is 20,000 rows -- placing
+    # each one by searching its siblings would be quadratic on exactly the page
+    # where conversion is already the slowest thing the app does. The ORDER is
+    # the same order `_segment_order_key` gives, which reads `box_index` first.
+    from fichero_server.api.routes.document.reading_orders import ensure_as_written_order
+    from fichero_server.models.reading_orders import ReadingOrderEntry
+
+    order = ensure_as_written_order(
+        db,
+        document_id=pass_row.document_id,
+        pass_id=pass_row.id,
+        provenance_kind=pass_row.provenance_kind,
+    )
+    db.save_many([
+        ReadingOrderEntry(order_id=order.id, segment_id=row.id, position=float(index + 1))
+        for index, row in enumerate(rows)
+    ])
+
     # No `SegmentVersion` rows. Version rows are PREIMAGES -- `SegmentVersion`
     # says so itself ("no row is written at creation") and
     # `snapshot_segment_version` bumps `version` in place -- so writing one
@@ -1189,6 +1215,20 @@ def _bootstrap_empty_pass(db: Any, artifact: Artifact) -> SegmentPass:
     if existing is not None:
         raise AlreadyConverted(artifact.id, pass_row.id)
     db.save(pass_row)
+    # Slice 10 (#4930): the converted pass gets its `as-written` order HERE, in
+    # the same transaction as the conversion, so a page can never be converted
+    # and orderless -- a half-converted page wearing a converted page's clothes.
+    # Nothing else is needed: each row is made through `_create_segment_impl`,
+    # which places it in this order at its PAGE position, so the converted order
+    # is built by the same code that builds a hand-drawn one.
+    from fichero_server.api.routes.document.reading_orders import ensure_as_written_order
+
+    ensure_as_written_order(
+        db,
+        document_id=pass_row.document_id,
+        pass_id=pass_row.id,
+        provenance_kind=pass_row.provenance_kind,
+    )
     artifact.geometry_superseded_by_pass_id = pass_row.id
     db.save(artifact)
     return pass_row

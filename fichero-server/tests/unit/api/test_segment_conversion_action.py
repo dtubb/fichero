@@ -569,12 +569,15 @@ class TestTheAuditRecord:
         """A dense page is 20,000 rows; a per-row loop would be the whole
         cost of the slice.
 
-        TWO batches since slice 8b, not one: the segments, then the reading each
-        one's words became. `save_many` writes a single table per call, so they
-        cannot share a batch — and what this test is actually about is that
-        neither is written a row at a time. Asserting a batch COUNT would pass
-        the day someone loops per row in a second place; asserting that every
-        batch is a full page is the property."""
+        THREE batches since slice 10, not two: the segments, the reading each
+        one's words became (slice 8b), and the entry each one takes in the page's
+        `as-written` order (slice 10, #4930). `save_many` writes a single table per
+        call, so they cannot share a batch — and what this test is actually about
+        is that NONE of them is written a row at a time. Asserting a batch COUNT
+        would pass the day someone loops per row in a second place; asserting
+        that every batch is a full page is the property, which is why the count
+        assertion below was removed rather than bumped from 2 to 3 when slice 10
+        added the third kind."""
         doc = _make_doc(db)
         artifact = _artifact(db, doc, _block(40))
 
@@ -590,10 +593,13 @@ class TestTheAuditRecord:
         _invoke(db, document_id=doc.id)
         monkeypatch.undo()
 
-        # 40 segments and 40 readings, each in ONE call. No batch of 1, which is
-        # what a per-row loop would look like however many calls it made.
-        assert batches == [40, 40], batches
+        # 40 segments, 40 readings and 40 order entries, each in ONE call. No
+        # batch of 1, which is what a per-row loop would look like however many
+        # calls it made. The COUNT of batches is deliberately not asserted: a
+        # fourth kind of row is a legitimate change, a batch of 1 never is.
+        assert batches, "conversion wrote nothing in a batch at all"
         assert all(size == 40 for size in batches), batches
+        assert len(batches) >= 3, batches
 
 
 class TestUndo:

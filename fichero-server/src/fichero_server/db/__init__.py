@@ -4516,6 +4516,52 @@ class Database(DatabaseEmbeddingMixin):
             raise
         return [row[0] for row in rows or []]
 
+    def reading_order_neighbours(
+        self, order_id: str, *, position: float, parent_entry_id: str | None
+    ) -> tuple[str | None, str | None]:
+        """The segment ids either side of one position in one order's level.
+
+        TWO INDEXED LOOKUPS, not a read of the order (source-model slice 10,
+        #4930). `neighbours` answered by fetching the order's entries and picking
+        in memory is bounded by the ORDER's size -- fine for a fifty-line page,
+        wrong for a flow across a codex, where one order holds thousands of
+        entries and the cost would grow with the manuscript
+        (`source.store.bounded-reads`).
+
+        `ORDER BY position LIMIT 1` either side, over
+        `idx_readingorderentrys_order_position`, so the read is two rows whatever
+        the order's length.
+
+        Here rather than in the route because #1876 puts raw SQL in the
+        persistence layer behind a typed method -- the route asks a question and
+        is handed two ids.
+        """
+        parent_clause = (
+            "parent_entry_id IS NULL" if parent_entry_id is None else "parent_entry_id = $parent"
+        )
+        params: dict[str, Any] = {"order_id": order_id, "position": position}
+        if parent_entry_id is not None:
+            params["parent"] = parent_entry_id
+
+        previous = self._execute(
+            "SELECT segment_id FROM readingorderentrys "
+            f"WHERE order_id = $order_id AND {parent_clause} AND position < $position "
+            "ORDER BY position DESC LIMIT 1",
+            params,
+            fetch="all",
+        ) or []
+        following = self._execute(
+            "SELECT segment_id FROM readingorderentrys "
+            f"WHERE order_id = $order_id AND {parent_clause} AND position > $position "
+            "ORDER BY position ASC LIMIT 1",
+            params,
+            fetch="all",
+        ) or []
+        return (
+            previous[0][0] if previous else None,
+            following[0][0] if following else None,
+        )
+
     def table_row_counts(self) -> dict[str, int]:
         """Every table in this library and its row count.
 

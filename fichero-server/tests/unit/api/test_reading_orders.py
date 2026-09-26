@@ -475,3 +475,327 @@ class TestTheListRead:
             f"/api/reading-orders/document/{doc.id}?include_deleted=true"
         ).json()["orders"]
         assert len(with_deleted) == 1
+
+
+class TestAsWrittenArrivesWithThePage:
+    """A page is never orderless: the `as-written` order is made with the pass and
+    grows as segments do. The alternative — an order created on demand — shows an
+    empty order list on a page that visibly has lines, which is a worse first
+    impression than no order at all."""
+
+    def test_creating_a_pass_creates_its_as_written_order(self, db):
+        from fichero_server.api.routes.document.reading_orders import as_written_order
+
+        doc = Document(
+            name="fresh.jpg", doc_type=DocType.file, file_type=FileType.image,
+            path="/path/fresh.jpg", status=Status.completed,
+        )
+        db.save(doc)
+
+        result = registry.invoke(
+            db,
+            "segment.pass_create",
+            {"document_id": doc.id, "name": "a hand"},
+            _person(),
+        ).result
+
+        order = as_written_order(db, result["id"])
+        assert order is not None
+        assert order.name == AS_WRITTEN
+        assert order.provenance_kind == ProvenanceKind.human  # a person made this pass
+
+    def test_a_segment_created_afterwards_lands_at_its_PAGE_place(self, db):
+        """Not appended: `as-written` is the order the source was written in, so a
+        line drawn last but positioned in the middle belongs in the middle."""
+        from fichero_server.api.routes.document.reading_orders import as_written_order
+
+        doc = Document(
+            name="grow.jpg", doc_type=DocType.file, file_type=FileType.image,
+            path="/path/grow.jpg", status=Status.completed,
+        )
+        db.save(doc)
+        pass_result = registry.invoke(
+            db, "segment.pass_create", {"document_id": doc.id, "name": "a hand"}, _person()
+        ).result
+        pass_id = pass_result["id"]
+
+        made = []
+        for y in (0.10, 0.50, 0.30):  # deliberately out of page order
+            created = registry.invoke(
+                db,
+                "segment.create",
+                {
+                    "document_id": doc.id,
+                    "pass_id": pass_id,
+                    "kind": "line",
+                    "anchor": {"document_id": doc.id, "rect": [0.1, y, 0.5, 0.04]},
+                },
+                _person(),
+            ).result
+            made.append((y, created["segment_ids"][0]))
+
+        order = as_written_order(db, pass_id)
+        by_y = [segment_id for _y, segment_id in sorted(made)]
+        assert _sequence(db, order.id) == by_y, "the order is creation order, not page order"
+
+    def test_a_pass_made_before_this_slice_is_not_given_an_order_silently(self, db):
+        """A library that predates slice 10 gets its orders by an audited call, not
+        by a write path quietly inventing a machine's order inside somebody's
+        editing session."""
+        from fichero_server.api.routes.document.reading_orders import as_written_order
+
+        doc, pass_row, rows = _page(db)  # built directly, as an old library's rows are
+
+        assert as_written_order(db, pass_row.id) is None
+
+        made = _create(db, doc, pass_row, seed_from_pass=True)
+        assert as_written_order(db, pass_row.id).id == made["order_id"]
+
+
+class TestConversionWritesTheOrderAtomically:
+    """Slice 6 converts a page on its first edit. The order is written in THAT
+    transaction — a page that converted and then failed to get its order would be
+    a half-converted page wearing a converted page's clothes."""
+
+    def _artifact(self, db, doc):
+        from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryResult
+        from fichero_server.models import Artifact
+
+        text = "one two three"
+        spans = [(0, 3), (4, 7), (8, 13)]
+        artifact = Artifact(
+            document_id=doc.id, artifact_type="transcription", provider="qwen",
+            model="qwen-vl", content=text,
+            ocr_geometry=OCRGeometryResult(
+                provider="qwen", text=text,
+                boxes=[
+                    OCRGeometryBox(
+                        text=text[start:end], bbox=[0.1, 0.1 + i * 0.2, 0.4, 0.05],
+                        level="line", char_start=start, char_end=end, confidence=0.9,
+                    )
+                    for i, (start, end) in enumerate(spans)
+                ],
+            ),
+        )
+        db.save(artifact)
+        return artifact
+
+    def test_a_converted_page_has_its_order_with_every_line_in_it(self, db, client):
+        from fichero_server.api.routes.document.reading_orders import as_written_order
+        from fichero_server.api.routes.document.segment_conversion import (
+            converted_pass_id,
+            live_rows_in_order,
+        )
+
+        doc = Document(
+            name="convert.jpg", doc_type=DocType.file, file_type=FileType.image,
+            path="/path/convert.jpg", status=Status.completed,
+        )
+        db.save(doc)
+        artifact = self._artifact(db, doc)
+
+        response = client.put(
+            f"/api/artifacts/{artifact.id}/regions",
+            json={"op": "move", "indices": [0], "bbox": [0.11, 0.1, 0.4, 0.05]},
+        )
+        assert response.status_code == 200, response.text
+
+        pass_id = converted_pass_id(artifact.id)
+        order = as_written_order(db, pass_id)
+        assert order is not None, "a converted page has no as-written order"
+        # Every converted row is in it, in the order conversion gave them --
+        # `box_index` order, which is what `_segment_order_key` reads first.
+        assert _sequence(db, order.id) == [row.id for row in live_rows_in_order(db, pass_id)]
+
+    def test_the_orders_provenance_is_the_machines_not_a_persons(self, db, client):
+        """The order is derived from where the boxes are: an observation, not a
+        reading. Recording it as a person's would make a machine's arrangement
+        indistinguishable from a curator's decision."""
+        from fichero_server.api.routes.document.reading_orders import as_written_order
+        from fichero_server.api.routes.document.segment_conversion import converted_pass_id
+
+        doc = Document(
+            name="prov.jpg", doc_type=DocType.file, file_type=FileType.image,
+            path="/path/prov.jpg", status=Status.completed,
+        )
+        db.save(doc)
+        artifact = self._artifact(db, doc)
+        client.put(
+            f"/api/artifacts/{artifact.id}/regions",
+            json={"op": "move", "indices": [0], "bbox": [0.11, 0.1, 0.4, 0.05]},
+        )
+
+        order = as_written_order(db, converted_pass_id(artifact.id))
+        assert order.provenance_kind != ProvenanceKind.human
+        assert order.created_by is None
+
+
+class TestRenumberingIsOrderPreserving:
+    """Renumbering must preserve the SEQUENCE, and the reason is in another action.
+
+    `restore_place` undoes a move by restoring an exact position. If a renumber
+    lands between the move and its undo, that position is expressed in different
+    numbers — and the undo is still correct only because renumbering preserves
+    the order: an entry restored at 2.5 still falls between whatever is now 2.0
+    and 3.0, the same two neighbours as before.
+
+    So this is the test that catches anyone making renumber cleverer later, in an
+    action that does not mention undo at all.
+    """
+
+    def test_undo_across_a_renumber_lands_between_the_same_neighbours(self, db):
+        doc, pass_row, rows = _page(db)
+        made = _create(db, doc, pass_row, seed_from_pass=True)
+        entries = {
+            row.segment_id: row
+            for row in db.query(ReadingOrderEntry, order_id=made["order_id"])
+        }
+
+        # Move the first line to the end, remembering where it was.
+        before_position = entries[rows[0].id].position
+        before_parent = entries[rows[0].id].parent_entry_id
+        moved = _place(
+            db, order_id=made["order_id"], segment_id=rows[0].id, at_end=True
+        )
+        assert _sequence(db, made["order_id"]) == [rows[1].id, rows[2].id, rows[0].id]
+
+        # A renumber happens in between — positions are now different NUMBERS.
+        registry.invoke(
+            db, "reading_order.renumber", {"order_id": made["order_id"]}, _person()
+        )
+        renumbered_positions = {
+            row.segment_id: row.position
+            for row in db.query(ReadingOrderEntry, order_id=made["order_id"])
+        }
+        assert renumbered_positions[rows[0].id] != moved["position"]
+
+        # Undo the move with the position it had BEFORE the renumber.
+        registry.invoke(
+            db,
+            "reading_order.restore_place",
+            {
+                "entry_id": entries[rows[0].id].id,
+                "position": before_position,
+                "parent_entry_id": before_parent,
+            },
+            _person(),
+        )
+
+        # Back between the same two neighbours — which here means first, before
+        # the line that followed it originally.
+        assert _sequence(db, made["order_id"]) == [rows[0].id, rows[1].id, rows[2].id]
+
+    def test_renumbering_twice_changes_nothing_the_second_time(self, db):
+        doc, pass_row, rows = _page(db)
+        made = _create(db, doc, pass_row, seed_from_pass=True)
+
+        registry.invoke(
+            db, "reading_order.renumber", {"order_id": made["order_id"]}, _person()
+        ).result
+        after_first = {
+            row.id: (row.position, row.version)
+            for row in db.query(ReadingOrderEntry, order_id=made["order_id"])
+        }
+        second = registry.invoke(
+            db, "reading_order.renumber", {"order_id": made["order_id"]}, _person()
+        ).result
+
+        # Nothing to do, so nothing written: no version is bumped for a row whose
+        # position is already what renumbering would give it.
+        assert second["renumbered"] == 0
+        assert {
+            row.id: (row.position, row.version)
+            for row in db.query(ReadingOrderEntry, order_id=made["order_id"])
+        } == after_first
+
+    def test_nested_levels_are_renumbered_independently(self, db):
+        """Each level is its own sequence: 1.0, 2.0 inside a parent, and 1.0, 2.0
+        at the top. Compacting the levels together would renumber a child into its
+        parent's sequence and change what the order claims."""
+        doc, pass_row, rows = _page(db)
+        made = _create(db, doc, pass_row)
+        _place(db, order_id=made["order_id"], segment_id=rows[0].id)
+        parent = db.query(ReadingOrderEntry, order_id=made["order_id"])[0]
+        for row in rows[1:]:
+            _place(
+                db, order_id=made["order_id"], segment_id=row.id,
+                parent_entry_id=parent.id, at_end=True,
+            )
+
+        registry.invoke(
+            db, "reading_order.renumber", {"order_id": made["order_id"]}, _person()
+        )
+
+        entries = db.query(ReadingOrderEntry, order_id=made["order_id"])
+        top = sorted(row.position for row in entries if row.parent_entry_id is None)
+        children = sorted(row.position for row in entries if row.parent_entry_id == parent.id)
+        assert top == [1.0]
+        assert children == [1.0, 2.0], "the child level was folded into the parent's numbering"
+
+
+class TestRestoringOntoATakenPosition:
+    """The gap in "undo across a renumber is correct because renumber preserves
+    the order" — found by the test above failing, not by reasoning.
+
+    The claim holds for a position strictly between two others: 2.5 still lands
+    between whatever is now 2.0 and 3.0. It fails when the position is one a
+    renumber has since GIVEN TO SOMEBODY ELSE — restoring at 1.0 when another
+    entry now sits at 1.0 makes two entries share a position, and the sequence
+    falls through to the tie-break: a uuid deciding which line reads first.
+    """
+
+    def test_restoring_onto_a_taken_position_lands_before_its_holder(self, db):
+        doc, pass_row, rows = _page(db)
+        made = _create(db, doc, pass_row, seed_from_pass=True)
+        entries = {
+            row.segment_id: row
+            for row in db.query(ReadingOrderEntry, order_id=made["order_id"])
+        }
+        first_entry = entries[rows[0].id]
+        original_position = first_entry.position
+
+        # Move it away, then renumber so its old position belongs to another entry.
+        _place(db, order_id=made["order_id"], segment_id=rows[0].id, at_end=True)
+        registry.invoke(
+            db, "reading_order.renumber", {"order_id": made["order_id"]}, _person()
+        )
+        holder = next(
+            row for row in db.query(ReadingOrderEntry, order_id=made["order_id"])
+            if row.id != first_entry.id and abs(row.position - original_position) < 1e-9
+        )
+        assert holder.segment_id != rows[0].id, "the fixture did not create a collision"
+
+        registry.invoke(
+            db,
+            "reading_order.restore_place",
+            {"entry_id": first_entry.id, "position": original_position},
+            _person(),
+        )
+
+        restored = db.get(ReadingOrderEntry, first_entry.id)
+        # NOT the requested number, because that number is taken; the MEANING is
+        # preserved instead — it came before the entry now holding it.
+        assert restored.position != original_position
+        assert restored.position < holder.position
+        assert _sequence(db, made["order_id"]) == [rows[0].id, rows[1].id, rows[2].id]
+
+    def test_no_two_entries_of_one_level_ever_share_a_position(self, db):
+        """The invariant the fix protects. Two entries at one position means the
+        sequence is decided by whatever comes next in the sort — and #4921 is the
+        ruling that a uuid is not an order."""
+        doc, pass_row, rows = _page(db)
+        made = _create(db, doc, pass_row, seed_from_pass=True)
+        entries = list(db.query(ReadingOrderEntry, order_id=made["order_id"]))
+
+        for row in entries:
+            registry.invoke(
+                db,
+                "reading_order.restore_place",
+                {"entry_id": row.id, "position": 1.0},
+                _person(),
+            )
+
+        positions = [
+            row.position for row in db.query(ReadingOrderEntry, order_id=made["order_id"])
+        ]
+        assert len(set(positions)) == len(positions), positions

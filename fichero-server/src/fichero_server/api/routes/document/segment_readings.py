@@ -505,11 +505,21 @@ def document_text(
     text of the document, and a search or an export that silently included it
     would put the page number in the middle of a sentence.
     """
+    ordered_segment_ids: list[str] | None = None
     if order is not None:
-        raise ValueError(
-            "named reading orders arrive in slice 10 (source.order.named-multiple); "
-            "pass order=None for box order"
+        # Slice 10 (#4930): the page's text follows a NAMED order. `order` is an
+        # order's id, and it must belong to the pass being read -- a text
+        # assembled from one pass's readings in another pass's order would be a
+        # sentence nobody wrote.
+        from fichero_server.api.routes.document.reading_orders import (
+            entries_in_sequence,
+            order_for_text,
         )
+
+        named = order_for_text(db, order)
+        ordered_segment_ids = [
+            row.segment_id for row in entries_in_sequence(db, named.id)
+        ]
     candidates = _pass_candidates(db, document_id)
     if pass_id is not None:
         answer = PassAnswer(pass_id=pass_id, basis=PassBasis.chosen)
@@ -523,7 +533,8 @@ def document_text(
         )
     if answer.pass_id is None:
         return DerivedText(
-            text="", spans=[], pass_id=None, pass_basis=answer.basis.value, kind=kind
+            text="", spans=[], pass_id=None, pass_basis=answer.basis.value, kind=kind,
+            order=order,
         )
 
     rows = [
@@ -531,7 +542,16 @@ def document_text(
         for row in db.query(Segment, pass_id=answer.pass_id)
         if row.deleted_at is None and (include_furniture or not row.is_furniture)
     ]
-    rows.sort(key=_segment_order_key)
+    if ordered_segment_ids is None:
+        rows.sort(key=_segment_order_key)
+    else:
+        # The NAMED order's sequence. Segments the order does not mention are LEFT
+        # OUT rather than appended: an order is a claim about what reads and in
+        # what sequence, and appending the rest would silently add text the order
+        # does not claim. A row the order names but the pass no longer has (a
+        # deleted line, or furniture the caller excluded) simply does not appear.
+        by_id = {row.id: row for row in rows}
+        rows = [by_id[sid] for sid in ordered_segment_ids if sid in by_id]
 
     # ponytail: one readings read per line, each an indexed lookup
     # (`idx_contentrepresentations_segment_id`,
@@ -582,7 +602,10 @@ def document_text(
         pass_id=answer.pass_id,
         pass_basis=answer.basis.value,
         kind=kind,
-        order=None,
+        # Which order produced this text: the named one when asked for, `None` for
+        # box order. Never a name the caller did not ask for -- a reader told an
+        # order was used when it was not cannot check anything.
+        order=order,
     )
 
 
@@ -590,6 +613,13 @@ def document_text(
 async def get_document_text(
     document_id: str,
     pass_id: Optional[str] = Query(None, description="Read a named pass instead of the working one"),
+    order: Optional[str] = Query(
+        None,
+        description=(
+            "Follow a named reading order (its id). Omit for box order, which is "
+            "what the answer's `order: null` reports."
+        ),
+    ),
     kind: str = Query("transcription", description="Which kind of reading to join"),
     include_furniture: bool = Query(
         False, description="Include running heads, folio numbers and catchwords"
@@ -597,12 +627,18 @@ async def get_document_text(
     db: Database = Depends(get_library_database),
 ) -> DerivedText:
     """`GET /api/segments/document/{document_id}/text` — the page's derived
-    text and the spans that point back at the readings it came from."""
+    text and the spans that point back at the readings it came from.
+
+    With `order`, the text follows that named order (`source.order.named-multiple`
+    reaching the text, slice 10): a commentary order and an as-written order over
+    the same page give different texts, which is the whole point of naming them.
+    """
     try:
         return document_text(
             db,
             document_id,
             pass_id=pass_id,
+            order=order,
             kind=kind,
             include_furniture=include_furniture,
         )
