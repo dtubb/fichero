@@ -82,6 +82,7 @@ reversible one, and it is the pattern already accepted for segments.
 | `read_from_rendition_id` | str \| None | the image it was read from |
 | `guideline` | str \| None | the transcription convention it follows |
 | `provenance_kind` | `ProvenanceKind` | **engine-set** from how the write arrived; never in a params model (→ #4868, → #4869) |
+| `created_by` | str \| None | WHICH person or agent wrote it. **Engine-set from `ctx.actor`**, same name and posture as `Segment.created_by`. Added 2026-09-26 while building: `source.reading.author-and-guideline` requires "its author (person, or model and run)", and this table originally carried only the model-and-run half (`producer_model`, `producer_run_id`). `provenance_kind` says a PERSON read this line; an apparatus in a library two people transcribe in has to say WHICH, and a reading exported to an edition carries its own record or carries nothing |
 | `machine_confidence` | float \| None | for the whole reading |
 | `char_confidences` | list[float] \| None (JSON) | one for each character, where the recogniser gave them |
 | `char_positions` | list[float] \| None (JSON) | each character's place along the line (0 to 1), so no character segments are needed |
@@ -134,6 +135,32 @@ a test sends `reviewer="human"` from an MCP context and sees `agent` recorded.
   a person chooses. `resolve_counting` (readings) and `resolve_working_pass` (passes) are two
   functions for two questions and must not be folded into one.
 
+### Strict, with no choice, when PEOPLE disagree: the answer is `none` — resolved 2026-09-26
+
+**Two sentences above pulled against each other, and this records which one governs.** The
+strict bullet says "the newest reading is returned with basis `newest-machine-unchosen` (or
+`newest-human`)". The `.equal-alternatives` test says "three human readings of one kind with
+certainties coexist; **the counting answer is `none` until one is chosen**". Both cannot hold
+when three people have read one line.
+
+Ruled while building slice 8: **in a strict project, when more than one PERSON has recorded a
+reading of a kind and nobody has chosen, the counting answer is `none`.** One person's reading,
+or machines' readings only, still returns the newest with its basis exactly as the bullet says —
+there is no disagreement to record in either of those cases.
+
+Why, in one sentence: **an engine that settles a disagreement between two historians by
+timestamp is making an editorial decision**, and recording that two scholars read a line
+differently is the thing this model exists to do rather than the thing it is allowed to resolve.
+It is also the only reading under which the design pin
+`source.reading.chosen-follows-project-rule` — "in a strict project only a person chooses the
+reading that counts" — means anything at all.
+
+A **relaxed** project does settle it by date, and a person's still outranks a machine's. That is
+the one place the two rules genuinely differ on people's readings, and it is tested both ways.
+
+Recorded in `resolve_counting`'s own docstring as well, so the next reader meets the reasoning
+where the code is.
+
 The project rule is read through one call, `project_record_rule(db) -> "strict" | "relaxed"`,
 which returns `strict` until project settings exist (slice 9 and the projects work give it a
 real source). Nothing is stored about counting except human choices, so flipping the rule
@@ -157,6 +184,29 @@ stretch also carries `representation_id` (an anchor extra today; a named field a
 When a reading is superseded, a helper re-places the stretch on the new text **only when the
 same characters are found exactly once**; otherwise the pointer is reported as unplaced. Never
 re-measured by position alone.
+
+### Both halves of a split offer the machine's reading of the box they came from — resolved 2026-09-26
+
+**Stated because it surprises people, not because it is a defect.** A split part inherits its
+source box's `metadata["box_index"]` (slice 6, so the parts stay in read order rather than falling
+to the end of a converted page). The readings seam finds a provisional reading through that index,
+so after splitting one line into two, **both parts offer the machine's whole-line text as a
+provisional reading** — the same text, on two half-boxes.
+
+Ruled: **keep it.** It is honest — the machine did say that about the box each part came from — it
+is labelled `provisional: true` and machine-made, and the derived page text still prefers a
+person's reading over it. Suppressing it would be worse in two ways: it would hide the only
+reading that exists for that region, and it would have the engine decide that a machine's guess no
+longer applies to a piece of the box it was made about, which is another editorial decision the
+engine is not entitled to make (see the strict-project ruling above — the same principle).
+
+**Owed to slice 13b, the text editor.** 13b is where a person actually SEES this, and a scholar
+looking at the same full-line text on two half-boxes will reasonably wonder whether something
+duplicated. The editor's author needs to know that **a reading's scope can be wider than the
+segment showing it**, and to say so in the surface, rather than learning it from a confused user.
+
+Pinned by `tests/unit/api/test_readings_across_split_and_merge.py`, whose `_real_contents` helper
+documents the distinction it filters on.
 
 **A page's text is worked out.** `document_text(db, document_id, *, pass_id=None, order=None,
 kind="transcription", include_furniture=False) -> DerivedText { text, spans: [{segment_id,
@@ -226,6 +276,44 @@ Ruled 2026-09-20. Rules in `segments-and-geometry.md` ("Converting a whole proje
   nothing stops it.**
 - Background priority: `core/background_compute.py::set_background_qos()`.
 - One seam for every reader: `GET /api/segments/document/{doc_id}` and `live_geometry`.
+
+### Snapshot pinning already exists — corrected 2026-09-26
+
+**The notes above say the retention rule "would delete the pre-conversion snapshot if nothing
+stops it", which reads as "a pin has to be built". It does not.** `LibrarySnapshot.is_pinned`
+exists, and `_enforce_retention` skips a pinned snapshot in BOTH of its passes — the expiry pass
+and the keep-the-last-N pass. Verified on disk 2026-09-26.
+
+So the runner **sets the flag that is already honoured** and adds no second mechanism. A spec
+that tells a builder to write what already exists is how second paths start, which is the fault
+this whole programme exists to remove.
+
+There is no `pin_snapshot()` helper: the flag lives on the record and `_save_snapshot_record`
+persists it. Written through that rather than a new helper, because one caller does not earn an
+API.
+
+Pinning is also **best-effort on purpose**. A snapshot that is proved but not pinned is still a
+way back; refusing a conversion because a bookkeeping flag could not be written would be
+refusing over the wrong thing. The report carries the snapshot id either way, so the way back
+stays findable even if retention later tidies the record.
+
+### Where the report lives: its own table — ruled 2026-09-26
+
+The notes leave this as "the build lane's first question; one home, not both". **It is
+`ConversionRun`, table `conversionruns`, in the LIBRARY's own database.** The activity record is
+the wrong home, for four reasons checked on disk rather than assumed:
+
+1. **Activities are deleted by age** (`ActivityStore.delete_old`). The rule says the report is
+   "shown once, **kept**"; a record that must persist does not belong in a store built to be
+   pruned.
+2. **Activities live in a different database file.** This report is the account of what happened
+   to THIS library's data and names a snapshot of it, so it has to travel with the library. Move
+   the package to another machine and an activity log left behind takes the only record with it.
+3. **The report has mutable state; activities are append-only events.** `seen_at` gates
+   un-pinning the snapshot — the snapshot is exempt from retention until the run has finished
+   AND a person has seen the report — and that is a field that changes after the fact.
+4. **It must be queryable by its parts.** "Which projects refused for disk, and how much did
+   they need" is a column query in its own table and a JSON scan in an activity payload.
 
 **The runner: one function, `convert_project(db, library_path)`, started by the engine after
 the project has opened.** Not at open, not in a migration, not from the CLI.

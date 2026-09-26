@@ -1127,6 +1127,148 @@ def read_library_uuid(conn) -> str | None:
         return None
 
 
+#: Every index the source-model tables need, as (name, DDL, the query it
+#: serves). MODULE-LEVEL, not a local inside `migrate_segment_indices`,
+#: since #5056: a guard that asserts these indexes exist after a library
+#: opens has to READ THE DECLARATIONS. A guard that restated them would be a
+#: second hand-maintained list, and the drift between the two lists is
+#: exactly the kind of thing it was written to catch.
+#:
+#: Every statement is `CREATE INDEX IF NOT EXISTS`, so the whole list is safe
+#: to re-run, including on a library made before any of these slices.
+SEGMENT_INDEX_STATEMENTS: list[tuple[str, str, str]] = [
+    # name, ddl, the query it serves
+    (
+        "idx_segments_document_id",
+        "CREATE INDEX IF NOT EXISTS idx_segments_document_id ON segments(document_id)",
+        "the segments of this source (slice 1's seam; conversion's "
+        "'is this page converted')",
+    ),
+    (
+        "idx_segments_pass_id",
+        "CREATE INDEX IF NOT EXISTS idx_segments_pass_id ON segments(pass_id)",
+        "the segments of this pass; pass comparison",
+    ),
+    (
+        "idx_segments_parent_segment_id",
+        "CREATE INDEX IF NOT EXISTS idx_segments_parent_segment_id "
+        "ON segments(parent_segment_id)",
+        "the children of a region or line",
+    ),
+    (
+        "idx_segments_kind",
+        "CREATE INDEX IF NOT EXISTS idx_segments_kind ON segments(kind)",
+        "reads by kind; the planner combines this with document_id",
+    ),
+    (
+        "idx_segments_tile",
+        "CREATE INDEX IF NOT EXISTS idx_segments_tile ON segments(tile)",
+        "reads by area, combined with document_id",
+    ),
+    (
+        "idx_segments_doc_kind",
+        "CREATE INDEX IF NOT EXISTS idx_segments_doc_kind ON segments(doc_kind)",
+        "'one page's segments at one level' in one indexed lookup -- "
+        "DuckDB's single-column indexes cannot serve document_id AND "
+        "kind together, so this composite key does (source.store.bounded-reads)",
+    ),
+    (
+        "idx_segment_passes_document_id",
+        "CREATE INDEX IF NOT EXISTS idx_segment_passes_document_id "
+        "ON segment_passes(document_id)",
+        "the passes of this source",
+    ),
+    (
+        "idx_segment_passes_run_id",
+        "CREATE INDEX IF NOT EXISTS idx_segment_passes_run_id "
+        "ON segment_passes(run_id)",
+        "grouping passes by run",
+    ),
+    # Source-model slice 4 (#4922): matches, forwarding notes.
+    (
+        "idx_segmentmatchs_from_segment_id",
+        "CREATE INDEX IF NOT EXISTS idx_segmentmatchs_from_segment_id "
+        "ON segmentmatchs(from_segment_id)",
+        "the matches proposed FROM this segment",
+    ),
+    (
+        "idx_segmentmatchs_to_segment_id",
+        "CREATE INDEX IF NOT EXISTS idx_segmentmatchs_to_segment_id "
+        "ON segmentmatchs(to_segment_id)",
+        "the matches proposed TO this segment; carry's one-to-one check",
+    ),
+    (
+        "idx_segmentforwardings_old_segment_id",
+        "CREATE INDEX IF NOT EXISTS idx_segmentforwardings_old_segment_id "
+        "ON segmentforwardings(old_segment_id)",
+        "resolve_segment's walk -- one indexed lookup per hop",
+    ),
+    (
+        "idx_segmentcarrys_match_id",
+        "CREATE INDEX IF NOT EXISTS idx_segmentcarrys_match_id "
+        "ON segmentcarrys(match_id)",
+        "the copies carried across one match",
+    ),
+    (
+        "seq_segment_forwarding",
+        "CREATE SEQUENCE IF NOT EXISTS segment_forwarding_seq START 1",
+        "SegmentForwarding.sequence -- the append order two notes for "
+        "one id in the same microsecond otherwise have no defined "
+        "order by created_at alone (#4922 third look)",
+    ),
+    # Source-model slice 5 (#4923): versions.
+    (
+        "idx_segmentversions_segment_id",
+        "CREATE INDEX IF NOT EXISTS idx_segmentversions_segment_id "
+        "ON segmentversions(segment_id)",
+        "GET /api/segments/{segment_id}/versions; restore_version's lookup",
+    ),
+    # Source-model slice 8 (#4934/#4929/#4932): readings and choices.
+    # `document_text` asks "this line's readings" once PER LINE, so
+    # without these a page read is one table scan per line
+    # (`source.store.bounded-reads`).
+    (
+        "idx_contentrepresentations_segment_id",
+        "CREATE INDEX IF NOT EXISTS idx_contentrepresentations_segment_id "
+        "ON contentrepresentations(segment_id)",
+        "GET /api/segments/{segment_id}/readings; every line of a derived "
+        "page text",
+    ),
+    (
+        "idx_contentrepresentations_document_id",
+        "CREATE INDEX IF NOT EXISTS idx_contentrepresentations_document_id "
+        "ON contentrepresentations(document_id)",
+        "a source's readings (the existing list route, now indexed)",
+    ),
+    (
+        "idx_readingchoices_segment_id",
+        "CREATE INDEX IF NOT EXISTS idx_readingchoices_segment_id "
+        "ON readingchoices(segment_id)",
+        "the counting answer for a line -- read on EVERY readings read",
+    ),
+    (
+        "idx_readingchoices_document_id",
+        "CREATE INDEX IF NOT EXISTS idx_readingchoices_document_id "
+        "ON readingchoices(document_id)",
+        "a source's reading choices",
+    ),
+    (
+        "idx_segmentpasschoices_document_id",
+        "CREATE INDEX IF NOT EXISTS idx_segmentpasschoices_document_id "
+        "ON segmentpasschoices(document_id)",
+        "which pass a person is working on -- read by resolve_working_pass "
+        "on every derived page text (slice 6 wrote the rows; slice 8 is "
+        "the first thing to READ them per page)",
+    ),
+    (
+        "idx_libraryreadingkinds_key",
+        "CREATE INDEX IF NOT EXISTS idx_libraryreadingkinds_key "
+        "ON libraryreadingkinds(key)",
+        "the kind vocabulary check on every reading write",
+    ),
+]
+
+
 def migrate_segment_indices(conn) -> None:
     """Add indices on ``segments`` and ``segment_passes`` (source-model
     slice 3, #4921), ``segmentmatchs``/``segmentforwardings``/
@@ -1148,137 +1290,7 @@ def migrate_segment_indices(conn) -> None:
     this document") is met by filtering on ``document_id`` first, which the
     query planner combines with the second index.
     """
-    statements: list[tuple[str, str, str]] = [
-        # name, ddl, the query it serves
-        (
-            "idx_segments_document_id",
-            "CREATE INDEX IF NOT EXISTS idx_segments_document_id ON segments(document_id)",
-            "the segments of this source (slice 1's seam; conversion's "
-            "'is this page converted')",
-        ),
-        (
-            "idx_segments_pass_id",
-            "CREATE INDEX IF NOT EXISTS idx_segments_pass_id ON segments(pass_id)",
-            "the segments of this pass; pass comparison",
-        ),
-        (
-            "idx_segments_parent_segment_id",
-            "CREATE INDEX IF NOT EXISTS idx_segments_parent_segment_id "
-            "ON segments(parent_segment_id)",
-            "the children of a region or line",
-        ),
-        (
-            "idx_segments_kind",
-            "CREATE INDEX IF NOT EXISTS idx_segments_kind ON segments(kind)",
-            "reads by kind; the planner combines this with document_id",
-        ),
-        (
-            "idx_segments_tile",
-            "CREATE INDEX IF NOT EXISTS idx_segments_tile ON segments(tile)",
-            "reads by area, combined with document_id",
-        ),
-        (
-            "idx_segments_doc_kind",
-            "CREATE INDEX IF NOT EXISTS idx_segments_doc_kind ON segments(doc_kind)",
-            "'one page's segments at one level' in one indexed lookup -- "
-            "DuckDB's single-column indexes cannot serve document_id AND "
-            "kind together, so this composite key does (source.store.bounded-reads)",
-        ),
-        (
-            "idx_segment_passes_document_id",
-            "CREATE INDEX IF NOT EXISTS idx_segment_passes_document_id "
-            "ON segment_passes(document_id)",
-            "the passes of this source",
-        ),
-        (
-            "idx_segment_passes_run_id",
-            "CREATE INDEX IF NOT EXISTS idx_segment_passes_run_id "
-            "ON segment_passes(run_id)",
-            "grouping passes by run",
-        ),
-        # Source-model slice 4 (#4922): matches, forwarding notes.
-        (
-            "idx_segmentmatchs_from_segment_id",
-            "CREATE INDEX IF NOT EXISTS idx_segmentmatchs_from_segment_id "
-            "ON segmentmatchs(from_segment_id)",
-            "the matches proposed FROM this segment",
-        ),
-        (
-            "idx_segmentmatchs_to_segment_id",
-            "CREATE INDEX IF NOT EXISTS idx_segmentmatchs_to_segment_id "
-            "ON segmentmatchs(to_segment_id)",
-            "the matches proposed TO this segment; carry's one-to-one check",
-        ),
-        (
-            "idx_segmentforwardings_old_segment_id",
-            "CREATE INDEX IF NOT EXISTS idx_segmentforwardings_old_segment_id "
-            "ON segmentforwardings(old_segment_id)",
-            "resolve_segment's walk -- one indexed lookup per hop",
-        ),
-        (
-            "idx_segmentcarrys_match_id",
-            "CREATE INDEX IF NOT EXISTS idx_segmentcarrys_match_id "
-            "ON segmentcarrys(match_id)",
-            "the copies carried across one match",
-        ),
-        (
-            "seq_segment_forwarding",
-            "CREATE SEQUENCE IF NOT EXISTS segment_forwarding_seq START 1",
-            "SegmentForwarding.sequence -- the append order two notes for "
-            "one id in the same microsecond otherwise have no defined "
-            "order by created_at alone (#4922 third look)",
-        ),
-        # Source-model slice 5 (#4923): versions.
-        (
-            "idx_segmentversions_segment_id",
-            "CREATE INDEX IF NOT EXISTS idx_segmentversions_segment_id "
-            "ON segmentversions(segment_id)",
-            "GET /api/segments/{segment_id}/versions; restore_version's lookup",
-        ),
-        # Source-model slice 8 (#4934/#4929/#4932): readings and choices.
-        # `document_text` asks "this line's readings" once PER LINE, so
-        # without these a page read is one table scan per line
-        # (`source.store.bounded-reads`).
-        (
-            "idx_contentrepresentations_segment_id",
-            "CREATE INDEX IF NOT EXISTS idx_contentrepresentations_segment_id "
-            "ON contentrepresentations(segment_id)",
-            "GET /api/segments/{segment_id}/readings; every line of a derived "
-            "page text",
-        ),
-        (
-            "idx_contentrepresentations_document_id",
-            "CREATE INDEX IF NOT EXISTS idx_contentrepresentations_document_id "
-            "ON contentrepresentations(document_id)",
-            "a source's readings (the existing list route, now indexed)",
-        ),
-        (
-            "idx_readingchoices_segment_id",
-            "CREATE INDEX IF NOT EXISTS idx_readingchoices_segment_id "
-            "ON readingchoices(segment_id)",
-            "the counting answer for a line -- read on EVERY readings read",
-        ),
-        (
-            "idx_readingchoices_document_id",
-            "CREATE INDEX IF NOT EXISTS idx_readingchoices_document_id "
-            "ON readingchoices(document_id)",
-            "a source's reading choices",
-        ),
-        (
-            "idx_segmentpasschoices_document_id",
-            "CREATE INDEX IF NOT EXISTS idx_segmentpasschoices_document_id "
-            "ON segmentpasschoices(document_id)",
-            "which pass a person is working on -- read by resolve_working_pass "
-            "on every derived page text (slice 6 wrote the rows; slice 8 is "
-            "the first thing to READ them per page)",
-        ),
-        (
-            "idx_libraryreadingkinds_key",
-            "CREATE INDEX IF NOT EXISTS idx_libraryreadingkinds_key "
-            "ON libraryreadingkinds(key)",
-            "the kind vocabulary check on every reading write",
-        ),
-    ]
+    statements = SEGMENT_INDEX_STATEMENTS
     created = 0
     for name, ddl, serves in statements:
         try:

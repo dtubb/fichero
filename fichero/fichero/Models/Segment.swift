@@ -3,6 +3,61 @@ import Foundation
 
 // MARK: - Segment (source-model App slice A, #4954)
 
+/// One shape on a page — the app's own copy of the contract's `AnchorShape`
+/// (source-model slice 7, #4925; carried into the app by #5050).
+///
+/// A plain struct rather than `Components.Schemas.AnchorShape` for the reason
+/// every other value type here exists: views never touch `Components.Schemas.*`,
+/// so a generated-type change cannot reach a view without passing through one
+/// mapping that a test can pin.
+struct AnchorShapeValue: Codable, Hashable {
+    /// Which shape this is. **The generated enum, deliberately — #5058.**
+    ///
+    /// This was a raw `String` on the argument that the engine's kind list is
+    /// open by design. **That was wrong, and it conflated two different
+    /// lists.** `AnchorShapeKind`'s own contract description says: "A closed
+    /// set, like `AnchorSpace` and unlike `granularity`: each kind carries
+    /// different data and is validated by its own rule, so a new one is a
+    /// change to every reader rather than a label that grows additively."
+    ///
+    /// The open list is `Segment.kind` / `granularity` — a WORD for what a
+    /// region is ("marginalia"), where a project may invent its own and a
+    /// reader that does not know it can still draw the box. A shape kind is not
+    /// a label: it decides WHICH FIELDS MEAN ANYTHING. A `time` shape carries
+    /// `tStart`/`tEnd` and no points; a `point` carries exactly one. A reader
+    /// that met a sixth kind would not know what its numbers were, so a new one
+    /// genuinely is a change to every reader, exactly as the contract says.
+    ///
+    /// The `String` was also worse than merely inert. `AnchorShapeKind` is
+    /// generated `@frozen` with no unknown case, so an unrecognised kind throws
+    /// inside the DECODER before this type is ever constructed — the app could
+    /// never have carried one. And the failure is not one shape being declined:
+    /// the whole response fails to decode, so a page with one unknown shape
+    /// shows nothing at all. The type read as permissive and total while the
+    /// layer beneath it was neither, which is what AGENTS.md's totality rule
+    /// (ad0ed705d) forbids. `theDecoderRefusesAnUnknownShapeKind` pins that
+    /// behaviour so nobody has to rediscover it.
+    ///
+    /// If this vocabulary should ever be open, that change belongs in the
+    /// CONTRACT first — a string here has the downsides of both and the
+    /// benefits of neither.
+    var kind: Components.Schemas.AnchorShapeKind
+    /// Normalized points on the anchor's own image. A `polygon` closes (three
+    /// or more), a `path` is open (two or more), a `point` is exactly one, and
+    /// a `time` shape carries none at all.
+    var points: [[Double]]?
+    /// Seconds into `SourceAnchorValue.mediaRef`, for a `time` shape only.
+    var tStart: Double?
+    var tEnd: Double?
+
+    init(generated: Components.Schemas.AnchorShape) {
+        self.kind = generated.kind
+        self.points = generated.points
+        self.tStart = generated.tStart
+        self.tEnd = generated.tEnd
+    }
+}
+
 /// Where a segment sits on a page image — the app's own copy of the ONE
 /// shared anchor (`source.builds-on-the-anchor`), mapped from the generated
 /// OUTPUT shape (`SourceAnchor` is generated as two types, input and output;
@@ -36,6 +91,35 @@ struct SourceAnchorValue: Codable, Hashable {
     /// `Segment.kind` below is copied from, at the box's own level.
     var granularity: String?
 
+    // MARK: Slice 7's shapes and slice 8's lasting references (#5050)
+    //
+    // CARRIED, not drawn by every surface yet. See this type's `init` for the
+    // reasoning, which was reversed deliberately and is worth reading before
+    // anyone removes a field that looks unused.
+
+    /// Every shape this anchor names, when it names more than a rectangle: a
+    /// point, an open path, a polygon, several at once, or a stretch of a
+    /// recording (`source.segment.shape-kinds`).
+    ///
+    /// `nil` means the anchor means what it has always meant — `rect`, or
+    /// `polygon`. When shapes ARE present, `rect` is the engine-computed bound
+    /// of the area ones, so a surface that only draws rectangles still draws in
+    /// the right place; a `point` deliberately leaves `rect` unset, and a
+    /// `time` shape has no box at all.
+    var shapes: [AnchorShapeValue]?
+    /// The recording a `time` shape belongs to.
+    var mediaRef: String?
+    /// The segment this anchor points AT, recorded rather than recovered
+    /// (source-model slice 8, #4932). When set, the engine's `resolve_anchor`
+    /// answers from it outright and reports basis `segment-named` — a recorded
+    /// fact beats a rectangle matched after the event, and it is the only thing
+    /// that works for a segment that never came from a converted artifact.
+    var segmentId: String?
+    /// The exact reading a `charStart`/`charEnd` span was measured on
+    /// (`source.reading.stretch-names-its-reading`). Offsets without this mean
+    /// nothing once a line has a second reading.
+    var representationId: String?
+
     /// Deliberately dropped, not silently: `refines` (a recursive anchor
     /// pointing at another anchor — annotations-on-a-region uses this;
     /// `segment_from_box` never sets it for a segment) and the anchor's own
@@ -44,17 +128,32 @@ struct SourceAnchorValue: Codable, Hashable {
     /// already travels in this slice; carrying the ANCHOR's separately would
     /// be a second place to look for the same kind of thing).
     ///
-    /// Dropped for now, and the distinction matters: `shapes` and `media_ref`
-    /// (source-model slice 7, #4925 — a point, an open path, several shapes
-    /// at once, a stretch of a recording). They are NOT carried because this
-    /// draw model cannot draw them: every surface it feeds renders a
-    /// rectangle, and the engine already fills `rect` with the bound of the
-    /// area shapes, so a segment that has them is drawn in the right place
-    /// today with no Swift change at all. Carrying a field nothing reads is
-    /// how a second, staler answer to "what shape is this" gets started —
-    /// and the spec is explicit that nothing of slices 6 to 8b reaches the
-    /// app until the whole programme is done. They arrive with the overlay
-    /// that can actually draw a polygon (app stage 2), not before.
+    /// **`shapes` and `media_ref` ARE carried, and this reverses an earlier
+    /// decision — #5050.** They were dropped in slice 7 on the argument that
+    /// this draw model cannot draw them: every surface it feeds renders a
+    /// rectangle, the engine already fills `rect` with the bound of the area
+    /// shapes, and carrying a field nothing reads is how a second, staler
+    /// answer to "what shape is this" gets started.
+    ///
+    /// That reasoning was right about RENDERERS and wrong about a TYPE, and the
+    /// distinction is the whole ruling: **a faithful type is foundation; a
+    /// renderer is UI.** While this struct said a segment is a rectangle, every
+    /// surface built on it inherited a subset view of reality and would have
+    /// had to widen the model before it could do anything — a cost paid by
+    /// whoever came next, which is not the mapper's cost to impose. The type is
+    /// now total over what the contract DECLARES, and totality is proved by a
+    /// round-trip test per field rather than by a renderer existing.
+    ///
+    /// So these fields being carried is NOT a promise that something draws
+    /// them. `regionRect` still prefers the resolved rect exactly as before, and
+    /// the polygon overlay is its own work. **Do not delete a field here for
+    /// looking unused** — unused is the expected state of a faithful type
+    /// between the contract gaining a field and a surface reading it.
+    ///
+    /// `segment_id` and `representation_id` (slice 8, #4932) are carried for
+    /// the same reason, and matter sooner: they are how a mark, a claim or a
+    /// stretch says WHICH segment or reading it points at, instead of being
+    /// re-derived from a rectangle that may since have moved.
     ///
     /// Every one of these is exercised by the contract-coverage guards in
     /// `SegmentMappingTests`, which fail if `SourceAnchor-Output` gains a
@@ -70,6 +169,10 @@ struct SourceAnchorValue: Codable, Hashable {
         self.charStart = generated.charStart
         self.charEnd = generated.charEnd
         self.granularity = generated.granularity
+        self.shapes = generated.shapes?.map(AnchorShapeValue.init(generated:))
+        self.mediaRef = generated.mediaRef
+        self.segmentId = generated.segmentId
+        self.representationId = generated.representationId
     }
 }
 

@@ -95,16 +95,22 @@ struct SegmentMappingTests {
     @Test("SourceAnchor-Output's contract field set is exactly what SourceAnchorValue.init(generated:) maps or deliberately drops")
     func sourceAnchorOutputFieldCoverage() throws {
         let declared = try Self.contractProperties(of: "SourceAnchor-Output")
-        // `refines`, `shapes` and `media_ref` are DELIBERATELY dropped — see
-        // `SourceAnchorValue.init(generated:)`'s own doc comment for each
-        // reason. The anchor's `extra="allow"` catch-all is dropped too, but
-        // it is not listed here because it is not a declared PROPERTY: it is
-        // `additionalProperties` on the schema, and the contract is what this
-        // set is compared against.
+        // `refines` is the ONLY deliberate drop now — a recursive anchor
+        // pointing at another anchor, which `segment_from_box` never sets for a
+        // segment. `shapes` and `media_ref` moved from dropped to MAPPED with
+        // #5050 (a faithful type is foundation; see
+        // `SourceAnchorValue.init(generated:)`), and `segment_id` /
+        // `representation_id` are slice 8's lasting references (#4932).
+        //
+        // THIS TEST CAUGHT SLICE 8 and did its job: it compares by equality, so
+        // the contract gaining `segment_id` and `representation_id` failed it
+        // until they were accounted for here. The anchor's `extra="allow"`
+        // catch-all is still dropped and still absent from this set, because it
+        // is `additionalProperties` rather than a declared property.
         let accounted: Set<String> = [
             "document_id", "page_id", "rendition_id", "space", "rect", "polygon",
             "rotation", "char_start", "char_end", "granularity", "refines",
-            "shapes", "media_ref"
+            "shapes", "media_ref", "segment_id", "representation_id"
         ]
         #expect(
             declared == accounted,
@@ -127,10 +133,263 @@ struct SegmentMappingTests {
     /// technique. `shapes` and `media_ref` are slice 7's additions to the
     /// anchor, and a guard that could not see them is precisely the failure
     /// this rewrite exists to prevent — so it is asserted, not assumed.
-    @Test("the contract reader sees slice 7's new anchor fields")
+    /// Slice 8's `segment_id` / `representation_id` join them for the same
+    /// reason.
+    @Test("the contract reader sees slice 7's and slice 8's new anchor fields")
     func theReaderSeesTheNewAnchorFields() throws {
         let declared = try Self.contractProperties(of: "SourceAnchor-Output")
         #expect(declared.isSuperset(of: ["shapes", "media_ref"]))
+        #expect(declared.isSuperset(of: ["segment_id", "representation_id"]))
+    }
+
+    // MARK: - #5050: the type is TOTAL over the contract's declared fields
+    //
+    // Round trips, not renderings. Each asserts that a shape SURVIVES the wire
+    // mapping with its own values — the property a subset type could not have,
+    // and the reason a renderer is not the right proof of a faithful type.
+
+    /// A helper shaped like the engine's own answer, so each test below names
+    /// only what it is about.
+    private func anchor(
+        rect: [Double]? = nil,
+        polygon: [[Double]]? = nil,
+        shapes: [Components.Schemas.AnchorShape]? = nil,
+        mediaRef: String? = nil,
+        segmentId: String? = nil,
+        representationId: String? = nil
+    ) -> Components.Schemas.SourceAnchorOutput {
+        Components.Schemas.SourceAnchorOutput(
+            documentId: "doc-1", rect: rect, polygon: polygon,
+            shapes: shapes, mediaRef: mediaRef,
+            segmentId: segmentId, representationId: representationId
+        )
+    }
+
+    @Test("a polygon shape survives the mapping with its points intact")
+    func aPolygonShapeSurvives() throws {
+        let triangle: [[Double]] = [[0.1, 0.1], [0.4, 0.1], [0.25, 0.5]]
+        let value = SourceAnchorValue(generated: anchor(
+            rect: [0.1, 0.1, 0.3, 0.4],
+            shapes: [.init(kind: .polygon, points: triangle)]
+        ))
+
+        #expect(value.shapes?.count == 1)
+        #expect(value.shapes?.first?.kind == .polygon)
+        #expect(value.shapes?.first?.points == triangle)
+        // The engine's bound still rides along, so a rectangle-only surface is
+        // unaffected by the type having become honest.
+        #expect(value.rect == [0.1, 0.1, 0.3, 0.4])
+    }
+
+    @Test("a point survives and does NOT become a rect")
+    func aPointStaysAPoint() throws {
+        let value = SourceAnchorValue(generated: anchor(
+            shapes: [.init(kind: .point, points: [[0.42, 0.67]])]
+        ))
+
+        #expect(value.shapes?.first?.kind == .point)
+        #expect(value.shapes?.first?.points == [[0.42, 0.67]])
+        // A point has no area, so the engine leaves `rect` unset and nothing
+        // here may invent one: an invented zero-size rect is a thing a surface
+        // would try to draw.
+        #expect(value.rect == nil)
+    }
+
+    @Test("an open path keeps its two points and stays a path")
+    func aPathStaysAPath() throws {
+        let value = SourceAnchorValue(generated: anchor(
+            shapes: [.init(kind: .path, points: [[0.1, 0.5], [0.9, 0.55]])]
+        ))
+        #expect(value.shapes?.first?.kind == .path)
+        #expect(value.shapes?.first?.points?.count == 2)
+    }
+
+    @Test("a time span survives with its media reference and no points")
+    func aTimeSpanSurvives() throws {
+        let value = SourceAnchorValue(generated: anchor(
+            shapes: [.init(kind: .time, tStart: 12.5, tEnd: 19.25)],
+            mediaRef: "rec-7"
+        ))
+
+        #expect(value.shapes?.first?.kind == .time)
+        #expect(value.shapes?.first?.tStart == 12.5)
+        #expect(value.shapes?.first?.tEnd == 19.25)
+        #expect(value.shapes?.first?.points == nil)
+        #expect(value.mediaRef == "rec-7")
+        #expect(value.rect == nil, "a time shape has no box at all")
+    }
+
+    @Test("several shapes at once all survive, in order")
+    func severalShapesSurvive() throws {
+        let value = SourceAnchorValue(generated: anchor(
+            rect: [0.1, 0.1, 0.8, 0.6],
+            shapes: [
+                .init(kind: .polygon, points: [[0.1, 0.1], [0.4, 0.1], [0.25, 0.3]]),
+                .init(kind: .polygon, points: [[0.5, 0.4], [0.9, 0.4], [0.7, 0.7]])
+            ]
+        ))
+        #expect(value.shapes?.count == 2)
+        #expect(value.shapes?[0].points?.first == [0.1, 0.1])
+        #expect(value.shapes?[1].points?.first == [0.5, 0.4])
+    }
+
+    @Test("a degenerate bound does not silently acquire a drawable rectangle")
+    func aDegenerateBoundStaysUndrawable() throws {
+        // The engine drops a rect it cannot hold rather than inventing one
+        // (`_build_anchor`), so the app's job is to carry the absence.
+        let value = SourceAnchorValue(generated: anchor(
+            shapes: [.init(kind: .point, points: [[0.0, 0.0]])]
+        ))
+        #expect(value.rect == nil)
+        #expect(value.polygon == nil)
+    }
+
+    @Test("an anchor with no shapes maps exactly as it did before #5050")
+    func anAnchorWithNoShapesIsUnchanged() throws {
+        let value = SourceAnchorValue(generated: anchor(
+            rect: [0.2, 0.3, 0.4, 0.1], polygon: [[0.2, 0.3], [0.6, 0.3], [0.4, 0.4]]
+        ))
+
+        #expect(value.shapes == nil)
+        #expect(value.mediaRef == nil)
+        #expect(value.segmentId == nil)
+        #expect(value.representationId == nil)
+        // The no-regression case: every field that worked before still does.
+        #expect(value.rect == [0.2, 0.3, 0.4, 0.1])
+        #expect(value.polygon == [[0.2, 0.3], [0.6, 0.3], [0.4, 0.4]])
+        #expect(value.documentId == "doc-1")
+    }
+
+    /// #5058: what ACTUALLY happens to a kind the app has never heard of.
+    ///
+    /// `everyShapeKindSurvives` above cannot answer this — it enumerates the
+    /// five known cases, so it passes whether `kind` is a string or an enum.
+    /// This feeds an unknown kind through the REAL generated decoder, which is
+    /// the layer that decides, and pins the answer.
+    ///
+    /// The answer is that the whole payload fails to decode, and that is worth
+    /// knowing rather than discovering: a page carrying one unrecognised shape
+    /// shows NOTHING, not "everything except that shape". `AnchorShapeKind` is
+    /// `@frozen` with no unknown case because its contract calls it a closed
+    /// set, so this is the contract's own chosen behaviour — but if a sixth
+    /// kind is ever added, this test is where the cost of that decision is
+    /// written down.
+    @Test("the decoder refuses an unknown shape kind, and the whole payload fails")
+    func theDecoderRefusesAnUnknownShapeKind() throws {
+        let known = Data(#"{"kind":"polygon","points":[[0.1,0.1],[0.4,0.1],[0.2,0.5]]}"#.utf8)
+        let unknown = Data(#"{"kind":"spiral","points":[[0.1,0.1]]}"#.utf8)
+
+        // The known kind decodes, so this test is about the KIND and not about
+        // the payload's shape.
+        let shape = try JSONDecoder().decode(Components.Schemas.AnchorShape.self, from: known)
+        #expect(shape.kind == .polygon)
+
+        #expect(throws: (any Error).self) {
+            try JSONDecoder().decode(Components.Schemas.AnchorShape.self, from: unknown)
+        }
+    }
+
+    @Test("a polygon and a DIFFERENT rect both survive; neither collapses into the other")
+    func aPolygonIsNotReplacedByItsBoundingBox() throws {
+        // THE SILENT LOSS THIS GUARDS: a polygon that comes back as its
+        // bounding box looks perfectly fine on screen — a box is drawn, in
+        // roughly the right place — and the shape a person actually drew is
+        // gone. So the rect here is deliberately NOT the triangle's bound: if
+        // either field were derived from the other, one of these two
+        // expectations has to fail.
+        let triangle: [[Double]] = [[0.10, 0.10], [0.40, 0.10], [0.25, 0.50]]
+        let unrelatedRect: [Double] = [0.60, 0.70, 0.20, 0.10]
+        let value = SourceAnchorValue(generated: anchor(
+            rect: unrelatedRect,
+            polygon: triangle,
+            shapes: [.init(kind: .polygon, points: triangle)]
+        ))
+
+        #expect(value.polygon == triangle, "the polygon was replaced by a box")
+        #expect(value.rect == unrelatedRect, "the rect was replaced by the polygon's bound")
+        #expect(value.shapes?.first?.points == triangle)
+        // And the three are genuinely distinct, so this test cannot pass by
+        // everything happening to be equal.
+        #expect(value.polygon?.count == 3)
+        #expect(value.rect?.count == 4)
+    }
+
+    @Test("a rect-kind shape survives even though nothing special-cases it")
+    func aRectKindShapeSurvives() throws {
+        // `rect` is the one shape kind that duplicates information already in
+        // `rect` itself. A mapping that "helpfully" skipped it would be a
+        // catch-all by omission.
+        let value = SourceAnchorValue(generated: anchor(
+            rect: [0.1, 0.2, 0.3, 0.4],
+            shapes: [.init(kind: .rect, points: [[0.1, 0.2], [0.4, 0.6]])]
+        ))
+        #expect(value.shapes?.count == 1)
+        #expect(value.shapes?.first?.kind == .rect)
+        #expect(value.shapes?.first?.points?.count == 2)
+    }
+
+    @Test("every shape kind the engine can send survives the mapping")
+    func everyShapeKindSurvives() throws {
+        // TOTALITY, asserted over the generated enum's OWN case list rather
+        // than a list written here: `AnchorShapeKind` is `CaseIterable`, so if
+        // the engine gains a sixth kind this test covers it the moment the
+        // contract is regenerated — it cannot fall out of date. The app does
+        // not render most of these; surviving the trip is the property.
+        for kind in Components.Schemas.AnchorShapeKind.allCases {
+            let value = SourceAnchorValue(generated: anchor(
+                shapes: [.init(kind: kind, points: [[0.2, 0.3]], tStart: 1, tEnd: 2)]
+            ))
+            #expect(
+                value.shapes?.first?.kind == kind,
+                "shape kind \(kind.rawValue) did not survive the mapping"
+            )
+            #expect(value.shapes?.first?.points == [[0.2, 0.3]])
+        }
+    }
+
+    @Test("the value type round-trips through Codable without losing the new fields")
+    func theValueTypeRoundTripsThroughCodable() throws {
+        // A one-way mapping test proves the wire decode; this proves the app's
+        // OWN type does not lose the fields when it is encoded and decoded —
+        // which is what happens wherever a `SourceAnchorValue` is cached or
+        // persisted app-side. A field added to the struct but missing from a
+        // hand-written `CodingKeys` would pass every test above and fail here.
+        let triangle: [[Double]] = [[0.1, 0.1], [0.4, 0.1], [0.25, 0.5]]
+        let original = SourceAnchorValue(generated: anchor(
+            rect: [0.6, 0.7, 0.2, 0.1],
+            polygon: triangle,
+            shapes: [
+                .init(kind: .polygon, points: triangle),
+                .init(kind: .time, tStart: 3.5, tEnd: 9.25)
+            ],
+            mediaRef: "rec-3",
+            segmentId: "seg-9",
+            representationId: "rep-4"
+        ))
+
+        let decoded = try JSONDecoder().decode(
+            SourceAnchorValue.self, from: JSONEncoder().encode(original)
+        )
+
+        #expect(decoded == original, "the app's own type lost something in a round trip")
+        #expect(decoded.shapes?.count == 2)
+        #expect(decoded.shapes?[0].points == triangle)
+        #expect(decoded.shapes?[1].tStart == 3.5)
+        #expect(decoded.mediaRef == "rec-3")
+        #expect(decoded.segmentId == "seg-9")
+        #expect(decoded.representationId == "rep-4")
+        #expect(decoded.polygon == triangle)
+    }
+
+    @Test("the lasting references survive, by value")
+    func theLastingReferencesSurvive() throws {
+        let value = SourceAnchorValue(generated: anchor(
+            segmentId: "seg-42", representationId: "rep-7"
+        ))
+        // Distinct values, so a transposed mapping fails by value rather than
+        // passing because both happened to be non-nil.
+        #expect(value.segmentId == "seg-42")
+        #expect(value.representationId == "rep-7")
     }
 
     /// The `PassRead` analogue of `segmentMappingKeepsValues` below (test

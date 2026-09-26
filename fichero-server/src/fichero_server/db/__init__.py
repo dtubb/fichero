@@ -1192,6 +1192,7 @@ class Database(DatabaseEmbeddingMixin):
             Reference,
             ReferenceProvenance,
         )
+        from fichero_server.models.conversion import ConversionRun
         from fichero_server.models import (
             ActionAudit,
             AgentNote,
@@ -1257,6 +1258,14 @@ class Database(DatabaseEmbeddingMixin):
             # the build notes say, not on whatever write happens to come first.
             ContentRepresentation,
             ContentRepresentationRevision,
+            # Source-model slice 8b (#4924): the conversion report. Registered
+            # so its table is there at open like every other one -- and so
+            # Guard 1 (#5056) covers it, which is the point of having found the
+            # three that were missing. Nothing at open needs it, so its
+            # position here is not load-bearing the way the two above are; it
+            # sits with them because a reader looking for the source-model
+            # tables should find them together.
+            ConversionRun,
             Conversation,
             Document,
             # Source-model slice 8 (#4934), and ordered for the same reason as
