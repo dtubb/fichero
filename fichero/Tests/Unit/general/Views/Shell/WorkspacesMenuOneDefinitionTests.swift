@@ -31,23 +31,6 @@ struct WorkspacesMenuOneDefinitionTests {
         #expect(body.contains("WorkspacesMenuBody(commands: windowLayoutCommands)"))
     }
 
-    /// Neither menu builds its OWN copy of the built-in/saved/split/toolbar-buttons content any
-    /// more — a regression back to two definitions would mean one of these reappears outside
-    /// `WorkspacesMenuBody.swift`.
-    @Test("neither menu file still declares its own workspace-content sections")
-    func neitherMenuFileDeclaresItsOwnSections() throws {
-        for path in [
-            "App/Menus/ViewMenuPaneSections.swift",
-            "Views/Shell/ContentView/ContentView+LayoutChooser.swift",
-        ] {
-            let source = try AppSource.code(path)
-            #expect(!source.contains("var workspaceLayoutsSection"), "\(path) must not re-declare this")
-            #expect(!source.contains("var savedWorkspaceSection"), "\(path) must not re-declare this")
-            #expect(!source.contains("var deleteWorkspaceMenu"), "\(path) must not re-declare this")
-            #expect(!source.contains("var toolbarButtonsMenu"), "\(path) must not re-declare this")
-        }
-    }
-
     // MARK: - Split's enabled rule (pure): no focus, an ordinary focused leaf, a leaf at its
     // split cap (a focused Preview leaf currently showing a workflow canvas — the one surface
     // `PaneSurface.allowsSplit` refuses, since two `WorkflowEditor`s on one binding would race).

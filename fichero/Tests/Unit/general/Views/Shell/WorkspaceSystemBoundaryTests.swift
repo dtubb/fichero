@@ -7,31 +7,6 @@ import XCTest
 /// compositions). They were consolidated to one; these tests fail if the second grows back.
 final class WorkspaceSystemBoundaryTests: XCTestCase {
 
-    /// The legacy `BuiltInWorkspace` enum (and its per-window `applyBuiltIn` verb) is DELETED — a
-    /// workspace is a `PaneList`, built-in or saved (one model). Its reappearance means two systems.
-    func testNoLegacyBuiltInWorkspaceSystem() throws {
-        var enumOffenders: [String] = []
-        var verbOffenders: [String] = []
-        for path in try Self.appSwiftFiles() {
-            let source = try Self.appSource(path)
-            if source.contains("enum BuiltInWorkspace ")
-                || source.contains("enum BuiltInWorkspace:")
-                || source.contains("enum BuiltInWorkspace{") {
-                enumOffenders.append(path)
-            }
-            // The retired command-bus verb (distinct from the surviving `applyWorkspaceLayout`).
-            if source.contains("applyBuiltIn") { verbOffenders.append(path) }
-        }
-        XCTAssertEqual(
-            enumOffenders, [],
-            "The legacy `BuiltInWorkspace` enum was deleted (spec workspaces.one-system); a workspace "
-                + "is a `BuiltInWorkspaceLayout` PaneList. Reintroducing it restores the two-system split.")
-        XCTAssertEqual(
-            verbOffenders, [],
-            "The legacy `applyBuiltIn` verb was removed from WindowLayoutCommands; the one built-in "
-                + "system applies via `applyWorkspaceLayout`.")
-    }
-
     /// The built-in workspaces are the SIX v2 compositions and ⌘⌥1–6 apply them through the window
     /// command bus (`WorkspaceCommandsSection` → `applyWorkspaceLayout`), using each layout's
     /// `defaultSlot`. One list, one shortcut binding.
@@ -50,9 +25,6 @@ final class WorkspaceSystemBoundaryTests: XCTestCase {
         XCTAssertTrue(
             sharedBody.contains("commands?.applyWorkspaceLayout(layout)"),
             "⌘⌥1–6 must apply a v2 workspace via the command bus's applyWorkspaceLayout verb.")
-        XCTAssertFalse(
-            sharedBody.contains("BuiltInWorkspace.allCases"),
-            "The menu must not iterate the retired BuiltInWorkspace enum — one built-in list only.")
 
         let shortcutMint = try Self.appSource("App/Menus/ViewMenuPaneSections.swift")
         XCTAssertTrue(
@@ -71,12 +43,6 @@ final class WorkspaceSystemBoundaryTests: XCTestCase {
         XCTAssertTrue(
             source.contains("paneListRow(activePaneList)"),
             "The centre renders the stored PaneList through paneListRow — the single renderer.")
-        XCTAssertFalse(
-            source.contains("paneComposition("),
-            "The pre-workspace renderer is deleted; a second centre renderer must not return.")
-        XCTAssertFalse(
-            source.contains("PaneList.forLayout("),
-            "The centre must not derive a pane list from the legacy visibility plan.")
     }
 
     /// The Optional on `activePaneList` was what kept the unreachable branch alive: nothing ever
@@ -95,9 +61,6 @@ final class WorkspaceSystemBoundaryTests: XCTestCase {
         XCTAssertTrue(
             source.contains("BuiltInWorkspaceLayout.read.panes"),
             "The Read default must still be the seed's fallback (spec panes.layout.mail-default).")
-        XCTAssertFalse(
-            source.contains("var activePaneList: PaneList?"),
-            "Re-introducing the Optional re-introduces an unreachable fallback renderer.")
     }
 
     /// BUG2 regression guard (spec panes.close.this-pane-only): in an applied workspace the pane
@@ -161,35 +124,6 @@ final class WorkspaceSystemBoundaryTests: XCTestCase {
             + "Wire it symmetrically to close: a per-leaf `activePaneList.splittingLeaf(id, axis:)` "
             + "seam (a `PaneSplitAction` mirroring `PaneCloseAction`)."
         )
-    }
-
-    /// BUG5 regression guard (spec workspaces.one-system): "Layouts" and "Workspaces" must not be
-    /// TWO parallel built-in arrangement systems. Today the app ships both — the `BuiltInWorkspaceLayout`
-    /// PaneList compositions (⌘⌥1–6) AND a separate `WindowLayoutPreset` "Layouts" system that applies
-    /// visibility Bools on a NON-PaneList path — and lists them side by side in the same menus. The
-    /// legacy `BuiltInWorkspace` enum was already deleted to make one system; `WindowLayoutPreset` is
-    /// the surviving parallel one. This FAILS while both are enumerated in the arrangement menus.
-    ///
-    /// NOTE: the consolidation direction (fold the presets into the one PaneList workspace system) is
-    /// the manager's call; this pins only that two built-in arrangement systems must not be presented
-    /// in parallel — the invariant the CD's "there should be ONE" ruling states.
-    func testNoParallelLayoutPresetSystemBesideWorkspaces() throws {
-        let menuFiles = [
-            "App/Menus/ViewMenuPaneSections.swift",
-            "App/Menus/WorkspacesMenuBody.swift",
-            "Views/Shell/ContentView/ContentView+LayoutChooser.swift"
-        ]
-        for path in menuFiles {
-            let source = AppSource.codeOnly(try Self.appSource(path))
-            let listsWorkspaces = source.contains("BuiltInWorkspaceLayout.allCases")
-            let listsPresets = source.contains("WindowLayoutPreset.allCases")
-            XCTAssertFalse(
-                listsWorkspaces && listsPresets,
-                "\(path) presents BOTH the workspace system (BuiltInWorkspaceLayout) and a parallel "
-                + "'Layouts' preset system (WindowLayoutPreset) — the two-systems bug (spec "
-                + "workspaces.one-system: there must be ONE built-in arrangement system)."
-            )
-        }
     }
 
     // MARK: - Source helpers (mirror MenuShortcutBoundaryTests)

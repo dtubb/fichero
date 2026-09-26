@@ -252,3 +252,14 @@ fichero/Tests/Unit/general/Views/Shell/LibraryPaneNeverMountsModeSurfaceTests.sw
 # The dead `paneKindOverrides` field must not be populated by capture/applyLayoutSnapshot: absence of a
 # pattern in a method that cannot be run without a live ContentView. Split out so it exempts ONE test.
 fichero/Tests/Unit/general/Views/Shell/DeadPaneKindOverridesGuardrailTests.swift
+# No view reads the app-wide LibraryManager.shared.currentLibraryId (#4860): the absence of one pointer across every
+# view; a per-window resolver cannot be unit-tested from a view that is never mounted.
+fichero/Tests/Unit/general/Views/Shell/LibraryPointerGuardrailTests.swift
+# The centre renderer, the retired BuiltInWorkspace enum/verb, the parallel WindowLayoutPreset system and an Optional
+# activePaneList must not exist anywhere (workspaces.one-system): each is the absence of a second system.
+fichero/Tests/Unit/general/Views/Shell/WorkspaceOneSystemGuardrailTests.swift
+# The two Workspaces menus must not each re-declare their own sections (#4968): absence of a second definition.
+fichero/Tests/Unit/general/Views/Shell/WorkspacesMenuNoSecondDefinitionGuardrailTests.swift
+# A KG content view draws no filter bar of its own, and the shared footer holds exactly ONE filter slot and ONE add
+# control (#4856): absence/count claims about an unmounted footer.
+fichero/Tests/Unit/general/Views/Library/KGFilterBarGuardrailTests.swift

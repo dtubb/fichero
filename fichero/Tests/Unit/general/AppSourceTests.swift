@@ -83,4 +83,34 @@ final class AppSourceTests: XCTestCase {
             // The underlying read error — correct.
         }
     }
+
+    /// The tree walk sees real files. A guard built on it asserts over whatever
+    /// this returns, so an empty or tiny result would make every such guard pass
+    /// while checking nothing.
+    func testItWalksASubtreeAndReturnsRelativePathsWithCommentsStripped() throws {
+        let views = try AppSource.swiftFiles(under: "Views")
+        XCTAssertGreaterThan(views.count, 100, "the app has far more than 100 view files")
+        XCTAssertTrue(
+            views.allSatisfy { $0.path.hasPrefix("Views/") && $0.path.hasSuffix(".swift") },
+            "paths come back relative to the app root, not absolute"
+        )
+        XCTAssertFalse(
+            views.contains { $0.code.contains("\n//") },
+            "comment lines are stripped, so a guard cannot fail on a file's own explanation"
+        )
+    }
+
+    /// A subtree that is not there is BLIND, and says so as itself — not as
+    /// `NotFound`, which would send the reader hunting for a moved test tree, and
+    /// not as an empty array, which every caller would read as "nothing offends".
+    func testAMissingSubtreeIsBlindRatherThanAnEmptyResult() throws {
+        do {
+            let found = try AppSource.swiftFiles(under: "ThisDirectoryDoesNotExist")
+            XCTFail("expected BLIND, got \(found.count) files")
+        } catch is AppSource.NotFound {
+            XCTFail("a missing SUBTREE must not be reported as a missing ROOT")
+        } catch let error as AppSource.CannotWalk {
+            XCTAssertTrue(error.description.contains("BLIND"), "and it names itself blind")
+        }
+    }
 }
