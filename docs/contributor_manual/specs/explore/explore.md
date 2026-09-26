@@ -153,7 +153,7 @@ What each alternative would give up:
 **One conflict with a ratified ruling, stated plainly.** Kindred Britain's "pick a person and
 all three views move" needs Library panes that share a selection. `panes.library.not-linked-to-
 each-other` is RULED: Library panes are independent, and linking is explicit
-(`panes.library.explicit-link-to-one-preview`, drag-to-connect, awaiting design, #4881). This
+(`panes.library.explicit-link-to-one-preview`, drag-to-connect, awaiting design, → #4881). This
 set does not reopen that ruling. It asks that the explicit link, when designed, can ALSO join
 one Library pane to another, so that a linked group shares one selection and one "as of". Until
 then, views work one pane at a time (question 2, blocking for linked views only).
@@ -217,8 +217,8 @@ Inferred is shown as inferred
   predicted is drawn differently from anything stated in a source (hollow against solid, dashed
   against continuous), the same way in every view. Built today only in the knowledge-graph
   timeline and map (`KGTemporalSpatial.swift`, asserted against inferred).
-- `explore.inferred.filter-by-confidence-and-asserter` — **[GAP]** (#5032, depends on #4868,
-  #4869) every view over claims offers two controls: a minimum confidence, and who asserted it
+- `explore.inferred.filter-by-confidence-and-asserter` — **[GAP]** (#5032, depends on → #4868,
+  → #4869) every view over claims offers two controls: a minimum confidence, and who asserted it
   (a person, a model, a rule). Marks appear and vanish as they move. The asserter control is
   honest only once machine claims stop being stored as a person's.
 - `explore.inferred.method-is-shown` — **[GAP]** (#5032) a view made by a method names the
@@ -237,7 +237,7 @@ Sets, selection and panes
 - `explore.panes.one-thing-is-a-rendition` — **[PARTIAL]** (#5032) a view of ONE selected thing
   is a Reader or Inspector rendition of that selection. Built for a document's graph, timeline
   and map (`DocumentKGSurface.swift`); not built for a person, a place or a claim.
-- `explore.panes.linked-views-share-selection-and-time` — **[GAP]** (#5032, waits on #4881)
+- `explore.panes.linked-views-share-selection-and-time` — **[GAP]** (#5032, waits on → #4881)
   Library panes joined by an explicit link share one selection and one "as of"; unlinked panes
   stay independent, as ruled.
 - `explore.panes.same-chrome` — **[GAP]** (#5032) every new view keeps the Library's one bottom
@@ -270,7 +270,7 @@ Local, audited, one code path
   seam. No view has its own fetch, its own selection or its own exporter.
 
 Care
-- `explore.care.rights-apply-everywhere` — **[GAP]** (#5032, waits on #4953) a view never draws,
+- `explore.care.rights-apply-everywhere` — **[GAP]** (#5032, waits on → #4953) a view never draws,
   labels, counts by name or exports what the rights record restricts; what is left out is
   counted (`explore.source.nothing-silently-left-out`).
 - `explore.care.people-are-not-only-points` — **[GAP]** (#5032) where people in the sources did
@@ -289,11 +289,11 @@ Engine before app. Each slice names what it needs that is not built.
 | 4 | **Map by meaning, search results, 2D** | "Arrange by: Meaning" in the Canvas, coloured by group or by which search leg found it | one projection method; one new `CanvasArrangement` case; slice 3's groups as the colour |
 | 5 | **Timeline of claims and entries** | the knowledge graph's timeline as a Library view mode for claims and entities, with uncertain dates drawn honestly and binned when large | promote `KGTimelineView`; lift the 500 cap by aggregating |
 | 6 | **Place map** | the same for places, with uncertainty radius; then journeys over time | promote `KGMapView`; basemap ruling (question 7) |
-| 7 | **People network with a time slider** | a person's or a folder's network "as of", with confidence and asserter controls | an "as of" argument on the engine graph routes; truthful provenance (#4868, #4869) |
+| 7 | **People network with a time slider** | a person's or a folder's network "as of", with confidence and asserter controls | an "as of" argument on the engine graph routes; truthful provenance (→ #4868, → #4869) |
 | 8 | **Storylines for a diary year**, then arcs | who is with whom, through the year | co-presence from dated claims; a native storyline drawing |
 | 9 | **Saved views, compare, publish** | keep, re-run, compare two methods, publish to the static site | the saved-view record (question 4); the HTML drawing of the data contract |
 | 10 | **Whole project, 3D, odd ones out, near-duplicates, topics over time** | the larger and rarer uses | cached background layouts; measuring native against WebGL |
-| 11 | **Counts, flows, word use across the corpus; hands and certainty** | the distant-reading and hermeneutic views | tables from sources (#5026); the source model (milestone 322) |
+| 11 | **Counts, flows, word use across the corpus; hands and certainty** | the distant-reading and hermeneutic views | tables from sources (→ #5026); the source model (milestone 322) |
 
 Slices 1 to 4 need nothing that is not already on disk. Slices 7 and 11 wait on other work and
 say so.

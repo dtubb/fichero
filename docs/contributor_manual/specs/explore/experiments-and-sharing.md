@@ -34,7 +34,7 @@ Observable and Jupyter are the model of "the picture is a program that can be ru
 Enslaved.org is the model for publishable, joinable linked open data with provenance on every
 statement and deliberate care about people recorded as property. The CARE principles for
 Indigenous data governance and the FAIR principles are the two standards a published dataset is
-held to; the source-model set's rights and access file (`source.rights.*`, #4953) is where
+held to; the source-model set's rights and access file (`source.rights.*`, → #4953) is where
 Fichero enforces them, and this family obeys it rather than restating it. Reproducible-research
 practice supplies the rule that a figure travels with its data and its method.
 
@@ -48,7 +48,7 @@ practice supplies the rule that a figure travels with its data and its method.
   JSON-LD context; MCP and CLI for search and the knowledge graph.
 - Things that already call outside the machine: Wikidata enrichment (sends entity names to
   Wikidata), MapKit (fetches map tiles from Apple), any cloud model a researcher has configured.
-- Rights and access: specified (`source.rights.*`), not built (#4953). Claim authorship is
+- Rights and access: specified (`source.rights.*`), not built (→ #4953). Claim authorship is
   absent from every export (`export/exporter.md`).
 - **No method seam, no experiment, no saved view, no comparison, no published view.**
 
@@ -101,7 +101,7 @@ Keeping, comparing
 - `explore.saved.compare-two` — **[GAP]** (#5032) two experiments on the same set (two methods,
   two settings, two dates) open side by side in two panes with the same selection, so that the
   same items can be found in both. This uses the existing compare workspace and the explicit
-  pane link (#4881); no new comparison surface.
+  pane link (→ #4881); no new comparison surface.
 - `explore.saved.shareable-as-a-file` — **[GAP]** (#5032) a saved view can be exported and
   imported as a small readable file (its description only, no research data), so a colleague
   with the same kind of project can run it. This follows the ruling that recipes are files.
@@ -117,7 +117,7 @@ In and out
 - `explore.out.agents-and-cli-run-the-same` — **[GAP]** (#5032) every method and export is an
   MCP tool and a CLI command through the same seam, so a notebook or an agent can drive them.
   An agent's experiment is attributed to the agent as a user, as the action layer already does.
-- `explore.out.rights-apply` — **[GAP]** (#5032, waits on #4953) every export leaves out what
+- `explore.out.rights-apply` — **[GAP]** (#5032, waits on → #4953) every export leaves out what
   the rights record restricts, and says how much it left out.
 
 Publishing
@@ -163,7 +163,7 @@ Care in representation
   race or crime; the source's own words remain one step away, in the evidence. The terms are
   the project's to set (a vocabulary, with the source-model's profile), and a view says that it
   is using them.
-- `explore.care.restricted-people-are-not-drawn-around` — **[GAP]** (#5032, waits on #4953) a
+- `explore.care.restricted-people-are-not-drawn-around` — **[GAP]** (#5032, waits on → #4953) a
   restricted person is not identifiable from what surrounds them in a view: a network does not
   leave a named gap, a map does not leave a single unnamed pin at a home.
 - `explore.care.publishing-asks-about-people` — **[GAP]** (#5032) publishing a view or dataset

@@ -45,7 +45,7 @@ sources.
   triangles, clustering, paths, traversal, neighbourhood, structural similarity; link
   prediction (pykeen). None takes a time argument.
 - Claims carry dates, confidence, `created_by` and a source anchor. `created_by` is not yet
-  truthful for machine claims (#4868, #4869).
+  truthful for machine claims (→ #4868, → #4869).
 - RDF export (Turtle, JSON-LD) and a SPARQL console exist. **No GEXF or GraphML exporter.**
 
 ## Behaviors
@@ -69,7 +69,7 @@ What a network is
   palette), node size a chosen measure.
 
 Inferred, and who says so
-- `explore.network.confidence-is-a-control` — **[GAP]** (#5032, depends on #4868, #4869) a
+- `explore.network.confidence-is-a-control` — **[GAP]** (#5032, depends on → #4868, → #4869) a
   minimum-confidence control adds and removes edges as it moves; a second control filters by
   who asserted the evidence (a person, a model, a rule).
 - `explore.network.predicted-links-are-suggestions` — **[GAP]** (#5032) links the engine

@@ -38,12 +38,12 @@ line opens its evidence.
   source excerpt. Built in the model. **Not modelled:** a date relative to another event; the
   calendar a claim's date was written in.
 - Two timelines, neither complete: the dataset Timeline for a folder's dated entries (sort and
-  "show full text" controls BROKEN, #4598; no multi-selection) and the knowledge-graph timeline,
+  "show full text" controls BROKEN, → #4598; no multi-selection) and the knowledge-graph timeline,
   reachable only in the Reader for one document, capped at 500 claims, which already draws
   asserted dates solid and inferred dates hollow.
-- Calendar mode: no zoom from day to century (#4599).
+- Calendar mode: no zoom from day to century (→ #4599).
 - The canvas animates moves (`CanvasMoveAnimation.swift`). Nothing animates through time.
-- #5008: a DATE was extracted as a sentence's subject. Time must be WHEN, never an entity in
+- → #5008: a DATE was extracted as a sentence's subject. Time must be WHEN, never an entity in
   the subject slot; this family depends on that being fixed.
 
 ## Behaviors
@@ -68,7 +68,7 @@ Honest dates
   Needs a model change; PROPOSED, not yet ruled (question 8).
 - `explore.time.calendar-is-kept` — **[PARTIAL]** (#5032) a date written in another calendar
   keeps what was written beside its converted span. Built for document dates; not for claims.
-- `explore.time.when-is-not-an-entity` — **[BROKEN]** (#5008) a date is never the subject of a
+- `explore.time.when-is-not-an-entity` — **[BROKEN]** (→ #5008) a date is never the subject of a
   claim; it is the claim's WHEN. No time view is honest until extraction obeys this.
 
 The timeline
@@ -77,7 +77,7 @@ The timeline
   Library view mode. Built for folder entries; the claims timeline exists only as a Reader tab.
 - `explore.time.one-timeline` — **[GAP]** (#5032) the dataset timeline and the knowledge-graph
   timeline become one drawing with two kinds of row (entries, claims), not two code paths.
-- `explore.time.zoom-day-to-century` — **[GAP]** (#4599, #5032) the time axis zooms from days to
+- `explore.time.zoom-day-to-century` — **[GAP]** (→ #4599, #5032) the time axis zooms from days to
   centuries; an archive spanning decades is readable at both ends.
 - `explore.time.bins-when-large` — **[GAP]** (#5032) above a stated size the timeline draws
   counts per period (stacked by kind, group or asserter) and individual marks only where zoomed
@@ -85,7 +85,7 @@ The timeline
 - `explore.time.rows-by-any-field` — **[GAP]** (#5032) the timeline can be split into rows by
   person, place, kind of source, hand, or group by meaning, so change across them can be
   compared (topics over time is this, with groups as the rows).
-- `explore.time.controls-work` — **[BROKEN]** (#4598) sort, "show full text" and multi-selection
+- `explore.time.controls-work` — **[BROKEN]** (→ #4598) sort, "show full text" and multi-selection
   work in the timeline as in every other mode.
 
 As of, and animation
@@ -93,7 +93,7 @@ As of, and animation
   storylines) has one "as of" control: a moment or a window on the time axis. What did not yet
   hold, or no longer held, is not drawn; what MAY have held (uncertain span) is drawn as
   uncertain.
-- `explore.time.as-of-is-shared-when-linked` — **[GAP]** (#5032, waits on #4881) linked panes
+- `explore.time.as-of-is-shared-when-linked` — **[GAP]** (#5032, waits on → #4881) linked panes
   share one "as of".
 - `explore.time.play` — **[GAP]** (#5032) "as of" can be played forward and back at a chosen
   speed, and stopped on any frame; marks move, appear and fade rather than jump. Stopping always

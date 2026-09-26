@@ -59,8 +59,11 @@ More like this
   there.
 - `explore.meaning.same-space-only` — **[OK]** vectors from different models are never compared:
   each table is stamped with its model id and a mixed search is refused
-  (`db/embeddings.py`, `assert_vector_table_model_compatible`). Every behaviour here inherits
-  this.
+  (`db/embeddings.py`, `assert_vector_table_model_compatible`; pinned by
+  `tests/unit/db/test_embedding_drift_guard.py::test_drift_guard_detects_mixed_space_beyond_first_rows`,
+  which stamps 40 rows with two model ids and asserts the refusal is raised — the guard scans the
+  WHOLE model-id column, so a partial migration whose first rows agree is still caught). Every
+  behaviour here inherits this.
 
 Groups
 - `explore.meaning.group-a-set` — **[GAP]** (#5035) any set can be grouped by meaning; the engine

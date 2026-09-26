@@ -40,12 +40,12 @@ small set of corpus views: frequencies, trends, keyword in context). Tidy, long-
   `ui/library-view-modes.md`.
 - Dataset rows with roles and engine-side aggregates; a date facet and a prototype facet.
 - `GET /search/keywords` (a keyword cloud). A bar chart of entity kinds
-  (`EntityKindChartView.swift`) that nothing mounts (`kg.entity.kind-chart`, GAP, #4828).
+  (`EntityKindChartView.swift`) that nothing mounts (`kg.entity.kind-chart`, GAP, → #4828).
 - Exports: Parquet, JSONL, Excel from the engine; the app's menu wires only Word and Markdown
   (#4873). **No CSV. No "export what is showing".**
-- Tables extracted from sources as real tables: not built (#5026, and the source model).
+- Tables extracted from sources as real tables: not built (→ #5026, and the source model).
 - Hands, campaigns, readings and their certainty: specified in the source-model set (milestone
-  322), not built. Interpretations and frameworks: built, with gaps (#4692).
+  322), not built. Interpretations and frameworks: built, with gaps (→ #4692).
 - No word-frequency, collocation or word-use-over-time computation.
 
 ## Behaviors
@@ -65,7 +65,7 @@ The table is the base
 - `explore.table.summary-row` — **[GAP]** (#5032) above a table: how many rows; how many dated,
   placed, inferred; the span of dates; and, for number columns, sum, mean, median, smallest and
   largest. Each number opens to its rows.
-- `explore.table.rows-from-source-tables` — **[GAP]** (#5026, #5032) a table transcribed from a
+- `explore.table.rows-from-source-tables` — **[GAP]** (→ #5026, #5032) a table transcribed from a
   source (an account book, a register, a census) is a set like any other: it can be faceted,
   counted and charted, and every row and cell opens to its place on the page.
 
@@ -74,7 +74,7 @@ Counts, distributions, flows
   make a simple chart by choosing what to count and what to split it by: bars, a histogram of a
   number column, counts over time (which is `time.md`'s binned timeline), a grid of two fields
   against each other. Every bar and cell opens to its rows.
-- `explore.count.kind-chart-is-the-first-tenant` — **[GAP]** (#4828, #5032) the unmounted
+- `explore.count.kind-chart-is-the-first-tenant` — **[GAP]** (→ #4828, #5032) the unmounted
   entity-kind bar chart is mounted through this behaviour or deleted; it does not stay as
   unreachable code.
 - `explore.count.missing-is-a-value` — **[GAP]** (#5032) "unknown", "illegible" and "not
@@ -116,7 +116,7 @@ The hermeneutic layers
 - `explore.layers.disagreement-is-findable` — **[GAP]** (#5032) segments where two readings, or
   two people, or a person and a model disagree can be listed as a set, and then looked at by
   any view here.
-- `explore.layers.interpretations-are-a-set` — **[GAP]** (#4692, #5032) interpretations and the
+- `explore.layers.interpretations-are-a-set` — **[GAP]** (→ #4692, #5032) interpretations and the
   frameworks they were made under can be listed, faceted and counted like claims, once they
   carry a source anchor.
 

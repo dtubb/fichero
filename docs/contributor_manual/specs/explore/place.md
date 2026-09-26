@@ -27,7 +27,7 @@ its Linked Places format (a GeoJSON extension for places with names and extents 
 time; the standard to export to), Pleiades and GeoNames as gazetteers to reconcile against,
 SlaveVoyages' time-lapse route maps, Kindred Britain's linked geography. The source-model set
 already specifies control points that tie a scanned map to the earth
-(`source.geo.segment-to-world`, `source.geo.names-a-place`, #4933); this family draws what that
+(`source.geo.segment-to-world`, `source.geo.names-a-place`, → #4933); this family draws what that
 makes possible and does not restate it.
 
 ## What exists
@@ -99,7 +99,7 @@ The ground
   one of the project's own georeferenced historical maps. The default is a ruling (question 7).
 - `explore.place.works-offline` — **[GAP]** (#5032) with the plain ground, the place map works
   with no network and sends nothing anywhere.
-- `explore.place.historical-map-as-ground` — **[GAP]** (#5032, waits on #4933) a scanned map
+- `explore.place.historical-map-as-ground` — **[GAP]** (#5032, waits on → #4933) a scanned map
   with control points can be laid under the marks, with its transparency adjustable against the
   modern ground; places labelled on it lead to their place entities.
 
