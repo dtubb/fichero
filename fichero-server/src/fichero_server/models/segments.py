@@ -35,7 +35,7 @@ from fichero_server.media.ocr_geometry import (
 )
 from fichero_server.models.anchors import (
     LEGACY_ID_PREFIX,
-    LEGACY_READING_ID_PREFIX,
+    LEGACY_READING_ID_PREFIX as LEGACY_READING_ID_PREFIX,  # re-export: anchors.py owns it
     PROVISIONAL_ID_PREFIXES,
     SourceAnchor,
     shapes_bound,

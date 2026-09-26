@@ -57,6 +57,7 @@ from fichero_server.models.knowledge import (
     KnowledgeClaim,
     KnowledgeEntity,
     LibraryItemLink,
+    Note,
     ProvenanceKind,
 )
 
@@ -79,6 +80,7 @@ from fichero_server.models.anchors import (
 from fichero_server.models.segments import (
     FORWARDING_DEPTH_CAP,
     LEGACY_ID_PREFIX,
+    LEGACY_READING_ID_PREFIX,
     PassRead,
     ProvisionalSegmentIdError,
     ResolvedSegment,
@@ -2880,4 +2882,35 @@ __all__ = [
     "Device",
     "LibraryRole",
     "LibraryAclOverride",
+
+    # Slice 8's readings vocabulary. These are re-exported deliberately —
+    # `models` is the import surface — so they belong in __all__ rather than
+    # carrying a noqa each. Ruff reads an unlisted re-export as a dead import,
+    # which is the same conclusion a reader would draw.
+    "BUILTIN_READING_KINDS",
+    "BUILTIN_READING_LEVELS",
+    "ChoiceNeedsAPerson",
+    "CountingAnswer",
+    "CountingBasis",
+    "LEGACY_READING_ID_PREFIX",
+    "LibraryReadingKind",
+    "PassAnswer",
+    "PassBasis",
+    "PassCandidate",
+    "PlacedStretch",
+    "ProjectRecordRule",
+    "ReadingAnchorMismatch",
+    "ReadingCandidate",
+    "ReadingChoice",
+    "SegmentPassChoice",
+    "UnknownReadingKind",
+    "artifact_id_for_provisional_reading",
+    "assert_known_reading_kind",
+    "legacy_reading_id",
+    "legacy_reading_segment_id",
+    "project_record_rule",
+    "reading_kinds",
+    "replace_stretch",
+    "resolve_counting",
+    "resolve_working_pass",
 ]

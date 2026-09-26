@@ -38,6 +38,8 @@ from __future__ import annotations
 
 from enum import Enum
 
+from pydantic import BaseModel, ConfigDict, model_validator
+
 #: Ids minted by a READ SEAM rather than written as records: a box's position
 #: in today's `ocr_geometry` blob (`legacy:`) and an artifact's text read as a
 #: reading (`legacy-reading:`). Defined HERE, the lowest layer, because both
@@ -48,7 +50,6 @@ LEGACY_ID_PREFIX = "legacy:"
 LEGACY_READING_ID_PREFIX = "legacy-reading:"
 PROVISIONAL_ID_PREFIXES = (LEGACY_ID_PREFIX, LEGACY_READING_ID_PREFIX)
 
-from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class AnchorSpace(str, Enum):
