@@ -26,9 +26,17 @@ run "ruff" "$RUFF" check fichero-server/src/
 # 2. Backend unit tests (includes the mocked CLI unit tests).
 #    `-k "not embedding"` skips tests that need an unavailable fastembed model
 #    (env limitation, not a code bug). Drop the filter if the model is present.
+#    --timeout-method=signal, NOT thread (#5071): a thread-method timeout cannot
+#    interrupt a wait on a lock (`acquire_lock_timed`), so a deadlock stalled the
+#    gate silently for 90 minutes; the signal method raises in the stuck thread and
+#    pytest prints EVERY thread's stack, naming the two that were waiting on each other.
+#    A real hang becomes one failing test with a stack and the rest of the suite still
+#    runs. 300s per test is a ceiling, not a measurement: lower it once the slowest
+#    test in the gate is known.
 run "backend unit" "$PYTEST" fichero-server/tests/unit/ \
   fichero-cli/tests/ fichero-mcp/tests/ \
-  --ignore=fichero-server/tests/unit/_archived -q -k "not embedding"
+  --ignore=fichero-server/tests/unit/_archived -q -k "not embedding" \
+  --timeout=300 --timeout-method=signal
 
 # Say what this gate does NOT cover, so the exclusion can't quietly become
 # invisible coverage loss (#4174). tests/perf is ~73% of a whole-tree run.
