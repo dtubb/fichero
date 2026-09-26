@@ -58,14 +58,22 @@ PYTHONPATH="$API_ROOT/src" FICHERO_FEATURE_TIER=dev "$PYTHON_BIN" "$API_ROOT/scr
 if [ -n "$PREV_SCHEMA" ]; then
   if ! "$PYTHON_BIN" "$SCRIPT_DIR/check_openapi_version_regression.py" \
       --previous "$PREV_SCHEMA" --current "$NEW_SCHEMA"; then
-    cp "$PREV_SCHEMA" "$NEW_SCHEMA"
     # #5047: the export already baked both contract identities from the REJECTED
     # bytes. Restoring the schema without re-baking would leave the engine and the
     # client both claiming a contract that was just rolled back — and every
     # remaining guard would still report green, which is the #5046 shape.
+    #
+    # Order matters, and got this wrong once. Re-bake FROM THE SAVED COPY, and
+    # restore the schema LAST. Baking from "$NEW_SCHEMA" after restoring it meant
+    # the abort path re-invoked the exporter with the file it had just repaired as
+    # both input and output — safe only because the real exporter happens to
+    # return early on --bake-identity-from without writing. That is a promise the
+    # exporter never made. Restoring last needs no such promise: whatever the
+    # exporter does, the committed contract is the saved bytes when this exits.
     PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" "$API_ROOT/scripts/export_openapi_schema.py" \
-      --bake-identity-from "$NEW_SCHEMA" >&2 \
+      --bake-identity-from "$PREV_SCHEMA" >&2 \
       || echo "⚠️  Could not re-bake the contract identity; it may describe the rejected schema." >&2
+    cp "$PREV_SCHEMA" "$NEW_SCHEMA"
     echo "↩︎  Restored the previous schema; nothing was copied downstream." >&2
     exit 1
   fi
