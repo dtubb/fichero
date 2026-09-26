@@ -186,12 +186,15 @@ def _matching_claim_suppression_rules(
     subject_canonical: str | None,
     predicate_verb: str | None,
     object_phrase: str | None,
+    source_document_id: str | None = None,
 ) -> list[ClaimSuppressionRule]:
     subject_norm = _norm_rule_text(subject_canonical)
     predicate_norm = _norm_rule_text(predicate_verb)
     object_norm = _norm_rule_text(object_phrase)
     matches: list[ClaimSuppressionRule] = []
     for rule in db.all(ClaimSuppressionRule):
+        if rule.match_source_document_id and rule.match_source_document_id != source_document_id:
+            continue
         if rule.match_subject_name and _norm_rule_text(rule.match_subject_name) != subject_norm:
             continue
         if rule.match_predicate_verb and _norm_rule_text(rule.match_predicate_verb) != predicate_norm:
@@ -220,12 +223,14 @@ def _claim_suppression_action(
     subject_canonical: str | None,
     predicate_verb: str | None,
     object_phrase: str | None,
+    source_document_id: str | None = None,
 ) -> ClaimSuppressionRuleAction | None:
     matched = _matching_claim_suppression_rules(
         db,
         subject_canonical=subject_canonical,
         predicate_verb=predicate_verb,
         object_phrase=object_phrase,
+        source_document_id=source_document_id,
     )
     if not matched:
         return None
@@ -2527,6 +2532,7 @@ def save_claim(
         subject_canonical=sc,
         predicate_verb=sv,
         object_phrase=so,
+        source_document_id=source_document_id,
     )
     if suppression_action == ClaimSuppressionRuleAction.prune:
         logger.info(

@@ -22,6 +22,8 @@ from fichero_server.actions.registry import registry
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
     ClaimCurationState,
+    ClaimSuppressionRule,
+    ClaimSuppressionRuleAction,
     ClaimType,
     EpistemicStatus,
     GeoPoint,
@@ -679,6 +681,52 @@ def _curation_source_for_actor(actor: str | None):
     return CurationSource.user
 
 
+def record_claim_delete_rule(db: Database, claim: KnowledgeClaim, actor: str) -> list[str]:
+    """`prune` rule for a claim a person deleted, so re-extracting its document does not recreate
+    it (#5074). Returns the ids of rows THIS call created (empty when none was needed or possible).
+
+    WHY `prune`, of the three actions (`disable`, `demote`, `prune`): `disable` and `demote` still
+    WRITE the claim, as `rejected` (demote also caps its confidence), so it comes back into the
+    library as a row someone has to notice and dismiss again. A person who deletes a claim is
+    saying it should not exist; only `prune` makes the writer skip it. Rejecting a claim is the
+    other verb, and it already survives a re-extraction.
+
+    Scoped to the claim's SOURCE DOCUMENT and matched on its subject/verb/object: a rule that
+    matched the triple library-wide would also suppress it on the page that really says it. A
+    claim with no complete triple (a hand-authored, text-only claim) cannot be recreated by the
+    extractor, and an incomplete pattern would match far more than this claim, so no rule is
+    written for it. The write is NOT wrapped in a try: it runs inside the action's transaction,
+    so a failure rolls the delete back.
+    """
+    from fichero_server.workflows.tools._entity_writer import _norm_rule_text
+
+    subject = claim.subject_canonical or claim.svo_subject
+    verb = claim.predicate_verb or claim.svo_verb
+    obj = claim.object_phrase or claim.svo_object
+    if not (subject and verb and obj and claim.source_document_id):
+        return []
+    for existing in db.all(ClaimSuppressionRule):
+        if (
+            existing.action == ClaimSuppressionRuleAction.prune
+            and existing.match_source_document_id == claim.source_document_id
+            and _norm_rule_text(existing.match_subject_name) == _norm_rule_text(subject)
+            and _norm_rule_text(existing.match_predicate_verb) == _norm_rule_text(verb)
+            and _norm_rule_text(existing.match_object_phrase) == _norm_rule_text(obj)
+        ):
+            return []
+    rule = ClaimSuppressionRule(
+        action=ClaimSuppressionRuleAction.prune,
+        match_subject_name=subject,
+        match_predicate_verb=verb,
+        match_object_phrase=obj,
+        match_source_document_id=claim.source_document_id,
+        reason=f"deleted by {actor}",
+        created_by=actor,
+    )
+    db.save(rule)
+    return [rule.id]
+
+
 def delete_claim_impl(
     db: Database, claim_id: str, actor: str
 ) -> tuple[dict[str, Any], list[dict[str, Any]], list[str]]:
@@ -1269,6 +1317,10 @@ class ClaimDeleteParams(BaseModel):
     """Params for claim.delete — also the inverse of claim.create."""
 
     claim_id: str = Field(description="Claim id to hard-delete")
+    # #5074: a delete that CORRECTS (the claim is wrong / unwanted) writes a `prune` rule so the
+    # next extraction does not recreate it. The delete that is the inverse of a create is an undo
+    # and must not, or a person who undoes a hand-authored claim could never author it again.
+    record_rule: bool = True
 
 
 class ClaimPatchActionParams(BaseModel):
@@ -1287,6 +1339,10 @@ class ClaimPatchActionParams(BaseModel):
 class ClaimRestoreParams(BaseModel):
     """Params for claim.restore — re-create a claim (+ its links) from snapshots."""
 
+    # #5074: the rules the undone delete wrote; deleted here so the restored claim is not
+    # pruned by its own undone correction.
+    rule_ids: list[str] = Field(default_factory=list)
+
     snapshot: dict[str, Any] = Field(description="KnowledgeClaim.model_dump snapshot")
     link_snapshots: list[dict[str, Any]] = Field(
         default_factory=list,
@@ -1302,7 +1358,7 @@ def _invert_create_claim(
     claim_id = after.get("claim_id")
     if not claim_id:
         return None
-    return ("claim.delete", {"claim_id": claim_id})
+    return ("claim.delete", {"claim_id": claim_id, "record_rule": False})
 
 
 def _invert_patch_claim(
@@ -1323,6 +1379,7 @@ def _invert_delete_claim(
         {
             "snapshot": before.get("claim", {}),
             "link_snapshots": before.get("deleted_links", []),
+            "rule_ids": list((after or {}).get("rule_ids", [])),
         },
     )
 
@@ -1408,6 +1465,13 @@ def _action_patch_claim(
 def _action_delete_claim(
     db: Database, params: ClaimDeleteParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
+    # #5074: the rule that keeps the next extraction from recreating this claim is written FIRST,
+    # in this same action; if it cannot be written the delete fails and the claim stays.
+    rule_ids: list[str] = []
+    if params.record_rule:
+        existing = db.get(KnowledgeClaim, params.claim_id)
+        if existing is not None:
+            rule_ids = record_claim_delete_rule(db, existing, ctx.actor)
     before_state, deleted_links, affected_entity_ids = delete_claim_impl(
         db, params.claim_id, ctx.actor
     )
@@ -1415,7 +1479,7 @@ def _action_delete_claim(
         domains=["claim"],
         target_ids=[params.claim_id],
         before={"claim": before_state, "deleted_links": deleted_links},
-        after=None,
+        after={"rule_ids": rule_ids},
         emit_type="claim.deleted",
         claim_ids=[params.claim_id],
         entity_ids=affected_entity_ids,
@@ -1436,6 +1500,10 @@ def _action_restore_claim(
     claim = restore_claim_impl(
         db, snapshot=params.snapshot, link_snapshots=params.link_snapshots
     )
+    for rule_id in params.rule_ids:
+        rule = db.get(ClaimSuppressionRule, rule_id)
+        if rule is not None:
+            db.delete(rule)
     spec = ChangeSpec(
         domains=["claim"],
         target_ids=[claim.id],
