@@ -204,14 +204,7 @@ extension EntityDetailView {
     /// composer, opposite answer, and the difference is now stated rather than
     /// being two copies that drifted.
     private func provenanceSummary(for claim: Components.Schemas.KnowledgeClaim) -> String {
-        let svo = ClaimSummaryCard.svoTriple(for: claim)
-        return ClaimLine.text(
-            subject: svo?.subject,
-            verb: svo?.verb,
-            object: svo?.object,
-            fallback: claim.text,
-            groupSubject: nil
-        )
+        ClaimLine.statement(for: claim, groupSubject: nil)
     }
 
     private func deleteSelectedClaims(_ claims: [Components.Schemas.KnowledgeClaim]) async {

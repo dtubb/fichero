@@ -55,22 +55,12 @@ struct EntityInspectorPinningTests {
         )
     }
 
-    /// The one statement-line composer every entity-statement surface shares:
-    /// `ClaimSummaryCard.svoTriple` feeding `ClaimLine.text`. Computing a line
-    /// this way IS what the digest (`provenanceSummary`) and the ontology
-    /// detail panel do; the source-scan below proves neither hand-rolls its own.
+    /// The real composer both entity-statement surfaces call (`ClaimLine.statement`).
     private static func statementLine(
         for claim: Components.Schemas.KnowledgeClaim,
         groupSubject: String?
     ) -> String {
-        let svo = ClaimSummaryCard.svoTriple(for: claim)
-        return ClaimLine.text(
-            subject: svo?.subject,
-            verb: svo?.verb,
-            object: svo?.object,
-            fallback: claim.text,
-            groupSubject: groupSubject
-        )
+        ClaimLine.statement(for: claim, groupSubject: groupSubject)
     }
 
     // MARK: - B. statements.loads-via-store
@@ -258,23 +248,10 @@ struct EntityInspectorPinningTests {
         #expect(Self.statementLine(for: other, groupSubject: group) == "Juan Catarino · conoce · a Adolfo")
     }
 
-    /// spec: kg-entity-inspector — `kg.entity.xsurface.same-line` (E).
-    ///
-    /// The invariant only holds if every entity-statement surface calls the shared
-    /// composer rather than building its own SVO string. Both the digest and the
-    /// ontology entity-detail panel route through
-    /// `ClaimSummaryCard.svoTriple` + `ClaimLine.text`.
-    @Test("every entity-statement surface routes through the one composer")
-    func surfacesRouteThroughOneComposer() throws {
-        for path in [
-            // #4896: provenanceSummary (the digest's composer call) moved to
-            // +Provenance.swift.
-            "Views/Inspector/Knowledge/EntityDigestContent+Provenance.swift",
-            "Views/Library/ViewModes/Graph/Ontology/Entity/EntityDetailView+Claims.swift"
-        ] {
-            let source = try AppSource.code(path)
-            #expect(source.contains("ClaimSummaryCard.svoTriple(for: claim)"))
-            #expect(source.contains("ClaimLine.text("))
-        }
+    /// A surface naming ONE claim out of any list (`groupSubject: nil`, #4393) keeps the subject.
+    @Test("a claim named outside a grouped list keeps its own subject")
+    func ungroupedStatementKeepsItsSubject() {
+        let own = Self.claim(id: "own", subject: "Adolfo Hurtado", verb: "compareció", object: "ante mí")
+        #expect(Self.statementLine(for: own, groupSubject: nil) == "Adolfo Hurtado · compareció · ante mí")
     }
 }

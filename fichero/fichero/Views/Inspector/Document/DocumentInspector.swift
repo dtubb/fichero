@@ -224,20 +224,15 @@ struct DocumentInspector: View {
                 loadFailed = false
                 loadFailureReason = nil
                 entity = nil
-                do {
-                    entity = try await entityService.getEntity(entityId)
-                } catch {
-                    // A superseded fetch (the focused entity changed again
-                    // before this one returned, or the arm itself was torn
-                    // down) is not a failure — #4850's checklist line: never
-                    // show a cancelled task as an error.
-                    guard !Task.isCancelled else { return }
-                    let libraryPath = entityService.client.currentLibraryPath ?? "no library open"
-                    entityInspectorArmLogger.error(
-                        "Failed to load entity \(entityId, privacy: .public) from library \(libraryPath, privacy: .public): \(String(describing: error), privacy: .public)"
-                    )
-                    loadFailureReason = "Couldn't load this entity from \(libraryPath) — \(error.localizedDescription)"
+                let libraryPath = entityService.client.currentLibraryPath ?? "no library open"
+                switch await EntityArmLoad.run(entityId: entityId, libraryPath: libraryPath, fetch: {
+                    try await entityService.getEntity(entityId)
+                }) {
+                case .loaded(let loaded): entity = loaded
+                case .failed(let reason):
+                    loadFailureReason = reason
                     loadFailed = true
+                case .superseded: return
                 }
             }
         }
@@ -254,6 +249,42 @@ struct DocumentInspector: View {
               focusedArtifact.id != nil,
               focusedArtifact.documentId == doc.id else { return }
         selectedTab = .artifacts
+    }
+}
+
+/// The entity arm's fetch, as a value a test can drive (#4850).
+enum EntityArmLoad {
+    enum Outcome {
+        case loaded(Components.Schemas.KnowledgeEntity)
+        /// The reason shown to the user; it names the library the request used, so a cross-library
+        /// mismatch is visible instead of a bare "Entity Unavailable".
+        case failed(String)
+        /// The focused entity changed again (or the arm was torn down) before the fetch returned.
+        /// Not a failure: never shown as an error.
+        case superseded
+    }
+
+    /// `@MainActor` so the caller's closure never leaves its isolation domain. The
+    /// only caller is a `.task` on a view, and the closure it passes captures an
+    /// `EntityService` and calls it — neither of which is `Sendable`. As a
+    /// `nonisolated` function this compiled as "sending a non-Sendable closure",
+    /// which is a data race, not a style note. Staying on the main actor costs
+    /// nothing here: the fetch is a main-actor service call either way, and the
+    /// outcome is assigned straight to `@State`.
+    @MainActor
+    static func run(
+        entityId: String, libraryPath: String,
+        fetch: () async throws -> Components.Schemas.KnowledgeEntity
+    ) async -> Outcome {
+        do {
+            return .loaded(try await fetch())
+        } catch {
+            guard !Task.isCancelled else { return .superseded }
+            entityInspectorArmLogger.error(
+                "Failed to load entity \(entityId, privacy: .public) from library \(libraryPath, privacy: .public): \(String(describing: error), privacy: .public)"
+            )
+            return .failed("Couldn't load this entity from \(libraryPath) — \(error.localizedDescription)")
+        }
     }
 }
 

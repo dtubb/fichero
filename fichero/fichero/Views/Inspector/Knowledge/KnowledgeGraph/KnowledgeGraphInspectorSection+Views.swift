@@ -35,23 +35,18 @@ extension KnowledgeGraphInspectorSection {
                                 .font(bodyTextFont)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .environment(\.openURL, OpenURLAction { url in
-                                    guard let claimId = url.host else { return .discarded }
-                                    // #4833: the "[Edit]" run opens the same
-                                    // InlineClaimEditor the context menu's
-                                    // "Edit S/V/O…" opens — a separate,
-                                    // explicit affordance from the sentence's
-                                    // own reveal link.
-                                    if url.scheme == KnowledgeGraphInspectorSection.digestClaimEditLinkScheme {
-                                        guard claimsById[claimId] != nil else { return .discarded }
+                                    switch KnowledgeGraphInspectorSection.digestLinkAction(
+                                        for: url, claimsById: claimsById
+                                    ) {
+                                    case .edit(let claimId):
                                         editingDigestClaimId = claimId
                                         return .handled
+                                    case .reveal(let request):
+                                        claimSourceNavigationState?.request(request)
+                                        return .handled
+                                    case .discard:
+                                        return .discarded
                                     }
-                                    guard url.scheme == KnowledgeGraphInspectorSection.digestClaimLinkScheme,
-                                          let claim = claimsById[claimId],
-                                          let request = ClaimSourceRequest.request(for: claim, destination: .both)
-                                    else { return .discarded }
-                                    claimSourceNavigationState?.request(request)
-                                    return .handled
                                 })
                         }
                     }

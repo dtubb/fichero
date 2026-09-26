@@ -131,26 +131,38 @@ struct KGSectionGroupingTests {
         #expect(linkedClaimIds(attributed).isEmpty)
     }
 
-    /// Each digest sentence's `openURL` handler resolves through the SAME
-    /// request bus and `.both` destination as the biography sentence and
-    /// the claim-excerpt button — `kg.read.source-request-declares-intent`.
-    @Test("the digest's sentence links resolve through the shared bus at .both")
+    /// Each digest sentence link resolves through the SAME request bus and `.both` destination as
+    /// the biography sentence and the claim-excerpt button (`kg.read.source-request-declares-intent`).
+    @Test("the digest's sentence links resolve to a source reveal at .both")
     func digestLinksResolveAtBothDestination() throws {
-        let source = try String(
-            contentsOf: AppSource.root().appendingPathComponent(
-                "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection+Views.swift"
-            ),
-            encoding: .utf8
-        )
-        let body = try #require(
-            source.components(separatedBy: "Text(entry.attributed)").dropFirst().first
-        )
-        // Scoped to the END of the link handler, not a character count: the
-        // handler grew an edit-link branch (#4833) and a fixed 800-character
-        // window then missed the reveal that is still there.
-        let handler = try #require(body.components(separatedBy: ".textSelection(.enabled)").first)
-        let scope = AppSource.codeOnly(handler)
-        #expect(scope.contains("ClaimSourceRequest.request(for: claim, destination: .both)"))
-        #expect(scope.contains("claimSourceNavigationState?.request(request)"))
+        var claim = svoClaim(id: "c1", subject: "Ada", verb: "invented", object: "X")
+        claim.sourceDocumentId = "doc-1"
+        claim.sourcePageLabel = "4"
+        let url = try #require(URL(string: "\(KnowledgeGraphInspectorSection.digestClaimLinkScheme)://c1"))
+        let action = KnowledgeGraphInspectorSection.digestLinkAction(for: url, claimsById: ["c1": claim])
+        guard case .reveal(let request) = action else {
+            // `Issue.record` RETURNS an Issue, so `return Issue.record(...)` is a
+            // non-void return from a void test. Record, then return separately.
+            Issue.record("expected .reveal, got \(action)")
+            return
+        }
+        #expect(request.destination == .both)
+        #expect(request.documentId == "doc-1")
+        #expect(request.claimId == "c1")
+    }
+
+    @Test("the [Edit] link opens the editor for that claim, and unknown links are discarded")
+    func editLinkAndUnknownLinks() throws {
+        let claim = svoClaim(id: "c1", subject: "Ada", verb: "invented", object: "X")
+        let claims = ["c1": claim]
+        let edit = try #require(URL(string: "\(KnowledgeGraphInspectorSection.digestClaimEditLinkScheme)://c1"))
+        #expect(KnowledgeGraphInspectorSection.digestLinkAction(for: edit, claimsById: claims) == .edit(claimId: "c1"))
+        let unknownClaim = try #require(URL(string: "\(KnowledgeGraphInspectorSection.digestClaimLinkScheme)://nope"))
+        #expect(KnowledgeGraphInspectorSection.digestLinkAction(for: unknownClaim, claimsById: claims) == .discard)
+        let foreign = try #require(URL(string: "https://c1"))
+        #expect(KnowledgeGraphInspectorSection.digestLinkAction(for: foreign, claimsById: claims) == .discard)
+        // A claim with no source document has nowhere honest to reveal.
+        let noSource = try #require(URL(string: "\(KnowledgeGraphInspectorSection.digestClaimLinkScheme)://c1"))
+        #expect(KnowledgeGraphInspectorSection.digestLinkAction(for: noSource, claimsById: claims) == .discard)
     }
 }
