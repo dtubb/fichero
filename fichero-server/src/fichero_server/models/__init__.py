@@ -57,6 +57,7 @@ from fichero_server.models.knowledge import (
     KnowledgeClaim,
     KnowledgeEntity,
     LibraryItemLink,
+    ProvenanceKind,
 )
 
 # The shared geometry types (2026-08-20 bbox review). anchors.py sits BELOW
@@ -105,6 +106,36 @@ from fichero_server.models.segments import (
     segments_from_result,
     snapshot_segment_version,
     tiles_for_rect,
+)
+
+# Source-model slice 8 (2026-09-26, #4934/#4929/#4932) — the vocabulary, the
+# choice record and the counting functions that sit AROUND
+# `ContentRepresentation`. `readings.py` imports `segments.py` (for the
+# provisional-id prefixes) and nothing else from this package, so it sits at
+# the same level as `segments.py` does.
+from fichero_server.models.readings import (
+    BUILTIN_READING_KINDS,
+    BUILTIN_READING_LEVELS,
+    ChoiceNeedsAPerson,
+    CountingAnswer,
+    CountingBasis,
+    LibraryReadingKind,
+    PassAnswer,
+    PassBasis,
+    PassCandidate,
+    ProjectRecordRule,
+    ReadingCandidate,
+    ReadingAnchorMismatch,
+    ReadingChoice,
+    UnknownReadingKind,
+    artifact_id_for_provisional_reading,
+    assert_known_reading_kind,
+    legacy_reading_id,
+    legacy_reading_segment_id,
+    project_record_rule,
+    reading_kinds,
+    resolve_counting,
+    resolve_working_pass,
 )
 
 # Forward refs — routes import from this file, so we can't import back. The
@@ -798,6 +829,20 @@ class Artifact(BaseModel):
 
 
 class ContentRepresentationKind(str, Enum):
+    """The kinds of reading that SHIP.
+
+    Source-model slice 8 (#4934) opened this list: it is no longer the TYPE of
+    ``ContentRepresentation.kind`` (that is now a plain string, checked at
+    write time against the per-library ``libraryreadingkinds`` vocabulary), so
+    a project can add "coordinate" or "music" without a code change. The enum
+    stays because it is a `str` enum -- every existing
+    ``kind == ContentRepresentationKind.transcription`` comparison in the
+    engine and in tests keeps working unchanged against the stored string --
+    and because these seven names are the ones the code itself relies on.
+    The five the design adds are in ``readings.BUILTIN_READING_KINDS``, which
+    is what seeds the table; this enum is not the vocabulary.
+    """
+
     transcription = "transcription"
     normalized_text = "normalized_text"
     translation = "translation"
@@ -820,7 +865,12 @@ class ContentRepresentation(BaseModel):
 
     id: str = Field(default_factory=_new_id)
     document_id: str
-    kind: ContentRepresentationKind
+    #: Source-model slice 8 (#4934): an OPEN list, checked on write against
+    #: this library's ``libraryreadingkinds`` rows
+    #: (``readings.assert_known_reading_kind``) and NEVER on read, so a row
+    #: stored under a kind a project has since removed still reads back.
+    #: ``ContentRepresentationKind`` names the seven that ship.
+    kind: str
     content: str
     language: str | None = None
     script: str | None = None
@@ -844,6 +894,63 @@ class ContentRepresentation(BaseModel):
     review_state: ContentReviewState = ContentReviewState.source
     created_at: datetime = Field(default_factory=utc_now)
 
+    # ---- Source-model slice 8 (#4934/#4929/#4932) --------------------------
+    # A READING IS THIS RECORD, GROWN. Every field below is optional and every
+    # one arrives by `_ensure_table`'s generic ADD COLUMN when a library
+    # opens, so no stored representation is migrated, rewritten or invalidated
+    # -- an old row reads back with all of them empty, which is the truth
+    # about it.
+
+    #: The segment this reading reads (`source.reading.set`). ``document_id``
+    #: stays REQUIRED: a reading always knows its source even when nobody has
+    #: said which line it is. Never a provisional (``legacy:``) id.
+    segment_id: str | None = None
+    #: How normalised the text is (`source.reading.level-recorded`): shipped
+    #: defaults ``as_written`` / ``expanded`` / ``normalised``, an open list.
+    #: NEVER inferred -- a reading with no level reads back as none, because
+    #: guessing "it is probably as written" is how an edition loses the
+    #: distinction it was made to record.
+    level: str | None = None
+    #: The image it was read FROM (`source.reading.read-from`). Two people
+    #: reading the same line off a colour scan and a 1970s microfilm are not
+    #: disagreeing, and this is the field that says so.
+    read_from_rendition_id: str | None = None
+    #: The transcription convention it follows
+    #: (`source.reading.author-and-guideline`).
+    guideline: str | None = None
+    #: Who or what wrote it (`source.reading.maker-set-by-engine`).
+    #: ENGINE-SET from how the write arrived, never accepted in a params model
+    #: (→ #4868, #4869: the same defect as machine claims stored as human).
+    provenance_kind: ProvenanceKind | None = None
+    #: The recogniser's certainty about the whole reading.
+    machine_confidence: float | None = None
+    #: One certainty per character, where the recogniser gave them
+    #: (`source.reading.char-confidence-on-line`).
+    char_confidences: list[float] | None = None
+    #: Each character's place along the line, 0 to 1 -- so a character can be
+    #: pointed at without any character-level segment existing.
+    char_positions: list[float] | None = None
+    #: A correction names what it corrects
+    #: (`source.reading.corrections-are-new`). The target's text is never
+    #: touched: a correction is a NEW reading.
+    corrects_representation_id: str | None = None
+    #: A correction of text that still lives in an ``Artifact`` row names that
+    #: artifact here, because a provisional reading has no id to correct.
+    #: This is the ONLY link between the two stores, and it points from the
+    #: new record to the old output -- never the other way, and never a copy.
+    derived_from_artifact_id: str | None = None
+    #: Written-and-read pairs (`source.reading.written-read-pair`): both
+    #: readings share ``pair_id``, with roles ``written`` and ``read``.
+    pair_id: str | None = None
+    pair_role: str | None = None
+    #: Which campaigns this reading takes in (used from slice 14).
+    campaign_ids: list[str] | None = None
+    #: Position to declared sign (used from slice 14).
+    sign_map: dict | None = None
+    #: Set by ``representation.retract``, the inverse of a create. The ROW
+    #: STAYS: something that was said and withdrawn is part of the record.
+    retracted_at: datetime | None = None
+
 
 class ContentRepresentationRevision(BaseModel):
     """A user-authored revision linked to an immutable representation."""
@@ -853,7 +960,17 @@ class ContentRepresentationRevision(BaseModel):
     id: str = Field(default_factory=_new_id)
     representation_id: str
     content: str
+    #: Who the caller SAID reviewed it. Kept, and kept readable, because
+    #: existing rows have it and are never rewritten -- but its ``"human"``
+    #: default is the same defect as machine claims stored as human (#4868,
+    #: #4869): a workflow revising text got recorded as a person by doing
+    #: nothing at all. ``provenance_kind`` below is the honest answer.
     reviewer: str = "human"
+    #: ENGINE-SET from how the write arrived (source-model slice 8, #4934).
+    #: A revision made through the MCP surface reads back ``agent`` whatever
+    #: the body said. Optional so rows written before this slice read as they
+    #: are: none means "nobody recorded it", which is true of them.
+    provenance_kind: ProvenanceKind | None = None
     decision: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
 

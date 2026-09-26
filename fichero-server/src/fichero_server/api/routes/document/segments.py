@@ -334,8 +334,12 @@ def _assert_not_provisional_http(id_value: str | None, *, what: str) -> None:
         raise _as_http_error(exc) from exc
 
 
-def _provenance_kind_from_ctx(ctx: ActionContext) -> ProvenanceKind:
-    """Same posture as `_new_pass_provenance_kind` below, without a
+def provenance_kind_from_ctx(ctx: ActionContext) -> ProvenanceKind:
+    """PUBLIC since source-model slice 8 (#4934), which needed the same
+    answer for a reading: one function deciding "who made this" for every
+    source-model write, because two copies of this rule would be two rules.
+
+    Same posture as `_new_pass_provenance_kind` below, without a
     provider/model (matches/merges have neither): a run behind the call
     means a machine did it; the MCP surface means an agent did it (test-audit
     F15, 2026-09-20: the SAME rule `annotation.promote_to_claim` and
@@ -934,7 +938,7 @@ def _create_segment_impl(
     # human pass) must be stored as what it actually is.
     segment = _build_segment_row(
         document_id=params.document_id, pass_id=params.pass_id, spec=spec_obj,
-        actor=ctx.actor, provenance_kind=_provenance_kind_from_ctx(ctx), id=segment_id,
+        actor=ctx.actor, provenance_kind=provenance_kind_from_ctx(ctx), id=segment_id,
     )
     db.save(segment)
     return segment
@@ -996,7 +1000,7 @@ def _action_segment_create_many(db: Database, params: SegmentCreateManyParams, c
 
     # test-audit F14, 2026-09-20: the maker is set by the engine from WHO
     # ACTED, never inherited from the pass -- same rule as `segment.create`.
-    provenance_kind = _provenance_kind_from_ctx(ctx)
+    provenance_kind = provenance_kind_from_ctx(ctx)
     rows: list[Segment] = []
     for spec in params.segments:
         if spec.parent_segment_id:
@@ -1526,7 +1530,7 @@ def _action_match_propose(db: Database, params: SegmentMatchProposeParams, ctx: 
         from_segment_id=params.from_segment_id,
         to_segment_id=params.to_segment_id,
         state="proposed",
-        proposed_by_kind=_provenance_kind_from_ctx(ctx),
+        proposed_by_kind=provenance_kind_from_ctx(ctx),
         proposed_by=ctx.actor,
         certainty=params.certainty,
         note=params.note,
@@ -1596,7 +1600,7 @@ def _action_match_accept(db: Database, params: SegmentMatchIdParams, ctx: Action
     match = db.get(SegmentMatch, params.match_id)
     if not match:
         raise HTTPException(status_code=404, detail=f"Match not found: {params.match_id}")
-    if _provenance_kind_from_ctx(ctx) != ProvenanceKind.human:
+    if provenance_kind_from_ctx(ctx) != ProvenanceKind.human:
         raise _as_http_error(MatchNeedsAPerson("only a person can accept a match"))
     before_state = match.state
     match.state = "accepted"

@@ -1038,6 +1038,7 @@ class Database(DatabaseEmbeddingMixin):
         self._materialize_schema()
         self._seed_builtin_document_prototypes()
         self._seed_builtin_node_classes()
+        self._seed_builtin_reading_kinds()
         self._backfill_claim_links_to_library_links()
         self._backfill_filed_entity_documents()
         self._backfill_note_documents()
@@ -1190,6 +1191,8 @@ class Database(DatabaseEmbeddingMixin):
             Artifact,
             Conversation,
             Document,
+            LibraryReadingKind,
+            ReadingChoice,
             DocumentNote,
             ImageEditChain,
             KnownLibrary,
@@ -1252,9 +1255,11 @@ class Database(DatabaseEmbeddingMixin):
             KnowledgePredictionRun,
             LibraryEntityType,
             LibraryItemLink,
+            LibraryReadingKind,
             Milestone,
             MutationLog,
             PatternInstance,
+            ReadingChoice,
             Project,
             ProjectInclusion,
             ProviderRef,
@@ -2266,6 +2271,29 @@ class Database(DatabaseEmbeddingMixin):
                     is_builtin=True,
                 )
             )
+
+    def _seed_builtin_reading_kinds(self) -> None:
+        """Seed the shipped reading kinds (source-model slice 8, #4934).
+
+        Idempotent, and additive only: a key already present is left exactly
+        as it is, so a project that relabelled "Transcription" keeps its
+        label, and a kind a project ADDED is never touched. Nothing is ever
+        deleted from this table -- a row stored under a kind that is later
+        withdrawn must still read back.
+        """
+        if not hasattr(self.conn, "execute"):
+            return
+
+        from fichero_server.models.readings import (
+            BUILTIN_READING_KINDS,
+            LibraryReadingKind,
+        )
+
+        existing = {row.key for row in self.query(LibraryReadingKind)}
+        for key, label in BUILTIN_READING_KINDS:
+            if key in existing:
+                continue
+            self.save(LibraryReadingKind(key=key, label=label, builtin=True))
 
     def _effective_prototype_attributes(self, doc: Any) -> dict[str, Any]:
         """Resolve inherited prototype attributes and overlay the node payload."""

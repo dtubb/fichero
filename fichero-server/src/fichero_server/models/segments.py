@@ -51,6 +51,17 @@ def _new_id() -> str:
 #: provisional id must never be accepted back on a write.
 LEGACY_ID_PREFIX = "legacy:"
 
+#: The same rule for a reading that still lives in an ``Artifact`` row
+#: (source-model slice 8, #4934). A separate prefix rather than a longer
+#: ``legacy:`` id because the two name different things -- a box's POSITION in
+#: a geometry blob, and a whole artifact's TEXT -- and a caller that mixed
+#: them up should get a refusal naming the right one.
+LEGACY_READING_ID_PREFIX = "legacy-reading:"
+
+#: Every prefix ``assert_not_provisional`` refuses. One tuple so adding a
+#: third seam cannot forget to teach the refusal about it.
+PROVISIONAL_ID_PREFIXES = (LEGACY_ID_PREFIX, LEGACY_READING_ID_PREFIX)
+
 
 class ProvisionalSegmentIdError(ValueError):
     """Raised when a write path is handed a provisional (``legacy:``) id.
@@ -79,7 +90,7 @@ def assert_not_provisional(id_value: str | None, *, what: str = "id") -> None:
     caller could reach by (mistakenly) forwarding a ``PassRead.id`` instead
     of the real ``Artifact.id`` it is prefixed from.
     """
-    if id_value is not None and id_value.startswith(LEGACY_ID_PREFIX):
+    if id_value is not None and id_value.startswith(PROVISIONAL_ID_PREFIXES):
         raise ProvisionalSegmentIdError(id_value, what=what)
 
 
