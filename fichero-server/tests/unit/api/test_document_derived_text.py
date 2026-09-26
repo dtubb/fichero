@@ -21,6 +21,7 @@ converted by the real first-edit path.
 from __future__ import annotations
 
 import pytest
+from fastapi import HTTPException
 
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.api.routes.document.segment_conversion import (
@@ -212,14 +213,96 @@ class TestTheDerivedText:
         assert derived.pass_id is None
         assert derived.pass_basis == PassBasis.none.value
 
-    def test_a_named_reading_order_is_refused_until_slice_10(self, db, client):
+    def test_a_named_order_gives_a_different_text_from_box_order(self, db, client):
+        """Slice 10 (#4930) replaced the refusal this test used to assert. The
+        behaviour that replaced it is the one worth pinning: two orders over the
+        same page give two texts, which is the whole point of naming them."""
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.api.routes.document.reading_orders import as_written_order
+
+        doc = _make_doc(db)
+        artifact = _artifact(db, doc)
+        _convert(client, artifact.id)
+        pass_id = converted_pass_id(artifact.id)
+        rows = live_rows_in_order(db, pass_id)
+        person = ActionContext(actor="historian", is_bootstrap=True)
+
+        box_order_text = document_text(db, doc.id).text
+        written = as_written_order(db, pass_id)
+        assert document_text(db, doc.id, order=written.id).text == box_order_text
+
+        # An imposed order, the lines backwards.
+        imposed = registry.invoke(
+            db,
+            "reading_order.create",
+            {
+                "document_id": doc.id, "pass_id": pass_id,
+                "name": "backwards", "kind": "imposed",
+            },
+            person,
+        ).result
+        for row in reversed(rows):
+            registry.invoke(
+                db,
+                "reading_order.place",
+                {"order_id": imposed["order_id"], "segment_id": row.id, "at_end": True},
+                person,
+            )
+
+        backwards = document_text(db, doc.id, order=imposed["order_id"])
+        assert backwards.text != box_order_text
+        # The LINES are reversed, not the words: asserted through the spans, which
+        # are the only thing that says which line a stretch of text came from.
+        # (Reversing the words would be a different, wrong claim -- a line holds
+        # several of them.)
+        box_order = document_text(db, doc.id)
+        assert [span.segment_id for span in backwards.spans] == list(
+            reversed([span.segment_id for span in box_order.spans])
+        )
+        # And the answer says WHICH order made it, so a reader can check.
+        assert backwards.order == imposed["order_id"]
+        assert document_text(db, doc.id).order is None
+
+    def test_an_order_that_does_not_exist_is_refused(self, db, client):
         doc = _make_doc(db)
         artifact = _artifact(db, doc)
         _convert(client, artifact.id)
 
-        with pytest.raises(ValueError) as excinfo:
-            document_text(db, doc.id, order="as-written")
-        assert "slice 10" in str(excinfo.value)
+        with pytest.raises(HTTPException) as raised:
+            document_text(db, doc.id, order="no-such-order")
+        assert raised.value.status_code == 404
+
+    def test_a_segment_the_order_does_not_mention_is_left_out_not_appended(self, db, client):
+        """An order is a claim about what reads and in what sequence. Appending
+        the lines it does not name would silently add text the order does not
+        claim — and a commentary order that deliberately omits the running heads
+        would grow them back."""
+        from fichero_server.actions.registry import ActionContext, registry
+
+        doc = _make_doc(db)
+        artifact = _artifact(db, doc)
+        _convert(client, artifact.id)
+        pass_id = converted_pass_id(artifact.id)
+        rows = live_rows_in_order(db, pass_id)
+        person = ActionContext(actor="historian", is_bootstrap=True)
+
+        partial = registry.invoke(
+            db,
+            "reading_order.create",
+            {"document_id": doc.id, "pass_id": pass_id, "name": "first line only",
+             "kind": "commentary"},
+            person,
+        ).result
+        registry.invoke(
+            db,
+            "reading_order.place",
+            {"order_id": partial["order_id"], "segment_id": rows[0].id},
+            person,
+        )
+
+        derived = document_text(db, doc.id, order=partial["order_id"])
+        assert len(derived.spans) == 1
+        assert derived.spans[0].segment_id == rows[0].id
 
     def test_a_deleted_line_drops_out_of_the_text(self, db, client):
         doc = _make_doc(db)

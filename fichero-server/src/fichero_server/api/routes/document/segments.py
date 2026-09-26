@@ -659,6 +659,20 @@ def _create_pass_impl(db: Database, params: SegmentPassCreateParams, ctx: Action
         source_artifact_id=params.source_artifact_id,
     )
     db.save(pass_row)
+    # Slice 10 (#4930): a pass has its `as-written` order from the moment it
+    # exists, so no page is ever shown an empty order list while it visibly has
+    # lines. Entries arrive with the segments (`_place_in_as_written` below).
+    # Local import: `reading_orders` imports this module for
+    # `provenance_kind_from_ctx`, so a module-level import here would be a cycle.
+    from fichero_server.api.routes.document.reading_orders import ensure_as_written_order
+
+    ensure_as_written_order(
+        db,
+        document_id=pass_row.document_id,
+        pass_id=pass_row.id,
+        provenance_kind=provenance_kind_from_ctx(ctx),
+        created_by=ctx.actor or None,
+    )
     return pass_row
 
 
@@ -952,7 +966,33 @@ def _create_segment_impl(
         actor=ctx.actor, provenance_kind=provenance_kind_from_ctx(ctx), id=segment_id,
     )
     db.save(segment)
+    _place_in_as_written(db, segment, ctx)
     return segment
+
+
+def _place_in_as_written(db: Database, segment: Segment, ctx: ActionContext) -> None:
+    """Put a new segment into its pass's `as-written` order, at its PAGE place.
+
+    Slice 10 (#4930). Not an append: `as-written` is the order the source was
+    written in, so a line drawn last but positioned third belongs third. The
+    place is worked out by `place_in_page_order`, which uses the one imported
+    sort; this function only decides WHETHER there is an order to place it in.
+
+    A pass made before slice 10 has no `as-written` order and does not get one
+    here: making one silently on a write would invent a machine's order inside
+    somebody's editing session, and the migration story for old libraries is the
+    order being made on demand (`reading_order.create(seed_from_pass=True)`),
+    which is one call and is auditable.
+    """
+    from fichero_server.api.routes.document.reading_orders import (
+        as_written_order,
+        place_in_page_order,
+    )
+
+    order = as_written_order(db, segment.pass_id)
+    if order is None:
+        return
+    place_in_page_order(db, order, segment)
 
 
 @action(
