@@ -26,10 +26,12 @@ proved the snapshot.
 from __future__ import annotations
 
 import pathlib
+import shutil
 from types import SimpleNamespace
 
 import pytest
 
+from fichero_server.core.duckdb_session import connect_utc
 from fichero_server.db import Database
 from fichero_server.maintenance import project_conversion as pc
 from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryResult
@@ -87,10 +89,11 @@ def _page_with_boxes(db, *, boxes: int = 2, artifact_type: str = "transcription"
 def _fake_snapshot(tmp_path, *, snapshot_id: str = "snap-1") -> SimpleNamespace:
     root = tmp_path / "snapshots" / snapshot_id
     (root / "duckdb_export").mkdir(parents=True)
+    (root / "duckdb_file").mkdir(parents=True)
     return SimpleNamespace(
         id=snapshot_id,
         snapshot_path=str(root),
-        duckdb_path="duckdb_export",
+        duckdb_path="duckdb_file",
         is_pinned=False,
         duckdb_size_bytes=1024,
         lance_size_bytes=0,
@@ -98,22 +101,37 @@ def _fake_snapshot(tmp_path, *, snapshot_id: str = "snap-1") -> SimpleNamespace:
     )
 
 
-def _export_every_table(db, snapshot, *, skip: str | None = None, corrupt: str | None = None):
-    """Write the parquet export a real snapshot would, so `prove_snapshot` has
-    something true to compare against — and so a test can make ONE table lie."""
-    export = pathlib.Path(snapshot.snapshot_path) / "duckdb_export"
-    for (table,) in db.conn.execute("SHOW TABLES").fetchall():
-        if table == skip:
-            continue
-        out = export / f"{table}.parquet"
-        if table == corrupt:
-            # One row fewer than the project has: the shape of a snapshot that
-            # was written while something else was still writing.
-            db.conn.execute(
-                f"COPY (SELECT * FROM \"{table}\" LIMIT 0) TO '{out}' (FORMAT parquet)"
-            )
-            continue
-        db.conn.execute(f"COPY \"{table}\" TO '{out}' (FORMAT parquet)")
+def _write_restore_source(db, snapshot, *, drop: str | None = None, empty: str | None = None):
+    """Build the snapshot's RESTORE SOURCE — the copied `.duckdb` file.
+
+    Not the Parquet sidecar. `prove_snapshot` proves the artefact a restore
+    actually puts back (#5070), because proving a derivative could be complete
+    while the restore source was not. These fixtures were written against the
+    Parquet export and had to change with it — which is the right direction of
+    dependency: the test follows the artefact.
+
+    `drop` removes a table from the copy entirely; `empty` keeps the table and
+    removes its rows — the shape of a snapshot written while something else was
+    still writing.
+    """
+    source = pathlib.Path(snapshot.snapshot_path) / "duckdb_file" / "fichero.duckdb"
+    if source.exists():
+        source.unlink()
+    db.checkpoint()
+    shutil.copy2(pathlib.Path(db.path), source)
+
+    if drop is None and empty is None:
+        return source
+
+    conn = connect_utc(str(source))
+    try:
+        if drop is not None:
+            conn.execute(f'DROP TABLE IF EXISTS "{drop}"')
+        if empty is not None:
+            conn.execute(f'DELETE FROM "{empty}"')
+    finally:
+        conn.close()
+    return source
 
 
 class TestIsThereAnythingToDo:
@@ -227,7 +245,7 @@ class TestIsThereAWayBack:
     def test_a_faithful_snapshot_proves_clean(self, project, tmp_path):
         _page_with_boxes(project.db)
         snapshot = _fake_snapshot(tmp_path)
-        _export_every_table(project.db, snapshot)
+        _write_restore_source(project.db, snapshot)
 
         proof = pc.prove_snapshot(project.db, snapshot)
 
@@ -239,7 +257,7 @@ class TestIsThereAWayBack:
         """The shape of a snapshot written while something else was writing."""
         _page_with_boxes(project.db)
         snapshot = _fake_snapshot(tmp_path)
-        _export_every_table(project.db, snapshot, corrupt="artifacts")
+        _write_restore_source(project.db, snapshot, empty="artifacts")
 
         proof = pc.prove_snapshot(project.db, snapshot)
 
@@ -247,22 +265,24 @@ class TestIsThereAWayBack:
         assert proof["mismatches"]["artifacts"]["expected"] > 0
         assert proof["mismatches"]["artifacts"]["found"] == 0
 
-    def test_a_missing_table_export_is_caught_unless_the_table_is_empty(
+    def test_a_table_missing_from_the_restore_source_is_caught(
         self, project, tmp_path
     ):
         _page_with_boxes(project.db)
         snapshot = _fake_snapshot(tmp_path)
-        _export_every_table(project.db, snapshot, skip="artifacts")
+        _write_restore_source(project.db, snapshot, drop="artifacts")
 
         proof = pc.prove_snapshot(project.db, snapshot)
-        assert proof["mismatches"]["artifacts"]["found"] == "no parquet file"
+        assert proof["mismatches"]["artifacts"]["found"] == "table missing"
 
-    def test_no_exports_at_all_is_caught(self, project, tmp_path):
+    def test_no_restore_source_at_all_is_caught(self, project, tmp_path):
         _page_with_boxes(project.db)
         snapshot = _fake_snapshot(tmp_path)
-        # A snapshot record pointing at a directory with nothing in it.
+        # A snapshot record pointing at a directory with no database in it: the
+        # record exists, the way back does not.
         proof = pc.prove_snapshot(project.db, snapshot)
-        assert proof["mismatches"], "an empty export must not prove clean"
+        assert proof["mismatches"], "a snapshot with no restore source must not prove clean"
+        assert "__restore_source__" in proof["mismatches"]
 
     def test_a_project_reporting_no_tables_is_blindness_not_cleanliness(
         self, project, monkeypatch
@@ -312,7 +332,7 @@ class TestIsThereAWayBack:
     ):
         _page_with_boxes(project.db)
         snapshot = _fake_snapshot(tmp_path, snapshot_id="snap-bad")
-        _export_every_table(project.db, snapshot, corrupt="documents")
+        _write_restore_source(project.db, snapshot, empty="documents")
         monkeypatch.setattr(
             "fichero_server.db.storage_snapshots.snapshot_library",
             lambda *_a, **_k: snapshot,
@@ -330,7 +350,7 @@ class TestIsThereAWayBack:
     ):
         _page_with_boxes(project.db)
         snapshot = _fake_snapshot(tmp_path, snapshot_id="snap-good")
-        _export_every_table(project.db, snapshot)
+        _write_restore_source(project.db, snapshot)
         monkeypatch.setattr(
             "fichero_server.db.storage_snapshots.snapshot_library",
             lambda *_a, **_k: snapshot,
@@ -358,7 +378,7 @@ class TestIsThereAWayBack:
         the snapshot exists and is proved, which is the actual safety net."""
         _page_with_boxes(project.db)
         snapshot = _fake_snapshot(tmp_path, snapshot_id="snap-unpinnable")
-        _export_every_table(project.db, snapshot)
+        _write_restore_source(project.db, snapshot)
         monkeypatch.setattr(
             "fichero_server.db.storage_snapshots.snapshot_library",
             lambda *_a, **_k: snapshot,

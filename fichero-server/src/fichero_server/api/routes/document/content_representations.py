@@ -263,6 +263,14 @@ class RepresentationCreateParams(BaseModel):
     derived_from_artifact_id: str | None = None
     guideline: str | None = None
     read_from_rendition_id: str | None = None
+    #: Where this reading's language and script came from (slice 9, #4938).
+    #: Accepted from the caller because a reading's language is the caller's
+    #: claim — unlike `provenance_kind`, which is about WHO is writing and must
+    #: stay engine-set. Omitted means NEVER DETERMINED, which is the honest
+    #: default: a reading whose language nobody has established says so rather
+    #: than inheriting a guess.
+    language_meta: dict | None = None
+    script_meta: dict | None = None
 
     def audit_params(self) -> dict:
         """The audit row gets every argument EXCEPT the words, and a digest in
@@ -354,6 +362,8 @@ def create_representation(
         derived_from_artifact_id=params.derived_from_artifact_id,
         guideline=params.guideline,
         read_from_rendition_id=params.read_from_rendition_id,
+        language_meta=params.language_meta,
+        script_meta=params.script_meta,
         provenance_kind=provenance_kind_from_ctx(ctx),
         created_by=ctx.actor or None,
         producer_run_id=ctx.run_id,

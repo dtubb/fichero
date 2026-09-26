@@ -62,6 +62,22 @@ SOURCE_USER = "user"
 SOURCE_DETECTED = "detected"
 SOURCE_METADATA = "metadata"
 
+# ``language_meta["level"]`` values — WHICH LEVEL of the cascade supplied the
+# value (source-model slice 9, #4938, `source.lang.says-where-from`).
+#
+# A SECOND AXIS from ``source`` above, deliberately, and they must not be
+# merged: ``source`` says HOW a value was determined (a person typed it, a
+# detector guessed it, a file's metadata carried it) and ``level`` says WHERE it
+# came from in the cascade. "A person set it on the project" and "a person set it
+# on this reading" are the same source and different levels, and
+# `source.lang.says-where-from` is about the second — a shown value has to say
+# which level it came from, so that overriding it at a lower level is an
+# informed act rather than a guess.
+LEVEL_PROJECT = "project"
+LEVEL_DOCUMENT = "document"
+LEVEL_SEGMENT = "segment"
+LEVEL_READING = "reading"
+
 Mode = Literal["unset", "one", "many", "document"]
 
 # The sentinel a user types into the primary-language setting to mean
@@ -226,14 +242,24 @@ def build_language_meta(
     source: str,
     confidence: float | None = None,
     basis: str | None = None,
+    level: str | None = None,
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Assemble a ``language_meta`` payload."""
+    """Assemble a ``language_meta`` payload.
+
+    ``level`` is a NAMED parameter rather than a key passed through ``extra``
+    (slice 9, #4938). It could have ridden in ``extra`` and nothing would have
+    broken — but a magic key is one nobody can find, no caller is obliged to
+    set, and no reader knows to look for. `source.lang.says-where-from` is a
+    behaviour, so the thing that carries it is a parameter.
+    """
     meta: dict[str, Any] = {"status": status, "source": source}
     if confidence is not None:
         meta["confidence"] = float(confidence)
     if basis:
         meta["basis"] = basis
+    if level:
+        meta["level"] = level
     if extra:
         meta.update(extra)
     return meta

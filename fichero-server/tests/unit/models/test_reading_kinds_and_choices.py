@@ -288,3 +288,139 @@ class TestTheChoiceRecord:
         assert len(rows) == 2, "a superseded choice must stay readable"
         live = [row for row in rows if row.superseded_at is None]
         assert [row.representation_id for row in live] == ["rep-b"]
+
+
+class TestAReadingSaysWhereItsLanguageCameFrom:
+    """Source-model slice 9 (#4938) — `source.lang.says-where-from`, at reading
+    level.
+
+    Spec: `languages-scripts-signs.md`. The behaviour already held at DOCUMENT
+    level: `Document.language_meta` carries `{status, source, confidence,
+    basis}` and its own description says "None = never determined". It broke at
+    reading level, where `ContentRepresentation.language`/`.script` existed with
+    no provenance at all — so a reading could carry a language and nothing could
+    say whether a person set it, a detector guessed it, or it was inherited.
+
+    These pin the SAME shape at the new level, and the three states staying
+    three, which is `source.lang.unknown-is-not-unexamined`.
+    """
+
+    def test_provenance_round_trips_in_the_shape_the_document_already_uses(self, db):
+        from fichero_server.llm.language_policy import (
+            LEVEL_READING,
+            SOURCE_USER,
+            STATUS_KNOWN,
+            build_language_meta,
+        )
+
+        row = _reading(
+            db,
+            content="en el nombre",
+            language="es",
+            script="Latn",
+            language_meta=build_language_meta(
+                status=STATUS_KNOWN, source=SOURCE_USER, level=LEVEL_READING,
+                basis="a historian set it on this reading",
+            ),
+            script_meta=build_language_meta(
+                status=STATUS_KNOWN, source=SOURCE_USER, level=LEVEL_READING,
+                basis="a historian set it on this reading",
+            ),
+        )
+
+        stored = db.get(ContentRepresentation, row.id)
+        assert stored.language == "es"
+        assert stored.language_meta["status"] == "known"
+        assert stored.language_meta["source"] == "user"
+        assert stored.language_meta["level"] == "reading"
+        assert "historian" in stored.language_meta["basis"]
+        assert stored.script_meta["level"] == "reading"
+
+    def test_a_language_with_no_provenance_reads_back_as_never_determined(self, db):
+        """`None` is the third state and must not become a string.
+
+        `status="unknown"` means somebody looked and could not tell. `None`
+        means nobody has looked. A reading that merely records `language="es"`
+        with no meta has not been examined, and saying so is the whole point.
+        """
+        row = _reading(db, content="en el nombre", language="es")
+
+        stored = db.get(ContentRepresentation, row.id)
+        assert stored.language == "es"
+        assert stored.language_meta is None
+        assert stored.script_meta is None
+
+    def test_examined_and_not_told_is_different_from_not_examined(self, db):
+        """`source.lang.unknown-is-not-unexamined`, asserted as three distinct
+        stored states rather than as two plus a comment."""
+        from fichero_server.llm.language_policy import (
+            LEVEL_DOCUMENT,
+            SOURCE_DETECTED,
+            STATUS_UNKNOWN,
+            build_language_meta,
+        )
+
+        examined = _reading(
+            db, content="unreadable hand", language=None,
+            language_meta=build_language_meta(
+                status=STATUS_UNKNOWN, source=SOURCE_DETECTED, level=LEVEL_DOCUMENT,
+                basis="detection ran and returned nothing above threshold",
+            ),
+        )
+        unexamined = _reading(db, content="not yet looked at", language=None)
+
+        first = db.get(ContentRepresentation, examined.id)
+        second = db.get(ContentRepresentation, unexamined.id)
+
+        # Three states, three readings back: a language, a looked-and-could-not-
+        # tell, and a nobody-has-looked.
+        assert first.language is None and first.language_meta["status"] == "unknown"
+        assert second.language is None and second.language_meta is None
+        assert first.language_meta != second.language_meta
+
+    def test_the_level_is_a_second_axis_from_the_source(self, db):
+        """"A person set it on the project" and "a person set it on this
+        reading" are the SAME source and different levels. Merging the two axes
+        would make `says-where-from` unanswerable."""
+        from fichero_server.llm.language_policy import (
+            LEVEL_PROJECT,
+            LEVEL_READING,
+            SOURCE_USER,
+            STATUS_KNOWN,
+            build_language_meta,
+        )
+
+        from_project = build_language_meta(
+            status=STATUS_KNOWN, source=SOURCE_USER, level=LEVEL_PROJECT
+        )
+        from_reading = build_language_meta(
+            status=STATUS_KNOWN, source=SOURCE_USER, level=LEVEL_READING
+        )
+
+        assert from_project["source"] == from_reading["source"] == "user"
+        assert from_project["level"] != from_reading["level"]
+
+    def test_the_create_action_carries_the_provenance_through(self, db, client):
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.llm.language_policy import (
+            LEVEL_READING, SOURCE_USER, STATUS_KNOWN, build_language_meta,
+        )
+
+        result = registry.invoke(
+            db,
+            "representation.create",
+            {
+                "document_id": "doc-1",
+                "kind": "transcription",
+                "content": "en el nombre",
+                "language": "es",
+                "language_meta": build_language_meta(
+                    status=STATUS_KNOWN, source=SOURCE_USER, level=LEVEL_READING
+                ),
+            },
+            ActionContext(actor="historian", is_bootstrap=True),
+        )
+
+        stored = db.get(ContentRepresentation, result.result["id"])
+        assert stored.language == "es"
+        assert stored.language_meta["level"] == "reading"

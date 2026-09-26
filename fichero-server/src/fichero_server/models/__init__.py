@@ -909,6 +909,27 @@ class ContentRepresentation(BaseModel):
     #: stays REQUIRED: a reading always knows its source even when nobody has
     #: said which line it is. Never a provisional (``legacy:``) id.
     segment_id: str | None = None
+    #: Where this reading's `language` came from, and where its `script` came
+    #: from (source-model slice 9, #4938, `source.lang.says-where-from`).
+    #:
+    #: THE SAME SHAPE `Document.language_meta` ALREADY USES — `{status, source,
+    #: confidence, basis, level}`, built by `llm.language_policy.
+    #: build_language_meta`. Not a per-level provenance record: one shape for one
+    #: idea, the same argument that put the lasting segment id on the shared
+    #: anchor rather than on four records.
+    #:
+    #: `None` means NEVER DETERMINED, and that is the third state the whole
+    #: behaviour exists for: `status="unknown"` means somebody looked and could
+    #: not tell, `None` means nobody has looked. Do not introduce a sentinel
+    #: string for it — the moment `"never_determined"` is a value, something will
+    #: compare it to `"unknown"` and the three states become two.
+    #:
+    #: Two fields rather than one because `source.lang.three-facts` records
+    #: language and script SEPARATELY: a Spanish document in a Latin script and a
+    #: Spanish document someone transliterated into Arabic script differ in one
+    #: fact and not the other, and one provenance record could not say so.
+    language_meta: dict[str, Any] | None = None
+    script_meta: dict[str, Any] | None = None
     #: How normalised the text is (`source.reading.level-recorded`): shipped
     #: defaults ``as_written`` / ``expanded`` / ``normalised``, an open list.
     #: NEVER inferred -- a reading with no level reads back as none, because
