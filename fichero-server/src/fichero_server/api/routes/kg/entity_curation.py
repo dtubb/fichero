@@ -581,6 +581,12 @@ def split_entity_impl(
         )
 
     moved = {a.strip() for a in request.aliases_to_move if a.strip()}
+    # #5072: a merge can leave the absorbed spelling as an alias on the primary; a split that keeps it
+    # lets the next dedupe/import pull the name straight back. The split-off names leave with them.
+    for sid in request.split_off_entity_ids:
+        sp0 = db.get(KnowledgeEntity, sid)
+        if sp0 is not None:
+            moved.update({sp0.canonical_name, *sp0.aliases})
     alias_changes: dict[str, Any] = {
         "restored_from": list(moved),
         "moved_to": {},
