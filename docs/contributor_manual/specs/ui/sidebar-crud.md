@@ -92,6 +92,33 @@ Both issues are already on this milestone (#291); no new issues were needed.
   `TestDocumentMoveAction.test_move_into_descendant_rejected`
   (`fichero-server/tests/unit/api/test_document_actions.py`).
 
+- `move.self-drop-is-a-noop` — **[PARTIAL]** (#4980 stays open for the highlight half; refusal built in 13a34a779) dropping an item on itself is a drag that
+  slipped, not a request (Finder does the same): no move is attempted, no alert is raised, and one
+  log line (`DragDropLog.refused`) records it. `processFolderDropItem` refuses at validation with the
+  ONE shared check `sidebarDropIsSelfTarget`, which the Library cell drop uses too, and
+  `sidebarDropOutcomeMessage` never counts a self-drop as reportable, alone or among several dragged
+  items. Pinned: `SidebarDropFeedbackTests.selfTargetCheck`, `.selfDropAloneIsSilent`,
+  `.selfDropAmongMixedSelectionIsSilent`, `.selfDropNeverAppearsAlongsideARealRefusal`. Not pinned:
+  the log line itself, and `processFolderDropItem`'s guard (a row method with no seam).
+- `move.into-own-descendant-explains` — **[PARTIAL]** (#4980) dropping a folder into its own
+  descendant is refused with a one-line explanation ("N would nest a folder inside itself"),
+  unlike a self-drop: it is a real refusal the user should hear about. The message is pinned by
+  `SidebarDropFeedbackTests.partialDropSummarises` and `.selfDropNeverAppearsAlongsideARealRefusal`;
+  the tree walk that decides "descendant" (`SidebarItemRow.isDescendant`) has no direct test.
+- `move.no-highlight-over-self` — **[GAP]** (#4980, kept open for this) a row must not light up as a
+  drop target while the dragged item is over itself, so the drop is visibly not on offer. NOT built:
+  SwiftUI drop validation cannot read the dragged item's identity synchronously and the app keeps
+  no "currently dragged id"; it needs that plumbing and a screen to verify.
+- `move.to-current-parent-writes-nothing` — **[OK]** (2026-09-26, f544626f0) moving a document into the
+  parent it is already in must issue NO write: every move is an audited action, and a phantom "moved"
+  entry in a research library's record is worse than none. The guard lives in
+  `DocumentStore.moveDocument`, so the drag, the Move to Folder menu and the Library cell drop all
+  share it. Pinned (suite `DocumentStoreReorderOutcomeTests`, executed):
+  `DocumentStoreReorderOutcomeTests.testMovingADocumentIntoItsCurrentParentIssuesNoWrite`,
+  `.testMovingARootDocumentToTheRootIssuesNoWrite`, and the control
+  `.testMovingADocumentToAnotherParentStillAttemptsTheWrite`. Known limit: it trusts the
+  cached parent.
+
 ### Library table columns
 - `sidebar.table-columns-not-compiler-limited` — **[PARTIAL]** (#4482, legacy milestone fold,
   2026-09-19) the Library table's column set should be a product decision, not a side effect of

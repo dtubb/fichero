@@ -170,11 +170,14 @@ extension SidebarView {
             logger.error("Could not find library for deletion")
             return
         }
+        // #4805: read the neighbours BEFORE the row leaves the tree.
+        let next = selectionAfterDelete(
+            deleted: item.id, siblings: siblingIds(of: item, in: library), parent: parentId(of: item))
         do {
             try await performDeleteAction(item.itemType, library: library)
             logger.info("Delete successful")
             rebuildCaches(for: libraryId)
-            selectedItemId = nil
+            selectedItemId = selectedItemId == item.id ? next : nil
         } catch {
             // Surface it. `DeleteStateManager` has carried a complete error
             // surface — `deleteErrorMessage`, `showingDeleteError`,
@@ -184,6 +187,19 @@ extension SidebarView {
             logger.error("Failed to delete: \(error.localizedDescription)")
             deleteState.showError(message: error.localizedDescription)
         }
+    }
+
+    /// Ordered ids of the rows beside `item` (itself included); empty for non-documents.
+    private func siblingIds(of item: SidebarItem, in library: LibraryManager.LibraryReference) -> [String] {
+        guard case .document(let doc) = item.itemType else { return [] }
+        let store = library.documentStore
+        let siblings = doc.parentId.map { store.childrenCache[$0] ?? [] } ?? store.collections
+        return siblings.map(\.id)
+    }
+
+    private func parentId(of item: SidebarItem) -> String? {
+        guard case .document(let doc) = item.itemType else { return nil }
+        return doc.parentId
     }
 
     // Dispatches by item-type group — grouping keeps this switch's branch
@@ -271,4 +287,14 @@ extension SidebarView {
         logger.warning("Refusing delete for non-deletable item type: \(String(describing: itemType))")
         throw SidebarDeleteError.notDeletable
     }
+}
+
+/// Finder rule (#4805, `sidebar-crud`): after deleting the selected row, select the next
+/// sibling, else the previous, else the parent, else nothing. `siblings` is the ordered
+/// list INCLUDING `deleted`, read before the delete.
+func selectionAfterDelete(deleted: String, siblings: [String], parent: String?) -> String? {
+    guard let index = siblings.firstIndex(of: deleted) else { return parent }
+    if index + 1 < siblings.count { return siblings[index + 1] }
+    if index > 0 { return siblings[index - 1] }
+    return parent
 }

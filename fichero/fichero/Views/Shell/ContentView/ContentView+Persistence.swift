@@ -58,6 +58,7 @@ extension ContentView {
 
     // swiftlint:disable:next cyclomatic_complexity
     func restoreViewMode(type: String, itemId: String?) -> AppViewMode {
+        if let mode = Self.restoredIdFreeViewMode(type: type) { return mode }
         switch type {
         case "library":
             guard let id = normalizedStoredItemId(for: type, rawItemId: itemId) else {
@@ -66,20 +67,12 @@ extension ContentView {
             let doc = documentStore.collections.first { $0.id == id }
             return .library(doc)
 
-        case "search":
-            // Pre-#4106 sessions persisted a "search" mode; it no longer
-            // exists — restore to the library instead of crashing on it.
-            return .library(nil)
-
         case "chat":
             guard let id = normalizedStoredItemId(for: type, rawItemId: itemId) else {
                 return .chat(nil)
             }
             let conversation = conversationService.conversations.first { $0.id == id }
             return .chat(conversation)
-
-        case "comparison":
-            return .comparison(nil)
 
         case "workflow":
             guard let id = normalizedStoredItemId(for: type, rawItemId: itemId) else {
@@ -88,34 +81,22 @@ extension ContentView {
             let workflow = workflowStore.workflows.first { $0.id == id }
             return .workflow(workflow)
 
-        case "chain":
-            return .chain(nil)
-
-        case "batches", "batch":
-            // "batch" is a RETIRED string (#4705 increment 4a deleted
-            // `AppViewMode.batch`) — a session saved before the deletion
-            // must still restore safely rather than falling through to
-            // `default`'s `.library(nil)`. Kept alongside "batches" since
-            // both already redirected to Activity before the case existed
-            // as a construction target anywhere.
-            return .activity(nil)
-
-        case "automation":
-            return .automation
-
-        case "schedule":
-            return .automation
-
-        case "trigger":
-            return .automation
-
-        case "activity":
-            // Activity runs are loaded dynamically when the view appears
-            // For now, return nil and let the view populate it
-            return .activity(nil)
-
         default:
             return .library(nil)
+        }
+    }
+
+    /// The persisted types that restore WITHOUT looking anything up (no id to resolve), including
+    /// the RETIRED strings: pre-#4106 "search" and pre-#4705 "batch" (`AppViewMode.batch` was
+    /// deleted) must still restore safely, not fall to `default`. nil = the type needs a lookup.
+    static func restoredIdFreeViewMode(type: String) -> AppViewMode? {
+        switch type {
+        case "search": return .library(nil)
+        case "comparison": return .comparison(nil)
+        case "chain": return .chain(nil)
+        case "batches", "batch", "activity": return .activity(nil)
+        case "automation", "schedule", "trigger": return .automation
+        default: return nil
         }
     }
 

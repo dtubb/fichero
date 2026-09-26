@@ -81,16 +81,25 @@ extension NodePopover {
                 workflowId: workflowId,
                 node: node,
                 onApply: { provider, model in
-                    node.providerName = provider
-                    node.modelName = model
-                    node.usesLLM = true
                     // Also move the picker's own selection, or the chip keeps showing the OLD model
                     // until the popover is reopened (spec nodeconfig.compare.apply-updates-picker,
                     // F13 — applying a comparison result looked like it did nothing).
-                    selectedProviderId = provider
-                    selectedModelId = model
+                    let selection = node.applyComparisonChoice(provider: provider, model: model)
+                    selectedProviderId = selection.providerId
+                    selectedModelId = selection.modelId
                 }
             )
         }
+    }
+}
+
+extension WorkflowNode {
+    /// Writes a Compare-Models result onto the node and returns what the provider/model picker
+    /// must now show (F13: the picker's selection has to move with the node).
+    mutating func applyComparisonChoice(provider: String, model: String) -> (providerId: String, modelId: String) {
+        providerName = provider
+        modelName = model
+        usesLLM = true
+        return (provider, model)
     }
 }

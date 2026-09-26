@@ -180,4 +180,58 @@ enum AppSource {
         let url = try root(from: filePath).appendingPathComponent(relativePath)
         return try String(contentsOf: url, encoding: .utf8)
     }
+
+    /// The root resolved but a subtree could not be walked. Distinct from
+    /// `NotFound` on purpose: that one means the test tree moved, this one means
+    /// the directory being swept is gone or unreadable. Reporting a moved tree
+    /// when a directory was renamed sends the reader to the wrong place.
+    struct CannotWalk: Error, CustomStringConvertible {
+        let directory: String
+
+        var description: String {
+            "AppSource: BLIND — cannot enumerate \(directory). "
+                + "A tree-wide guard that scans nothing passes every assertion it makes."
+        }
+    }
+
+    /// Every Swift file under an app subdirectory, as `(relativePath, codeOnly)`.
+    ///
+    /// A tree-wide guard — "NO view reads this pointer" — is stronger than a list
+    /// of named sites, because a new file that breaks the rule is exactly the file
+    /// no list contains. But the walk itself needs `FileManager` and `URL`, and a
+    /// Swift Testing file that imports Foundation to name them broke the whole
+    /// build on this toolchain (2026-09-20: one added import, six builds, errors
+    /// blaming Apple's own `.swiftinterface` files). Keeping the walk HERE, in a
+    /// file that already imports Foundation, lets a `Testing` suite scan the tree
+    /// while importing nothing but `Testing`.
+    ///
+    /// The count is returned rather than asserted: what a sane floor is depends on
+    /// the subtree, and only the caller knows. It must be checked — a walk over a
+    /// renamed directory yields zero files, and a guard that scanned nothing
+    /// passes every assertion it makes.
+    static func swiftFiles(
+        under subdirectory: String,
+        from filePath: String = #filePath
+    ) throws -> [(path: String, code: String)] {
+        let root = try root(from: filePath)
+        let directory = root.appendingPathComponent(subdirectory)
+        // Existence is checked SEPARATELY from enumeration, because
+        // `enumerator(at:)` returns a perfectly good enumerator for a directory
+        // that is not there and simply yields nothing — it reports the failure to
+        // a delegate nobody set. Guarding only on its `nil` return looks like
+        // error handling and catches almost nothing: rename `Views/` and every
+        // caller gets an empty array, which reads as "no offenders found".
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: directory.path, isDirectory: &isDirectory),
+              isDirectory.boolValue,
+              let walk = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil)
+        else {
+            throw CannotWalk(directory: directory.path)
+        }
+        var found: [(path: String, code: String)] = []
+        for case let url as URL in walk where url.pathExtension == "swift" {
+            found.append((relativePath(of: url, under: root), codeOnly(try String(contentsOf: url, encoding: .utf8))))
+        }
+        return found
+    }
 }

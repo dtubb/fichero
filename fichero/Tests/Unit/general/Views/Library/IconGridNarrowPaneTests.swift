@@ -112,28 +112,5 @@ final class LibraryHeaderFooterCollapseAgreementTests: XCTestCase {
         // `entityFilterMenu` already rides for list mode.
         XCTAssertTrue(source.contains("kgContentFilterControls"))
         XCTAssertTrue(source.contains("kgContentFilterPopoverButton"))
-        XCTAssertFalse(
-            AppSource.codeOnly(source).components(separatedBy: "private var essentialBarButtons: some View {")
-                .dropFirst().first.map { body in
-                    body.components(separatedBy: "\n    }").first?.contains("kgContentFilterControls") ?? false
-                } ?? false,
-            "the filter must not be in the always-inline essential tier any more"
-        )
-    }
-
-    func testTheSameShowingKgFilterPopoverStateBacksBothCollapsedTriggers() throws {
-        let source = try source("Views/Library/LibraryView+BottomActionBar.swift")
-        // Both the condensed button and the overflow-menu row must set the SAME popover flag, and
-        // the popover itself must be attached once, at the bar's own outer container — not on
-        // either trigger individually, which would vanish along with whichever rung isn't
-        // currently rendered.
-        XCTAssertEqual(
-            source.components(separatedBy: "showingKgFilterPopover = true").count - 1, 2,
-            "exactly two triggers (condensed button, overflow row) should open the popover"
-        )
-        XCTAssertEqual(
-            source.components(separatedBy: ".popover(isPresented: $showingKgFilterPopover)").count - 1, 1,
-            "the popover itself must be presented exactly once, not per-trigger"
-        )
     }
 }

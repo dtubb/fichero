@@ -321,11 +321,18 @@ def _classify_provider_error(error_text: str) -> dict[str, str]:
     # Before any provider category: failures that are about the FILES, not
     # the provider ("Provider quota reached" for iCloud-evicted pages sent
     # a user to top up an account that was never called, 2026-08-27).
-    if any(token in text for token in ("stored in icloud", "not downloaded locally", "no such file")):
+    if any(token in text for token in ("stored in icloud", "not downloaded locally", ".icloud")):
         return {
             "category": "file_unavailable",
             "message": "Source files are not available locally.",
             "action": "Download the files (e.g. from iCloud) and re-run.",
+        }
+    # #5019: a plain missing file is NOT an iCloud eviction; say only what is known.
+    if "no such file" in text or "file not found" in text:
+        return {
+            "category": "file_unavailable",
+            "message": "A source file could not be found at its recorded location.",
+            "action": "Check the file still exists there (moved, renamed or folder access lost) and re-run.",
         }
     if any(token in text for token in ("402", "429", "insufficient_quota", "quota", "rate limit", "rate_limit")):
         return {

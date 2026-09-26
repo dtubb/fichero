@@ -1408,6 +1408,26 @@ class TestIsInternalLangchainNode:
 
 
 class TestClassifyProviderError:
+    def test_plain_missing_file_is_not_blamed_on_icloud(self):
+        from fichero_server.execution.runner import _classify_provider_error
+        out = _classify_provider_error("[Errno 2] No such file or directory: '/a/b.jpg'")
+        assert out["category"] == "file_unavailable"
+        assert "icloud" not in (out["message"] + out["action"]).lower()
+
+    def test_evicted_icloud_file_keeps_icloud_hint(self):
+        from fichero_server.execution.runner import _classify_provider_error
+        out = _classify_provider_error("File is stored in iCloud and not downloaded locally")
+        assert "icloud" in out["action"].lower()
+
+    def test_empty_path_is_refused_not_classified(self):
+        import pytest
+        from fichero_server.llm.kraken_runtime import KrakenSegmentationError, segment_lines
+        called = []
+        with pytest.raises(KrakenSegmentationError, match="No image path"):
+            segment_lines("", run_call=lambda fn: called.append(1))
+        assert not called  # refused before any model work
+
+
     def test_quota(self):
         from fichero_server.execution.runner import _classify_provider_error
         out = _classify_provider_error("Error 429: insufficient_quota")

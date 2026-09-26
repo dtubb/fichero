@@ -1,4 +1,5 @@
 @testable import Fichero
+import FicheroAPIClient
 import XCTest
 
 /// spec: kg-entity-inspector — `kg.entity.select.inspector-shows-entity` (F2).
@@ -39,33 +40,34 @@ final class DocumentInspectorArmTests: XCTestCase {
 
     // MARK: - #4850: cancellation is not a failure, and a real failure names its cause
 
-    /// `EntityInspectorArm` is a private nested struct with no seam to mount
-    /// and cancel a real `.task` from outside this file — source-scan, the
-    /// same limitation this codebase's other SwiftUI-async views accept
-    /// elsewhere (e.g. `ChatViewBoundaryTests`). Pins that a cancelled fetch
-    /// (the focused entity changed again before this one returned) never
-    /// reaches `loadFailed = true`.
-    func testEntityInspectorArmGuardsCancellationBeforeMarkingFailure() throws {
-        let source = try AppSource.code("Views/Inspector/Document/DocumentInspector.swift")
-        guard let taskStart = source.range(of: ".task(id: entityId) {"),
-              let catchStart = source.range(of: "} catch {", range: taskStart.upperBound..<source.endIndex),
-              let taskEnd = source.range(of: "\n            }", range: catchStart.upperBound..<source.endIndex)
-        else {
-            XCTFail("could not locate EntityInspectorArm's .task(id: entityId) catch block")
-            return
+    private struct FetchFailure: LocalizedError {
+        var errorDescription: String? { "server said no" }
+    }
+
+    func testASuccessfulFetchIsLoaded() async {
+        let entity = Components.Schemas.KnowledgeEntity(canonicalName: "Ana")
+        let outcome = await EntityArmLoad.run(entityId: "e1", libraryPath: "/lib.fichero") { entity }
+        guard case .loaded(let loaded) = outcome else { return XCTFail("expected .loaded, got \(outcome)") }
+        XCTAssertEqual(loaded.canonicalName, "Ana")
+    }
+
+    func testARealFailureNamesTheLibraryAndTheCause() async {
+        let outcome = await EntityArmLoad.run(entityId: "e1", libraryPath: "/lib.fichero") { throw FetchFailure() }
+        guard case .failed(let reason) = outcome else { return XCTFail("expected .failed, got \(outcome)") }
+        XCTAssertTrue(reason.contains("/lib.fichero"), "a cross-library mismatch must be visible: \(reason)")
+        XCTAssertTrue(reason.contains("server said no"), reason)
+    }
+
+    /// A fetch superseded by a focus change (or a torn-down arm) must never show as an error.
+    func testACancelledFetchIsSupersededNotFailed() async {
+        let task = Task {
+            await EntityArmLoad.run(entityId: "e1", libraryPath: "/lib.fichero") {
+                try await Task.sleep(nanoseconds: 60_000_000_000)
+                throw FetchFailure()
+            }
         }
-        let catchBody = source[catchStart.upperBound..<taskEnd.lowerBound]
-        XCTAssertTrue(
-            catchBody.contains("guard !Task.isCancelled else { return }"),
-            "a cancelled fetch must never be shown as a failure"
-        )
-        XCTAssertTrue(
-            catchBody.contains("entityInspectorArmLogger.error("),
-            "a real failure must be logged with a typed error, not silently discarded"
-        )
-        XCTAssertTrue(
-            catchBody.contains("libraryPath"),
-            "the failure reason must name which library the request used, so a cross-library mismatch is visible, not just 'Entity Unavailable'"
-        )
+        task.cancel()
+        let outcome = await task.value
+        guard case .superseded = outcome else { return XCTFail("expected .superseded, got \(outcome)") }
     }
 }

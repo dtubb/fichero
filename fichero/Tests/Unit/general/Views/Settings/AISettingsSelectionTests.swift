@@ -14,6 +14,7 @@
 
 @testable import Fichero
 import Foundation
+import SwiftUI
 import Testing
 
 struct AISettingsSelectionTests {
@@ -76,62 +77,50 @@ struct AISettingsSelectionTests {
         #expect(result == "", "the picker, not the loader, is where a first choice is made")
     }
 
-    // MARK: - SF7 review finding: the pure function alone doesn't guard the real bug
+    // MARK: - The real load path, with the fetch injected (#5052)
 
-    /// Every test above only exercises `selectionAfterModelLoad` in isolation — an identity
-    /// function, since the whole point of the ship-blocker fix is "never change it". That means
-    /// all four would keep passing even if `loadModelsResettingSelection` stopped CALLING it and
-    /// reinstated the old `list.first` auto-pick INLINE at the assignment site instead — the exact
-    /// regression this file exists to prevent. This is the missing half: a source guardrail that
-    /// the production call site routes the selection assignment SOLELY through the pinned pure
-    /// function, and never through a reinstated `list.first`/`.first` substitution.
-    @Test("loadModelsResettingSelection assigns the selection ONLY via selectionAfterModelLoad")
-    func productionCallSiteRoutesOnlyThroughThePureFunction() throws {
-        let source = try String(
-            contentsOf: AppSource.root()
-                .appendingPathComponent("Views/Settings/AI/AISettingsView+Helpers.swift"),
-            encoding: .utf8
-        )
-        let body = try Self.functionBody(named: "loadModelsResettingSelection", in: source)
-        #expect(
-            body.contains("selection.wrappedValue = Self.selectionAfterModelLoad("),
-            "the ONLY assignment to `selection` must be the pinned pure function's result"
-        )
-        #expect(
-            !body.contains("list.first"),
-            "an inline `list.first` here is exactly the ship-blocker auto-pick regression"
-        )
-        #expect(
-            !body.contains("models.wrappedValue.first"),
-            "an inline auto-pick off the freshly-loaded models is the same regression by another name"
-        )
+    /// A binding over a local box, so the load's writes are observable.
+    @MainActor
+    private final class Box<Value> {
+        var value: Value
+        init(_ value: Value) { self.value = value }
+        var binding: Binding<Value> { Binding(get: { self.value }, set: { self.value = $0 }) }
     }
 
-    /// Extracts one function's body by brace-counting from its declaration line — good enough for
-    /// a single, non-nested top-level function in a known file; not a general Swift parser.
-    private static func functionBody(named name: String, in source: String) throws -> String {
-        guard let declRange = source.range(of: "func \(name)(") else {
-            throw TestSetupError.markerNotFound("func \(name)(")
-        }
-        guard let openBrace = source[declRange.upperBound...].firstIndex(of: "{") else {
-            throw TestSetupError.markerNotFound("{ after func \(name)(")
-        }
-        var depth = 0
-        var index = openBrace
-        while index < source.endIndex {
-            if source[index] == "{" { depth += 1 }
-            if source[index] == "}" {
-                depth -= 1
-                if depth == 0 {
-                    return String(source[openBrace...index])
-                }
-            }
-            index = source.index(after: index)
-        }
-        throw TestSetupError.markerNotFound("closing brace for func \(name)(")
+    private struct FetchFailure: LocalizedError {
+        var errorDescription: String? { "provider unreachable" }
     }
 
-    private enum TestSetupError: Error {
-        case markerNotFound(String)
+    @MainActor
+    @Test("A load whose list lacks the saved model replaces the list but never the selection")
+    func loadKeepsAnAbsentSelection() async {
+        let models = Box<[ModelInfo]>([])
+        let selection = Box("claude-sonnet-5")
+        let loadError = Box<String?>("stale error")
+        let loaded = [model("claude-opus-5"), model("claude-haiku-5")]
+        await AISettingsView.applyModelLoad(
+            providerType: "anthropic",
+            fetch: { loaded },
+            models: models.binding, selection: selection.binding, loadError: loadError.binding
+        )
+        #expect(models.value.map(\.modelId) == ["claude-opus-5", "claude-haiku-5"])
+        #expect(selection.value == "claude-sonnet-5", "an absent model must never be swapped for list.first")
+        #expect(loadError.value == nil)
+    }
+
+    @MainActor
+    @Test("A failed fetch keeps the selection AND the previous list, and surfaces the error")
+    func aFailedFetchKeepsSelectionAndList() async {
+        let models = Box<[ModelInfo]>([model("claude-opus-5")])
+        let selection = Box("claude-opus-5")
+        let loadError = Box<String?>(nil)
+        await AISettingsView.applyModelLoad(
+            providerType: "anthropic",
+            fetch: { throw FetchFailure() },
+            models: models.binding, selection: selection.binding, loadError: loadError.binding
+        )
+        #expect(models.value.map(\.modelId) == ["claude-opus-5"])
+        #expect(selection.value == "claude-opus-5")
+        #expect(loadError.value == "provider unreachable")
     }
 }

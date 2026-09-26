@@ -1538,6 +1538,9 @@ def assert_source_readable(path: str) -> None:
     Raises:
         ValueError: naming the file and the reason, for the caller to surface.
     """
+    if not str(path).strip():
+        # #5019: an unresolved page image, not a missing file; never classify a path nobody supplied.
+        raise ValueError("No image path was supplied for this page; the engine could not resolve its source file.")
     if not os.path.exists(path):
         raise ValueError(f"File not found: {path}")
     if not os.access(path, os.R_OK):

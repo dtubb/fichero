@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 
 /// How one claim reads in a list that is already grouped under its subject
@@ -27,6 +28,17 @@ import Foundation
 /// a claim about someone else that mentions this entity must still say who it
 /// is about, or the list would assert the wrong thing.
 enum ClaimLine {
+
+    /// The ONE composer every entity-statement surface calls for a claim: its typed triple
+    /// (`ClaimSummaryCard.svoTriple`) through `text(...)`. The digest passes its entity as
+    /// `groupSubject`; a surface naming ONE claim out of any list passes nil (#4393).
+    static func statement(for claim: Components.Schemas.KnowledgeClaim, groupSubject: String?) -> String {
+        let svo = ClaimSummaryCard.svoTriple(for: claim)
+        return text(
+            subject: svo?.subject, verb: svo?.verb, object: svo?.object,
+            fallback: claim.text, groupSubject: groupSubject
+        )
+    }
 
     /// One claim's line, with the subject dropped only when it is redundant.
     ///

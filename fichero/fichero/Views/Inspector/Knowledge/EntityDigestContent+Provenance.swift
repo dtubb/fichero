@@ -94,14 +94,7 @@ extension EntityDigestContent {
     private var groupSubject: String? { entity.canonicalName }
 
     private func provenanceSummary(for claim: Components.Schemas.KnowledgeClaim) -> String {
-        let svo = ClaimSummaryCard.svoTriple(for: claim)
-        return ClaimLine.text(
-            subject: svo?.subject,
-            verb: svo?.verb,
-            object: svo?.object,
-            fallback: claim.text,
-            groupSubject: groupSubject
-        )
+        ClaimLine.statement(for: claim, groupSubject: groupSubject)
     }
 
     private func provenanceBadgeLabel(for claim: Components.Schemas.KnowledgeClaim) -> String {

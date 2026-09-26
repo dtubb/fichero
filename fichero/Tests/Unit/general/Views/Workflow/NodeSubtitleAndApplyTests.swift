@@ -51,16 +51,15 @@ final class NodeSubtitleAndApplyTests: XCTestCase {
 
     // MARK: F13 — applying a Compare-Models result moves the picker's own selection
 
-    func testCompareApplyUpdatesPickerSelection() throws {
-        // The apply closure writes the node fields AND the picker's @State bindings, or the chip
-        // shows the OLD model until the popover is reopened (the reported "Apply did nothing").
-        let url = try AppSource.root()
-            .appendingPathComponent("Views/Workflow/Nodes/NodePopover+Comparison.swift")
-        let source = try String(contentsOf: url, encoding: .utf8)
-        XCTAssertTrue(source.contains("selectedProviderId = provider"),
-                      "Compare apply must move the provider selection so the chip updates")
-        XCTAssertTrue(source.contains("selectedModelId = model"),
-                      "Compare apply must move the model selection so the chip updates")
+    func testCompareApplyUpdatesNodeAndReturnsThePickerSelection() {
+        var node = WorkflowNode(tool: "describe", providerName: "prov-old", modelName: "old-model", usesLLM: false)
+        let selection = node.applyComparisonChoice(provider: "prov-new", model: "new-model")
+        XCTAssertEqual(node.providerName, "prov-new")
+        XCTAssertEqual(node.modelName, "new-model")
+        XCTAssertTrue(node.usesLLM)
+        // The picker's own selection moves with the node, or the chip shows the OLD model.
+        XCTAssertEqual(selection.providerId, "prov-new")
+        XCTAssertEqual(selection.modelId, "new-model")
     }
 
     // MARK: F5/entities — the Extract-Entities node exposes the shared prompt editor

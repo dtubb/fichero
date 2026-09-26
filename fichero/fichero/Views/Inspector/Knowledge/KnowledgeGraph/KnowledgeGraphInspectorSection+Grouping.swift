@@ -88,6 +88,26 @@ extension KnowledgeGraphInspectorSection {
     /// view (`Text` cannot host arbitrary child views inline).
     static let digestClaimEditLinkScheme = "fichero-claim-edit"
 
+    /// What tapping a link in the digest does (#4833/#4834), decided from the URL alone.
+    enum DigestLinkAction: Equatable {
+        /// The "[Edit]" run: open the inline editor for this claim.
+        case edit(claimId: String)
+        /// The sentence itself: reveal its source at `.both`, through the shared request bus.
+        case reveal(ClaimSourceNavigationRequest)
+        case discard
+    }
+
+    static func digestLinkAction(
+        for url: URL, claimsById: [String: Components.Schemas.KnowledgeClaim]
+    ) -> DigestLinkAction {
+        guard let claimId = url.host, let claim = claimsById[claimId] else { return .discard }
+        if url.scheme == digestClaimEditLinkScheme { return .edit(claimId: claimId) }
+        guard url.scheme == digestClaimLinkScheme,
+              let request = ClaimSourceRequest.request(for: claim, destination: .both)
+        else { return .discard }
+        return .reveal(request)
+    }
+
     /// The digest line: the entity name bolded, then ONE sentence per claim,
     /// each its own clickable run linking to that claim's id (#4834/#4852 —
     /// the maintainer clicked a sentence in this exact text and nothing

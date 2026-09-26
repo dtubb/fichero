@@ -144,15 +144,12 @@ struct ZoomableImagePreview: View {
     // every duplicate leaf (PaneSpec.paneNodeView).
     @Environment(\.isSecondarySplitPane) private var isSecondarySplitPane
 
-    /// ⌥ summons the loupe temporarily while it is toggled off (Daniel,
-    /// 2026-08-29); releasing ⌥ lets it go.
-    @State var loupeTransient = false
     /// Cursor feedback for the armed markup tool (Daniel, 2026-08-30).
     @State var hoveringCanvas = false
-    @State private var optionMonitor: Any?
 
-    /// The loupe the tracking view actually shows: the toggle, or ⌥ held.
-    var loupeIsOn: Bool { loupeEnabled || loupeTransient }
+    /// The loupe the tracking view actually shows. #5022: only the explicit toggle;
+    /// a bare modifier (⌥) never turns a tool on.
+    var loupeIsOn: Bool { loupeEnabled }
 
     // OCR text-box overlay (#4309): the transcription pass's word/line boxes
     // rendered over the page image, fetched from the artifact API on demand.
@@ -336,9 +333,7 @@ struct ZoomableImagePreview: View {
         .onAppear {
             handleViewAppeared()
             publishHeadChrome()
-            installOptionLoupeMonitor()
         }
-        .onDisappear { removeOptionLoupeMonitor() }
         .onChange(of: renditionIndex) { _, _ in publishHeadChrome() }
     }
 
@@ -417,8 +412,8 @@ struct ZoomableImagePreview: View {
         observationLayer
             // Esc dismisses the loupe (Daniel, 2026-08-29).
             .onKeyPress(.escape, phases: .down) { _ in
-                guard loupeEnabled || loupeTransient else { return .ignored }
-                loupeEnabled = false; loupeTransient = false
+                guard loupeEnabled else { return .ignored }
+                loupeEnabled = false
                 return .handled
             }
             .onKeyPress(.init("+"), phases: .down) { _ in zoomIn(); return .handled }
@@ -462,7 +457,7 @@ struct ZoomableImagePreview: View {
     }
 }
 
-// MARK: - Head chrome + ⌥-loupe (Daniel, 2026-08-29). Same-file extension:
+// MARK: - Head chrome (Daniel, 2026-08-29). Same-file extension:
 // `private` stays visible; the struct body stays under its length budget.
 
 extension ZoomableImagePreview {
@@ -475,34 +470,6 @@ extension ZoomableImagePreview {
         paneChrome.renditionNames = uniqueRenditionLabels(renditions)
         paneChrome.renditionIndex = renditionIndex
         paneChrome.selectRendition = { index in self.flipRendition(to: index) }
-    }
-
-    /// ⌥ held while the loupe is OFF summons it temporarily; release lets it
-    /// go. A toggled-on loupe is untouched.
-    private func installOptionLoupeMonitor() {
-        guard optionMonitor == nil else { return }
-        optionMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
-            MainActor.assumeIsolated {  // local monitors fire on main
-                // Option MUST be the sole chord modifier: a ⌘⌥ chord (workspace ⌘⌥1–6,
-                // loupe ⌘⌥L, …) also holds Option, and a bare `.contains(.option)` used to
-                // pop the transient loupe on any of them (CD 2026-09-16: "⌘⌥1 turns on the
-                // loupe"). Require exactly Option — not Option+anything.
-                let chord = event.modifierFlags.intersection([.command, .option, .control, .shift])
-                let optionOnly = chord == .option
-                if loupeTransient != (optionOnly && !loupeEnabled) {
-                    loupeTransient = optionOnly && !loupeEnabled
-                }
-            }
-            return event
-        }
-    }
-
-    private func removeOptionLoupeMonitor() {
-        if let optionMonitor {
-            NSEvent.removeMonitor(optionMonitor)
-        }
-        optionMonitor = nil
-        loupeTransient = false
     }
 }
 

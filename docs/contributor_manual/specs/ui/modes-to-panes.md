@@ -197,7 +197,7 @@ fourth type.
   `PaneContentPlanTests.nodeDetailModesLandInThePreviewSlot`, the shrinking-allowlist
   guardrail (`LibraryPaneNeverMountsModeSurfaceTests`, 5 tokens dropped this increment) with
   its `deletedBareIdentifiers` check for `ActivityWindowLauncherView`, and
-  `ContentViewPersistenceTests.testRetiredBatchStringStillRestoresToActivity` for the
+  `ContentViewPersistenceTests.testRetiredStringsStillRestoreSafely` for the
   persisted-`"batch"`-string tolerant decode.
 - `m2p.research-is-sidebar-node` — **[PROPOSED]**, split into increments 5a/5b/5c above
   (2026-09-18 design pass): research projects are sidebar nodes like workflows, not a bespoke
@@ -270,8 +270,10 @@ fourth type.
 - `m2p.chat-single-mount` — **[PROPOSED]** `ChatView(` appears in exactly one builder at a
   time — dock OR pane, never both — because conversation state (`currentConversation`,
   `backendConversationId`, `ChatView.swift:61-66`) is lifted out of `@State` into the
-  per-window model before chat becomes movable. Pinned by `ChatPlacementTests` (never two
-  mounts) + a guardrail "`ChatView(` appears in exactly one builder".
+  per-window model before chat becomes movable. Proposed pin: a placement test (never two
+  mounts) plus a guardrail "`ChatView(` appears in exactly one builder" — neither is written (no
+  chat-placement test exists; `ChatView(` is constructed today in `ResearchChatPane.swift` and
+  `PaneSpec.swift`, whether never both at once is unverified).
 - `m2p.chat-dock-switches-conversation` — **[OK]** (101a67cde, #4817 closed): the ONE dock mount is a computed view re-rendered with a
   new `conversation` param on every sidebar selection, never remounted (no `.id(…)`) —
   `currentConversation`/`backendConversationId` are `@State`, seeded ONLY at first mount, so
@@ -419,14 +421,13 @@ fourth type.
   NO-OP at this handler — they already have a correct, richer resolution elsewhere
   (`LibraryView+TableView.swift`'s own `.onChange(of: selection)`, which ContentView has no
   access to reconstruct), so the fix is to stop them reaching the generic promotion path with
-  a composite id, not to re-derive their real handling here. **Found in the same audit, not
-  fixed here**: the identical composite-id class still reaches the workflow editor's crumbs,
-  the Reader's crumb drag payload and new-window paths, three artifact-lens sites, a few claim
-  card and PDF-toolbar sites, and a table helper that splits a node id on its FIRST colon
-  (rather than the last, right-to-left split `LibraryOutlineNode.parse(nodeId:)` uses
-  elsewhere) — named honestly as remaining, not implied closed. Pinned:
-  `EntityClaimSelectionClassifyTests.pageRowPromotesItsOwnPageViaBareId`,
-  `.artifactAndNoteRowsAreASafeNoOp` (file
+  a composite id, not to re-derive their real handling here. **Found in the same audit** (since resolved, 2026-09-26): the sites that read the app-wide
+  current-library pointer are now guarded tree-wide by `LibraryPointerGuardrailTests`, and the
+  table helper that split a node id on its FIRST colon was deleted (its callers parse with
+  `LibraryOutlineNode.parse(nodeId:)` directly). The decision is now a pure function,
+  `ContentView.browserRowAction(forNodeId:)`. Pinned:
+  `EntityClaimSelectionClassifyTests.pageRowPromotesItsOwnId`,
+  `.artifactAndNoteRowsAreIgnored` (file
   `fichero/Tests/Unit/general/Views/Shell/EntityClaimSelectionClassifyTests.swift`, suite
   `EntityClaimSelectionClassifyTests`).
 
@@ -495,7 +496,7 @@ increments 2, 4, and 5.
   `PaneContentPlanTests.nodeDetailModesLandInThePreviewSlot`,
   `LibraryPaneNeverMountsModeSurfaceTests` (allowlist shrunk to `ResearchWorkspaceView(`/
   `ComparisonDetailView(`; `deletedBareIdentifiers` gained `ActivityWindowLauncherView`),
-  `ContentViewPersistenceTests.testRetiredBatchStringStillRestoresToActivity`.
+  `ContentViewPersistenceTests.testRetiredStringsStillRestoreSafely`.
 - **4b-1. The Reader consults the plan — DONE (2026-09-18, fb2829fd7), fixes the live
   stale-document bug #4803.** Discovered planning 4b: `ReadingPaneView` had NO reference to
   `viewMode`/`AppViewMode` anywhere — the whole Reader routed off a resolved `Document`

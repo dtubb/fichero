@@ -486,13 +486,12 @@ and tested, reachable from no screen.
   built as a pure function and unit-pinned (`readable.py:89`, d8afa61e6, 1e6661b45, 6 tests);
   "unwired" is the SAME gap `kg.read.one-renderer` names, carried forward to the entry composer.
 - `kg.read.order.by-source` — **[PARTIAL] — engine-only** (#4648) same as chronological above.
-- `kg.read.aggregation-keeps-objects` — **[BROKEN]** (#4649) `render_aggregation`
-  (`readable.py:193-196`) prints a COUNT instead of the objects when count > 1 — "Juan Asprilla
-  sold 2 veces" loses *what* was sold. Retagged from the earlier "[PARTIAL, unwired]" framing:
-  this is not just unwired, it is WRONG even in isolation, verified by running it. Also loses
-  citations: `Aggregation.claim_ids` (`readable.py:112`) keeps the ids, but `render_aggregation`
-  returns a bare `str`, so the ids are gone by the time there is a sentence to click — this is
-  why `kg.read.every-sentence-sourced` below is [BROKEN], not [PARTIAL].
+- `kg.read.aggregation-keeps-objects` — **[OK]** (#4649) `render_aggregation` lists every distinct
+  object and place, joined by the language's own conjunction, and never prints a bare count.
+  Pinned by `test_realises_aggregated_objects_and_places_in_spanish` and
+  `test_realises_aggregated_objects_and_places_in_english`. `render_aggregation` still returns a
+  bare `str` by design: the claim ids travel on `Aggregation.claim_ids` and onto the composed
+  sentence (see `kg.read.every-sentence-sourced`).
 - `kg.read.every-sentence-sourced` — **[OK]** (#4840 closed 2026-09-26) every rendered sentence carries
   at least one claim id through to the click target, and provenance now survives aggregation:
   `Aggregation.claim_ids` (`readable.py:123`) keeps every contributing claim, in order, so a
