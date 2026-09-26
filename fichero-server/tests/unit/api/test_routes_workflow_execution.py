@@ -1408,6 +1408,19 @@ class TestIsInternalLangchainNode:
 
 
 class TestClassifyProviderError:
+    def test_empty_path_is_not_blamed_on_icloud(self):
+        from fichero_server.execution.runner import _classify_provider_error
+        for raw in ("Kraken segmentation failed: [Errno 2] No such file or directory: ''", "File not found: "):
+            out = _classify_provider_error(raw)
+            assert out["category"] == "file_unavailable"
+            assert "icloud" not in (out["message"] + out["action"]).lower()
+            assert "empty path" in out["message"]
+
+    def test_real_missing_file_keeps_icloud_hint(self):
+        from fichero_server.execution.runner import _classify_provider_error
+        out = _classify_provider_error("[Errno 2] No such file or directory: '/a/b.jpg'")
+        assert "icloud" in out["action"].lower()
+
     def test_quota(self):
         from fichero_server.execution.runner import _classify_provider_error
         out = _classify_provider_error("Error 429: insufficient_quota")
