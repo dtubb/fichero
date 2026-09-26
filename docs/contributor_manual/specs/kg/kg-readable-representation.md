@@ -488,8 +488,9 @@ and tested, reachable from no screen.
 - `kg.read.order.by-source` — **[PARTIAL] — engine-only** (#4648) same as chronological above.
 - `kg.read.aggregation-keeps-objects` — **[OK]** (#4649) `render_aggregation` lists every distinct
   object and place, joined by the language's own conjunction, and never prints a bare count.
-  Pinned by `test_realises_aggregated_objects_and_places_in_spanish` and
-  `test_realises_aggregated_objects_and_places_in_english`. `render_aggregation` still returns a
+  Pinned by `test_readable_representation.py::test_realises_aggregated_objects_and_places_in_spanish`
+  and `test_readable_representation.py::test_realises_aggregated_objects_and_places_in_english`
+  (#4649 closed 2026-09-26; a bare test name is not a citation rule (d) can resolve). `render_aggregation` still returns a
   bare `str` by design: the claim ids travel on `Aggregation.claim_ids` and onto the composed
   sentence (see `kg.read.every-sentence-sourced`).
 - `kg.read.every-sentence-sourced` — **[OK]** (#4840 closed 2026-09-26) every rendered sentence carries
