@@ -281,11 +281,30 @@ class ArtifactHoldsTheOnlyWords(ConversionRefusal, ValueError):
     """Deleting this result would silently empty the text of every segment
     on a page somebody has curated.
 
-    Until readings hang on segments (slice 8, #4924), a converted page's
-    WORDS still live in one place: the `ocr_geometry` block of the artifact
-    they were converted from. The rows keep the shapes; the block keeps the
-    text. Deleting the artifact leaves the page readable in outline and
-    blank in substance -- and nothing would say so.
+    **KEPT, unconditionally, and slice 8b's notes are wrong that it "goes".**
+    Two independent things rest on this refusal, and writing readings only
+    settles one of them:
+
+    1. THE WORDS. Until slice 8b a converted page's words lived only in this
+       block. Conversion now writes a reading per segment, so this half IS
+       settled for any page converted since — but not for a page converted by
+       an EARLIER version, whose segments have no readings of their own.
+       Removing the guard would protect libraries converted from now on and
+       silently stop protecting every library converted before.
+
+    2. THE KEPT BLOCK ITSELF, which is the stronger reason and the one the
+       notes overlook. #4990 rests on the block never changing: it is the
+       permanent table from "the rectangle a box had" to "that box's position",
+       and `resolve_anchor` uses it to recover an unpointed anchor's segment
+       (`source.point.unpointed-anchor-follows-its-box`). Delete this artifact
+       and a mark drawn before conversion stops following its box, with nothing
+       raised. `geometry_from_rows` also builds its projection on this block —
+       the result's own text, provider and rendition come from it.
+
+    So readings did not earn the right to delete this result, and the message
+    below no longer promises that they will. Deleting it needs a way to keep the
+    rectangle-to-position table without the artifact, which is its own design
+    question and nobody's current slice.
 
     Consistent with the two doors already shut on a converted artifact:
     `artifact.regions_edit` refuses it, and `vision_base` refuses to
@@ -302,9 +321,10 @@ class ArtifactHoldsTheOnlyWords(ConversionRefusal, ValueError):
             f"Artifact {artifact_id} cannot be deleted yet: its boxes became "
             f"the segments of pass {pass_id}, and this result still holds the "
             "words of every one of them. Deleting it would leave that page's "
-            "segments with no text at all. Delete the segments you do not "
-            "want, or delete the page itself; this result can be removed once "
-            "readings are stored on segments (#4924, slice 8)."
+            "segments with no text at all, and it is also the permanent record "
+            "of where each box was, which marks made before conversion are "
+            "resolved through. Delete the segments you do not want, or delete "
+            "the page itself (#4924)."
         )
 
 
@@ -314,7 +334,9 @@ def _delete_artifact_impl(db: Database, artifact_id: str) -> dict[str, Any]:
         raise HTTPException(
             status_code=404, detail=f"Artifact not found: {artifact_id}"
         )
-    # #4924: the third door. Nothing is written before this.
+    # #4924: the third door. Nothing is written before this. STILL
+    # UNCONDITIONAL after slice 8b -- see the class docstring for why writing
+    # readings did not earn the right to delete this.
     if is_converted(artifact):
         raise ArtifactHoldsTheOnlyWords(
             artifact.id, artifact.geometry_superseded_by_pass_id or ""

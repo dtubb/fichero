@@ -565,9 +565,16 @@ class TestTheAuditRecord:
         assert audit.after["segment_count"] == 500
         assert "segment_ids" not in audit.after
 
-    def test_the_segments_are_written_in_one_batch_not_one_at_a_time(self, db, monkeypatch):
+    def test_each_kind_is_written_in_one_batch_not_one_row_at_a_time(self, db, monkeypatch):
         """A dense page is 20,000 rows; a per-row loop would be the whole
-        cost of the slice."""
+        cost of the slice.
+
+        TWO batches since slice 8b, not one: the segments, then the reading each
+        one's words became. `save_many` writes a single table per call, so they
+        cannot share a batch — and what this test is actually about is that
+        neither is written a row at a time. Asserting a batch COUNT would pass
+        the day someone loops per row in a second place; asserting that every
+        batch is a full page is the property."""
         doc = _make_doc(db)
         artifact = _artifact(db, doc, _block(40))
 
@@ -582,7 +589,11 @@ class TestTheAuditRecord:
         monkeypatch.setattr(type(db), "save_many", counting)
         _invoke(db, document_id=doc.id)
         monkeypatch.undo()
-        assert batches == [40], batches
+
+        # 40 segments and 40 readings, each in ONE call. No batch of 1, which is
+        # what a per-row loop would look like however many calls it made.
+        assert batches == [40, 40], batches
+        assert all(size == 40 for size in batches), batches
 
 
 class TestUndo:

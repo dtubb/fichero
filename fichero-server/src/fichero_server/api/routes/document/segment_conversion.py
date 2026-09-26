@@ -609,9 +609,77 @@ def _convert_one(db: Any, artifact: Artifact) -> tuple[SegmentPass, list[Segment
     # of a state nothing ever superseded, and hand the app a stale
     # `expected_version` for a page nobody has edited.
 
+    _readings_from_conversion(db, artifact, rows, segment_reads)
+
     artifact.geometry_superseded_by_pass_id = pass_row.id
     db.save(artifact)
     return pass_row, rows
+
+
+def _readings_from_conversion(
+    db: Any, artifact: Artifact, rows: list[Segment], segment_reads: list[Any]
+) -> list[str]:
+    """Each converted segment's words become a READING on that segment
+    (slice 8b, #4924). Returns the reading ids written.
+
+    **This is why slice 8 came before 8b.** Until now a converted page's shapes
+    lived in rows and its WORDS lived only in the artifact's kept block — one
+    home for the geometry, a different home for the text. That split is what
+    `ArtifactHoldsTheOnlyWords` existed to protect, and it is why the guard's own
+    message promises a person they may delete the result "once readings are
+    stored on segments". This keeps that promise.
+
+    The words are taken from the SAME `segments_from_result` answer the rows came
+    from, never re-derived: a second derivation would be a second answer to "what
+    does this line say", which is the fault this programme exists to remove.
+
+    A reading is written only for a segment that HAS words. An empty box gets
+    none — an empty reading would assert that a machine read this line and found
+    nothing, which is different from it not having been read.
+    """
+    from fichero_server.models import ContentRepresentation
+    from fichero_server.models.readings import reading_kinds
+
+    # What KIND of reading a converted box's words are. If the result's own type
+    # is a reading kind (a `translation` result's boxes hold translations), that
+    # is the kind. Otherwise the words are a TRANSCRIPTION of that line, whatever
+    # tool produced them — a `text_geometry` result read out of a PDF's own text
+    # layer is not a kind of reading, but its words are still what the line says.
+    allowed = reading_kinds(db)
+    kind = artifact.artifact_type if artifact.artifact_type in allowed else "transcription"
+
+    readings: list[ContentRepresentation] = []
+    for row, read in zip(rows, segment_reads):
+        text = read.text
+        if not text:
+            continue
+        readings.append(
+            ContentRepresentation(
+                document_id=row.document_id,
+                segment_id=row.id,
+                kind=kind,
+                content=text,
+                language=artifact.language if hasattr(artifact, "language") else None,
+                source_anchor=row.anchor.model_copy(update={"segment_id": row.id}),
+                # CONVERTING IS NOT AUTHORSHIP, and a reading inherits that:
+                # the row's own maker wrote these words, not whoever's open
+                # project the background runner happened to be converting
+                # (`source.store.converted-boxes-keep-their-maker`).
+                provenance_kind=row.provenance_kind,
+                created_by=row.created_by,
+                producer_run_id=artifact.run_id,
+                producer_tool=artifact.artifact_type,
+                producer_model=artifact.model,
+                derived_from_artifact_id=artifact.id,
+                read_from_rendition_id=row.anchor.rendition_id,
+            )
+        )
+    if readings:
+        # ONE batch, for the same reason the rows are: a dense page is 20,000
+        # segments and therefore 20,000 readings, and they must commit with the
+        # conversion or not at all.
+        db.save_many(readings)
+    return [reading.id for reading in readings]
 
 
 #: Every record kind that rests on a PLACE in a source: the four models
@@ -730,6 +798,14 @@ def repointing_report(db: Any, rows: list[Segment]) -> dict[str, Any]:
     audit row, and a page with two thousand marks on its lines would
     otherwise write two thousand entries into a chain that can never be
     trimmed. The count goes in the chain; the list goes to the caller.
+
+    **A record whose anchor already NAMES its segment is skipped (slice 8b).**
+    This report answers "what would need re-pointing", and a lasting
+    `SourceAnchor.segment_id` means nothing needs it: `resolve_anchor` answers
+    from the name and never matches a rectangle at all. Without this, conversion
+    would report the readings it had just written — whose anchors name their
+    segments by construction — as records awaiting a repoint, which is both
+    noise and false.
     """
     from fichero_server.api.routes.document.segments import _anchor_matches_segment
 
@@ -748,15 +824,24 @@ def repointing_report(db: Any, rows: list[Segment]) -> dict[str, Any]:
             "reason": NO_SEGMENT_REFERENCE_YET,
         })
 
+    def already_named(anchor: Any) -> bool:
+        """A lasting segment id makes a rectangle match unnecessary."""
+        return bool(getattr(anchor, "segment_id", None))
+
     for kind, model, anchor_field, doc_field in ANCHORED_KINDS:
         for record in db.query(model, **{doc_field: document_id}):
-            match = _row_at(index, getattr(record, anchor_field, None), _anchor_matches_segment)
+            anchor = getattr(record, anchor_field, None)
+            if already_named(anchor):
+                continue
+            match = _row_at(index, anchor, _anchor_matches_segment)
             if match is not None:
                 report(kind, record.id, match.id)
             # The embedded fourth kind, walked through the parent we are
             # already holding (see `SOURCE_SUPPORT_PARENTS_WALKED`).
             if kind == "claim":
                 for position, support in enumerate(getattr(record, "source_supports", []) or []):
+                    if already_named(getattr(support, "source_anchor", None)):
+                        continue
                     support_match = _row_at(
                         index, getattr(support, "source_anchor", None), _anchor_matches_segment
                     )

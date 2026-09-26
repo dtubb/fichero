@@ -545,6 +545,35 @@ Pointing and statements
 - `source.statement.old-segment-field-left-alone` — **[GAP]** (#4932) the claim field `source_segment_id`, which
   predates this model and names an entry in a segmentation artifact, keeps its meaning and
   its data, is described as such in the contract, and is never given a segment record's id.
+
+> **"No new column on any of them" — what it does and does not forbid (clarified
+> 2026-09-26).** `source.point.anchor-names-its-segment` above says the lasting id
+> goes in the one shared anchor, "no new column on any of them". Two of the four
+> carriers DO have a segment-id column, and both are correct — a reader who finds
+> them will otherwise think the behaviour is violated. Found by writing a test
+> that asserted the blanket rule, watching it fail, and working out that the
+> assertion was over-strict rather than the code wrong.
+>
+> The rule is about **pointing**, and these two columns are not pointing:
+>
+> * `ContentRepresentation.segment_id` is **ownership** — which segment this is a
+>   reading *of*. Required by slice 8's own field table, indexed, and read once
+>   per line by `document_text`. It is not a second answer to the anchor's
+>   question, because a reading of a LINE may carry an anchor pointing at a WORD
+>   inside it: the column says what the reading is of, the anchor says what its
+>   span points at. They can legitimately differ, and when they do, neither is
+>   wrong.
+> * `KnowledgeClaim.source_segment_id` predates this model and is **mandated** by
+>   `source.statement.old-segment-field-left-alone` below, which says it keeps its
+>   meaning and must never be given a segment record's id. Its existence is the
+>   spec working, not an oversight.
+>
+> Where a second answer WOULD be created is on a record that has no such column
+> today: `Annotation` and `SourceSupport` take the lasting id from the shared
+> anchor and must keep doing so. That is the half the guard test now pins
+> (`test_all_four_carriers_gain_the_lasting_id_with_no_new_column`), and it is
+> the half worth guarding.
+
 - `source.statement.both-ways` — **[GAP]** (#4932) from a segment, what is said about it; from a statement, its
   ink.
 
