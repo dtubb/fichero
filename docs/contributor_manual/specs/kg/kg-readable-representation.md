@@ -460,10 +460,12 @@ often the wrong subject; not multilingual.
   only `source_languages: list[str]` (`models/knowledge.py:1648`) — so "language per claim" means
   reading `source_languages[0]`. **Deferred, recorded not built (ruling 4 itself, not a gap):**
   multilingual gloss / cross-language realisation — explicitly out of scope, not forgotten.
-- `kg.read.aggregation-never-crosses-languages` — **[BROKEN]** (#4839) `readable.py`'s aggregation key is
-  subject + verb ONLY (`:126`) — it would merge claims across languages into one sentence with one
-  glue language, the opposite of "language per claim." No test catches this because the pipeline
-  has never been run on a genuinely mixed-language entity page.
+- `kg.read.aggregation-never-crosses-languages` — **[OK]** (#4839, 424ae4223) the aggregation key is
+  subject entity + verb + language (`Aggregation.language`, `readable.py`), read from
+  `source_languages[0]`; a claim with no language, or a language with no glue table, never merges
+  (`_is_solo_claim`). Pinned by `test_aggregation_never_crosses_languages_even_with_matching_text`
+  and `test_a_declared_language_with_no_glue_table_never_merges` in
+  `test_readable_representation.py`.
 
 ### F. The six-stage NLG pipeline — retagged against what a screen actually shows
 
@@ -480,19 +482,19 @@ and tested, reachable from no screen.
   built as a pure function and unit-pinned (`readable.py:89`, d8afa61e6, 1e6661b45, 6 tests);
   "unwired" is the SAME gap `kg.read.one-renderer` names, carried forward to the entry composer.
 - `kg.read.order.by-source` — **[PARTIAL] — engine-only** (#4648) same as chronological above.
-- `kg.read.aggregation-keeps-objects` — **[BROKEN]** (#4649) `render_aggregation`
-  (`readable.py:193-196`) prints a COUNT instead of the objects when count > 1 — "Juan Asprilla
-  sold 2 veces" loses *what* was sold. Retagged from the earlier "[PARTIAL, unwired]" framing:
-  this is not just unwired, it is WRONG even in isolation, verified by running it. Also loses
-  citations: `Aggregation.claim_ids` (`readable.py:112`) keeps the ids, but `render_aggregation`
-  returns a bare `str`, so the ids are gone by the time there is a sentence to click — this is
-  why `kg.read.every-sentence-sourced` below is [BROKEN], not [PARTIAL].
-- `kg.read.every-sentence-sourced` — **[BROKEN]** (#4840) every rendered sentence must carry >= 1 claim id
-  through to the click target. Today it does not survive aggregation (see above); the app's live
-  renderer (A) DOES carry a source per sentence (`fichero-claim://<id>` link,
-  `EntityDigestView.swift:393-397`) since it never aggregates — so the property holds only in the
-  UNAGGREGATED, wrong-subject path, and fails in the aggregated, engine path. The entry composer
-  (`kg.read.biography` below) must fix both at once.
+- `kg.read.aggregation-keeps-objects` — **[OK]** (#4649) `render_aggregation` lists every distinct
+  object and place, joined by the language's own conjunction, and never prints a bare count.
+  Pinned by `test_realises_aggregated_objects_and_places_in_spanish` and
+  `test_realises_aggregated_objects_and_places_in_english`. `render_aggregation` still returns a
+  bare `str` by design: the claim ids travel on `Aggregation.claim_ids` and onto the composed
+  sentence (see `kg.read.every-sentence-sourced`).
+- `kg.read.every-sentence-sourced` — **[OK]** (#4840, 424ae4223) every sentence the entry composer
+  (`render_entry`) returns carries `claim_ids`, and a merged sentence lists EVERY contributing claim,
+  in order. Pinned by `test_render_entry_every_sentence_carries_its_claim_id`,
+  `test_render_entry_merge_keeps_every_source_claim_id_in_order` and
+  `test_render_entry_spanish_merge_example`. The app's live renderer (A) is a separate path
+  (`fichero-claim://<id>` link, `EntityDigestView.swift:393-397`) and retires under
+  `kg.read.one-renderer`.
 - `kg.read.referring-expressions` — **[PARTIAL] — engine-only, and orphaned** (#4651)
   `referring_expression` (`readable.py:144`) is BUILT (a surname heuristic: "Asprilla", "Cruz"
   for "María de la Cruz") but stage 6 (`render_aggregation`/realisation) NEVER CALLS it
