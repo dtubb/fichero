@@ -649,9 +649,23 @@ work and waits for the canvas's own spec, → #3085.)
 
 ### Reading orders
 
-**What exists.** No stored order. The region-edit code sorts boxes by character span, else top
-then left (`_reading_order` in `api/routes/document/artifacts.py`). After slice 6 a converted
-segment remembers its old place as `metadata.box_index`.
+**What exists — corrected 2026-09-26 (#4930).** No stored order, and **TWO ordering rules, which
+order different things.** This section previously cited `_reading_order` in
+`api/routes/document/artifacts.py`; there is no such function anywhere in the engine, and the
+description that followed it was right about one of the two:
+
+1. **`reading_order(pairs)`** in `media/ocr_geometry.py` orders **BOXES**: by character span when
+   every member has one ("the transcript IS the reading order"), else top-then-left by bbox. It
+   lives beside `union_bbox` because the old store's combine and the new store's joined text both
+   need it, and "a second copy of this rule is how two combines would start disagreeing about word
+   order" (#4924).
+2. **`_segment_row_sort_key(row)`** in `api/routes/document/segments.py` orders **ROWS**:
+   `metadata["box_index"]` when a converted box recorded one, else `(created_at, id)` — **never the
+   bare `id`, a random uuid the app's index mapping cannot use (#4921 review)**. `live_rows_in_order`
+   imports it rather than copying it, for the same anti-drift reason.
+
+After slice 6 a converted segment remembers its old place as `metadata.box_index`, which is what
+the second rule reads.
 
 **Models.** `ReadingOrder` (table `readingorders`): `id`; `document_id`; `pass_id` (an order
 belongs to one pass); `name` (`as-written` is made with every pass; others are free);
@@ -705,11 +719,32 @@ no order named (422); `OrderNeedsRenumbering`; a `legacy:` id.
   derived text that reads straight through, furniture left out.
 - Moving one entry writes one row (count the rows whose `version` changed); a forced
   renumber is its own audit row.
-- A converted page's `as-written` order equals today's `_reading_order` of the same boxes.
+- **Two tests, not one** (corrected 2026-09-26): a converted page's `as-written` order equals
+  `live_rows_in_order` for that pass — the rows ordered by `_segment_row_sort_key`, which is how a
+  converted row remembers its place — and an unconverted page's `as-written` order equals
+  `reading_order` over the artifact's boxes. The earlier single test paired the row order against
+  the box sorter, which is the wrong pairing for the case it named, and it cited a function that
+  does not exist, so written literally it could not import.
+- **The ordering rule is IMPORTED, never re-implemented.** `ReadingOrderEntry.position` is a float
+  placed by midpoint, so the fallback when positions tie or are absent decides the order — in a
+  record with no `box_index` of its own. The lazy fallback is `id`, which is exactly what #4921
+  forbids. A test asserts the `as-written` order of segments created in one transaction (identical
+  `created_at`, unordered uuids) is stable and is NOT uuid order. If neither existing rule fits a
+  case, that is a finding to report, not a licence to write a third.
 
 ### One typed-link record
 
-**What exists (four link records, four vocabularies).** `NoteLink` (`models/knowledge.py`:
+**What exists (four link records, four vocabularies) — verified against the code 2026-09-26
+(#4930): this list is ACCURATE.** All four exist as written, `PredictionLink` included and
+correctly described as a value inside a prediction's metadata rather than a table.
+
+Two records the list does NOT name, and deliberately: `KnowledgeClaimLink` and `LibraryItemLink`
+are the KG's own links, and `LibraryItemLink` already reuses `KnowledgeClaimLink`'s typed
+`ClaimRelationType` ("KG relations and library links share one relation ontology"). They are
+outside this slice — worth knowing when the vocabulary below is chosen, because **a fifth
+vocabulary beside an existing shared one would be the drift this consolidation exists to remove.**
+
+`NoteLink` (`models/knowledge.py`:
 `source_note_id`, `target_note_id`, `link_type` follows | references | contradicts | supports |
 free, `annotation`); `SpatialConnection` (`models/canvas.py`: `room_id`, `source_node_id`,
 `target_node_id`, `connection_type`, `link_subtype`, `created_by`, `metadata`); `CanvasItem` of
