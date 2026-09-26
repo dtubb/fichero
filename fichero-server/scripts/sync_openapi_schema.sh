@@ -42,15 +42,26 @@ fi
 cd "$REPO_ROOT"
 
 NEW_SCHEMA="$API_ROOT/tests/contracts/openapi.json"
+NEW_ENDPOINTS="$API_ROOT/tests/contracts/endpoints.json"
 
 # The export rewrites NEW_SCHEMA in place, so the committed version has to be
 # captured BEFORE it runs — and restored if the guard trips, or the abort
 # would leave behind exactly the corruption it exists to prevent.
 PREV_SCHEMA=""
+PREV_ENDPOINTS=""
 if [ -f "$NEW_SCHEMA" ]; then
   PREV_SCHEMA="$(mktemp -t openapi-prev)"
   cp "$NEW_SCHEMA" "$PREV_SCHEMA"
-  trap 'rm -f "$PREV_SCHEMA"' EXIT
+  # The export writes a SECOND artifact beside the schema: `endpoints.json`,
+  # the simplified list Swift validates against. The abort path restored the
+  # schema and re-baked the identity but left this one holding the REJECTED
+  # export -- so "nothing was copied downstream" was still not quite true, one
+  # file over. Same #5047 shape, one artifact later.
+  if [ -f "$NEW_ENDPOINTS" ]; then
+    PREV_ENDPOINTS="$(mktemp -t endpoints-prev)"
+    cp "$NEW_ENDPOINTS" "$PREV_ENDPOINTS"
+  fi
+  trap 'rm -f "$PREV_SCHEMA" "$PREV_ENDPOINTS"' EXIT
 fi
 
 PYTHONPATH="$API_ROOT/src" FICHERO_FEATURE_TIER=dev "$PYTHON_BIN" "$API_ROOT/scripts/export_openapi_schema.py"
@@ -74,7 +85,8 @@ if [ -n "$PREV_SCHEMA" ]; then
       --bake-identity-from "$PREV_SCHEMA" >&2 \
       || echo "⚠️  Could not re-bake the contract identity; it may describe the rejected schema." >&2
     cp "$PREV_SCHEMA" "$NEW_SCHEMA"
-    echo "↩︎  Restored the previous schema; nothing was copied downstream." >&2
+    [ -n "$PREV_ENDPOINTS" ] && cp "$PREV_ENDPOINTS" "$NEW_ENDPOINTS"
+    echo "↩︎  Restored the previous schema and endpoint list; nothing was copied downstream." >&2
     exit 1
   fi
 fi
