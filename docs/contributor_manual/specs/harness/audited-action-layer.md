@@ -209,8 +209,10 @@ parallel pattern to keep.
 
 ### C. Attribution — the actor recorded is the real one
 
-- `audit.actor-attribution-is-real-not-hardcoded` — **[PARTIAL]** (implemented and tested,
-  8e06dc31d; #4843 still open pending close) all
+- `audit.actor-attribution-is-real-not-hardcoded` — **[OK]** (8e06dc31d; #4843 closed
+  2026-09-26 after re-verification — `test_action_registry.py:204` undo-of-merge,
+  `test_routes_entity_curation.py:490` undo-of-split and `:857` authority-link, 165 passing)
+  all
   three sibling spots this behavior found hardcoding `created_by="human"` regardless of who or
   what triggered the operation now record the real actor. Verified at HEAD: `EntityMergeAudit`
   rows for undo-of-merge, undo-of-split, and the authority-link audit

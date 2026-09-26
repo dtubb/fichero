@@ -139,12 +139,13 @@ made it.
   circle-state action (the generic mechanism is pinned elsewhere,
   `harness/audited-action-layer.md`'s `audit.registry-is-the-one-write-choke-point`, but not
   re-asserted per-domain here).
-- `hermeneutic.actor-not-forged` — **[BROKEN]** (#4857) `InterpretationCreateRequest
-  .created_by: str = "human"` (`hermeneutics.py:115`) is a plain client-settable field, stored
-  verbatim by `create_interpretation_impl` (`:388`) — any caller can claim to be anyone. The
-  route already threads `ctx.actor` correctly into `ActionAudit` via `registry.invoke`; this is
-  specifically the domain model's OWN `created_by` field not deriving from it, the same class
-  of gap `harness/audited-action-layer.md` tracks for `kg/inclusion.py::upsert_inclusion`.
+- `hermeneutic.actor-not-forged` — **[OK]** (#4857 closed 2026-09-26)
+  `create_interpretation_impl` stores `created_by=actor` from `ctx.actor`
+  (`hermeneutics.py:402`) and the request field is ignored, so a caller can no longer claim
+  authorship it does not have. Pinned by `test_hermeneutics_actions.py` (165 passing at close).
+  Corrected 2026-09-26: this line described `created_by: str = "human"` as a live
+  client-settable field long after the fix landed. The same class of gap is still tracked for
+  `kg/inclusion.py::upsert_inclusion` in `harness/audited-action-layer.md`.
 
 ### C. Where the reasoning connects to a claim
 
