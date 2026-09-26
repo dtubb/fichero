@@ -8,24 +8,11 @@ import Testing
 /// `LibraryOutlineNode.parse(nodeId:)`, which searches from the RIGHT for
 /// the marker `id` actually mints.
 ///
-/// Source-scan: `documentId(forNodeId:)` is an instance method on
-/// `LibraryView` with heavy dependencies and no seam to construct in a unit
-/// test — same limitation `EntityClaimSelectionClassifyTests` states for
-/// itself.
+/// The `LibraryView` wrapper was removed (#5052): the Table view calls
+/// `LibraryOutlineNode.parse(nodeId:).documentId` directly, so no first-colon split can be
+/// reintroduced there, and this pins the parser itself.
 @Suite(.tags(.knowledgeGraph))
 struct LibraryTableDocumentIdTests {
-    @Test("documentId(forNodeId:) delegates to LibraryOutlineNode.parse, not a first-colon split")
-    func delegatesToParse() throws {
-        let source = try AppSource.text("Views/Library/ViewModes/Table/LibraryView+TableView.swift")
-        let body = try #require(
-            source.components(separatedBy: "func documentId(forNodeId nodeId: String) -> String {").dropFirst().first
-        )
-        // Bounded by the function's own closing brace, a structural marker.
-        let scope = try #require(body.components(separatedBy: "\n    }").first)
-        #expect(scope.contains("LibraryOutlineNode.parse(nodeId: nodeId).documentId"))
-        #expect(!scope.contains("firstIndex(of: \":\")"))
-    }
-
     /// The delegated-to function itself, exercised directly (it IS pure):
     /// a document id containing its own colon must not be truncated at it.
     @Test("a document id containing a colon is not truncated at the FIRST one")

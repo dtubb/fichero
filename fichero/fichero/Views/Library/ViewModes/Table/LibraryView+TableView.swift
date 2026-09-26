@@ -29,7 +29,7 @@ extension LibraryView {
             // Child-group rows carry "<docId>:<type>" ids — drop the
             // suffix so a context-menu on a child still targets its doc.
             if let firstId = primaryNodeId(in: items),
-               let doc = filteredDocuments.first(where: { $0.id == documentId(forNodeId: firstId) }) {
+               let doc = filteredDocuments.first(where: { $0.id == LibraryOutlineNode.parse(nodeId: firstId).documentId }) {
                 // Deferred to OPEN time like Icon, List and Columns (#4544):
                 // Table was the one browse mode still building its menu on
                 // every render pass.
@@ -80,7 +80,7 @@ extension LibraryView {
             openArtifactDetailWindow(for: artifactSelection)
             return
         }
-        if let doc = filteredDocuments.first(where: { $0.id == documentId(forNodeId: firstId) }) {
+        if let doc = filteredDocuments.first(where: { $0.id == LibraryOutlineNode.parse(nodeId: firstId).documentId }) {
             handleDoubleClick(doc)
         }
     }
@@ -94,8 +94,8 @@ extension LibraryView {
         if let cursor = selectionCursor, items.contains(cursor) { return cursor }
         let order = filteredDocuments.map(\.id)
         return items.min { lhs, rhs in
-            let lhsIndex = order.firstIndex(of: documentId(forNodeId: lhs)) ?? Int.max
-            let rhsIndex = order.firstIndex(of: documentId(forNodeId: rhs)) ?? Int.max
+            let lhsIndex = order.firstIndex(of: LibraryOutlineNode.parse(nodeId: lhs).documentId) ?? Int.max
+            let rhsIndex = order.firstIndex(of: LibraryOutlineNode.parse(nodeId: rhs).documentId) ?? Int.max
             if lhsIndex != rhsIndex { return lhsIndex < rhsIndex }
             return lhs < rhs
         }
@@ -109,17 +109,6 @@ extension LibraryView {
             in: [selection.artifact]
         )
         openWindow(id: "artifact-detail")
-    }
-
-    /// Strip a child-group/item node's `:type[:itemId]` suffix back to the
-    /// document id. Was splitting on the FIRST colon (#4860 audit finding) —
-    /// a document id that itself contains a colon (a "container:<name>"
-    /// default-workflow subfolder, #4850's own example) split wrong.
-    /// `LibraryOutlineNode.parse(nodeId:)` already gets this right, searching
-    /// from the RIGHT for the marker `id` actually mints — reuse it instead
-    /// of a second, differently-broken implementation.
-    func documentId(forNodeId nodeId: String) -> String {
-        LibraryOutlineNode.parse(nodeId: nodeId).documentId
     }
 
     /// Top-level outline nodes for the currently filtered documents, with

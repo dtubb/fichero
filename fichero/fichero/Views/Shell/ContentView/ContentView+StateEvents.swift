@@ -144,6 +144,30 @@ extension ContentView {
 
     /// Handles `.onChange(of: browserSelection)`.
     /// Persists browser selection to @SceneStorage.
+    /// What a selected browse row asks of the shell, decided from its OWN id (#4850): classified
+    /// BEFORE the ambient "which collection is showing" flag, because a composite outline id
+    /// ("<doc>:entity:<id>") must never reach code built for a bare id.
+    enum BrowserRowAction: Equatable {
+        /// An entity row: focus this BARE entity id (nil for the group row, which focuses nothing).
+        case focusEntity(String?)
+        /// A page row: promote this page's own (bare) document id.
+        case promotePage(String?)
+        /// Claim, artifact and note rows: handled elsewhere; do nothing here.
+        case ignore
+        /// A document row or an unrecognised id: fall through to the document path.
+        case notClassified
+    }
+
+    static func browserRowAction(forNodeId nodeId: String) -> BrowserRowAction {
+        let parsed = LibraryOutlineNode.parse(nodeId: nodeId)
+        switch parsed.childType {
+        case .entities: return .focusEntity(parsed.itemId)
+        case .pages: return .promotePage(parsed.itemId)
+        case .claims, .artifacts, .notes: return .ignore
+        case nil: return .notClassified
+        }
+    }
+
     func handleBrowserSelectionChange(_ newSelection: Set<String>) {
         // #4834: a real browser/table selection always outranks a
         // knowledge-surface reveal.
@@ -167,9 +191,8 @@ extension ContentView {
         // used to fall straight into the document-promotion path below
         // with a composite id.
         if let primaryId {
-            let parsed = LibraryOutlineNode.parse(nodeId: primaryId)
-            switch parsed.childType {
-            case .entities:
+            switch Self.browserRowAction(forNodeId: primaryId) {
+            case .focusEntity(let entityId):
                 // The table's own `.onChange` (`EntitiesTableView.swift:169-181`
                 // → `openEntityFromLibrary`, `LibraryView+Selection.swift:321`)
                 // already focuses this row with the bare `entity.id` — this
@@ -178,58 +201,30 @@ extension ContentView {
                 // composite race is gone. The table is the PRIMARY writer;
                 // this branch exists so any future entity surface that is
                 // not the table still resolves correctly.
-                if let itemId = parsed.itemId {
-                    kgFocusState.focusEntity(entityId: itemId)
-                }
+                if let entityId { kgFocusState.focusEntity(entityId: entityId) }
                 NavTrace.log("selChange.entityFocus", "nil")
                 detailDocument = nil
                 return
-            case .claims:
-                // #4850: a claim row's composite id is not a document id —
-                // it must never reach the document-fetch path below.
-                // The claims table's own `.onChange`
-                // (`ClaimsTableView.swift:137-154`) already opens the claim
-                // via `onOpenSource` → `ClaimsLibraryContent.openSource`
-                // (`:253`), which posts to `ClaimSourceNavigationState`
-                // (`cursor?.request(request)`) — NOT `detailDocument`. So
-                // this handler does not touch `detailDocument` either;
-                // doing so would blank whatever the Preview pane was
-                // legitimately showing for no reason tied to opening a claim.
-                return
-            case .pages:
-                // #4862: a page row promotes ITS OWN page. `itemId` is the
-                // page's own (bare) document id — pages ARE real Documents,
-                // nested under their parent PDF only for disclosure — never
-                // the composite string. `LibraryView+TableView.swift`'s own
-                // `.onChange(of: selection)` already resolves this correctly
-                // via its live `outlineNodes` (which carries the actual page
-                // Document, `pageDocumentForNodeId`); this branch is the
-                // same safety net #4850 built for entities/claims, for any
-                // OTHER browse mode that reaches this handler with the same
-                // composite id.
-                if let itemId = parsed.itemId {
+            case .promotePage(let pageId):
+                // #4862: a page row promotes ITS OWN page (a real Document nested under its
+                // parent PDF only for disclosure). `LibraryView+TableView.swift`'s own
+                // `.onChange(of: selection)` resolves this via its live outline; this branch is the
+                // same safety net for any OTHER browse mode reaching here with the composite id.
+                if let pageId {
                     Task { @MainActor in
-                        if let page = try? await documentStore.documentService.getDocument(itemId) {
+                        if let page = try? await documentStore.documentService.getDocument(pageId) {
                             detailDocument = page
                         }
                     }
                 }
                 return
-            case .artifacts, .notes:
-                // #4862: artifact and note rows already have a correct,
-                // richer handler — `LibraryView+TableView.swift`'s own
-                // `.onChange(of: selection)` (`artifactSelectionForNodeId`)
-                // resolves via the SAME live outline tree, sets
-                // `detailDocument` to the PARENT document, and focuses
-                // `FocusedArtifact.shared`. ContentView has no access to
-                // that live tree (it lives in the Table view's own @State),
-                // so reconstructing it here would mean guessing at a parent
-                // lookup rather than reusing what exists. Same shape as the
-                // claims branch above: a safe no-op — the composite id must
-                // not reach the generic document-promotion path below, and
-                // nothing beyond that is invented.
+            case .ignore:
+                // Claim, artifact and note rows have a correct, richer handler of their own (the
+                // claims table's `onOpenSource`, the Table view's artifact focus). Their composite
+                // ids must never reach the generic document-promotion path below, and nothing
+                // beyond that is invented here (#4850, #4862).
                 return
-            case nil:
+            case .notClassified:
                 break
             }
         }
