@@ -54,7 +54,11 @@ from fichero_server.models import (
     SegmentStale,
     SegmentVersion,
 )
-from fichero_server.models.anchors import SourceAnchor, validate_rect
+from fichero_server.models.anchors import (
+    PROVISIONAL_ID_PREFIXES,
+    SourceAnchor,
+    validate_rect,
+)
 from fichero_server.models.knowledge import Annotation, ProvenanceKind
 from fichero_server.models.segments import (
     TILE_SIZE,
@@ -1729,6 +1733,7 @@ def _invert_merge(before, after, ctx: ActionContext):
             "expected_versions": {
                 sid: current_versions[sid] for sid in absorbed_versions if sid in current_versions
             },
+            "representation_ids": after.get("representation_ids", []),
         },
     )
 
@@ -1818,6 +1823,16 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
     # `keep_id` is taken as given, never re-chosen by this action; slice
     # 6's route is what picks the lowest-position member as `keep_id`.
 
+    # Slice 8 (#4934): read every member's counting reading BEFORE anything is
+    # soft-deleted, in the order the caller gave -- which IS the reading order
+    # they were looking at when they merged. The members' own readings are
+    # never touched: they stay on their soft-deleted segments and come back
+    # with an unmerge, because unmerging restores the rows and the readings
+    # were always hanging off them.
+    readings_by_member = {
+        segment_id: _counting_readings(db, segment_id) for segment_id in params.segment_ids
+    }
+
     audit_id = uuid.uuid4().hex
     absorbed_versions: dict[str, int] = {}
     after_versions: dict[str, int] = {params.keep_id: keep_row.version}
@@ -1849,6 +1864,38 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
         db.save(forwarding)
         forwarding_ids.append(forwarding.id)
 
+    # Slice 8 (#4934): the kept segment's reading becomes the members'
+    # readings joined in reading order, as a NEW reading whose maker is the
+    # person who merged -- because joining two people's transcriptions is a
+    # judgement somebody made, not something either of them wrote. Only kinds
+    # that more than one member actually had are joined: a single member's
+    # reading needs no new record, it is already on the kept segment or comes
+    # back with an unmerge.
+    merge_representation_ids: list[str] = []
+    joined_kinds = {
+        kind
+        for counted in readings_by_member.values()
+        for kind in counted
+    }
+    for kind in sorted(joined_kinds):
+        pieces = [
+            readings_by_member[segment_id][kind][1]
+            for segment_id in params.segment_ids
+            if kind in readings_by_member[segment_id]
+        ]
+        if len(pieces) < 2:
+            continue
+        merge_representation_ids.append(
+            _derived_reading(
+                db,
+                document_id=keep_row.document_id,
+                segment_id=params.keep_id,
+                kind=kind,
+                content=" ".join(pieces),
+                ctx=ctx,
+            )
+        )
+
     spec = ChangeSpec(
         audit_id=audit_id,
         domains=["segment"],
@@ -1857,6 +1904,9 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
         after={
             "kept_id": params.keep_id, "forwarding_ids": forwarding_ids,
             "absorbed_versions": absorbed_versions,
+            # Slice 8 (#4934): the joined readings THIS merge added, so its
+            # inverse retracts exactly those and nothing else.
+            "representation_ids": merge_representation_ids,
             # #4957 follow-up 1: EVERY touched id's version as this call
             # left it -- `_refresh_replay_expected_versions` reads this to
             # freshen a replayed merge's `expected_versions` on redo, and
@@ -1868,7 +1918,13 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
         pass_ids=[keep_row.pass_id],
         document_ids=[keep_row.document_id],
     )
-    return {"kept_id": params.keep_id, "forwarding_ids": forwarding_ids}, spec
+    return (
+        {
+            "kept_id": params.keep_id, "forwarding_ids": forwarding_ids,
+            "representation_ids": merge_representation_ids,
+        },
+        spec,
+    )
 
 
 class SegmentUnmergeParams(BaseModel):
@@ -1889,11 +1945,17 @@ class SegmentUnmergeParams(BaseModel):
     #: someone reshaped the absorbed segment again since -- the same
     #: guarantee `segment.update`'s own compare-and-set gives a live edit.
     expected_versions: dict[str, int]
+    #: Slice 8 (#4934): the joined readings the merge ADDED, to retract. The
+    #: members' OWN readings need nothing done to them -- they never left their
+    #: segments, so restoring the segments brings them back exactly.
+    representation_ids: list[str] = []
 
 
 @action("segment.unmerge", SegmentUnmergeParams, domains=["segment"], undoable=False)
 def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionContext):
     audit_id = uuid.uuid4().hex
+    # Slice 8 (#4934): the join this merge wrote stops counting again.
+    _retract_readings(db, params.representation_ids)
     restored_ids = []
     after_versions: dict[str, int] = {}
     document_ids: set[str] = set()
@@ -1973,6 +2035,102 @@ def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionConte
     return {"segment_ids": restored_ids}, spec
 
 
+# --- readings across a split and a merge (slice 8, #4934) ----------------
+#
+# OWED BY SLICE 8 SO IT IS NOT RETROFITTED. Once a segment has readings,
+# splitting or merging it has to say what happens to them, IN THE SAME ACTION
+# -- these are parameters of the existing actions, never new actions. The
+# alternative is the text editor (13b) discovering later that a merge silently
+# lost two people's transcriptions, and bolting on a repair.
+#
+# Nothing here EDITS a reading. A split's parts and a merge's kept segment get
+# NEW readings derived from the old ones, which is the same rule corrections
+# follow (`source.reading.corrections-are-new`); the originals are untouched,
+# so an undo has only to retract what was added.
+
+
+def _counting_readings(db: Database, segment_id: str) -> dict[str, tuple[str, str]]:
+    """``{kind: (representation_id, content)}`` for each kind that COUNTS on
+    this segment right now.
+
+    Imported locally: `segment_readings` imports THIS module, so a top-level
+    import would be a cycle. The same shape `segment_conversion`'s callers use
+    for `live_geometry`.
+    """
+    from fichero_server.api.routes.document.segment_readings import (
+        counting_by_kind,
+        readings_of_segment,
+    )
+
+    items = readings_of_segment(db, segment_id)
+    answers = counting_by_kind(db, segment_id, items)
+    counted: dict[str, tuple[str, str]] = {}
+    for kind, answer in answers.items():
+        if answer.representation_id is None:
+            continue
+        text = next(
+            (item.content for item in items if item.id == answer.representation_id), None
+        )
+        if text is not None:
+            counted[kind] = (answer.representation_id, text)
+    return counted
+
+
+def _derived_reading(
+    db: Database,
+    *,
+    document_id: str,
+    segment_id: str,
+    kind: str,
+    content: str,
+    ctx: ActionContext,
+    derived_from: str | None = None,
+) -> str:
+    """Write one reading derived from a split or a merge, and return its id.
+
+    In-process, not through a nested `registry.invoke`: this is PART of the
+    split or merge, one audited action with one undo step -- the same
+    discipline slice 6 applied when conversion-on-first-edit wrote its own
+    segments. `derived_from` is dropped when it names a PROVISIONAL reading,
+    which has no record to point at; the text was still taken from it, and the
+    anchor's `segment_id` says where it belongs.
+    """
+    if derived_from is not None and derived_from.startswith(PROVISIONAL_ID_PREFIXES):
+        derived_from = None
+    segment = db.get(Segment, segment_id)
+    anchor = (
+        segment.anchor.model_copy(update={"segment_id": segment_id})
+        if segment is not None
+        else SourceAnchor(document_id=document_id, segment_id=segment_id)
+    )
+    reading = ContentRepresentation(
+        document_id=document_id,
+        segment_id=segment_id,
+        kind=kind,
+        content=content,
+        source_anchor=anchor,
+        derived_from_representation_id=derived_from,
+        provenance_kind=provenance_kind_from_ctx(ctx),
+        created_by=ctx.actor or None,
+        producer_run_id=ctx.run_id,
+    )
+    db.save(reading)
+    return reading.id
+
+
+def _retract_readings(db: Database, representation_ids: list[str]) -> None:
+    """Undo of a split or a merge: the readings it ADDED stop counting.
+
+    Retracted, not deleted -- the row stays, as it does for every other
+    retraction. The readings the split or merge did not touch were never
+    touched, so putting them back is nothing: they are already there.
+    """
+    for representation_id in representation_ids or []:
+        row = db.get(ContentRepresentation, representation_id)
+        if row is not None and row.retracted_at is None:
+            db.save(row.model_copy(update={"retracted_at": utc_now()}))
+
+
 # --- split / unsplit -----------------------------------------------------
 
 
@@ -1981,6 +2139,12 @@ class SegmentSplitPart(BaseModel):
 
     anchor: SourceAnchor
     baseline: Optional[list[list[float]]] = None
+    #: Source-model slice 8 (#4934): the stretch of the line's reading this
+    #: part takes, as ``[char_start, char_end]`` into the reading that counts.
+    #: WITH NONE GIVEN the reading stays on the kept part and the new parts
+    #: have none -- splitting a box is a statement about geometry, and guessing
+    #: where to cut somebody's transcription is not the engine's business.
+    reading_span: Optional[list[int]] = None
 
 
 class SegmentSplitParams(BaseModel):
@@ -2019,6 +2183,7 @@ def _invert_split(before, after, ctx: ActionContext):
             "expected_versions": {
                 new_id: current_versions[new_id] for new_id in new_segment_ids if new_id in current_versions
             },
+            "representation_ids": after.get("representation_ids", []),
         },
     )
 
@@ -2060,6 +2225,24 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
                 f"part anchor's document_id {part.anchor.document_id!r} does not "
                 f"match the segment's document_id {original.document_id!r}"
             ))
+        if part.reading_span is not None and (
+            len(part.reading_span) != 2 or part.reading_span[0] >= part.reading_span[1]
+            or part.reading_span[0] < 0
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "reading_span must be [char_start, char_end] with "
+                    f"0 <= start < end; got {part.reading_span!r}"
+                ),
+            )
+    # Slice 8 (#4934): read what COUNTS before anything moves, so the parts are
+    # cut from the reading the person was actually looking at.
+    readings_before_split = (
+        _counting_readings(db, params.segment_id)
+        if any(part.reading_span is not None for part in params.parts)
+        else {}
+    )
 
     audit_id = uuid.uuid4().hex
     pre_split_version = original.version
@@ -2105,6 +2288,34 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     if new_rows:
         db.save_many(new_rows)
 
+    # Slice 8 (#4934): each part that named a stretch gets its own reading,
+    # derived from the one that counted. The kept part is `params.segment_id`
+    # and the new parts are `new_ids`, in the order the caller gave them.
+    part_ids = [params.segment_id, *new_ids]
+    split_representation_ids: list[str] = []
+    for part, part_id in zip(params.parts, part_ids):
+        if part.reading_span is None:
+            continue
+        start, end = part.reading_span
+        for kind, (source_id, text) in readings_before_split.items():
+            if start >= len(text):
+                # The stretch is past the end of this kind's reading. Skipped
+                # rather than refused: a caller cutting a transcription at a
+                # sensible place should not be stopped because some OTHER kind
+                # of reading of the same line happens to be shorter.
+                continue
+            split_representation_ids.append(
+                _derived_reading(
+                    db,
+                    document_id=original.document_id,
+                    segment_id=part_id,
+                    kind=kind,
+                    content=text[start:end],
+                    ctx=ctx,
+                    derived_from=source_id,
+                )
+            )
+
     forwarding = SegmentForwarding(
         document_id=original.document_id,
         old_segment_id=params.segment_id,
@@ -2133,6 +2344,9 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
             # at 1) -- so `_invert_split`/`_refresh_replay_expected_versions`
             # always have a live token to hand `unsplit`.
             "versions": {params.segment_id: original.version, **{new_id: 1 for new_id in new_ids}},
+            # Slice 8 (#4934): the readings THIS split added, so its inverse
+            # retracts exactly those and nothing else.
+            "representation_ids": split_representation_ids,
         },
         emit_type="segment.split",
         segment_ids=[params.segment_id, *new_ids],
@@ -2140,7 +2354,11 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
         document_ids=[original.document_id],
     )
     return (
-        {"kept_id": params.segment_id, "new_segment_ids": new_ids, "forwarding_id": forwarding.id},
+        {
+            "kept_id": params.segment_id, "new_segment_ids": new_ids,
+            "forwarding_id": forwarding.id,
+            "representation_ids": split_representation_ids,
+        },
         change_spec,
     )
 
@@ -2167,6 +2385,9 @@ class SegmentUnsplitParams(BaseModel):
     #: version is refused, not silently skipped, so the caller is told
     #: instead of the edit vanishing with the delete.
     expected_versions: dict[str, int] = {}
+    #: Slice 8 (#4934): the readings the split ADDED, to retract. Named by the
+    #: acting row's own `after`, never replayed from an earlier call's params.
+    representation_ids: list[str] = []
 
 
 @action("segment.unsplit", SegmentUnsplitParams, domains=["segment"], undoable=False)
@@ -2211,6 +2432,12 @@ def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionConte
 
     audit_id = uuid.uuid4().hex
     now = utc_now()
+
+    # Slice 8 (#4934): the readings the split ADDED stop counting again. Done
+    # BEFORE the parts are soft-deleted only so the whole undo is one
+    # transaction's worth of writes in one readable place; the order does not
+    # matter, because a retraction touches the reading and nothing else.
+    _retract_readings(db, params.representation_ids)
 
     # SOFT delete, with a forwarding note for each part (#4957 owed item).
     # This was the ONE hard delete left in the segment store, and it took

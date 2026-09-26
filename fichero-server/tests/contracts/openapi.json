@@ -38118,7 +38118,8 @@
         "enum": [
           "stored",
           "segment",
-          "segment-deleted"
+          "segment-deleted",
+          "segment-named"
         ],
         "title": "AnchorBasis",
         "description": "How a resolved anchor got its place."
@@ -44580,6 +44581,11 @@
           "provenance_kind": {
             "$ref": "#/components/schemas/ProvenanceKind",
             "nullable": true
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Created By"
           },
           "machine_confidence": {
             "type": "number",
@@ -61281,6 +61287,11 @@
           "provenance_kind": {
             "$ref": "#/components/schemas/ProvenanceKind"
           },
+          "created_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Created By"
+          },
           "machine_confidence": {
             "type": "number",
             "nullable": true,
@@ -65941,6 +65952,14 @@
             "type": "array",
             "nullable": true,
             "title": "Baseline"
+          },
+          "reading_span": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Reading Span"
           }
         },
         "additionalProperties": false,
@@ -66590,6 +66609,16 @@
           "refines": {
             "$ref": "#/components/schemas/SourceAnchor-Input",
             "nullable": true
+          },
+          "segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Segment Id"
+          },
+          "representation_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Representation Id"
           }
         },
         "additionalProperties": true,
@@ -66675,6 +66704,16 @@
           "refines": {
             "$ref": "#/components/schemas/SourceAnchor-Output",
             "nullable": true
+          },
+          "segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Segment Id"
+          },
+          "representation_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Representation Id"
           }
         },
         "additionalProperties": true,

@@ -33,7 +33,13 @@ from fichero_server.media.ocr_geometry import (
     OCRGeometryResult,
     reading_order,
 )
-from fichero_server.models.anchors import SourceAnchor, shapes_bound
+from fichero_server.models.anchors import (
+    LEGACY_ID_PREFIX,
+    LEGACY_READING_ID_PREFIX,
+    PROVISIONAL_ID_PREFIXES,
+    SourceAnchor,
+    shapes_bound,
+)
 from fichero_server.models.knowledge import ProvenanceKind
 
 logger = logging.getLogger(__name__)
@@ -49,18 +55,15 @@ def _new_id() -> str:
 #: Prefix marking an id read out of today's blob storage rather than a real
 #: ``Segment``/``Pass`` row. `source.seam.provisional-ids-refused`: a
 #: provisional id must never be accepted back on a write.
-LEGACY_ID_PREFIX = "legacy:"
-
-#: The same rule for a reading that still lives in an ``Artifact`` row
-#: (source-model slice 8, #4934). A separate prefix rather than a longer
-#: ``legacy:`` id because the two name different things -- a box's POSITION in
-#: a geometry blob, and a whole artifact's TEXT -- and a caller that mixed
-#: them up should get a refusal naming the right one.
-LEGACY_READING_ID_PREFIX = "legacy-reading:"
-
-#: Every prefix ``assert_not_provisional`` refuses. One tuple so adding a
-#: third seam cannot forget to teach the refusal about it.
-PROVISIONAL_ID_PREFIXES = (LEGACY_ID_PREFIX, LEGACY_READING_ID_PREFIX)
+#: Re-exported from ``anchors.py``, which OWNS them since slice 8 (#4932):
+#: `SourceAnchor` gained lasting `segment_id`/`representation_id` fields and
+#: must refuse a provisional id itself, and anchors.py sits below this module.
+#: Every existing importer of these names from here keeps working.
+#:
+#: ``legacy:`` names a box's POSITION in today's geometry blob;
+#: ``legacy-reading:`` names a whole artifact's TEXT read as a reading. Two
+#: prefixes rather than one longer id because they name different things, and a
+#: caller that mixed them up should get a refusal naming the right one.
 
 
 class ProvisionalSegmentIdError(ValueError):
@@ -1530,6 +1533,13 @@ class AnchorBasis(str, Enum):
     #: the answer, and the caller is told the line is gone rather than being
     #: shown a rectangle with nothing behind it.
     segment_deleted = "segment-deleted"
+    #: Source-model slice 8 (#4932): the anchor NAMED its segment
+    #: (`SourceAnchor.segment_id`) and that segment is live. Distinct from
+    #: `segment` on purpose -- that one was RECOVERED by matching a
+    #: rectangle against the kept block, this one was RECORDED, and a caller
+    #: (or a person reading a diagnostic) should be able to tell which kind
+    #: of link it is looking at.
+    segment_named = "segment-named"
 
 
 class ResolvedAnchor(BaseModel):

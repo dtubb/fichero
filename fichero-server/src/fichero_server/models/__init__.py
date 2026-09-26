@@ -91,6 +91,7 @@ from fichero_server.models.segments import (
     SegmentListResponse,
     SegmentMatch,
     SegmentPass,
+    SegmentPassChoice,
     SegmentRead,
     SegmentStale,
     SegmentVersion,
@@ -924,6 +925,19 @@ class ContentRepresentation(BaseModel):
     #: ENGINE-SET from how the write arrived, never accepted in a params model
     #: (→ #4868, #4869: the same defect as machine claims stored as human).
     provenance_kind: ProvenanceKind | None = None
+    #: WHICH person or agent wrote it (`source.reading.author-and-guideline`:
+    #: "a reading names its author (person, or model and run)"). The model-and-
+    #: run half was already here as `producer_model`/`producer_run_id`; this is
+    #: the person half, and it was missing. ENGINE-SET from `ctx.actor`, same
+    #: name and same posture as `Segment.created_by`.
+    #:
+    #: WHY IT MATTERS ENOUGH TO ADD A FIELD THE BUILD NOTES' TABLE LEFT OUT:
+    #: `provenance_kind` says a PERSON read this line, and in a library two
+    #: people transcribe in, an apparatus has to say WHICH. Reconstructing it
+    #: from the audit chain is not the same thing -- an audit row can be
+    #: pruned, and a reading exported to an edition carries its own record or
+    #: carries nothing.
+    created_by: str | None = None
     #: The recogniser's certainty about the whole reading.
     machine_confidence: float | None = None
     #: One certainty per character, where the recogniser gave them

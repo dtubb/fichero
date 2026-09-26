@@ -224,6 +224,42 @@ class TestReadingsAreWritten:
             ProvenanceKind.workflow
         )
 
+    def test_a_reading_names_its_author_not_only_the_kind_of_author(self, db, client):
+        """`source.reading.author-and-guideline`: "a reading names its author
+        (person, or model and run)".
+
+        `provenance_kind` says a PERSON read this line. In a library two people
+        transcribe in, an apparatus has to say WHICH -- and a reading exported
+        to an edition carries its own record or carries nothing.
+        """
+        doc = _make_doc(db)
+        artifact = _artifact(db, doc)
+        _convert(client, artifact.id)
+        segment = _converted_segments(db, artifact.id)[1]
+
+        by_maria = _write(
+            db, segment, content="nombre",
+            ctx=ActionContext(actor="maria", is_bootstrap=True), guideline="Leiden",
+        )
+        by_juan = _write(
+            db, segment, content="nomine",
+            ctx=ActionContext(actor="juan", is_bootstrap=True),
+        )
+
+        assert db.get(ContentRepresentation, by_maria.result["id"]).created_by == "maria"
+        assert db.get(ContentRepresentation, by_juan.result["id"]).created_by == "juan"
+        assert db.get(ContentRepresentation, by_maria.result["id"]).guideline == "Leiden"
+
+        # And the read seam reports it, so a client can show the apparatus
+        # without a second lookup per reading.
+        items = client.get(f"/api/segments/{segment.id}/readings").json()["items"]
+        authors = {item["created_by"] for item in items if not item["provisional"]}
+        assert authors == {"maria", "juan"}
+        # A provisional reading's author is the run that produced it -- the only
+        # author that text has.
+        provisional = [item for item in items if item["provisional"]]
+        assert [item["created_by"] for item in provisional] == ["qwen"]
+
     def test_a_written_and_read_pair_is_joined_and_can_be_undone(self, db, client):
         """`source.reading.written-read-pair` -- a different relation from
         error and correction."""

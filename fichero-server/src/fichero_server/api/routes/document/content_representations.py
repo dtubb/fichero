@@ -355,6 +355,7 @@ def create_representation(
         guideline=params.guideline,
         read_from_rendition_id=params.read_from_rendition_id,
         provenance_kind=provenance_kind_from_ctx(ctx),
+        created_by=ctx.actor or None,
         producer_run_id=ctx.run_id,
     )
     db.save(reading)

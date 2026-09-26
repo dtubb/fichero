@@ -96,6 +96,10 @@ class ReadingRead(BaseModel):
     #: Who made it — engine-set for a real row, derived from the artifact's
     #: provider and model for a provisional one. Never a trusting default.
     provenance_kind: ProvenanceKind
+    #: WHICH person or agent (`source.reading.author-and-guideline`). For a
+    #: provisional reading it is the artifact's provider: the run's own name is
+    #: the only author that text has.
+    created_by: str | None = None
     machine_confidence: float | None = None
     char_confidences: list[float] | None = None
     char_positions: list[float] | None = None
@@ -229,6 +233,7 @@ def provisional_readings(
                 provider=box.provider or artifact.provider,
                 model=box.model or artifact.model,
             ),
+            created_by=box.provider or artifact.provider,
             machine_confidence=box.confidence,
             derived_from_artifact_id=artifact.id,
             created_at=artifact.created_at,
@@ -251,6 +256,7 @@ def _reading_read_from_row(row: ContentRepresentation) -> ReadingRead:
         # `unknown` is the truth about it -- never `human`, which is the
         # defect #4868/#4869 exist to stop.
         provenance_kind=row.provenance_kind or ProvenanceKind.unknown,
+        created_by=row.created_by,
         machine_confidence=row.machine_confidence,
         char_confidences=row.char_confidences,
         char_positions=row.char_positions,
@@ -516,6 +522,14 @@ def document_text(
     ]
     rows.sort(key=_segment_order_key)
 
+    # ponytail: one readings read per line, each an indexed lookup
+    # (`idx_contentrepresentations_segment_id`,
+    # `idx_readingchoices_segment_id`). For a fifty-line folio that is fifty
+    # small queries, not a scan. If a whole-PROJECT derivation ever needs
+    # this, the upgrade is one batched read per pass
+    # (`query_in(ContentRepresentation, "segment_id", ids)`) feeding the same
+    # pure counting function -- not a cache of the answer, which this design
+    # deliberately does not store.
     pieces: list[str] = []
     spans: list[DerivedTextSpan] = []
     cursor = 0

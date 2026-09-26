@@ -38,6 +38,16 @@ from __future__ import annotations
 
 from enum import Enum
 
+#: Ids minted by a READ SEAM rather than written as records: a box's position
+#: in today's `ocr_geometry` blob (`legacy:`) and an artifact's text read as a
+#: reading (`legacy-reading:`). Defined HERE, the lowest layer, because both
+#: `models/segments.py` (which re-exports them) and `SourceAnchor` below must
+#: refuse them, and anchors.py imports nothing from this package.
+#: `source.seam.provisional-ids-refused`.
+LEGACY_ID_PREFIX = "legacy:"
+LEGACY_READING_ID_PREFIX = "legacy-reading:"
+PROVISIONAL_ID_PREFIXES = (LEGACY_ID_PREFIX, LEGACY_READING_ID_PREFIX)
+
 from pydantic import BaseModel, ConfigDict, model_validator
 
 
@@ -414,6 +424,55 @@ class SourceAnchor(BaseModel):
     #: which the export currently cannot use because selectors are emitted as
     #: a flat "any of these" list.
     refines: SourceAnchor | None = None
+
+    # ---- Source-model slice 8 (#4932/#4934): the LASTING references --------
+    #
+    # THE PROBLEM THESE SOLVE. Everything that points at a piece of a source
+    # -- a mark, a claim, a support, a reading's stretch -- has until now
+    # pointed with a RECTANGLE. Move the line and the pointer stays where the
+    # box used to be. `resolve_anchor` can recover the link afterwards, from
+    # the kept block, because a rectangle plus an artifact gives a repeatable
+    # id -- but recovering a link is not the same as having recorded one, and
+    # it only works for a box that came from a converted artifact.
+    #
+    # So an anchor may now name what it points at OUTRIGHT. One shape for
+    # readings, marks, supports and claims, because "where in the source" is
+    # ONE question and had accumulated one answer per caller.
+
+    #: The segment this anchor points at. When set it is AUTHORITATIVE and
+    #: `resolve_anchor` returns it without matching rectangles at all: a
+    #: recorded fact beats a recovered one. Never a provisional (`legacy:`)
+    #: id -- that names a position in a blob, so storing one would be a
+    #: lasting reference to something that does not last.
+    segment_id: str | None = None
+
+    #: The exact reading a character span was measured on
+    #: (`source.reading.stretch-names-its-reading`). Offsets without this are
+    #: meaningless the moment a second reading of the line exists, and when
+    #: the named reading is superseded the stretch is carried over by matching
+    #: CHARACTERS (`readings.replace_stretch`) or reported unplaced -- never
+    #: re-measured by position alone.
+    representation_id: str | None = None
+
+    @model_validator(mode="after")
+    def _check_lasting_references(self) -> SourceAnchor:
+        """A lasting reference must not be a provisional id (slice 8, #4932).
+
+        Checked ON THE MODEL, not only at the write paths, because an anchor
+        travels: it is embedded in claims, annotations, notes and readings, and
+        a caller that skipped a route's own check would otherwise store a
+        pointer that stops meaning anything the next time the page is re-run.
+        Old stored anchors have neither field, so nothing existing is refused.
+        """
+        for field_name in ("segment_id", "representation_id"):
+            value = getattr(self, field_name)
+            if value is not None and value.startswith(PROVISIONAL_ID_PREFIXES):
+                raise ValueError(
+                    f"{field_name} {value!r} is provisional (read from today's "
+                    "stored geometry, not a real record) and cannot be stored "
+                    "in an anchor"
+                )
+        return self
 
     # See NodeRegion._check_rect — same declaration-order trap, same fix.
     @model_validator(mode="after")

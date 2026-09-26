@@ -928,8 +928,9 @@ def read_library_uuid(conn) -> str | None:
 def migrate_segment_indices(conn) -> None:
     """Add indices on ``segments`` and ``segment_passes`` (source-model
     slice 3, #4921), ``segmentmatchs``/``segmentforwardings``/
-    ``segmentcarrys`` (slice 4, #4922), and ``segmentversions`` (slice 5,
-    #4923).
+    ``segmentcarrys`` (slice 4, #4922), ``segmentversions`` (slice 5,
+    #4923), and ``contentrepresentations``/``readingchoices``/
+    ``segmentpasschoices``/``libraryreadingkinds`` (slice 8, #4934).
 
     Both tables are created by ``_ensure_table`` (a `Segment`/`SegmentPass`
     pydantic model saved through ``Database.save()``), never by this
@@ -1031,6 +1032,49 @@ def migrate_segment_indices(conn) -> None:
             "CREATE INDEX IF NOT EXISTS idx_segmentversions_segment_id "
             "ON segmentversions(segment_id)",
             "GET /api/segments/{segment_id}/versions; restore_version's lookup",
+        ),
+        # Source-model slice 8 (#4934/#4929/#4932): readings and choices.
+        # `document_text` asks "this line's readings" once PER LINE, so
+        # without these a page read is one table scan per line
+        # (`source.store.bounded-reads`).
+        (
+            "idx_contentrepresentations_segment_id",
+            "CREATE INDEX IF NOT EXISTS idx_contentrepresentations_segment_id "
+            "ON contentrepresentations(segment_id)",
+            "GET /api/segments/{segment_id}/readings; every line of a derived "
+            "page text",
+        ),
+        (
+            "idx_contentrepresentations_document_id",
+            "CREATE INDEX IF NOT EXISTS idx_contentrepresentations_document_id "
+            "ON contentrepresentations(document_id)",
+            "a source's readings (the existing list route, now indexed)",
+        ),
+        (
+            "idx_readingchoices_segment_id",
+            "CREATE INDEX IF NOT EXISTS idx_readingchoices_segment_id "
+            "ON readingchoices(segment_id)",
+            "the counting answer for a line -- read on EVERY readings read",
+        ),
+        (
+            "idx_readingchoices_document_id",
+            "CREATE INDEX IF NOT EXISTS idx_readingchoices_document_id "
+            "ON readingchoices(document_id)",
+            "a source's reading choices",
+        ),
+        (
+            "idx_segmentpasschoices_document_id",
+            "CREATE INDEX IF NOT EXISTS idx_segmentpasschoices_document_id "
+            "ON segmentpasschoices(document_id)",
+            "which pass a person is working on -- read by resolve_working_pass "
+            "on every derived page text (slice 6 wrote the rows; slice 8 is "
+            "the first thing to READ them per page)",
+        ),
+        (
+            "idx_libraryreadingkinds_key",
+            "CREATE INDEX IF NOT EXISTS idx_libraryreadingkinds_key "
+            "ON libraryreadingkinds(key)",
+            "the kind vocabulary check on every reading write",
         ),
     ]
     created = 0

@@ -1501,9 +1501,32 @@ def resolve_anchor(db: Any, anchor: SourceAnchor | None) -> ResolvedAnchor | Non
     Only anchors that matched a box EXACTLY are helped, which is exactly
     the set slice 6 would have re-pointed. A mark drawn free stays where it
     was drawn.
+
+    SOURCE-MODEL SLICE 8 (#4932): an anchor may now NAME its segment
+    outright (`SourceAnchor.segment_id`), and when it does that is the answer
+    -- no rectangle matching at all. A recorded fact beats a recovered one,
+    and it is also the only thing that works for a segment that never came
+    from a converted artifact. The rectangle path below stays for every
+    anchor written before this slice, which is almost all of them.
     """
     if anchor is None:
         return None
+
+    if anchor.segment_id:
+        named = db.get(Segment, anchor.segment_id)
+        if named is None:
+            # The anchor names a segment that is not there. NOT silently
+            # downgraded to a rectangle guess: the pointer was explicit, so
+            # being unable to follow it is a fact the caller must see.
+            return ResolvedAnchor(anchor=anchor, basis=AnchorBasis.stored)
+        if named.deleted_at is not None:
+            return ResolvedAnchor(
+                anchor=anchor, basis=AnchorBasis.segment_deleted, segment_id=named.id
+            )
+        return ResolvedAnchor(
+            anchor=named.anchor, basis=AnchorBasis.segment_named, segment_id=named.id
+        )
+
     if anchor.rect is None or not anchor.document_id:
         return ResolvedAnchor(anchor=anchor, basis=AnchorBasis.stored)
 

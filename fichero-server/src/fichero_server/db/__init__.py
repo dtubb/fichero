@@ -1189,6 +1189,8 @@ class Database(DatabaseEmbeddingMixin):
             ActionAudit,
             AgentNote,
             Artifact,
+            ContentRepresentation,
+            ContentRepresentationRevision,
             Conversation,
             Document,
             LibraryReadingKind,
@@ -1204,6 +1206,7 @@ class Database(DatabaseEmbeddingMixin):
             SegmentForwarding,
             SegmentMatch,
             SegmentPass,
+            SegmentPassChoice,
             SegmentVersion,
             Trace,
             Workflow,
@@ -1237,8 +1240,28 @@ class Database(DatabaseEmbeddingMixin):
             ClaimMergeAudit,
             ClaimSuppressionRule,
             ClassificationValue,
+            # Source-model slice 8 (#4934): registered here, BEFORE `Segment`
+            # below, for two reasons. The tuple's order is the order
+            # `_materialize_schema` reconciles in, and `migrate_segment_indices`
+            # fires once `segments` exists -- so the reading table's new
+            # `segment_id` column must already be there, or its index silently
+            # fails to build and every derived page text is a table scan per
+            # line. And a reading's new columns are meant to ARRIVE ON OPEN, as
+            # the build notes say, not on whatever write happens to come first.
+            ContentRepresentation,
+            ContentRepresentationRevision,
             Conversation,
             Document,
+            # Source-model slice 8 (#4934), and ordered for the same reason as
+            # the two above: slice 6 writes these rows at a page's first edit,
+            # and slice 8 is the first thing to READ them per page
+            # (`resolve_working_pass`). It sits BEFORE `Segment` because
+            # `migrate_segment_indices` fires the moment `segments` and
+            # `segment_passes` both exist -- MID-ITERATION -- so a table
+            # registered after `SegmentPass` gets its index only on the SECOND
+            # open of the library. Alphabetical order would put it beside
+            # `SegmentPass` and quietly cost every first open its index.
+            SegmentPassChoice,
             DocumentCitation,
             DocumentNote,
             EntityMatchCandidate,
