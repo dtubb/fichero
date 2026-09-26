@@ -359,6 +359,16 @@ When seed-data shape changes, the shape change and every filter that reads it sh
    commits produced one dead feature (#4418). Declared as an enum, the generated client
    turns that mismatch into a **compile error**. The same applies to any status, kind,
    mode, or event-type vocabulary — including `ChangeEvent.type` (#4427).
+
+   **The one carve-out: a genuinely OPEN vocabulary.** When a library can define a value
+   the engine never shipped — reading kinds, segment kinds — a closed JSON Schema enum
+   cannot express it, and forcing one would forbid the extensibility the design asks for.
+   Such a field is a `str` on the wire ONLY when the server validates it against the
+   vocabulary and refuses an unknown value with a typed error that **names the valid
+   list**. That refusal is what replaces the compile error; without it you have the #4418
+   defect with extra steps. `UnknownReadingKind` (`models/readings.py`, 2026-09-26) is the
+   reference implementation. A table existing is NOT by itself a reason to widen a type —
+   a fixed set that merely lives in a table for seeding and display stays an enum.
 5. **A structured payload is a typed field, never `dict[str, Any]`.**
    `ExecuteWorkflowRequest` has no selection field: `selected_doc_ids` rides untyped
    inside `inputs`, which is why nothing could reject a client that sent a whole folder
