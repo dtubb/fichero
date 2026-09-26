@@ -369,6 +369,22 @@ When seed-data shape changes, the shape change and every filter that reads it sh
    defect with extra steps. `UnknownReadingKind` (`models/readings.py`, 2026-09-26) is the
    reference implementation. A table existing is NOT by itself a reason to widen a type —
    a fixed set that merely lives in a table for seeding and display stays an enum.
+6. **A type that mirrors the contract carries every field the contract declares.**
+   A hand-written value type that maps a generated one must be TOTAL. Mapping a subset
+   makes the app's model say a thing is narrower than it is, and every surface built on
+   that type inherits the narrower reality and has to widen the model before it can do
+   anything — a cost paid by whoever comes next, which is why it is not the mapper's to
+   impose. Prove totality with a round-trip test per field, not with a renderer.
+   Whether anything DRAWS a field is a separate question, answered by that surface's spec.
+   So an undrawn field needs a comment saying why nothing draws it yet — otherwise the
+   next reader sees dead weight, deletes it, and the subset comes back.
+   Two caveats, without which this gets misapplied: **faithful is not hand-duplicated** —
+   where a generated type exists the value type is a thin total mapping of it, never a
+   second declaration of the same shape kept in step by hand (rule 0 wearing another hat);
+   and **totality covers fields the contract DECLARES**, not `extra="allow"` extras, which
+   would be an unbounded obligation rather than a finite one.
+   (2026-09-26: `SourceAnchorValue` dropped `shapes`/`media_ref` because nothing drew them.
+   Sound reasoning about RENDERERS, applied to a TYPE — #5050.)
 5. **A structured payload is a typed field, never `dict[str, Any]`.**
    `ExecuteWorkflowRequest` has no selection field: `selected_doc_ids` rides untyped
    inside `inputs`, which is why nothing could reject a client that sent a whole folder
