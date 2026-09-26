@@ -140,15 +140,39 @@ instance of one abbreviation in a codex.
 
 Language and script
 - `source.lang.three-facts` — **[GAP]** (#4938) language, script and encoding are recorded separately.
-- `source.lang.registries` — **[GAP]** (#4938) language holds a BCP 47 tag and, separately, a Glottolog code (a
-  second code on the engine's existing language record, not a new registry);
-  script is ISO 15924 including unwritten, undetermined and private-use; encoding (full, part,
-  none) is recorded by Fichero.
-- `source.lang.project-declared` — **[GAP]** (#4938) a project can declare a language or script no registry has.
-- `source.lang.unknown-is-not-unexamined` — **[GAP]** (#4938) "unknown" and "not yet looked at" are different.
+- `source.lang.registries` — **[PARTIAL]** (#4938; the BCP 47 clause is **[GAP]** → #5078) script is
+  ISO 15924 including unwritten (`Zxxx`), undetermined (`Zyyy`) and private-use (`Qaaa`–`Qabx`),
+  and a Glottolog code sits beside the tag on the engine's existing language record
+  (`LanguageSpec.glottocode`), not in a new registry. Encoding (full, part, none) is recorded by
+  Fichero, on the script row (`LibraryScript.encoding`) and read for a page through the cascade.
+  **The BCP 47 half is not met and cannot be with the fields that exist**: `Document.language`
+  holds a canonical NAME by deliberate choice (#2092), so no document, segment or reading can
+  state a tag — the tag lives only on `LanguageSpec`, which is a model-coverage lookup and is
+  attached to no source. Migrating that field from names to tags is the maintainer's call
+  (#5078); a second `language_code` field beside it was rejected, because two fields that can
+  disagree about one language, with nothing reconciling `"Spanish"` and `es`, manufactures exactly
+  the drift this programme removes.
+- `source.lang.project-declared` — **[OK]** (#4938) a project can declare a script no registry
+  has: `LibraryScript` records the code, a name and an encoding, and `assert_known_script` —
+  called by `representation.create` and by `segment.update` — refuses a private-use code the
+  library has not declared. Tested by
+  `tests/unit/models/test_project_declared_scripts.py::TestTheRefusalIsLive` (through the real
+  action) and `::TestADeclaredScriptResolves`. **The language half needs nothing built**: the
+  field holds a name, so the declaration and the value are the same string, and a project
+  working in an unregistered language already writes its name — a `LibraryLanguage` table would
+  be a second place holding one fact, and a test pins its absence.
+- `source.lang.unknown-is-not-unexamined` — **[GAP]** (#4938) "unknown" and "not yet looked at" are
+  different. **This is a rule about CONTROL FLOW and not only about storage**, which is the thing
+  a reader of the three states is most likely to miss: examined-and-undetermined must STOP the
+  cascade's walk, while never-examined must fall through to the next level. A design that stored
+  all three states and dispatched on two would pass every storage test and still lose the
+  distinction the moment a value was resolved — the difference shows up as which level answers,
+  not as which value is stored.
 - `source.lang.cascade` — **[GAP]** (#4938) language and script inherit downward from app to character and can
   be overridden at any level (direction inherits the same way: see `source.dir.per-segment`).
-- `source.lang.says-where-from` — **[GAP]** (#4938) a shown value says which level it came from.
+- `source.lang.says-where-from` — **[OK]** (#4938) a shown value says which level it came from
+  (`LanguageResolution.level`, the same `LEVEL_*` constants `language_meta` stores). Tested by
+  `tests/unit/llm/test_language_cascade_levels.py::TestTheLevelIsTheRungTheAnswerCameFrom::test_a_fallback_reports_the_rung_it_came_from_not_the_one_that_asked`.
 - `source.lang.reading-overrides` — **[GAP]** (#4938) a reading's own language and script win for that reading.
 - `source.lang.many-per-page` — **[GAP]** (#4938) one page can hold several languages and scripts at once.
 

@@ -303,6 +303,10 @@ class SegmentRestoreTargetGone(ValueError):
         )
 
 
+from fichero_server.llm.language_policy import BadDirection  # noqa: E402
+from fichero_server.models.source_declarations import UnknownScript  # noqa: E402
+
+
 def _as_http_error(exc: Exception) -> HTTPException:
     if isinstance(exc, ProvisionalSegmentIdError):
         return HTTPException(status_code=422, detail=str(exc))
@@ -319,7 +323,10 @@ def _as_http_error(exc: Exception) -> HTTPException:
         })
     if isinstance(exc, (SegmentPassMismatchError, SegmentParentMismatchError, SegmentForwardingWouldLoop, SegmentNotLive, SegmentDeleted, SegmentRestoreTargetGone, ArtifactNotInDocumentScope, SegmentMatchCrossDocument, SegmentPartGone, SegmentPassNotLive, SegmentPassIsConversionTarget)):
         return HTTPException(status_code=409, detail=str(exc))
-    if isinstance(exc, (SegmentAnchorMismatchError, MatchNeedsAPerson, MatchNotAccepted, StatementsCarriedInStatementsStep)):
+    if isinstance(exc, (SegmentAnchorMismatchError, MatchNeedsAPerson, MatchNotAccepted, StatementsCarriedInStatementsStep, UnknownScript, BadDirection, UnknownCascadeFact)):
+        # Slice 9 (#4938): a script this library cannot make sense of and a
+        # direction outside the six. Converted HERE rather than at the call site
+        # so there stays one place that maps a refusal to a status code.
         return HTTPException(status_code=422, detail=str(exc))
     if isinstance(exc, (SegmentForwardingTooDeep, SegmentForwardingLoop)):
         return HTTPException(status_code=409, detail=str(exc))
@@ -1303,6 +1310,101 @@ class SegmentUpdateParams(BaseModel):
     kind_raw: Optional[str] = None
     parent_segment_id: Optional[str] = None
     is_furniture: Optional[bool] = None
+    #: The cascade's three facts (slice 9, #4938). Set here rather than through
+    #: an action of their own, because `segment.update` already owns the version
+    #: snapshot, the stale check, the inverse and the audit row -- a second
+    #: writer for the same row would be a second place to keep all four correct
+    #: (`iterate, never replace`).
+    #:
+    #: **AND DELIBERATELY NOT IN `source_setting.set`**, which owns the same three
+    #: facts at the PROJECT and NODE levels and refuses `level="segment"` by
+    #: naming this action (ruled 2026-09-26, option A). The build notes designed
+    #: one entry point for every level; by the time it was built, a segment's
+    #: facts were ordinary columns beside its others, and routing them elsewhere
+    #: would have made this the only segment action that cannot change some of the
+    #: segment's own columns -- which a later reader finds odd and "fixes". If you
+    #: came here to move these into `source_setting.set`, that is the reason not
+    #: to, and it is written at both ends on purpose.
+    #:
+    #: `None` means NOT GIVEN, as it does for every field above; clearing a fact
+    #: back to "never determined" is not expressible here and waits for
+    #: `source_setting.clear`, which is the general project/node/segment action
+    #: the build notes describe. Undo reverses a mis-set value in the meantime.
+    language: Optional[str] = None
+    script: Optional[str] = None
+    direction: Optional[str] = None
+    #: NOT accepted from a caller: `language_meta`, `script_meta` and
+    #: `direction_meta` are provenance, and the engine writes them from `ctx`
+    #: (#4868/#4869 -- a machine's claim recorded as a person's is the defect
+    #: that rule exists for). `extra="forbid"` above turns an attempt into a 422.
+
+
+def _apply_cascade_facts(
+    db: Database, row: Segment, params: "SegmentUpdateParams", ctx: ActionContext
+) -> None:
+    """Set a segment's language, script and direction (slice 9, #4938).
+
+    THE WRITE PATH the cascade was missing. Until this existed `Segment.language`
+    and `.script` were fields no action could set, so `source.lang.many-per-page`
+    could not be true end to end however faithfully the read seam carried them:
+    a page comes back as three answers only if something can record three.
+
+    Two rules it exists to keep in one place:
+
+    * **Every script value is validated** (`assert_known_script`), the same call
+      `representation.create` makes. One validated path and one unvalidated path
+      for the same fact is the sibling-defect shape -- a fix that lands on one
+      caller and not the others, with nothing flagging it.
+    * **Provenance is engine-set, never client-supplied** (#4868/#4869). The
+      caller sends a value; the meta is built here from `ctx`, so a runner's
+      determination cannot be recorded as a person's judgement.
+    """
+    from fichero_server.llm.language_policy import (
+        LEVEL_SEGMENT,
+        SOURCE_DETECTED,
+        SOURCE_USER,
+        STATUS_KNOWN,
+        assert_known_direction,
+        build_language_meta,
+    )
+    from fichero_server.models.source_declarations import assert_known_script
+
+    if params.language is None and params.script is None and params.direction is None:
+        return
+
+    by_a_person = provenance_kind_from_ctx(ctx) == ProvenanceKind.human
+    source = SOURCE_USER if by_a_person else SOURCE_DETECTED
+    who = "a person" if by_a_person else "this run"
+
+    if params.script is not None:
+        try:
+            assert_known_script(db, params.script)
+        except ValueError as refusal:
+            raise _as_http_error(refusal) from refusal
+    if params.direction is not None:
+        try:
+            assert_known_direction(params.direction)
+        except ValueError as refusal:
+            raise _as_http_error(refusal) from refusal
+
+    for field, value in (
+        ("language", params.language),
+        ("script", params.script),
+        ("direction", params.direction),
+    ):
+        if value is None:
+            continue
+        setattr(row, field, value)
+        setattr(
+            row,
+            f"{field}_meta",
+            build_language_meta(
+                status=STATUS_KNOWN,
+                source=source,
+                level=LEVEL_SEGMENT,
+                basis=f"set on this region by {who}",
+            ),
+        )
 
 
 def _invert_via_previous_version(before, after, ctx: ActionContext):
@@ -1382,6 +1484,7 @@ def _action_segment_update(db: Database, params: SegmentUpdateParams, ctx: Actio
         row.parent_segment_id = params.parent_segment_id
     if params.is_furniture is not None:
         row.is_furniture = params.is_furniture
+    _apply_cascade_facts(db, row, params, ctx)
     db.save(row)
 
     spec = ChangeSpec(
@@ -1396,6 +1499,131 @@ def _action_segment_update(db: Database, params: SegmentUpdateParams, ctx: Actio
         document_ids=[row.document_id],
     )
     return {"segment_id": row.id, "version": row.version}, spec
+
+
+#: The three facts a segment can carry from the cascade, plus the region-only
+#: line progression. Named once so the clear action and its refusal cannot drift
+#: from each other (slice 9, #4938).
+CASCADE_FACT_KEYS: tuple[str, ...] = ("language", "script", "direction", "line_progression")
+
+
+class UnknownCascadeFact(ValueError):
+    """Raised when a clear names something that is not one of the four facts.
+
+    Names the list, so a caller that sent `lang` or `encoding` is told what it
+    may send -- and `encoding` in particular is the one somebody WILL try, since
+    it is the third fact of `three-facts` but lives on the script row and not on
+    a segment at all.
+    """
+
+    def __init__(self, key: str) -> None:
+        self.key = key
+        super().__init__(
+            f"{key!r} is not a fact a segment carries; this clears any of: "
+            + ", ".join(CASCADE_FACT_KEYS)
+            + (
+                ". Encoding is a property of the SCRIPT, recorded on the script "
+                "row, so there is nothing to clear here"
+                if key == "encoding"
+                else ""
+            )
+        )
+
+
+class SegmentFactsClearParams(BaseModel):
+    """Clear a segment's own language, script or direction back to NOT STATED.
+
+    The segment-level half of the build notes' `source_setting.clear`; the
+    project and node levels arrive with the general action.
+
+    WHY A SEPARATE ACTION rather than a sentinel on `segment.update`: every
+    optional field on that action means "not given", and overloading one of them
+    to also mean "set this to nothing" would make `language=""` and
+    `language=None` two different instructions distinguished by nothing a reader
+    can see. Clearing is also the rarer, more deliberate act -- a curator saying
+    "I was wrong to state this at all", which is not the same as correcting a
+    value -- and it deserves its own audit row saying so.
+
+    It shares `segment.update`'s snapshot and inverse, so an accidental clear is
+    undone by the same restore path as any other change.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    segment_id: str
+    expected_version: int
+    #: Which facts to clear. Explicit rather than "all of them", because
+    #: clearing a language while meaning to clear a direction is a data loss
+    #: nothing warns about.
+    keys: list[str]
+
+
+_invert_segment_facts_clear = _invert_via_previous_version
+
+
+@action(
+    "segment.facts_clear",
+    SegmentFactsClearParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_segment_facts_clear,
+)
+def _action_segment_facts_clear(
+    db: Database, params: SegmentFactsClearParams, ctx: ActionContext
+):
+    """`source.lang.unknown-is-not-unexamined` as a WRITE: this restores the
+    never-determined state, which is a different act from recording that
+    something was examined and could not be told. That second thing is a value
+    plus a meta saying `status=unknown`, and it is what `segment.update` writes;
+    this leaves the meta empty, because nothing has been determined about this
+    fact at this level any more.
+    """
+    _assert_not_provisional_http(params.segment_id, what="segment_id")
+    if not params.keys:
+        raise HTTPException(status_code=422, detail="keys is empty: nothing to clear")
+    for key in params.keys:
+        if key not in CASCADE_FACT_KEYS:
+            raise _as_http_error(UnknownCascadeFact(key))
+
+    row = db.get(Segment, params.segment_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Segment not found: {params.segment_id}")
+    if row.deleted_at is not None:
+        raise _as_http_error(SegmentDeleted(params.segment_id))
+    if row.version != params.expected_version:
+        raise _as_http_error(SegmentStale(
+            params.segment_id, params.expected_version, row.version,
+            _stale_changed_fields(db, params.segment_id, params.expected_version, row),
+        ))
+
+    audit_id = uuid.uuid4().hex
+    before_version = row.version
+    snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+
+    for key in params.keys:
+        setattr(row, key, None)
+        # The meta goes with it. A `language_meta` left behind would say a person
+        # determined a language that is no longer there -- provenance for a fact
+        # that does not exist is worse than none.
+        if key != "line_progression":
+            setattr(row, f"{key}_meta", None)
+    db.save(row)
+
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[row.id],
+        # Ids and the field NAMES only -- a cleared value is not carried into the
+        # audit chain, because the preimage already holds it and the chain cannot
+        # be purged.
+        before={"segment_id": row.id, "version": before_version, "cleared": list(params.keys)},
+        after={"segment_id": row.id, "version": row.version},
+        emit_type="segment.updated",
+        segment_ids=[row.id],
+        pass_ids=[row.pass_id],
+        document_ids=[row.document_id],
+    )
+    return {"segment_id": row.id, "version": row.version, "cleared": list(params.keys)}, spec
 
 
 class SegmentRestoreVersionParams(BaseModel):
@@ -1451,6 +1679,15 @@ def _action_segment_restore_version(db: Database, params: SegmentRestoreVersionP
     row.kind_raw = target.kind_raw
     row.parent_segment_id = target.parent_segment_id
     row.is_furniture = target.is_furniture
+    # Slice 9 (#4938): restored with everything else. A fact the update can set
+    # and the restore leaves behind would make undo quietly partial.
+    row.language = target.language
+    row.script = target.script
+    row.direction = target.direction
+    row.language_meta = target.language_meta
+    row.script_meta = target.script_meta
+    row.direction_meta = target.direction_meta
+    row.line_progression = target.line_progression
     row.doc_kind = f"{row.document_id}:{row.kind}"
     bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
     row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile

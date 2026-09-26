@@ -29,6 +29,7 @@ from fichero_server.models import (
 )
 from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.knowledge import ProvenanceKind
+from fichero_server.models.source_declarations import assert_known_script
 from fichero_server.models.readings import (
     ChoiceNeedsAPerson,
     ReadingAnchorMismatch,
@@ -314,6 +315,12 @@ def create_representation(
     it is why there is no update action here at all.
     """
     assert_known_reading_kind(db, params.kind)
+    if params.script:
+        # `source.lang.project-declared`: a private-use script code is refused
+        # unless this library declared it. Checked on the WRITE only -- a
+        # reading stored under a code whose declaration was later removed must
+        # still read back, the same rule the reading kinds follow.
+        assert_known_script(db, params.script)
 
     segment: Segment | None = None
     if params.segment_id is not None:

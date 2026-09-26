@@ -488,6 +488,159 @@ one); a direction outside the list; setting a value on a `legacy:` segment.
 **For the maintainer:** nothing. (That a folder can carry settings, set in the Inspector, was
 ruled on 2026-09-19.)
 
+### A project declares scripts, not languages — resolved 2026-09-26
+
+`source.lang.project-declared` says "a language **or** script no registry has". Built, the two
+halves came out different shapes, and the asymmetry is the honest one rather than an unfinished
+half.
+
+A **script** is stored as a code (`Segment.script`, `Document.script`,
+`ContentRepresentation.script`), so a project-declared script needs somewhere to record what its
+code means: nothing in the world can resolve `Qaaa`. That store is `LibraryScript` (table
+`libraryscripts`: `code`, `name`, `encoding`, `declared`), and `assert_known_script` refuses a
+private-use code the library has not declared, on writes only — the reading-kinds rule, so a
+project that tidies its declarations never loses stored text.
+
+A **language** needs no store, because `Document.language` holds a canonical **name** (#2092),
+not a tag. A project working in an unregistered language already writes that name and the
+cascade carries it; the declaration and the value are the same string, and a `LibraryLanguage`
+table would be a second place holding one fact. What the language half gets instead is a
+predicate, `language_is_project_declared`, for BCP 47's own private-use range (`qaa`–`qtz`, and
+any `x-` subtag), so a value can be shown as the project's own. A test pins the absence of the
+table so a later change of mind has to be argued rather than drifted into.
+
+Three departures from the plan above, each deliberate:
+
+- **A table, where this document said a `LibrarySetting` row holding a JSON list under key
+  `source.scripts`.** Same information; the table is typed, queryable, and migrated by the
+  mechanism every other model already uses, where the k/v row needs a serialiser, a
+  deserialiser and a hand-written migration for a shape that is already a model. It follows
+  `LibraryReadingKind`, which slice 8 set as the pattern for a per-library vocabulary.
+- **`UnknownScript` refuses two things, not "a code neither in ISO 15924 nor declared".**
+  Fichero ships no copy of ISO 15924, so the engine cannot tell `Latn` from `Lxtn` offline. It
+  refuses a malformed code and an undeclared private-use code, and passes a well-formed one it
+  cannot confirm. Refusing everything unconfirmable would refuse real scripts; a short
+  hand-kept list would look authoritative while being wrong. The refusal that carries the
+  behavior is the private-use one.
+- **`encoding` is stored and never computed.** The field carries the spec's three values
+  (`full` | `part` | `none`) with `None` for not established. Whether Fichero *works out* an
+  encoding from `llm/script_coverage.py` is the open question on the encoding item; nothing
+  here presumes an answer, and it can be filled later without changing the record.
+
+Also found, and **not** patched here: `source.lang.registries` asks that "language holds a BCP 47
+tag", and at document level it cannot — the field is a name by design. The tag lives only on
+`LanguageSpec` (the model-coverage lookup), so no document, segment or reading can state one.
+That needs its own decision (a second field, a migration of names to tags, or recording the
+clause as unmet) and is reported, not quietly worked around.
+
+### The write path: `segment.update` grew, and clearing is its own action — resolved 2026-09-26
+
+Found while building item 7: `Segment.language` and `.script` were fields **no action could set**,
+so `many-per-page` could not be true end to end however faithfully the read seam carried them — a
+page comes back as three answers only if something can record three.
+
+- **The writer is `segment.update`, not a new action.** It already owns the version snapshot, the
+  stale check, the inverse and the audit row; a second writer for the same row would be a second
+  place to keep all four correct. `language`, `script` and `direction` are parameters on it; the
+  metas are NOT parameters, because provenance is engine-set from `ctx` (#4868/#4869) and a caller
+  that could send one could claim a person set what a model guessed.
+- **Extending the writer exposed a defect that would have shipped.** `SegmentVersion` is the
+  preimage undo restores from, and it did not carry the three facts — so a restore would have left
+  a language change at its new value and lost a fact it never touched. A field the update can
+  change and the preimage cannot carry is worse than a field nobody can edit. The three facts,
+  their metas and `line_progression` are now snapshotted and restored.
+- **Clearing is `segment.facts_clear`, a separate action.** Every optional field on
+  `segment.update` means "not given", and overloading one to also mean "set this to nothing" would
+  make two different instructions indistinguishable to a reader. Clearing is also the rarer,
+  more deliberate act — a curator withdrawing a statement rather than correcting it — and it earns
+  its own audit row. It names the facts to clear explicitly, because clearing a language while
+  meaning to clear a direction is a loss nothing warns about, and it clears each fact's meta with
+  it: provenance for a fact that no longer exists would say a person determined something that is
+  not there.
+- **Clearing is the write side of `unknown-is-not-unexamined`.** A cleared fact FALLS THROUGH to
+  the next level; an examined-and-undetermined one STOPS the walk. The two are written by
+  different actions and a test asserts the difference by resolving after each.
+
+Both refusals reach a caller as 422 through the one `_as_http_error` mapping rather than at their
+call sites, so there stays one place that maps a refusal to a status code.
+
+### The single entry point did not survive contact — ruled 2026-09-26 (option A)
+
+This document designed ONE setter for every level, `source_setting.set` with a `level` parameter.
+Built, it came out as two, and the reason is a constraint the notes did not know about.
+
+By the time the setter was written, `segment.update` already owned a segment's version snapshot,
+its stale check, its inverse and its audit row, and the three facts had gone in as ordinary
+columns beside the segment's others. Routing a segment's language through `source_setting.set`
+would have made `segment.update` **the only segment action that cannot change some of the
+segment's own columns**. That is not untidiness: it is an oddity whose correctness depends on
+nobody noticing it, and a later reader "fixing" it is the failure mode. So:
+
+- **`segment.update`** sets a segment's language, script and direction; **`segment.facts_clear`**
+  withdraws them.
+- **`source_setting.set` / `.clear`** own the **project** level (`LibrarySetting` rows under
+  `source.<key>`) and the **node** level (a `Document`'s own columns), and refuse
+  `level="segment"` with a typed refusal that NAMES `segment.update` — a refusal saying only "not
+  supported here" sends the reader hunting for something one call away.
+- The asymmetry is documented at **both** ends, because one-ended documentation is how the "fix"
+  happens: the reader meets the odd side first.
+
+"One code path per thing" is satisfied either way — there is exactly one way to set a segment's
+language under both designs — so the rule does not choose between them, and the tiebreak is which
+one a stranger reads correctly.
+
+**The node level is a `Document`'s own columns, not a `source_settings` JSON bag** as this document
+sketched. A bag holding `language` beside the existing `language` column would be two homes for
+one fact about one document, which is the duplication the programme removes. `Document.direction`
+and `direction_meta` were added so the node level carries the same three facts, in the same shape,
+as a segment does.
+
+**The invariants are identical at every level**, which is the point of ruling rather than
+drifting: provenance engine-set from `ctx` and never accepted from a caller, `assert_known_script`
+and `assert_known_direction` called on the way in, and clearing meaning NEVER DETERMINED rather
+than `unknown` (a positive finding that somebody looked). A validated segment path beside an
+unvalidated project path is the sibling-defect shape, and there are tests asserting the project
+and node levels refuse exactly what the segment level refuses.
+
+**One read answers all of it**: `GET /api/source-settings/resolve?document_id=&segment_id=` returns
+language, script, direction and encoding, each with the rung that answered — for ONE selection,
+never for a list, because resolving every segment of a page would be one walk per row. That is why
+the seam carries what is SET and this answers what is RESOLVED.
+
+### Direction is the third fact, and the one place the cascade derives — resolved 2026-09-26
+
+`source.dir.per-segment` and `source.dir.logical-order-stored`, engine half. Direction walks the
+same rungs as language and script, through the same `_stated_fact` reader (`resolve_direction`
+beside `resolve_script`), so there is one cascade and not three. Three decisions worth writing
+down:
+
+- **The derivation is a SOURCE, and `level` stays four pure rungs** — ruled 2026-09-26 after it
+  was first built, wrongly, as a fifth level. With nothing set anywhere the answer is worked out
+  from the resolved script and reported as `source="derived-from-script"` with `level=None`, which
+  is the accurate reading of the rule that `None` means NOT STATED: no rung stated it, because
+  nobody did. A `level` that sometimes holds a non-rung cannot be reasoned about, and it is the
+  same conflation refused when `source` was proposed as the home for the rung. The distinction a
+  reader needs — a direction worked out versus one a person chose — is carried by `source`, the
+  field a caller already inspects to decide whether to trust a value, and a test asserts the two
+  are distinguishable for the same value (`rtl` derived from `Arab` versus `rtl` set on the
+  region).
+- **Deriving at all is justified, and this is why it is not the `Zyyy` mistake**: a direction has
+  to be decided either way, because the text gets drawn on a screen, while a script is a claim
+  about the source that nobody is forced to make. The same reasoning is recorded at the
+  derivation itself, not only here.
+- **"May be vertical" is not a direction.** `Hani`, `Hira`, `Kana`, `Hang`, `Mong` and kin
+  resolve `ltr` like anything else — modern horizontal Japanese is the common case and guessing
+  `ttb` would be wrong more often than right — but the set is named (`script_may_be_vertical`)
+  so a surface can ask about exactly those.
+- **`line_progression` is a separate field, region-only, and not at the seam.** Vertical
+  Japanese is `ttb` text whose columns progress `rtl`; a right-to-left line in a European book
+  still progresses `ttb`. One field could not say both. It is absent from `SegmentRead` because
+  no surface reads it yet, and a field the app never asks for is a field nobody keeps correct.
+
+`direction_meta` rather than the `settings_set_by` / `settings_set_at` pair this document
+sketched, for the same reason the language level was folded into `language_meta`: one shape for
+one idea, already built, already read by four levels.
+
 ## Slice 10 — named reading orders, flows, and the one typed-link record (#4930, #4931)
 
 **Pins:** `source.order.named-multiple`, `source.order.next-previous`, `source.segment.flow`;

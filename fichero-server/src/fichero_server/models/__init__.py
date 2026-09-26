@@ -395,6 +395,39 @@ class Document(BaseModel):
         default=None,
         description="Language provenance: status (known|unknown), source, confidence, basis. None = never determined.",
     )
+    # Source-model slice 9 (#4938), `source.lang.three-facts`: language, script
+    # and encoding are recorded SEPARATELY. A document had only language, so the
+    # second fact had nowhere to live above the segment — and the two genuinely
+    # differ: a Spanish text transliterated into Arabic script shares the
+    # language and not the script, and one field could not say which changed.
+    #
+    # ISO 15924, which includes the cases a registry of "written scripts" would
+    # otherwise force a lie about: `Zxxx` unwritten, `Zyyy` undetermined, `Qaaa`
+    # onwards private use. `source.lang.project-declared` rests on that last
+    # range — a project can declare a script no registry has without inventing a
+    # code that collides with a real one.
+    script: str | None = Field(
+        default=None,
+        description="ISO 15924 script code this document is written in (#4938).",
+    )
+    script_meta: dict[str, Any] | None = Field(
+        default=None,
+        description="Script provenance: status (known|unknown), source, confidence, basis, level. None = never determined.",
+    )
+    # The third fact, on the NODE level of the cascade (slice 9, #4938). Set here
+    # rather than in a `source_settings` JSON bag as the build notes sketched: a
+    # bag holding `language` beside the `language` column above would be two
+    # homes for one fact about one document, which is the duplication this
+    # programme exists to remove. One fact, one column, at every level — the same
+    # shape `Segment` carries.
+    direction: str | None = Field(
+        default=None,
+        description="Which way this document's text runs: ltr|rtl|ttb|btt|alternating|follows-baseline (#4938).",
+    )
+    direction_meta: dict[str, Any] | None = Field(
+        default=None,
+        description="Direction provenance: status, source, confidence, basis, level. None = never determined.",
+    )
 
     # Workspace folders (#1313). A workspace is a normal folder document with
     # curated items layered on top of its child documents; views consume the
