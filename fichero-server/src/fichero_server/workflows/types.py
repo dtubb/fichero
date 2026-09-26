@@ -54,9 +54,21 @@ def compact_output_for_state(value: Any) -> Any:
     if size > _STATE_OUTPUT_MAX_BYTES:
         raise ValueError(
             "Workflow State output exceeded the capped serialized size "
-            f"({size} > {_STATE_OUTPUT_MAX_BYTES} bytes)"
+            f"({size} > {_STATE_OUTPUT_MAX_BYTES} bytes)" + _largest_keys(compact)
         )
     return compact
+
+
+def _largest_keys(compact: dict) -> str:
+    """Name the fields that made a node's output too big (#5018: "15873722 > 8388608" said only THAT,
+    not WHICH field carried the payload, so nobody could tell a page image from a transcript)."""
+    if not isinstance(compact, dict):
+        return ""
+    sizes = sorted(
+        ((len(json.dumps(v, ensure_ascii=False, default=str)), k) for k, v in compact.items()),
+        reverse=True,
+    )[:3]
+    return "; largest fields: " + ", ".join(f"{k} = {n} bytes" for n, k in sizes) if sizes else ""
 
 
 def _merge_parallel_results(

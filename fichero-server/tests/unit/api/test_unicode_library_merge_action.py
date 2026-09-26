@@ -475,7 +475,9 @@ def _assert_rich_merged_state(
     audit = global_db.get(ActionAudit, result.audit_id)
     assert audit is not None
     assert audit.action_name == "library.unicode_merge"
-    assert audit.after["deferred_follow_up_issue"] == 3094
+    # #3094 (union notes, annotations and entities) is done: nothing is stamped as deferred any more.
+    assert "deferred_follow_up_issue" not in audit.after
+    assert audit.after["status"] == "merged"
     _assert_merge_journal_completeness(
         Path(result.result["journal_path"]),
         folder_doc_disposition=folder_doc_disposition,

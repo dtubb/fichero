@@ -42,6 +42,19 @@ class TestSearchMatchTerms:
         terms = set(_search_match_terms("donde se construyo la presa")[1:])
         assert terms == {"construyo", "presa"}
 
+    def test_question_fillers_do_not_become_search_terms(self) -> None:
+        """#5029: "like" is not the subject of "what is Quibdó like?"; keeping it made every page
+        that says "looks like" a keyword hit at 0.5 evidence strength (the exemption floor)."""
+        terms = _search_match_terms("what is Quibdó like?")
+        assert terms[1:] == ["quibdo"]
+        assert set(_search_match_terms("tell me about Quibdó, please")[1:]) == {"quibdo"}
+        # a page that only says "looks like" is no longer weak-evidence-with-a-pass
+        assert _lexical_evidence_strength("it looks like the dredge will work", terms) == 0.0
+
+    def test_a_query_of_only_fillers_still_searches(self) -> None:
+        assert set(_search_match_terms("like")[1:]) == set()  # single token: phrase only
+        assert _search_match_terms("like") == ["like"]
+
     def test_all_stopword_query_keeps_its_tokens(self) -> None:
         # Dropping every token would turn a real search into silence.
         terms = _search_match_terms("who was there")

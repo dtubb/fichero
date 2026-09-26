@@ -44,6 +44,7 @@ from fichero_server.models import (
 from fichero_server.security.path_security import validate_stored_document_path
 from fichero_server.core.perf import perf_span
 from fichero_server.db.storage import auto_snapshot_before_risky_operation
+from fichero_server.db.storage_snapshots import SnapshotRefused
 from fichero_server.db.storage import settings as storage_settings
 from fichero_server.actions.registry import registry
 
@@ -2051,10 +2052,16 @@ def cleanup_orphan_documents_impl(
     artifacts_deleted = 0
 
     if orphaned:
-        auto_snapshot_before_risky_operation(
-            library_path,
-            reason=f"Before cleanup of {len(orphaned)} orphan document(s)",
-        )
+        # #5070: no snapshot, no cleanup. This used to ignore the result, so on
+        # an open library — which is any library in use — it deleted orphans with
+        # no way back and only a log line to say so.
+        try:
+            auto_snapshot_before_risky_operation(
+                library_path,
+                reason=f"Before cleanup of {len(orphaned)} orphan document(s)",
+            )
+        except SnapshotRefused as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     for orphan in orphaned:
         artifacts = db.query(Artifact, document_id=orphan.id)
@@ -2541,13 +2548,21 @@ def purge_document_impl(
     to_delete_ids = _descendant_document_ids(db, doc.id, include_deleted=True)
 
     if library_path:
-        auto_snapshot_before_risky_operation(
-            library_path,
-            reason=(
-                f"Before deleting document subtree {doc_id} "
-                f"({len(to_delete_ids)} document(s))"
-            ),
-        )
+        # #5070: NO SNAPSHOT, NO DELETE. This is a permanent removal of a
+        # document and every descendant — the most destructive thing the app
+        # does — and it is written to snapshot first. On an open library the
+        # snapshot silently never happened, so the subtree went for good with a
+        # warning in a log nobody reads. Refusing is the only honest answer.
+        try:
+            auto_snapshot_before_risky_operation(
+                library_path,
+                reason=(
+                    f"Before deleting document subtree {doc_id} "
+                    f"({len(to_delete_ids)} document(s))"
+                ),
+            )
+        except SnapshotRefused as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     # Snapshot documents BEFORE deletion so undo can restore them verbatim.
     document_snapshots: list[dict[str, Any]] = []

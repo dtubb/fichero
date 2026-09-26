@@ -348,7 +348,6 @@ def _write_merge_journal(
                 "winner_snapshot_id": winner_snapshot_id,
                 "loser_snapshot_id": loser_snapshot_id,
                 "dispositions": dispositions,
-                "deferred_follow_up_issue": 3094,
             },
             indent=2,
             sort_keys=True,
@@ -842,7 +841,6 @@ def _action_unicode_merge_library(
         "loser_snapshot_id": loser_snapshot.id,
         "journal_path": journal_path,
         "dispositions": dispositions,
-        "deferred_follow_up_issue": 3094,
     }
     return result, ChangeSpec(
         domains=["library"],

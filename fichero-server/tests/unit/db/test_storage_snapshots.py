@@ -265,23 +265,47 @@ def test_auto_snapshot_before_risky_operation_passes_include_files(
     ]
 
 
-def test_snapshot_quiesces_database_manager_before_copy(
+def test_snapshot_copies_the_database_under_one_lock(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    """The copy is taken by `db_manager.copy_database_file` (#5070 review).
+
+    THIS TEST USED TO PIN THE WEAKER PROPERTY. It asserted that
+    `snapshot_library` called `_quiesce_library_database(library, close=False)`
+    BEFORE copying — which is exactly the shape the review found insufficient:
+    quiesce takes the write lock, checkpoints, RELEASES it and returns, so a
+    managed write can land between the checkpoint and the copy and tear it.
+
+    That was survivable while the copy was an unproved spare. It is not
+    survivable now the copy is what the export reads and what a restore
+    restores, so the checkpoint and the copy became one step under one lock, and
+    this test now pins THAT. `copy_database_file`'s own tests
+    (`test_snapshot_while_library_is_open.py`) assert the lock is held across
+    both halves; this asserts `snapshot_library` goes through it at all.
+    """
+    from fichero_server.db.manager import db_manager
+
     _use_snapshot_state(monkeypatch, tmp_path)
     library_path = tmp_path / "QuiesceSnapshot.fichero"
     _create_library_with_document(library_path)
-    calls: list[tuple[Path, bool]] = []
+    calls: list[tuple[Path, Path]] = []
+    real_copy = db_manager.copy_database_file
 
-    def quiesce_spy(path: Path, *, close: bool) -> None:
-        calls.append((path, close))
+    def copy_spy(package_path, dest, *, source=None):
+        calls.append((Path(package_path), Path(dest)))
+        return real_copy(package_path, dest, source=source)
 
-    monkeypatch.setattr(storage_snapshots, "_quiesce_library_database", quiesce_spy)
+    monkeypatch.setattr(db_manager, "copy_database_file", copy_spy)
 
     storage_snapshots.snapshot_library(str(library_path), reason="safe copy")
 
-    assert calls == [(library_path, False)]
+    assert len(calls) == 1, calls
+    package, dest = calls[0]
+    assert package == library_path
+    assert dest.name == "fichero.duckdb"
+    # And the copy it produced is a real database, not an empty file.
+    assert dest.is_file() and dest.stat().st_size > 0
 
 
 def test_restore_quiesces_database_manager_before_swap(
