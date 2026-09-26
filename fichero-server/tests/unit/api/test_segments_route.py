@@ -678,7 +678,7 @@ class TestHandDrawnAndPassProvenanceSingleSignals:
     `provider="user"` and `source="manual"` together, so no test proves
     `_box_is_hand_drawn`'s OR is real (either signal alone would pass even
     if the function were wrongly an AND), and no test proves
-    `_derive_pass_provenance_kind`'s "model alone means workflow" branch
+    `derive_pass_provenance_kind`'s "model alone means workflow" branch
     or that both functions lower-case before comparing."""
 
     def test_provider_user_alone_is_hand_drawn(self):
@@ -714,19 +714,19 @@ class TestHandDrawnAndPassProvenanceSingleSignals:
         ) is True
 
     def test_model_alone_with_no_provider_means_workflow(self):
-        from fichero_server.models.segments import _derive_pass_provenance_kind
+        from fichero_server.models.segments import derive_pass_provenance_kind
 
-        assert _derive_pass_provenance_kind(provider=None, model="apple-vision-v3") == "workflow"
+        assert derive_pass_provenance_kind(provider=None, model="apple-vision-v3") == "workflow"
 
     def test_provider_user_means_human_even_with_a_model_set(self):
-        from fichero_server.models.segments import _derive_pass_provenance_kind
+        from fichero_server.models.segments import derive_pass_provenance_kind
 
-        assert _derive_pass_provenance_kind(provider="user", model="some-model") == "human"
+        assert derive_pass_provenance_kind(provider="user", model="some-model") == "human"
 
     def test_neither_provider_nor_model_is_unknown_not_a_trusting_default(self):
-        from fichero_server.models.segments import _derive_pass_provenance_kind
+        from fichero_server.models.segments import derive_pass_provenance_kind
 
-        assert _derive_pass_provenance_kind(provider=None, model=None) == "unknown"
+        assert derive_pass_provenance_kind(provider=None, model=None) == "unknown"
 
 
 class TestSegmentProvenanceKind:

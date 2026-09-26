@@ -50,6 +50,11 @@ router = APIRouter(prefix="/content-representations")
 
 
 class RepresentationRevisionParams(BaseModel):
+    """A revision's params. Its `content` is audited in full, unchanged from
+    before slice 8: this action predates the digest rule and changing what an
+    existing audit chain records would make old rows and new rows mean
+    different things. New writes go through `representation.create`."""
+
     #: `extra="forbid"` since source-model slice 8 (#4934): a params model is
     #: the boundary where a client could smuggle in `provenance_kind` and be
     #: recorded as a person. Forbidding extras is what makes "engine-set"
@@ -258,6 +263,16 @@ class RepresentationCreateParams(BaseModel):
     derived_from_artifact_id: str | None = None
     guideline: str | None = None
     read_from_rendition_id: str | None = None
+
+    def audit_params(self) -> dict:
+        """The audit row gets every argument EXCEPT the words, and a digest in
+        their place (`_audit_params`). The reading itself already holds the
+        text, once; the undo of a create is a retraction, which needs none of
+        it; and a digest still proves which text this call wrote."""
+        recorded = self.model_dump(mode="json")
+        recorded.pop("content", None)
+        recorded["content_sha256"] = _content_sha256(self.content)
+        return recorded
 
 
 def _invert_representation_create(before, after, ctx: ActionContext):

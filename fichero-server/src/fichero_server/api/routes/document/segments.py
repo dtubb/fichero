@@ -600,7 +600,7 @@ def _new_pass_provenance_kind(
     """Set by the engine from how the write arrived: a run or a
     provider/model behind it means a machine made this pass; a real actor
     with neither means a person did; nothing given is honestly unknown --
-    never a trusting default (same posture as `_derive_pass_provenance_kind`
+    never a trusting default (same posture as `derive_pass_provenance_kind`
     for a legacy artifact)."""
     if run_id or provider or model:
         return ProvenanceKind.workflow

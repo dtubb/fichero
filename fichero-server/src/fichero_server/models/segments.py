@@ -180,7 +180,10 @@ class SegmentListResponse(BaseModel):
     segments: list[SegmentRead]
 
 
-def _derive_pass_provenance_kind(*, provider: str | None, model: str | None) -> ProvenanceKind:
+def derive_pass_provenance_kind(*, provider: str | None, model: str | None) -> ProvenanceKind:
+    # PUBLIC since source-model slice 8 (#4934): a provisional READING read
+    # out of an artifact needs the same answer from the same two fields, and
+    # two copies of this derivation would be two answers.
     """Legacy-row derivation, same shape as
     ``knowledge/_common.py::resolve_claim_provenance_kind`` (#4869): an
     ``Artifact`` has no ``provenance_kind`` field of its own to read, so this
@@ -198,7 +201,7 @@ def _box_is_hand_drawn(box: OCRGeometryBox) -> bool:
     """Exactly the app's own rule for the common hand-curation signal:
     ``promoteMarquees`` writes hand-drawn boxes INTO whatever machine
     artifact is showing, one box at a time, so the ARTIFACT's provider
-    alone (`_derive_pass_provenance_kind`) cannot see it.
+    alone (`derive_pass_provenance_kind`) cannot see it.
 
     Mirrors ``OCRGeometry.swift::OCRGeometryBox.isHandDrawn`` (``provider?
     .lowercased() == "user" || source?.lowercased() == "manual"``) and the
@@ -452,7 +455,7 @@ def segments_from_result(
     command -- resolves through this function or the route that calls it,
     so none of them can drift from another (the hard-gate test pins this).
     """
-    pass_provenance_kind = _derive_pass_provenance_kind(provider=provider, model=model)
+    pass_provenance_kind = derive_pass_provenance_kind(provider=provider, model=model)
     segments = [
         segment_from_box(
             document_id=document_id,

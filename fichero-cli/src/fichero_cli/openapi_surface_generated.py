@@ -3759,6 +3759,59 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='content-representations')
         existing_apps['content-representations'] = target_app
 
+    @target_app.command("create-route")
+    def content_representations_create_route_post(
+        ctx: typer.Context,
+        content: str = typer.Option(..., "--content", help="Request field: content."),
+        corrects_representation_id: Optional[str] = typer.Option(None, "--corrects-representation-id", help="Request field: corrects_representation_id."),
+        derived_from_artifact_id: Optional[str] = typer.Option(None, "--derived-from-artifact-id", help="Request field: derived_from_artifact_id."),
+        derived_from_representation_id: Optional[str] = typer.Option(None, "--derived-from-representation-id", help="Request field: derived_from_representation_id."),
+        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
+        guideline: Optional[str] = typer.Option(None, "--guideline", help="Request field: guideline."),
+        kind: str = typer.Option(..., "--kind", help="Request field: kind."),
+        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
+        level: Optional[str] = typer.Option(None, "--level", help="Request field: level."),
+        read_from_rendition_id: Optional[str] = typer.Option(None, "--read-from-rendition-id", help="Request field: read_from_rendition_id."),
+        script: Optional[str] = typer.Option(None, "--script", help="Request field: script."),
+        segment_id: Optional[str] = typer.Option(None, "--segment-id", help="Request field: segment_id."),
+        source_anchor: Optional[str] = typer.Option(None, "--source-anchor", help="Request field: source_anchor."),
+    ) -> None:
+        """Create Representation Route (POST /api/content-representations)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/content-representations"
+            params = None
+            payload = _build_json_payload({
+                "content": content,
+                "corrects_representation_id": corrects_representation_id,
+                "derived_from_artifact_id": derived_from_artifact_id,
+                "derived_from_representation_id": derived_from_representation_id,
+                "document_id": document_id,
+                "guideline": guideline,
+                "kind": kind,
+                "language": language,
+                "level": level,
+                "read_from_rendition_id": read_from_rendition_id,
+                "script": script,
+                "segment_id": segment_id,
+                "source_anchor": source_anchor,
+            }, {
+                "content": {'type': 'string', 'title': 'Content', 'x-cli-required': True},
+                "corrects_representation_id": {'type': 'string', 'nullable': True, 'title': 'Corrects Representation Id', 'x-cli-required': False},
+                "derived_from_artifact_id": {'type': 'string', 'nullable': True, 'title': 'Derived From Artifact Id', 'x-cli-required': False},
+                "derived_from_representation_id": {'type': 'string', 'nullable': True, 'title': 'Derived From Representation Id', 'x-cli-required': False},
+                "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
+                "guideline": {'type': 'string', 'nullable': True, 'title': 'Guideline', 'x-cli-required': False},
+                "kind": {'type': 'string', 'title': 'Kind', 'x-cli-required': True},
+                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
+                "level": {'type': 'string', 'nullable': True, 'title': 'Level', 'x-cli-required': False},
+                "read_from_rendition_id": {'type': 'string', 'nullable': True, 'title': 'Read From Rendition Id', 'x-cli-required': False},
+                "script": {'type': 'string', 'nullable': True, 'title': 'Script', 'x-cli-required': False},
+                "segment_id": {'type': 'string', 'nullable': True, 'title': 'Segment Id', 'x-cli-required': False},
+                "source_anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'shapes': {'items': {'$ref': '#/components/schemas/AnchorShape'}, 'type': 'array', 'nullable': True, 'title': 'Shapes'}, 'media_ref': {'type': 'string', 'nullable': True, 'title': 'Media Ref'}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list")
     def content_representations_list_get(
         ctx: typer.Context,
@@ -12684,6 +12737,25 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("get-document-text")
+    def segments_get_document_text_get(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        include_furniture: Optional[bool] = typer.Option(None, "--include-furniture/--no-include-furniture", help="Query parameter: include_furniture."),
+        kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
+        pass_id: Optional[str] = typer.Option(None, "--pass-id", help="Query parameter: pass_id."),
+    ) -> None:
+        """Get Document Text (GET /api/segments/document/{document_id}/text)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/document/{document_id}/text"
+            params = {
+                "include_furniture": include_furniture,
+                "kind": kind,
+                "pass_id": pass_id,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("propose-match")
     def segments_propose_match_post(
         ctx: typer.Context,
@@ -12908,6 +12980,42 @@ def register_generated_openapi_commands(
                 "straighten": straighten,
             }
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-readings")
+    def segments_list_readings_get(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+        kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
+    ) -> None:
+        """List Segment Readings (GET /api/segments/{segment_id}/readings)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/{segment_id}/readings"
+            params = {
+                "kind": kind,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("choose-reading")
+    def segments_choose_reading_post(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+        kind: str = typer.Option(..., "--kind", help="Request field: kind."),
+        representation_id: str = typer.Option(..., "--representation-id", help="Request field: representation_id."),
+    ) -> None:
+        """Choose Segment Reading (POST /api/segments/{segment_id}/readings/choice)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/{segment_id}/readings/choice"
+            params = None
+            payload = _build_json_payload({
+                "kind": kind,
+                "representation_id": representation_id,
+            }, {
+                "kind": {'type': 'string', 'title': 'Kind', 'x-cli-required': True},
+                "representation_id": {'type': 'string', 'title': 'Representation Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("reference")

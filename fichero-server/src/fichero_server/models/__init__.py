@@ -123,6 +123,7 @@ from fichero_server.models.readings import (
     PassAnswer,
     PassBasis,
     PassCandidate,
+    PlacedStretch,
     ProjectRecordRule,
     ReadingCandidate,
     ReadingAnchorMismatch,
@@ -134,6 +135,7 @@ from fichero_server.models.readings import (
     legacy_reading_segment_id,
     project_record_rule,
     reading_kinds,
+    replace_stretch,
     resolve_counting,
     resolve_working_pass,
 )

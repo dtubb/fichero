@@ -44,7 +44,7 @@ from fichero_server.models.segments import (
     SegmentPassChoice,
     AnchorBasis,
     ResolvedAnchor,
-    _derive_pass_provenance_kind,
+    derive_pass_provenance_kind,
     converted_segment_id,
     words_for_row,
     converted_pass_id,
@@ -1090,7 +1090,7 @@ def _bootstrap_empty_pass(db: Any, artifact: Artifact) -> SegmentPass:
         id=converted_pass_id(artifact.id),
         document_id=artifact.document_id,
         name=artifact.artifact_type,
-        provenance_kind=_derive_pass_provenance_kind(
+        provenance_kind=derive_pass_provenance_kind(
             provider=artifact.provider, model=artifact.model
         ),
         actor=None,

@@ -1846,6 +1846,7 @@ from fichero_server.api.routes.document import (  # noqa: E402
     renditions,
     notes,
     segment_pictures as document_segment_pictures,
+    segment_readings as document_segment_readings,
     segments as document_segments,
     sources,
     view as document_view,
@@ -1934,6 +1935,11 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # module because it is all images; same `/segments` prefix, so it reads as
     # one resource to every client (source.segment.picture-by-shape).
     (document_segment_pictures.router, "/api", ["segments"]),
+    # Source-model slice 8 (#4934/#4929/#4932): a segment's readings and the
+    # page's derived text. Same `/segments` prefix again; the READ answers from
+    # the representation table AND from the artifacts the engine's text still
+    # lives in, and the caller cannot tell which (source.one-store).
+    (document_segment_readings.router, "/api", ["segments"]),
     # Renditions — alternative pixels of one node; ordered engine-side so the
     # preview and any card surface agree what "next" means (2026-08-20).
     (renditions.router, "/api", ["renditions"]),

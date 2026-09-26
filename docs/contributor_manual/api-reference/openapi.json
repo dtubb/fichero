@@ -2725,6 +2725,70 @@
         }
       }
     },
+    "/api/content-representations": {
+      "post": {
+        "tags": [
+          "content-representations"
+        ],
+        "summary": "Create Representation Route",
+        "description": "`POST /api/content-representations` \u2014 write one reading.",
+        "operationId": "create_representation_route_api_content_representations_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepresentationCreateParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentRepresentation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segments/document/{doc_id}": {
       "get": {
         "tags": [
@@ -3803,6 +3867,215 @@
           },
           "422": {
             "description": "The picture cannot be made honestly; the reason says why"
+          }
+        }
+      }
+    },
+    "/api/segments/{segment_id}/readings": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "List Segment Readings",
+        "description": "`GET /api/segments/{segment_id}/readings` \u2014 a segment's readings, with\nthe counting answer for each kind.\n\nA READ, so a provisional segment id is accepted here: asking what a line\nsays must work before anybody has edited the page.",
+        "operationId": "list_segment_readings_api_segments__segment_id__readings_get",
+        "parameters": [
+          {
+            "name": "segment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Segment Id"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Restrict to one reading kind",
+              "title": "Kind"
+            },
+            "description": "Restrict to one reading kind"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/segments/{segment_id}/readings/choice": {
+      "post": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Choose Segment Reading",
+        "description": "`POST /api/segments/{segment_id}/readings/choice` \u2014 record which\nreading counts. Only a person may (`ChoiceNeedsAPerson`, 403).",
+        "operationId": "choose_segment_reading_api_segments__segment_id__readings_choice_post",
+        "parameters": [
+          {
+            "name": "segment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Segment Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadingChoiceBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Choose Segment Reading Api Segments  Segment Id  Readings Choice Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/segments/document/{document_id}/text": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Get Document Text",
+        "description": "`GET /api/segments/document/{document_id}/text` \u2014 the page's derived\ntext and the spans that point back at the readings it came from.",
+        "operationId": "get_document_text_api_segments_document__document_id__text_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "pass_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Read a named pass instead of the working one",
+              "title": "Pass Id"
+            },
+            "description": "Read a named pass instead of the working one"
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Which kind of reading to join",
+              "default": "transcription",
+              "title": "Kind"
+            },
+            "description": "Which kind of reading to join"
+          },
+          {
+            "name": "include_furniture",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include running heads, folio numbers and catchwords",
+              "default": false,
+              "title": "Include Furniture"
+            },
+            "description": "Include running heads, folio numbers and catchwords"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DerivedText"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       }
@@ -44230,7 +44503,8 @@
             "title": "Document Id"
           },
           "kind": {
-            "$ref": "#/components/schemas/ContentRepresentationKind"
+            "type": "string",
+            "title": "Kind"
           },
           "content": {
             "type": "string",
@@ -44282,6 +44556,91 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Segment Id"
+          },
+          "level": {
+            "type": "string",
+            "nullable": true,
+            "title": "Level"
+          },
+          "read_from_rendition_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Read From Rendition Id"
+          },
+          "guideline": {
+            "type": "string",
+            "nullable": true,
+            "title": "Guideline"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind",
+            "nullable": true
+          },
+          "machine_confidence": {
+            "type": "number",
+            "nullable": true,
+            "title": "Machine Confidence"
+          },
+          "char_confidences": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Char Confidences"
+          },
+          "char_positions": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Char Positions"
+          },
+          "corrects_representation_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Corrects Representation Id"
+          },
+          "derived_from_artifact_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Derived From Artifact Id"
+          },
+          "pair_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pair Id"
+          },
+          "pair_role": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pair Role"
+          },
+          "campaign_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Campaign Ids"
+          },
+          "sign_map": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Sign Map"
+          },
+          "retracted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Retracted At"
           }
         },
         "type": "object",
@@ -44293,19 +44652,6 @@
         ],
         "title": "ContentRepresentation",
         "description": "Immutable source-linked content representation (#3443 slice 1)."
-      },
-      "ContentRepresentationKind": {
-        "type": "string",
-        "enum": [
-          "transcription",
-          "normalized_text",
-          "translation",
-          "transliteration",
-          "markdown",
-          "html",
-          "svg"
-        ],
-        "title": "ContentRepresentationKind"
       },
       "ContentRepresentationListResponse": {
         "properties": {
@@ -44347,6 +44693,10 @@
             "type": "string",
             "title": "Reviewer",
             "default": "human"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind",
+            "nullable": true
           },
           "decision": {
             "type": "string",
@@ -44717,6 +45067,38 @@
           "model_estimates"
         ],
         "title": "CostEstimateResponse"
+      },
+      "CountingAnswer": {
+        "properties": {
+          "representation_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Representation Id"
+          },
+          "basis": {
+            "$ref": "#/components/schemas/CountingBasis",
+            "default": "none"
+          },
+          "labelled_machine": {
+            "type": "boolean",
+            "title": "Labelled Machine",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "CountingAnswer",
+        "description": "Which reading counts, and why."
+      },
+      "CountingBasis": {
+        "type": "string",
+        "enum": [
+          "chosen",
+          "newest-human",
+          "newest-machine-unchosen",
+          "none"
+        ],
+        "title": "CountingBasis",
+        "description": "WHY a reading was returned -- the part a caller must show.\n\nA caller that only reads ``representation_id`` and drops the basis turns\n\"a machine guessed this, nobody has checked it\" into \"this is the text\",\nwhich is the single worst thing this programme could ship."
       },
       "CreateActionRequest": {
         "properties": {
@@ -45624,6 +46006,76 @@
           "id"
         ],
         "title": "DeletedWithIdResponse"
+      },
+      "DerivedText": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "spans": {
+            "items": {
+              "$ref": "#/components/schemas/DerivedTextSpan"
+            },
+            "type": "array",
+            "title": "Spans"
+          },
+          "pass_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pass Id"
+          },
+          "pass_basis": {
+            "type": "string",
+            "title": "Pass Basis"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "order": {
+            "type": "string",
+            "nullable": true,
+            "title": "Order"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "spans",
+          "pass_basis",
+          "kind"
+        ],
+        "title": "DerivedText"
+      },
+      "DerivedTextSpan": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "representation_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Representation Id"
+          },
+          "start": {
+            "type": "integer",
+            "title": "Start"
+          },
+          "end": {
+            "type": "integer",
+            "title": "End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id",
+          "start",
+          "end"
+        ],
+        "title": "DerivedTextSpan",
+        "description": "Where one segment's reading sits in the derived text.\n\nThe spans are the point of the whole answer: text with no way back to the\nline and the reading it came from is a wall of words, and every later\nfeature -- a mark on a phrase, a search hit, an export -- needs the way\nback."
       },
       "DetectLanguageRequest": {
         "properties": {
@@ -60735,6 +61187,184 @@
         "title": "ReadableSentence",
         "description": "One clickable sentence of an entity's readable entry."
       },
+      "ReadingChoiceBody": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "representation_id": {
+            "type": "string",
+            "title": "Representation Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "representation_id"
+        ],
+        "title": "ReadingChoiceBody"
+      },
+      "ReadingListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingRead"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "counting": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/CountingAnswer"
+            },
+            "type": "object",
+            "title": "Counting"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count",
+          "counting"
+        ],
+        "title": "ReadingListResponse",
+        "description": "A segment's readings AND which one counts, in one answer.\n\nThe counting answer rides on the list DELIBERATELY: a client that had to\nmake a second call for it would render the list first, and the first frame\na person sees would show a machine's guess with no label on it."
+      },
+      "ReadingRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "provisional": {
+            "type": "boolean",
+            "title": "Provisional"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Segment Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "script": {
+            "type": "string",
+            "nullable": true,
+            "title": "Script"
+          },
+          "level": {
+            "type": "string",
+            "nullable": true,
+            "title": "Level"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind"
+          },
+          "machine_confidence": {
+            "type": "number",
+            "nullable": true,
+            "title": "Machine Confidence"
+          },
+          "char_confidences": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Char Confidences"
+          },
+          "char_positions": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Char Positions"
+          },
+          "read_from_rendition_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Read From Rendition Id"
+          },
+          "guideline": {
+            "type": "string",
+            "nullable": true,
+            "title": "Guideline"
+          },
+          "corrects_representation_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Corrects Representation Id"
+          },
+          "derived_from_representation_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Derived From Representation Id"
+          },
+          "derived_from_artifact_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Derived From Artifact Id"
+          },
+          "pair_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pair Id"
+          },
+          "pair_role": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pair Role"
+          },
+          "retracted": {
+            "type": "boolean",
+            "title": "Retracted",
+            "default": false
+          },
+          "source_anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Output",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "provisional",
+          "document_id",
+          "kind",
+          "content",
+          "provenance_kind",
+          "created_at"
+        ],
+        "title": "ReadingRead",
+        "description": "One reading, read either from the representation table or from an\nartifact. The caller cannot tell which \u2014 `source.one-store`."
+      },
       "RebuildRequest": {
         "properties": {
           "vectors": {
@@ -61767,6 +62397,80 @@
         ],
         "title": "ReorderResponse"
       },
+      "RepresentationCreateParams": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Segment Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "script": {
+            "type": "string",
+            "nullable": true,
+            "title": "Script"
+          },
+          "level": {
+            "type": "string",
+            "nullable": true,
+            "title": "Level"
+          },
+          "source_anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Input",
+            "nullable": true
+          },
+          "derived_from_representation_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Derived From Representation Id"
+          },
+          "corrects_representation_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Corrects Representation Id"
+          },
+          "derived_from_artifact_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Derived From Artifact Id"
+          },
+          "guideline": {
+            "type": "string",
+            "nullable": true,
+            "title": "Guideline"
+          },
+          "read_from_rendition_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Read From Rendition Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "document_id",
+          "kind",
+          "content"
+        ],
+        "title": "RepresentationCreateParams",
+        "description": "`representation.create` \u2014 one new reading. A CORRECTION IS A CREATE:\nnothing ever edits the text of a reading somebody already wrote\n(`source.reading.corrections-are-new`)."
+      },
       "RepresentationRevisionParams": {
         "properties": {
           "representation_id": {
@@ -61784,12 +62488,14 @@
             "title": "Decision"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "representation_id",
           "content"
         ],
-        "title": "RepresentationRevisionParams"
+        "title": "RepresentationRevisionParams",
+        "description": "A revision's params. Its `content` is audited in full, unchanged from\nbefore slice 8: this action predates the digest rule and changing what an\nexisting audit chain records would make old rows and new rows mean\ndifferent things. New writes go through `representation.create`."
       },
       "ResearchChecklist": {
         "properties": {

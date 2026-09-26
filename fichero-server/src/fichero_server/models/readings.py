@@ -571,3 +571,66 @@ def project_record_rule(db: Any) -> ProjectRecordRule:
     them; the signature already takes the database so no caller changes.
     """
     return ProjectRecordRule.strict
+
+
+# ---------------------------------------------------------------------------
+# A stretch of a reading (`source.reading.stretch-names-its-reading`)
+# ---------------------------------------------------------------------------
+
+
+class PlacedStretch(BaseModel):
+    """Where a stretch of text sits after the reading beneath it changed."""
+
+    representation_id: str | None = None
+    char_start: int | None = None
+    char_end: int | None = None
+    placed: bool = False
+    #: Why it could not be placed, in words a person can act on. None when it
+    #: was placed.
+    reason: str | None = None
+
+
+def replace_stretch(
+    *,
+    old_text: str,
+    char_start: int,
+    char_end: int,
+    new_text: str,
+    new_representation_id: str,
+) -> PlacedStretch:
+    """Carry a stretch over to a new reading of the same line, or report it
+    unplaced.
+
+    NEVER RE-MEASURED BY POSITION ALONE, and this is the whole behaviour. A
+    mark on characters 12 to 18 of one transcription lands on entirely
+    different words in a transcription that expanded three abbreviations
+    earlier in the line; keeping the offsets would silently move somebody's
+    annotation onto text they never read. So the CHARACTERS are matched, and
+    only when they occur EXACTLY ONCE: twice is ambiguous, and choosing the
+    first would be a guess dressed as an answer.
+
+    An unplaced pointer is REPORTED, not dropped and not repaired. Somebody has
+    to look at it, and the only honest thing the engine can do is say so.
+    """
+    if not 0 <= char_start < char_end <= len(old_text):
+        return PlacedStretch(
+            reason=(
+                f"the stretch {char_start}..{char_end} is not inside the old reading "
+                f"(length {len(old_text)})"
+            )
+        )
+    needle = old_text[char_start:char_end]
+    occurrences = new_text.count(needle)
+    if occurrences == 0:
+        return PlacedStretch(reason=f"{needle!r} does not appear in the new reading")
+    if occurrences > 1:
+        return PlacedStretch(
+            reason=f"{needle!r} appears {occurrences} times in the new reading; ambiguous"
+        )
+    found = new_text.index(needle)
+    return PlacedStretch(
+        representation_id=new_representation_id,
+        char_start=found,
+        char_end=found + len(needle),
+        placed=True,
+    )

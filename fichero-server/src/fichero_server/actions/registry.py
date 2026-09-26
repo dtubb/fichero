@@ -264,7 +264,7 @@ class ActionRegistry:
                     actor=ctx.actor,
                     client=ctx.client,
                     target_ids=list(spec.target_ids),
-                    params=params.model_dump(mode="json"),
+                    params=_audit_params(params),
                     before=spec.before,
                     after=spec.after,
                     run_id=ctx.run_id,
@@ -279,7 +279,7 @@ class ActionRegistry:
                 actor=ctx.actor,
                 client=ctx.client,
                 target_ids=list(spec.target_ids),
-                params=params.model_dump(mode="json"),
+                params=_audit_params(params),
                 before=spec.before,
                 after=spec.after,
                 run_id=ctx.run_id,
@@ -333,6 +333,28 @@ class ActionRegistry:
 
 # Process-global singleton — THE registry.
 registry = ActionRegistry()
+
+
+def _audit_params(params: BaseModel) -> dict:
+    """What of an action's params the audit row keeps.
+
+    Every action's params are audited in full -- that is the default and it
+    stays the default, because an audit chain that quietly drops arguments
+    cannot be used to answer "what exactly was asked for".
+
+    A params model may narrow this by defining ``audit_params()``, and exactly
+    one kind of thing may use it: CONTENT THE RECORD ALREADY HOLDS ONCE
+    (source-model slice 8, #4934). A person's transcription of a line belongs
+    in the reading they wrote; copying it into the audit chain as well makes
+    the chain a second, un-editable edition of the same text, growing without
+    limit and never corrected. The digest goes in instead, which still proves
+    which text the action wrote. Nothing may hide an id, a target or a
+    decision this way.
+    """
+    hook = getattr(params, "audit_params", None)
+    if callable(hook):
+        return hook()
+    return params.model_dump(mode="json")
 
 
 def action(
