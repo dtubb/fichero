@@ -591,7 +591,12 @@ Identity, continued
   into a segment that already forwards to the source is refused; a trail ending in a delete
   says so.
 - `source.segment.citable` — **[OK]** (#4922; pinned by `tests/unit/api/test_segments_matches_forwarding.py::TestCitableReference::test_reference_resolves_through_locations_resolve`) a segment has one stable reference that opens it in the app and
-  resolves over MCP and the command line, following forwarding notes.
+  resolves over MCP and the command line, following forwarding notes. Scope checked 2026-09-26:
+  the citation pins the HTTP route only. The `fichero_segment_reference` MCP tool and the CLI's
+  `reference` command both EXIST, so the claim is plausible on all three surfaces — but neither is
+  pinned by a test, and this line names them. Kept [OK] rather than downgraded because the
+  capability is present, unlike `source.pass.working`, where the Reader demonstrably does not use
+  what its sentence claimed.
 - `source.segment.time-span` — **[GAP]** (#4933) a segment of a recording is a stretch of time (with an area,
   for video) and behaves as any other segment.
 - `source.segment.opening` — **[GAP]** (#4927) a shape drawn across two facing pages belongs to the opening and
