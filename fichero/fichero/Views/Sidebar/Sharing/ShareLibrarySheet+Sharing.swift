@@ -107,11 +107,12 @@ extension ShareLibrarySheet {
     var pairingLink: String? {
         guard let pairingCode,
               let reachableURL = try? validatedHostedRemoteURL(from: publicBaseURL),
-              let normalizedPin = try? RemoteCertificatePinning.validatedSPKIPin(spkiPin) else { return nil }
+              let advertisedPin = try? RemoteClientPairing.advertisableSPKIPin(spkiPin, for: reachableURL)
+        else { return nil }
         let payload = PairingService.buildQRCodePayload(
             apiRoot: reachableURL,
             from: pairingCode,
-            spki: normalizedPin,
+            spki: advertisedPin,
             libraryPath: library.url.path
         )
         return try? RemoteClientPairing.inviteLinkString(from: payload)
@@ -136,7 +137,11 @@ extension ShareLibrarySheet {
                     "This Mac only has a loopback address that other devices can't open. "
                     + "Turning sharing on derives a shareable address.")
         }
-        guard (try? RemoteCertificatePinning.validatedSPKIPin(spkiPin)) != nil else {
+        // A publicly-trusted address needs no certificate of ours, so it is
+        // never "still minting" — only an engine serving its own cert can be.
+        let reachableURL = try? validatedHostedRemoteURL(from: publicBaseURL)
+        guard let reachableURL,
+              (try? RemoteClientPairing.advertisableSPKIPin(spkiPin, for: reachableURL)) != nil else {
             return ("Preparing the security certificate",
                     "Fichero is still minting the certificate for this address — try again in a moment.")
         }

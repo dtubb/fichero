@@ -178,11 +178,23 @@ extension EmbeddedBackendService {
             accessMaterial.spkiPin,
             hostString: EngineConfig.defaultHostString
         )
+        // Only for an address WE terminate TLS on. Behind `tailscale serve` the
+        // advertised `.ts.net` name answers with Tailscale's own Let's Encrypt
+        // certificate, so filing the engine's self-signed pin under that host
+        // records a key nothing there will ever present — and, because the
+        // public-CA exemption in `shouldEnforcePinning` only holds while no pin
+        // exists, that stale entry is what re-arms pinning and refuses every
+        // Mac-to-Mac connection over Tailscale (#5041).
         if let publicBaseURL {
-            try RemoteCertificatePinning.persistHostedBackendSPKIPin(
-                accessMaterial.spkiPin,
-                hostString: publicBaseURL.absoluteString
-            )
+            if RemoteCertificatePinning.usesPublicCertificateAuthority(url: publicBaseURL) {
+                RemoteCertificatePinning.clearAdvertisedSPKIPin(hostString: publicBaseURL.absoluteString)
+                RemoteCertificatePinning.clearPersistedSPKIPin(hostString: publicBaseURL.absoluteString)
+            } else {
+                try RemoteCertificatePinning.persistHostedBackendSPKIPin(
+                    accessMaterial.spkiPin,
+                    hostString: publicBaseURL.absoluteString
+                )
+            }
         }
     }
 
