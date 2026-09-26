@@ -1202,6 +1202,7 @@ class Database(DatabaseEmbeddingMixin):
             ReferenceProvenance,
         )
         from fichero_server.models.conversion import ConversionRun
+        from fichero_server.models.reading_orders import ReadingOrder, ReadingOrderEntry
         from fichero_server.models.source_declarations import LibraryScript
         from fichero_server.models import (
             ActionAudit,
@@ -1310,6 +1311,11 @@ class Database(DatabaseEmbeddingMixin):
             # on another table's column. It sits with the other Library*
             # vocabulary tables so a reader finds them together.
             LibraryScript,
+            # Source-model slice 10 (#4930): named reading orders. Registered so
+            # the tables arrive at open like every other one; nothing at open
+            # reads them, so the position here is not load-bearing.
+            ReadingOrder,
+            ReadingOrderEntry,
             LibraryReadingKind,
             Milestone,
             MutationLog,

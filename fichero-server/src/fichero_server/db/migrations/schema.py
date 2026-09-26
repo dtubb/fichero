@@ -1240,6 +1240,42 @@ SEGMENT_INDEX_STATEMENTS: list[tuple[str, str, str]] = [
         "ON contentrepresentations(document_id)",
         "a source's readings (the existing list route, now indexed)",
     ),
+    # Source-model slice 10 (#4930): named reading orders. The fifth is
+    # composite and is what makes `neighbours` two indexed lookups rather than a
+    # read of the whole order -- a flow across a codex holds thousands of
+    # entries, so "read them all and pick the neighbours" grows with the
+    # manuscript (`source.store.bounded-reads`).
+    (
+        "idx_readingorders_document_id",
+        "CREATE INDEX IF NOT EXISTS idx_readingorders_document_id "
+        "ON readingorders(document_id)",
+        "GET /api/reading-orders/document/{doc_id} -- a source's orders",
+    ),
+    (
+        "idx_readingorders_pass_id",
+        "CREATE INDEX IF NOT EXISTS idx_readingorders_pass_id "
+        "ON readingorders(pass_id)",
+        "the orders over one pass, read when a pass is chosen",
+    ),
+    (
+        "idx_readingorderentrys_order_id",
+        "CREATE INDEX IF NOT EXISTS idx_readingorderentrys_order_id "
+        "ON readingorderentrys(order_id)",
+        "one order's entries, one level at a time",
+    ),
+    (
+        "idx_readingorderentrys_segment_id",
+        "CREATE INDEX IF NOT EXISTS idx_readingorderentrys_segment_id "
+        "ON readingorderentrys(segment_id)",
+        "which orders a segment appears in; `neighbours` finds its entry here",
+    ),
+    (
+        "idx_readingorderentrys_order_position",
+        "CREATE INDEX IF NOT EXISTS idx_readingorderentrys_order_position "
+        "ON readingorderentrys(order_id, position)",
+        "`neighbours`: ORDER BY position LIMIT 1 either side of one entry, so "
+        "the read is bounded by 2 rows and not by the order's length",
+    ),
     (
         "idx_readingchoices_segment_id",
         "CREATE INDEX IF NOT EXISTS idx_readingchoices_segment_id "
