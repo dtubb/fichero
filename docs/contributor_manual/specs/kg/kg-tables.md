@@ -206,26 +206,29 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   not just this table — now has its own spec and guardrail: → #4831,
   `harness/audited-action-layer.md` (`audit.every-mutating-route-uses-the-registry`,
   `scripts/check_routes_use_action_layer.py`). Not duplicated here.
-- `kg.tables.crud.in-place` — **[PARTIAL]** (#4389) a create/edit/delete updates that one row
+- `kg.tables.crud.in-place` — **[OK]** (#4389, e00eb0260) a create/edit/delete updates that one row
   in place; the table is not wholesale re-rendered (stores update one item, not the list).
-  Basic create/edit/delete honor this (sections B/C above), but **merging entities re-fetches
-  the whole inspector list** instead of updating the merged rows in place — a direct
-  counter-example, same class of regression `harness/observable-data-layer.md`'s
-  `observable.store-mutator-updates-in-place` tracks generally, filed here specifically
-  because it's the KG entity-merge path.
+  Merging entities now removes the absorbed rows in place and patches the survivor from ONE
+  `getEntity`, with no inspector re-fetch. Pinned:
+  `EntityStoreTests.testMergeRemovesAbsorbedRowsAndPatchesTheSurvivorInPlaceWithoutReloading`
+  (asserts exactly one inspector GET across the merge). Not asserted: that selection and scroll
+  position survive the merge (the fixing commit says it did not address those criteria).
 - `kg.tables.crud.validation` — a create/edit is validated at the boundary (non-empty
   canonical name; a claim needs at least a subject or text); an invalid input is refused
   with an inline reason, not silently dropped.
 
 ### D2. Maintainer test findings, 2026-09-19 (B1-B4)
 
-- `kg.tables.pane-kind-mismatch` — **[BROKEN]** (#4884) seen live: a Library pane with its kind chip set to Claims still renders the ENTITIES
-  table underneath — columns read Name/Type/Claims, the footer reads "Filter Entities," while
-  the head says Claims. The pane's own displayed kind and its rendered content disagree.
-  **Cause, VERIFIED by reading**: the window-scoped sidebar collection always overrides a
-  pane's own content kind; `PaneConfig.libraryContentKind` is never read by the live view.
-  Cross-reference the pane lane's own design-root behavior in `panes-workspaces.md` once it
-  exists — not restated here, that spec owns the pane-config model this defect lives in.
+- `kg.tables.pane-kind-mismatch` — **[OK]** (#4884, bba51e49f; the design root is tracked
+  as `panes.model.per-pane-scope-and-kind-unread` in `panes-workspaces.md`) a Library pane with
+  its kind chip set to Claims renders the CLAIMS table: the decision is one pure function,
+  `LibraryView.effectiveKind` — a pane with an explicit kind shows it (choosing Documents is as
+  explicit as choosing Claims, so Library panes are not linked); a pane without one follows the
+  window; the local value survives only as the compact iPhone reader's fallback. The pane's config
+  reaches the view as an environment value injected per leaf. Pinned:
+  `LibraryEffectiveContentKindTests.windowDecidesWhenNothingIsExplicit`,
+  `.explicitPaneKindWinsOverWindow`, `.localOverrideWinsWhenThereIsNoSlot`,
+  `.paneKindTakesPrecedenceOverLocalOverride`. The fixing commit says NOT seen on screen.
 - `kg.tables.folder-scope-misses-subfolders` — **[PARTIAL]** (#4885 still open pending close) seen live: with a FOLDER selected, the Entities (and Claims) pane reports "No entities
   in this folder yet" while the Inspector, looking at the same folder, lists 22 people.
   **Cause, VERIFIED by reading on both sides (not a hypothesis)**: the app scopes to a
@@ -242,7 +245,8 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   filter is deleted outright, one definition of "this folder's knowledge." Claims needed no
   change (its load already asked for descendants); a new test asserts `include_descendants=true`
   is actually sent. Tests executed: `EntityStoreTests`, `EntityServiceTransportTests`,
-  `SelectAllVisibleSurfaceTests`, `EntitiesTableCreateTests`, `KGTableFilterBarPlacementTests` —
+  `SelectAllVisibleSurfaceTests`, `EntitiesTableCreateTests` (plus a filter-bar suite since
+  replaced by `KGFilterBarGuardrailTests`) —
   56 of 56 passing. Not seen working on screen, per the fixing commit's own words. **PARTIAL, not
   OK: the engine's three inconsistent recursion switches this behavior originally named are
   still open**, tracked as their own gap immediately below — this fix routes the CLIENT through
@@ -254,17 +258,24 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   knob. Expected, stated as intent not a decided mechanism: one consistent default (or one
   consistent flag name/semantics) across all three, so a caller does not need to know which
   route silently recurses and which needs an explicit flag.
-- `kg.tables.filter-bar-and-footer-are-two-controls` — **[GAP, DESIGN]** (#4856, this issue
-  already tracks exactly this ask — commented, not duplicated) each table pane shows TWO bars
-  today: its own filter bar (Filter entities, All types, New Entity) and the pane's own footer
-  (+, −, import, Filter). Expected, stated as intent: ONE bar, with Merge and the other
-  curation verbs folded into it too. **Open questions, not decided here:** which bar's layout
-  wins, and whether "New Entity"/import stay visually distinct from the curation-verb group or
-  blend into one undifferentiated control strip.
-- `kg.tables.entities-master-claims-detail` — **[GAP, RULED]** (#4886) the maintainer's ruling, 2026-09-19: Entities in one Library pane, Claims in the pane
-  below, is a MASTER/DETAIL pair — selecting an entity in the Entities pane updates the Claims
-  pane below to that entity's claims. This is a decided design, not an open question; nothing
-  currently wires the two panes together this way.
+- `kg.tables.filter-bar-and-footer-are-two-controls` — **[GAP, DESIGN]** (#4856) the two-bars
+  state is BUILT AWAY (c98abbfa7): each table now draws no bar of its own, and the Library's bottom
+  bar is the one footer, holding the filter, the type menu and the add control (a plus that creates
+  what the pane shows). What stays [GAP] is what the issue still asks and nobody has decided:
+  whether Merge and the other curation verbs fold into that one bar, whether "New Entity"/import
+  stay visually distinct from them, and a review of EVERY pane footer. Also unconfirmed: that the
+  filter fits at normal widths and that the table's scroller no longer overlaps its last row (the
+  commit says NOT seen on screen). Pinned by the guardrail below.
+- `kg.tables.entities-master-claims-detail` — **[PARTIAL]** (#4886, e6a57d4f4; the maintainer's
+  ruling, 2026-09-19) Entities in one Library pane, Claims in the pane below, is a MASTER/DETAIL
+  pair — selecting an entity in the Entities pane narrows the Claims pane to that entity's claims,
+  under a header naming the entity, with a pane-local Show All that resets when the focus changes.
+  Built through the existing per-library `ClaimStore.loadClaims(forEntity:)` (no second loader).
+  Pinned: `ClaimsLibraryContentScopeTests.focusWinsOverFolder`, `.overrideWinsOverFocus`,
+  `.newFocusResets`, `.sameFocusDoesNotReset`;
+  `ClaimsLibraryContentEntityScopeWiringTests.testStorePreSeededForAnEntityYieldsThoseClaimsToTheNarrowedScope`,
+  `.testAFolderChangeWhileAnEntityIsFocusedStaysEntityScoped`. PARTIAL, not OK: not seen on screen,
+  and two windows on one library still share one claim scope (a separately filed defect).
 
 ### E. Provenance + versions (creative-director priority — likely its own cross-cutting spec)
 - `kg.tables.provenance.author-mark` — a claim/entity shows who AUTHORED it: hand-authored
@@ -337,17 +348,18 @@ entities/claims), not a small demo table. What's missing:
 - `kg.view.pagination` [MISSING at 10k] (#4643) — the table loads up to 25 000 client-side; at
   10k+ push filter/scope to the list endpoint (`filter.pushdown`) and page, so memory and
   first-paint stay bounded.
-- `kg.view.filter-bar-at-bottom` — **[PARTIAL]** (implemented and tested, f47f4b60d; #4856
-  still open pending close) both tables' filter bar sits at the BOTTOM, matching the Library
-  pane's own filter placement, so all three agree. Verified at HEAD: both
-  `EntitiesLibraryContent.swift` and `ClaimsLibraryContent.swift` put their table BEFORE
-  `filterBar` in their `VStack`, using the existing `PaneFilterBar(placement: .bottom)`
-  mechanism the Library pane already uses — no new placement API. Pinned:
-  `KGTableFilterBarPlacementTests.testEntitiesTableFilterBarIsAfterTheTableNotBeforeIt`,
-  `.testClaimsTableFilterBarIsAfterTheTableNotBeforeIt`,
-  `.testBothTablesReuseThePaneFilterBarComponentAtBottomPlacement` (file
-  `fichero/Tests/Unit/general/Views/Library/KGTableFilterBarPlacementTests.swift`, suite
-  `KGTableFilterBarPlacementTests`).
+- `kg.view.filter-bar-at-bottom` — **[PARTIAL]** (#4856 still open) the Entities and Claims
+  tables draw NO filter bar of their own any more (c98abbfa7 superseded the earlier "bar at the
+  bottom" ruling): the filter text, type menu and add control live in the ONE shared bottom footer
+  (`LibraryView+BottomActionBar.swift`), so the placement agrees with the Library pane by
+  construction. This behavior's earlier tests (the bar is after the table) went away with that
+  design and are NOT replaced by positive tests: what is pinned is the absence and the counts —
+  `KGFilterBarGuardrailTests.testEntitiesContentDeclaresNoFilterBarOfItsOwn`,
+  `.testClaimsContentDeclaresNoFilterBarOfItsOwn`,
+  `.testSharedFooterDeclaresOneFilterSlotUsedByBothContentKinds`,
+  `.testSharedFooterHasExactlyOneAddControlPerRender`. Not pinned: that the filter actually
+  fits or collapses at a given width (`KGFooterCollapseGuardrailTests` pins only that it is not in
+  the always-inline tier and that two triggers share one popover).
 - `kg.tables.select-all-answers-from-the-visible-rows` — **[PARTIAL]** (fixed ed67ec111; #4851
   stays open for the maintainer to confirm on screen) ⌘A in the Entities or Claims table
   selects what the table actually SHOWS, from ONE owner of the command. Was BROKEN: the

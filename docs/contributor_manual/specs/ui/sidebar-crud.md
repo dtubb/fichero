@@ -92,7 +92,7 @@ Both issues are already on this milestone (#291); no new issues were needed.
   `TestDocumentMoveAction.test_move_into_descendant_rejected`
   (`fichero-server/tests/unit/api/test_document_actions.py`).
 
-- `move.self-drop-is-a-noop` — **[OK]** (#4980, 13a34a779) dropping an item on itself is a drag that
+- `move.self-drop-is-a-noop` — **[PARTIAL]** (#4980 stays open for the highlight half; refusal built in 13a34a779) dropping an item on itself is a drag that
   slipped, not a request (Finder does the same): no move is attempted, no alert is raised, and one
   log line (`DragDropLog.refused`) records it. `processFolderDropItem` refuses at validation with the
   ONE shared check `sidebarDropIsSelfTarget`, which the Library cell drop uses too, and
@@ -109,15 +109,15 @@ Both issues are already on this milestone (#291); no new issues were needed.
   drop target while the dragged item is over itself, so the drop is visibly not on offer. NOT built:
   SwiftUI drop validation cannot read the dragged item's identity synchronously and the app keeps
   no "currently dragged id"; it needs that plumbing and a screen to verify.
-- `move.to-current-parent-writes-nothing` — **[PARTIAL]** (2026-09-26) moving a document into the
+- `move.to-current-parent-writes-nothing` — **[OK]** (2026-09-26, f544626f0) moving a document into the
   parent it is already in must issue NO write: every move is an audited action, and a phantom "moved"
   entry in a research library's record is worse than none. The guard lives in
   `DocumentStore.moveDocument`, so the drag, the Move to Folder menu and the Library cell drop all
-  share it. Tests written, NOT yet built or run:
-  `DocumentStoreOperationOutcomeTests.testMovingADocumentIntoItsCurrentParentIssuesNoWrite`,
+  share it. Pinned (suite `DocumentStoreReorderOutcomeTests`, executed):
+  `DocumentStoreReorderOutcomeTests.testMovingADocumentIntoItsCurrentParentIssuesNoWrite`,
   `.testMovingARootDocumentToTheRootIssuesNoWrite`, and the control
-  `.testMovingADocumentToAnotherParentStillAttemptsTheWrite`. Becomes [OK] when they pass. Known
-  limit: it trusts the cached parent.
+  `.testMovingADocumentToAnotherParentStillAttemptsTheWrite`. Known limit: it trusts the
+  cached parent.
 
 ### Library table columns
 - `sidebar.table-columns-not-compiler-limited` — **[PARTIAL]** (#4482, legacy milestone fold,

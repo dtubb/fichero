@@ -101,16 +101,15 @@ runner's `tempfile.gettempdir()`), NOT `/var/folders` as the Evidence section fi
   `InspectorFlowsUITests.testDocumentInspectorLoadsSeededEntities` (added in ae938e8b0) drives the
   seeded document's inspector Knowledge ▸ Entities facet end-to-end and asserts the seeded rows
   render. Issue #4661 tracked this and is closed with the same evidence.
-- `harness.persist-engine-stderr` [PARTIAL] (#4662) — the Python harness (`test_engine_harness.py`
-  `_stderr_tail`) persists stdout+stderr to a stable path (`FICHERO_UITEST_LOG` or
+- `harness.persist-engine-stderr` [PARTIAL] (#4662) — the Python engine harness script (`_stderr_tail`, in `fichero-server/scripts/`) persists stdout+stderr to a stable path (`FICHERO_UITEST_LOG` or
   `/tmp/fichero-uitest-engine.log`) for pre-ready failures, pinned by
   `test_spawn_per_run_harness.py::test_unready_engine_fails_loudly_not_green`. But the Swift-side
   post-ready path (`UITestEngineHarness.stop()`) only prints its stderr tail to
   `FileHandle.standardError` — no stable file, no spawn command, no errno — and nothing pins it.
   See #4662 (same behavior also tracked under `ui-testing.evidence-on-failure` as → #4777 —
   cross-milestone pointer, not this spec's own tracking issue).
-- `harness.testing-container` [OK] — confirmed by reading the source: the harness script
-  fichero-server/scripts/test_engine_harness.py uses tempfile.mkdtemp(prefix="fichero-harness-")
+- `harness.testing-container` [OK] — confirmed by reading the source: the engine harness script
+  in `fichero-server/scripts/` uses tempfile.mkdtemp(prefix="fichero-harness-")
   / tempfile.gettempdir() for socket, library, and app-home, never the real app container; the
   Swift-side `UITestEngineHarness.shortSocketPath` binds in the RUNNER's own NSTemporaryDirectory
   (commit 497469f15). Pinned: `test_spawn_per_run_harness.py::test_stop_leaves_no_orphan_engine_no_socket`
