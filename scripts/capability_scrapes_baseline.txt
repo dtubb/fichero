@@ -266,3 +266,29 @@ fichero/Tests/Unit/general/Views/Library/KGFilterBarGuardrailTests.swift
 # The KG filter is not in the footer's always-inline essential tier, and exactly two triggers open the one popover (#4966):
 # an absence and a count over the footer's source; whether the ladder collapses at a width stays a mounted-view test.
 fichero/Tests/Unit/general/Views/Library/KGFooterCollapseGuardrailTests.swift
+# --- Mounted-view claims awaiting the harness (#5069) ---
+# These eight are NOT forbidden-pattern absence checks, and they are listed here for a
+# different reason from everything above: each asserts something that cannot be tested
+# without mounting a view, so converting it would produce a test that passes for the
+# wrong reason. They are registered rather than hidden — a guardrail that can never
+# pass stops being read, and eight standing failures drown out the NEW scrape this
+# ratchet exists to catch. Each shrinks out of this list when #5069 lands, not before.
+# Each head mounts PaneKindSelector; a head mounting a control is a mounted-view claim.
+fichero/Tests/Unit/general/Views/Shell/PaneHeadKindSwitcherParityTests.swift
+# The tick, the chevron and the icon on a SwiftUI Menu's rows — whose items are not in
+# the accessibility tree until the menu opens, so a hosted view may not reach them either.
+fichero/Tests/Unit/general/Views/Shell/PaneHeadOneChooserLadderTests.swift
+# ViewThatFits rung selection: needs a width sweep, not a source read.
+fichero/Tests/Unit/general/Views/Library/IconGridNarrowPaneTests.swift
+# The entities node composes NodePromptEditor — view composition.
+fichero/Tests/Unit/general/Views/Workflow/NodeSubtitleAndApplyTests.swift
+# Both menus render WorkspacesMenuBody — view composition.
+fichero/Tests/Unit/general/Views/Shell/WorkspacesMenuOneDefinitionTests.swift
+# Positive wiring assertions about what the workspace system mounts.
+fichero/Tests/Unit/general/Views/Shell/WorkspaceSystemBoundaryTests.swift
+# Four wiring claims: the digest loading through ClaimStore, its changeToken observer,
+# focus routing to the Entities tab, and the entity arm re-keying on focus change.
+fichero/Tests/Unit/general/Views/Inspector/EntityInspectorPinningTests.swift
+# Opening a node config writes no config, guarded by isLoadingConfig on onChange.
+# The real fix is to write config from user actions instead (#5061), not a test change.
+fichero/Tests/Unit/general/Views/Workflow/WorkflowReadOnlySavePolicyTests.swift
