@@ -118,8 +118,19 @@ properties, and went blind the moment `swift-openapi-generator` moved a schema t
 storage. They now read the contract instead, and a companion test asserts the reader actually
 sees known fields — so "blind" and "satisfied" cannot look alike.
 
-## Open questions for the design lead
+## Rulings (design lead, 2026-09-26)
 
-1. Does a runtime contract mismatch **refuse** a remote connection, or warn and proceed?
-2. Should `info.version` track `pyproject.toml` exactly, or only at release boundaries?
-3. Should the lane preflight ever repair (`pip install -e`), or always only report?
+1. **A runtime contract mismatch REFUSES a remote connection**, and the UI names both
+   versions and which side is older. Matches rule 0: fail loudly, never fall back silently.
+   The cost is accepted — a remote library is unusable until both machines are updated.
+2. **`info.version` ALWAYS equals `pyproject.toml`.** Any divergence is a failure, checkable
+   every day rather than only in the release lane. A version bump therefore carries a contract
+   regeneration, even when the wire did not change. (It is how drift reached four releases:
+   a rule that only binds at release boundaries is invisible in between.)
+3. **The lane preflight REPORTS ONLY.** It never repairs. Reinstalling an editable package
+   changes the contract version, which is a release decision, not housekeeping — and an
+   unattended lane must not surprise the maintainer while he is away.
+
+Related ruling, `#5044`: `AgentNoteSourceAnchor` is **kept** and the spec corrected. The
+"subset" claim is a factual error, and anchoring a note to a page or expediente with no
+document is deliberate. `SourceAnchor.document_id` stays required.
