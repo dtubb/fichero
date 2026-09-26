@@ -440,27 +440,27 @@ separate segment search.
 ## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
 
 Identity and versions
-- `source.segment.lasting-id` — **[GAP]** (#4921) a segment keeps its id through move, reshape, re-read and
+- `source.segment.lasting-id` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestLastingId::test_create_read_back_engine_made_id_client_id_refused`) a segment keeps its id through move, reshape, re-read and
   re-type, and an id is never given to another segment.
-- `source.segment.rerun-is-new-pass` — **[GAP]** (#4921) segmenting a page again adds a pass; nothing existing
+- `source.segment.rerun-is-new-pass` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestPassesNamedAuthoredNeverOverwrite::test_two_passes_keep_separate_segments_second_touches_no_row_of_first`) segmenting a page again adds a pass; nothing existing
   is replaced or renumbered.
-- `source.segment.carry-across-a-match` — **[GAP]** (#4922) across an accepted one-to-one match, readings and
+- `source.segment.carry-across-a-match` — **[OK]** (#4922; pinned by `tests/unit/api/test_segments_matches_forwarding.py::TestCarryAcrossAMatch::test_one_to_one_carry_copies_reading_and_annotation_names_the_match`) across an accepted one-to-one match, readings and
   marks are copied (never moved) to the new segment, each copy recorded against the match; a
   statement is never copied: the same claim gains one more place it rests on;
   undoing the carry removes the copies; a match that is not one-to-one carries no reading and
   says so.
-- `source.segment.versioned-alone` — **[GAP]** (#4923) one segment's history can be read, compared and restored
+- `source.segment.versioned-alone` — **[OK]** (#4923; pinned by `tests/unit/api/test_segments_versions.py::TestVersionedAlone::test_three_updates_leave_three_versions_and_touch_nothing_else`) one segment's history can be read, compared and restored
   without touching others.
-- `source.segment.delete-is-undoable` — **[GAP]** (#4923) a deleted segment can be brought back with everything
+- `source.segment.delete-is-undoable` — **[OK]** (#4923; pinned by `tests/unit/api/test_segments_versions.py::TestDeleteIsUndoable::test_delete_then_undo_restores_the_segment_and_what_pointed_at_it`) a deleted segment can be brought back with everything
   that pointed at it.
 
 Shape and images
 - `source.segment.shape-kinds` — **[GAP]** (#4925) a segment's shape is a point, a line, an area or a stretch of
   time; it may have more than one.
-- `source.segment.box-is-derived` — **[GAP]** (#4921) the box is worked out from the shape and cannot be edited
+- `source.segment.box-is-derived` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestBoxIsDerived::test_bbox_columns_match_anchor_for_rect_and_polygon_supplying_them_is_refused`) the box is worked out from the shape and cannot be edited
   apart from it.
 - `source.segment.curved-baseline` — **[GAP]** (#4925) a line's baseline can curve; direction can follow it.
-- `source.segment.names-its-image` — **[GAP]** (#4919) every shape names the image it was measured on; the image
+- `source.segment.names-its-image` — **[OK]** (#4919; pinned by `tests/unit/api/test_segments_route.py::TestNamesItsImage::test_every_segment_names_the_results_rendition`) every shape names the image it was measured on; the image
   has a size and a checksum.
 - `source.segment.no-guessing-across-images` — **[GAP]** (#4926) a shape is shown on another image of the page
   only through a known alignment; otherwise Fichero says it cannot.
@@ -468,9 +468,9 @@ Shape and images
   a chosen image, at a chosen size; a line's can be straightened.
 
 Structure
-- `source.segment.one-primitive` — **[GAP]** (#4921) every level of the ladder, and every non-text thing, is a
+- `source.segment.one-primitive` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestOnePrimitiveOpenKinds::test_region_line_word_picture_all_segments_unknown_kind_roundtrips_kind_raw_kept`) every level of the ladder, and every non-text thing, is a
   segment with a kind.
-- `source.segment.open-kinds` — **[GAP]** (#4921) kinds come from a standard list a project can extend; a model's
+- `source.segment.open-kinds` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestOnePrimitiveOpenKinds::test_region_line_word_picture_all_segments_unknown_kind_roundtrips_kind_raw_kept`) kinds come from a standard list a project can extend; a model's
   own label is kept beside the tidy kind.
 - `source.segment.levels-optional` — **[GAP]** (#4927) any level may be absent; adding word segments under a
   line changes no id, shape or reading of the line or its region.
@@ -491,13 +491,13 @@ Structure
 - `source.segment.marks-have-state` — **[GAP]** (#4928) a tick, cross or cancellation is a segment with a state.
 
 Passes, orders, links
-- `source.pass.named-authored` — **[GAP]** (#4921) segments live in named passes, each with an author; passes
+- `source.pass.named-authored` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestPassesNamedAuthoredNeverOverwrite::test_two_passes_keep_separate_segments_second_touches_no_row_of_first`) segments live in named passes, each with an author; passes
   can be shown, hidden and compared.
-- `source.pass.never-overwrites` — **[GAP]** (#4921) two layouts of one page are two passes, both kept.
-- `source.pass.working-follows-project-rule` — **[GAP]** (#4929) in a strict project a machine's pass never
+- `source.pass.never-overwrites` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestPassesNamedAuthoredNeverOverwrite::test_two_passes_keep_separate_segments_second_touches_no_row_of_first`) two layouts of one page are two passes, both kept.
+- `source.pass.working-follows-project-rule` — **[OK]** (#4929; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestTheWorkingPass::test_untouched_machine_passes_fall_back_to_the_newest`) in a strict project a machine's pass never
   becomes the working pass until a person makes it so; in a relaxed project the newest pass
   counts and a person's outranks a machine's; a new project is strict.
-- `source.pass.working` — **[GAP]** (#4929) the Reader, search and export use one pass: the one a person chose,
+- `source.pass.working` — **[OK]** (#4929; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestTheWorkingPass::test_a_machine_pass_carrying_one_human_segment_outranks_a_newer_machine_pass`) the Reader, search and export use one pass: the one a person chose,
   or the newest, labelled unchosen, if nobody has; it is worked out, never a stored flag.
 - `source.order.named-multiple` — **[GAP]** (#4930) a source can have several named reading orders, each with an
   author and certainty.
@@ -522,14 +522,14 @@ Canvas
   the source model.
 
 Pointing and statements
-- `source.point.by-id-or-span` — **[GAP]** (#4932) a thing points at a segment by id, or at a stretch of one of
+- `source.point.by-id-or-span` — **[OK]** (#4932; pinned by `tests/unit/api/test_readings_across_split_and_merge.py::TestTheAnchorCanNameWhatItPointsAt::test_a_stretch_names_the_exact_reading_it_was_measured_on`) a thing points at a segment by id, or at a stretch of one of
   its readings.
-- `source.point.text-is-derived` — **[GAP]** (#4932) a page's text is worked out from segments and a reading
+- `source.point.text-is-derived` — **[OK]** (#4932; pinned by `tests/unit/api/test_document_derived_text.py::TestTheDerivedText::test_the_page_text_is_the_join_of_its_lines_readings_in_order`) a page's text is worked out from segments and a reading
   order; it is never the master.
 - `source.statement.on-segment` — **[GAP]** (#4932) a claim or mention points at a segment id, keeps a copy of
   its anchor beside it, and survives re-segmentation and re-transcription; a claim on an
   unconverted page points by its anchor alone.
-- `source.point.anchor-names-its-segment` — **[GAP]** (#4932) the one anchor every reading, mark and claim
+- `source.point.anchor-names-its-segment` — **[OK]** (#4932; pinned by `tests/unit/api/test_readings_across_split_and_merge.py::TestTheAnchorCanNameWhatItPointsAt::test_all_four_carriers_gain_the_lasting_id_with_no_new_column`) the one anchor every reading, mark and claim
   carries (three stored kinds), and every supporting source embedded in a claim or an entity,
   gains an optional lasting segment id; the id is the pointer and the
   stored shape is the record of where the ink was; one resolver answers with the live
@@ -549,13 +549,13 @@ Pointing and statements
   ink.
 
 Identity, continued
-- `source.segment.match-record` — **[GAP]** (#4922) "this new segment is that old one" is a record of its own
+- `source.segment.match-record` — **[OK]** (#4922; pinned by `tests/unit/api/test_segments_matches_forwarding.py::TestMatchRecord::test_propose_as_tool_accept_as_person_tool_accept_refused`) "this new segment is that old one" is a record of its own
   with an author and certainty; ids do not move; a machine may propose, a person accepts.
-- `source.segment.forwarding-notes` — **[GAP]** (#4922) a merged, split or deleted segment leaves a permanent
+- `source.segment.forwarding-notes` — **[OK]** (#4922; pinned by `tests/unit/api/test_segments_matches_forwarding.py::TestForwardingNotes::test_merge_split_delete_chain_resolves_in_one_call`) a merged, split or deleted segment leaves a permanent
   forwarding note; following an old id is one call; the walk raises past 64 steps; a merge
   into a segment that already forwards to the source is refused; a trail ending in a delete
   says so.
-- `source.segment.citable` — **[GAP]** (#4922) a segment has one stable reference that opens it in the app and
+- `source.segment.citable` — **[OK]** (#4922; pinned by `tests/unit/api/test_segments_matches_forwarding.py::TestCitableReference::test_reference_resolves_through_locations_resolve`) a segment has one stable reference that opens it in the app and
   resolves over MCP and the command line, following forwarding notes.
 - `source.segment.time-span` — **[GAP]** (#4933) a segment of a recording is a stretch of time (with an area,
   for video) and behaves as any other segment.
@@ -567,15 +567,15 @@ Identity, continued
   and Fichero says which passes have not crossed over.
 - `source.image.physical-scale` — **[GAP]** (#4926) an image can carry a scale so a segment's size can be given
   in millimetres.
-- `source.edit.stale-is-refused` — **[GAP]** (#4923) an edit made against an old version of a segment is
+- `source.edit.stale-is-refused` — **[OK]** (#4923; pinned by `tests/unit/api/test_segments_versions.py::TestStaleIsRefused::test_two_updates_against_version_one_the_second_is_refused`) an edit made against an old version of a segment is
   refused, with what changed.
 - `source.derived.recomputable` — **[GAP]** (#4925) pictures, search entries, vectors and word-level analysis
   name the segment, reading, model and version they came from, and are absent when not made.
 
 The read seam and events
-- `source.seam.read-either-store` — **[GAP]** (#4919) one engine call returns a source's segments whether they
+- `source.seam.read-either-store` — **[OK]** (#4919; pinned by `tests/unit/api/test_segments_route.py::TestReadEitherStore::test_one_provisional_segment_per_box_rect_for_rect`) one engine call returns a source's segments whether they
   live in a block of boxes or in segment records; its answer has the same shape either way.
-- `source.seam.maker-for-each-segment` — **[GAP]** (#4919) every segment read through the seam says
+- `source.seam.maker-for-each-segment` — **[OK]** (#4919; pinned by `tests/unit/api/test_segments_route.py::TestSegmentProvenanceKind::test_artifact_with_provider_user_is_human_throughout`) every segment read through the seam says
   who made it, in the one maker vocabulary, set by the engine: a person when the box itself
   proves a person drew it, otherwise its pass's maker; never supplied by a caller, never
   defaulting to a person; a pass may hold segments by different makers.
@@ -584,9 +584,9 @@ The read seam and events
   (Today the block branch ignores `area` and applies only `kind`; found by the slice 6 recon,
   2026-09-20. Until it is fixed, "the page reads the same before and after conversion" cannot
   be tested with an area.)
-- `source.seam.provisional-ids-refused` — **[GAP]** (#4919) an id read from a block of boxes is marked
+- `source.seam.provisional-ids-refused` — **[OK]** (#4919; pinned by `tests/unit/api/test_segment_readings.py::TestRefusals::test_a_provisional_segment_id_is_refused_on_a_write`) an id read from a block of boxes is marked
   provisional, and every write path refuses one with a typed error.
-- `source.events.segment-ids` — **[GAP]** (#4920) a change event names the segments and passes that changed, so a
+- `source.events.segment-ids` — **[OK]** (#4920; pinned by `tests/unit/api/test_change_stream_segment_ids.py::TestChangeSpecReachesSubscriber::test_changespec_segment_and_pass_ids_reach_the_subscriber`) a change event names the segments and passes that changed, so a
   window updates those and nothing else.
 
 Storage
@@ -617,10 +617,10 @@ Storage
   same ids the whole-project conversion would give it; undo takes back the edit and keeps the
   records. (Replaces `source.store.ids-on-first-edit`: by the ruling of 2026-09-20 this is no
   longer how a project is converted, it is how an edit gets ahead of the conversion.)
-- `source.store.bounded-reads` — **[GAP]** (#4921) a page's segments come back by kind and by area, never "all
+- `source.store.bounded-reads` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestRecordPerSegment::test_lines_of_this_pass_and_children_of_this_region_are_single_filtered_queries`) a page's segments come back by kind and by area, never "all
   of a project"; one page at one kind returns in under 200 ms with 200,000 segment records in
   the source (threshold in the morning file).
-- `source.store.record-per-segment` — **[GAP]** (#4921) the store can answer questions about single segments
+- `source.store.record-per-segment` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestRecordPerSegment::test_lines_of_this_pass_and_children_of_this_region_are_single_filtered_queries`) the store can answer questions about single segments
   (the lines of a page; a word's history; all segments in a hand).
 - `source.store.never-converted-by-a-migration` — **[GAP]** (#4924) no migration, script, second engine or
   command-line process ever writes a segment record into an existing project; opening a
