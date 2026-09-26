@@ -56,8 +56,13 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
   `KGInspectorCRUDUITests`.
 - `kg.tables.entity.delete` [OK] — delete removes the entity and its claim links, undoable.
   Pinned: `KGInspectorCRUDUITests`.
-- `kg.tables.entity.curate` [PARTIAL] (implemented, unpinned; #4801, → #1765, → #1786) — bless
-  / reject / merge stay. → #1786 asked for entity rename + "Add entity" specifically — both
+- `kg.tables.entity.curate` [PARTIAL] (#4801 asked for a pin, now given; → #1765, → #1786) — bless
+  / reject / merge stay. Bless and reject are built and pinned: engine
+  `test_routes_entity_curation.py::TestBatchEntityCuration::test_batch_updates_entities_and_logs_mutations`
+  (state set, one `MutationLog` per changed entity, with the real actor) and
+  `::test_batch_skips_unchanged_entities`; app `EntityStoreTests.testSetCurationUpdatesMatchingRowsInPlace`
+  (the store updates the matching rows in place). Merge from the TABLE is not reachable (the sheet is
+  unmounted, `kg.entity.menu.merge`), which is why this stays [PARTIAL]. → #1786 asked for entity rename + "Add entity" specifically — both
   are now [OK] (`kg.tables.entity.rename-inline`/`.create` above); kept open as a verify-close
   candidate rather than closed by this pass, since curate (bless/reject/merge) itself is still
   only [PARTIAL]. → #1765 is the broader origin ask (approve/reject/edit entities AND claims,
