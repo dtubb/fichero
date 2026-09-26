@@ -138,6 +138,52 @@ def test_rule_b_closed_issue_still_broken_fails(tmp_path, monkeypatch):
     assert _check() == 1
 
 
+RULE_D_PARTIAL_DANGLING_SPEC = """# Spec
+
+## Behaviors
+
+- `m2p.partly` — **[PARTIAL]** half built. Pinned by `GoneTests`. (#310)
+"""
+
+
+def test_rule_d_catches_a_dangling_citation_on_a_PARTIAL(tmp_path, monkeypatch):
+    """A cited test must EXIST whatever the tag, not only on [OK].
+
+    Live case: `kg.view.filter-bar-at-bottom` is [PARTIAL] and cited three
+    `KGTableFilterBarPlacementTests` methods that had been deleted when that
+    file was split into guardrails. Nothing said a word, because rule (d)
+    skipped every non-[OK] behaviour.
+
+    A dangling citation is arguably WORSE on a [PARTIAL]: that tag is what
+    someone reads to learn how much is already proven, so pointing them at a
+    test that does not exist makes the spec claim evidence it does not have.
+    """
+    _seed(tmp_path, RULE_D_PARTIAL_DANGLING_SPEC)
+    _fake_issues(monkeypatch, [
+        {"number": 310, "state": "OPEN", "milestone": None, "labels": [], "title": "x", "assignees": []},
+    ])
+    assert _check() == 1
+
+
+RULE_D_GAP_NO_TEST_SPEC = """# Spec
+
+## Behaviors
+
+- `m2p.unbuilt` — **[GAP]** not built at all. (#311)
+"""
+
+
+def test_rule_d_does_not_demand_a_test_from_a_GAP(tmp_path, monkeypatch):
+    """The other half of rule (d) stays [OK]-only. A [GAP] is unbuilt by
+    definition, so requiring it to cite a test would flag every honest one —
+    which is how a rule becomes noise and then gets baselined."""
+    _seed(tmp_path, RULE_D_GAP_NO_TEST_SPEC)
+    _fake_issues(monkeypatch, [
+        {"number": 311, "state": "OPEN", "milestone": None, "labels": [], "title": "x", "assignees": []},
+    ])
+    assert _check() == 0
+
+
 RULE_E_ARROW_SPEC = """# Spec
 
 ## Behaviors

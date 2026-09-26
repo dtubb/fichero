@@ -828,13 +828,21 @@ def _collect_findings(offline: bool, strict: bool) -> tuple[list[Finding], list[
                 f"explaining why no test can pin it (rule h)."
             ))
 
-    # Rule (d): [OK] with no test cited at all, or a cited test/method that does not exist.
+    # Rule (d), in two halves that apply to different behaviours.
+    #
+    # "[OK] must cite a test" is about [OK] only — a [GAP] is not expected to have one.
+    #
+    # "a cited test must EXIST" applies to EVERY tag, and used to apply to [OK] alone.
+    # That gap was live: `kg.view.filter-bar-at-bottom` is [PARTIAL] and cited three
+    # `KGTableFilterBarPlacementTests` methods that had been deleted — by us, splitting
+    # that file into guardrails — and nothing said a word. A dangling citation is worse
+    # on a [PARTIAL] than on an [OK], because a [PARTIAL] is what someone reads to find
+    # out how much is already proven; pointing them at a test that does not exist makes
+    # the spec claim evidence it does not have.
     test_index = _build_test_index()
     for b in behaviors:
-        if b.tag != "OK":
-            continue
         citations = _parse_test_citations(b.text)
-        if not citations:
+        if b.tag == "OK" and not citations:
             failures.append(Finding(
                 "d", b.id, b.spec_path,
                 f"{b.spec_path}:{b.line}: `{b.id}` [OK] cites no test — add a pinning test "
@@ -846,8 +854,8 @@ def _collect_findings(offline: bool, strict: bool) -> tuple[list[Finding], list[
             if problem:
                 failures.append(Finding(
                     "d", f"{b.id}:{_citation_key(c)}", b.spec_path,
-                    f"{b.spec_path}:{b.line}: `{b.id}` [OK] cites {c.raw} — {problem} — fix "
-                    f"the citation or ship the test (rule d)."
+                    f"{b.spec_path}:{b.line}: `{b.id}` [{b.tag}] cites {c.raw} — {problem} "
+                    f"— fix the citation or ship the test (rule d)."
                 ))
 
     return failures, infos, len(behaviors), len({b.spec_path for b in behaviors})
