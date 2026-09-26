@@ -73,19 +73,24 @@ spread) is documented but read by nothing. It becomes the **seed of the one kind
 (`source.segment.open-kinds`): `Segment.kind` and `SourceAnchor.granularity` draw from it, and
 SegmOnto's zone and line names are added to it as data. One list, as the design says.
 
-### Retiring `AgentNoteSourceAnchor`
+### `AgentNoteSourceAnchor` is NOT retired — corrected 2026-09-26 (#5044)
 
-It is a subset of `SourceAnchor` (`document_id`, `page_id`, `char_start`, `char_end`) plus
-`expediente` and `page_label`. `api/routes/system/agent_memory.py` takes and returns it. Agents
-already call this route, so the wire must not break:
+**This section previously said the type is a subset of `SourceAnchor` and could be retired onto
+it. That was factually wrong, and the retirement is cancelled.**
 
-- The route's request model accepts a `SourceAnchor`; the old two extra keys are accepted and
-  carried in the anchor's allowed extras (`SourceAnchor` is `extra="allow"`), and returned as
-  they were. A request in the old shape still validates (test with a recorded old request).
-- The class is deleted; stored agent notes need no migration (the stored JSON is already a
-  valid `SourceAnchor` with extras).
-- The OpenAPI contract loses one schema; the CLI regenerates; `check_openapi_client_parity.py`
-  must pass. No Swift code uses the type.
+The two disagree on one field. `SourceAnchor.document_id` is **required**;
+`AgentNoteSourceAnchor.document_id` is **nullable**, and `_validate_anchor` deliberately accepts
+a note anchored by `page_id` or `expediente` alone. So the repoint is blocked not because a
+compatibility shim was tempting, but because the new type **refuses data the old one accepts** —
+an agent note about a whole expediente has no document to name.
+
+Ruled by the design lead, 2026-09-26: **keep `AgentNoteSourceAnchor`, and keep
+`SourceAnchor.document_id` required.** A foundation type is not loosened to accommodate one
+caller, and a required field made optional is very hard to tighten again. The ability to anchor a
+note above document level is deliberate, not an accident to be tidied away.
+
+Nothing is owed here. If notes ever genuinely move to documents, this becomes a real contract
+change and needs its own slice.
 
 ### A segment's picture, cut to its shape
 
@@ -109,7 +114,12 @@ second cropper.
 - Making pictures is throttled background work when done in bulk (a training export), and
   bounded when done on request.
 - `economy_htr.crop_line_strips` (padded rectangles, per Apple Vision line box) is the existing
-  line cropper. It is **replaced by this function** where it is called, not kept beside it.
+  line cropper. It is **replaced by this function** where it is called — but **not in this
+  slice**. Corrected 2026-09-26 (#5045): `crop_line_strips` runs INSIDE the HTR tool on Apple
+  Vision line boxes, *before any segment row exists*, while `segment_picture` needs a `Segment`,
+  a `db` and a library. The replacement presumes the tool already reads segments, which these
+  same notes defer to "tool by tool, after this slice". The ordering contradicted itself. The
+  replacement happens when the HTR tool reads segments, not before.
 
 **Refusals** (typed, each tested): shapes and `rect` that disagree; a path of one point; a
 polygon of two; a point outside the image; a time span with no `media_ref`; a picture asked of a
