@@ -610,6 +610,9 @@ def segment_lines(
     image_path: str | Path, *, run_call: Callable[[Callable[[], _T]], _T] | None = None
 ) -> dict[str, object]:
     """Run the segmenter and return raw pixel geometry plus its frame."""
+    if not str(image_path).strip():
+        # #5019: refuse BEFORE loading the model; an empty path is not a file to open.
+        raise KrakenSegmentationError("No image path was supplied for this page; the engine could not resolve its source file.")
     caller = run_call or _kraken_call
     try:
         return caller(lambda: _segment_raw(image_path))
