@@ -205,6 +205,21 @@ struct Segment: Codable, Hashable, Identifiable {
     var baseline: [[Double]]?
     var text: String?
     var confidence: Double?
+    /// The language, script and direction SET ON THIS SEGMENT — not resolved
+    /// (`source.lang.many-per-page`, #4938). A page holds several at once: a
+    /// Latin marginal note beside a Spanish entry is a fact about the REGION,
+    /// so a single page-level value would be wrong about one of them.
+    ///
+    /// `nil` means this segment states nothing, which falls through the engine's
+    /// cascade; it does NOT mean unknown. The engine deliberately does not send
+    /// the `*_meta` that tells those apart in a list row — ask
+    /// `GET /api/source-settings/resolve` for the resolved value of the
+    /// SELECTION, which also says which level it came from. A provisional
+    /// segment always reads `nil`: a box inside an artifact blob has nowhere to
+    /// have stored one.
+    var language: String?
+    var script: String?
+    var direction: String?
     var sourceArtifactId: String?
     /// Position inside the owning artifact's `ocr_geometry.boxes` — only
     /// meaningful, and only ever set, for a provisional segment. Segments
@@ -288,6 +303,9 @@ extension Segment {
         self.baseline = generated.baseline
         self.text = generated.text
         self.confidence = generated.confidence
+        self.language = generated.language
+        self.script = generated.script
+        self.direction = generated.direction
         self.sourceArtifactId = generated.sourceArtifactId
         self.boxIndex = generated.boxIndex
         self.pageIndex = generated.pageIndex

@@ -462,19 +462,30 @@ def _pass_candidates(db: Database, document_id: str) -> list[PassCandidate]:
 
 
 def _segment_order_key(row: Segment) -> tuple:
-    """Box order: the position a converted row recorded, then its place down
-    the page, then its id.
+    """Box order: the position a converted row recorded, then its place down and
+    ACROSS the page, then its id.
 
     ponytail: box order, not a named reading order. Named orders are slice 10
     (`source.order.named-multiple`); until one exists, inventing an ordering
     cleverer than "the order the boxes came in" would be the engine guessing
     at a scholarly decision. `DerivedText.order` reports `None` so a caller is
     never told a named order was used when none was.
+
+    `bbox_x` is in the key, and its absence was a DEFECT (found 2026-09-26 while
+    grounding slice 10): without it, two segments on the same line -- identical
+    `bbox_y`, no `box_index`, which is every hand-drawn word on one line -- fell
+    through to `row.id`, a random uuid. The words of a line came out in uuid
+    order. `media/ocr_geometry.py::reading_order` sorts boxes top-then-LEFT for
+    exactly this reason; this key now matches it, which is also what makes
+    slice 10's `as-written` order able to agree with both.
+
+    `row.id` stays as the LAST resort so the sort is total and stable, never as
+    a meaningful position (#4921: a random uuid is not an order).
     """
     recorded = row.metadata.get("box_index")
     if isinstance(recorded, int) and not isinstance(recorded, bool):
-        return (0, recorded, 0.0, row.id)
-    return (1, 0, row.bbox_y, row.id)
+        return (0, recorded, 0.0, 0.0, row.id)
+    return (1, 0, row.bbox_y, row.bbox_x, row.id)
 
 
 def document_text(

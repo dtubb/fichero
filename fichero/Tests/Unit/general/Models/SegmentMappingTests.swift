@@ -81,9 +81,13 @@ struct SegmentMappingTests {
     @Test("SegmentRead's contract field set is exactly what Segment.init(generated:) maps")
     func segmentReadFieldCoverage() throws {
         let declared = try Self.contractProperties(of: "SegmentRead")
+        // `language`, `script` and `direction` arrived with source-model slice 9
+        // (#4938) and are MAPPED, not dropped: they are what the app shows for a
+        // region without asking the engine to resolve a cascade per list row.
         let accounted: Set<String> = [
             "id", "provisional", "document_id", "pass_id", "kind", "kind_raw",
             "provenance_kind", "anchor", "baseline", "text", "confidence",
+            "language", "script", "direction",
             "source_artifact_id", "box_index", "page_index", "metadata"
         ]
         #expect(

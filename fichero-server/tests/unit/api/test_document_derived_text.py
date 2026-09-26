@@ -304,3 +304,59 @@ class TestAStretchSurvivesTheReadingChanging:
         )
         assert placed.placed is False
         assert "not inside" in placed.reason
+
+
+class TestWordsOnOneLineReadLeftToRight:
+    """The words of a line must not come out in uuid order (found 2026-09-26).
+
+    `_segment_order_key` sorted by `bbox_y` and then fell through to `row.id`.
+    Two segments on the SAME line have identical `bbox_y` and, when nothing
+    recorded a `box_index`, nothing else to separate them — so a random uuid
+    decided which word came first. `media/ocr_geometry.py::reading_order` sorts
+    boxes top-then-LEFT precisely to avoid this; the row key now matches it.
+    """
+
+    def test_three_words_of_one_line_are_joined_left_to_right(self, db, client):
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.models.anchors import SourceAnchor
+        from fichero_server.models.segments import SegmentPass
+        from fichero_server.models.knowledge import ProvenanceKind
+        from fichero_server.api.routes.document.segment_readings import document_text
+
+        doc = Document(
+            name="one-line.jpg", doc_type=DocType.file, file_type=FileType.image,
+            path="/path/one-line.jpg", status=Status.completed,
+        )
+        db.save(doc)
+        pass_row = SegmentPass(
+            document_id=doc.id, name="hand", provenance_kind=ProvenanceKind.human,
+        )
+        db.save(pass_row)
+
+        # Written in a deliberately WRONG order, so passing cannot be an accident
+        # of insertion order: the middle word is saved first.
+        placed = [("nombre", 0.30), ("en", 0.10), ("dios", 0.60)]
+        for words, x in placed:
+            row = Segment(
+                document_id=doc.id, pass_id=pass_row.id, kind="word",
+                doc_kind=f"{doc.id}:word",
+                anchor=SourceAnchor(document_id=doc.id, rect=[x, 0.4, 0.08, 0.03]),
+                bbox_x=x, bbox_y=0.4, bbox_w=0.08, bbox_h=0.03, tile="",
+                provenance_kind=ProvenanceKind.human,
+            )
+            db.save(row)
+            registry.invoke(
+                db,
+                "representation.create",
+                {
+                    "document_id": doc.id, "segment_id": row.id,
+                    "kind": "transcription", "content": words,
+                },
+                ActionContext(actor="historian", is_bootstrap=True),
+            )
+
+        derived = document_text(db, doc.id, pass_id=pass_row.id)
+
+        assert derived.text == "en nombre dios", (
+            "words of one line were not joined left to right: " + derived.text
+        )

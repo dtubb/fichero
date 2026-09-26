@@ -144,7 +144,12 @@ extension EntityService {
     ) async throws -> Components.Schemas.DocumentKnowledgeGraphResponse {
         let response = try await client.api.knowledgeGraphApiDocumentsDocumentIdKnowledgeGraphGet(
             path: .init(documentId: documentId),
-            query: .init(includeChildren: includeChildren),
+            // The engine's flag is `include_descendants` since #5065 (it recurses
+            // the whole subtree, not one level), so the generated query takes
+            // that name. The app's own parameter keeps `includeChildren`: it is
+            // backed by an `@AppStorage` key of that name, and renaming it would
+            // silently discard every user's saved preference.
+            query: .init(includeDescendants: includeChildren),
         )
 
         switch response {
