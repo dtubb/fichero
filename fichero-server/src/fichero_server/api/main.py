@@ -1912,6 +1912,7 @@ from fichero_server.api.routes.document import (  # noqa: E402
     segments as document_segments,
     source_settings as document_source_settings,
     sources,
+    typed_links as document_typed_links,
     view as document_view,
 )
 from fichero_server.api.routes.entity import (  # noqa: E402
@@ -2013,6 +2014,10 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # page holds several orders and answering from a default would be the engine
     # choosing a reading without saying so.
     (document_reading_orders.router, "/api", ["reading-orders"]),
+    # Source-model slice 10 (#4931): the ONE typed link. Segments are on it now;
+    # the four existing link records converge one per later slice, and this
+    # vocabulary is seeded from all of them so no word is lost when they do.
+    (document_typed_links.router, "/api", ["links"]),
     # Renditions — alternative pixels of one node; ordered engine-side so the
     # preview and any card surface agree what "next" means (2026-08-20).
     (renditions.router, "/api", ["renditions"]),

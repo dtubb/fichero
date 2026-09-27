@@ -1240,6 +1240,20 @@ SEGMENT_INDEX_STATEMENTS: list[tuple[str, str, str]] = [
         "ON contentrepresentations(document_id)",
         "a source's readings (the existing list route, now indexed)",
     ),
+    # Source-model slice 10 (#4931): the one typed link. BOTH ends are indexed,
+    # which is what makes a link reachable from either one -- "what glosses this
+    # line" and "what does this line gloss" are the same row read from opposite
+    # sides, and a link findable from only one end is half a relation.
+    (
+        "idx_typedlinks_from_id",
+        "CREATE INDEX IF NOT EXISTS idx_typedlinks_from_id ON typedlinks(from_id)",
+        "links out of one thing",
+    ),
+    (
+        "idx_typedlinks_to_id",
+        "CREATE INDEX IF NOT EXISTS idx_typedlinks_to_id ON typedlinks(to_id)",
+        "links into one thing -- the other half of reachable from either end",
+    ),
     # Source-model slice 10 (#4930): named reading orders. The fifth is
     # composite and is what makes `neighbours` two indexed lookups rather than a
     # read of the whole order -- a flow across a codex holds thousands of

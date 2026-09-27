@@ -1055,6 +1055,7 @@ class Database(DatabaseEmbeddingMixin):
         self._seed_builtin_document_prototypes()
         self._seed_builtin_node_classes()
         self._seed_builtin_reading_kinds()
+        self._seed_builtin_link_types()
         self._backfill_claim_links_to_library_links()
         self._backfill_filed_entity_documents()
         self._backfill_note_documents()
@@ -1202,6 +1203,7 @@ class Database(DatabaseEmbeddingMixin):
             ReferenceProvenance,
         )
         from fichero_server.models.conversion import ConversionRun
+        from fichero_server.models.typed_links import LibraryLinkType, TypedLink
         from fichero_server.models.reading_orders import ReadingOrder, ReadingOrderEntry
         from fichero_server.models.source_declarations import LibraryScript
         from fichero_server.models import (
@@ -1316,6 +1318,12 @@ class Database(DatabaseEmbeddingMixin):
             # reads them, so the position here is not load-bearing.
             ReadingOrder,
             ReadingOrderEntry,
+            # Source-model slice 10 (#4931): the one typed link and its
+            # vocabulary. The vocabulary table must exist before
+            # `_seed_builtin_link_types` runs at open, which is what registering
+            # it here guarantees -- `_ensure_table` creates it in this order.
+            LibraryLinkType,
+            TypedLink,
             LibraryReadingKind,
             Milestone,
             MutationLog,
@@ -2355,6 +2363,33 @@ class Database(DatabaseEmbeddingMixin):
             if key in existing:
                 continue
             self.save(LibraryReadingKind(key=key, label=label, builtin=True))
+
+    def _seed_builtin_link_types(self) -> None:
+        """Seed the shipped link types (source-model slice 10, #4931).
+
+        Same posture as the reading kinds: idempotent, additive only, nothing ever
+        deleted -- a link stored under a type later withdrawn must still read back,
+        and a project that relabelled one keeps its label.
+
+        The list comes from `builtin_link_types()`, which assembles ONE vocabulary
+        from the KG's own `ClaimRelationType` plus the manuscript-facing words it
+        has no equivalent for, with the overlap collapsed. Seeding a second list
+        beside the KG's would be the fifth vocabulary this record exists to remove.
+        """
+        if not hasattr(self.conn, "execute"):
+            return
+
+        from fichero_server.models.typed_links import LibraryLinkType, builtin_link_types
+
+        existing = {row.key for row in self.query(LibraryLinkType)}
+        for key, label, inverse_label in builtin_link_types():
+            if key in existing:
+                continue
+            self.save(
+                LibraryLinkType(
+                    key=key, label=label, inverse_label=inverse_label, builtin=True
+                )
+            )
 
     def _effective_prototype_attributes(self, doc: Any) -> dict[str, Any]:
         """Resolve inherited prototype attributes and overlay the node payload."""
