@@ -55,6 +55,24 @@ ELEMENT_KINDS: dict[str, str] = {
     "Word": "word",
     "Glyph": "character",
     "TableRegion": "table",
+    # A CELL IS A REGION, which is what PAGE XML itself says: PAGE 2019 gives a
+    # `TextRegion` inside a `TableRegion` a `TableCellRole`, and the 2013 files
+    # Transkribus writes use a `TableCell` element for the same thing.
+    #
+    # Found 2026-09-27 by a real file (`transkribus_abp_table_0019.page.xml`, a parish
+    # register with one `TableRegion` and 516 cells): before this, cells were not in
+    # this map, so the reader skipped them and the parent walk climbed PAST them to the
+    # table. Every one of that page's 355 lines came back parented to the
+    # `TableRegion` — and the schema forbids a `TextLine` directly under one, so the
+    # export refused ("This element is not expected"). Import worked, export could
+    # not: a real table page was unroundtrippable, and no round trip could have shown
+    # it because our writer never emits a table.
+    #
+    # Mapped to `region` rather than a new `cell` kind on purpose. `source.segment.
+    # table-cells` (#4928, [GAP]) is where row, column, spans and header-ness become
+    # part of the model; until then a cell is a region whose `row`/`col`/`rowSpan`/
+    # `colSpan` ride in `foreign`, so nothing is lost and nothing is invented.
+    "TableCell": "region",
     "ImageRegion": "picture",
     "SeparatorRegion": "separator",
     "GraphicRegion": "graphic",
@@ -364,6 +382,13 @@ def read(data: bytes) -> SourcePage:
                 segment.foreign["readingDirection"] = direction
         if element.get("custom"):
             segment.foreign["custom"] = element.get("custom")
+        # A cell's place in its table. Kept because the model has no field for it yet
+        # (`source.segment.table-cells`, #4928): dropping it would lose the ONE thing
+        # that makes a table a table, and inventing a field for it here would decide a
+        # behaviour that is not this format's to decide.
+        for attribute in ("row", "col", "rowSpan", "colSpan"):
+            if element.get(attribute) is not None:
+                segment.foreign[f"pagexml:{attribute}"] = element.get(attribute)
         page.segments.append(segment)
 
     for element in root.iter():
