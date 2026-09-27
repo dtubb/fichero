@@ -1386,6 +1386,7 @@ def ingest_folder(
     should_cancel: Callable[[], bool] | None = None,
     db: "Database | None" = None,
     package_path: Path | None = None,
+    skip_paths: "set[Path] | None" = None,
 ) -> list[Document]:
     """Ingest all files from a folder.
 
@@ -1410,6 +1411,9 @@ def ingest_folder(
             coherent and a retry skips their unchanged source checksums.
         db: Database instance (required)
         package_path: Library package path for COPY mode
+        skip_paths: Files NOT to ingest as documents -- a layout file paired with its
+            image (#5132, `interchange_pairing`), which becomes a pass on that image
+            instead of a text document of raw XML.
 
     Returns:
         List of created Documents
@@ -1513,10 +1517,11 @@ def ingest_folder(
             exc,
         )
 
+    skipped = {Path(p).resolve() for p in (skip_paths or ())}
     files = (
         path
         for path in discover_files(folder, recursive=recursive)
-        if not _is_sidecar_file(path)
+        if not _is_sidecar_file(path) and path.resolve() not in skipped
     )
     pending_links: list[tuple[Document, str, str]] = []
 

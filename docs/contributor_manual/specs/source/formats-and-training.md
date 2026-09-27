@@ -86,7 +86,7 @@ easy. How that is met, after review:
 | **MEI** | yes | yes | music zones, and the notes or neumes where a music reading exists (otherwise zones only, and the loss report says so) | polygons (its zones are boxes) |
 | **W3C annotations / IIIF** | yes | yes | pointers to shapes and text; notes on notes; control points for maps (specified in `maps-and-georeference.md`) | it is not a transcription format |
 | **hOCR** | yes | yes | lines, words, boxes or polygons, baselines, character cuts and confidence | most scholarly detail |
-| **Transkribus and eScriptorium packages** | yes | yes | a zip of images and PageXML, optionally with a METS file: someone else's whole project | as PageXML |
+| **Transkribus and eScriptorium packages** | yes (a folder; zip and METS not yet) | yes | a zip of images and PageXML, optionally with a METS file: someone else's whole project (`source.format.package-folder`) | as PageXML |
 | **YOLO labels** | yes | yes | a class and a box or polygon for each object | everything else |
 | **Kraken training data** | yes | yes | ALTO or PageXML; line picture plus text; the compiled Arrow file | everything but lines, regions and text |
 | **Columnar dataset (Arrow / Parquet)** | yes | yes | one row per segment: picture, shape, kind, reading, language, script, hand, period, source, guideline, level, licence, split | links and structure, unless asked for as extra tables |
@@ -167,6 +167,26 @@ Rules for every format
   writer is complete but its export refuses** until the xlink schema ALTO imports is vendored (#5082);
   TEI is the other lane's (#4945). `first-four` is data rather than a branch: the registry is the
   only thing that knows the list, and it now holds five.
+- `source.format.package-folder` — **[PARTIAL]** (→ #5132) a folder exported by eScriptorium or
+  Transkribus, meaning page images with a PAGE XML, ALTO or hOCR file for each, dropped onto Fichero
+  gives **pages carrying their passes**. It does not give a text document of raw XML beside each
+  image, which is what `ingest.py` did before (it maps `.xml` to text). An image and its layout file
+  are paired by the file's own `imageFilename` first, then by the same stem, looking in the same
+  folder and then its parent (Transkribus writes a `page/` subfolder). Each pair is imported through
+  the audited `format.import` action, the same path as the one-file menu import, so the pass is the
+  same record. Pinned by
+  `fichero-server/tests/unit/importers/test_folder_of_images_and_layout.py::TestDroppingTheFolder::test_the_images_become_pages_with_their_passes` and
+  `::TestThePairing::test_the_stated_image_name_wins_over_the_stem_and_a_subfolder_finds_its_parent`.
+  **Never guessed:** a layout file with no image, or with two images that match it equally, is
+  reported by name with the reason in the folder action's result and the log. It is then imported
+  as an ordinary file, so nothing is lost
+  (`::TestThePairing::test_a_layout_file_with_no_image_is_unpaired_BY_NAME_and_never_guessed`,
+  `::TestThePairing::test_two_images_sharing_a_stem_is_a_refusal_not_a_pick`). An XML that is not a
+  layout format is still a text document. Dropping the folder again duplicates no pass
+  (`::TestDroppingTheFolder::test_dropping_it_again_duplicates_no_pass`).
+  **Not built, and why PARTIAL:** a **zip** of the same (the folder ingest does not unpack
+  archives); a **METS** file's page order and grouping; and showing the unpaired names in the app,
+  which today sees them only in the action's result and the engine log.
 - `source.format.import-is-pass` — **[OK]** (→ #4943) an import arrives as a new pass with its provenance and
   overwrites nothing. `format.import` writes a pass, its segments, their readings and the file's
   order in four batches; the pass records `import_file` and `import_checksum` (fields slice 1 had

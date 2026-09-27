@@ -551,6 +551,8 @@ def import_folder_impl(
     on_progress=None,
     on_document=None,
     should_cancel=None,
+    ctx: "ActionContext | None" = None,
+    interchange_report: "dict | None" = None,
 ) -> list[Document]:
     """Validate + synchronously ingest a folder. Returns the created Documents.
 
@@ -600,6 +602,9 @@ def import_folder_impl(
     mode = IngestMode(request.mode) if request.mode else (
         IngestMode.COPY if request.copy_mode else IngestMode.LINK
     )
+    # #5132: layout files paired with their images become PASSES on those images, not
+    # text documents of raw XML. Paired only with an action context to write the pass as.
+    plan = _interchange_plan(path, request.recursive) if ctx is not None else None
     docs = do_ingest(
         path,
         mode=mode,
@@ -612,11 +617,65 @@ def import_folder_impl(
         should_cancel=should_cancel,
         db=db,
         package_path=package_path,
+        skip_paths=set(plan.pairs) if plan else None,
     )
+    if plan is not None:
+        report = _import_paired_layout(db, docs, plan, ctx)
+        if interchange_report is not None:
+            interchange_report.update(report)
     # Queued after the whole folder lands rather than per file: the queue is
     # bounded (#4225) and the ingest loop must not block on it.
     queue_derivatives(docs, library_path=package_path, db=db)
     return docs
+
+
+def _interchange_plan(folder: Path, recursive: bool):
+    from fichero_server.importers.ingest import _is_sidecar_file, discover_files
+    from fichero_server.importers.interchange_pairing import plan_pairs
+
+    files = [p.resolve() for p in discover_files(folder, recursive=recursive) if not _is_sidecar_file(p)]
+    return plan_pairs(files)
+
+
+def _import_paired_layout(db: Database, docs: list[Document], plan, ctx: "ActionContext") -> dict:
+    """Write each paired layout file as a pass on its image's document (#5132).
+
+    Through `format.import`, the audited action the one-file menu import uses, so a pass
+    from a folder is the same record as a pass from the menu: undoable, attributed, its
+    re-import recognised. A pair that fails is reported BY NAME with the engine's reason
+    and the folder goes on -- one bad file must not undo the rest.
+    """
+    by_source = {
+        str(Path(d.metadata.get("source_path")).resolve()): d
+        for d in docs
+        if isinstance(d.metadata, dict) and d.metadata.get("source_path")
+    }
+    imported: list[str] = []
+    failed: dict[str, str] = {}
+    for layout, image in sorted(plan.pairs.items()):
+        document = by_source.get(str(image))
+        if document is None:
+            failed[layout.name] = (
+                f"its image {image.name} was not imported in this run (already in the library, "
+                "or it failed)"
+            )
+            continue
+        try:
+            registry.invoke(
+                db,
+                "format.import",
+                {"document_id": document.id, "path": str(layout), "format": plan.formats[layout]},
+                ctx,
+            )
+            imported.append(layout.name)
+        except HTTPException as exc:
+            failed[layout.name] = str(exc.detail)
+        except Exception as exc:  # noqa: BLE001 -- reported by name; the folder goes on
+            failed[layout.name] = f"{type(exc).__name__}: {exc}"
+    unpaired = {layout.name: why for layout, why in plan.unpaired.items()}
+    for name, why in {**unpaired, **failed}.items():
+        logger.warning("layout file %s did not become a pass: %s", name, why)
+    return {"imported_as_passes": imported, "not_imported": failed, "unpaired": unpaired}
 
 
 # Routes
@@ -1120,6 +1179,8 @@ def _action_import_folder(
         on_progress=ctx.on_progress,
         on_document=ctx.on_document,
         should_cancel=ctx.should_cancel,
+        ctx=ctx,
+        interchange_report=(interchange := {}),
     )
     _upsert_sidecar_entities(db, docs, ctx)
     _apply_sidecar_renditions(db, docs, package_path)
@@ -1127,7 +1188,7 @@ def _action_import_folder(
     spec = ChangeSpec(
         domains=["document"],
         target_ids=doc_ids,
-        after={"document_ids": doc_ids},
+        after={"document_ids": doc_ids, **({"interchange": interchange} if any(interchange.values()) else {})},
         emit_type="document.created" if doc_ids else None,
         document_ids=doc_ids,
         # #4205: this trailing bulk event repeats every id from the import. If
@@ -1138,7 +1199,11 @@ def _action_import_folder(
         # the parents cost nothing.
         document_parents={d.id: d.parent_id for d in docs if d.parent_id},
     )
-    return {"document_ids": doc_ids, "count": len(doc_ids)}, spec
+    return {
+        "document_ids": doc_ids,
+        "count": len(doc_ids),
+        **({"interchange": interchange} if any(interchange.values()) else {}),
+    }, spec
 
 
 @action(
