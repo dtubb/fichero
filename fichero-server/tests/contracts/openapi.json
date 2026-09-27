@@ -4695,6 +4695,103 @@
         }
       }
     },
+    "/api/documents/{doc_id}/import": {
+      "post": {
+        "tags": [
+          "formats"
+        ],
+        "summary": "Import a PAGE XML, ALTO, hOCR, TEI or YOLO file as a new pass",
+        "description": "`POST /api/documents/{doc_id}/import` \u2014 a file becomes a pass.\n\nThe upload is spooled to a temporary file because the action takes a PATH: an\naction's parameters go into the tamper-evident audit row, and a megabyte of\nsomebody's transcription in a chain nothing can purge is not a parameter. The path\nis recorded; the content becomes rows.\n\nThe temporary file is removed afterwards **whatever happens**, including on a\nrefusal -- an import that refuses should leave nothing behind, least of all a copy\nof a scholar's file in a temp directory.",
+        "operationId": "import_document_page_api_documents__doc_id__import_post",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Force a format instead of recognising one from the bytes",
+              "title": "Format"
+            },
+            "description": "Force a format instead of recognising one from the bytes"
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "What to call the pass",
+              "title": "Name"
+            },
+            "description": "What to call the pass"
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_document_page_api_documents__doc_id__import_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/fichero_server__api__routes__document__format_import__ImportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{document_id}/renditions": {
       "get": {
         "tags": [
@@ -41199,6 +41296,21 @@
         "title": "BatchResponse",
         "description": "Response model for a batch execution."
       },
+      "Body_import_document_page_api_documents__doc_id__import_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "The interchange file"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_document_page_api_documents__doc_id__import_post"
+      },
       "Body_import_file_api_documents_import_post": {
         "properties": {
           "file": {
@@ -73259,6 +73371,50 @@
         ],
         "title": "EntityType",
         "description": "Type of entity for folder operations."
+      },
+      "fichero_server__api__routes__document__format_import__ImportResponse": {
+        "properties": {
+          "pass_id": {
+            "type": "string",
+            "title": "Pass Id"
+          },
+          "format": {
+            "type": "string",
+            "title": "Format"
+          },
+          "segments": {
+            "type": "integer",
+            "title": "Segments"
+          },
+          "readings": {
+            "type": "integer",
+            "title": "Readings"
+          },
+          "order_entries": {
+            "type": "integer",
+            "title": "Order Entries"
+          },
+          "checksum": {
+            "type": "string",
+            "title": "Checksum"
+          },
+          "geometry_problems": {
+            "type": "integer",
+            "title": "Geometry Problems",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "pass_id",
+          "format",
+          "segments",
+          "readings",
+          "order_entries",
+          "checksum"
+        ],
+        "title": "ImportResponse",
+        "description": "What the app is told about an import.\n\nThe counts are what a person wants to see (`812 segments, 806 readings`), and\n`format` is what was RECOGNISED rather than what they said it was -- a renamed\neScriptorium export still reports `pagexml`, which is the answer to \"did it read\nmy file properly\"."
       },
       "fichero_server__api__routes__document__notes__NoteCreateRequest": {
         "properties": {

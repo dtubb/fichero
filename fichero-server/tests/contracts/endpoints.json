@@ -2942,6 +2942,29 @@
         "response_model": "DocGeoResponse"
       },
       {
+        "method": "POST",
+        "path": "/documents/{doc_id}/import",
+        "operation_id": "import_document_page_api_documents__doc_id__import_post",
+        "summary": "Import a PAGE XML, ALTO, hOCR, TEI or YOLO file as a new pass",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [
+          {
+            "name": "format",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "fichero_server__api__routes__document__format_import__ImportResponse"
+      },
+      {
         "method": "PUT",
         "path": "/documents/{doc_id}/move",
         "operation_id": "move_document_api_documents__doc_id__move_put",

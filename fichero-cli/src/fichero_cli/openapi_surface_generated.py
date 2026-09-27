@@ -4407,6 +4407,28 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("import-a-page-xml-alto-hocr-tei-or-yolo-file-as-a-new-pass")
+    def documents_import_a_page_xml_alto_hocr_tei_or_yolo_file_as_a_new_pass_post(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        format: Optional[str] = typer.Option(None, "--format", help="Query parameter: format."),
+        name: Optional[str] = typer.Option(None, "--name", help="Query parameter: name."),
+        field: Optional[list[str]] = typer.Option(None, "--field", help="Repeatable multipart field as key=value."),
+        upload: Optional[list[str]] = typer.Option(None, "--upload", help="Repeatable multipart upload as field=/path/to/file."),
+    ) -> None:
+        """Import a PAGE XML, ALTO, hOCR, TEI or YOLO file as a new pass (POST /api/documents/{doc_id}/import)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{doc_id}/import"
+            params = {
+                "format": format,
+                "name": name,
+            }
+            files = _build_multipart_payload(field, upload)
+            if files is None:
+                raise typer.BadParameter("Provide at least one --field or --upload value.")
+            return client.request("POST", endpoint_path, params=params, files=files)
+        invoke(ctx, op_call)
+
     @target_app.command("move")
     def documents_move_put(
         ctx: typer.Context,
