@@ -184,3 +184,28 @@ struct LibraryHeaderRow: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("Library Header Row") {
+    // `LibraryPreviewFixtures.library` (Views/Library/ViewModes/LibraryModeFixtures.swift):
+    // the app's one inert `LibraryReference` — a nil-path client, no network, no engine.
+    // This row is the reason that fixture is shared rather than one-off per view: it needs
+    // the same nine-plus services LibraryView's canvas already built a fixture for.
+    LibraryHeaderRow(
+        library: LibraryPreviewFixtures.library,
+        totalCount: 42,
+        isCurrentLibrary: true,
+        onFileDrop: { _, _ in true },
+        onSidebarItemDrop: { _, _ in },
+        onDropError: { _ in },
+        onTap: {},
+        onRename: {},
+        onShare: {},
+        onClose: {},
+        onNewFolder: {},
+        onImport: {}
+    )
+    .frame(width: 260)
+    .padding()
+}
+#endif
