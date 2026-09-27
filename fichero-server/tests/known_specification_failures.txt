@@ -72,3 +72,8 @@ tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_the_loss_report_a
 # all; it is written back without one, so the export is refused -- same defect class.
 tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_our_export_validates_against_the_schema_we_export[escriptorium-transkribus_syriac_smmj36-0004.page.xml]
 tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_the_loss_report_accounts_for_everything_that_did_not_come_back[escriptorium-transkribus_syriac_smmj36-0004.page.xml]
+
+# ---- #5134 (1) ----
+# The coverage ratchet's committed baseline has been 0.0 for both stacks since
+# 2026-07-29 and nothing produces its input, so it has never been able to fire.
+tests/unit/scripts/test_coverage_ratchet_guardrail.py::TestTheCommittedBaselineIsSeeded::test_both_stacks_have_a_recorded_baseline

@@ -74,6 +74,36 @@ class TestRatchetPasses:
         assert "NOT ARMED" in r.stdout
 
 
+class TestAnUnseededBaselineCannotJudge:
+    """A 0.0 baseline cannot be dropped below, so comparing against it always passed. The
+    committed one was 0.0 for both stacks for two months, which made this ratchet
+    incapable of firing on any tree (#5134)."""
+
+    def test_armed_against_a_zero_baseline_is_blind(self, tmp_path):
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"engine": {"line_rate_pct": 0.0}, "swift": {"line_rate_pct": 60.0}}))
+        r = run_ratchet("--engine-json", str(FIXTURES / "engine_low.json"), "--baseline", str(baseline))
+        assert r.returncode == 2, r.stdout + r.stderr
+        assert "engine" in r.stderr
+
+    def test_a_seeded_baseline_still_judges(self, tmp_path):
+        """Over-fire check: only the unseeded stack is refused, not every run."""
+        r = run_ratchet(
+            "--swift-json", str(FIXTURES / "swift_low.json"),
+            "--baseline", str(FIXTURES / "baseline_low.json"),
+        )
+        assert r.returncode == 0, r.stdout + r.stderr
+
+
+class TestTheCommittedBaselineIsSeeded:
+    def test_both_stacks_have_a_recorded_baseline(self):
+        """The ratchet is only a ratchet once a real run has recorded a number. Listed
+        under #5134 until someone seeds it; then this passes and says delete the line."""
+        data = json.loads((REPO_ROOT / "coverage-baseline.json").read_text())
+        assert data["engine"]["line_rate_pct"] > 0.0
+        assert data["swift"]["line_rate_pct"] > 0.0
+
+
 class TestUpdateBaseline:
     def test_update_baseline_records_measured_values(self, tmp_path):
         baseline = tmp_path / "baseline.json"
