@@ -44,6 +44,27 @@ _MEMBERSHIP_ACTIONS = frozenset({
 })
 
 
+#: The one action whose named pass is NOT the pass that ends up working, so "is the working pass among
+#: those touched?" is the wrong question to ask of it.
+#:
+#: Deleting the working pass names the pass being REMOVED; the page's text then comes from a
+#: surviving pass that the action never named, so the skip fired and the cache kept the deleted
+#: pass's text. Found by `test_working_pass_across_surfaces`, which failed against the committed
+#: code — the defect was in the #5086 skip, a few hours old.
+#:
+#: `segment.pass_restore` was in this set and is NOT needed, proven by removing it and watching 23
+#: tests stay green: a restored pass that becomes working IS the pass the action names, so it is
+#: already in `touched` and the skip never fires; one that does not become working leaves the
+#: working pass alone, so skipping is correct. An entry nobody needs is a permission sitting
+#: unspent, and the next person to need one finds it already granted.
+#:
+#: A NAME SET IS A LIABILITY and this one is deliberately as small as the evidence allows. A third
+#: action with this property would be silently wrong — the property-based form is "a pass this
+#: action named is now deleted", which needs no list; it is worth doing when there is a second
+#: entry, and not before.
+_CHANGES_WHICH_PASS_IS_WORKING = frozenset({"segment.pass_delete"})
+
+
 def _document_ids(spec: Any, action_name: str, params: Any) -> list[str]:
     triggered = (
         bool(_TEXT_DOMAINS & set(spec.domains))
@@ -114,7 +135,7 @@ def refresh_in_transaction(db: Any, spec: Any, action_name: str = "", params: An
         doc = db.get(Document, document_id)
         if doc is None or page_content_is_user_edited(doc):
             continue
-        if touched and _working_pass_id(db, document_id) not in touched:
+        if touched and action_name not in _CHANGES_WHICH_PASS_IS_WORKING and _working_pass_id(db, document_id) not in touched:
             # The change is on a pass nobody is reading (an import is not the working pass), so
             # the derived text cannot have changed. THIS SKIP HAS A PREMISE: a newly imported pass
             # cannot quietly become the working pass behind a person's earlier choice (an
