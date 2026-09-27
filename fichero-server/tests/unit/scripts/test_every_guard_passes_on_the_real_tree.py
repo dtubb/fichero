@@ -30,6 +30,7 @@ GUARDS = sorted(p.name for p in (ROOT / "scripts").glob("check_*.py"))
 MACHINE_STATE = {
     "check_unmerged_work.py": "lists other lanes' unmerged branches and worktrees on this machine",
     "check_no_orphan_stashes.py": "reads the stash stack shared by every worktree on this machine",
+    "check_merged_worktrees.py": "lists this machine's worktrees whose branch already landed",
 }
 
 

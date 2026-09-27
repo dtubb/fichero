@@ -182,3 +182,54 @@ def test_numeric_and_hex_ids_both_parse(tmp_path):
     assert objects["500"].isa == "PBXNativeTarget"  # numeric id, block form
     assert objects["208ADA983022008100B83F96"].isa == "PBXNativeTarget"  # hex id
     assert objects["900"].isa == "PBXFileSystemSynchronizedRootGroup"  # inline form
+
+
+# ---------------------------------------------------------------------------
+# A synchronized root compiles everything under it EXCEPT what its exception set
+# names. The guard read the root and not the exceptions (and its list parser
+# dropped every path-shaped item), so a Swift file unticked from "Target
+# Membership" read as compiled while the compiler never saw it.
+# ---------------------------------------------------------------------------
+_EXCEPTION_SET = (
+    '\t\t950 /* Exceptions for "fichero" folder in "Fichero" target */ = {\n'
+    "\t\t\tisa = PBXFileSystemSynchronizedBuildFileExceptionSet;\n"
+    "\t\t\tmembershipExceptions = (\n"
+    "\t\t\t\tInfo.plist,\n"
+    '\t\t\t\t"Views/Excluded View.swift",\n'
+    "\t\t\t);\n"
+    "\t\t\ttarget = 500 /* Fichero */;\n"
+    "\t\t};\n"
+)
+_PBXPROJ_V100_WITH_EXCEPTIONS = _PBXPROJ_V100.replace(
+    '\t\t900 /* fichero */ = {isa = PBXFileSystemSynchronizedRootGroup; path = fichero; sourceTree = "<group>"; };\n',
+    _EXCEPTION_SET
+    + "\t\t900 /* fichero */ = {\n"
+    "\t\t\tisa = PBXFileSystemSynchronizedRootGroup;\n"
+    "\t\t\texceptions = (\n"
+    '\t\t\t\t950 /* Exceptions for "fichero" folder in "Fichero" target */,\n'
+    "\t\t\t);\n"
+    "\t\t\tpath = fichero;\n"
+    '\t\t\tsourceTree = "<group>";\n'
+    "\t\t};\n",
+)
+
+
+def test_a_swift_file_excluded_by_a_membership_exception_is_flagged(tmp_path):
+    """If this fails, unticking a file's target membership removes it from the build
+    while the guard keeps reporting it compiled."""
+    project_file, swift_root, root = _v100_project(
+        tmp_path, _PBXPROJ_V100_WITH_EXCEPTIONS, ["App.swift", "Views/Excluded View.swift"]
+    )
+    found = check_xcode_registration.scan(project_file, swift_root, root)
+    assert list(found) == ["fichero/fichero/Views/Excluded View.swift"]
+
+
+def test_a_non_swift_exception_and_its_siblings_are_not_flagged(tmp_path):
+    """Over-fire check: `Info.plist` is excluded on purpose (it is not a source), and the
+    other files under the root are still compiled."""
+    project_file, swift_root, root = _v100_project(
+        tmp_path, _PBXPROJ_V100_WITH_EXCEPTIONS, ["App.swift", "Views/Deep/Nested.swift"]
+    )
+    assert check_xcode_registration.scan(project_file, swift_root, root) == {}
+    objects = check_xcode_registration.parse_pbxproj(project_file)
+    assert "fichero/fichero/Info.plist" in check_xcode_registration.target_membership_exceptions(objects)

@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """Xcode-registration guardrail — flag Swift files missing from the Fichero target.
 
-Rule (#1941): every `.swift` file under `fichero/fichero/` must be registered in
-`fichero/fichero.xcodeproj/project.pbxproj` so the Fichero target compiles it.
-Files written only to disk are invisible to the compiler; after creating one,
-run:
-
-    ruby scripts/add-swift-file.rb fichero/fichero/Views/MyFolder/MyView.swift
+Rule (#1941): every `.swift` file under `fichero/fichero/` must be compiled by the
+Fichero target. Since #3754 `fichero/fichero/` is a synchronized root group, so a
+new file is compiled by being on disk — no registration step. What can still take
+a file out is a `membershipExceptions` entry on that root (unticking "Target
+Membership" in Xcode), and that is what this guard catches today.
 
 This script parses the project file directly:
   * disk files come from `fichero/fichero/**/*.swift`
-  * registered files come from the Fichero target's PBXSourcesBuildPhase
-  * synchronized test roots (`PBXFileSystemSynchronizedRootGroup`) are reported
-    for visibility but are outside this app-target scan
+  * compiled = in the target's PBXSourcesBuildPhase, or under one of its
+    synchronized roots and NOT in that root's membershipExceptions for the target
+  * synchronized test roots are reported for visibility but are outside this scan
 
 `KNOWN_VIOLATIONS` is the current orphan backlog. The script PASSES today
 because every current orphan is listed, and it FAILS when a new Swift file under
@@ -57,6 +56,7 @@ OBJECT_INLINE = re.compile(r"^\t\t([A-Za-z0-9_]+)(?: /\* .*? \*/)? = \{(.*)\};$"
 FIELD = re.compile(r"^\s*([A-Za-z0-9_]+) = (.*?);$")
 LIST_FIELD = re.compile(r"^\s*([A-Za-z0-9_]+) = \($")
 LIST_ITEM = re.compile(r"^\s*([A-Za-z0-9_]+)(?: /\* .*? \*/)?,?$")
+PATH_LIST_ITEM = re.compile(r'^\s*("(?:[^"\\]|\\.)*"|[^\s,"]+),?$')
 OBJECT_ID_VALUE = re.compile(r"^([A-Za-z0-9_]+)\b")
 INLINE_FIELD = re.compile(r"\b([A-Za-z0-9_]+) = ([^;]+);")
 
@@ -124,9 +124,11 @@ def parse_pbxproj(project_file: Path | None = None) -> dict[str, PBXObject]:
             if line.strip() == ");":
                 list_key = None
                 continue
-            item = LIST_ITEM.match(line)
+            # Membership exceptions are PATHS (`Info.plist`, `"Views/My View.swift"`), not
+            # object ids; the id grammar silently dropped every one of them.
+            item = (PATH_LIST_ITEM if list_key == "membershipExceptions" else LIST_ITEM).match(line)
             if item:
-                current.lists.setdefault(list_key, []).append(item.group(1))
+                current.lists.setdefault(list_key, []).append(_unquote(item.group(1)))
             continue
 
         list_match = LIST_FIELD.match(line)
@@ -177,6 +179,42 @@ def target_synchronized_prefixes(objects: dict[str, PBXObject]) -> set[str]:
                 if part:
                     prefixes.add(_join("fichero", part))
     return prefixes
+
+
+def target_membership_exceptions(objects: dict[str, PBXObject]) -> set[str]:
+    """Repo-relative paths a synchronized root EXCLUDES from the target.
+
+    "Everything under a synchronized root is compiled by construction" is true except for
+    one thing: a `PBXFileSystemSynchronizedBuildFileExceptionSet` whose `membershipExceptions`
+    names a file takes it back out. Until 2026-09-27 this guard read the root and not the
+    exceptions, so a `.swift` excluded there (Xcode's "Target Membership" checkbox, one
+    click) was reported as compiled while the compiler never saw it. Today the only
+    exception is `Info.plist`, which is right.
+    """
+    target_ids = {
+        object_id
+        for object_id, obj in objects.items()
+        if obj.isa == "PBXNativeTarget" and _unquote(obj.fields.get("name", "")) == TARGET_NAME
+    }
+    excluded: set[str] = set()
+    for obj in objects.values():
+        if obj.isa != "PBXNativeTarget" or obj.object_id not in target_ids:
+            continue
+        for group_id in obj.lists.get("fileSystemSynchronizedGroups", []):
+            group = objects.get(group_id)
+            if not group or group.isa != "PBXFileSystemSynchronizedRootGroup":
+                continue
+            prefix = _join("fichero", _path_part(group.fields.get("path")))
+            for exception_id in group.lists.get("exceptions", []):
+                exception = objects.get(exception_id)
+                if not exception or exception.isa != "PBXFileSystemSynchronizedBuildFileExceptionSet":
+                    continue
+                target = OBJECT_ID_VALUE.match(exception.fields.get("target", ""))
+                if not target or target.group(1) not in target_ids:
+                    continue
+                for rel in exception.lists.get("membershipExceptions", []):
+                    excluded.add(_join(prefix, _path_part(rel)))
+    return excluded
 
 
 def parent_map(objects: dict[str, PBXObject]) -> dict[str, str]:
@@ -293,10 +331,16 @@ def scan(
     objects = parse_pbxproj(project_file)
     registered = registered_swift_files(objects)
     sync_prefixes = target_synchronized_prefixes(objects)
+    excluded = target_membership_exceptions(objects)
     found: dict[str, list[str]] = {}
 
     for rel in disk_swift_files(swift_root, root):
         if rel in registered:
+            continue
+        if rel in excluded:
+            found[rel] = [
+                f"excluded from {TARGET_NAME} by a synchronized-root membershipExceptions entry"
+            ]
             continue
         # Covered by a synchronized root group on the target (#3754) → compiled.
         if any(rel == prefix or rel.startswith(prefix + "/") for prefix in sync_prefixes):
