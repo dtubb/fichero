@@ -12,3 +12,12 @@ idea is the thing under test. If one of these fails to parse, the fix is in our 
 PAGE XML file written by another tool — but eScriptorium is the named target, its export is what a
 Fichero user would bring, and its files are not identical to OCR-D's (it leans on `Baseline` and
 writes the 2013 namespace in places). Recorded as residue rather than treated as equivalent.
+
+| `altoxml_glyph_00001.alto.xml` | `https://raw.githubusercontent.com/altoxml/documentation/master/v3/Glyph/00001.xml` | 2026-09-26 | Real ALTO from the ALTO project's own documentation corpus — **a different producer from OCR-D**, which is the point. 40,497 bytes, ALTO **v2** namespace, 7 TextBlocks, 27 TextLines, 209 Strings, and **`MeasurementUnit` `mm10`** — tenths of a millimetre, not pixels. That unit is the trap a reader assuming pixels fails silently. |
+
+**Also read but NOT vendored:** the Bibliothèque nationale de France's own ALTO
+(`use-cases/alto-dialect/ALTO-BnF-V2.xml`, 597,044 bytes, ALTO v3 namespace, `MeasurementUnit`
+`pixel`, 119 TextBlocks, 433 TextLines, 2,615 Strings, ISO-8859-1 encoded). It parses and reads
+correctly, and it is left out of the repository for its size. **Residue: no real PIXEL-unit ALTO
+file is vendored**, so the pixel path is exercised only by our own writer's output and by the
+smaller mm10 file's unit handling. A smaller real pixel-unit file is worth finding.

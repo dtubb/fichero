@@ -9,6 +9,10 @@ files they did not write.
 
 from __future__ import annotations
 
+import os
+import tempfile
+from contextlib import contextmanager
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +45,188 @@ def parse(data: bytes) -> Any:
     return etree.fromstring(data, parser=safe_parser())
 
 
+#: Absolute schema URLs a vendored schema IMPORTS, mapped to the local file that
+#: satisfies them. ALTO's XSD imports xlink by absolute URL, so validating it with
+#: the network off fails at schema-parse time unless the import resolves locally —
+#: which is `source.format.schemas-on-disk` reaching one level deeper than the
+#: schema itself.
+#:
+#: A WHITELIST, and anything outside it RAISES rather than being fetched or
+#: ignored. Ignoring an unresolved import would leave a schema silently missing
+#: half its definitions, which is validation passing vacuously again; fetching it
+#: would put the network back in the path.
+VENDORED_IMPORTS: dict[str, str] = {
+    # The XML namespace's own schema, which xlink's imports. Correct and vendored.
+    "http://www.w3.org/2001/xml.xsd": "xml.xsd",
+    "https://www.w3.org/2001/xml.xsd": "xml.xsd",
+    # DELIBERATELY ABSENT: `http://www.loc.gov/standards/xlink/xlink.xsd`, which
+    # ALTO's XSD imports. W3C's modern `xlink.xsd` is NOT a substitute -- it defines
+    # `simpleAttrs` where ALTO references `simpleLink`, so mapping one to the other
+    # would build a schema missing the definitions ALTO uses. I tried it; libxml2
+    # refused, correctly.
+    #
+    # A WRONG mapping is worse than a missing one: the error it produces blames the
+    # document. So the entry is left out, `UnvendoredSchemaImport` names the file to
+    # fetch, and ALTO export refuses loudly until somebody vendors the right copy
+    # (loc.gov returns 403 to a script; a mirror or a manual download is needed).
+}
+
+
+class UnvendoredSchemaImport(RuntimeError):
+    """A schema imports something we do not ship.
+
+    Loud on purpose: the alternative is a schema parsed without part of itself,
+    which validates everything it can no longer see.
+    """
+
+    def __init__(self, url: str) -> None:
+        self.url = url
+        super().__init__(
+            f"a vendored schema imports {url!r}, which is not in VENDORED_IMPORTS. "
+            "Validation never goes to the network, and a schema missing an import "
+            "would validate vacuously — vendor the file and add it to the map."
+        )
+
+
+class _LocalOnlyResolver:
+    """Resolve a schema's imports from disk, and refuse everything else."""
+
+    def __init__(self, schema_dir: Path) -> None:
+        self._dir = schema_dir
+
+    def resolve(self, url: str, _public_id: str, context: Any) -> Any:  # noqa: D401
+        local = VENDORED_IMPORTS.get(url)
+        if local is None:
+            raise UnvendoredSchemaImport(url)
+        # `resolve_string` rather than `resolve_filename`: the bytes are handed
+        # straight to libxml2, so nothing re-opens a path and nothing can fall back
+        # to the URL we just refused to fetch.
+        return context.resolve_string(
+            (self._dir / local).read_bytes(), context, base_url=str(self._dir) + "/"
+        )
+
+
+@lru_cache(maxsize=8)
+def _offline_schema(schema_path: Path) -> Path:
+    """A copy of the schema GRAPH whose imports point at neighbouring files.
+
+    **Why this exists, after three simpler attempts failed.** A schema's imports are
+    resolved by libxml2 itself, not by Python, so with the network off an
+    `<xsd:import schemaLocation="http://...">` fails. An lxml `Resolver` is not
+    consulted at schema-build time; rewriting only the TOP-level import fixed one
+    level and left xlink's own import of the XML namespace reaching out; an XML
+    catalog was not picked up either.
+
+    So the whole graph is materialised once into a temporary directory with every
+    absolute import rewritten to the file beside it -- which is the only approach
+    that works at EVERY level, including levels we have not met.
+
+    The vendored files are never modified (`schemas/PROVENANCE.md`: a schema edited
+    to suit us no longer says what the format is). These are copies, made at
+    validation time, in a directory the process owns.
+
+    An absolute import with no vendored file RAISES. It is not fetched and it is not
+    dropped: a schema missing part of itself validates everything it can no longer
+    see, which is the vacuous pass one level deeper than a missing schema file.
+    """
+    from lxml import etree
+
+    target = Path(tempfile.mkdtemp(prefix="fichero-schemas-")) 
+    pending = [schema_path]
+    written: set[str] = set()
+    while pending:
+        source = pending.pop()
+        if source.name in written:
+            continue
+        tree = etree.parse(str(source), parser=safe_parser())
+        for node in tree.iter("{http://www.w3.org/2001/XMLSchema}import"):
+            location = node.get("schemaLocation")
+            if not location:
+                continue
+            if location.startswith(("http://", "https://")):
+                local = VENDORED_IMPORTS.get(location)
+                if local is None:
+                    raise UnvendoredSchemaImport(location)
+            else:
+                local = location
+            node.set("schemaLocation", local)
+            pending.append(schema_path.parent / local)
+        tree.write(str(target / source.name), xml_declaration=True, encoding="UTF-8")
+        written.add(source.name)
+    return target / schema_path.name
+
+
+@contextmanager
+def _catalog(schema_dir: Path) -> Any:
+    """Point libxml2 at the vendored XML catalog for the length of one validation.
+
+    The in-memory import rewrite below fixes the TOP level; a catalog fixes EVERY
+    level, which matters because xlink's own schema imports the XML namespace's and
+    nothing we rewrite reaches that. libxml2 reads `XML_CATALOG_FILES` from the
+    environment, so it is set here and restored afterwards rather than left on the
+    process -- a global that changes how every other XML read behaves would be a
+    side effect nobody expects from validating an export.
+    """
+    catalog = schema_dir / "catalog.xml"
+    previous = os.environ.get("XML_CATALOG_FILES")
+    if catalog.exists():
+        os.environ["XML_CATALOG_FILES"] = str(catalog)
+    try:
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop("XML_CATALOG_FILES", None)
+        else:
+            os.environ["XML_CATALOG_FILES"] = previous
+
+
+def _schema_tree(schema_path: Path) -> Any:
+    """The schema, with its absolute imports POINTED AT THE VENDORED FILES.
+
+    `lxml` builds an `XMLSchema` through libxml2, which resolves an
+    `<xsd:import schemaLocation="http://...">` itself and does not consult a Python
+    resolver reliably at schema-build time. So the location is rewritten IN MEMORY
+    to the neighbouring vendored file, and the tree keeps the schema's own path as
+    its base URL so the relative name resolves on disk.
+
+    **The file on disk is never modified** -- the rule in `schemas/PROVENANCE.md` is
+    that a schema edited to suit us no longer says what the format is. This rewrites
+    the parsed copy, for the length of one validation.
+
+    An absolute import that is NOT vendored raises. Ignoring it would leave the
+    schema missing part of itself and validating everything it can no longer see,
+    which is the vacuous-pass shape one level deeper than a missing schema file.
+    """
+    from lxml import etree
+
+    tree = etree.parse(str(schema_path), parser=safe_parser())
+    for node in tree.iter("{http://www.w3.org/2001/XMLSchema}import"):
+        location = node.get("schemaLocation")
+        if not location or not location.startswith(("http://", "https://")):
+            continue
+        local = VENDORED_IMPORTS.get(location)
+        if local is None:
+            raise UnvendoredSchemaImport(location)
+        node.set("schemaLocation", local)
+    return tree
+
+
+def _schema_parser(schema_dir: Path) -> Any:
+    from lxml import etree
+
+    parser = safe_parser()
+    resolver = _LocalOnlyResolver(schema_dir)
+
+    class _Resolver(etree.Resolver):
+        def resolve(self, system_url, public_id, context):
+            if system_url and system_url.startswith(("http://", "https://")):
+                return resolver.resolve(system_url, public_id, context)
+            return None
+
+    parser.resolvers.add(_Resolver())
+    return parser
+
+
 def validate_xml(data: bytes, schema_path: Path) -> list[str]:
     """Problems with these bytes against an XSD on disk, or [].
 
@@ -50,8 +236,7 @@ def validate_xml(data: bytes, schema_path: Path) -> list[str]:
     """
     from lxml import etree
 
-    with schema_path.open("rb") as handle:
-        schema = etree.XMLSchema(etree.parse(handle, parser=safe_parser()))
+    schema = etree.XMLSchema(etree.parse(str(_offline_schema(schema_path)), parser=safe_parser()))
     try:
         tree = etree.fromstring(data, parser=safe_parser())
     except etree.XMLSyntaxError as exc:

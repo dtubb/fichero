@@ -1,0 +1,391 @@
+"""ALTO, in and out (#4944).
+
+Spec: `formats-and-training.md` (`source.format.alto-in`, `.alto-out`,
+`.round-trip-alto`); build notes: `build-notes-formats-harness.md`.
+
+**ALTO is where the one-harness design gets its first real test.** PAGE XML to ALTO
+is PAGE XML in, ALTO out, through `SourcePage` — never a PAGE-to-ALTO path. Where a
+detail maps awkwardly, the awkwardness goes in the LOSS REPORT; wanting a direct
+path is the N² shape asking to be let in.
+
+**THE TRAP, and it is not the coordinates you would expect.** ALTO declares a
+`MeasurementUnit` — `pixel`, `mm10` (tenths of a millimetre) or `inch1200` — where
+PAGE XML always means pixels. A reader that assumes pixels is silently wrong by a
+factor on any file using another unit, and **nothing looks broken**: the numbers are
+plausible, the shapes are the right shape, and every line sits in the wrong place by
+the same ratio.
+
+Two things follow, and the second is the subtle one:
+
+* **Normalised coordinates are unit-FREE**, because the page declares its size in
+  the same unit: `HPOS / Page@WIDTH` cancels. So the model's stored geometry is
+  correct whatever the unit, which is a property of storing fractions rather than
+  luck.
+* **`image_size` is NOT unit-free.** The model means a pixel grid there, and an
+  `mm10` page's `1003 x 1469` is not pixels. Converting needs a resolution ALTO
+  need not state, so a non-pixel file gets `image_size=None`, the unit is kept in
+  `foreign`, and the loss report says the pixel grid is unknown rather than
+  inventing one. A page size silently 10× wrong is worse than an absent one.
+
+ALTO has **no reading-order element** (unlike PAGE XML's `ReadingOrder`): the order
+IS the document order of its blocks. So slice 10's first order is the block order,
+and any further named order is a declared loss.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from fichero_server.formats import register
+from fichero_server.formats.harness import (
+    FormatSpec,
+    LossReport,
+    PageOrder,
+    PageSegment,
+    SourcePage,
+)
+from fichero_server.formats.validation import parse
+
+#: ALTO's namespaces, v2 through v4. All three are READ -- a national library's
+#: v2 file and a modern v4 one have the same element names -- and v4 is written.
+ALTO_NS_V4 = "http://www.loc.gov/standards/alto/ns-v4#"
+ALTO_NS_V3 = "http://www.loc.gov/standards/alto/ns-v3#"
+ALTO_NS_V2 = "http://www.loc.gov/standards/alto/ns-v2#"
+KNOWN_NAMESPACES = (ALTO_NS_V4, ALTO_NS_V3, ALTO_NS_V2)
+
+#: The units ALTO may declare. `pixel` is the only one the model can also read as
+#: an image size; the others are physical measurements and need a resolution the
+#: file need not carry.
+UNITS = ("pixel", "mm10", "inch1200")
+
+#: ALTO's elements against the model's granularities. `String` is a WORD: ALTO has
+#: no word/line ambiguity, which is one place it is clearer than PAGE XML.
+ELEMENT_KINDS: dict[str, str] = {
+    "TextBlock": "region",
+    "TextLine": "line",
+    "String": "word",
+    "Illustration": "picture",
+    "GraphicalElement": "graphic",
+    "ComposedBlock": "region",
+}
+KIND_ELEMENTS: dict[str, str] = {
+    "region": "TextBlock",
+    "line": "TextLine",
+    "word": "String",
+}
+
+
+class UnknownMeasurementUnit(ValueError):
+    """Raised for a `MeasurementUnit` ALTO does not define.
+
+    REFUSED rather than defaulted, which is the whole point: assuming pixels for an
+    unknown unit would place every shape on the page by a factor nobody can see,
+    and a file that declares a unit we do not understand is a file we cannot read
+    correctly. Saying so is the only honest answer.
+    """
+
+    def __init__(self, unit: str) -> None:
+        self.unit = unit
+        super().__init__(
+            f"ALTO declares MeasurementUnit {unit!r}, which is not one of "
+            + ", ".join(UNITS)
+            + ". Refusing rather than assuming pixels: an unknown unit would put "
+            "every shape in the wrong place by a factor with nothing to show it."
+        )
+
+
+def _tag(element: Any) -> str:
+    tag = element.tag
+    return tag.rsplit("}", 1)[-1] if isinstance(tag, str) and "}" in tag else str(tag)
+
+
+def _sniff(data: bytes) -> bool:
+    """ALTO by its root element and namespace, never by `.xml`."""
+    head = data[:2048].lower()
+    return b"<alto" in head or any(ns.encode().lower() in head for ns in KNOWN_NAMESPACES)
+
+
+def _float(value: str | None) -> float | None:
+    try:
+        return float(value) if value is not None else None
+    except ValueError:
+        return None
+
+
+def read(data: bytes) -> SourcePage:
+    """One ALTO file as the model would have stored it.
+
+    Coordinates are normalised against the page's own declared size, which makes
+    them unit-free; the UNIT is still read, because `image_size` is not.
+    """
+    root = parse(data)
+
+    unit_el = next((el for el in root.iter() if _tag(el) == "MeasurementUnit"), None)
+    unit = (unit_el.text or "").strip() if unit_el is not None else "pixel"
+    if unit not in UNITS:
+        raise UnknownMeasurementUnit(unit)
+
+    page_el = next((el for el in root.iter() if _tag(el) == "Page"), None)
+    if page_el is None:
+        raise ValueError("no <Page> element: this is not an ALTO document")
+
+    width = _float(page_el.get("WIDTH")) or 0.0
+    height = _float(page_el.get("HEIGHT")) or 0.0
+
+    page = SourcePage()
+    page.foreign["alto:MeasurementUnit"] = unit
+    if unit == "pixel" and width and height:
+        page.image_size = (int(width), int(height))
+
+    filename = next((el for el in root.iter() if _tag(el) == "fileName"), None)
+    if filename is not None and (filename.text or "").strip():
+        page.image_name = filename.text.strip()
+    software = next(
+        (el for el in root.iter() if _tag(el) in ("softwareName", "processingSoftware")),
+        None,
+    )
+    if software is not None:
+        name = (software.text or "").strip()
+        if not name:
+            child = next((c for c in software if (c.text or "").strip()), None)
+            name = (child.text or "").strip() if child is not None else ""
+        page.producer = name or None
+
+    block_refs: list[str] = []
+    for element in page_el.iter():
+        kind = ELEMENT_KINDS.get(_tag(element))
+        if kind is None:
+            continue
+        segment = PageSegment(kind=kind, ref=element.get("ID"))
+        parent = element.getparent()
+        while parent is not None and _tag(parent) not in ELEMENT_KINDS:
+            parent = parent.getparent()
+        if parent is not None:
+            segment.parent_ref = parent.get("ID")
+
+        x = _float(element.get("HPOS"))
+        y = _float(element.get("VPOS"))
+        w = _float(element.get("WIDTH"))
+        h = _float(element.get("HEIGHT"))
+        if None not in (x, y, w, h) and width and height:
+            segment.rect = [x / width, y / height, w / width, h / height]
+        shape = next((c for c in element if _tag(c) == "Shape"), None)
+        if shape is not None:
+            polygon = next((c for c in shape if _tag(c) == "Polygon"), None)
+            if polygon is not None and polygon.get("POINTS"):
+                points = polygon.get("POINTS").replace(",", " ").split()
+                pairs = [
+                    [float(points[i]) / width, float(points[i + 1]) / height]
+                    for i in range(0, len(points) - 1, 2)
+                ]
+                segment.polygon = pairs or None
+        if segment.polygon is None and segment.rect:
+            rx, ry, rw, rh = segment.rect
+            segment.polygon = [[rx, ry], [rx + rw, ry], [rx + rw, ry + rh], [rx, ry + rh]]
+
+        if element.get("CONTENT"):
+            segment.readings.append(("transcription", element.get("CONTENT")))
+        # ALTO's LANG is `xsd:language` -- a BCP 47 TAG, where PAGE XML's
+        # primaryLanguage is a closed list of NAMES. The two interchange formats
+        # disagree, so whichever the model stores, one export has to map.
+        if element.get("LANG"):
+            segment.language = element.get("LANG")
+        if kind == "region" and segment.ref:
+            block_refs.append(segment.ref)
+        page.segments.append(segment)
+
+    if block_refs:
+        # ALTO has no ReadingOrder element: the order IS the document order of its
+        # blocks. Naming it `as-written` is honest -- it is what the file says, and
+        # the file has no way to say anything else.
+        page.orders.append(PageOrder(name="as-written", refs=block_refs))
+    return page
+
+
+def write(page: SourcePage, report: LossReport) -> bytes:
+    """One page as ALTO 4.2, with everything it cannot carry reported."""
+    from lxml import etree
+
+    width, height = page.image_size or (1000, 1000)
+    if page.image_size is None:
+        report.note(
+            "page size",
+            1,
+            "no pixel grid was recorded for this page, so 1000x1000 was written "
+            "and ALTO's coordinates are against an invented page",
+        )
+
+    root = etree.Element(f"{{{ALTO_NS_V4}}}alto", nsmap={None: ALTO_NS_V4})
+    description = etree.SubElement(root, f"{{{ALTO_NS_V4}}}Description")
+    etree.SubElement(description, f"{{{ALTO_NS_V4}}}MeasurementUnit").text = "pixel"
+    source = etree.SubElement(
+        description, f"{{{ALTO_NS_V4}}}sourceImageInformation"
+    )
+    etree.SubElement(source, f"{{{ALTO_NS_V4}}}fileName").text = (
+        page.image_name or "unknown.tif"
+    )
+
+    layout = etree.SubElement(root, f"{{{ALTO_NS_V4}}}Layout")
+    page_el = etree.SubElement(
+        layout,
+        f"{{{ALTO_NS_V4}}}Page",
+        ID="P1",
+        PHYSICAL_IMG_NR="1",
+        WIDTH=str(int(width)),
+        HEIGHT=str(int(height)),
+    )
+    print_space = etree.SubElement(
+        page_el,
+        f"{{{ALTO_NS_V4}}}PrintSpace",
+        HPOS="0",
+        VPOS="0",
+        WIDTH=str(int(width)),
+        HEIGHT=str(int(height)),
+    )
+
+    if len(page.orders) > 1:
+        report.note(
+            "named reading orders",
+            len(page.orders) - 1,
+            "ALTO has no reading-order element: the order is the document order of "
+            "its blocks, so only one order can be expressed",
+        )
+
+    ordered = _in_first_order(page)
+    by_ref: dict[str, Any] = {}
+    for index, segment in enumerate(ordered):
+        element_name = KIND_ELEMENTS.get(segment.kind)
+        if element_name is None:
+            report.note(
+                f"{segment.kind} segments", 1, "ALTO has no element for this granularity"
+            )
+            continue
+        ref = segment.ref or f"s{index}"
+        parent_el = by_ref.get(segment.parent_ref or "", print_space)
+        attrs = {"ID": ref}
+        rect = segment.rect or _bounds(segment.polygon)
+        if rect:
+            attrs.update(
+                HPOS=str(int(round(rect[0] * width))),
+                VPOS=str(int(round(rect[1] * height))),
+                WIDTH=str(int(round(rect[2] * width))),
+                HEIGHT=str(int(round(rect[3] * height))),
+            )
+        if segment.kind == "word" and segment.readings:
+            attrs["CONTENT"] = segment.readings[0][1]
+        element = etree.SubElement(
+            parent_el, f"{{{ALTO_NS_V4}}}{element_name}", **attrs
+        )
+        by_ref[ref] = element
+
+        if segment.language:
+            # ALTO wants a BCP 47 tag. A language NAME (which is what the engine
+            # stores, #2092, and what PAGE XML uses) is not one, so it cannot be
+            # written here and the loss is reported rather than emitting something
+            # that fails `xsd:language`.
+            if _looks_like_a_tag(segment.language):
+                element.set("LANG", segment.language)
+            else:
+                report.note(
+                    "language",
+                    1,
+                    f"ALTO's LANG is a BCP 47 tag and {segment.language!r} is a "
+                    "language NAME, which ALTO cannot express (PAGE XML is the "
+                    "opposite: it takes names and refuses tags)",
+                )
+        if segment.script:
+            report.note(
+                "script",
+                1,
+                "ALTO has no script attribute; PAGE XML's primaryScript has no "
+                "ALTO equivalent",
+            )
+        if segment.direction:
+            report.note(
+                "direction",
+                1,
+                "ALTO has no reading-direction attribute, so a right-to-left page "
+                "reads as its coordinates alone",
+            )
+        if segment.kind != "word" and segment.readings:
+            report.note(
+                "text on a region or line",
+                1,
+                "ALTO carries text on String elements only, so a reading attached "
+                "to a region or a line has nowhere to go",
+            )
+        if len(segment.readings) > 1:
+            report.note(
+                "several readings",
+                1,
+                "ALTO's CONTENT is one string per String element: alternatives and "
+                "the choice between them are not expressible",
+            )
+        if segment.baseline:
+            report.note(
+                "baseline",
+                1,
+                "ALTO 4 has BASELINE on TextLine as a single y or a polyline "
+                "depending on version; it is not written here rather than written "
+                "in a shape a reader may misread",
+            )
+
+    return etree.tostring(root, xml_declaration=True, encoding="UTF-8", pretty_print=True)
+
+
+def _in_first_order(page: SourcePage) -> list[PageSegment]:
+    """The page's segments, regions in the first named order's sequence.
+
+    ALTO's order IS its document order, so the ONE thing a writer can do to carry a
+    named order is emit the blocks in that sequence. Segments the order does not
+    mention keep their own relative order after it -- dropping them would lose
+    content, and an order is a claim about sequence rather than about membership
+    here, unlike the derived text where leaving them out is the point.
+    """
+    if not page.orders:
+        return list(page.segments)
+    wanted = {ref: index for index, ref in enumerate(page.orders[0].refs)}
+    regions = [s for s in page.segments if s.kind == "region"]
+    others = [s for s in page.segments if s.kind != "region"]
+    regions.sort(key=lambda s: wanted.get(s.ref or "", len(wanted)))
+    out: list[PageSegment] = []
+    for region in regions:
+        out.append(region)
+        out.extend([s for s in others if s.parent_ref == region.ref])
+        for line in [s for s in others if s.parent_ref == region.ref]:
+            out.extend([s for s in others if s.parent_ref == line.ref])
+    seen = {id(s) for s in out}
+    out.extend([s for s in page.segments if id(s) not in seen])
+    return out
+
+
+def _bounds(polygon: list[list[float]] | None) -> list[float] | None:
+    if not polygon:
+        return None
+    xs = [p[0] for p in polygon]
+    ys = [p[1] for p in polygon]
+    return [min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)]
+
+
+def _looks_like_a_tag(value: str) -> bool:
+    """Whether a language value could be a BCP 47 tag rather than a name.
+
+    Deliberately shallow: `xsd:language` is what the schema enforces, so this only
+    has to keep a NAME out. "Spanish" has no hyphen and eight letters; `es` and
+    `es-MX` are what a tag looks like.
+    """
+    first = value.split("-", 1)[0]
+    return 2 <= len(first) <= 3 and first.isalpha() and first.islower()
+
+
+register(
+    FormatSpec(
+        name="alto",
+        extensions=(".xml",),
+        read=read,
+        write=write,
+        schema="alto-4-2.xsd",
+        round_trips=True,
+        sniff=_sniff,
+    )
+)
