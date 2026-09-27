@@ -59,7 +59,9 @@ is one of many records on a page. They share the same way of writing a rectangle
 nothing else. But the anchor as
 built cannot yet say everything this design needs (read on disk, `models/anchors.py`: one
 rectangle, which must have width and height; one polygon, which must be closed with three
-points or more; no id; no baseline). **What the anchor must gain:** a point; an open path; a
+points or more; no id; no baseline). **What the anchor must gain** (the point is built since:
+#4925, `source.segment.shape-kinds`; its first user is the ground control point in
+`maps-and-georeference.md`)**:** a point; an open path; a
 baseline that can curve; more than one shape; a stretch of time. (It already has a text
 angle: `rotation`. The rectangle's own rules stay as they are for rectangles; each new kind
 of shape gets its own check.) Its
@@ -269,6 +271,11 @@ earth. A few of them georeference the sheet. After that, any segment on it can b
 its place in the world, the sheet can be laid over a modern map, and a place name on it can
 be linked to the place in the knowledge graph. Control points have authors, certainty and
 versions like any other segment.
+
+**Specified in full in `maps-and-georeference.md`** (#5120), which refines the three `source.geo.*`
+behaviours below into its own: control points, the transform worked out from them, an explicit
+CRS on input with WGS 84 stored (#5124), gazetteers, places over time, and the geo formats. The
+three below are umbrellas that cite those refinements. They are not independent behaviours.
 
 ### On the canvas
 
@@ -627,6 +634,10 @@ Passes, orders, links
   `SpatialConnection`, `PredictionLink` and `KnowledgeClaimLink` all still exist —
   `::TestTheOtherFourRecordsAreNotMoved` asserts it deliberately — so there are FIVE link records
   where this says one, and this record is for now the further kind it says it must not be (#5091).
+- `source.link.end-is-entity` — **[GAP]** (#4931, → #5123) a link end can be a knowledge-graph
+  **entity**, so a segment that names a place can name the place entity itself. Asked by
+  `maps-and-georeference.md`. `LinkEndKind` today is `segment`, `note`, `document`, `claim` and
+  `canvas_item`, with no `entity`.
 - `source.link.any-depth` — **[GAP]** (#4931) links chain (a comment on a comment), and can cross sources.
   **The tag is right, and checked 2026-09-27 rather than assumed**: rule (i) flagged it because
   `test_typed_links.py` mentioned the id, and reading the test showed the citation was wrong, not the
@@ -643,11 +654,14 @@ Passes, orders, links
   UNreachable both ways too, or a withdrawal leaves half a link behind.
 
 Maps
-- `source.geo.control-points` — **[GAP]** (#4933) a point on an image can be tied to a coordinate on the earth,
-  with author and certainty.
-- `source.geo.segment-to-world` — **[GAP]** (#4933) on a georeferenced image, any segment can give its place in
-  the world.
-- `source.geo.names-a-place` — **[GAP]** (#4933) a label on a map can be linked to the place entity it names.
+- `source.geo.control-points` — **[GAP]** (#4933, → #5122) a point on an image can be tied to a coordinate on the earth,
+  with author and certainty. Umbrella: refined as `source.geo.gcp-is-a-segment` in
+  `maps-and-georeference.md`.
+- `source.geo.segment-to-world` — **[GAP]** (#4933, → #5122) on a georeferenced image, any segment can give its place in
+  the world. Umbrella: refined as `source.geo.world-shape` in `maps-and-georeference.md`.
+- `source.geo.names-a-place` — **[GAP]** (#4933, → #5123) a label on a map can be linked to the place entity it names.
+  Umbrella: refined as `source.geo.place-segment-names-entity` in `maps-and-georeference.md`, which
+  needs `source.link.end-is-entity` below.
 
 Canvas
 - `source.canvas.segment-as-card` — **[GAP]** (#4931) any source, page or segment can be placed on a canvas as a

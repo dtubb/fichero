@@ -356,7 +356,9 @@ both waiting on a home this spec isn't: onboarding has no spec, and georeferenci
 representations spec of its own — **corrected 2026-09-19**: `source/historical-text-normalization.md`
 was written and read in full; #1755 is unrelated to it (that spec is about historical TEXT
 normalization — dates, entity variants, scripts — not map images), so this is not its waiting
-issue either. Left on its own milestone ("UX - Representations", #183) with no home found yet.
+issue either. Left on its own milestone ("UX - Representations", #183). **Since 2026-09-27 its DATA
+model has a home**: `source/maps-and-georeference.md` (#5120). The map **surface** is still
+homeless until a map-view UI spec exists (#5128).
 
 ### I. Canvas & Space (legacy milestones "Library View - Spatial", "Library View - Canvas")
 
@@ -445,7 +447,8 @@ resolved and moved; the other three's status is corrected below.
   does NOT wait on `historical-text-normalization` — that spec was written and read in full;
   #1755 is map georeferencing, unrelated to historical text. This line was a wrong pointer,
   found and fixed while folding that spec's own legacy milestone. Left on its own milestone
-  ("UX - Representations", #183), no home found yet (already noted in section H).
+  ("UX - Representations", #183). Its data model now lives in `source/maps-and-georeference.md`;
+  the map surface waits on a map-view UI spec (#5128), as noted in section H.
 - **#4583** (Preview pane: first click delay before the full image loads) — RESOLVED since
   this was written: moved onto `preview-surface.md`'s milestone as
   `preview.image.shows-cache-before-full-load`. The SELECTION-latency half of the same

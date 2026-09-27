@@ -74,7 +74,10 @@ A **Segment** is any addressable slice of any medium — this is **W3C Media Fra
 - **spatial** (image / PDF): polygon / `#xywh=x,y,w,h`
 - **temporal** (audio / video): time span / `#t=start,end`
 - **both** (video): region + time
-- **geographic** (georeferenced map, #1755): lat/lon + warp transform
+- ~~**geographic** (georeferenced map, #1755): lat/lon + warp transform~~ **Superseded by
+  `maps-and-georeference.md` (#5120):** a geographic place is NOT an anchor kind. A segment's place
+  in the world is worked out through a georeferencing pass of ground-control-point segments, with
+  the input CRS explicit and WGS 84 stored (#5124).
 
 Granularity ladder: `stroke → glyph → character → word → line → region → page-part → page`.
 Surface for creating/editing a segment = the **Preview (source) pane** (#168): the polygon
@@ -171,8 +174,10 @@ Inspector-Knowledge #151 (inspector), Client-MCP #52 (MCP/CLI), Testing #267, Ex
   local "thinking" VLM (MLX) that emits its reasoning. (#4642)
 
 ### P11 — Georeference
-- Old-map-on-new-map as a geographic anchor kind + warp transform; export GDAL/GeoTIFF/
-  IIIF-georef/Linked-Art-place. (#1755)
+- Old-map-on-new-map, **specified in `maps-and-georeference.md`** (#5120): not a geographic anchor
+  kind but control-point segments, a transform worked out from them with residuals, and an explicit
+  CRS; export IIIF Georeference Annotation, GCP tables, world file/GeoTIFF, GeoJSON, GeoPackage and
+  Linked Places. (#1755)
 
 ---
 
@@ -203,7 +208,7 @@ detection and on the first export target were answered by the rulings of 2026-09
 | P8 authority linking | `kg-enrichment.md` | unchanged; a segment gains a citable reference |
 | P9 exporter, contribute | `formats-and-training.md`, `export/exporter.md` | every format both ways; validation; loss reports; imports arrive as passes |
 | P10 distilled VLM | `formats-and-training.md` | the training loop, human-checked by default, split by manuscript, measured against ground truth |
-| P11 georeference | `segments-and-geometry.md` | control points; shapes can be points and lines |
+| P11 georeference | `maps-and-georeference.md` (umbrellas in `segments-and-geometry.md`) | control points as segments; the transform worked out; CRS; gazetteers; geo formats |
 | new | `rights-and-access.md` | rights, consent, community labels, redaction, removal (proposed) |
 | new | `segments-and-geometry.md` | recordings as stretches of time; several images lined up by alignment points; rescans |
 

@@ -84,12 +84,13 @@ easy. How that is met, after review:
 | **ALTO** | yes | yes | blocks, lines, strings, glyphs; polygons; baselines; language; direction and order; alternatives and confidence; tags; processing history | as PageXML, and more of the link and kind detail |
 | **TEI** | yes | yes | zones linked to text; glosses and additions with place; reorder marks; hands; editorial facts; written and read pairs; apparatus for rival readings; declared signs; free links; page furniture | fine geometry below the zone in some encodings; direction beyond a style hint |
 | **MEI** | yes | yes | music zones, and the notes or neumes where a music reading exists (otherwise zones only, and the loss report says so) | polygons (its zones are boxes) |
-| **W3C annotations / IIIF** | yes | yes | pointers to shapes and text; notes on notes; control points for maps | it is not a transcription format |
+| **W3C annotations / IIIF** | yes | yes | pointers to shapes and text; notes on notes; control points for maps (specified in `maps-and-georeference.md`) | it is not a transcription format |
 | **hOCR** | yes | yes | lines, words, boxes or polygons, baselines, character cuts and confidence | most scholarly detail |
 | **Transkribus and eScriptorium packages** | yes | yes | a zip of images and PageXML, optionally with a METS file: someone else's whole project | as PageXML |
 | **YOLO labels** | yes | yes | a class and a box or polygon for each object | everything else |
 | **Kraken training data** | yes | yes | ALTO or PageXML; line picture plus text; the compiled Arrow file | everything but lines, regions and text |
 | **Columnar dataset (Arrow / Parquet)** | yes | yes | one row per segment: picture, shape, kind, reading, language, script, hand, period, source, guideline, level, licence, split | links and structure, unless asked for as extra tables |
+| **Geographic** (IIIF Georeference Annotation, GCP tables, world file / GeoTIFF, GeoJSON, GeoPackage, Linked Places Format) | yes (georef, GCPs, world file) | yes | control points as segments with their CRS; the worked-out transform; places with gazetteer identifiers; places over time | specified in `maps-and-georeference.md`, whose Formats behaviours these are |
 | **CSV / spreadsheet** | yes | yes | a table segment as rows and columns; each cell keeps a reference back to its segment | everything that is not the table |
 | **SVG** | no | yes | the page to look at: image, shapes, text in its direction and along its baseline, descriptions | it is a picture, not data |
 | **Searchable PDF** | as a source | yes | the text in place under the image; descriptions as alt text | it is a picture, not data |
@@ -349,7 +350,8 @@ Each format (one import and one export behaviour each)
   exactly those.
 - `source.format.kraken-in` · `source.format.kraken-out` **[GAP]** (#4946)
 - `source.format.columnar-in` · `source.format.columnar-out` **[GAP]** (#4946)
-- `source.format.geo-in` · `source.format.geo-out` **[GAP]** (#4946)
+- `source.format.geo-in` · `source.format.geo-out` **[GAP]** (#4946, → #5125, #5126) umbrellas for the geographic
+  formats; each is specified and tracked in `maps-and-georeference.md`'s Formats behaviours.
 - `source.format.table-in` · `source.format.table-out` — **[GAP]** (#4946) a table segment as CSV or a
   spreadsheet, each cell carrying a reference to its segment.
 - `source.format.svg-out` — **[GAP]** (#4946) the page as SVG, text in its direction and along its baseline,

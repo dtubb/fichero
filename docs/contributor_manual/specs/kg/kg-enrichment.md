@@ -122,6 +122,10 @@ backend but isn't surfaced, or isn't tested at every layer, is not done.
   "ancient" and "modern".
 - **Nominatim / OpenStreetMap** — free geocoding for coordinates; *already used* in
   `media/geo.py` as the online fallback behind the offline gazetteer.
+- **World Historical Gazetteer** (WHG) — historical places across periods and regions, and the
+  home of the Linked Places Format that place exports use.
+- *Place reconciliation* (candidates kept, a chosen one, typed identifiers per authority) is
+  specified in `source/maps-and-georeference.md` (#5123), not here.
 
 **Concepts, materials, makers, periods (thesauri)**
 - **Getty AAT** (Art & Architecture Thesaurus) — controlled vocabulary for object types,
