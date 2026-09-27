@@ -48,6 +48,34 @@ final class SegmentService {
             throw SegmentServiceError.unexpectedResponse(statusCode)
         }
     }
+
+    /// ONE segment as it is now, resolved through forwarding (merge, split, or
+    /// deleted-then-restored) when the id is no longer live
+    /// (`source.segment.forwarding`).
+    ///
+    /// Added for `source.app.segment-events-patch-in-place`: a change event names
+    /// the segments that changed, and replacing exactly those rows needs a
+    /// per-segment read. Re-reading the whole document instead is the wholesale
+    /// reload that behaviour exists to forbid.
+    ///
+    /// Returns nil for 422 — the id named something this build cannot resolve
+    /// (a provisional id, or a row that is gone with no forwarding trail). A
+    /// missing row is not an error the caller can act on: the store drops that
+    /// segment rather than holding a stale copy.
+    func segment(id: String) async throws -> Segment? {
+        let response = try await client.api.getSegmentApiSegmentsSegmentIdGet(
+            path: .init(segmentId: id)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return Segment(generated: try okResponse.body.json.segment)
+        case .unprocessableContent:
+            return nil
+        case .undocumented(let statusCode, _):
+            throw SegmentServiceError.unexpectedResponse(statusCode)
+        }
+    }
 }
 
 enum SegmentServiceError: Error, LocalizedError {

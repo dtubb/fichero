@@ -301,4 +301,142 @@ final class SegmentStoreTests: XCTestCase {
         XCTAssertEqual(store.segments(documentId: "doc-1").map(\.id), ["seg-1"])
         XCTAssertNil(store.loadError(documentId: "doc-1"), "a successful retry clears the prior error")
     }
+
+    // MARK: - Reacting to change events (source.app.segment-events-patch-in-place)
+    //
+    // The behaviour: "when the engine says which segments changed, the store
+    // replaces those items and no others; when it says this document's results
+    // changed, it re-reads that one document". The decision is tested as a
+    // decision — `plan` is pure — because "those items and no others" is a claim
+    // about what the store CHOOSES, and a test of the choice cannot be fooled by
+    // a coincidentally-correct fetch.
+
+    private func changeEvent(
+        type: String, documentIds: [String] = [], segmentIds: [String] = []
+    ) throws -> ChangeEvent {
+        let payload: [String: Any] = [
+            "type": type, "document_ids": documentIds, "segment_ids": segmentIds,
+            "actor": "historian",
+        ]
+        return try JSONDecoder().decode(
+            ChangeEvent.self, from: try JSONSerialization.data(withJSONObject: payload)
+        )
+    }
+
+    func testAnEventNamingHeldSegmentsPatchesThoseAndDoesNotReload() throws {
+        let event = try changeEvent(
+            type: "segment.updated", documentIds: ["doc-1"], segmentIds: ["seg-2"]
+        )
+
+        let plan = SegmentStore.plan(
+            for: event, heldSegmentIds: ["seg-1", "seg-2"], loadedDocumentIds: ["doc-1"]
+        )
+
+        XCTAssertEqual(plan, .patch(segmentIds: ["seg-2"]))
+    }
+
+    /// A split adds a row and a delete removes one, so "this document's results
+    /// changed" cannot be expressed as a patch of named ids — there is no id for a
+    /// row that did not exist before. ONE document, never the whole store.
+    func testAnEventNamingNoSegmentReloadsThatOneDocumentOnly() throws {
+        let event = try changeEvent(type: "pass.created", documentIds: ["doc-1"])
+
+        let plan = SegmentStore.plan(
+            for: event, heldSegmentIds: ["seg-1"], loadedDocumentIds: ["doc-1", "doc-2"]
+        )
+
+        XCTAssertEqual(plan, .reload(documentIds: ["doc-1"]))
+    }
+
+    func testAnEventAboutADocumentThisStoreNeverLoadedDoesNothing() throws {
+        let event = try changeEvent(
+            type: "segment.updated", documentIds: ["doc-99"], segmentIds: ["seg-99"]
+        )
+
+        let plan = SegmentStore.plan(
+            for: event, heldSegmentIds: ["seg-1"], loadedDocumentIds: ["doc-1"]
+        )
+
+        XCTAssertEqual(plan, .nothing, "loading a page nobody is looking at is not a repair")
+    }
+
+    /// Every segment event also names its document. If the document branch ran
+    /// first, every patchable event would become a page reload and the behaviour
+    /// would be unimplementable — this ordering IS the behaviour.
+    func testPatchWinsOverReloadWhenAnEventCarriesBoth() throws {
+        let event = try changeEvent(
+            type: "segment.updated", documentIds: ["doc-1"], segmentIds: ["seg-1"]
+        )
+
+        let plan = SegmentStore.plan(
+            for: event, heldSegmentIds: ["seg-1"], loadedDocumentIds: ["doc-1"]
+        )
+
+        XCTAssertEqual(plan, .patch(segmentIds: ["seg-1"]))
+    }
+
+    func testPatchReplacesARowInPlaceWithoutMovingAnyOther() async throws {
+        let store = Self.makeStore()
+        Self.stubSuccess(
+            documentId: "doc-1",
+            passes: [Self.passJSON(id: "pass-1", documentId: "doc-1")],
+            segments: [
+                Self.segmentJSON(id: "seg-1", documentId: "doc-1", passId: "pass-1", boxIndex: 0, text: "one"),
+                Self.segmentJSON(id: "seg-2", documentId: "doc-1", passId: "pass-1", boxIndex: 1, text: "two"),
+                Self.segmentJSON(id: "seg-3", documentId: "doc-1", passId: "pass-1", boxIndex: 2, text: "three"),
+            ]
+        )
+        await store.load(documentId: "doc-1")
+
+        let json = try JSONSerialization.data(withJSONObject: Self.segmentJSON(
+            id: "seg-2", documentId: "doc-1", passId: "pass-1", boxIndex: 1, text: "TWO"
+        ))
+        let generated = try JSONDecoder().decode(Components.Schemas.SegmentRead.self, from: json)
+        store.patch(segmentId: "seg-2", with: Segment(generated: generated))
+
+        // Position is the engine's index (source.app.index-is-the-engines): a patch
+        // that reordered would change what every index-addressed reader means.
+        XCTAssertEqual(store.segments(documentId: "doc-1").map(\.id), ["seg-1", "seg-2", "seg-3"])
+        XCTAssertEqual(store.segments(documentId: "doc-1")[1].text, "TWO")
+    }
+
+    func testPatchingWithNothingDropsTheRowRatherThanKeepingAStaleCopy() async throws {
+        let store = Self.makeStore()
+        Self.stubSuccess(
+            documentId: "doc-1",
+            passes: [Self.passJSON(id: "pass-1", documentId: "doc-1")],
+            segments: [
+                Self.segmentJSON(id: "seg-1", documentId: "doc-1", passId: "pass-1", boxIndex: 0, text: "one"),
+                Self.segmentJSON(id: "seg-2", documentId: "doc-1", passId: "pass-1", boxIndex: 1, text: "two"),
+            ]
+        )
+        await store.load(documentId: "doc-1")
+
+        store.patch(segmentId: "seg-1", with: nil)
+
+        XCTAssertEqual(store.segments(documentId: "doc-1").map(\.id), ["seg-2"])
+    }
+
+    func testPatchingAnIdThisStoreDoesNotHoldChangesNothing() async throws {
+        let store = Self.makeStore()
+        Self.stubSuccess(
+            documentId: "doc-1",
+            passes: [Self.passJSON(id: "pass-1", documentId: "doc-1")],
+            segments: [Self.segmentJSON(id: "seg-1", documentId: "doc-1", passId: "pass-1", boxIndex: 0, text: "one")]
+        )
+        await store.load(documentId: "doc-1")
+
+        store.patch(segmentId: "seg-elsewhere", with: nil)
+
+        XCTAssertEqual(
+            store.segments(documentId: "doc-1").map(\.id), ["seg-1"],
+            "an event about somebody else's page is not an instruction to change this one"
+        )
+    }
+
+    func testTheStoreConsumesSegmentAndPassEventsOnly() {
+        let store = Self.makeStore()
+
+        XCTAssertEqual(store.changeDomains, ["segment", "pass"])
+    }
 }
