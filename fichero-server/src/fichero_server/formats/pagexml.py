@@ -233,6 +233,13 @@ def _script_in(value: str | None) -> str | None:
 #: re-import must not return a region nobody drew.
 IMPLICIT_ID_PREFIX = "fichero-implicit-"
 IMPLICIT_CUSTOM = "fichero {implicit:true;}"
+#: The same idea one level down (#5130): a segment the source gave NO shape -- Calfa's
+#: lines are `<Coords points=""/>` with only a baseline, and eScriptorium writes a
+#: `TextRegion` with no `Coords` at all -- still needs `Coords`, which PAGE 2019 requires.
+#: So the writer works one out (the baseline's bounds, or a region's children's), MARKS
+#: it, reports it, and the reader gives the segment back without it: a re-import must
+#: not return a shape nobody drew.
+DERIVED_COORDS_CUSTOM = "fichero {coords:derived;}"
 
 
 def _is_implicit(element: Any) -> bool:
@@ -331,7 +338,11 @@ def read(data: bytes) -> SourcePage:
 
         for child in element:
             child_tag = _tag(child)
-            if child_tag == "Coords" and child.get("points"):
+            if (
+                child_tag == "Coords"
+                and child.get("points")
+                and DERIVED_COORDS_CUSTOM not in (element.get("custom") or "")
+            ):
                 points = _points(child.get("points"), width, height)
                 if len(points) >= 3:
                     segment.polygon = points
@@ -380,8 +391,9 @@ def read(data: bytes) -> SourcePage:
                 # (`keeps-unrecognised`): a file that says something we cannot map
                 # has still said it.
                 segment.foreign["readingDirection"] = direction
-        if element.get("custom"):
-            segment.foreign["custom"] = element.get("custom")
+        custom = (element.get("custom") or "").replace(DERIVED_COORDS_CUSTOM, "").strip()
+        if custom:
+            segment.foreign["custom"] = custom
         # A cell's place in its table. Kept because the model has no field for it yet
         # (`source.segment.table-cells`, #4928): dropping it would lose the ONE thing
         # that makes a table a table, and inventing a field for it here would decide a
@@ -517,6 +529,18 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         by_ref[ref] = element
 
         points = segment.polygon or _rect_points(segment.rect)
+        if not points:
+            derived = _rect_points(_derived_bounds(segment, page.segments))
+            if derived:
+                points = derived
+                element.set("custom", DERIVED_COORDS_CUSTOM)
+                report.note(
+                    "shapes worked out for segments that had none",
+                    1,
+                    "PAGE XML requires Coords; this one was worked out from the baseline or "
+                    f"the children, marked `{DERIVED_COORDS_CUSTOM}`, and dropped again on "
+                    "re-import",
+                )
         if points:
             etree.SubElement(
                 element,
@@ -554,7 +578,12 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         # report exists to make impossible. Writing it back is the fix; declaring it
         # as a loss would have been settling for honest data destruction.
         if segment.foreign.get("custom"):
-            element.set("custom", str(segment.foreign["custom"]))
+            # Composed with the derived-coords marker, never over it: overwriting it made
+            # a worked-out region shape read back as one the source drew.
+            element.set(
+                "custom",
+                " ".join(filter(None, [str(segment.foreign["custom"]), element.get("custom")])),
+            )
         if segment.foreign.get("readingDirection") and not segment.direction:
             element.set("readingDirection", str(segment.foreign["readingDirection"]))
 
@@ -640,6 +669,36 @@ def _implicit_parents(
             f"`{IMPLICIT_CUSTOM}`, and is dropped again on re-import",
         )
     return parent_el
+
+
+def _derived_bounds(segment: PageSegment, segments: list[PageSegment]) -> list[float] | None:
+    """A box for a segment the source gave no shape: its baseline's bounds, else the
+    union of its descendants' shapes. None when there is nothing to work from."""
+    if segment.baseline:
+        return _bounds_of(segment.baseline)
+    boxes = []
+    pending = [segment.ref] if segment.ref else []
+    seen: set[str] = set()
+    while pending:
+        ref = pending.pop()
+        if ref in seen:
+            continue
+        seen.add(ref)
+        for child in segments:
+            if child.parent_ref != ref:
+                continue
+            box = child.rect or _bounds_of(child.polygon) or _bounds_of(child.baseline)
+            if box:
+                boxes.append(box)
+            if child.ref:
+                pending.append(child.ref)
+    if not boxes:
+        return None
+    left = min(b[0] for b in boxes)
+    top = min(b[1] for b in boxes)
+    right = max(b[0] + b[2] for b in boxes)
+    bottom = max(b[1] + b[3] for b in boxes)
+    return [left, top, right - left, bottom - top]
 
 
 def _bounds_of(polygon: list[list[float]] | None) -> list[float] | None:
