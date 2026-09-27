@@ -33,12 +33,14 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Shell/Toolbar/WorkflowToolsPopover.swift#2d76b922c8": "2026-08-28 tools browser: searchable tool cards with expandable prompts, not selectable rows (re-pinned 2026-08-30 after card rework)",
     "Shell/Toolbar/ModelChipToolbarItem.swift#0b4ae6d6c7": "2026-08-29 model picker popover (rehashed 2026-09-01 by the model-routing pass, 2026-09-04 by the pickable-model fix in 3ed311ca3, and 2026-09-17/#4902 by the SharedModelRow swap + an explanatory comment): logo+pricing+vision rows in a fixed-height popover; List chrome misbehaves in popovers and the concrete-row perf fix (333ms stall) depends on this structure. Same block, same reasons — the signature moved, the sanction did not",
     "Reader/MultiSelectionReaderView.swift#59b0e99ae5": "2026-08-23 multi-selection reader: continuous transcript SECTIONS under pinned headers — prose, not a row collection; List would impose row selection and separators on reading text",
-    "Activity/Overview/ActivityOverviewView+Cards.swift#d6f20143ab": "#1912 baseline (re-hashed by function_body extraction; same docStep grid)",
-    "Library/ViewModes/Graph/Ontology/Entity/EntitySourceGroupsView.swift#c6a609c38d": "#1912 baseline",
-    "Library/ViewModes/Graph/Ontology/Claim/HeuristicReviewSheet.swift#aa939bcbf4": "#1912 baseline",
-    "Library/ViewModes/Graph/Ontology/SpeakerComparisonView.swift#ffffcf8a29": "#1912 baseline",
-    "Preview/ImageEditor/ImageEditChainPanel.swift#83a0175036": "#1912 baseline",
-    "Library/ViewModes/List/LibraryView+ListView.swift#5acecef157": "#1912 baseline (ScrollView is required for #4160 keyboard handling; rehashed by the #2501 iOS List split, by #3322's 'No date' section, and by the 2026-09-01 per-pass row-chrome hoist — same sanctioned container)",
+    # The next five read only "#1912 baseline" until 2026-09-27; each was read and given
+    # its reason. DESIGN = not a row collection; DEBT = should become a List.
+    "Activity/Overview/ActivityOverviewView+Cards.swift#d6f20143ab": "DESIGN: a horizontally scrolling document x step GRID with a fixed header row, not a list of rows; List scrolls one axis and has no column header",
+    "Library/ViewModes/Graph/Ontology/Entity/EntitySourceGroupsView.swift#c6a609c38d": "DEBT: claims grouped under per-source headers, expressible as List { Section }; its only host is the unmounted EntityDetailView (#4828), so migrate or retire with it",
+    "Library/ViewModes/Graph/Ontology/Claim/HeuristicReviewSheet.swift#aa939bcbf4": "DEBT: read-only prediction cards (no per-row tap or selection); no caller outside #4828's orphaned KG views, so migrate or retire with them",
+    "Library/ViewModes/Graph/Ontology/SpeakerComparisonView.swift#ffffcf8a29": "DESIGN: per-speaker comparison CARDS under a title, not selectable rows; only its previews construct it today (#4828)",
+    "Preview/ImageEditor/ImageEditChainPanel.swift#83a0175036": "DEBT, the #4483 shape: an ordered edit-step list with HAND-ROLLED selection (a Button in stepRow sets selectedStepIndex). check_native_row_containers cannot see it because the tap sits in a helper; List(selection:) would give arrows, focus and onMove",
+    "Library/ViewModes/List/LibraryView+ListView.swift#5acecef157": "DESIGN (#4160): ScrollView is required for the list mode's keyboard handling — List consumes arrow keys before .onKeyPress (rehashed by the #2501 iOS List split, by #3322's 'No date' section, and by the 2026-09-01 per-pass row-chrome hoist — same sanctioned container)",
     # Miller columns (#4160 step 4): List is NSTableView-backed and consumes
     # arrow keys before .onKeyPress — the browser's whole keyboard model
     # (up/down in the active column, left/right BETWEEN columns, one shared
@@ -50,14 +52,14 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     # edited rows inside the block). Same sanctioned violation, same lines —
     # only the content hash moved.
     "Library/ViewModes/Columns/LibraryView+ColumnsView.swift#b13098471a": "#4160 step 4 (same keyboard constraint as the list-mode entry; justified in-file — re-hashed 2026-08-09 twice, then 2026-08-10 by the top-level-rooting/preview-width edits inside the same grandfathered block)",
-    "Library/Workspace/WorkspaceItemPicker.swift#2e87b93a6b": "#1912 baseline",
+    "Library/Workspace/WorkspaceItemPicker.swift#2e87b93a6b": "DEBT: a picker of workspace folders where each row is a Button — a tappable row collection that List would give arrows and focus to (tap sits in folderRow, so check_native_row_containers cannot see it)",
     # Same two content hashes as the +Views.swift entries they replace — only
     # the PATH moved. The file was split at its own MARK boundary when
     # accessibility labels pushed it past the 400-line limit (#4484), and the
     # unchanged hashes are independent proof that split was a pure move.
-    "Chat/Research/ResearchTasksPane+Tabs.swift#1d731da4e7": "#1912 baseline (moved from +Views.swift by the #4484 split; hash unchanged)",
-    "Chat/Research/ResearchTasksPane+Tabs.swift#f50acbd404": "#1912 baseline (moved from +Views.swift by the #4484 split; hash unchanged)",
-    "Workflow/Library/WorkflowChainListViewParts/ChainDetailContent.swift#c804133262": "#1912 baseline",
+    "Chat/Research/ResearchTasksPane+Tabs.swift#1d731da4e7": "DESIGN: verification-checklist CARDS (each holds its own items and a composer), not selectable rows (moved from +Views.swift by the #4484 split; hash unchanged)",
+    "Chat/Research/ResearchTasksPane+Tabs.swift#f50acbd404": "DESIGN: research-note CARDS above a composer, read and edited in place, not selectable rows (moved from +Views.swift by the #4484 split; hash unchanged)",
+    "Workflow/Library/WorkflowChainListViewParts/ChainDetailContent.swift#c804133262": "DESIGN: a detail PAGE (title, description, then the chain's steps) in one scroll, not a row collection; hosted by ChainDetailSheet and ChainEditorView",
     # Data-mode reading surfaces (2026-08-14): NO selection model (open is
     # double-click/context menu only), and SwiftUI's NSTableView-backed List
     # SIGTRAPed in ViewListTree.visitItem on this exact content under the
