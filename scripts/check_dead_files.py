@@ -82,8 +82,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Models/CacheModel.swift": "#1945 — candidate dead file: CacheModel, CacheWrapper",
     "Models/DocumentStoreTypes.swift": "#3961 — candidate dead file: DocumentHierarchy. Never used in production (git log -S proves it); only its own 3 tests reference it. Surfaced when #3919 removed the file's other types. Delete or wire it — do not let this entry outlive the decision.",
     "Models/DragDropModel.swift": "#1945 — candidate dead file: DragDropModel",
-    "Views/Library/Automation/ScheduleCreationSheet.swift": "#1945 — candidate dead file: ScheduleCreationSheet",
-    "Views/Library/Automation/TriggerCreationSheet.swift": "#1945 — candidate dead file: TriggerCreationSheet",
     "Views/Chat/Inspector/ChatInspector+ScopedDocuments.swift": "#2955 — helper row used only by same-file ChatInspector scoped-documents view builder",
     "Views/Library/ViewModes/Graph/Ontology/Entity/EntityDetailView+Biography.swift": "#1945 — candidate dead file: MentionSummary",
     "Intents/FicheroShortcuts.swift": "#2017 — App Intents/Shortcuts entry point helper",
