@@ -19,52 +19,8 @@ extension ZoomableImagePreview {
         // the honest answer, and the Every Frame Perfect one.
         if geometry.isMeasured {
             ZStack(alignment: .topLeading) {
-                // Entry-source highlight FIRST — a soft wash BEHIND the word
-                // boxes, visually distinct from annotation regions (Daniel,
-                // 2026-08-21: "wrong color… it should be behind words").
-                // Where it lands is the anchor DATA's problem (Step-4
-                // re-anchor); how it reads is this layer's.
-                // FRAME GATE at DRAW time (2026-09-04 audit): the entry
-                // highlight is anchored on the page's OWN image, so a flip
-                // to a re-framing rendition (crop/deskew/split) must blank
-                // it — the wash was gated nowhere and rode every frame.
-                if annotationFrameMatchesDisplay(nil) {
-                    ForEach(Array(highlightBoxes.enumerated()), id: \.offset) { _, box in
-                        if let rect = BoundingBoxGeometry.viewRect(
-                            normalized: box,
-                            in: geometry.drawnFrame.size,
-                            visible: geometry.visible
-                        ) {
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(Color.yellow.opacity(0.22))
-                                .frame(width: rect.width, height: rect.height)
-                                .offset(x: rect.minX, y: rect.minY)
-                                .allowsHitTesting(false)
-                        }
-                    }
-                }
-                // Words lit by the READER's text selection (2026-08-23
-                // linking) — sharper than the entry wash so the specific
-                // words read against it. Gated LIVE against the geometry
-                // they were measured on (2026-09-04 audit): the write-time
-                // gate in `applyLinkedSelection` cannot see a rendition
-                // flip that happens after the words were lit, and the lit
-                // boxes are bare rects that remember no frame of their own.
-                if let ocrGeometry, geometryFrameMatchesDisplay(ocrGeometry) {
-                    ForEach(Array(linkedSelectionBoxes.enumerated()), id: \.offset) { _, box in
-                        if let rect = BoundingBoxGeometry.viewRect(
-                            normalized: box,
-                            in: geometry.drawnFrame.size,
-                            visible: geometry.visible
-                        ) {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(Color.accentColor.opacity(0.28))
-                                .frame(width: rect.width, height: rect.height)
-                                .offset(x: rect.minX, y: rect.minY)
-                                .allowsHitTesting(false)
-                        }
-                    }
-                }
+                // The entry-source wash and the Reader-linked words are drawn by the document
+                // overlay, inside the scroll view, with the boxes (#5020, #5142).
                 // Saved annotations, rendered BY KIND (Daniel, 2026-08-30:
                 // a highlight is a wash, an underline a bar, a check a ✓ in
                 // the margin — markup should LOOK like what it is).

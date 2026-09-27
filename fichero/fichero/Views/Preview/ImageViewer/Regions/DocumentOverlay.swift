@@ -13,6 +13,11 @@ struct DocumentOverlay: Equatable {
     /// The selected boxes' rects, normalized. Drawn in the SAME view and pass as the boxes, so a
     /// highlight can never sit a transform away from the box it marks.
     var selected: [[Double]] = []
+    /// The entry-source highlight: a soft wash BEHIND the words (the passage a claim or a search
+    /// hit came from). Drawn first.
+    var entryWashes: [[Double]] = []
+    /// Words lit by the Reader's text selection, sharper than the entry wash.
+    var linkedWashes: [[Double]] = []
 
     static let empty = DocumentOverlay()
 
@@ -29,7 +34,12 @@ struct DocumentOverlay: Equatable {
 
     /// The selected rects a redraw of `dirty` must paint.
     func selected(in dirty: CGRect, documentSize: CGSize) -> [CGRect] {
-        selected.compactMap { bbox in
+        Self.rects(selected, in: dirty, documentSize: documentSize)
+    }
+
+    /// Any list of normalized rects, reduced to those a redraw of `dirty` must paint.
+    static func rects(_ list: [[Double]], in dirty: CGRect, documentSize: CGSize) -> [CGRect] {
+        list.compactMap { bbox in
             guard let rect = DocumentBoxMapping.rect(normalized: bbox, documentSize: documentSize),
                   rect.intersects(dirty) else { return nil }
             return rect

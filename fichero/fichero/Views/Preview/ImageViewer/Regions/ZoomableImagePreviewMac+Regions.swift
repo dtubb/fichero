@@ -31,9 +31,14 @@ extension ZoomableImagePreview {
         let selected: [[Double]] = (ocrGeometryArtifactId != nil && selection.artifactId == ocrGeometryArtifactId)
             ? selection.indices.filter { all.indices.contains($0) }.map { all[$0].bbox }
             : []
+        // The same frame gates the SwiftUI washes had: the entry wash is anchored on the page's
+        // own image, the linked words on the geometry they were measured on.
+        let linkedFrameMatches = ocrGeometry.map { geometryFrameMatchesDisplay($0) } ?? false
         return DocumentOverlay(
             boxes: shown.map { .init(bbox: $0.box.bbox, confidence: $0.box.confidence) },
-            selected: selected
+            selected: selected,
+            entryWashes: annotationFrameMatchesDisplay(nil) ? highlightBoxes : [],
+            linkedWashes: linkedFrameMatches ? linkedSelectionBoxes : []
         )
     }
 

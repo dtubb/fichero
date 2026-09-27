@@ -29,6 +29,15 @@ final class DocumentOverlayView: NSView {
         // Strokes are drawn in document points and magnified with the page; divide by the
         // magnification so a line stays one screen point at any zoom.
         let scale = max(enclosingScrollView?.magnification ?? 1, 0.01)
+        // Washes first, BEHIND the boxes, in the order the SwiftUI overlay drew them.
+        NSColor.systemYellow.withAlphaComponent(0.22).setFill()
+        for rect in DocumentOverlay.rects(overlay.entryWashes, in: dirtyRect, documentSize: size) {
+            NSBezierPath(roundedRect: rect, xRadius: 3 / scale, yRadius: 3 / scale).fill()
+        }
+        NSColor(Color.accentColor).withAlphaComponent(0.28).setFill()
+        for rect in DocumentOverlay.rects(overlay.linkedWashes, in: dirtyRect, documentSize: size) {
+            NSBezierPath(roundedRect: rect, xRadius: 2 / scale, yRadius: 2 / scale).fill()
+        }
         let wash = NSColor(Color.accentColor).withAlphaComponent(0.08)
         for (box, rect) in overlay.boxes(in: dirtyRect, documentSize: size) {
             let path = NSBezierPath(roundedRect: rect, xRadius: 1.5 / scale, yRadius: 1.5 / scale)
