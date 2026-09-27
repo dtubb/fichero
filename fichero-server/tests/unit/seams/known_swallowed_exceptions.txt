@@ -24,6 +24,7 @@ api/routes/ai/provider_models.py::list_models_for_provider 5
 api/routes/citation/rendering.py::_metadata_for_document 2
 api/routes/document/artifacts.py::_action_translate 1
 api/routes/document/artifacts.py::_delete_artifact_impl 2
+api/routes/document/artifacts.py::align_transcript_to_regions 1
 api/routes/document/documents.py::import_file 1
 api/routes/document/documents.py::related_documents 2
 api/routes/document/documents.py::update_document_impl 1
@@ -180,7 +181,6 @@ workflows/tools/classify_script.py::classify_script 1
 workflows/tools/cleanup.py::_apply_groups 2
 workflows/tools/cleanup.py::_descendant_doc_ids 1
 workflows/tools/cleanup.py::_live_entities 1
-workflows/tools/cleanup.py::_replace_artifact 1
 workflows/tools/extract_all.py::_persist_additional_entities 1
 workflows/tools/extract_all.py::_records_from_selected_documents.add_doc 1
 workflows/tools/extract_all.py::_run_two_stage 2
