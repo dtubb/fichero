@@ -683,6 +683,13 @@ why.**
 After slice 6 a converted segment remembers its old place as `metadata.box_index`, which all three
 rules read first, which is why they agree on a converted page.
 
+**An imported segment remembers its place in its FILE (#5137, `62c62fbbd`).** `format.import` records
+`metadata.file_position` (the file's reading order for its blocks, then each block's lines and words
+as written), and `_segment_order_key` reads it in the same tier as `box_index`, because top-then-left
+interleaves two columns and scrambles vertical text. **Pages imported before `62c62fbbd` have no
+`file_position` and keep box order until they are re-imported**; there is no backfill, and
+re-importing is the fix.
+
 **One of the three had a defect, found 2026-09-26 while enumerating them for this slice.**
 `_segment_order_key` sorted `(box_index, bbox_y, id)` with no `bbox_x`: two segments on one line
 share a `bbox_y`, and a hand-drawn word has no `box_index`, so **the words of a hand-segmented line
