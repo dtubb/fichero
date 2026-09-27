@@ -1903,6 +1903,7 @@ from fichero_server.api.routes.document import (  # noqa: E402
     dataset,
     documents,
     folders,
+    format_import as document_format_import,
     inspector as document_inspector,
     renditions,
     notes,
@@ -2022,6 +2023,10 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # the four existing link records converge one per later slice, and this
     # vocabulary is seeded from all of them so no word is lost when they do.
     (document_typed_links.router, "/api", ["links"]),
+    # Source-model (#4943): a file becomes a pass. The export half lives in
+    # `page_export`; this is the way in, so `source.format.everywhere` has both
+    # directions from the app rather than an export-only surface.
+    (document_format_import.router, "/api", ["formats"]),
     # Renditions — alternative pixels of one node; ordered engine-side so the
     # preview and any card surface agree what "next" means (2026-08-20).
     (renditions.router, "/api", ["renditions"]),

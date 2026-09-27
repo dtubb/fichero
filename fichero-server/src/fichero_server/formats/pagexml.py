@@ -204,6 +204,32 @@ def _script_in(value: str | None) -> str | None:
     return value.split(" - ", 1)[0].strip() or None
 
 
+#: The marker a SYNTHESISED parent carries (#5084). PAGE XML's schema requires a
+#: `TextLine` to sit inside a region and a `Word` inside a line, but the model allows
+#: a line nobody put in a region — a marginal note a scholar drew on its own is one.
+#:
+#: So the writer invents the parent the schema demands and MARKS it, and the reader
+#: drops a marked parent again. **Following the off-page ruling**: write what the
+#: format requires, record that we did, and give back what the source said — a
+#: re-import must not return a region nobody drew.
+IMPLICIT_ID_PREFIX = "fichero-implicit-"
+IMPLICIT_CUSTOM = "fichero {implicit:true;}"
+
+
+def _is_implicit(element: Any) -> bool:
+    """Whether this element is a parent WE invented rather than one the source had.
+
+    Two signals, and either is enough: the `custom` marker (which survives any tool
+    that preserves `custom`) and the id prefix (which survives a tool that does not).
+    Belt and braces on purpose -- a marked parent read back as a real region is a
+    region nobody drew, appearing in a scholar's page count.
+    """
+    return (
+        IMPLICIT_CUSTOM in (element.get("custom") or "")
+        or (element.get("id") or "").startswith(IMPLICIT_ID_PREFIX)
+    )
+
+
 def _tag(element: Any) -> str:
     """The local name, so 2013 and 2019 files read through one code path."""
     tag = element.tag
@@ -269,11 +295,15 @@ def read(data: bytes) -> SourcePage:
         kind = ELEMENT_KINDS.get(_tag(element))
         if kind is None:
             continue
+        if _is_implicit(element):
+            # A parent we invented on a previous export. Dropped, so a round trip
+            # returns the page the source described rather than our scaffolding.
+            continue
         segment = PageSegment(kind=kind, ref=element.get("id"))
         parent = element.getparent()
         while parent is not None and _tag(parent) not in ELEMENT_KINDS:
             parent = parent.getparent()
-        if parent is not None:
+        if parent is not None and not _is_implicit(parent):
             segment.parent_ref = parent.get("id")
 
         for child in element:
@@ -413,7 +443,21 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             )
             continue
         ref = segment.ref or f"s{index}"
-        parent_el = by_ref.get(segment.parent_ref or "", page_el)
+        parent_el = by_ref.get(segment.parent_ref or "")
+        if parent_el is None:
+            # A REGION needs no parent: it belongs directly under `Page`. Only a line,
+            # word or glyph has a required ancestor, and only then is one invented --
+            # the first version wrapped every top-level region in an invented region,
+            # which the schema refused and which would have been a page of phantom
+            # blocks if it had not.
+            parent_el = (
+                page_el
+                if segment.kind not in ("line", "word", "character")
+                else _implicit_parents(
+                    etree, page_el, segment.kind, ref, by_ref, report,
+                    segment.rect or _bounds_of(segment.polygon), width, height,
+                )
+            )
         element = etree.SubElement(parent_el, f"{{{PAGE_NS_2019}}}{element_name}", id=ref)
         by_ref[ref] = element
 
@@ -489,6 +533,66 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             element.append(child)
 
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8", pretty_print=True)
+
+
+def _implicit_parents(
+    etree: Any, page_el: Any, kind: str, ref: str, by_ref: dict, report: LossReport,
+    rect: list[float] | None, width: int, height: int,
+) -> Any:
+    """The element a segment must sit inside, invented when the source had none (#5084).
+
+    PAGE XML's schema puts a `TextLine` inside a region and a `Word` inside a line, so
+    a line nobody put in a region -- a marginal note drawn on its own -- cannot be
+    written where it belongs. Refusing would lose the note; writing it at the top level
+    produces a file the schema rejects, which we would only learn from another tool.
+
+    So the parent is invented, MARKED, and reported. The report matters: an invented
+    region is a difference between the file and the page, and the rule all night has
+    been that a change to what a source said must be visible.
+    """
+    #: What each granularity must sit inside, innermost last.
+    chains = {
+        "line": ["TextRegion"],
+        "word": ["TextRegion", "TextLine"],
+        "character": ["TextRegion", "TextLine", "Word"],
+    }
+    chain_names = chains.get(kind, ["TextRegion"])
+    parent_el = page_el
+    for depth, name in enumerate(chain_names):
+        implicit_id = f"{IMPLICIT_ID_PREFIX}{name.lower()}-{ref}"
+        parent_el = etree.SubElement(
+            parent_el,
+            f"{{{PAGE_NS_2019}}}{name}",
+            id=implicit_id,
+            custom=IMPLICIT_CUSTOM,
+        )
+        # A region must carry `Coords` before its children, so an invented one takes
+        # the CHILD's own box: exactly as big as the thing inside it, claiming nothing
+        # extra about the page. Found by the schema refusing a parent with no shape.
+        if rect:
+            etree.SubElement(
+                parent_el,
+                f"{{{PAGE_NS_2019}}}Coords",
+                points=_points_out(_rect_points(rect), width, height),
+            )
+        by_ref[implicit_id] = parent_el
+    if chain_names:
+        report.note(
+            "implicit parents",
+            1,
+            "PAGE XML requires a line inside a region and a word inside a line; this "
+            f"{kind} had none, so {', '.join(chain_names)} was invented, marked "
+            f"`{IMPLICIT_CUSTOM}`, and is dropped again on re-import",
+        )
+    return parent_el
+
+
+def _bounds_of(polygon: list[list[float]] | None) -> list[float] | None:
+    if not polygon:
+        return None
+    xs = [point[0] for point in polygon]
+    ys = [point[1] for point in polygon]
+    return [min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)]
 
 
 def _rect_points(rect: list[float] | None) -> list[list[float]]:

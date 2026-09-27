@@ -415,3 +415,100 @@ class TestRealFilesHaveUnusableShapesAndTheTwoCasesDiffer:
 
         assert _minimum_extent((1000, 2000)) == (1 / 1000, 1 / 2000)
         assert _minimum_extent(None) == (1e-4, 1e-4)
+
+
+class TestTheImportRoute:
+    """`source.format.everywhere`, the app's half: until this route existed a person
+    could EXPORT from the app and not import, which is an odd shape for a programme
+    whose target is reading and writing four formats."""
+
+    def test_a_person_uploads_a_file_and_gets_a_pass(self, db, client):
+        doc = _document(db)
+
+        response = client.post(
+            f"/api/documents/{doc.id}/import",
+            files={"file": ("aepinus.xml", OCRD.read_bytes(), "application/xml")},
+        )
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["format"] == "pagexml"
+        assert body["segments"] > 0
+        assert db.get(SegmentPass, body["pass_id"]) is not None
+
+    def test_the_pass_is_named_after_the_file_the_person_chose(self, db, client):
+        """Not the temporary copy: a list of passes reading `fichero-import-8h2k.xml`
+        would tell a scholar nothing about which file they brought."""
+        doc = _document(db)
+
+        response = client.post(
+            f"/api/documents/{doc.id}/import",
+            files={"file": ("my folio 12r.xml", OCRD.read_bytes(), "application/xml")},
+        )
+
+        pass_row = db.get(SegmentPass, response.json()["pass_id"])
+        assert pass_row.name == "my folio 12r.xml"
+
+    def test_the_recognised_format_is_reported_even_for_a_renamed_file(self, db, client):
+        """The answer to "did it read my file properly": the bytes decide, so a
+        renamed export still reports what it actually is."""
+        doc = _document(db)
+
+        response = client.post(
+            f"/api/documents/{doc.id}/import",
+            files={"file": ("notes.txt", OCRD.read_bytes(), "text/plain")},
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["format"] == "pagexml"
+
+    def test_repaired_geometry_is_surfaced_rather_than_buried_in_rows(self, db, client):
+        """A page where boxes were repaired is a page somebody should look at, so the
+        count comes back with the import instead of living only in row metadata."""
+        doc = _document(db)
+
+        response = client.post(
+            f"/api/documents/{doc.id}/import",
+            files={"file": ("alto.xml", ALTO_PROJECT.read_bytes(), "application/xml")},
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["geometry_problems"] >= 1
+
+    def test_a_second_upload_of_the_same_file_is_refused_with_409(self, db, client):
+        doc = _document(db)
+        payload = {"file": ("e.xml", OCRD.read_bytes(), "application/xml")}
+
+        assert client.post(f"/api/documents/{doc.id}/import", files=payload).status_code == 200
+        again = client.post(f"/api/documents/{doc.id}/import", files=payload)
+
+        assert again.status_code == 409
+        assert "already on this document" in again.text
+
+    def test_an_unreadable_upload_is_refused_with_422(self, db, client):
+        doc = _document(db)
+
+        response = client.post(
+            f"/api/documents/{doc.id}/import",
+            files={"file": ("notes.rtf", b"{\\rtf1 not an interchange file}", "text/rtf")},
+        )
+
+        assert response.status_code == 422
+        assert "pagexml" in response.text
+
+    def test_the_temporary_copy_is_removed_even_when_the_import_refuses(self, db, client, tmp_path):
+        """An import that refuses should leave nothing behind, least of all a copy of a
+        scholar's file in a temp directory."""
+        import glob
+        import tempfile
+
+        doc = _document(db)
+        before = set(glob.glob(str(Path(tempfile.gettempdir()) / "fichero-import-*")))
+
+        client.post(
+            f"/api/documents/{doc.id}/import",
+            files={"file": ("bad.rtf", b"{\\rtf1 nope}", "text/rtf")},
+        )
+
+        after = set(glob.glob(str(Path(tempfile.gettempdir()) / "fichero-import-*")))
+        assert after == before

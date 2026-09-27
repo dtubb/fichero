@@ -192,3 +192,33 @@ class TestAReaderAndItsWriterAgreeOnTheKinds:
         writable = set(KIND_ELEMENTS)
 
         assert readable <= writable, sorted(readable - writable)
+
+
+class TestTheBytesDecideAndTheExtensionOnlyNarrows:
+    """Found by a route test: an XML file uploaded as `.txt` was read as YOLO.
+
+    `.txt` narrowed the candidates to YOLO (the only format claiming it), YOLO's sniff
+    correctly said no, and a single-candidate fallback returned it anyway — so the
+    extension won by default and the importer blamed the file for not being label
+    lines. **A format whose sniff has REFUSED must not be chosen by its extension.**
+    """
+
+    def test_an_xml_file_named_txt_is_not_read_as_yolo(self):
+        pagexml = (
+            b'<?xml version="1.0"?><PcGts '
+            b'xmlns="http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15"/>'
+        )
+
+        assert format_for("notes.txt", pagexml).name == "pagexml"
+
+    def test_yolo_labels_named_xml_are_still_yolo(self):
+        """The same rule in the other direction: the bytes decide either way."""
+        assert format_for("labels.xml", b"0 0.5 0.5 0.2 0.2\n").name == "yolo"
+
+    def test_a_file_every_sniff_refuses_is_not_guessed_from_its_extension(self):
+        assert format_for("notes.txt", b"just prose, no boxes and no markup\n") is None
+
+    def test_with_no_bytes_a_single_claimant_still_answers(self):
+        """Listing a file before reading it is a legitimate question, and there the
+        extension is all there is."""
+        assert format_for("labels.txt").name == "yolo"

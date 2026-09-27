@@ -199,9 +199,11 @@ what the loss report named), one for each format that goes both ways:
   A later reader should not conclude that PAGE XML carries everything. Pinned by
   `tests/unit/formats/test_pagexml_round_trip.py` (11 tests) and, against a file another tool wrote,
   `test_pagexml_real_file.py::TestWritingItBackDeclaresWhatItLost::test_the_losses_are_the_ones_we_declared_and_nothing_silent`.
-- `source.format.round-trip-alto` — **[GAP]** (#4944) the ALTO round trip holds. The reader and writer
-  exist and the writer's losses are asserted; the round trip cannot run until ALTO's imported xlink
-  schema is vendored, because an export that cannot be validated is not written.
+- `source.format.round-trip-alto` — **[OK]** (→ #4944) the ALTO round trip holds, now that the xlink
+  schema ALTO imports is vendored (#5082). Structure, nesting, words, their text, a BCP 47 language
+  and boxes to a pixel of the declared page; script, direction and alternative readings are named by
+  the writer and subtracted, because ALTO carries geometry and text and little else. Pinned by
+  `tests/unit/formats/test_alto.py::TestTheAltoRoundTrip` (5 tests).
 - `source.format.round-trip-tei` — **[GAP]** (#4945) the TEI round trip holds.
 - `source.format.round-trip-hocr` — **[OK]** (→ #4944) the HOCR round trip holds, to a pixel of the
   page's own declared `bbox`, with hOCR's own properties written back rather than declared lost.
@@ -229,10 +231,12 @@ Each format (one import and one export behaviour each)
   `mm10`. Normalised coordinates are unit-free (the page declares its size in the same unit); a
   non-pixel page reports **no** pixel grid rather than a wrong one, and an unknown unit is refused
   rather than assumed.
-- `source.format.alto-out` — **[PARTIAL]** (#4944): the writer is complete and its losses are
-  asserted, but every export refuses until the xlink schema is vendored (#5082 — `loc.gov` returns
-  403 to every automated fetch, and W3C's modern xlink defines `simpleAttrs` where ALTO references
-  `simpleLink`, so it is not a substitute).
+- `source.format.alto-out` — **[OK]** (→ #4944): the writer validates against ALTO 4.2 and names
+  what it cannot carry. It also invents the `TextBlock` and `TextLine` a bare `String` needs
+  (→ #5084) — **marked `fichero-implicit-` and dropped again on re-import**, so a scholar who exports
+  and re-imports gets their word back rather than a block nobody drew. Pinned by
+  `test_alto.py::TestTheImplicitParentIsWrittenAndMarked` (5 tests, including that a real page with
+  proper parents invents nothing).
 - `source.format.tei-in` · `source.format.tei-out` **[GAP]** (#4945)
 - `source.format.mei-in` · `source.format.mei-out` **[GAP]** (#4945)
 - `source.format.w3c-in` · `source.format.w3c-out` **[GAP]** (#4946)
