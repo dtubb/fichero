@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from _scan_files import scan_rglob
 
 APP_ROOT = Path(__file__).resolve().parents[4] / "fichero" / "fichero"
 
@@ -68,7 +69,7 @@ def _scan(root: Path) -> tuple[set[str], set[str], set[str], int]:
     published: set[str] = set()
     read: set[str] = set()
     files = 0
-    for path in root.rglob("*.swift"):
+    for path in scan_rglob(root, "*.swift"):
         files += 1
         text = _LINE_COMMENT.sub("", path.read_text(encoding="utf-8"))
         published.update(_PUBLISH.findall(text))

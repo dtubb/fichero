@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from _scan_files import scan_rglob
 
 
 TESTS_ROOT = Path(__file__).resolve().parents[2]
@@ -32,7 +33,7 @@ CONTRACTS_DIR = TESTS_ROOT / "contracts"
 
 
 def _iter_test_files() -> list[Path]:
-    return sorted(TESTS_ROOT.rglob("test_*.py"))
+    return sorted(scan_rglob(TESTS_ROOT, "test_*.py"))
 
 
 def _is_test_function(node: ast.AST) -> bool:

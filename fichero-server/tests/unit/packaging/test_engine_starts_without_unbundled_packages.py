@@ -27,6 +27,7 @@ from pathlib import Path
 
 from packaging.markers import default_environment
 from packaging.requirements import Requirement
+from _scan_files import scan_rglob
 
 SERVER_ROOT = Path(__file__).resolve().parents[3]
 PYPROJECT = SERVER_ROOT / "pyproject.toml"
@@ -221,7 +222,7 @@ def test_every_unguarded_third_party_import_is_bundled() -> None:
     first_party = {"fichero_server", "fichero_cli", "fichero_mcp", "__future__"}
     offenders: list[str] = []
     src = SERVER_ROOT / "src" / "fichero_server"
-    for path in sorted(src.rglob("*.py")):
+    for path in sorted(scan_rglob(src, "*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         parents: dict[ast.AST, ast.AST] = {}
         for node in ast.walk(tree):

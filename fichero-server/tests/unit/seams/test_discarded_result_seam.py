@@ -46,6 +46,7 @@ from __future__ import annotations
 import ast
 from collections import defaultdict
 from pathlib import Path
+from _scan_files import scan_rglob
 
 SRC = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
 
@@ -66,7 +67,7 @@ JUSTIFIED_DISCARDS: dict[str, str] = {
 
 
 def _python_files() -> list[Path]:
-    return sorted(SRC.rglob("*.py"))
+    return sorted(scan_rglob(SRC, "*.py"))
 
 
 def _bool_returning_names() -> set[str]:

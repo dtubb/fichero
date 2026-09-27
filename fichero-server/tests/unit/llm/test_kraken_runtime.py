@@ -41,6 +41,7 @@ from fichero_server.media.ocr_geometry import (
     geometry_status,
     is_sparse_geometry,
 )
+from _scan_files import scan_rglob
 
 KRAKEN_RUNTIME_PATH = Path(kraken_runtime.__file__)
 SRC_ROOT = KRAKEN_RUNTIME_PATH.resolve().parents[2]  # .../src
@@ -104,7 +105,7 @@ def test_the_seam_is_the_only_importer_of_kraken_in_the_engine() -> None:
     reviewed place the engine touches Kraken's heavy C extensions outside
     the one lock/throttle seam."""
     offenders: list[str] = []
-    for path in sorted(SRC_ROOT.rglob("*.py")):
+    for path in sorted(scan_rglob(SRC_ROOT, "*.py")):
         if path == KRAKEN_RUNTIME_PATH:
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))

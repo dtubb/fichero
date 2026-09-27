@@ -29,6 +29,7 @@ import os
 import pathlib
 
 import pytest
+from _scan_files import scan_rglob
 
 ROUTES_ROOT = pathlib.Path(__file__).resolve().parents[3] / (
     "src/fichero_server/api/routes"
@@ -53,7 +54,7 @@ def _is_direct_kg_delete_call(node: ast.AST) -> str | None:
 
 def _direct_kg_delete_findings() -> list[str]:
     findings: list[str] = []
-    for path in sorted(ROUTES_ROOT.rglob("*.py")):
+    for path in sorted(scan_rglob(ROUTES_ROOT, "*.py")):
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         except SyntaxError:

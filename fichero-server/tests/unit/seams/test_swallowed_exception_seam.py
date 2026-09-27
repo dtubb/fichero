@@ -51,6 +51,7 @@ import ast
 import sys
 from collections import Counter
 from pathlib import Path
+from _scan_files import scan_rglob
 
 SRC = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
 BASELINE = Path(__file__).with_name("known_swallowed_exceptions.txt")
@@ -109,7 +110,7 @@ def _scan(root: Path) -> tuple[Counter, int]:
     """Counter of 'relpath::qualname' -> count, plus files walked."""
     found: Counter[str] = Counter()
     files = 0
-    for path in sorted(root.rglob("*.py")):
+    for path in sorted(scan_rglob(root, "*.py")):
         files += 1
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))

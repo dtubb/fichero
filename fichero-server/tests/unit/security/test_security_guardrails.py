@@ -7,6 +7,7 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from _scan_files import scan_rglob
 
 SRC_ROOT = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
 LOGGER_METHODS = {"debug", "info", "warning", "error", "exception", "critical", "log"}
@@ -278,7 +279,7 @@ class SecurityVisitor(ast.NodeVisitor):
 
 
 def _iter_source_files() -> Iterable[Path]:
-    yield from sorted(SRC_ROOT.rglob("*.py"))
+    yield from sorted(scan_rglob(SRC_ROOT, "*.py"))
 
 
 def _is_persistence_path(rel_path: str) -> bool:

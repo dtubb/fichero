@@ -125,3 +125,33 @@ def test_no_guard_walks_a_tree_with_bare_rglob():
         and re.search(r"\.rglob\(|os\.walk\(", path.read_text(encoding="utf-8"))
     )
     assert offenders == [], f"use _scan_files.scan_rglob instead: {offenders}"
+
+
+#: Test files that walk a tree with bare `rglob`, each with why that is right. All of them
+#: walk a RUNTIME directory the test itself created (a tmp dir, a library, a basetemp), where
+#: an empty result can be the point and no source tree or nested worktree can appear.
+TESTS_BARE_RGLOB_ALLOWED = {
+    "conftest.py": "sizes leaked pytest basetemps under the system temp dir",
+    "test_tmp_reclaim_bound.py": "walks the basetemp it is measuring",
+    "test_auth_lazy_token.py": "looks for app.duckdb under a tmp base path",
+    "test_library_sync_io.py": "asserts no .synctmp file is left in tmp_path",
+    "test_unicode_library_merge_action.py": "hashes the files of a tmp library",
+}
+
+
+def test_no_test_walks_a_source_tree_with_bare_rglob():
+    """The other half of the class. A test asserting ABSENCE over `rglob` of a computed
+    root passes when the root does not exist — `parents[4]` for `parents[3]` did exactly
+    that on 2026-09-27 — and walks any nested worktree copy as if it were this repo. Source
+    scans in tests go through `scan_rglob`, which raises on a missing root."""
+    repo = SCRIPTS.parent
+    offenders = sorted(
+        str(path.relative_to(repo))
+        for base in ("fichero-server/tests", "fichero-cli/tests", "fichero-mcp/tests")
+        if (repo / base).is_dir()
+        for path in scan_files.scan_rglob(repo / base, "*.py")
+        if path.name not in TESTS_BARE_RGLOB_ALLOWED
+        and path.name != Path(__file__).name
+        and re.search(r"\.rglob\(|os\.walk\(", path.read_text(encoding="utf-8"))
+    )
+    assert offenders == [], f"use _scan_files.scan_rglob for source scans: {offenders}"
