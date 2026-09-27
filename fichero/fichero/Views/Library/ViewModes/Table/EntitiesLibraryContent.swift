@@ -70,6 +70,9 @@ struct EntitiesLibraryContent: View {
     @State private var entityToMergeInto: Components.Schemas.KnowledgeEntity?
     /// The entity a split sheet would un-merge others OUT of (#5110).
     @State private var entityToSplit: Components.Schemas.KnowledgeEntity?
+    /// The entity a Wikidata enrichment sheet would import statements about
+    /// (#4828/#3528).
+    @State private var entityToEnrich: Components.Schemas.KnowledgeEntity?
 
     /// `.sheet(item:)` needs an `Identifiable`, and `KnowledgeEntity.id` is optional.
     /// Shared by the edit, merge-into and split sheets — named for what it does rather
@@ -156,6 +159,15 @@ struct EntitiesLibraryContent: View {
                 // A split makes absorbed entities independent again, so rows APPEAR.
                 Task { await reloadScope(force: true) }
             }
+        }
+        // Takes the store explicitly rather than from the environment — its own
+        // choice — so it is handed THIS pane's per-library store, the one the rows
+        // came from.
+        .sheet(item: Binding(
+            get: { entityToEnrich.map(IdentifiedEntity.init) },
+            set: { entityToEnrich = $0?.entity }
+        )) { wrapped in
+            WikidataEnrichmentSheet(entity: wrapped.entity, entityStore: store)
         }
         // #4851/#4794: report the visible ids on every input that can change
         // them — the filter inputs directly, and the store's own load
@@ -329,6 +341,7 @@ struct EntitiesLibraryContent: View {
             },
             mergeInto: { entity in entityToMergeInto = entity },
             split: { entity in entityToSplit = entity },
+            enrichFromWikidata: { entity in entityToEnrich = entity },
             delete: { entities in
                 let ids = entities.compactMap(\.id)
                 Task { try? await store.delete(entityIds: ids) }

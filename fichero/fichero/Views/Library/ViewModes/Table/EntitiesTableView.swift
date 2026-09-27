@@ -46,6 +46,11 @@ struct EntitiesTableView: View {
         /// `EntitySplitSheet` (#5110). The inverse of a merge, not a division: it clears
         /// `merged_into_id` on the entities that were absorbed into this one.
         var split: (Components.Schemas.KnowledgeEntity) -> Void
+        /// Import Wikidata statements about this entity as claims — presents
+        /// `WikidataEnrichmentSheet` (#4828/#3528). The whole path below it is built
+        /// (`EntityStore.fetchWikidataStatements`/`importWikidataStatements` over
+        /// `enrichPreview`/`enrichImport`); only the door was missing.
+        var enrichFromWikidata: (Components.Schemas.KnowledgeEntity) -> Void
         /// Delete — via EntityStore.delete.
         var delete: ([Components.Schemas.KnowledgeEntity]) -> Void
     }
@@ -201,32 +206,7 @@ struct EntitiesTableView: View {
         let targets = items.filter { ids.contains($0.id) }.map(\.entity)
         if !targets.isEmpty {
             if targets.count == 1, let one = targets.first {
-                Button { startRename(one) } label: {
-                    Label("Rename", systemImage: "character.cursor.ibeam")
-                }
-                .accessibilityIdentifier("kg.entity.menu.rename")
-                Button { actions.edit(one) } label: {
-                    Label("Edit…", systemImage: "pencil")
-                }
-                .accessibilityIdentifier("kg.entity.menu.edit")
-                // #5110: both of these were complete, built sheets with no door —
-                // their host `EntityDetailView` has no caller (#4828), so nothing
-                // could present them. They are SINGLE-selection verbs, which is why
-                // they sit here rather than replacing "Merge N duplicates" below:
-                // that one takes a multi-selection and picks the survivor itself.
-                Button { actions.mergeInto(one) } label: {
-                    Label("Merge Other Entities Into This…", systemImage: "arrow.triangle.merge")
-                }
-                .accessibilityIdentifier("kg.entity.menu.mergeInto")
-                // Always offered: whether anything was merged into this entity depends
-                // on the LIBRARY-wide set, and this table may be folder-scoped. The
-                // sheet resolves that and says "nothing merged into this one" itself,
-                // which is honest — a menu gated on the scoped rows would hide the
-                // door exactly when the absorbed entity sits outside the folder.
-                Button { actions.split(one) } label: {
-                    Label("Split Merged Entities…", systemImage: "arrow.triangle.branch")
-                }
-                .accessibilityIdentifier("kg.entity.menu.split")
+                singleSelectionVerbs(for: one)
                 Divider()
             }
             Button { actions.setCuration(targets, .blessed) } label: {
@@ -257,6 +237,48 @@ struct EntitiesTableView: View {
             }
             .accessibilityIdentifier("kg.entity.menu.delete")
         }
+    }
+
+    /// The verbs that act on exactly ONE entity, each opening a sheet. Separated from
+    /// the multi-selection verbs so the distinction is a function name rather than a
+    /// bare count, and so `curationMenu` stays inside the body-length limit.
+    @ViewBuilder
+    private func singleSelectionVerbs(for one: Components.Schemas.KnowledgeEntity) -> some View {
+        Button { startRename(one) } label: {
+            Label("Rename", systemImage: "character.cursor.ibeam")
+        }
+        .accessibilityIdentifier("kg.entity.menu.rename")
+        Button { actions.edit(one) } label: {
+            Label("Edit…", systemImage: "pencil")
+        }
+        .accessibilityIdentifier("kg.entity.menu.edit")
+        // #5110: both of these were complete, built sheets with no door —
+        // their host `EntityDetailView` has no caller (#4828), so nothing
+        // could present them. They are SINGLE-selection verbs, which is why
+        // they sit here rather than replacing the multi-selection "Merge N
+        // duplicates" in `curationMenu`: that one picks the survivor itself.
+        Button { actions.mergeInto(one) } label: {
+            Label("Merge Other Entities Into This…", systemImage: "arrow.triangle.merge")
+        }
+        .accessibilityIdentifier("kg.entity.menu.mergeInto")
+        // Always offered: whether anything was merged into this entity depends
+        // on the LIBRARY-wide set, and this table may be folder-scoped. The
+        // sheet resolves that and says "nothing merged into this one" itself,
+        // which is honest — a menu gated on the scoped rows would hide the
+        // door exactly when the absorbed entity sits outside the folder.
+        Button { actions.split(one) } label: {
+            Label("Split Merged Entities…", systemImage: "arrow.triangle.branch")
+        }
+        .accessibilityIdentifier("kg.entity.menu.split")
+        // #4828/#3528: the reachable reconciliation sheet tells the user
+        // external authority is "coming soon (#3528)" while this is fully
+        // built and was simply unreachable. Always offered: whether the
+        // entity has a linked QID is server-side state, and the sheet says
+        // so honestly rather than this menu guessing from a local field.
+        Button { actions.enrichFromWikidata(one) } label: {
+            Label("Enrich from Wikidata…", systemImage: "sparkles")
+        }
+        .accessibilityIdentifier("kg.entity.menu.enrichWikidata")
     }
 
     private var loadingState: some View {
