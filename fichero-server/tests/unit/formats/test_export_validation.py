@@ -60,14 +60,16 @@ def test_a_format_that_writes_has_a_schema_or_says_why_not(spec):
 @pytest.mark.parametrize(
     "spec", [s for s in known_formats() if s.writes and (s.schema or s.check)], ids=lambda s: s.name
 )
-def test_a_format_with_a_schema_validates_a_file_somebody_else_wrote(spec):
-    """At least one third-party file validates as-is. Without one, a schema that
-    rejects everything real -- or a reader that never meets real input -- ships
-    unnoticed: our own writer and our own reader agree with each other perfectly."""
-    outcomes = [script.check(path)[0] for path in _REAL.get(spec.name, [])]
-    assert "valid" in outcomes, (
-        f"no third-party {spec.name} file in fixtures/ validates against "
-        f"{spec.schema} (outcomes: {outcomes or 'no files'}). Vendor one, licence first."
+def test_a_format_with_a_schema_has_a_third_party_file_to_export(spec):
+    """At least one file somebody ELSE wrote, which `test_every_real_file_re_exports_valid`
+    then pushes through our writer against the latest schema. Without one, our writer and
+    our reader agree with each other perfectly and prove nothing.
+
+    NOT "validates as-is" any more (ruled 2026-09-27: the point is OUR export). An input's
+    own validity is information: eScriptorium writes ALTO 4.2, Kraken writes 4.3 with a
+    4.4 attribute, and both are how material gets in."""
+    assert _REAL.get(spec.name), (
+        f"no third-party {spec.name} file in fixtures/. Vendor one, licence first."
     )
 
 
@@ -111,7 +113,8 @@ class TestTheScriptSaysWhatItDidNotCheck:
         schema was consulted rather than 4.3 or 4.2 under another name."""
         data = (_FIXTURES / "kraken_alto_multilingual_bsb00084914.alto.xml").read_bytes()
         outcome, name, problems = script.check_bytes("k.alto.xml", data.replace(b"alto-4-3.xsd", b"alto-4-4.xsd"))
-        assert (outcome, name) == ("INVALID", "alto (alto-4-4.xsd)")
+        # 4.4 is the schema our writer targets now, so it is the format's own, not an "other".
+        assert (outcome, name) == ("INVALID", "alto")
         assert any("LABEL" in p for p in problems)
         assert not any("'LANG'" in p for p in problems)
 
@@ -122,7 +125,7 @@ class TestTheScriptSaysWhatItDidNotCheck:
         outcome, _, problems = script.check(tmp_path / "bad.page.xml")
         assert outcome == "INVALID"
         assert any("bogusAttribute" in p for p in problems)
-        assert script.main([str(tmp_path)]) == 1
+        assert script.main([str(tmp_path), "--inputs"]) == 1
 
     def test_a_directory_where_nothing_was_validated_is_not_a_pass(self, tmp_path):
         """Empty, or only files nothing could check: exit 1. Absence of errors
@@ -131,10 +134,37 @@ class TestTheScriptSaysWhatItDidNotCheck:
         (tmp_path / "notes.txt").write_text("not an export\n", encoding="utf-8")
         assert script.main([str(tmp_path)]) == 1
 
-    def test_the_real_fixtures_as_a_directory_report_every_outcome_honestly(self, capsys):
+    def test_the_real_fixtures_as_inputs_report_every_outcome_honestly(self, capsys):
         """Three third-party files are invalid by their own rules (Kraken's ALTO, a
         Transkribus table with `DU_*` attributes, Allmaps' earlier-dialect annotation). The directory FAILS for them, which
         is right: the script reports files, it does not forgive other tools."""
-        assert script.main([str(_FIXTURES)]) == 1
+        assert script.main([str(_FIXTURES), "--inputs"]) == 1
         out = capsys.readouterr().out
         assert "7 valid, 3 INVALID, 1 other version, 0 no schema, 1 unrecognised" in out
+
+
+class TestTheDefaultIsOurExport:
+    """Ruled 2026-09-27: every file is an input, and the test is OUR export of it against the
+    latest schema. The fixtures include three inputs invalid by their own rules; that must
+    not be a red for us."""
+
+    def test_the_fixtures_pass_because_every_one_of_our_exports_validates(self, capsys):
+        assert script.main([str(_FIXTURES)]) == 0
+        out = capsys.readouterr().out
+        assert "11 exported, 0 EXPORT INVALID, 0 UNREADABLE, 0 UNWRITABLE, 1 not exported" in out
+        assert "3 INVALID" in out  # the inputs, reported as information
+
+    def test_one_invalid_export_of_ours_is_a_red(self, tmp_path, monkeypatch):
+        import fichero_server.formats as formats
+
+        (tmp_path / "page.xml").write_bytes((_FIXTURES / "ocrd_gt_aepinus_0020.page.xml").read_bytes())
+        spec = formats.format_named("pagexml")
+        monkeypatch.setitem(
+            formats._REGISTRY, "pagexml",
+            type(spec)(**{**spec.__dict__, "write": lambda page, report: b"<not-page/>"}),
+        )
+        assert script.main([str(tmp_path)]) == 1
+
+    def test_nothing_exported_is_not_a_pass(self, tmp_path):
+        (tmp_path / "notes.txt").write_text("not an export\n", encoding="utf-8")
+        assert script.main([str(tmp_path)]) == 1

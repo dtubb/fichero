@@ -210,34 +210,43 @@ Rules for every format
   language NAMES, that `script` is `"Arab - Arabic"`, that the attribute is `primaryScript`, and
   that a region's `TextEquiv` must follow its lines — four defects an unvalidated writer would have
   shipped.
-- `source.format.validate-a-directory` — **[OK]** (→ #4943) one command checks every interchange file in a
-  directory against its format's own schema, offline:
-  `PYTHONPATH=fichero-server/src .venv/bin/python scripts/validate_exports.py <dir> [-r]`. Each file is
-  identified by its bytes, not its name, and gets one of **five** outcomes: valid, INVALID (with the
-  schema's messages), **other version**, no schema, and unrecognised. Two older versions are
-  vendored for reading what other tools write, and a file declaring either is checked against its own
-  version's schema. PAGE 2013 (what Transkribus writes) is told apart by namespace. ALTO 4.3 (what
-  Kraken writes) and 4.4 (the current release) keep 4.2's namespace and are told apart by the
-  schema file they declare. ALTO 2.x is not vendored because its schema states no licence. Exports are
-  still written as PAGE 2019 and ALTO 4.2. *Other version* is what remains, ALTO 2.0 for example, and
-  it is the outcome that would be simplified away: checked against the wrong version's schema, such a
-  file fails on every element. That result describes our install, not the file, so it is reported as
-  neither valid nor invalid. **Real files are not all valid:** Kraken's ALTO omits the required
-  `OtherTag@LABEL` and puts `LANG` on `Page`, and a Transkribus table page carries `DU_*` attributes.
-  That is why readers never validate and writers always do. The command **exits 1 when nothing was validated**:
-  an empty directory, or one full of files nothing could check, is not a passing export. Pinned by
-  `tests/unit/formats/test_export_validation.py::TestTheScriptSaysWhatItDidNotCheck::test_a_version_we_vendor_no_schema_for_is_neither_valid_nor_invalid`,
-  `::test_pagexml_2013_is_checked_against_2013_not_2019`, `::test_alto_4_3_is_told_from_4_2_by_the_file_it_declares`, `::test_alto_4_4_is_its_own_schema_where_page_lang_is_allowed`,
-  `::test_a_broken_export_is_invalid_with_the_schemas_own_words` and
-  `::test_a_directory_where_nothing_was_validated_is_not_a_pass`.
+- `source.format.validate-a-directory` — **[OK]** (→ #4943) one command answers the question that
+  matters, **does OUR export validate?**, for every interchange file in a directory, offline:
+  `PYTHONPATH=fichero-server/src .venv/bin/python scripts/validate_exports.py <dir> [-r] [--inputs]`.
+  **Ruled 2026-09-27: we export the latest schema, and our export is what is tested.** Every file is
+  an INPUT, in whatever version: PAGE 2013, ALTO 2 or 4.3, files invalid by their own schema. Reading
+  them is how material gets in. The default reads each file, writes it back out through our writer
+  for its format, and validates our output against the latest schema that writer targets (PAGE
+  2019, ALTO 4.4, TEI P5, IIIF georef/1). It **exits 1 only for our own failures**: an export that
+  does not validate, or a recognised file we could not read or write, which is ours too. It also
+  exits 1 when nothing was exported, because an empty directory is not a pass. Each input's own
+  validity is printed alongside **as information**, in five outcomes: valid, INVALID, **other
+  version** (a version we vendor no schema for, such as ALTO 2.x, whose schema states no licence),
+  no schema, and unrecognised. PAGE 2013 and ALTO 4.2 and 4.3 are vendored so that inputs in those
+  versions can be checked against their own version's schema. ALTO keeps one namespace for all of
+  4.x, so the version is told by the schema file a file declares. **Real files are not all valid:**
+  Kraken's ALTO omits the required `OtherTag@LABEL` and uses 4.4's `Page@LANG` while declaring 4.3.
+  A Transkribus table page carries `DU_*` attributes. Allmaps' earlier-dialect annotation fails
+  georef/1. Every one of them exports valid through our writer. `--inputs` checks the inputs alone.
+  Pinned by
+  `tests/unit/formats/test_export_validation.py::TestTheDefaultIsOurExport::test_the_fixtures_pass_because_every_one_of_our_exports_validates`,
+  `::TestTheDefaultIsOurExport::test_one_invalid_export_of_ours_is_a_red`,
+  `::TestTheDefaultIsOurExport::test_nothing_exported_is_not_a_pass`,
+  `::TestTheScriptSaysWhatItDidNotCheck::test_a_version_we_vendor_no_schema_for_is_neither_valid_nor_invalid`,
+  `::TestTheScriptSaysWhatItDidNotCheck::test_pagexml_2013_is_checked_against_2013_not_2019` and
+  `::TestTheScriptSaysWhatItDidNotCheck::test_alto_4_3_is_told_from_4_2_by_the_file_it_declares`.
+  **The corpus lane's files find our own failures:** run recursively over `fixtures/`, three of the
+  corpus files do not export (two PAGE files, a segment with no shape written without `<Coords>`;
+  one Transkribus TEI refused on read): the corpus lane's two defect classes, fixed next.
 - `source.format.every-writer-is-validated` — **[OK]** (→ #4943) a format cannot ship a writer with
   nothing checking its output. The guard is parametrised over the registry, so registering a format
-  adds a case, and the case fails until the format has **either** a schema **and** a third-party file
-  that validates against it, **or** an entry in a reviewed list of formats with no schema by nature
-  (hOCR is HTML, YOLO is numbers), each with its reason. Every real fixture must also re-export valid,
-  and that is the check that caught the TableCell defect. Pinned by
+  adds a case, and the case fails until the format has **either** a schema or a checker written from
+  its normative text **and** a file somebody else wrote, **or** an entry in a reviewed list of formats
+  with no schema by nature (hOCR is HTML, YOLO is numbers), each with its reason. **Every real
+  fixture, in any version, must re-export valid against the latest schema.** That check found the
+  TableCell defect, and it is the one the maintainer's ruling makes central. Pinned by
   `tests/unit/formats/test_export_validation.py::test_a_format_that_writes_has_a_schema_or_says_why_not`,
-  `::test_a_format_with_a_schema_validates_a_file_somebody_else_wrote` and
+  `::test_a_format_with_a_schema_has_a_third_party_file_to_export` and
   `::test_every_real_file_re_exports_valid`. To show the guard is not vacuous, both cases were
   shown firing against a throwaway format with no schema and one with a schema but no real file.
 - `source.format.loss-report` — **[OK]** (→ #4943; pinned by `tests/unit/formats/test_pagexml_round_trip.py::TestTheLossesAreDeclaredNotDiscovered::test_several_readings_survive_but_WHICH_ONE_COUNTS_is_reported_lost`) every export states what it could not carry.
@@ -313,8 +322,11 @@ Each format (one import and one export behaviour each)
   `mm10`. Normalised coordinates are unit-free (the page declares its size in the same unit); a
   non-pixel page reports **no** pixel grid rather than a wrong one, and an unknown unit is refused
   rather than assumed.
-- `source.format.alto-out` — **[OK]** (→ #4944): the writer validates against ALTO 4.2 and names
-  what it cannot carry. It also invents the `TextBlock` and `TextLine` a bare `String` needs
+- `source.format.alto-out` — **[OK]** (→ #4944): the writer emits and validates against **ALTO 4.4**,
+  the latest release (ruled 2026-09-27), declaring it (`SCHEMAVERSION` and the schema file, since
+  4.x shares one namespace), and names what it cannot carry. `Page@LANG`, which 4.4 added, is
+  written when it is a BCP 47 tag and is no longer a loss
+  (`test_alto.py::TestARealHebrewExportStatesItsLanguageWhereAltoDoesNotAllowIt::test_the_page_language_is_written_back_in_4_4_and_is_no_longer_a_loss`). It also invents the `TextBlock` and `TextLine` a bare `String` needs
   (→ #5084) — **marked `fichero-implicit-` and dropped again on re-import**, so a scholar who exports
   and re-imports gets their word back rather than a block nobody drew. Pinned by
   `test_alto.py::TestTheImplicitParentIsWrittenAndMarked` (5 tests, including that a real page with

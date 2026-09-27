@@ -1,30 +1,29 @@
 #!/usr/bin/env python3
-"""Validate every interchange file in a directory against its format's own schema.
+"""Does OUR export of every file in a directory validate against the latest schema?
 
-    PYTHONPATH=fichero-server/src .venv/bin/python scripts/validate_exports.py <dir> [--recursive]
+    PYTHONPATH=fichero-server/src .venv/bin/python scripts/validate_exports.py <dir> [-r] [--inputs]
 
-For a researcher who exported a library and wants to know it will open elsewhere,
-and for us after changing a writer. Each file is identified by its BYTES (PAGE XML,
-ALTO and TEI are all `.xml`), then checked with the same `validate()` the export
-path runs, offline, against the vendored schemas.
+THE POINT IS OUR EXPORT (ruled 2026-09-27). Every file here is an INPUT, in any version
+of its format: PAGE 2013, ALTO 2 or 4.3, files that are invalid by their own schema.
+Reading them is how material gets in. The default mode reads each one, writes it back
+out through our writer for its format, and validates OUR output against the latest
+schema that writer targets. It exits 1 only when one of OUR exports is invalid, or when
+a file we recognise could not be read or written (that is ours too: reading every
+input is the job). It also exits 1 when nothing was exported at all, because an empty
+directory, or one full of files nothing claims, is not a pass. That is the
+absence-read-as-success trap.
 
-Five outcomes per file, never collapsed into two:
+Each input's OWN validity is reported alongside, as information, never as a failure:
 
-* `valid`         -- the schema was consulted and found nothing.
-* `INVALID`       -- the schema's own messages follow.
-* `other version` -- the file is a version of the format we vendor no schema for
-                     (ALTO 2.0, say). A version we DO vendor (PAGE 2013, ALTO 4.3)
-                     is validated against its own schema instead. NOT invalid and NOT valid:
-                     validating a 2013 PAGE file against the 2019 schema reports
-                     every element as wrong, and that is a statement about us.
-* `no schema`     -- the format has none by nature (hOCR is HTML, YOLO is lines of
-                     numbers). NOT reported as valid: nothing was checked.
+* `valid`         -- checked against its own schema and fine.
+* `INVALID`       -- checked against its own schema, with the messages.
+* `other version` -- a version we vendor no schema for (ALTO 2.x: its schema states no
+                     licence). Neither valid nor invalid.
+* `no schema`     -- the format has none by nature (hOCR, YOLO).
 * `unrecognised`  -- no registered format claims the bytes.
 
-Exit status is 1 if anything is INVALID, and also if NOTHING was validated: a
-directory of the wrong files, or an empty one, is not a passing export. That is
-the absence-read-as-success trap, and a script whose only job is to say "these are
-fine" is where it does the most harm.
+`--inputs` checks the inputs only (the earlier behaviour): useful for looking at other
+tools' files, and it exits 1 on an invalid input.
 """
 
 from __future__ import annotations
@@ -47,6 +46,7 @@ XSI = "{http://www.w3.org/2001/XMLSchema-instance}schemaLocation"
 #: Transkribus writes PAGE 2013; Kraken writes ALTO 4.3; 4.4 is current. ALTO 2.x is NOT here:
 #: its schema states no licence (schemas/PROVENANCE.md).
 OTHER_VERSION_SCHEMAS = {
+    "alto-4-2.xsd": "alto-4-2.xsd",
     "http://schema.primaresearch.org/PAGE/gts/pagecontent/2013-07-15": "pagecontent-2013-07-15.xsd",
     "alto-4-3.xsd": "alto-4-3.xsd",
     "alto-4-4.xsd": "alto-4-4.xsd",
@@ -110,10 +110,40 @@ def check_bytes(filename: str, data: bytes) -> tuple[str, str | None, list[str]]
     return ("INVALID" if problems else "valid"), spec.name, problems
 
 
+def export_check(filename: str, data: bytes) -> tuple[str, str | None, list[str]]:
+    """(outcome, format, problems) for OUR export of this input.
+
+    `exported`: our writer's output passed the latest schema (the harness validates every
+    write). `EXPORT INVALID`: it did not. `UNREADABLE` / `UNWRITABLE`: we recognise the
+    format and failed it -- ours as well. `not exported`: no format claims it, or the format
+    goes one way only.
+    """
+    from fichero_server.formats import InvalidExport, read_page, write_page
+
+    spec = format_for(filename, data)
+    if spec is None or not (spec.reads and spec.writes):
+        return "not exported", spec.name if spec else None, []
+    try:
+        page = read_page(spec.name, data)
+    except Exception as exc:  # noqa: BLE001 -- reported by name, and counted as a failure
+        return "UNREADABLE", spec.name, [f"{type(exc).__name__}: {exc}"]
+    try:
+        write_page(spec.name, page)
+    except InvalidExport as exc:
+        return "EXPORT INVALID", spec.name, list(exc.problems)
+    except Exception as exc:  # noqa: BLE001 -- reported by name, and counted as a failure
+        return "UNWRITABLE", spec.name, [f"{type(exc).__name__}: {exc}"]
+    return "exported", spec.name, []
+
+
+OUR_FAILURES = ("EXPORT INVALID", "UNREADABLE", "UNWRITABLE")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("directory", type=Path)
     parser.add_argument("--recursive", "-r", action="store_true")
+    parser.add_argument("--inputs", action="store_true", help="check the inputs only")
     args = parser.parse_args(argv)
 
     if not args.directory.is_dir():
@@ -121,17 +151,47 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     walk = args.directory.rglob("*") if args.recursive else args.directory.iterdir()
     files = sorted(p for p in walk if p.is_file() and not p.name.startswith("."))
+    return _inputs(files, args.directory) if args.inputs else _exports(files, args.directory)
 
+
+def _print(outcome: str, name: str | None, path: Path, root: Path, problems: list[str]) -> None:
+    print(f"{outcome:<15} {name or '-':<30} {path.relative_to(root)}")
+    for problem in problems[:20]:
+        print(f"    {problem}")
+    if len(problems) > 20:
+        print(f"    ... and {len(problems) - 20} more")
+
+
+def _exports(files: list[Path], root: Path) -> int:
+    ours: dict[str, int] = {}
+    theirs: dict[str, int] = {}
+    for path in files:
+        data = path.read_bytes()
+        outcome, name, problems = export_check(path.name, data)
+        ours[outcome] = ours.get(outcome, 0) + 1
+        input_outcome = check_bytes(path.name, data)[0]
+        theirs[input_outcome] = theirs.get(input_outcome, 0) + 1
+        _print(outcome, name, path, root, problems)
+        print(f"    (the input itself: {input_outcome})")
+
+    summary = ", ".join(f"{ours.get(k, 0)} {k}" for k in ("exported", *OUR_FAILURES, "not exported"))
+    info = ", ".join(f"{theirs.get(k, 0)} {k}" for k in ("valid", "INVALID", "other version", "no schema", "unrecognised"))
+    print(f"\n{len(files)} files. Our exports: {summary}.")
+    print(f"The inputs as they arrived (information, not a failure): {info}.")
+    if any(ours.get(k) for k in OUR_FAILURES):
+        return 1
+    if not ours.get("exported"):
+        print("nothing was exported -- this is not a pass", file=sys.stderr)
+        return 1
+    return 0
+
+
+def _inputs(files: list[Path], root: Path) -> int:
     counts: dict[str, int] = {}
     for path in files:
         outcome, name, problems = check(path)
         counts[outcome] = counts.get(outcome, 0) + 1
-        label = f"{outcome:<13} {name or '-':<30} {path.relative_to(args.directory)}"
-        print(label)
-        for problem in problems[:20]:
-            print(f"    {problem}")
-        if len(problems) > 20:
-            print(f"    ... and {len(problems) - 20} more")
+        _print(outcome, name, path, root, problems)
 
     summary = ", ".join(f"{counts.get(k, 0)} {k}" for k in ("valid", "INVALID", "other version", "no schema", "unrecognised"))
     print(f"\n{len(files)} files: {summary}")
