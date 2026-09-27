@@ -923,8 +923,17 @@ lanes loaded the machine, and so recorded VOID by the trial's own rule. Pinned b
 `fichero-server/tests/unit/api/test_page_content_is_a_cache.py::TestUndoingAMoveIsAsCheapAsTheMove::test_undoing_a_move_does_not_derive_the_page`
 (which fails on the code before the fix) and
 `::TestUndoingAMoveIsAsCheapAsTheMove::test_undoing_a_furniture_change_still_refreshes` (the
-exemption stops where the text can change). The whole-page derivation's own N+1 remains for the
-restores that do change the text; it is the next thing the trial should time.
+exemption stops where the text can change). **The second finding** is the derivation itself,
+which the undos that do change the text still pay. Deriving the 20,000-segment page took about
+14.5 s, with 20,017 single-row lookups: `readings_of_segment` re-walked forwarding for live rows
+already in hand, and ran one representation query and one kinds query per row. The page's
+readings are now gathered in one batch (`_readings_for_live_rows`). **About 1.8 s now**, again
+measured under load. That is still far past 100 ms for a text-changing undo, which the trial
+records rather than hides; the next cut is to derive only the lines an action touched. Pinned by
+`fichero-server/tests/unit/api/test_page_content_is_a_cache.py::TestAPagesTextIsDerivedInOnePass::test_the_batch_gives_exactly_what_each_row_would`
+(the same answer as the per-row path, stored and provisional readings both) and
+`::TestAPagesTextIsDerivedInOnePass::test_deriving_a_page_looks_no_row_up_one_at_a_time` (fails on
+the code before).
 - `source.perf.worst-frame-not-mean` — **[PARTIAL]** (#4940; the verdict is built and pinned by `fichero-server/tests/unit/scripts/test_perf_trial.py::TestWorstFrameNotMean::test_one_dropped_frame_fails_a_run_whose_mean_is_fine`. No measurement has been recorded yet) the frame gate is on the worst frame in a
   run against a 16.7 ms budget, never the mean, because a mean hides the dropped frame a person
   feels.

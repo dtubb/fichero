@@ -239,3 +239,36 @@ class TestUndoingAMoveIsAsCheapAsTheMove:
 
         assert _restore_may_change_text(SimpleNamespace(after={"segment_id": "s"}), "segment.restore_version")
         assert not _restore_may_change_text(SimpleNamespace(after={"text_relevant": False}), "segment.restore_version")
+
+
+class TestAPagesTextIsDerivedInOnePass:
+    """Slice 12 (#4940): deriving a 20,000-segment page took ~14.5 s -- one forwarding walk, one
+    representation query and one kinds query per LIVE row already in hand. The page's readings are
+    now gathered in one batch (~1.8 s). These pin that the batch is the same answer, not a new one."""
+
+    def test_the_batch_gives_exactly_what_each_row_would(self, db, client):
+        import fichero_server.api.routes.document.segment_readings as sr
+        from fichero_server.models.segments import SegmentPass
+
+        page, art, row = _converted(db, client)
+        _correct(db, page, row)  # one stored reading beside the provisional ones
+        [pass_row] = [p for p in db.all(SegmentPass) if p.document_id == page.id]
+        rows = [r for r in db.all(Segment) if r.pass_id == pass_row.id and r.deleted_at is None]
+
+        batch = sr._readings_for_live_rows(db, rows, page.id, {})
+        for r in rows:
+            one = sr.readings_of_segment(db, r.id, artifact_memo={})
+            assert [(i.id, i.kind, i.content) for i in batch[r.id]] == [(i.id, i.kind, i.content) for i in one], r.id
+        assert any(i.provisional for items in batch.values() for i in items), "provisional readings are in the batch"
+        assert any(not i.provisional for items in batch.values() for i in items), "and stored ones"
+
+    def test_deriving_a_page_looks_no_row_up_one_at_a_time(self, db, client, monkeypatch):
+        import fichero_server.api.routes.document.segment_readings as sr
+
+        page, art, row = _converted(db, client)
+        calls = []
+        original = db.get
+        monkeypatch.setattr(db, "get", lambda model, *a, **k: (calls.append(model.__name__), original(model, *a, **k))[1])
+        derived = sr.document_text(db, page.id)
+        assert derived.text
+        assert calls.count("Segment") == 0, f"{calls.count('Segment')} single-row Segment lookups"
