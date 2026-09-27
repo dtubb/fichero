@@ -31,9 +31,10 @@ class TestExportingAPage:
             "IDs/IDREFs (they can start with a digit, which is not a valid NCName) and puts a "
             "TextLine directly under Page when the page has lines and no regions, as Kraken's do. "
             "The other lane's writer; reported, not fixed here"))),
-        pytest.param("alto", marks=pytest.mark.skip(reason=(
-            "ALTO cannot be validated in this build: LOC's xlink.xsd is not vendored "
-            "(UnvendoredSchemaImport), so ALTO export refuses loudly by design"))),
+        pytest.param("alto", marks=pytest.mark.xfail(strict=True, reason=(
+            "ALTO validates now (xlink vendored, #5082) and refuses this page: the writer emits a "
+            "TextLine/String with no TextBlock above it when a page has lines and no regions, as "
+            "Kraken's do. Same class as #5084, the other lane's writer"))),
     ])
     def test_a_converted_page_exports_in_each_format_and_reads_back(self, db, client, fmt):
         page, _ = _converted(db, client)

@@ -114,57 +114,15 @@ class TestReadingARealAltoFile:
         assert format_for("00001.xml", real_alto).name == "alto"
 
 
-class TestAltoExportRefusesUntilItsSchemaIsVendored:
-    """**The honest state of ALTO writing, pinned rather than hidden.**
-
-    ALTO's XSD imports `http://www.loc.gov/standards/xlink/xlink.xsd`, which is not
-    vendored: `loc.gov` refuses a script, and W3C's modern `xlink.xsd` is NOT a
-    substitute — it defines `simpleAttrs` where ALTO references `simpleLink`, so
-    mapping one to the other builds a schema missing the definitions ALTO uses.
-
-    So every ALTO export refuses, by design: `write_page` validates before handing
-    over bytes, and a file that cannot be validated must not be written. These tests
-    pin THAT, so the day the schema is vendored they fail and tell whoever did it to
-    enable the real assertions below — which is the opposite of a skip nobody
-    notices.
-    """
-
-    def test_an_export_refuses_because_the_xlink_import_is_not_vendored(self):
-        from fichero_server.formats.harness import PageSegment, SourcePage
-        from fichero_server.formats.validation import UnvendoredSchemaImport
-
-        page = SourcePage(
-            image_size=(1000, 1000),
-            segments=[
-                PageSegment(kind="word", ref="w1", rect=[0.1, 0.1, 0.1, 0.02],
-                            readings=[("transcription", "dios")]),
-            ],
-        )
-
-        with pytest.raises(UnvendoredSchemaImport) as raised:
-            write_page("alto", page)
-        assert "xlink" in str(raised.value)
-        assert "validate vacuously" in str(raised.value)
-
-    def test_the_bytes_are_NOT_written_when_validation_cannot_run(self):
-        """The rule this protects: a file that exists and does not validate is one
-        somebody sends to a colleague. "Cannot validate" is not "valid"."""
-        from fichero_server.formats.harness import PageSegment, SourcePage
-        from fichero_server.formats.validation import UnvendoredSchemaImport
-
-        page = SourcePage(image_size=(1000, 1000), segments=[PageSegment(kind="word")])
-
-        with pytest.raises(UnvendoredSchemaImport):
-            write_page("alto", page)
-
-
-@pytest.mark.skip(
+@pytest.mark.xfail(
+    strict=True,
     reason=(
-        "ALTO export cannot be validated until the xlink schema ALTO imports is "
-        "vendored (see schemas/PROVENANCE.md). The writer itself is complete and "
-        "its losses are asserted by TestTheWriterNamesItsLossesWithoutValidating "
-        "below, which exercises the same code without going through write_page."
-    )
+        "found the day ALTO first VALIDATED (xlink vendored, #5082): the writer puts a <String> "
+        "directly under PrintSpace when a word has no line and block above it, which ALTO's "
+        "schema refuses. The same family as #5084 (PAGE XML: a line with no region): a segment "
+        "without its usual parent needs an implicit one, and whether that comes back on "
+        "re-import is the open design question. The writer is the other lane's; reported"
+    ),
 )
 class TestWritingAltoDeclaresWhatItCannotCarry:
     def test_a_language_NAME_cannot_be_written_and_is_reported(self):
@@ -223,7 +181,6 @@ class TestWritingAltoDeclaresWhatItCannotCarry:
         assert "direction" in report.lost
 
 
-@pytest.mark.skip(reason="needs ALTO validation; see TestTheWriterNamesItsLossesWithoutValidating")
 class TestOneModelOneHarness:
     """**PAGE XML in, ALTO out, through the model** — never a PAGE-to-ALTO path.
 
