@@ -693,6 +693,38 @@ async def align_transcript_to_regions(
     aligned, artifact = align_and_build_artifact(db, regions_artifact, transcript)
     if artifact is not None:
         db.save(artifact)
+        # #4890: an artifact that lands on a page with no event is an overlay that
+        # does not redraw until somebody clicks the item, which is the defect the
+        # maintainer watched happen. The run boundary's emit
+        # (`completion.finalize_run_documents`) cannot cover this: there is no run
+        # here -- this route aligns one page on demand.
+        #
+        # Fired whenever an artifact was written, NOT on a status transition. The
+        # original defect was precisely that the only event rode on a document
+        # changing status, so a page already `completed` broadcast nothing.
+        #
+        # A failed emit must not fail a write that succeeded -- the artifact is on
+        # disk and the window will be right on reload -- so it warns, the way the
+        # run boundary does, rather than raising or passing silently.
+        from pathlib import Path as _Path
+
+        from fichero_server.api.change_stream import emit_change
+
+        try:
+            emit_change(
+                str(_Path(str(db.path)).parent),
+                type="artifact.updated",
+                artifact_ids=[artifact.id],
+                document_ids=[artifact.document_id],
+                actor="align-transcript",
+            )
+        except Exception as exc:  # pragma: no cover - defensive, as at the run boundary
+            logger.warning(
+                "align_transcript_to_regions: change-stream emit failed "
+                "(artifact %s persisted; the view will refresh on reload): %s",
+                artifact.id,
+                exc,
+            )
 
     return AlignTranscriptResponse(
         status=str(aligned.metadata.get(STATUS_KEY)),

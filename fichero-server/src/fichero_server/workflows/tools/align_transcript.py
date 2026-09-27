@@ -136,4 +136,11 @@ async def align_transcript_tool(
         "documents": documents,
         "aligned_count": aligned_count,
         "skipped_count": skipped_count,
+        # #4890, the other half: the run boundary broadcasts `artifact.updated` for
+        # the ids in `collect_created_artifact_ids`, which reads THIS key and no
+        # other. `documents` already carried each `artifact_id`, but under a name
+        # the collector does not look at -- so this tool's aligned artifacts landed
+        # silently and an overlay stayed stale. One key, not a second emit: the
+        # broadcast belongs at the boundary that already fires it.
+        "artifacts": [entry["artifact_id"] for entry in documents],
     }
