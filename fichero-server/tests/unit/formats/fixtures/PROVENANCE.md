@@ -110,3 +110,40 @@ was absent or unstated, and the search itself only read GitHub's licence metadat
 **What is still owed**: a right-to-left page that DOES state its direction, and one page of genuine
 engine hOCR. The first would exercise the writer's `rtl` path against somebody else's file rather
 than ours; this one exercises the reader's honesty about absence, which is the other half.
+
+## Tables and a page with no text — the Transkribus ecosystem, 2026-09-27
+
+Both from `Transkribus/TranskribusDU`, **BSD-3-Clause** (© 2016-2019 NAVER LABS
+EUROPE), `LICENSE` read in full before either was fetched. A different producer again:
+the tool chain here is NCSR LayoutAnalysis / NCSR LineSegmentationTool inside the
+Transkribus ecosystem, not eScriptorium and not OCR-D.
+
+| File | Source | Licence | Fetched | What it exercises |
+| --- | --- | --- | --- | --- |
+| `transkribus_abp_table_0019.page.xml` | `https://raw.githubusercontent.com/Transkribus/TranskribusDU/master/usecases/ABP/resources/abp_150/col/S_Rinchnach_013-01_0019.xml` | **BSD-3-Clause** | 2026-09-27 | 178,004 bytes, PAGE **2013** namespace, a real parish register from the Archiv des Bistums Passau: **one `TableRegion` with 172 `TableCell`s**, 17 `TextRegion`s, 355 `TextLine`s each with a `Baseline`, 31 `SeparatorRegion`s, and `custom="readingOrder {index:N;}"` on nearly everything. **The only fixture with a table, and the only one with nesting three deep** (table → cell → line). Its `<TextEquiv><Unicode/></TextEquiv>` elements are EMPTY: layout ground truth, not a transcription, which is a state a reader can easily turn into 372 blank readings. |
+| `transkribus_regions_only_0002.page.xml` | `.../TranskribusDU/spm/testVertical/M_Otter_012/page/M_Otterskirchen_012_0002.xml` | **BSD-3-Clause** | 2026-09-27 | 2,275 bytes, PAGE **2013**: three tall narrow `TextRegion`s (523 × 3171 px), three `SeparatorRegion`s, a genuine `ReadingOrder`/`OrderedGroup` over the regions — and **no `TextLine` and no text at all**. The ordinary state of a page between layout analysis and OCR, which nothing else here covers. |
+
+**What the table file broke, and why no round trip could have found it.** `TableCell`
+was not in the PAGE reader's `ELEMENT_KINDS`, so cells were skipped and the parent walk
+climbed past them to the `TableRegion`. All 355 lines came back parented to the table —
+and the schema forbids a `TextLine` directly under a `TableRegion`, so the export
+refused: *"This element is not expected"*. **Import worked and export could not.** A
+round trip could never have shown it, because our writer has never emitted a table.
+
+Fixed by reading a cell as a `region` — which is what PAGE XML itself says a cell is
+(PAGE 2019 gives a `TextRegion` inside a `TableRegion` a `TableCellRole`) — with its
+`row`, `col`, `rowSpan` and `colSpan` kept in `foreign` until
+`source.segment.table-cells` (#4928) gives the model fields for them.
+
+## Still wanted, named so it is not discovered at the end
+
+- **Vertical text.** No fixture has a `ttb` reading direction or a CJK page. The
+  PAGE reader maps `ttb` to a loss on purpose (the attribute covers horizontal reading
+  only), and that path has never met a real file. The `testVertical` corpus above is
+  *tall narrow columns*, not vertical script — a different thing, and worth not
+  confusing.
+- **A real hOCR page from an engine.** Searched and refused for licence reasons; the
+  table of candidates is above.
+- **A real TEI edition** with a permissive licence. The Consortium's own test file is
+  vendored and is thinner than an edition.
+- **A Transkribus export in the 2019 namespace.** Both files here are 2013.
