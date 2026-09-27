@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<PcGts xmlns="http://schema.primaresearch.org/PAGE/gts/pagecontent/2013-07-15" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://schema.primaresearch.org/PAGE/gts/pagecontent/2013-07-15 http://schema.primaresearch.org/PAGE/gts/pagecontent/2013-07-15/pagecontent.xsd">
+    <Metadata>
+        <Creator>prov=University of Rostock/Institute of Mathematics/CITlab|PLANET AI GmbH/Tobias Gruening/tobias.gruening@planet-ai.de:name=/net_tf/LA73_249_0mod360.pb:de.uros.citlab.segmentation.CITlab_LA_ML:v=2.6.7
+Transkribus</Creator>
+        <Created>2022-04-25T11:44:08.145+09:00</Created>
+        <LastChange>2022-04-29T15:44:31.461+02:00</LastChange>
+        <TranskribusMetadata docId="1097629" pageId="45533978" pageNr="242" tsid="92454687" status="GT" userId="110214" imgUrl="https://files.transkribus.eu/Get?id=BYWLSCTMETGYQOBOWCOPKXHY&amp;fileType=view" xmlUrl="https://files.transkribus.eu/Get?id=TLMUHGHXDKLALMUXLOMAZLOF" imageId="30440155"/>
+    </Metadata>
+    <Page imageFilename="MS B Vetala 6414-0221.jpg" imageWidth="998" imageHeight="320">
+        <ReadingOrder>
+            <OrderedGroup id="ro_1659711757989" caption="Regions reading order">
+                <RegionRefIndexed index="0" regionRef="r1"/>
+            </OrderedGroup>
+        </ReadingOrder>
+        <TextRegion id="r1" custom="readingOrder {index:0;}">
+            <Coords points="947,212 71,212 71,40 947,40"/>
+            <TextLine id="r1l1" custom="readingOrder {index:0;}">
+                <Coords points="85,87 260,86 424,89 690,87 919,78 918,48 689,57 424,59 260,56 85,57"/>
+                <Baseline points="85,87 260,86 424,89 690,87 919,78"/>
+                <TextEquiv>
+                    <Unicode>𑐟𑐵𑐮𑐰𑐫𑐵𑐰𑐢𑐵𑐬𑑄𑐨𑑀𑐬𑐵𑐖𑐣𑑂𑐕𑐾𑐰𑐱𑐱𑐖𑐾𑐥𑐣𑐶𑐣𑐶𑐩𑑂𑐴𑑄𑐖𑐸𑐬𑐐𑑀𑐠𑐠𑐾𑑄𑐳𑐶𑐡𑑂𑐢𑐶𑐮𑐵𑐒𑐵 </Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="r1l2" custom="readingOrder {index:1;}">
+                <Coords points="85,124 292,122 516,124 662,122 920,118 920,88 661,92 516,94 292,92 85,94"/>
+                <Baseline points="85,124 292,122 516,124 662,122 920,118"/>
+                <TextEquiv>
+                    <Unicode>𑐰𑐩𑐴𑐵𑐁𑐣𑐣𑑂𑐡𑐣𑐰𑐶𑐎𑑂𑐬𑐩𑐵𑐡𑐶𑐟𑑂𑐫𑐬𑐵𑐖𑐵𑐠𑐰𑐬𑐵𑐖𑑂𑐫𑐧𑐶𑐖𑑂𑐫𑐵𑐒𑐵𑐰𑐳𑐩𑐳𑑂𑐟𑐥𑐺𑐠𑑂𑐰𑐷𑐫𑐵 </Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="r1l3" custom="readingOrder {index:2;}">
+                <Coords points="86,154 460,164 914,147 913,117 460,134 87,124"/>
+                <Baseline points="86,154 460,164 914,147"/>
+                <TextEquiv>
+                    <Unicode>𑐬𑐵𑐖𑐵𑑄𑐖𑐫𑐬𑐥𑐵𑐰𑐳𑐸𑑅𑐏𑐣𑐧𑐶𑐖𑑂𑐫𑐵𑐎𑐚𑑀𑑄𑐖𑐸𑐬𑑀𑑄𑑌𑑒𑑕𑑌𑐂𑐟𑐶𑐥𑑄𑐔𑐰𑐶𑑄𑐱 </Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="r1l4" custom="readingOrder {index:3;}">
+                <Coords points="89,190 268,195 341,195 379,196 379,166 341,165 269,165 90,160"/>
+                <Baseline points="89,190 268,195 341,195 379,196"/>
+                <TextEquiv>
+                    <Unicode> 𑐟𑐶𑐟𑐩𑑀𑐰𑐾𑐟𑐵𑐮𑑅𑐳𑐩𑐵𑐥𑑂𑐟𑑅𑑌</Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextEquiv>
+                <Unicode></Unicode>
+            </TextEquiv>
+        </TextRegion>
+    </Page>
+</PcGts>

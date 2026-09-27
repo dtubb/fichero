@@ -52,3 +52,21 @@ tests/unit/scripts/test_check_mac_app_store_target.py::test_embed_phases_are_dep
 # so it wins) and library links' hidden legacy alias, which is now unreachable.
 # The guard is right; the per-concern node lets any NEW duplicate still fail.
 tests/unit/scripts/test_check_duplicate_paths.py::test_repo_concern_is_allowlisted[route:POST /api/links]
+
+# ---- #5130 (7) ----
+# Real files from other people's software that the formats cannot yet carry
+# (tests/unit/formats/test_real_corpus.py; provenance in fixtures/corpus/CORPUS.md).
+# Transkribus's TEI export uses image file names ("0001_...png") as <pb xml:id>, which
+# are not NCNames; the TEI reader's strict lxml parse raises instead of importing the
+# 26 surfaces. The write-back and loss tests fail only because the import does.
+tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_it_imports[transkribus_tibetan-layout_pagantibet-corr1.tei.xml]
+tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_what_we_write_back_validates[transkribus_tibetan-layout_pagantibet-corr1.tei.xml]
+tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_the_loss_report_accounts_for_everything_that_did_not_come_back[transkribus_tibetan-layout_pagantibet-corr1.tei.xml]
+# A line with an EMPTY shape (`<Coords points=""/>`, baseline only -- Calfa RASAM) is
+# written back with no <Coords>, which PAGE 2019 requires: import works, export refused.
+tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_what_we_write_back_validates[calfa_arabic-baseline-only_rasam417-0010.page.xml]
+tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_the_loss_report_accounts_for_everything_that_did_not_come_back[calfa_arabic-baseline-only_rasam417-0010.page.xml]
+# eScriptorium's `eSc_dummyblock_` region (lines outside any region) has NO <Coords> at
+# all; it is written back without one, so the export is refused -- same defect class.
+tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_what_we_write_back_validates[escriptorium-transkribus_syriac_smmj36-0004.page.xml]
+tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_the_loss_report_accounts_for_everything_that_did_not_come_back[escriptorium-transkribus_syriac_smmj36-0004.page.xml]
