@@ -223,7 +223,14 @@ def _action_format_import(db: Database, params: FormatImportParams, ctx: ActionC
                     path.name, [s.name for s in _readable_formats()]
                 )
             )
-    page = read_page(spec.name, data)
+    if spec.name == "yolo":
+        # A YOLO file's numbers mean what its DATASET says (#5130): read `classes.txt` /
+        # `data.yaml` beside it, so YALTAi's 4 arrives as `MainZone`, not as our "region".
+        from fichero_server.formats.yolo import class_names_beside, read as read_yolo
+
+        page = read_yolo(data, class_names_beside(path))
+    else:
+        page = read_page(spec.name, data)
 
     result = write_page_into_library(
         db,
