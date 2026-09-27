@@ -131,6 +131,15 @@ class TestTheTwoLiveFilesAreNoLongerReported:
         assert not (dead.SWIFT_ROOT / rel).exists()
         assert rel not in dead.KNOWN_VIOLATIONS
 
+    def test_no_backlog_entry_outlives_its_file_being_wired(self):
+        """The guard only PRINTS stale entries ("clean them up when convenient"), so they
+        never got cleaned: `Models/SegmentSelection.swift` was built ahead of its consumers,
+        entered here, and wired by the next merge (54ca8b1e5) — the entry would have sat
+        excusing nothing. A backlog that keeps excuses for live code cannot be read as a
+        list of what is actually dead."""
+        stale = sorted(set(dead.KNOWN_VIOLATIONS) - set(dead.scan()))
+        assert stale == [], f"drop from KNOWN_VIOLATIONS, these are no longer dead: {stale}"
+
     def test_the_allowlist_shrank_past_the_blind_spot(self):
         """50 entries, 27 of them one missing rule. A guard whose allowlist is half
         workaround is measuring its own blind spot, not the codebase."""
