@@ -135,6 +135,27 @@ Fixed by reading a cell as a `region` — which is what PAGE XML itself says a c
 `row`, `col`, `rowSpan` and `colSpan` kept in `foreign` until
 `source.segment.table-cells` (#4928) gives the model fields for them.
 
+## A file that states a fact where its own schema forbids it — 2026-09-27
+
+| File | Source | Licence | Fetched | What it exercises |
+| --- | --- | --- | --- | --- |
+| `kraken_alto_multilingual_bsb00084914.alto.xml` | `https://raw.githubusercontent.com/mittagessen/kraken/main/tests/resources/alto/bsb00084914_00007.xml` | **Apache-2.0** (kraken, © Benjamin Kiessling), LICENSE read before fetching | 2026-09-27 | 58,543 bytes, ALTO **v4**, an eScriptorium export of a Hebrew manuscript from the Bayerische Staatsbibliothek: 5 blocks, 31 lines, 86 strings — and **three languages in one file**, which no other fixture has. `<Page ... LANG="hbo">` (Ancient Hebrew) plus two lines declaring `heb` and `iai` of their own. |
+
+**The finding.** ALTO v4's schema puts `LANG` on `TextLine` and `String` and **not on
+`Page`** — so this real export is non-conformant, and the fact it states is true. That
+makes the honest handling asymmetric, which is worth writing down because it looks like
+an inconsistency until you know why:
+
+- the reader **keeps** `Page@LANG`. Dropping a language a file states, because it states
+  it in the wrong place, would lose real information to a schema argument.
+- the writer **will not emit it**. An export that does not validate is not written at all
+  (`source.format.export-validated`), and `Page@LANG` fails v4 — so the page's language
+  is reported as a loss instead, which is what stops it being a silent drop.
+
+Before this file, `alto.py` asserted in a comment that "ALTO has no page-level language,
+script or direction: `LANG` is per element and there is no `Page@LANG`". Half right: v4
+has no *valid* one, and a real file in the wild uses one anyway.
+
 ## Still wanted, named so it is not discovered at the end
 
 - **Vertical text.** No fixture has a `ttb` reading direction or a CJK page. The
