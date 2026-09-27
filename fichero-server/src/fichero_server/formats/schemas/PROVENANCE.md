@@ -25,13 +25,11 @@ is — and the whole point of validating is that somebody else's tool will read 
 sandbox, fails offline, and can be pointed somewhere else by a document; all three are worse than a
 file in the repository.
 
-| `alto-4-2.xsd` | `https://raw.githubusercontent.com/altoxml/schema/master/v4/alto-4-2.xsd` | 2026-09-26 | 54,450 bytes. ALTO 4.2. **Cannot be parsed offline yet**: it imports `http://www.loc.gov/standards/xlink/xlink.xsd`, and that file is not vendored. |
+| `alto-4-2.xsd` | `https://raw.githubusercontent.com/altoxml/schema/master/v4/alto-4-2.xsd` | 2026-09-26 | 54,450 bytes. ALTO 4.2. It imports `http://www.loc.gov/standards/xlink/xlink.xsd`, which resolves to the vendored `xlink.xsd` below. Licence: not audited (the file's header states none). |
 | `xml.xsd` | `https://www.w3.org/2001/xml.xsd` | 2026-09-26 | 8,836 bytes. The XML namespace's own schema, which xlink's imports. Correct and unmodified. |
+| `xlink.xsd` | `https://raw.githubusercontent.com/OCR-D/core/master/src/ocrd_validators/xlink.xsd` (OCR-D/core, Apache-2.0) | 2026-09-26 | 3,180 bytes. The METS XLink schema v2 (Nov 2004), which is what `http://www.loc.gov/standards/xlink/xlink.xsd` serves and what ALTO's XSD imports by that URL. Defines `attributeGroup simpleLink`, which ALTO references (checked by grep before vendoring). Unmodified. Licence: it is LOC's schema, redistributed here from OCR-D's Apache-2.0 repository; LOC's own terms were not audited. **Provenance caveat:** `loc.gov` returns 403 to a script, so this copy could not be byte-compared with the original. |
 
-**MISSING, and ALTO export refuses until it arrives:** the xlink schema ALTO names
-(`http://www.loc.gov/standards/xlink/xlink.xsd`). **W3C's modern `xlink.xsd` is not a
-substitute** — it defines `simpleAttrs` where ALTO references `simpleLink`, so mapping one to the
-other builds a schema missing the definitions ALTO uses, and libxml2 refuses it. That substitution
-was tried and removed: **a wrong mapping is worse than a missing one, because the error it produces
-blames the document.** `loc.gov` returns 403 to a script, so this one needs a mirror or a manual
-download.
+**The wrong file to vendor instead:** W3C's modern `xlink.xsd` defines `simpleAttrs` where ALTO references
+`simpleLink`; mapping it in builds a schema missing the definitions ALTO uses, and libxml2 refuses it.
+`validation.py::VENDORED_IMPORTS` maps LOC's URL to `xlink.xsd` and nothing else, and raises
+(`UnvendoredSchemaImport`) for any other absolute import.

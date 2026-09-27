@@ -60,16 +60,12 @@ VENDORED_IMPORTS: dict[str, str] = {
     # The XML namespace's own schema, which xlink's imports. Correct and vendored.
     "http://www.w3.org/2001/xml.xsd": "xml.xsd",
     "https://www.w3.org/2001/xml.xsd": "xml.xsd",
-    # DELIBERATELY ABSENT: `http://www.loc.gov/standards/xlink/xlink.xsd`, which
-    # ALTO's XSD imports. W3C's modern `xlink.xsd` is NOT a substitute -- it defines
-    # `simpleAttrs` where ALTO references `simpleLink`, so mapping one to the other
-    # would build a schema missing the definitions ALTO uses. I tried it; libxml2
-    # refused, correctly.
-    #
-    # A WRONG mapping is worse than a missing one: the error it produces blames the
-    # document. So the entry is left out, `UnvendoredSchemaImport` names the file to
-    # fetch, and ALTO export refuses loudly until somebody vendors the right copy
-    # (loc.gov returns 403 to a script; a mirror or a manual download is needed).
+    # LOC's METS XLink schema v2 (Nov 2004), which ALTO's XSD imports by this URL. It
+    # defines `simpleLink`, which ALTO references. W3C's modern `xlink.xsd` is NOT a
+    # substitute -- it defines `simpleAttrs` instead, and mapping it here built a schema
+    # missing the definitions ALTO uses (libxml2 refused, correctly). `loc.gov` returns 403 to
+    # a script, so the vendored copy is OCR-D/core's `xlink.xsd` (see schemas/PROVENANCE.md).
+    "http://www.loc.gov/standards/xlink/xlink.xsd": "xlink.xsd",
 }
 
 
