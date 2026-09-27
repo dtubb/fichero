@@ -50,6 +50,12 @@ from fichero_server.formats.validation import parse
 #: ALTO's namespaces, v2 through v4. All three are READ -- a national library's
 #: v2 file and a modern v4 one have the same element names -- and v4 is written.
 ALTO_NS_V4 = "http://www.loc.gov/standards/alto/ns-v4#"
+#: The ALTO release written and validated against: the latest (ruled 2026-09-27: we export
+#: the latest schema, and our export is what is tested). 4.4 per the ALTO Editorial Board's
+#: repository README ("Latest official schema version is 4.4"); loc.gov refuses scripts.
+ALTO_WRITTEN_VERSION = "4.4"
+ALTO_WRITTEN_SCHEMA = "alto-4-4.xsd"
+XSI_NS = "http://www.w3.org/2001/XMLSchema-instance"
 ALTO_NS_V3 = "http://www.loc.gov/standards/alto/ns-v3#"
 ALTO_NS_V2 = "http://www.loc.gov/standards/alto/ns-v2#"
 KNOWN_NAMESPACES = (ALTO_NS_V4, ALTO_NS_V3, ALTO_NS_V2)
@@ -156,17 +162,11 @@ def read(data: bytes) -> SourcePage:
     height = _float(page_el.get("HEIGHT")) or 0.0
 
     page = SourcePage()
-    # A REAL FILE PUTS THE PAGE'S LANGUAGE ON `Page@LANG`, and ALTO v4's schema does
-    # not allow it there. Found 2026-09-27: kraken's own ALTO fixture — an eScriptorium
-    # export of a Hebrew manuscript — declares `<Page ... LANG="hbo">` (Ancient Hebrew)
-    # inside the v4 namespace, where `LANG` exists on `TextLine` and `String` and not on
-    # `Page`. The file is non-conformant and the fact it states is true.
-    #
-    # So it is READ: dropping a language a file states, because the file states it in
-    # the wrong place, would lose real information to a schema argument. It is NOT
-    # written back (see the writer): our export must validate, and a page-level `LANG`
-    # fails v4. The asymmetry is deliberate and is the reason the writer still reports
-    # the page's language as a loss.
+    # `Page@LANG` is read in every version. Found 2026-09-27 on kraken's own ALTO fixture
+    # (an eScriptorium export of a Hebrew manuscript: `<Page ... LANG="hbo">`), which
+    # declares 4.3 -- where Page@LANG does not exist -- and uses the attribute ALTO 4.4
+    # added. The fact it states is true, so it is read whatever the declared version; and
+    # since the writer emits 4.4, it is written back too.
     if page_el.get("LANG"):
         page.language = page_el.get("LANG")
     page.foreign["alto:MeasurementUnit"] = unit
@@ -272,7 +272,7 @@ def read(data: bytes) -> SourcePage:
 
 
 def write(page: SourcePage, report: LossReport) -> bytes:
-    """One page as ALTO 4.2, with everything it cannot carry reported."""
+    """One page as ALTO 4.4, with everything it cannot carry reported."""
     from lxml import etree
 
     width, height = page.image_size or (1000, 1000)
@@ -284,7 +284,14 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             "and ALTO's coordinates are against an invented page",
         )
 
-    root = etree.Element(f"{{{ALTO_NS_V4}}}alto", nsmap={None: ALTO_NS_V4})
+    root = etree.Element(f"{{{ALTO_NS_V4}}}alto", nsmap={None: ALTO_NS_V4, "xsi": XSI_NS})
+    # The release is DECLARED, not left to the reader: ALTO keeps one namespace for all of
+    # 4.x, so only the schema file named here (and SCHEMAVERSION) says this is 4.4.
+    root.set("SCHEMAVERSION", ALTO_WRITTEN_VERSION)
+    root.set(
+        f"{{{XSI_NS}}}schemaLocation",
+        f"{ALTO_NS_V4} http://www.loc.gov/standards/alto/v4/{ALTO_WRITTEN_SCHEMA}",
+    )
     description = etree.SubElement(root, f"{{{ALTO_NS_V4}}}Description")
     etree.SubElement(description, f"{{{ALTO_NS_V4}}}MeasurementUnit").text = "pixel"
     source = etree.SubElement(
@@ -312,14 +319,22 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         HEIGHT=str(int(height)),
     )
 
-    # ALTO v4 has NO page-level language, script or direction: `LANG` lives on
-    # `TextLine` and `String`, and there is no valid `Page@LANG` — a real eScriptorium
-    # export writes one anyway, which the reader keeps and this writer will not emit,
-    # because an export that does not validate is not written at all
-    # (`source.format.export-validated`). So a document-level fact is DECLARED LOST
-    # rather than copied onto every line, which would turn one stated fact into hundreds
-    # and read back as four hundred independent claims (#5085).
-    for what, value in (("language", page.language), ("script", page.script), ("direction", page.direction)):
+    # ALTO 4.4 added `Page@LANG` (a BCP 47 tag). Until the writer moved to 4.4 the page's
+    # language was DECLARED LOST, because 4.2 had nowhere for it; a real eScriptorium
+    # export already wrote it. Script and direction still have no page-level attribute,
+    # so they are declared lost rather than copied onto every line, which would turn one
+    # stated fact into hundreds (#5085).
+    if page.language:
+        if _looks_like_a_tag(page.language):
+            page_el.set("LANG", page.language)
+        else:
+            report.note(
+                "the page's language",
+                1,
+                f"ALTO's Page@LANG is a BCP 47 tag and {page.language!r} is a language "
+                "NAME, which ALTO cannot express",
+            )
+    for what, value in (("script", page.script), ("direction", page.direction)):
         if value:
             report.note(
                 f"the page's {what}",
@@ -551,7 +566,7 @@ register(
         extensions=(".xml",),
         read=read,
         write=write,
-        schema="alto-4-2.xsd",
+        schema=ALTO_WRITTEN_SCHEMA,
         round_trips=True,
         sniff=_sniff,
     )

@@ -477,12 +477,13 @@ class TestTheAltoRoundTrip:
 
 class TestARealHebrewExportStatesItsLanguageWhereAltoDoesNotAllowIt:
     """kraken's own ALTO fixture (Apache-2.0), an eScriptorium export of a Hebrew
-    manuscript: `<Page ... LANG="hbo">` inside the **v4** namespace, where `LANG` exists
-    on `TextLine` and `String` and NOT on `Page`.
+    manuscript: `<Page ... LANG="hbo">`, in a file that DECLARES ALTO 4.3, where `Page`
+    has no `LANG`. ALTO 4.4 added it.
 
-    The file is non-conformant and the fact it states is true, which is the whole
-    interest: a reader that obeyed only the schema would drop a real page's language,
-    and a writer that echoed it back would produce a file that fails our own validation.
+    The file is non-conformant to the version it names and the fact it states is true: a
+    reader that obeyed only the declared schema would drop a real page's language. Our
+    writer emits 4.4 (ruled 2026-09-27: we export the latest schema), so the fact is
+    written back and our export validates.
     """
 
     FIXTURE = Path(__file__).parent / "fixtures" / "kraken_alto_multilingual_bsb00084914.alto.xml"
@@ -507,17 +508,27 @@ class TestARealHebrewExportStatesItsLanguageWhereAltoDoesNotAllowIt:
         assert page.language == "hbo"
         assert per_segment == ["heb", "iai"]
 
-    def test_the_page_language_is_NOT_written_back_and_says_so(self):
-        """The asymmetry, deliberately: an export must validate
-        (`source.format.export-validated`), and `Page@LANG` fails ALTO v4. So the write
-        reports it as a loss rather than emitting an invalid file — and the loss report
-        is what stops that being a silent drop."""
+    def test_the_page_language_is_written_back_in_4_4_and_is_no_longer_a_loss(self):
+        """Until the writer moved to 4.4 this was a declared loss, because 4.2 had nowhere
+        for a page's language. `write_page` validates against 4.4 on the way out, so the
+        round trip passing is the export validating."""
         page = read_page("alto", self.FIXTURE.read_bytes())
 
         back, report = round_trip("alto", page)
 
+        assert back.language == "hbo"
+        assert "the page's language" not in report.lost
+
+    def test_a_language_NAME_on_the_page_is_still_a_loss_not_an_invalid_file(self):
+        """`Page@LANG` is `xsd:language`, a BCP 47 tag. A NAME ("Hebrew", what PAGE XML
+        stores) would fail the schema, so it is reported and not written."""
+        page = read_page("alto", self.FIXTURE.read_bytes())
+        page.language = "Hebrew"
+
+        back, report = round_trip("alto", page)
+
         assert back.language is None
-        assert [loss.what for loss in report.losses] == ["the page's language"]
+        assert "the page's language" in report.lost
 
     def test_the_lines_own_languages_do_survive_the_round_trip(self):
         """Per-element `LANG` is where ALTO does allow it, so those must come back —
