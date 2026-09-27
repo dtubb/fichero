@@ -255,7 +255,6 @@ def read_pages(data: bytes) -> list[SourcePage]:
         return page
 
     state: dict[str, Any] = {"page": None, "region": None, "line": None, "buffer": [], "counter": 0, "line_page": None}
-    inline_names: dict[int, set[str]] = {}
 
     def current_page() -> dict[str, Any]:
         return state["page"] or new_page(None)

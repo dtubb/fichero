@@ -228,6 +228,26 @@ def _schema_parser(schema_dir: Path) -> Any:
     return parser
 
 
+def parse_html(data: bytes) -> Any:
+    """Parse outside HTML safely, for the formats that ARE HTML rather than XML.
+
+    hOCR is a microformat over HTML, so the XML parser is the wrong tool: real
+    engine output has unclosed `<meta>` tags and `<br>`s, and XHTML-shaped output
+    parses either way. **My own writer produced the file that proved it** -- it emits
+    HTML, the reader read XML, and the round trip failed on an unclosed `meta`.
+
+    Same safety posture as `safe_parser`: no network, no DTD loading, no entity
+    resolution. An archival tool is pointed at files nobody vetted.
+    """
+    from lxml import etree
+
+    parser = etree.HTMLParser(no_network=True, huge_tree=False)
+    tree = etree.fromstring(data, parser=parser)
+    if tree is None:
+        raise ValueError("not parseable as HTML")
+    return tree
+
+
 def validate_xml(data: bytes, schema_path: Path) -> list[str]:
     """Problems with these bytes against an XSD on disk, or [].
 

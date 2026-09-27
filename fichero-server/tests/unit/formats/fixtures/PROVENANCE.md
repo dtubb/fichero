@@ -52,3 +52,24 @@ quietly. Flagged rather than chosen.
 
 **Attribution, as CC-BY-SA-4.0 requires:** `ocrd_gt_aepinus_0020.page.xml` is from OCR-D's
 `gt_structure_text` corpus, © OCR-D, licensed CC-BY-SA-4.0, unmodified.
+
+## hOCR: no real engine output is vendored, and that is residue
+
+**hOCR's tests use a fixture written BY US**, in `test_hocr_and_yolo.py`, labelled as ours in the
+code. It is shaped like tesseract's output — page `bbox`, `ocr_carea`, `ocr_line` with a baseline
+polynomial, `ocrx_word` with `x_wconf` — but **a file we wrote to look like tesseract tests our idea
+of tesseract**, which is the trap every other fixture here exists to avoid.
+
+Two reasons it is not a real file, both stated rather than worked around:
+
+- `tesseract` is **not installed on this machine**, so no genuine engine output could be produced.
+- The third-party hOCR available is `ocropus/hocr-tools`' conformance corpus (Apache-2.0, checked):
+  its samples are minimal spec cases with **no bounding boxes at all**, so they exercise the
+  microformat and none of the geometry.
+
+**Still owed: one page of real engine hOCR** — tesseract `-c hocr` output, or a sample from a
+digitisation whose licence is declared. Until then hOCR's reader is tested against our own idea of
+the format, exactly the weakness that a real PAGE XML file exposed three times in one evening.
+
+**YOLO needs no fixture**: the format is five numbers a line, so a file that exercises it is a file
+anybody can read at a glance, and there is nothing a real one would contain that ours does not.
