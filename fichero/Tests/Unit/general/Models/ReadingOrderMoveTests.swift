@@ -89,4 +89,40 @@ struct ReadingOrderMoveTests {
         let final = ReadingOrderMove.finalIndex(fromOffset: 0, toOffset: 3)
         #expect((try? place("s-a", to: final).get())?.afterEntryId == "e-c")
     }
+
+    // MARK: - Keys (ruled 2026-09-27, Q5): the same one call as a drag.
+
+    private func step(_ segment: String, _ step: ReadingOrderMove.Step)
+        -> Result<ReadingOrderMove.Place, ReadingOrderMove.Refusal> {
+        ReadingOrderMove.place(orderId: "o-1", entries: entries, moving: segment, step: step)
+    }
+
+    @Test("a key moves one place, and is exactly the drag to that place")
+    func keyUpAndDownAreOneStep() throws {
+        #expect(try step("s-c", .up).get() == place("s-c", to: 1).get())
+        #expect(try step("s-b", .down).get() == place("s-b", to: 2).get())
+        // b up to the top follows nothing -- the start of the level is a real answer.
+        #expect(try step("s-b", .up).get().afterEntryId == nil)
+    }
+
+    @Test("to start and to end reach the ends of the level")
+    func toStartAndToEnd() throws {
+        #expect(try step("s-c", .toStart).get().afterEntryId == nil)
+        // c to the end of a b c d: a b d c -- c follows d.
+        #expect(try step("s-c", .toEnd).get().afterEntryId == "e-d")
+    }
+
+    /// Never a wrap: up on the first line or down on the last sends nothing.
+    @Test("at an end the key refuses rather than wrapping round")
+    func noWrap() {
+        #expect(step("s-a", .up) == .failure(.alreadyThere))
+        #expect(step("s-d", .down) == .failure(.alreadyThere))
+        #expect(step("s-a", .toStart) == .failure(.alreadyThere))
+        #expect(step("s-d", .toEnd) == .failure(.alreadyThere))
+    }
+
+    @Test("a segment not in the order is refused by a key as by a drag")
+    func keyOnAStranger() {
+        #expect(step("s-z", .down) == .failure(.notInThisOrder))
+    }
 }
