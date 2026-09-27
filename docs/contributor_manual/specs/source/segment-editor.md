@@ -489,9 +489,20 @@ The editor
   word-aligned when word children exist, proportional-along-the-baseline and marked estimated
   otherwise. This is a design decision (what the estimate looks like, how it behaves for RTL and
   boustrophedon text) and is not implemented anywhere in the tree.
-- `source.textedit.backspace-joins-in-reading-order` — **[GAP]** (#5001) Backspace at a line's start joins it to the line
+- `source.textedit.backspace-joins-in-reading-order` — **[PARTIAL]** (#5001) Backspace at a line's start joins it to the line
   before it in the reading order, in one action, keeping the earlier line's id; refused with
-  the reason across regions or passes.
+  the reason across regions or passes. **`segment.merge` is the primitive, and as of 2026-09-27
+  both refusals are built:** it already refused across pass/document
+  (`SegmentPassMismatchError`); the across-REGION refusal did not exist until this session —
+  `_action_merge` never checked `parent_segment_id` at all, so two segments from different
+  regions merged silently. Added `SegmentRegionMismatchError`, checked right alongside the
+  pass/document check, with the ordinary same-region case proven unaffected
+  (`fichero-server/tests/unit/api/test_segments_write_actions.py::TestMergeRefusesAcrossRegions`,
+  3 tests: two different regions refused, one region + one no-region refused, same region still
+  merges). **Still not built:** "keeping the earlier line's id" is not automatic — `keep_id` is
+  caller-chosen (proven by `TestMergeKeepsTheKeptRowUntouchedForOrdering::test_merge_accepts_the_caller_chosen_keep_id_verbatim`),
+  so a Backspace handler choosing "the earlier line" is the caller's job, not this primitive's; no
+  Source-view surface exists to call it from either way.
 - `source.textedit.deleting-words-keeps-ink` — **[GAP]** (#5001) removing text is a new reading without those words;
   no segment is deleted by it; a word segment left without a reading, or an emptied line, is
   shown as such; deleting a segment is a separate, named command.
@@ -505,7 +516,18 @@ The editor
   or two seconds' pause; structural edits are their own action at once.
 - `source.textedit.stale-keeps-your-words` — **[GAP]** (#5001) an edit against a version that has moved on is refused
   and the typed words are kept and offered: keep mine, take theirs, compare; out of reach of
-  the engine the text is read-only.
+  the engine the text is read-only. **Confirmed absent 2026-09-27, not merely stale-tagged:**
+  `Segment` writes already have this shape — `segment.update`/`.merge`/`.split`/`.restore_version`
+  all take an `expected_version` and refuse with `SegmentStale` when the live row has moved on.
+  `representation.create` — the action a text edit actually calls — takes no such field and has
+  no conflict machinery at all; two corrections of one reading, neither aware of the other, both
+  simply succeed as two more candidate readings
+  (`fichero-server/tests/unit/api/test_textedit_engine_primitives.py::TestStaleKeepsYourWordsHasNoCompareAndSetOnAReadingWrite`,
+  3 tests). **Not invented here:** what a caller's "my edit is against version N" token even means
+  for an append-only, immutable row store where several readings of one line legitimately
+  coexist — a version number, a last-known `representation_id`, a timestamp — is a design
+  decision, the same shape as `return-splits-the-line`'s caret-to-geometry gap above, and needs a
+  ruling before it is built.
 - `source.textedit.every-direction` — **[GAP]** (#5001) each block is laid out and edited in its own direction;
   line starts, joins and cuts follow reading order and the baseline; a direction the platform
   cannot lay out is labelled, never reordered.
@@ -808,14 +830,16 @@ still owed.
 | `source.app.overlays-draw-from-the-seam` | `SegmentDisplayTests.swift` | **needed, and it is the whole acceptance** | The claim is "a page looks the same before and after", which no unit test can make. Image and PDF, on each platform. |
 | `source.app.segment-events-patch-in-place` | `SegmentStoreTests.swift` (8 new) | **needed** | The unit tests pin the decision; the screen leg is "edit a line in one window and watch the other window's box change without the page flickering" — a wholesale reload is visible as a flash and nothing else catches it. |
 
-Engine-side rows filled 2026-09-27 (`source.textedit.*`'s first three; the click-around leg is
-still to be filled at approval):
+Engine-side rows filled 2026-09-27 (`source.textedit.*`'s first three, plus `stale-keeps-your-words`;
+the click-around leg is still to be filled at approval):
 
 | Behaviour | Engine primitive | Test |
 |---|---|---|
 | `reader-shows-segments` | `document_text()` | `test_textedit_engine_primitives.py::TestReaderShowsSegmentsUsesTheWorkingPassAndNamedOrder` (follows the working pass and order) + `test_textedit_reader_blocks.py` (9 tests across `TestOneDirectionIsOneBlock`, `TestADirectionChangeStartsANewBlock`, `TestNonOrientableValuesNeverMerge`, `TestRegionGrouping`: region/direction packaging, boustrophedon one-block-per-line, follows-baseline/alternating never merge) |
 | `typing-is-a-new-reading` | `representation.create` + `provenance_kind_from_ctx` | `test_textedit_engine_primitives.py::TestTypingIsANewReadingSetsTheMakerFromContext` (4 tests: human, workflow, refused client-supplied maker, earlier reading unchanged) |
 | `return-splits-the-line` | `segment.split` | `test_textedit_engine_primitives.py::TestReturnSplitsTheLineSegmentSplitPrimitive` (2 tests: independent anchor + reading_span per part; no caret-to-geometry mapping exists) |
+| `stale-keeps-your-words` | none — confirmed absent | `test_textedit_engine_primitives.py::TestStaleKeepsYourWordsHasNoCompareAndSetOnAReadingWrite` (3 tests: two corrections of one target both silently succeed; params take no expected-version field; no conflict machinery in the file at all) |
+| `backspace-joins-in-reading-order` | `segment.merge` | `test_segments_write_actions.py::TestMergeRefusesAcrossRegions` (3 tests: two different regions refused, one region + one no-region refused, same region still merges) |
 
 ## Open questions
 

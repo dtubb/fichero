@@ -1511,3 +1511,120 @@ class TestMergeKeepsTheKeptRowUntouchedForOrdering:
         assert result.result["kept_id"] == b["id"]
         assert db.get(Segment, b["id"]).deleted_at is None
         assert db.get(Segment, a["id"]).deleted_at is not None
+
+
+class TestMergeRefusesAcrossRegions:
+    """`source.textedit.backspace-joins-in-reading-order`: "refused with the
+    reason across regions or passes". The pass/document half was already
+    built and tested above; this pins the region half, added 2026-09-27 --
+    `_action_merge` never checked `parent_segment_id` before this."""
+
+    def test_merging_segments_from_two_different_regions_is_refused(self, client, db):
+        from fastapi import HTTPException
+        from fichero_server.actions.registry import ActionContext, registry
+
+        doc = _make_doc(db)
+        pass_body = _create_pass(client, doc.id)
+        region_a = _create_segment(
+            client, document_id=doc.id, pass_id=pass_body["id"], kind="region",
+            anchor={"document_id": doc.id, "rect": [0.0, 0.0, 1.0, 0.3]},
+        ).json()
+        region_b = _create_segment(
+            client, document_id=doc.id, pass_id=pass_body["id"], kind="region",
+            anchor={"document_id": doc.id, "rect": [0.0, 0.5, 1.0, 0.3]},
+        ).json()
+        in_a = _create_segment(
+            client, document_id=doc.id, pass_id=pass_body["id"],
+            anchor={"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]},
+            parent_segment_id=region_a["id"],
+        ).json()
+        in_b = _create_segment(
+            client, document_id=doc.id, pass_id=pass_body["id"],
+            anchor={"document_id": doc.id, "rect": [0.1, 0.6, 0.1, 0.1]},
+            parent_segment_id=region_b["id"],
+        ).json()
+
+        ctx = ActionContext(actor="daniel", library_path=str(db.path.parent))
+        with pytest.raises(HTTPException) as excinfo:
+            registry.invoke(
+                db, "segment.merge",
+                {
+                    "segment_ids": [in_a["id"], in_b["id"]], "keep_id": in_a["id"],
+                    "expected_versions": {in_a["id"]: 1, in_b["id"]: 1},
+                },
+                ctx,
+            )
+        assert excinfo.value.status_code == 409
+        assert "region" in str(excinfo.value.detail)
+        # Neither segment was touched: a refused merge changes nothing.
+        assert db.get(Segment, in_a["id"]).deleted_at is None
+        assert db.get(Segment, in_b["id"]).deleted_at is None
+
+    def test_one_region_and_one_no_region_is_also_refused(self, client, db):
+        """A segment with `parent_segment_id=None` is its own case, not a
+        wildcard that matches any region -- merging it with a segment that
+        DOES have a region is still a boundary crossing."""
+        from fastapi import HTTPException
+        from fichero_server.actions.registry import ActionContext, registry
+
+        doc = _make_doc(db)
+        pass_body = _create_pass(client, doc.id)
+        region_a = _create_segment(
+            client, document_id=doc.id, pass_id=pass_body["id"], kind="region",
+            anchor={"document_id": doc.id, "rect": [0.0, 0.0, 1.0, 0.3]},
+        ).json()
+        in_a = _create_segment(
+            client, document_id=doc.id, pass_id=pass_body["id"],
+            anchor={"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]},
+            parent_segment_id=region_a["id"],
+        ).json()
+        no_region = _create_segment(
+            client, document_id=doc.id, pass_id=pass_body["id"],
+            anchor={"document_id": doc.id, "rect": [0.1, 0.6, 0.1, 0.1]},
+        ).json()
+
+        ctx = ActionContext(actor="daniel", library_path=str(db.path.parent))
+        with pytest.raises(HTTPException) as excinfo:
+            registry.invoke(
+                db, "segment.merge",
+                {
+                    "segment_ids": [in_a["id"], no_region["id"]], "keep_id": in_a["id"],
+                    "expected_versions": {in_a["id"]: 1, no_region["id"]: 1},
+                },
+                ctx,
+            )
+        assert excinfo.value.status_code == 409
+
+    def test_merging_two_segments_in_the_same_region_is_unaffected(self, client, db):
+        """The new check must not refuse the ordinary case: two lines in ONE
+        region still merge exactly as before."""
+        from fichero_server.actions.registry import ActionContext, registry
+
+        doc = _make_doc(db)
+        pass_body = _create_pass(client, doc.id)
+        region_a = _create_segment(
+            client, document_id=doc.id, pass_id=pass_body["id"], kind="region",
+            anchor={"document_id": doc.id, "rect": [0.0, 0.0, 1.0, 0.3]},
+        ).json()
+        a = _create_segment(
+            client, document_id=doc.id, pass_id=pass_body["id"],
+            anchor={"document_id": doc.id, "rect": [0.1, 0.1, 0.1, 0.1]},
+            parent_segment_id=region_a["id"],
+        ).json()
+        b = _create_segment(
+            client, document_id=doc.id, pass_id=pass_body["id"],
+            anchor={"document_id": doc.id, "rect": [0.1, 0.2, 0.1, 0.1]},
+            parent_segment_id=region_a["id"],
+        ).json()
+
+        ctx = ActionContext(actor="daniel", library_path=str(db.path.parent))
+        result = registry.invoke(
+            db, "segment.merge",
+            {
+                "segment_ids": [a["id"], b["id"]], "keep_id": a["id"],
+                "expected_versions": {a["id"]: 1, b["id"]: 1},
+            },
+            ctx,
+        )
+        assert result.result["kept_id"] == a["id"]
+        assert db.get(Segment, b["id"]).deleted_at is not None
