@@ -156,6 +156,19 @@ def read(data: bytes) -> SourcePage:
     height = _float(page_el.get("HEIGHT")) or 0.0
 
     page = SourcePage()
+    # A REAL FILE PUTS THE PAGE'S LANGUAGE ON `Page@LANG`, and ALTO v4's schema does
+    # not allow it there. Found 2026-09-27: kraken's own ALTO fixture — an eScriptorium
+    # export of a Hebrew manuscript — declares `<Page ... LANG="hbo">` (Ancient Hebrew)
+    # inside the v4 namespace, where `LANG` exists on `TextLine` and `String` and not on
+    # `Page`. The file is non-conformant and the fact it states is true.
+    #
+    # So it is READ: dropping a language a file states, because the file states it in
+    # the wrong place, would lose real information to a schema argument. It is NOT
+    # written back (see the writer): our export must validate, and a page-level `LANG`
+    # fails v4. The asymmetry is deliberate and is the reason the writer still reports
+    # the page's language as a loss.
+    if page_el.get("LANG"):
+        page.language = page_el.get("LANG")
     page.foreign["alto:MeasurementUnit"] = unit
     if unit == "pixel" and width and height:
         page.image_size = (int(width), int(height))
@@ -299,16 +312,19 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         HEIGHT=str(int(height)),
     )
 
-    # ALTO has no page-level language, script or direction: `LANG` is per element and
-    # there is no `Page@LANG`. So a document-level fact is DECLARED LOST rather than
-    # copied onto every line, which would turn one stated fact into hundreds and read
-    # back as four hundred independent claims (#5085).
+    # ALTO v4 has NO page-level language, script or direction: `LANG` lives on
+    # `TextLine` and `String`, and there is no valid `Page@LANG` — a real eScriptorium
+    # export writes one anyway, which the reader keeps and this writer will not emit,
+    # because an export that does not validate is not written at all
+    # (`source.format.export-validated`). So a document-level fact is DECLARED LOST
+    # rather than copied onto every line, which would turn one stated fact into hundreds
+    # and read back as four hundred independent claims (#5085).
     for what, value in (("language", page.language), ("script", page.script), ("direction", page.direction)):
         if value:
             report.note(
                 f"the page's {what}",
                 1,
-                f"ALTO states {what} per element and has no page-level attribute, and "
+                f"ALTO states {what} per element and has no page-level attribute for it, and "
                 "copying a page's fact onto every line would store a derived fact as a "
                 "stated one",
             )

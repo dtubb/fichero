@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from fichero_server.formats import format_for, read_page, write_page
+from fichero_server.formats import format_for, read_page, round_trip, write_page
 from fichero_server.formats.alto import UnknownMeasurementUnit, _sniff
 
 pytestmark = pytest.mark.source_model
@@ -473,3 +473,66 @@ class TestTheAltoRoundTrip:
         word = next(s for s in returned.segments if s.ref == "w3")
         assert word.script is None and word.direction is None
         assert len(word.readings) == 1
+
+
+class TestARealHebrewExportStatesItsLanguageWhereAltoDoesNotAllowIt:
+    """kraken's own ALTO fixture (Apache-2.0), an eScriptorium export of a Hebrew
+    manuscript: `<Page ... LANG="hbo">` inside the **v4** namespace, where `LANG` exists
+    on `TextLine` and `String` and NOT on `Page`.
+
+    The file is non-conformant and the fact it states is true, which is the whole
+    interest: a reader that obeyed only the schema would drop a real page's language,
+    and a writer that echoed it back would produce a file that fails our own validation.
+    """
+
+    FIXTURE = Path(__file__).parent / "fixtures" / "kraken_alto_multilingual_bsb00084914.alto.xml"
+
+    def test_the_pages_language_is_read_although_the_schema_forbids_it_there(self):
+        page = read_page("alto", self.FIXTURE.read_bytes())
+
+        assert page.language == "hbo", (
+            "a language the file states is a fact, even when stated in the wrong place"
+        )
+
+    def test_three_languages_in_one_file_and_each_lands_where_it_belongs(self):
+        """'Any language' is the north star, and this is the first fixture with more
+        than one: the page is Ancient Hebrew (`hbo`) and two lines declare `heb` and
+        `iai` of their own. A reader that took the page's language for the lines'
+        would erase the distinction between the manuscript's language and a line's."""
+        page = read_page("alto", self.FIXTURE.read_bytes())
+
+        per_segment = sorted(
+            segment.language for segment in page.segments if segment.language
+        )
+        assert page.language == "hbo"
+        assert per_segment == ["heb", "iai"]
+
+    def test_the_page_language_is_NOT_written_back_and_says_so(self):
+        """The asymmetry, deliberately: an export must validate
+        (`source.format.export-validated`), and `Page@LANG` fails ALTO v4. So the write
+        reports it as a loss rather than emitting an invalid file — and the loss report
+        is what stops that being a silent drop."""
+        page = read_page("alto", self.FIXTURE.read_bytes())
+
+        back, report = round_trip("alto", page)
+
+        assert back.language is None
+        assert [loss.what for loss in report.losses] == ["the page's language"]
+
+    def test_the_lines_own_languages_do_survive_the_round_trip(self):
+        """Per-element `LANG` is where ALTO does allow it, so those must come back —
+        otherwise the loss above would look like a whole-file limitation rather than a
+        page-level one."""
+        page = read_page("alto", self.FIXTURE.read_bytes())
+
+        back, _report = round_trip("alto", page)
+
+        assert sorted(s.language for s in back.segments if s.language) == ["heb", "iai"]
+
+    def test_the_file_round_trips_otherwise_intact(self):
+        page = read_page("alto", self.FIXTURE.read_bytes())
+
+        back, _report = round_trip("alto", page)
+
+        assert len(back.segments) == len(page.segments) == 122
+        assert sum(len(s.readings) for s in back.segments) == 86

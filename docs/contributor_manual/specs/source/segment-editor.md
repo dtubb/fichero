@@ -610,8 +610,23 @@ The editor
   **What this means for the editor.** A segment selection shared three ways cannot be built on
   either mechanism as it stands: `RegionSelection` holds INDICES into one artifact's box list — a
   position used as an identity, the defect this slice has now met three times — and the reader's
-  link is character offsets. The editor needs a selection of segment IDS, which is a fourth thing,
-  and the honest move is to build it once rather than teach two mechanisms a third vocabulary.
+  link is character offsets. The editor needs a selection of segment IDS, which is a fourth thing.
+  **Built 2026-09-27 as `SegmentSelection`** (`Models/SegmentSelection.swift`, 11 tests,
+  `SegmentSelectionTests`): ids in pick order, the document they belong to, the pass they were read
+  from, and the VERSION each had when it was selected — which is what lets a verb send
+  `expected_version` without re-reading and lets the engine refuse a stale edit instead of
+  overwriting somebody's work.
+  The rules it enforces, each because a verb depends on it: a selection **never spans documents**
+  and a refused cross-document add says so by returning false (a shift-click that appears to do
+  nothing is a bug report; one that silently moved the selection to another page is worse);
+  emptying it **clears the document and pass**, or a verb's "is this the page on screen?" check
+  would pass on an empty selection; `prune(toLive:)` drops ids a change event removed and
+  **reports them**, because keeping them sends the engine ids it refuses one at a time while
+  dropping them silently makes a Delete act on fewer lines than are highlighted; and
+  `expectedVersions` is **all or nothing**, since `segment.delete` takes a version per id and a
+  partial map would delete what it knows and refuse the rest — half a Delete, worse than none.
+  Not yet wired to a view, and that is the next step rather than a claim: what remains for this
+  behaviour is the three surfaces writing to it.
 - `source.editor.edits-are-actions` — **[PARTIAL]** (#4941) every edit is one audited, reversible engine action; the
   editor updates only the changed segments.
   **Both halves hold for the edit path that exists today** (audited 2026-09-27); what is owed is
