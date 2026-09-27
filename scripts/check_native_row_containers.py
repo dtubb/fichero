@@ -154,6 +154,47 @@ def _closure_body(source: str, open_index: int) -> tuple[str, int]:
     return "", len(source)
 
 
+def _construct_name(source: str, brace_index: int) -> str | None:
+    """The identifier that owns the `{` at `brace_index`, or None.
+
+    A regex cannot do this. The original looked back 200 characters for
+    `identifier(...)?$` with `[^{]*` inside the parens, which let an EARLIER call swallow
+    the far-away closing paren: on `Divider()\n\n  List(selection: $listSelection) {` it
+    returned `padding` from further up the lookback, so `List` never entered the chain and a
+    ForEach inside `VStack { List { Section { … } } }` was reported as a hand-rolled VStack.
+    Forbidding newlines instead breaks the other way — `LazyVGrid(\n  columns: [GridItem(…)]\n)`
+    spans lines and nests parens, so three grids then read as bare ScrollViews. The loose
+    version hid real findings while inventing a false one; both are the same defect
+    (2026-09-27).
+
+    So: skip whitespace, and if a balanced `(…)` argument list is there, walk back over it by
+    counting parens, then read the identifier that precedes it.
+    """
+    cursor = brace_index - 1
+    while cursor >= 0 and source[cursor] in " \t\n":
+        cursor -= 1
+    if cursor >= 0 and source[cursor] == ")":
+        depth = 0
+        while cursor >= 0:
+            if source[cursor] == ")":
+                depth += 1
+            elif source[cursor] == "(":
+                depth -= 1
+                if depth == 0:
+                    cursor -= 1
+                    break
+            cursor -= 1
+        else:
+            return None
+        while cursor >= 0 and source[cursor] in " \t\n":
+            cursor -= 1
+    end = cursor + 1
+    while cursor >= 0 and (source[cursor].isalnum() or source[cursor] == "_"):
+        cursor -= 1
+    name = source[cursor + 1 : end]
+    return name or None
+
+
 def _enclosing_chain(source: str, index: int) -> list[str]:
     """Names of every construct enclosing `index`, innermost first.
 
@@ -169,12 +210,7 @@ def _enclosing_chain(source: str, index: int) -> list[str]:
             depth += 1
         elif char == "{":
             if depth == 0:
-                head = source[max(0, cursor - 200) : cursor]
-                match = re.findall(r"([A-Za-z_][A-Za-z0-9_]*)\s*(?:\([^{]*\))?\s*$", head)
-                if match:
-                    chain.append(match[-1])
-                else:
-                    chain.append("?")
+                chain.append(_construct_name(source, cursor) or "?")
             else:
                 depth -= 1
         cursor -= 1
