@@ -1,0 +1,124 @@
+"""`Document.page_content` as a CACHE of the page's derived text, with ONE writer (#5077).
+
+A page's text is worked out from its working pass and each line's counting reading
+(`source.point.text-is-derived`). `page_content` is the stored copy every consumer reads (Reader,
+search, embeddings, extraction, chat, export). Before this, a reading correction changed the derived
+text and left the copy alone, so corrections went to a text nobody reads.
+
+The refresh lives here, called from `ActionRegistry.invoke` -- the one place every action lands,
+undo and redo included -- and NOT from the individual reading actions. Two halves:
+
+* `refresh_in_transaction` runs inside the action's transaction, so the reading change and the
+  cache commit or roll back together;
+* `embed_after_commit` re-embeds afterwards on a background thread, one job per page, so search
+  matches the corrected text without a correction waiting for the embedder.
+
+Not refreshed: a page whose `page_content` a person edited directly (`page_content_is_user_edited`)
+-- the direct edit route is a second writer, still open -- and a page with no working pass.
+The cache is the derived text, BYTE FOR BYTE (`document_text(...).text`): one text, not two that
+differ by a separator. If lines should be joined with a newline, that is a change to the derived
+text and its pinned behaviour, made there.
+
+Triggers: reading changes, the working-pass choice, and every segment action that can change which
+lines the derived text has (`_MEMBERSHIP_ACTIONS`). A plain geometry edit does not: `segment.update`
+counts only when it sets `is_furniture`.
+"""
+from __future__ import annotations
+
+import logging
+import threading
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+#: Domains whose actions change what a line reads.
+_TEXT_DOMAINS = frozenset({"representation"})
+#: `ChangeSpec.emit_type`s outside those domains that change which pass is the page's text.
+_TEXT_EMIT_TYPES = frozenset({"pass.working_chosen"})
+#: Segment actions that add, remove, merge, split, restore or re-parent the lines of a pass.
+_MEMBERSHIP_ACTIONS = frozenset({
+    "segment.create", "segment.create_many", "segment.delete", "segment.undelete",
+    "segment.merge", "segment.unmerge", "segment.split", "segment.unsplit",
+    "segment.uncombine", "segment.restore_version",
+    "segment.pass_create", "segment.pass_delete", "segment.pass_restore",
+})
+
+
+def _document_ids(spec: Any, action_name: str, params: Any) -> list[str]:
+    triggered = (
+        bool(_TEXT_DOMAINS & set(spec.domains))
+        or spec.emit_type in _TEXT_EMIT_TYPES
+        or action_name in _MEMBERSHIP_ACTIONS
+        or (action_name == "segment.update" and getattr(params, "is_furniture", None) is not None)
+        # Every box move from the app is a `convert_and_edit`; only a delete or a combine changes
+        # which lines the page has (an add has no reading yet).
+        or (
+            action_name == "segment.convert_and_edit"
+            and str(getattr(getattr(params, "edit", None), "op", "")) in {"delete", "combine", "RegionEditOp.DELETE", "RegionEditOp.COMBINE"}
+        )
+    )
+    return list(dict.fromkeys(spec.document_ids)) if triggered else []
+
+
+def cache_text(derived: Any) -> str:
+    return derived.text
+
+
+def refresh_in_transaction(db: Any, spec: Any, action_name: str = "", params: Any = None) -> list[str]:
+    """Rewrite `page_content` for the pages this action changed the text of. Returns the ids whose
+    stored text actually changed (the ones to re-embed)."""
+    from fichero_server.api.routes.document.segment_readings import document_text
+    from fichero_server.models import Document
+    from fichero_server.core.timeutil import utc_now
+    from fichero_server.workflows.curation_guard import page_content_is_user_edited
+
+    changed: list[str] = []
+    for document_id in _document_ids(spec, action_name, params):
+        doc = db.get(Document, document_id)
+        if doc is None or page_content_is_user_edited(doc):
+            continue
+        derived = document_text(db, document_id)
+        if derived.pass_id is None:
+            continue  # no working pass: nothing derives, so nothing is cached
+        text = cache_text(derived)
+        if text == (doc.page_content or ""):
+            continue
+        doc.page_content = text
+        doc.updated_at = utc_now()
+        db.save(doc)
+        changed.append(document_id)
+    return changed
+
+
+_pending: set[tuple[int, str]] = set()
+_pending_lock = threading.Lock()
+
+
+def embed_after_commit(db: Any, document_ids: list[str]) -> None:
+    """Re-embed OFF the request path, one pending job per page.
+
+    Measured on a 300-line page: the embed alone was ~8 s per correction, and a scholar correcting
+    line after line pays it every time. The job reads the page's CURRENT text when it runs, so any
+    corrections that arrive while one is queued are covered by it and only one job is queued."""
+    for document_id in document_ids:
+        key = (id(db), document_id)
+        with _pending_lock:
+            if key in _pending:
+                continue
+            _pending.add(key)
+        threading.Thread(
+            target=_embed_now, args=(db, document_id, key), name="page-text-embed", daemon=True
+        ).start()
+
+
+def _embed_now(db: Any, document_id: str, key: tuple[int, str]) -> None:
+    from fichero_server.models import Document
+
+    with _pending_lock:
+        _pending.discard(key)  # from here a newer correction queues a fresh job
+    try:
+        doc = db.get(Document, document_id)
+        if doc is not None and doc.page_content:
+            db.embed(doc)
+    except Exception as exc:  # noqa: BLE001 -- best-effort tail; the text itself is saved
+        logger.warning("re-embed after a reading change failed for %s: %s", document_id, exc)

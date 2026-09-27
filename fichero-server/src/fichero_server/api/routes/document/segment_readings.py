@@ -147,7 +147,9 @@ def _as_http_error(exc: Exception) -> HTTPException:
     return HTTPException(500, str(exc))
 
 
-def _artifact_and_box(db: Database, segment_id: str) -> tuple[Artifact | None, int | None]:
+def _artifact_and_box(
+    db: Database, segment_id: str, artifact_memo: dict[str, Artifact | None] | None = None
+) -> tuple[Artifact | None, int | None]:
     """The artifact a segment's words still live in, and this segment's box in
     it — or ``(None, None)`` when there is no such block.
 
@@ -160,12 +162,21 @@ def _artifact_and_box(db: Database, segment_id: str) -> tuple[Artifact | None, i
       (``metadata["box_index"]``). A row made from scratch recorded none, and
       correctly has no provisional reading.
     """
+    def artifact(artifact_id: str) -> Artifact | None:
+        # A page's lines all read the SAME artifact, and hydrating it parses every box's JSON. One
+        # fetch per derivation, not one per line (#5077: the refresh made this quadratic).
+        if artifact_memo is None:
+            return db.get(Artifact, artifact_id)
+        if artifact_id not in artifact_memo:
+            artifact_memo[artifact_id] = db.get(Artifact, artifact_id)
+        return artifact_memo[artifact_id]
+
     if segment_id.startswith(LEGACY_ID_PREFIX):
         body = segment_id[len(LEGACY_ID_PREFIX) :]
         artifact_id, _, tail = body.rpartition(":")
         if not artifact_id or not tail.isdigit():
             return None, None
-        return db.get(Artifact, artifact_id), int(tail)
+        return artifact(artifact_id), int(tail)
 
     row = db.get(Segment, segment_id)
     if row is None:
@@ -176,11 +187,15 @@ def _artifact_and_box(db: Database, segment_id: str) -> tuple[Artifact | None, i
     pass_row = db.get(SegmentPass, row.pass_id)
     if pass_row is None or not pass_row.source_artifact_id:
         return None, None
-    return db.get(Artifact, pass_row.source_artifact_id), box_index
+    return artifact(pass_row.source_artifact_id), box_index
 
 
 def provisional_readings(
-    db: Database, segment_id: str, *, allowed_kinds: list[str] | None = None
+    db: Database,
+    segment_id: str,
+    *,
+    allowed_kinds: list[str] | None = None,
+    artifact_memo: dict[str, Artifact | None] | None = None,
 ) -> list[ReadingRead]:
     """This segment's readings that still live in an artifact.
 
@@ -197,7 +212,7 @@ def provisional_readings(
     text. raw-geometry-ok — this is the record of what the machine produced,
     which is exactly what a provisional reading reports.
     """
-    artifact, box_index = _artifact_and_box(db, segment_id)
+    artifact, box_index = _artifact_and_box(db, segment_id, artifact_memo)
     if artifact is None or box_index is None:
         return []
     kinds = allowed_kinds if allowed_kinds is not None else reading_kinds(db)
@@ -273,7 +288,9 @@ def _reading_read_from_row(row: ContentRepresentation) -> ReadingRead:
     )
 
 
-def readings_of_segment(db: Database, segment_id: str) -> list[ReadingRead]:
+def readings_of_segment(
+    db: Database, segment_id: str, *, artifact_memo: dict[str, Artifact | None] | None = None
+) -> list[ReadingRead]:
     """Every reading of one segment, from BOTH stores.
 
     A real segment is resolved first (`resolve_segment`), so a reading written
@@ -296,7 +313,7 @@ def readings_of_segment(db: Database, segment_id: str) -> list[ReadingRead]:
             continue
         seen.add(row.id)
         items.append(_reading_read_from_row(row))
-    items.extend(provisional_readings(db, live_id))
+    items.extend(provisional_readings(db, live_id, artifact_memo=artifact_memo))
     return items
 
 
@@ -530,11 +547,15 @@ def document_text(
     # (`query_in(ContentRepresentation, "segment_id", ids)`) feeding the same
     # pure counting function -- not a cache of the answer, which this design
     # deliberately does not store.
+    artifact_memo: dict[str, Artifact | None] = {}
     pieces: list[str] = []
     spans: list[DerivedTextSpan] = []
     cursor = 0
     for row in rows:
-        items = [item for item in readings_of_segment(db, row.id) if item.kind == kind]
+        items = [
+            item for item in readings_of_segment(db, row.id, artifact_memo=artifact_memo)
+            if item.kind == kind
+        ]
         if not items:
             continue
         counted = counting_by_kind(db, row.id, items).get(kind)
