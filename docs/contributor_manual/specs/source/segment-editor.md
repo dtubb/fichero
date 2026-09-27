@@ -828,8 +828,17 @@ The editor
   row's OWN invert, because the generic replay freshens only a top-level `expected_version` and a
   bulk edit's versions live inside `updates[]` — the redo test failed until that was set.
 - `source.editor.set-hand-campaign` — **[GAP]** (#4941) the selection's hand and campaign can be set.
-- `source.editor.reorder` — **[GAP]** (#4941) a named reading order can be edited by dragging in a list or
+- `source.editor.reorder` — **[PARTIAL]** (#4941) a named reading order can be edited by dragging in a list or
   clicking segments in turn.
+  **The list half has its translation (2026-09-27); the on-page half does not.** A drag in a
+  list is ONE `reading_order.place`, which already moves an existing entry as one row and one
+  action. `ReadingOrderMove.place` turns a target index into the `after_entry_id` it needs —
+  measured in the list WITH THE MOVED ENTRY TAKEN OUT, which is the off-by-one that lands a
+  downward move one place too far if missed — and refuses a drop onto its own place (an audited
+  action that changed nothing) and a segment not in the level (a move must not quietly become an
+  insert). Pinned by `ReadingOrderMoveTests` in both directions, including the conversion from
+  SwiftUI's `onMove` offsets, which count the list as drawn. No list view calls it yet, and
+  reordering by drawing on the page needs the editor's overlay.
 - `source.editor.draw-link` — **[GAP]** (#4941) dragging from one segment to another makes a typed link.
 - `source.editor.match-across-passes` — **[GAP]** (#4941) a segment in one pass can be matched to one in
   another.
