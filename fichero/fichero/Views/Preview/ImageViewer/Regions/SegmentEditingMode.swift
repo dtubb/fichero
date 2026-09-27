@@ -50,6 +50,13 @@ enum SegmentEditingMode {
         return isEditing && selectionCount > 0 ? .deleteRegions : .nothing
     }
 
+    /// What a finished drag with the SHAPE tool makes (ruled 2026-09-27, Q1: Draw Region is
+    /// merged into the one Shape tool). In the mode it is a SEGMENT -- the drawn box is promoted
+    /// at once through the same path "New Region from Selection" uses, so there is one way to
+    /// make a region. Outside the mode it is a marquee, a run scope, as it always was: drawing
+    /// while reading chooses what to read or run on, and writes nothing.
+    static func shapeDrawsSegment(isEditing: Bool) -> Bool { isEditing }
+
     /// A press on a selected box starts a move only in the mode; while reading it is a
     /// click, which re-selects.
     static func pressStartsMove(isEditing: Bool, onSelectedBox: Bool) -> Bool {

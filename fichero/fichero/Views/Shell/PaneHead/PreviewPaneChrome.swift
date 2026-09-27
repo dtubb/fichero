@@ -109,7 +109,8 @@ enum PreviewMarkupTool: String, CaseIterable, Identifiable {
         switch self {
         case .select: "Select"
         case .wordSelect: "Select Words"
-        case .drawRegion: "Draw Region"
+        // The one Shape tool (ruled 2026-09-27, Q1): Draw Region merged into it.
+        case .drawRegion: "Shape"
         case .line: "Line"
         case .textSelect: "Select Text"
         case .highlight: "Highlight"

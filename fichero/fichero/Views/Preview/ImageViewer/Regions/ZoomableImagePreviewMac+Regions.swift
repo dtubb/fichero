@@ -70,6 +70,9 @@ extension ZoomableImagePreview {
                 imagePixelSize: imageSize == .zero ? nil : imageSize,
                 renditionId: displayedRenditionId,
                 isAddingRegion: isAddingRegion,
+                drawsSegments: SegmentEditingMode.shapeDrawsSegment(
+                    isEditing: windowState?.isEditingSegments == true
+                ),
                 isAnnotating: isDrawingRegion,
                 onAnnotate: { box in
                     createAnnotation(box: box, tool: pendingAnnotationTool)

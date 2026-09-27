@@ -199,7 +199,10 @@ enum SegmentDisplay {
                 // drop this two-string reconstruction.)
                 OCRGeometryBox(
                     text: segment.text ?? "",
-                    bbox: segment.anchor.rect ?? [0, 0, 0, 0],
+                    // An UNSTATED shape is the same zero-size placeholder as an unset rect: kept in
+                    // its place so no later box shifts, never drawn as the page-sized rectangle the
+                    // engine stores it on.
+                    bbox: segment.shapeIsUnstated ? [0, 0, 0, 0] : (segment.anchor.rect ?? [0, 0, 0, 0]),
                     level: segment.kind,
                     confidence: segment.confidence,
                     pageIndex: nil,

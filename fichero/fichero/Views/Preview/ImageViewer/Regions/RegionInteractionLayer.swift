@@ -54,6 +54,9 @@ struct RegionInteractionLayer: View {
     var renditionId: String?
     /// True while rubber-band add mode is armed.
     let isAddingRegion: Bool
+    /// The Shape tool in the Edit Segments mode: a drawn box becomes a segment at once
+    /// (`SegmentEditingMode.shapeDrawsSegment`), not a marquee waiting to be named.
+    var drawsSegments: Bool = false
     /// True while an ANNOTATION draw tool is armed (highlight/note/line/
     /// star). The band then becomes the annotation's box via `onAnnotate`
     /// (2026-09-02): these drags used to ride a full-frame SwiftUI
@@ -438,6 +441,10 @@ struct RegionInteractionLayer: View {
             marquees?.add(
                 box, documentId: documentId, imagePixelSize: imagePixelSize
             )
+            if drawsSegments, let marquees, marquees.count > 0 {
+                // The marquee just drawn, promoted through the ONE region-making path.
+                onPromote("", marquees.count - 1)
+            }
         } else {
             selectRegions(inBand: box)
         }

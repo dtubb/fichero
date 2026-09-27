@@ -189,6 +189,9 @@ struct ZoomableImagePreview: View {
     /// Draw each recognised word's text inside its box (2026-08-31). The
     /// display lives in `OCRGeometryOverlay`, which reads the same key.
     @AppStorage("imagePreview.inlineTextEnabled") var inlineTextEnabled = false
+    /// The image layer (ruled 2026-09-27, Q2). On by default: a page with its picture hidden
+    /// is a deliberate view, never where a person should land by accident.
+    @AppStorage(ImageLayer.defaultsKey) var imageVisible = true
     @State var ocrGeometry: OCRGeometry?
     /// WHICH artifact the displayed geometry came from (2026-08-29, regions
     /// as first-class): the curation verbs — move / delete / add / combine —
