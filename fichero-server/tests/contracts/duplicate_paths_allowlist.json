@@ -1,32 +1,19 @@
 {
   "_doc": "Intentional duplicate code paths. Keys are concern ids; values are explicit allowed handlers/writers.",
   "_reasons": {
-    "kg_write:KnowledgeEntity": "Entity creation is intentionally split between the canonical upsert route and the audited create helper so HTTP create can flow through the action registry without rewriting the legacy update-via-POST path.",
-    "kg_write:KnowledgeEntity#bulk": "entity.bulk_upsert is the sanctioned typed action for corpus imports (one audited batch instead of ~2,800 route calls, 2026-08-18)."
+    "kg_write:KnowledgeEntity": "Three constructors, each a different verb: `_upsert_entity_matched` is the canonical match-or-create door every extractor goes through (behind `upsert_entity`, which resolves merges, #5079); `create_entity_impl` is the audited HTTP create, which runs none of the embedding/fuzzy match stages (a person who creates an entity gets that entity, not a near-namesake); `_action_bulk_upsert_entities` is the sanctioned typed batch action for corpus imports (one audited batch instead of ~2,800 route calls, 2026-08-18).",
+    "kg_write:KnowledgeClaim": "Three constructors, each a different verb: `save_claim` is the extractor door and requires a source document; `create_claim_impl` is the manual claim route, where a claim may have NO source document and the person's curation state and created_by are stated, not derived (it imports the extractor's attribution helpers so the two agree, #1123); `promote_to_claim_impl` turns an annotation into a claim and inherits that annotation's provenance."
   },
   "concerns": {
     "kg_write:KnowledgeClaim": [
       "api/routes/claim/claims.py::create_claim_impl",
       "api/routes/document/annotations.py::promote_to_claim_impl",
-      "api/routes/mcp/tools.py::mcp_knowledge_claim_create",
-      "workflows/tools/_entity_writer.py::save_claim",
-      "workflows/tools/book_index.py::book_index_extract",
-      "workflows/tools/citations_extract.py::extract_citations_for_document",
-      "workflows/tools/extract_all.py::_persist_additional_entities",
-      "workflows/tools/extractors.py::_write_citation_usage_rows",
-      "workflows/tools/extractors.py::_write_kg_rows"
+      "workflows/tools/_entity_writer.py::save_claim"
     ],
     "kg_write:KnowledgeEntity": [
       "api/routes/entity/entities.py::_action_bulk_upsert_entities",
       "api/routes/entity/entities.py::create_entity_impl",
-      "api/routes/mcp/tools.py::mcp_knowledge_entity_upsert",
-      "workflows/tools/_entity_writer.py::upsert_entity",
-      "workflows/tools/book_index.py::_write_topic_entity",
-      "workflows/tools/citations_extract.py::extract_citations_for_document",
-      "workflows/tools/extract_all.py::_persist_additional_entities",
-      "workflows/tools/extract_entities_only.py::extract_entities_only",
-      "workflows/tools/extractors.py::_write_kg_rows",
-      "workflows/tools/merge_dedup_only.py::merge_dedup_only"
+      "workflows/tools/_entity_writer.py::_upsert_entity_matched"
     ]
   }
 }
