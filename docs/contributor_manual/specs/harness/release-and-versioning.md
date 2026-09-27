@@ -153,21 +153,26 @@ evidence backs.
   not OK, because no automated check pins this order; a future edit could reorder these steps (or
   a manual/partial release run could skip `notarize.sh`) with nothing to catch it before a
   broken signature ships.
-- `release.update.appcast-item-insert-is-idempotent` — **[GAP]** (#4901) re-running the appcast
-  step for the SAME release must not append a duplicate item. Verified by reading:
-  `create-github-release.sh`'s appcast-update step inserts unconditionally — it always writes a
-  new `<item>` immediately after `<language>`, with no check for an existing item it should
-  replace instead. An item's true identity is the triple (`sparkle:version`,
-  `sparkle:shortVersionString`, channel) — NOT version+build alone, because every release
-  legitimately produces TWO items sharing the same version and build number: a channel-less
-  public item and a `<sparkle:channel>dev</sparkle:channel>` item (`SparkleChannelDelegate`
-  scopes the dev item to dev builds only). A first fix attempt keyed on version+build only was
-  considered and REJECTED before it was ever committed, because a re-run would have matched
-  and replaced the WRONG item — overwriting the public item with the dev item's enclosure/
-  signature, or vice versa, silently pointing one channel's users at the other channel's DMG.
-  Expected: a re-run replaces the matching item within its own channel and never touches the
-  other channel's item. A fix is IN PROGRESS — not built, not tested, no script or test yet
-  proves this either way.
+- `release.update.appcast-item-insert-is-idempotent` — **[PARTIAL]** (#4901) re-running the appcast
+  step for the SAME release must not append a duplicate item. An item's true identity is the
+  triple (`sparkle:version`, `sparkle:shortVersionString`, channel) — NOT version+build alone,
+  because every release legitimately produces TWO items sharing the same version and build
+  number: a channel-less public item and a `<sparkle:channel>dev</sparkle:channel>` item
+  (`SparkleChannelDelegate` scopes the dev item to dev builds only). A first fix attempt keyed on
+  version+build only was considered and REJECTED before it was ever committed, because a re-run
+  would have matched and replaced the WRONG item — overwriting the public item with the dev
+  item's enclosure/signature, or vice versa, silently pointing one channel's users at the other
+  channel's DMG. **Read from the code, not the tag, 2026-09-27:** this line was stale — the fix
+  landed. `create-github-release.sh` now calls `scripts/appcast_upsert.py`'s `upsert_item()`,
+  keyed on the (version, short_version, channel) triple, for both the public and dev calls in its
+  appcast-update step. `upsert_item()` is proven idempotent against the real public-then-dev
+  sequence, including a rerun producing byte-identical output and each channel never touching the
+  other's item
+  (`fichero-server/tests/unit/scripts/test_appcast_upsert.py::test_the_real_public_then_dev_sequence_yields_two_items_public_still_present`,
+  `::test_rerunning_the_real_sequence_yields_the_same_two_items_byte_identical`). Stays
+  `[PARTIAL]` rather than `[OK]`: `create-github-release.sh` itself is never run in CI (per that
+  test file's own header), so this is proven at the pure-function level, not end-to-end against
+  the real script.
   download and cryptographically verify an update and still fail to install it if the running app
   is translocated (Gatekeeper's randomized, read-only path for an app launched without first
   being moved to `/Applications`) or otherwise sitting on a read-only volume. Verified: no
