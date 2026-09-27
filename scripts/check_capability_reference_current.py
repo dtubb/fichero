@@ -31,6 +31,7 @@ import tempfile
 from pathlib import Path
 
 from _check_floor import require_scan_floor
+from _scan_files import scan_rglob
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -47,7 +48,7 @@ def tree(root: Path) -> dict[str, str]:
         return {}
     return {
         path.relative_to(root).as_posix(): path.read_text()
-        for path in sorted(root.rglob("*.md"))
+        for path in sorted(scan_rglob(root, "*.md"))
     }
 
 

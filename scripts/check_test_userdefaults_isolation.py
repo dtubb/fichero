@@ -42,6 +42,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parents[1]
 TESTS = ROOT / "fichero" / "Tests" / "Unit"
@@ -78,7 +79,7 @@ def scan() -> dict[Path, list[tuple[int, str]]]:
     for directory in (TESTS, UI_TESTS):
         if not directory.exists():
             continue
-        for path in sorted(directory.rglob("*.swift")):
+        for path in sorted(scan_rglob(directory, "*.swift")):
             if path.name in ALLOWLIST:
                 continue
             hits = offending_lines(path)
@@ -115,7 +116,7 @@ def main() -> int:
     found = scan()
     # #4487 scan floor: test-tree Swift files must enumerate.
     require_scan_floor(
-        sum(1 for _ in TESTS.rglob("*.swift")) + sum(1 for _ in UI_TESTS.rglob("*.swift")),
+        sum(1 for _ in scan_rglob(TESTS, "*.swift")) + sum(1 for _ in scan_rglob(UI_TESTS, "*.swift")),
         150, "test Swift files (~380 on 2026-08-02)",
     )
     print(f"UserDefaults isolation: scanned {TESTS.name} + {UI_TESTS.name}")

@@ -35,6 +35,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 TEST_ROOT = ROOT / "fichero" / "Tests"
@@ -117,7 +118,7 @@ def main(argv: list[str]) -> int:
         if not TEST_ROOT.is_dir():
             print(f"FAIL: {TEST_ROOT} missing — the check would pass vacuously")
             return 1
-        paths = sorted(TEST_ROOT.rglob("*.swift"))
+        paths = sorted(scan_rglob(TEST_ROOT, "*.swift"))
 
     problems: list[str] = []
     for path in paths:

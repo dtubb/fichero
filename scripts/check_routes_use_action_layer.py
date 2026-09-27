@@ -51,6 +51,7 @@ import ast
 import json
 import pathlib
 import sys
+from _scan_files import scan_rglob
 
 ROOTS = [
     pathlib.Path("fichero-server/src/fichero_server/api/routes/kg"),
@@ -140,7 +141,7 @@ def scan_tree() -> tuple[int, list[dict]]:
     total_routes = 0
     all_findings: list[dict] = []
     for root in ROOTS:
-        for path in sorted(root.rglob("*.py")):
+        for path in sorted(scan_rglob(root, "*.py")):
             if "__pycache__" in path.parts:
                 continue
             n, findings = scan_file(path)

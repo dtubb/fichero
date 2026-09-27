@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import pathlib
 import re
+from _scan_files import scan_rglob
 
 SPECS_DIR = pathlib.Path("docs/contributor_manual/specs")
 MANUAL_RE = re.compile(r"Manual:\s*(.+)")
@@ -57,7 +58,7 @@ def _is_scaffold(p: pathlib.Path) -> bool:
 
 
 def _specs() -> list[pathlib.Path]:
-    return [p for p in SPECS_DIR.rglob("*.md") if not _is_scaffold(p)]
+    return [p for p in scan_rglob(SPECS_DIR, "*.md") if not _is_scaffold(p)]
 
 
 def _is_approved(spec: pathlib.Path) -> bool:

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import pathlib
 import re
+from _scan_files import scan_rglob
 
 SPECS_DIR = pathlib.Path("docs/contributor_manual/specs")
 
@@ -74,7 +75,7 @@ def under_hidden_dir(p: pathlib.Path, root: pathlib.Path) -> bool:
 def _spec_files() -> list[pathlib.Path]:
     if not SPECS_DIR.exists():
         return []
-    return [p for p in sorted(SPECS_DIR.rglob("*.md")) if not _is_scaffold(p)]
+    return [p for p in sorted(scan_rglob(SPECS_DIR, "*.md")) if not _is_scaffold(p)]
 
 
 def _iter_behavior_blocks(lines: list[str]) -> list[tuple[int, str, str]]:

@@ -29,6 +29,7 @@ from _check_floor import require_scan_floor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 OPENAPI_SCHEMA = ROOT / "fichero-server" / "tests" / "contracts" / "openapi.json"
@@ -218,7 +219,7 @@ def scan_source(source: str, rel_path: str, schema_properties: dict[str, set[str
 def swift_service_files(root: Path = SWIFT_SERVICES) -> list[Path]:
     if not root.exists():
         return []
-    return sorted(root.rglob("*.swift"))
+    return sorted(scan_rglob(root, "*.swift"))
 
 
 def scan(

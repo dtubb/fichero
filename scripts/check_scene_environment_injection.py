@@ -57,6 +57,7 @@ import sys
 from pathlib import Path
 
 from _check_floor import require_scan_floor
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 APP_DIR = ROOT / "fichero" / "fichero"
@@ -227,7 +228,7 @@ def view_files(app_dir: Path = APP_DIR) -> dict[str, tuple[Path, str]]:
     routinely split across `Type+Feature.swift` files here.
     """
     index: dict[str, tuple[Path, str]] = {}
-    for path in sorted(app_dir.rglob("*.swift")):
+    for path in sorted(scan_rglob(app_dir, "*.swift")):
         if ".build" in path.parts:
             continue
         try:
@@ -370,7 +371,7 @@ def required_services(
 def app_files(app_dir: Path = APP_DIR) -> list[Path]:
     """Files declaring a SwiftUI `App` — where every Scene must be declared."""
     found = []
-    for path in sorted(app_dir.rglob("*.swift")):
+    for path in sorted(scan_rglob(app_dir, "*.swift")):
         text = _read_text(path)
         if re.search(r"struct\s+\w+\s*:\s*App\b", text) and "some Scene" in text:
             found.append(path)

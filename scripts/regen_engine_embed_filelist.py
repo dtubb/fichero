@@ -3,24 +3,21 @@
 
 Non-engine entries (scripts, pyproject) are preserved verbatim; only the
 `fichero-server/src/` block is rebuilt. See check_engine_embed_filelist.py
-for why this matters.
+for why this matters. The source set comes from that check's own
+`real_engine_sources()`, so regenerating and checking cannot disagree.
 """
 from __future__ import annotations
 
-import pathlib
+import sys
+from pathlib import Path
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
-FILELIST = ROOT / "fichero/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist"
-PREFIX = "$(SRCROOT)/../"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from check_engine_embed_filelist import FILELIST, PREFIX, ROOT, real_engine_sources  # noqa: E402
 
 keep = [
     line for line in FILELIST.read_text().splitlines()
     if line.strip() and not line.strip().startswith(PREFIX + "fichero-server/src/")
 ]
-sources = sorted(
-    str(path.relative_to(ROOT))
-    for path in (ROOT / "fichero-server/src/fichero_server").rglob("*")
-    if path.is_file() and "__pycache__" not in path.parts and path.name != ".DS_Store"
-)
+sources = sorted(real_engine_sources())
 FILELIST.write_text("\n".join(keep + [PREFIX + s for s in sources]) + "\n")
 print(f"Regenerated {FILELIST.relative_to(ROOT)}: {len(keep) + len(sources)} entries")

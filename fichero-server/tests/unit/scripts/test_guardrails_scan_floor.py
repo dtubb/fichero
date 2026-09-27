@@ -305,6 +305,8 @@ def _materialize(tmp_path: Path, name: str, spec: dict) -> Path:
     scripts.mkdir()
     shutil.copy2(SCRIPTS_DIR / name, scripts / name)
     shutil.copy2(SCRIPTS_DIR / "_check_floor.py", scripts / "_check_floor.py")
+    # Every walker now imports its tree walk from here (nested-worktree pruning).
+    shutil.copy2(SCRIPTS_DIR / "_scan_files.py", scripts / "_scan_files.py")
     for extra in spec["extra_scripts"]:
         src = SCRIPTS_DIR / extra
         if src.exists():

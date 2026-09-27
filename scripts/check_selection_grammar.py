@@ -62,6 +62,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 VIEW_MODES = ROOT / "fichero" / "fichero" / "Views" / "Library" / "ViewModes"
@@ -160,7 +161,7 @@ def _swift_files() -> list[Path]:
     that exist solely inside a working worktree.
     """
     files: list[Path] = []
-    for path in sorted(VIEW_MODES.rglob("*.swift")):
+    for path in sorted(scan_rglob(VIEW_MODES, "*.swift")):
         if any(part in {".build", "Pods", "DerivedData"} for part in path.parts):
             continue
         files.append(path)
@@ -285,7 +286,7 @@ def primary_draw_violations(root: Path = ROOT) -> list[tuple[str, int, str]]:
     bad: list[tuple[str, int, str]] = []
     scan_files: list[Path] = []
     for base in (SHELL_VIEWS, LIBRARY_VIEWS, MODELS):
-        scan_files.extend(sorted(base.rglob("*.swift")))
+        scan_files.extend(sorted(scan_rglob(base, "*.swift")))
     require_scan_floor(len(scan_files), 60, "shell+library+model Swift files (primary-draw rule)")
     for path in scan_files:
         rel = path.relative_to(root).as_posix()

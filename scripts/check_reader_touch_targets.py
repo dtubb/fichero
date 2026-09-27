@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 READER_DIR = ROOT / "fichero" / "fichero" / "Views" / "Reader"
@@ -95,7 +96,7 @@ def scan(reader_dir: Path) -> tuple[list[dict], int]:
     offenders: list[dict] = []
     total = 0
 
-    for path in sorted(reader_dir.rglob("*.swift")):
+    for path in sorted(scan_rglob(reader_dir, "*.swift")):
         try:
             source = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):

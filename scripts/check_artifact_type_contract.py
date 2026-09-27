@@ -64,6 +64,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 # A consumer value that intentionally has no single producer.
 # Keep this SMALL and justify every entry — an allowlist is where a check goes
@@ -141,7 +142,7 @@ def _producers(py_root: Path) -> tuple[set[str], list[tuple[str, int, str]]]:
     """(resolvable artifact_type literals, unresolved dynamic sites)."""
     found: set[str] = set()
     dynamic: list[tuple[str, int, str]] = []
-    for path in sorted(py_root.rglob("*.py")):
+    for path in sorted(scan_rglob(py_root, "*.py")):
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))
         except (SyntaxError, UnicodeDecodeError):
@@ -180,7 +181,7 @@ def _swift_type_lists(swift_root: Path) -> dict[str, tuple[list[str], str]]:
     "nothing reads this" invites deleting a feature that works.
     """
     out: dict[str, tuple[list[str], str]] = {}
-    for path in sorted(swift_root.rglob("*.swift")):
+    for path in sorted(scan_rglob(swift_root, "*.swift")):
         try:
             src = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
@@ -197,7 +198,7 @@ def _consumers(swift_root: Path) -> dict[str, list[str]]:
     """artifact type literal -> Swift call sites asking for it."""
     out: dict[str, list[str]] = {}
     type_lists = _swift_type_lists(swift_root)
-    for path in sorted(swift_root.rglob("*.swift")):
+    for path in sorted(scan_rglob(swift_root, "*.swift")):
         try:
             src = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
@@ -226,7 +227,7 @@ def _enum_cases(swift_root: Path) -> tuple[set[str], str | None]:
     this enum names a set independently of both. Three declarations, no mechanism
     keeping them in agreement.
     """
-    for path in sorted(swift_root.rglob("*.swift")):
+    for path in sorted(scan_rglob(swift_root, "*.swift")):
         try:
             src = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:

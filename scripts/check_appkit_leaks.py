@@ -32,6 +32,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_DIR = ROOT / "fichero" / "fichero"
@@ -166,7 +167,7 @@ def unguarded_hits(source: str) -> list[tuple[int, str]]:
 
 def scan() -> dict[str, list[tuple[int, str]]]:
     result: dict[str, list[tuple[int, str]]] = {}
-    for path in sorted(SWIFT_DIR.rglob("*.swift")):
+    for path in sorted(scan_rglob(SWIFT_DIR, "*.swift")):
         if "/Tests/Unit/" in str(path) or "/Tests/UI/" in str(path):
             continue
         rel = str(path.relative_to(SWIFT_DIR))

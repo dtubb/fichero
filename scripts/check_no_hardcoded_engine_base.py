@@ -51,6 +51,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 APP_DIR = ROOT / "fichero" / "fichero"
@@ -92,7 +93,7 @@ def _balanced_call(code: str, open_paren_idx: int) -> str:
 def constructions(app_dir: Path = APP_DIR) -> list[tuple[str, int, str]]:
     """(relpath, line, call_text) for every FicheroClient(...) construction."""
     out: list[tuple[str, int, str]] = []
-    for path in sorted(app_dir.rglob("*.swift")):
+    for path in sorted(scan_rglob(app_dir, "*.swift")):
         s = str(path)
         if "/Tests/Unit/" in s or "/Tests/UI/" in s:
             continue
@@ -149,7 +150,7 @@ def main(argv: list[str]) -> int:
     _assert_logic()
     # #4487 scan floor: 884 app Swift files on 2026-08-02.
     require_scan_floor(
-        sum(1 for _ in APP_DIR.rglob("*.swift")), 400, "app Swift files (884 on 2026-08-02)"
+        sum(1 for _ in scan_rglob(APP_DIR, "*.swift")), 400, "app Swift files (884 on 2026-08-02)"
     )
 
     if "--list" in argv:

@@ -24,6 +24,7 @@ import sys
 from _check_floor import require_scan_floor
 from collections import Counter
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_ROOT = ROOT / "fichero" / "fichero"
@@ -93,7 +94,7 @@ def code_only(text: str) -> str:
 
 
 def swift_files() -> list[Path]:
-    return sorted(SWIFT_ROOT.rglob("*.swift"))
+    return sorted(scan_rglob(SWIFT_ROOT, "*.swift"))
 
 
 def primary_types(path: Path, source: str) -> list[str]:
@@ -193,7 +194,7 @@ def main() -> int:
     # #4487 scan floor: on files ENUMERATED — candidates reaching zero is
     # the goal state; an empty enumeration is blindness.
     require_scan_floor(
-        sum(1 for _ in SWIFT_ROOT.rglob("*.swift")), 400,
+        sum(1 for _ in scan_rglob(SWIFT_ROOT, "*.swift")), 400,
         "Swift files (884 on 2026-08-02)",
     )
     print(f"  {len(found)} candidate dead file(s); {len(known)} known backlog entries.")

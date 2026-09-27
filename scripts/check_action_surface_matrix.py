@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from matrix_guardrail_common import ROOT, load_known_gaps
+from _scan_files import scan_rglob
 
 APP_SOURCE = ROOT / "fichero" / "fichero" / "FicheroApp.swift"
 KNOWN_GAPS = load_known_gaps(Path(__file__).with_name("check_action_surface_matrix_known_gaps.json"))
@@ -63,8 +64,8 @@ WRAPPER_DIR = MENUS_DIR / "FocusedCommands"
 # Toolbar/context evidence lives across Views/ AND App/Menus/ (AddItemMenu carries
 # the only toolbar evidence for some Link/Copy/Add-Files actions after the reorg).
 _EVIDENCE_ROOTS = [
-    (ROOT / "fichero" / "fichero" / "Views").rglob("*.swift"),
-    MENUS_DIR.rglob("*.swift"),
+    scan_rglob((ROOT / "fichero" / "fichero" / "Views"), "*.swift"),
+    scan_rglob(MENUS_DIR, "*.swift"),
 ]
 _EVIDENCE_FILES = {path for root in _EVIDENCE_ROOTS for path in root}
 

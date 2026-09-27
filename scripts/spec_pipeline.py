@@ -48,6 +48,7 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass, field
+from _scan_files import scan_rglob
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 SPECS_DIR = pathlib.Path("docs/contributor_manual/specs")
@@ -289,7 +290,7 @@ def _is_scaffold(p: pathlib.Path) -> bool:
 def _spec_files() -> list[pathlib.Path]:
     if not SPECS_DIR.exists():
         return []
-    return [p for p in sorted(SPECS_DIR.rglob("*.md")) if not _is_scaffold(p)]
+    return [p for p in sorted(scan_rglob(SPECS_DIR, "*.md")) if not _is_scaffold(p)]
 
 
 def _spec_header(spec: pathlib.Path) -> tuple[str | None, str | None]:
@@ -471,7 +472,10 @@ def _is_unclaimed(issue: dict) -> bool:
 _SWIFT_CLASS_RE = re.compile(r"\b(?:class|struct)\s+([A-Za-z_][A-Za-z0-9_]*)")
 _SWIFT_FUNC_RE = re.compile(r"\bfunc\s+([A-Za-z_][A-Za-z0-9_]*)")
 _PY_CLASS_RE = re.compile(r"^(\s*)class\s+([A-Za-z_][A-Za-z0-9_]*)")
-_PY_DEF_RE = re.compile(r"^(\s*)def\s+([A-Za-z_][A-Za-z0-9_]*)")
+#: `async def` too: pytest collects `async def test_…` (asyncio / anyio), and without it a
+#: spec citing one by name could not resolve it, so the maps spec had to cite a whole file
+#: instead of the tests that pin its behaviours (2026-09-27).
+_PY_DEF_RE = re.compile(r"^(\s*)(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)")
 
 
 @dataclass
@@ -559,6 +563,15 @@ def _index_swift_classes(text: str, idx: TestIndex) -> None:
         i = j if j > i else i + 1
 
 
+def _is_pytest_name(name: str) -> bool:
+    """What pytest collects as a test: `test` prefix (its default `python_functions`).
+
+    Rule (d) asks whether a CITED TEST exists. Indexing every def let a spec cite a helper
+    or fixture — `_make_doc`, `client` — and read as pinned by a test that is not one.
+    """
+    return name.startswith("test")
+
+
 def _index_python_classes_and_funcs(text: str, filename: str, idx: TestIndex) -> None:
     lines = text.splitlines()
     n = len(lines)
@@ -580,14 +593,14 @@ def _index_python_classes_and_funcs(text: str, filename: str, idx: TestIndex) ->
                 if len(line) - len(line.lstrip()) <= indent:
                     break
                 dm = _PY_DEF_RE.match(line)
-                if dm:
+                if dm and _is_pytest_name(dm.group(2)):
                     methods.add(dm.group(2))
                 j += 1
             idx.class_methods.setdefault(name, set()).update(methods)
             i = j if j > i else i + 1
             continue
         dm = _PY_DEF_RE.match(lines[i])
-        if dm and len(dm.group(1)) == 0:
+        if dm and len(dm.group(1)) == 0 and _is_pytest_name(dm.group(2)):
             top_level.add(dm.group(2))
         i += 1
     idx.py_top_level_funcs.setdefault(filename, set()).update(top_level)
@@ -598,7 +611,7 @@ def _build_test_index() -> TestIndex:
     for root in TEST_ROOTS:
         if not root.exists():
             continue
-        for f in root.rglob("*"):
+        for f in scan_rglob(root, "*"):
             if f.suffix not in (".swift", ".py"):
                 continue
             idx.file_basenames.add(f.name)
@@ -957,7 +970,7 @@ def _stale_gap_infos(behaviors: list[Behavior]) -> list[str]:
     for root in TEST_ROOTS:
         if not root.is_dir():
             continue
-        for path in list(root.rglob("*.py")) + list(root.rglob("*.swift")):
+        for path in list(scan_rglob(root, "*.py")) + list(scan_rglob(root, "*.swift")):
             try:
                 text = path.read_text(errors="ignore")
             except OSError:
@@ -1301,7 +1314,7 @@ def cmd_agent_work() -> int:
     if not AGENT_WORK_DIR.exists():
         print(f"INFO spec_pipeline agent-work: no {AGENT_WORK_DIR} directory found.")
         return 0
-    files = sorted(AGENT_WORK_DIR.rglob("*.md"))
+    files = sorted(scan_rglob(AGENT_WORK_DIR, "*.md"))
     spec_text = "\n".join(
         spec.read_text(encoding="utf-8", errors="ignore") for spec in _spec_files()
     )

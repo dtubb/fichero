@@ -31,6 +31,7 @@ import json
 import pathlib
 import re
 import sys
+from _scan_files import scan_rglob
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 SPECS_DIR = REPO_ROOT / "docs/contributor_manual/specs"
@@ -70,7 +71,7 @@ def is_behavior_id(identifier: str) -> bool:
 def untagged_behaviors(specs_dir: pathlib.Path) -> list[tuple[str, int, str]]:
     """Every behavior bullet carrying no state tag, as (spec path, line, id)."""
     found: list[tuple[str, int, str]] = []
-    for path in sorted(specs_dir.rglob("*.md")):
+    for path in sorted(scan_rglob(specs_dir, "*.md")):
         if path.name.startswith("_"):  # _TEMPLATE.md and friends are scaffolding
             continue
         # Hidden directories are never specs, and one of them is dangerous: an agent's

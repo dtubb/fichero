@@ -41,6 +41,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 APP_DIR = ROOT / "fichero" / "fichero"
@@ -105,7 +106,7 @@ def _body_of(text: str, brace_start: int) -> str:
 def view_statics(app_dir: Path = APP_DIR) -> dict[str, tuple[str, str]]:
     """{"Type.member": (relative_path, member_body)} for non-nonisolated statics."""
     found: dict[str, tuple[str, str]] = {}
-    for path in sorted(app_dir.rglob("*.swift")):
+    for path in sorted(scan_rglob(app_dir, "*.swift")):
         if "Tests" in path.parts or ".build" in path.parts:
             continue
         try:
@@ -137,7 +138,7 @@ def exposed_test_callers(tests_dir: Path = TESTS_DIR) -> dict[str, set[str]]:
     isolation check cannot fire there.
     """
     callers: dict[str, set[str]] = {}
-    for path in sorted(tests_dir.rglob("*.swift")):
+    for path in sorted(scan_rglob(tests_dir, "*.swift")):
         try:
             raw = path.read_text(errors="ignore")
         except OSError:
@@ -215,7 +216,7 @@ def main() -> int:
 
     # #4487 scan floor: 884 app Swift files on 2026-08-02.
     require_scan_floor(
-        sum(1 for _ in (ROOT / "fichero" / "fichero").rglob("*.swift")), 400,
+        sum(1 for _ in scan_rglob((ROOT / "fichero" / "fichero"), "*.swift")), 400,
         "app Swift files (884 on 2026-08-02)",
     )
     print("MainActor View-statics guardrail: scanned fichero/fichero + fichero/Tests/Unit")

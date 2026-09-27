@@ -35,6 +35,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 VIEWS_DIR = ROOT / "fichero" / "fichero"
@@ -157,7 +158,7 @@ def optional_viewbuilder_content(path: Path, text: str, lines: list[str]) -> dic
 
 def scan(views_dir: Path = VIEWS_DIR) -> dict[str, str]:
     found: dict[str, str] = {}
-    for path in sorted(views_dir.rglob("*.swift")):
+    for path in sorted(scan_rglob(views_dir, "*.swift")):
         if "Tests" in path.parts or ".build" in path.parts:
             continue
         try:

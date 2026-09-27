@@ -37,6 +37,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 ENGINE_DIR = ROOT / "fichero-server" / "src" / "fichero_server"
@@ -52,7 +53,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {}
 
 def registered_actions(engine_dir: Path = ENGINE_DIR) -> set[str]:
     names: set[str] = set()
-    for path in engine_dir.rglob("*.py"):
+    for path in scan_rglob(engine_dir, "*.py"):
         names.update(_ACTION_DECL_RE.findall(path.read_text(errors="ignore")))
     return names
 
@@ -62,7 +63,7 @@ def intent_action_refs(intents_dir: Path = INTENTS_DIR) -> dict[str, str]:
     refs: dict[str, str] = {}
     if not intents_dir.exists():
         return refs
-    for path in sorted(intents_dir.rglob("*.swift")):
+    for path in sorted(scan_rglob(intents_dir, "*.swift")):
         rel = path.name
         for name in _INTENT_REF_RE.findall(path.read_text(errors="ignore")):
             refs[f"{rel}::{name}"] = name

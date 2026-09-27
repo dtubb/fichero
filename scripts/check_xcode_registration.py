@@ -37,6 +37,7 @@ import sys
 from _check_floor import require_scan_floor
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 XCODE_ROOT = ROOT / "fichero"
@@ -281,7 +282,7 @@ def registered_swift_files(objects: dict[str, PBXObject]) -> set[str]:
 def disk_swift_files(swift_root: Path | None = None, root: Path | None = None) -> list[str]:
     swift_root = swift_root or SWIFT_ROOT
     root = root or ROOT
-    return sorted(path.relative_to(root).as_posix() for path in swift_root.rglob("*.swift"))
+    return sorted(path.relative_to(root).as_posix() for path in scan_rglob(swift_root, "*.swift"))
 
 
 def scan(

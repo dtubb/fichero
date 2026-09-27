@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Iterable
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 ENGINE_SRC = ROOT / "fichero-server" / "src" / "fichero_server"
@@ -72,7 +73,7 @@ def _relative_key(path: Path, root: Path) -> str:
 def _iter_python_files(root: Path) -> Iterable[Path]:
     if not root.exists():
         return []
-    return sorted(root.rglob("*.py"))
+    return sorted(scan_rglob(root, "*.py"))
 
 
 def _is_base_model(base: ast.expr) -> bool:

@@ -24,6 +24,7 @@ import sys
 from _check_floor import require_scan_floor
 from dataclasses import dataclass
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 MODELS_DIR = ROOT / "fichero" / "fichero" / "Models"
@@ -480,7 +481,7 @@ def scan(
     # workflow/, ...) and a flat glob matched only __init__.py — this check
     # scanned ZERO routes and exited 0 for as long as that was true. Found
     # the moment a scan floor was about to be installed.
-    for path in sorted(route_root.rglob("*.py")):
+    for path in sorted(scan_rglob(route_root, "*.py")):
         if path.name == "__init__.py":
             continue
         domain = _route_domain_map().get(path.stem)
@@ -532,7 +533,7 @@ def scan_non_route_saves(
     route_root = routes_dir or base_root / "fichero-server" / "src" / "fichero_server" / "api" / "routes"
     rows: list[SaveRow] = []
 
-    for path in sorted(api_root.rglob("*.py")):
+    for path in sorted(scan_rglob(api_root, "*.py")):
         if path.name == "__init__.py":
             continue
         try:

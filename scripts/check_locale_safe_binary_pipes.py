@@ -26,6 +26,7 @@ import sys
 from pathlib import Path
 
 from _check_floor import require_scan_floor
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 SCAN_ROOTS = (ROOT / "scripts", ROOT / "fichero-server" / "scripts")
@@ -63,7 +64,7 @@ def scan() -> tuple[list[str], int]:
     shell_files: list[Path] = []
     for root in SCAN_ROOTS:
         if root.is_dir():
-            shell_files.extend(sorted(root.rglob("*.sh")))
+            shell_files.extend(sorted(scan_rglob(root, "*.sh")))
     shell_files.extend(p for p in EXTRA_FILES if p.is_file())
 
     for path in shell_files:

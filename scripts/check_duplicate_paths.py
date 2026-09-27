@@ -3,10 +3,19 @@
 
 Flags accidental duplicate code paths for the same concern:
 1) API route handlers: same METHOD + PATH handled more than once.
-2) KG writers: multiple functions writing KnowledgeEntity / KnowledgeClaim
-   via constructors or canonical writer helpers.
+2) KG writers: more than one function CONSTRUCTING a KnowledgeEntity /
+   KnowledgeClaim row.
 
-Intentional duplicates must be explicitly listed in the allowlist.
+Calling the canonical writer (`upsert_entity`, `save_claim`) is NOT a second
+write path — it is the one door, used. Until 2026-09-27 this guard counted
+those callers too, so every extractor that did the right thing was reported as
+a "duplicate", the allowlist grew to 10 + 9 names that were almost all callers,
+and a real rename inside the door (`upsert_entity` → `_upsert_entity_matched`,
+#5079) read as a new duplicate. The question is "who else builds the row?".
+
+Intentional duplicates must be explicitly listed in the allowlist, and each
+listed concern must carry a reason in `_reasons`. An allowlisted handler that no
+longer exists is reported, so the list cannot outlive the code it excuses.
 """
 from __future__ import annotations
 
@@ -17,14 +26,16 @@ import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 ENGINE_SRC = ROOT / "fichero-server" / "src" / "fichero_server"
 ALLOWLIST = ROOT / "fichero-server" / "tests" / "contracts" / "duplicate_paths_allowlist.json"
 
 HTTP_METHODS = {"get", "post", "put", "patch", "delete", "head", "options"}
-KG_ENTITY_TOKENS = {"KnowledgeEntity", "upsert_entity"}
-KG_CLAIM_TOKENS = {"KnowledgeClaim", "save_claim"}
+#: Constructors only. The canonical helpers are deliberately absent — see the module doc.
+KG_ENTITY_TOKENS = {"KnowledgeEntity"}
+KG_CLAIM_TOKENS = {"KnowledgeClaim"}
 
 
 @dataclass(frozen=True)
@@ -41,7 +52,7 @@ class Occurrence:
 
 def _py_files(root: Path) -> list[Path]:
     out: list[Path] = []
-    for path in root.rglob("*.py"):
+    for path in scan_rglob(root, "*.py"):
         if any(part in {"tests", "__pycache__", "generated", ".venv"} for part in path.parts):
             continue
         out.append(path)
@@ -260,11 +271,14 @@ def collect(root: Path = ENGINE_SRC) -> dict[str, list[Occurrence]]:
     return by_concern
 
 
-def _load_allowlist() -> dict[str, list[str]]:
+def _load_allowlist_payload() -> dict:
     if not ALLOWLIST.exists():
         return {}
-    data = json.loads(ALLOWLIST.read_text(encoding="utf-8"))
-    return data.get("concerns", {})
+    return json.loads(ALLOWLIST.read_text(encoding="utf-8"))
+
+
+def _load_allowlist() -> dict[str, list[str]]:
+    return _load_allowlist_payload().get("concerns", {})
 
 
 def find_violations(root: Path = ENGINE_SRC) -> dict[str, list[Occurrence]]:
@@ -281,10 +295,38 @@ def find_violations(root: Path = ENGINE_SRC) -> dict[str, list[Occurrence]]:
     return violations
 
 
+def find_allowlist_problems(
+    root: Path = ENGINE_SRC, payload: dict | None = None
+) -> list[str]:
+    """Allowlist entries that excuse nothing, or excuse without saying why.
+
+    A stale key is how this list rotted: `upsert_entity` and
+    `mcp_knowledge_entity_upsert` sat in it after they stopped constructing entities,
+    so the list described code that no longer existed and nobody could tell.
+    """
+    payload = _load_allowlist_payload() if payload is None else payload
+    reasons = payload.get("_reasons", {})
+    concerns = collect(root)
+    problems: list[str] = []
+    for concern, keys in sorted(payload.get("concerns", {}).items()):
+        live = {occ.key for occ in concerns.get(concern, [])}
+        if len(live) <= 1:
+            problems.append(f"{concern}: no longer duplicated — drop the whole entry")
+            continue
+        for key in sorted(set(keys) - live):
+            problems.append(f"{concern}: {key} is no longer an occurrence — drop it")
+        if not str(reasons.get(concern, "")).strip():
+            problems.append(f"{concern}: allowlisted without a reason in `_reasons`")
+    return problems
+
+
 def write_allowlist(root: Path = ENGINE_SRC) -> None:
     concerns = collect(root)
+    # Keep the reasons: regenerating used to write a payload without `_reasons`,
+    # silently deleting every explanation the list carried.
     payload = {
         "_doc": "Intentional duplicate code paths. Keys are concern ids; values are explicit allowed handlers/writers.",
+        "_reasons": _load_allowlist_payload().get("_reasons", {}),
         "concerns": {
             concern: sorted({occ.key for occ in occs})
             for concern, occs in sorted(concerns.items())
@@ -301,16 +343,22 @@ def main() -> int:
         return 0
 
     violations = find_violations()
-    if not violations:
+    problems = find_allowlist_problems()
+    if not violations and not problems:
         print("OK: no unallowlisted duplicate handler/writer concerns.")
         return 0
 
-    print("Duplicate concern(s) detected:")
-    for concern, occs in sorted(violations.items()):
-        print(f"  - {concern}")
-        for occ in occs:
-            print(f"      {occ.file}:{occ.line}::{occ.symbol}")
-    print("\nFix by collapsing to one canonical path, or explicitly allowlisting intentional duplicates.")
+    if violations:
+        print("Duplicate concern(s) detected:")
+        for concern, occs in sorted(violations.items()):
+            print(f"  - {concern}")
+            for occ in occs:
+                print(f"      {occ.file}:{occ.line}::{occ.symbol}")
+        print("\nFix by collapsing to one canonical path, or explicitly allowlisting intentional duplicates.")
+    if problems:
+        print("Allowlist problem(s):")
+        for problem in problems:
+            print(f"  - {problem}")
     return 1
 
 

@@ -45,6 +45,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_ROOT = ROOT / "fichero" / "fichero"
@@ -84,7 +85,7 @@ def code_only(text: str) -> str:
 def conformers() -> dict[str, list[str]]:
     """Consumer type name -> the files declaring the conformance."""
     found: dict[str, list[str]] = {}
-    for path in sorted(SWIFT_ROOT.rglob("*.swift")):
+    for path in sorted(scan_rglob(SWIFT_ROOT, "*.swift")):
         if path == STREAM:
             continue
         try:

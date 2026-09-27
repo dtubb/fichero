@@ -1239,3 +1239,38 @@ class TestOfflineCannotJudgeWhatItDidNotRun:
         the same deletion of real debt, made permanent in one command."""
         assert _mod.cmd_check(offline=True, strict=False, update_baseline=True) == 2
         assert "refused" in capsys.readouterr().out
+
+
+class TestAsyncTestsResolveByName:
+    """WHY: the test index matched `def test_…` but not `async def test_…`, so a spec citing
+    an async test by name could not resolve it (rule d) and the maps spec had to cite a whole
+    file instead of the tests that pin its behaviours. Only names pytest COLLECTS count: a
+    helper or fixture is not a test, and citing one must not read as pinned."""
+
+    BODY = (
+        "import pytest\n\n"
+        "async def test_top_level_async():\n    pass\n\n"
+        "async def _make_doc():\n    pass\n\n"
+        "class TestGeoref:\n"
+        "    async def test_method_async(self):\n        pass\n\n"
+        "    async def helper(self):\n        pass\n"
+    )
+
+    def _problem(self, tmp_path, cls, method):
+        _seed_test_file(tmp_path, "fichero-server/tests/unit/test_geo.py", self.BODY)
+        idx = _mod._build_test_index()
+        c = _mod.TestCitation(raw="x", kind="pytest_node", file="tests/unit/test_geo.py",
+                              cls=cls, method=method)
+        return _mod._resolve_test_citation(c, idx)
+
+    def test_an_async_top_level_test_resolves(self, tmp_path):
+        assert self._problem(tmp_path, None, "test_top_level_async") is None
+
+    def test_an_async_test_method_resolves(self, tmp_path):
+        assert self._problem(tmp_path, "TestGeoref", "test_method_async") is None
+
+    def test_an_async_helper_is_not_a_test(self, tmp_path):
+        assert self._problem(tmp_path, None, "_make_doc") is not None
+
+    def test_an_async_helper_method_is_not_a_test(self, tmp_path):
+        assert self._problem(tmp_path, "TestGeoref", "helper") is not None

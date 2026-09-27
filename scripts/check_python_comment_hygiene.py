@@ -32,6 +32,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = ROOT / "fichero-server" / "src" / "fichero_server"
@@ -76,7 +77,7 @@ def _sig(rel: str, body: str) -> str:
 def scan(src_dir: Path = SRC_DIR) -> dict[str, str]:
     found: dict[str, str] = {}
 
-    for path in sorted(src_dir.rglob("*.py")):
+    for path in sorted(scan_rglob(src_dir, "*.py")):
         try:
             lines = path.read_text(errors="ignore").splitlines()
         except OSError:
@@ -158,7 +159,7 @@ def main() -> int:
 
     # #4487 scan floor: 423 server .py files on 2026-08-02.
     require_scan_floor(
-        sum(1 for _ in SRC_DIR.rglob("*.py")), 211, "server Python files (423 on 2026-08-02)"
+        sum(1 for _ in scan_rglob(SRC_DIR, "*.py")), 211, "server Python files (423 on 2026-08-02)"
     )
     print(f"Python comment hygiene guardrail: scanned {SRC_DIR.relative_to(ROOT)}")
     print(f"  {len(found)} violation(s); {len(known)} known.")

@@ -42,6 +42,7 @@ from _check_floor import require_scan_floor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Iterator
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 SCANNED_ROOTS = (
@@ -89,7 +90,7 @@ def _rel(path: Path) -> str:
 def _iter_python_files(roots: Iterable[Path]) -> Iterator[Path]:
     for root in roots:
         if root.exists():
-            yield from sorted(root.rglob("*.py"))
+            yield from sorted(scan_rglob(root, "*.py"))
 
 
 class _DatetimeNames:

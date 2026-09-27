@@ -24,6 +24,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_ROOT = ROOT / "fichero" / "fichero"
@@ -64,7 +65,7 @@ def direct_swift_files(directory: Path) -> list[Path]:
 
 def scan() -> dict[str, list[str]]:
     found: dict[str, list[str]] = {}
-    for directory in sorted(p for p in SWIFT_ROOT.rglob("*") if p.is_dir()):
+    for directory in sorted(p for p in scan_rglob(SWIFT_ROOT, "*") if p.is_dir()):
         rel = directory.relative_to(SWIFT_ROOT).as_posix()
         files = direct_swift_files(directory)
         reasons: list[str] = []
@@ -101,7 +102,7 @@ def main() -> int:
     known = set(KNOWN_VIOLATIONS)
     # #4487 scan floor: 884 app Swift files on 2026-08-02.
     require_scan_floor(
-        sum(1 for _ in (ROOT / "fichero" / "fichero").rglob("*.swift")), 400,
+        sum(1 for _ in scan_rglob((ROOT / "fichero" / "fichero"), "*.swift")), 400,
         "app Swift files (884 on 2026-08-02)",
     )
 
