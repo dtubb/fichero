@@ -326,25 +326,64 @@ export.
 ## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
 
 Reading before editing (the app's first step: it draws from the seam, and edits nothing new)
-- `source.app.one-segment-store` — **[GAP]** (#4954) one store in the app holds a document's
+- `source.app.one-segment-store` — **[OK]** (→ #4954) one store in the app holds a document's
   segments and passes, read from the engine's one segments call; it is the only caller of that
-  call, and nothing else in the app keeps segments.
-- `source.app.index-is-the-engines` — **[GAP]** (#4954) a box on screen is addressed by the engine's
+  call, and nothing else in the app keeps segments. `Models/SegmentStore.swift` keyed by
+  document id, the only caller of `SegmentService`, pinned by
+  `SegmentStoreTests.testLoadReplacesOnlyTheNamedDocumentsEntryLeavesOthersUntouched`
+  (that one row of the claim — one document's entry replaced, every other untouched — is what
+  a second store would break first).
+- `source.app.index-is-the-engines` — **[OK]** (→ #4954) a box on screen is addressed by the engine's
   own index for it, never by its position in what happens to be drawn; leaving an undrawable
-  box out of the drawing changes no other box's address.
+  box out of the drawing changes no other box's address. `Models/SegmentDisplay.swift` keeps
+  array position AS the engine index, so an undrawable segment stays at its own `boxIndex` as a
+  zero-size placeholder rather than being dropped, and a pass whose indices have a gap or a
+  repeat is **refused whole** rather than renumbered. Pinned by
+  `SegmentDisplayTests.undrawableSegmentStaysAsZeroSizePlaceholder`,
+  `::duplicateBoxIndexRefusesThePass` and `::gapInBoxIndexRefusesThePass`.
+  An earlier draft gave boxes their own `engineIndex` field and a review reverted it: a dozen
+  existing readers send an array offset straight to `PUT …/regions`, so a second index space
+  would have desynced exactly the readers it was meant to protect.
 - `source.app.edits-name-the-chosen-pass` — **[GAP]** (#4954) an edit made on the page is sent to the
   result the shown pass came from, and to no other; when what is shown changes (another pass
   wins; an artifact is chosen in the Inspector), the next edit follows it; with nothing shown,
   no edit is sent.
-- `source.app.curated-pass-stays-on-top` — **[GAP]** (#4954) a pass that a person made, or that
+- `source.app.curated-pass-stays-on-top` — **[OK]** (→ #4954) a pass that a person made, or that
   carries any segment a person made, is shown ahead of every machine pass, as today; a newer
-  machine run never covers a person's region.
-- `source.app.overlays-draw-from-the-seam` — **[GAP]** (#4954) the boxes drawn over an image and
+  machine run never covers a person's region. `OCRGeometrySelection.rankedPasses` ranks a pass
+  human when `provenanceKind == .human` **or** any of its segments is hand-curated, with a `-1`
+  override over the two type tiers and newest-first within a rank — through the same
+  `rankCandidates` the artifact path uses, which is what makes it literally "as today" rather
+  than a second ranking. Pinned by
+  `OCRGeometrySelectionTests.rankedPassesAuthorityBeatsRecency`.
+- `source.app.overlays-draw-from-the-seam` — **[PARTIAL]** (#4954) the boxes drawn over an image and
   over a PDF page both come from that store through one shared function, with the same
   drawing code as today and no new overlay; a page looks the same before and after the switch.
-- `source.app.segment-events-patch-in-place` — **[GAP]** (#4954) when the engine says which
+  **The shared function exists and is tested** (`SegmentDisplay.geometry(for:store:)`, 8 tests)
+  **and no view calls it**: nothing under `fichero/fichero/Views` references `SegmentDisplay`,
+  so both drawing paths still take their geometry from the artifact. The seam is built and
+  unwired, which is a different state from unbuilt and worth naming: what remains is two call
+  sites, not a design.
+- `source.app.segment-events-patch-in-place` — **[PARTIAL]** (#4954) when the engine says which
   segments changed, the store replaces those items and no others; when it says only that a
   document's results changed, the store re-reads that one document.
+  **Built 2026-09-27 and not yet compiled by anyone** — Swift, and the manager owns the build,
+  so this stays `[PARTIAL]` until it has gone through one. `SegmentStore` conforms to
+  `ChangeEventConsumer` over `segment.*` and `pass.*`; the decision is a pure
+  `SegmentStore.plan(for:heldSegmentIds:loadedDocumentIds:)` returning patch / reload one
+  document / nothing, because "those items and no others" is a claim about what the store
+  CHOOSES and a test of the choice cannot be fooled by a coincidentally-correct fetch.
+  `SegmentService.segment(id:)` reads one row so a patch does not need the page.
+  Pinned by `SegmentStoreTests.testAnEventNamingHeldSegmentsPatchesThoseAndDoesNotReload`,
+  `::testPatchWinsOverReloadWhenAnEventCarriesBoth` (every segment event also names its
+  document, so a document-first branch would turn every patchable event into a page reload and
+  make the behaviour unimplementable — the ordering IS the behaviour),
+  `::testPatchReplacesARowInPlaceWithoutMovingAnyOther` and
+  `::testAnEventAboutADocumentThisStoreNeverLoadedDoesNothing`.
+  **The stage-1 deferral said this had to wait for the engine's `segment_ids`/`pass_ids` fields
+  to exist. They exist and are emitted** — `reading_orders.py` (three sites), `typed_links.py`,
+  `segment_conversion.py`, `segments.py` (three sites), `content_representations.py` — so the
+  reason was true when written and went stale with last week's work.
 
 The editor
 - `source.editor.segment-focus` — **[GAP]** (#4941) the Source view has a segment focus in which the editing
@@ -428,14 +467,21 @@ The editor
   selects it in the others.
 - `source.editor.edits-are-actions` — **[GAP]** (#4941) every edit is one audited, reversible engine action; the
   editor updates only the changed segments.
-- `source.editor.redo-works` — **[GAP]** (#4957) after undoing a segment edit, Redo (⇧⌘Z) does it again;
+- `source.editor.redo-works` — **[PARTIAL]** (#4957) after undoing a segment edit, Redo (⇧⌘Z) does it again;
   redo is worked out afresh as the undo of the undo, so it succeeds although the segment's
   version has moved on; it is refused only if something else has changed the segment since.
   Doing, undoing, redoing and undoing again, any number of times, ends where the first undo
   ended, and nothing is left over under a new id. A segment or pass that comes back on redo
-  comes back under its own id. (Reviewed twice, 2026-09-20. In the worktree, not yet committed:
-  the version number is refreshed on redo, and a redone step is undone through its own record
-  of what it made, which closes the leftover parts, copies and stranded rows. Still owed under
+  comes back under its own id.
+  **The version half is COMMITTED and pinned** (audited 2026-09-27; this entry said "in the
+  worktree, not yet committed", which was true when written): redo is worked out afresh so it
+  survives the row having bumped twice — `TestSegmentUpdateUndoRedo.test_redo_reapplies_update_without_a_stale_expected_version`
+  — do/undo/redo/undo round-trips to where the first undo ended
+  (`.test_undo_redo_undo_round_trips`), and a genuinely stale redo is still refused when a third
+  writer touched the row in between
+  (`.test_redo_still_refused_when_another_writer_bumped_the_version_since`). Before #4957 redo
+  replayed the original `expected_version` and always 409'd, because versions only go up.
+  (Reviewed twice, 2026-09-20. Still owed under
   #4957: merge, split and carry, and their inverses, take no version number, so a redo is not
   refused when someone else changed a member in between, and undoing a split deletes its parts
   outright even if someone else has worked on one; the parts of a split, the copies of a carry
@@ -515,8 +561,18 @@ The trial that settles it, and what makes its numbers checkable (slice 12; all *
 
 ## Test matrix
 
-To be filled at approval. The click-around leg matters most here, on the Mac, the iPad and
-the iPhone.
+The click-around leg matters most here, on the Mac, the iPad and the iPhone. Filled for the
+"reading before editing" block as each behaviour landed (2026-09-27); the editor's own rows are
+still owed.
+
+| Behaviour | Unit | Click-around | Notes |
+| --- | --- | --- | --- |
+| `source.app.one-segment-store` | `SegmentStoreTests.swift` (7) | not needed | A second store is a source-level fact, not a screen one; the unit test that one document's entry is replaced and no other is what a second store breaks first. |
+| `source.app.index-is-the-engines` | `SegmentDisplayTests.swift` (8) | **needed** | Only a screen shows that a placeholder box is invisible AND that clicking the box after it still edits the right line. The unit tests pin the addresses; a person has to confirm the hit-testing quirk at the page's top-left corner. |
+| `source.app.edits-name-the-chosen-pass` | none yet | **needed** | Unbuilt. The test is "change the shown pass, edit, and the edit lands on the pass you were looking at". |
+| `source.app.curated-pass-stays-on-top` | `OCRGeometrySelectionTests.swift` (rankedPasses section) | **needed** | The unit test pins the ranking; the screen leg is "run a machine pass over a page you have corrected and your boxes stay". |
+| `source.app.overlays-draw-from-the-seam` | `SegmentDisplayTests.swift` | **needed, and it is the whole acceptance** | The claim is "a page looks the same before and after", which no unit test can make. Image and PDF, on each platform. |
+| `source.app.segment-events-patch-in-place` | `SegmentStoreTests.swift` (8 new) | **needed** | The unit tests pin the decision; the screen leg is "edit a line in one window and watch the other window's box change without the page flickering" — a wholesale reload is visible as a flash and nothing else catches it. |
 
 Engine-side rows filled 2026-09-27 (`source.textedit.*`'s first three; the click-around leg is
 still to be filled at approval):
