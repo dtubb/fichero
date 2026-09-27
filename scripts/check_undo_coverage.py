@@ -1,10 +1,24 @@
 #!/usr/bin/env python3
 """Completeness-matrix guardrail for undo coverage (#1925).
 
-Every mutating endpoint that participates in user-facing state changes should
-have a corresponding undo registration in the Swift undo system. The script
-passes today because the current gaps are seeded in KNOWN_GAPS and fails only
-when a new mutating endpoint appears without undo wiring.
+Every mutating endpoint that participates in user-facing state changes should have a
+corresponding undo registration in the Swift undo system. The script passes because the
+current gaps are seeded in KNOWN_GAPS and fails when a new mutating endpoint appears
+without undo wiring.
+
+Read the number this prints as what it is (#5109). Of 393 mutating operations, ZERO are
+named in an undo-registering file by a strict match. Undo in this app is a view-level
+`UndoManager` concern — eight files register it, for canvas moves, sidebar actions and
+workflow edits — so there is no endpoint-to-undo relationship for this axis to measure,
+and there will not be until the parked undo/trash/rollback design lands.
+
+Until 2026-09-27 it reported six endpoints as covered, and all six were artefacts of
+substring matching on paths whose `/api/` prefix had been stripped: `POST /api/library`
+passed because a comment in UndoRouting.swift reads "document/library undo", so the text
+contained `/library`. `POST /api/pair` passed on the word "pairing". Those six now match
+strictly and are seeded with that as their reason, which is the honest state: the guard is
+holding a line at zero, not at six. The substring, comment and brace-collapse defects
+behind them are #5108; this script uses the repaired reader.
 
 Usage:
     scripts/check_undo_coverage.py
@@ -26,7 +40,8 @@ from matrix_guardrail_common import (
     load_known_gaps,
     load_openapi,
     normalize_path,
-    read_normalized_blob,
+    path_is_dialled,
+    read_swift_code_blob,
 )
 
 UNDO_SOURCES = sorted(
@@ -62,7 +77,7 @@ def _is_candidate(path: str) -> bool:
 
 def scan() -> list[Row]:
     _, spec = load_openapi()
-    undo_blob = read_normalized_blob(UNDO_SOURCES)
+    undo_blob = read_swift_code_blob(UNDO_SOURCES)
     rows: list[Row] = []
     for path, path_item in sorted(spec.get("paths", {}).items()):
         if not _is_candidate(path) or not isinstance(path_item, dict):
@@ -76,16 +91,18 @@ def scan() -> list[Row]:
             endpoint = endpoint_key(method, path)
             if endpoint in NON_UNDO_MUTATIONS:
                 continue
+            # Strictly: the path, in code, at both its ends. The old test was a substring
+            # of `normalize_path(file_text)`, which collapsed Swift braces as if the file
+            # were an OpenAPI path and let a comment stand in for a registration (#5108).
             evidence: tuple[str, ...] = tuple(
                 str(source.relative_to(ROOT))
                 for source in UNDO_SOURCES
-                if normalize_path(path) in normalize_path(source.read_text(encoding="utf-8", errors="ignore"))
-                or normalized in normalize_path(source.read_text(encoding="utf-8", errors="ignore"))
+                if path_is_dialled(normalized, read_swift_code_blob([source]))
             )
             rows.append(
                 Row(
                     endpoint=endpoint,
-                    undo_registered=bool(evidence) or normalized in undo_blob,
+                    undo_registered=bool(evidence),
                     evidence=evidence,
                 )
             )
