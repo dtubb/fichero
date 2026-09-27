@@ -1490,7 +1490,26 @@ def _action_edit_artifact_regions(
     )
 
 
-@router.put("/{artifact_id}/regions", response_model=ArtifactResponse)
+class ArtifactRegionsEditResponse(ArtifactResponse):
+    """The edited artifact, plus the audit row the edit wrote.
+
+    A SUPERSET of `ArtifactResponse`, so every existing caller decodes it unchanged
+    and the new field is there for the one caller that needs it.
+
+    WHY (#4941, `source.editor.system-undo`): the app cannot offer ⌘Z for a region
+    edit without knowing which action to invert. `POST /api/actions/audit/{id}/undo`
+    inverts any audited action, and the app had no id to hand it — reading the newest
+    audit row instead would be a race against any other writer, and on a shared
+    library that is a person undoing somebody else's edit. The id is already in hand
+    here (`registry.invoke` returns it); it was simply not answered.
+    """
+
+    #: The `ActionAudit` row this edit wrote. `None` only if the action layer
+    #: returned no id, which would itself be a defect worth seeing.
+    audit_id: Optional[str] = None
+
+
+@router.put("/{artifact_id}/regions", response_model=ArtifactRegionsEditResponse)
 async def edit_artifact_regions(
     artifact_id: str,
     edit: ArtifactRegionsEditRequest,
@@ -1573,7 +1592,7 @@ async def edit_artifact_regions(
             box_count = len(block.boxes) if block else 0
             if all(0 <= i < box_count for i in edit.indices):
                 target_ids = [_converted_segment_id(artifact_id, i) for i in edit.indices]
-    registry.invoke(
+    result = registry.invoke(
         db,
         "segment.convert_and_edit",
         {
@@ -1584,4 +1603,9 @@ async def edit_artifact_regions(
         },
         ctx,
     )
-    return _artifact_response(db, db.get(Artifact, artifact_id), include_geometry=True)
+    edited = _artifact_response(db, db.get(Artifact, artifact_id), include_geometry=True)
+    # The audit row, so the app can offer ⌘Z for this edit without guessing which
+    # action to invert (`source.editor.system-undo`).
+    return ArtifactRegionsEditResponse(
+        **edited.model_dump(mode="json"), audit_id=result.audit_id
+    )
