@@ -156,3 +156,40 @@ class TestTheAlignerIsExempt:
     def test_an_unedited_page_still_prefers_its_page_content(self, db):
         _, page, art = seed_page(db)
         assert resolve_transcript(db, page.id) == db.get(Document, page.id).page_content
+
+
+class TestAChangeOnAPassNobodyReadsDoesNotDerive:
+    """The import that spent 38 of its 44 seconds re-reading a page whose text had not changed
+    (#5085 neighbour): readings written on a pass that is not the working pass cannot change the
+    derived text. Skipped by WHICH PASS, not by action name, so every future caller with the same
+    property is covered."""
+
+    def _second_pass_with_a_segment(self, db, page):
+        from fichero_server.models.anchors import SourceAnchor
+
+        new_pass = registry.invoke(db, "segment.pass_create", {"document_id": page.id, "name": "imported", "run_id": "run-x"}, CTX).result
+        pass_id = new_pass.get("pass_id") or new_pass.get("id")
+        seg = registry.invoke(db, "segment.create", {
+            "document_id": page.id, "pass_id": pass_id, "kind": "line",
+            "anchor": SourceAnchor(document_id=page.id, rect=[0.1, 0.9, 0.5, 0.05]).model_dump(mode="json")}, CTX).result
+        return pass_id, seg["segment_ids"][0]
+
+    def test_a_reading_on_a_non_working_pass_does_not_read_the_page(self, db, client, monkeypatch):
+        import fichero_server.api.routes.document.segment_readings as sr
+
+        page, art, row = _converted(db, client)
+        before = db.get(Document, page.id).page_content
+        pass_id, seg_id = self._second_pass_with_a_segment(db, page)
+        monkeypatch.setattr(sr, "document_text", lambda *a, **k: (_ for _ in ()).throw(AssertionError("derived a page nobody reads")))
+        registry.invoke(db, "representation.create", {"document_id": page.id, "segment_id": seg_id,
+                        "kind": "transcription", "content": "imported words"}, CTX)
+        assert db.get(Document, page.id).page_content == before
+
+    def test_choosing_that_pass_as_the_working_pass_does_refresh(self, db, client):
+        page, art, row = _converted(db, client)
+        pass_id, seg_id = self._second_pass_with_a_segment(db, page)
+        registry.invoke(db, "representation.create", {"document_id": page.id, "segment_id": seg_id,
+                        "kind": "transcription", "content": "imported words"}, CTX)
+        assert "imported words" not in db.get(Document, page.id).page_content
+        registry.invoke(db, "pass.choose_working", {"document_id": page.id, "pass_id": pass_id}, CTX)
+        assert db.get(Document, page.id).page_content == "imported words"

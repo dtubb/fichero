@@ -60,6 +60,39 @@ def _document_ids(spec: Any, action_name: str, params: Any) -> list[str]:
     return list(dict.fromkeys(spec.document_ids)) if triggered else []
 
 
+def _touched_passes(db: Any, spec: Any) -> set[str]:
+    """The passes an action changed, from what it already carries: the passes it names, else the
+    passes of the segments it names (one `get` each, not a page read). EMPTY when it cannot tell,
+    and empty means "do not skip"."""
+    passes = set(spec.pass_ids)
+    if passes:
+        return passes
+    from fichero_server.models import Segment
+
+    for segment_id in spec.segment_ids:
+        row = db.get(Segment, segment_id)
+        if row is not None:
+            passes.add(row.pass_id)
+    return passes
+
+
+def _working_pass_id(db: Any, document_id: str) -> str | None:
+    """The document's working pass, the way `document_text` resolves it, without deriving text."""
+    from fichero_server.api.routes.document.segment_readings import (
+        SegmentPassChoice,
+        _pass_candidates,
+        project_record_rule,
+        resolve_working_pass,
+    )
+
+    answer = resolve_working_pass(
+        project_record_rule(db),
+        list(db.query(SegmentPassChoice, document_id=document_id)),
+        _pass_candidates(db, document_id),
+    )
+    return answer.pass_id
+
+
 def cache_text(derived: Any) -> str:
     return derived.text
 
@@ -73,9 +106,23 @@ def refresh_in_transaction(db: Any, spec: Any, action_name: str = "", params: An
     from fichero_server.workflows.curation_guard import page_content_is_user_edited
 
     changed: list[str] = []
-    for document_id in _document_ids(spec, action_name, params):
+    document_ids = _document_ids(spec, action_name, params)
+    if not document_ids:
+        return changed  # most actions: nothing below may cost anything (no per-segment walk)
+    touched = _touched_passes(db, spec)
+    for document_id in document_ids:
         doc = db.get(Document, document_id)
         if doc is None or page_content_is_user_edited(doc):
+            continue
+        if touched and _working_pass_id(db, document_id) not in touched:
+            # The change is on a pass nobody is reading (an import is not the working pass), so
+            # the derived text cannot have changed. THIS SKIP HAS A PREMISE: a newly imported pass
+            # cannot quietly become the working pass behind a person's earlier choice (an
+            # explicit `pass.choose_working` records a `chosen` basis that outranks recency). If
+            # that ruling ever changed, this would start dropping real refreshes.
+            #
+            # Reading the whole page to find that out cost 38 s inside a dense import (#5086). Not a
+            # check by action name: any future action with this property is covered.
             continue
         derived = document_text(db, document_id)
         if derived.pass_id is None:

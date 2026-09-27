@@ -456,7 +456,10 @@ def _pass_candidates(db: Database, document_id: str) -> list[PassCandidate]:
     for pass_row in db.query(SegmentPass, document_id=document_id):
         if pass_row.deleted_at is not None:
             continue
-        rows = db.query(Segment, pass_id=pass_row.id)
+        # ONLY the human rows are fetched: the question is "does this pass hold a person's
+        # segment", and hydrating every row of a 20,000-segment import to ask it made the
+        # working-pass check cost seconds (#5086, found measuring a dense import).
+        rows = db.query(Segment, pass_id=pass_row.id, provenance_kind=ProvenanceKind.human)
         from_text_layer = False
         if pass_row.source_artifact_id:
             artifact = db.get(Artifact, pass_row.source_artifact_id)
