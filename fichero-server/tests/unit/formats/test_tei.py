@@ -130,6 +130,29 @@ class TestTheRoundTripHolds:
         assert [w.readings[0][1] for w in returned.segments[1:]] == ["Monatsſchrift", "."]
         assert "line reading beside its words" not in report.lost
 
+    def test_a_word_the_lines_text_does_not_contain_survives_and_does_not_change_the_line(self):
+        """#5083: PAGE XML lets a `Word` carry text its `TextLine` does not (OCR-D Aepinus
+        ground truth: `J.E.W.`). The word must come back as a word of the line, in its place,
+        and the line's own text must be untouched. Declaring it a loss would have passed."""
+        page = SourcePage(image_size=(1000, 1000), segments=[
+            PageSegment(kind="line", ref="l", polygon=[[0.1, 0.1], [0.9, 0.1], [0.9, 0.2], [0.1, 0.2]],
+                        readings=[("transcription", "de in geluͤckſeliger")]),
+            PageSegment(kind="word", ref="a", parent_ref="l", rect=[0.1, 0.1, 0.1, 0.1], readings=[("transcription", "de")]),
+            PageSegment(kind="word", ref="b", parent_ref="l", rect=[0.2, 0.1, 0.1, 0.1], readings=[("transcription", "J.E.W.")]),
+            PageSegment(kind="word", ref="c", parent_ref="l", rect=[0.3, 0.1, 0.1, 0.1], readings=[("transcription", "in")]),
+            PageSegment(kind="word", ref="d", parent_ref="l", rect=[0.4, 0.1, 0.3, 0.1], readings=[("transcription", "geluͤckſeliger")])])
+        returned, report = round_trip("tei", page)
+        assert returned.segments[0].readings == [("transcription", "de in geluͤckſeliger")]
+        assert [w.readings[0][1] for w in returned.segments[1:]] == ["de", "J.E.W.", "in", "geluͤckſeliger"]
+        assert report.lost == set(), "nothing here is a loss, so nothing may be reported as one"
+
+    def test_a_double_space_inside_a_line_is_text_not_layout(self):
+        page = SourcePage(image_size=(1000, 1000), segments=[
+            PageSegment(kind="line", ref="l", rect=[0.1, 0.1, 0.8, 0.1],
+                        readings=[("transcription", "thouornemen  / wat")])])
+        returned, _ = round_trip("tei", page)
+        assert returned.segments[0].readings == [("transcription", "thouornemen  / wat")]
+
     def test_rival_readings_survive_as_an_apparatus_and_which_counts_is_reported(self):
         page = _page()
         page.segments[3].readings = [("transcription", "En el año"), ("normalised", "En el ano")]
@@ -314,11 +337,6 @@ class TestDialectsAHandWrittenFileStandsInFor:
 class TestThroughTheOneModelFromAnotherFormat:
     """`source.format.one-model-one-harness`: PAGE XML in, TEI out -- never a converter."""
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="#5083: a word carried only by a <Word> element vanishes from the line's text on "
-        "the PAGE XML -> TEI round trip, and the loss report does not mention it",
-    )
     def test_a_real_page_xml_file_becomes_valid_tei_with_its_text(self):
         source = (Path(__file__).parent / "fixtures" / "ocrd_gt_aepinus_0020.page.xml").read_bytes()
         page = read_page("pagexml", source)
@@ -328,4 +346,4 @@ class TestThroughTheOneModelFromAnotherFormat:
         got = [s.readings[0][1] for s in back.segments if s.kind == "line" and s.readings]
         assert got == was and len(was) > 10
         assert len([s for s in back.segments if s.kind == "line"]) == len([s for s in page.segments if s.kind == "line"])
-        assert "separator segments" in report.lost, "PAGE XML's separators have no TEI element and say so"
+        assert "graphic segments" in report.lost, "the file's graphic region has no TEI element and says so"

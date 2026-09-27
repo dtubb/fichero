@@ -68,6 +68,9 @@ NON_TRANSCRIPTION = frozenset({"note", "teiHeader", "facsimile"})
 KNOWN_INLINE = frozenset({"lb", "pb", "w", "seg", "app", "lem", "rdg", "ab", "p", "head", "l",
                           "div", "text", "body", "TEI"})
 
+#: `<note type=...>` that carries a word segment whose text is not in its line's text (#5083).
+UNPLACED_WORD = "unplaced-word"
+
 DIRECTION_TO_STYLE = {
     "ltr": "direction: ltr",
     "rtl": "direction: rtl",
@@ -81,7 +84,11 @@ def _tag(element: Any) -> str:
 
 
 def _norm(text: str) -> str:
-    return re.sub(r"\s+", " ", text)
+    """Collapse the whitespace that is LAYOUT (a run containing a newline or tab: indentation
+    between elements) and keep the whitespace that is TEXT (a double space inside a line). A blanket
+    `\\s+` -> " " silently altered a transcription that has a double space (#5083's neighbour,
+    found on the same Aepinus file); our own writer emits no layout whitespace at all."""
+    return re.sub(r"[ \t\r\n\f\v]*[\n\t\r\f\v][ \t\r\n\f\v]*", " ", text)
 
 
 # ---------------------------------------------------------------------------
@@ -293,6 +300,15 @@ def read_pages(data: bytes) -> list[SourcePage]:
 
     def walk(element: Any, region: PageSegment | None, page: dict[str, Any]) -> None:
         tag = _tag(element)
+        if tag == "note" and element.get("type") == UNPLACED_WORD and state["line"] is not None:
+            # A word the line's own text does not contain (PAGE XML lets a `Word` carry text its
+            # `TextLine` does not). It is a word segment of the line and NOT part of the line's text.
+            word = add_segment("word", element, state["line"], page)
+            text = _norm("".join(element.itertext())).strip()
+            if text:
+                word.readings.append(("transcription", text))
+            _tail(element)
+            return
         if tag in NON_TRANSCRIPTION or not isinstance(element.tag, str):
             return
         if tag == "pb":
@@ -690,48 +706,53 @@ def write(page: SourcePage, report: LossReport) -> bytes:
 def _words_in_text(holder: Any, line: PageSegment, words: list[PageSegment], zone_for: Any,
                    describe: Any, q: Any, report: LossReport) -> bool:
     """Write the line's OWN text with each word wrapped where it stands, so the line's text is
-    exact and the words are still segments. Only when every word's text is found in the line's
-    text in order; otherwise the caller falls back and reports. Found by writing PAGE XML's
-    punctuation-as-its-own-word back: joining the words with spaces turned "Monatsſchrift." into
-    "Monatsſchrift ."."""
+    exact and the words are still segments.
+
+    A word whose text is not found in the line's text, in order, is NOT dropped and NOT merged
+    into the line's text: it is written where it falls as `<note type="unplaced-word" facs>`, which
+    the reader turns back into a word of the line that is not part of its text. PAGE XML allows a
+    `Word` to carry text its `TextLine` does not (found on OCR-D's Aepinus ground truth: `J.E.W.`,
+    #5083); declaring that a loss would have made the test pass and the word disappear.
+
+    Found first by writing PAGE XML's punctuation-as-its-own-word back: joining the words with
+    spaces turned "Monatsſchrift." into "Monatsſchrift .".
+    """
     from lxml import etree
 
     if len(line.readings) != 1 or line.readings[0][0] != "transcription":
         return False
+    if any(len(w.readings) != 1 for w in words):
+        return False
     text = line.readings[0][1]
-    spans: list[tuple[int, int, PageSegment]] = []
-    cursor = 0
-    for word in words:
-        if not word.readings:
-            return False
-        token = word.readings[0][1]
-        found = text.find(token, cursor)
-        if found < 0 or len(word.readings) > 1:
-            return False
-        spans.append((found, found + len(token), word))
-        cursor = found + len(token)
     position = 0
+    cursor = 0
     last: Any = None
-    for start, end, word in spans:
-        gap = text[position:start]
-        if gap:
-            if last is None:
-                holder.text = (holder.text or "") + gap
-            else:
-                last.tail = (last.tail or "") + gap
-        w = etree.SubElement(holder, q("w"))
+
+    def add_text(chunk: str) -> None:
+        if not chunk:
+            return
+        if last is None:
+            holder.text = (holder.text or "") + chunk
+        else:
+            last.tail = (last.tail or "") + chunk
+
+    for word in words:
+        token = word.readings[0][1]
+        found = text.find(token, cursor) if token else -1
+        if found < 0:
+            element = etree.SubElement(holder, q("note"), type=UNPLACED_WORD)
+            element.text = token
+        else:
+            add_text(text[position:found])
+            element = etree.SubElement(holder, q("w"))
+            element.text = token
+            position = cursor = found + len(token)
         zid = zone_for(word)
         if zid:
-            w.set("facs", f"#{zid}")
-        describe(w, word)
-        w.text = text[start:end]
-        last, position = w, end
-    if position < len(text):
-        tail = text[position:]
-        if last is None:
-            holder.text = (holder.text or "") + tail
-        else:
-            last.tail = (last.tail or "") + tail
+            element.set("facs", f"#{zid}")
+        describe(element, word)
+        last = element
+    add_text(text[position:])
     return True
 
 
