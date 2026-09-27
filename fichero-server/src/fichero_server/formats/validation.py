@@ -64,6 +64,32 @@ def parse(data: bytes) -> Any:
         return root
 
 
+def root_element(data: bytes) -> tuple[str, str] | None:
+    """`(namespace, local name)` of the document's ROOT element, or None if there is none.
+
+    Reads only as far as the first start tag, however much comes before it. The byte-window
+    sniffs this replaces looked at the first 2 KB, and real ALTO files open with a long
+    comment -- a CHOCOMUFIN conversion report -- that pushed the root out of the window, so
+    they were recognised as nothing and would have imported as plain text (#5132). Comments
+    and processing instructions are skipped whatever their length; the rest of the file is
+    never read here, so a later error does not hide the root.
+    """
+    import io
+
+    from lxml import etree
+
+    try:
+        for _event, element in etree.iterparse(
+            io.BytesIO(data), events=("start",), resolve_entities=False,
+            no_network=True, load_dtd=False, huge_tree=False, recover=True,
+        ):
+            qname = etree.QName(element)
+            return (qname.namespace or "", qname.localname)
+    except etree.XMLSyntaxError:
+        return None
+    return None
+
+
 #: Absolute schema URLs a vendored schema IMPORTS, mapped to the local file that
 #: satisfies them. ALTO's XSD imports xlink by absolute URL, so validating it with
 #: the network off fails at schema-parse time unless the import resolves locally —

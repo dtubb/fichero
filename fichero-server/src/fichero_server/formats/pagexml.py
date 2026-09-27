@@ -290,8 +290,10 @@ def _sniff(data: bytes) -> bool:
     a harness that trusted the extension would import an ALTO file as PAGE XML and
     report the emptiness as the file's fault.
     """
-    head = data[:2048].lower()
-    return b"pcgts" in head or any(ns.encode().lower() in head for ns in KNOWN_NAMESPACES)
+    from fichero_server.formats.validation import root_element
+
+    root = root_element(data)
+    return root is not None and (root[0] in KNOWN_NAMESPACES or root[1].lower() == "pcgts")
 
 
 def read(data: bytes) -> SourcePage:
