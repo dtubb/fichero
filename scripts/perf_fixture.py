@@ -80,14 +80,18 @@ def measure() -> dict:
                     samples["chars_per_word"].append(len(segment.readings[0][1]))
                 line = by_ref.get(segment.parent_ref or "")
                 own, parent = _box(segment), _box(line) if line else None
-                if own and parent and parent[3] > 0:
+                # A ZERO-WIDTH box is real (one of the source pages has one) and has no
+                # place to be drawn: generated at x=0 it lay outside the page and the
+                # importer refused the whole fixture. Excluded, and the declaration says so.
+                if own and parent and parent[3] > 0 and own[2] > 0:
                     samples["word_width_over_line_height"].append(round(own[2] / parent[3], 3))
     return {
         "generated": True,
         "declaration": (
             "GENERATED page for the segment editor's speed trial. Nesting, characters per "
             "word and word width relative to line height are SAMPLED from the real pages in "
-            "`sources`; characters splitting their word equally, columns, and one uniform scale "
+            "`sources` (zero-width word boxes excluded: they have no place to be drawn); "
+            "characters splitting their word equally, columns, and one uniform scale "
             "to fit the shape count are CHOSEN. Not a real page."
         ),
         "sources": list(SOURCES),

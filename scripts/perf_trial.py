@@ -15,7 +15,7 @@ one run, a 13% "regression" that was noise, a figure quoted from a comment.
 Results file (one measurement):
 
     {
-      "measurement": "frame" | "edit-undo",
+      "measurement": "frame" | "edit-undo" | "engine-edit-undo",
       "fixture": "<the committed fixture's name>",
       "shape_count": 20000,
       "machine": {"model": "iPhone12,8", "os": "iOS 26.0", "build_configuration": "Release"},
@@ -63,7 +63,14 @@ GATES_MS = {
     "frame": 1000 / 60,
     # One edit through the engine and system undo in under a tenth of a second.
     "edit-undo": 100.0,
+    # The ENGINE'S share of that: the edit and its undo through the HTTP stack, measured on
+    # the Mac. A necessary condition, not the gate -- the app's UndoManager and redraw come on
+    # top -- so it is its own measurement, against the same budget.
+    "engine-edit-undo": 100.0,
 }
+#: Which build a measurement must be taken on. The app's numbers are a Release build; the
+#: engine has no Release/Debug, and saying "Release" for it would be a false label.
+BUILD_REQUIRED = {"frame": "Release", "edit-undo": "Release", "engine-edit-undo": "engine"}
 #: Runs after the cold one.
 RUNS = 5
 #: The five runs may disagree by this fraction of their median and still be one answer.
@@ -158,8 +165,9 @@ def _unreadable(result: dict[str, Any]) -> list[str]:
     missing = [k for k in ("model", "os", "build_configuration") if not machine.get(k)]
     if missing:
         problems.append(f"a number with no machine beside it cannot be compared: missing {missing}")
-    elif machine["build_configuration"] != "Release":
-        problems.append(f"{machine['build_configuration']} is not the product: measure a Release build")
+    elif machine["build_configuration"] != BUILD_REQUIRED.get(result.get("measurement"), "Release"):
+        wanted = BUILD_REQUIRED.get(result.get("measurement"), "Release")
+        problems.append(f"{machine['build_configuration']} is not the product: measure a {wanted} build")
     if not result.get("fixture"):
         problems.append("no fixture named: a result must say which committed page it measured")
     if result.get("thermal_state") not in READABLE_THERMAL:

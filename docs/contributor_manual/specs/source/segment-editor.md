@@ -907,6 +907,24 @@ Two choices it makes that the spec left open are named in its code so they can b
 gate, like the frame gate, is on the worst value. Memory "grows with the count" means the peak at
 20,000 shapes is at least halfway from flat to proportional (at least 2.5 times the peak at
 5,000). Until a run on each machine is recorded, these behaviours are PARTIAL.
+
+**The trial's first finding (2026-09-27), before any editor UI.** The engine's share of the edit
+gate is measured by `fichero-server/tests/perf/test_segment_edit_undo_perf.py`. It imports the
+20,000-shape page through `format.import`, then moves one word and undoes it through the app's own
+routes, one cold run and five measured runs, recorded as `engine-edit-undo` (build "engine", the
+same 100 ms budget, a necessary condition and not the gate). **The edit took 26 ms and its undo took
+about 14 s.** Traced by capturing the call stack on every call: the undo of a move is a
+`segment.restore_version`, which the page-text cache (#5077) listed as a membership change
+unconditionally. So one undo re-derived the whole page, with an N+1 of 20,017
+`readings_of_segment` calls. The edit itself was already exempt for geometry. A restore now records
+`text_relevant` (whether it puts back a different parent, furniture flag, kind or pass), and the
+cache skips only an explicit false. **After: about 48 ms per edit and undo**, measured while other
+lanes loaded the machine, and so recorded VOID by the trial's own rule. Pinned by
+`fichero-server/tests/unit/api/test_page_content_is_a_cache.py::TestUndoingAMoveIsAsCheapAsTheMove::test_undoing_a_move_does_not_derive_the_page`
+(which fails on the code before the fix) and
+`::TestUndoingAMoveIsAsCheapAsTheMove::test_undoing_a_furniture_change_still_refreshes` (the
+exemption stops where the text can change). The whole-page derivation's own N+1 remains for the
+restores that do change the text; it is the next thing the trial should time.
 - `source.perf.worst-frame-not-mean` — **[PARTIAL]** (#4940; the verdict is built and pinned by `fichero-server/tests/unit/scripts/test_perf_trial.py::TestWorstFrameNotMean::test_one_dropped_frame_fails_a_run_whose_mean_is_fine`. No measurement has been recorded yet) the frame gate is on the worst frame in a
   run against a 16.7 ms budget, never the mean, because a mean hides the dropped frame a person
   feels.

@@ -151,3 +151,21 @@ class TestTheEditGate:
         assert trial.judge(_result(runs, measurement="edit-undo")).status == "PASS"
         runs = [[300.0], *([[40.0, 60.0, 120.0]] * 5)]
         assert trial.judge(_result(runs, measurement="edit-undo")).status == "FAIL"
+
+
+class TestTheEnginesShare:
+    """The engine's edit+undo on the Mac is a NECESSARY condition for the 100 ms edit gate,
+    not the gate: the app's UndoManager and redraw come on top. It is its own measurement,
+    and it must say "engine" -- calling it a Release build would be a false label."""
+
+    ENGINE = {"model": "Mac15,3", "os": "macOS 26.0", "build_configuration": "engine"}
+
+    def test_it_is_gated_at_the_same_budget(self):
+        runs = [[300.0], *([[20.0, 30.0, 40.0]] * 5)]
+        assert trial.judge(_result(runs, measurement="engine-edit-undo", machine=self.ENGINE)).status == "PASS"
+
+    def test_it_refuses_a_release_label_and_the_app_measurements_refuse_engine(self):
+        runs = [[300.0], *([[20.0, 30.0, 40.0]] * 5)]
+        release = {**self.ENGINE, "build_configuration": "Release"}
+        assert trial.judge(_result(runs, measurement="engine-edit-undo", machine=release)).status == "REFUSED"
+        assert trial.judge(_result(runs, measurement="edit-undo", machine=self.ENGINE)).status == "REFUSED"

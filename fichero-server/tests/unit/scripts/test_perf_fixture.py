@@ -72,3 +72,10 @@ def test_the_page_is_on_the_page_and_exports_as_valid_page_xml():
                for r in (s.rect for s in page.segments))
     data, _ = write_page("pagexml", page)  # validated against PAGE 2019 on the way out
     assert data.count(b"<Glyph") >= 4000
+
+
+def test_every_shape_has_area_so_the_importer_takes_the_page():
+    """A real source page has a zero-width word box; sampled, it made a shape with no area at
+    the page's edge and the importer refused the whole fixture. Every generated shape has area."""
+    page = fixture.generate(20000)
+    assert all(s.rect[2] > 0 and s.rect[3] > 0 for s in page.segments)
