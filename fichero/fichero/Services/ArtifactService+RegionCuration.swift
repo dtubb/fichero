@@ -4,6 +4,15 @@ import OpenAPIRuntime
 
 // MARK: - Region curation (2026-08-29); split into its own file (#5039). Uses the service's client
 // and converter; the cache stays private behind `replaceCachedArtifact`.
+/// A region edit's answer: the fresh artifact to re-render from, and the audit row the
+/// edit wrote so the caller can register ⌘Z for it (`source.editor.system-undo`, #4941).
+/// `auditId` is optional because the route's model declares it so; a caller that gets
+/// `nil` offers no undo rather than inverting a guessed row.
+struct RegionEditResult {
+    let artifact: Artifact
+    let auditId: String?
+}
+
 extension ArtifactService {
     /// One region-curation edit against an artifact's `ocr_geometry.boxes`,
     /// addressed the way the engine addresses boxes: by FULL-list index.
@@ -17,7 +26,7 @@ extension ArtifactService {
         indices: [Int] = [],
         bbox: [Double]? = nil,
         text: String? = nil
-    ) async throws -> Artifact {
+    ) async throws -> RegionEditResult {
         let request = Components.Schemas.ArtifactRegionsEditRequest(
             op: operation,
             indices: indices,
@@ -31,9 +40,10 @@ extension ArtifactService {
 
         switch response {
         case .ok(let okResponse):
-            let updated = try convertToArtifact(try okResponse.body.json)
+            let edited = try okResponse.body.json
+            let updated = try convertToArtifact(edited)
             replaceCachedArtifact(updated, artifactId: artifactId, documentId: documentId)
-            return updated
+            return RegionEditResult(artifact: updated, auditId: edited.auditId)
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ArtifactServiceError.serverError(detail?.detail?.description ?? "Validation error")
@@ -50,7 +60,7 @@ extension ArtifactService {
     /// Re-decoding the same JSON as `ArtifactResponse` (whose synthesized decoder ignores the
     /// extra key) keeps every field by construction. A hand-written field-by-field copy would
     /// silently drop whatever field `ArtifactResponse` gains next. `audit_id` is not used yet;
-    /// wiring ⌘Z for region edits is the archive lane's `source.editor.system-undo`.
+    /// it is handed back in `RegionEditResult` for `source.editor.system-undo`.
     func convertToArtifact(_ edited: Components.Schemas.ArtifactRegionsEditResponse) throws -> Artifact {
         let json = try JSONEncoder().encode(edited)
         return convertToArtifact(try JSONDecoder().decode(Components.Schemas.ArtifactResponse.self, from: json))
@@ -81,9 +91,10 @@ extension ArtifactService {
     }
 
     /// Reposition one region's bbox (drag-to-move, committed on mouse-up).
+    @discardableResult
     func moveRegion(
         artifactId: String, documentId: String, index: Int, bbox: [Double]
-    ) async throws -> Artifact {
+    ) async throws -> RegionEditResult {
         try await editRegions(
             artifactId: artifactId, documentId: documentId,
             operation: .move, indices: [index], bbox: bbox
@@ -92,9 +103,10 @@ extension ArtifactService {
 
     /// Remove regions (Delete key). Server-side this is undoable and logged
     /// in the geometry's curation_log — curation-grade, never lossy.
+    @discardableResult
     func deleteRegions(
         artifactId: String, documentId: String, indices: [Int]
-    ) async throws -> Artifact {
+    ) async throws -> RegionEditResult {
         try await editRegions(
             artifactId: artifactId, documentId: documentId,
             operation: .delete, indices: indices
@@ -103,9 +115,10 @@ extension ArtifactService {
 
     /// Append a hand-drawn region (rubber-band promotion). Text is optional —
     /// a drawn region usually starts without one.
+    @discardableResult
     func addRegion(
         artifactId: String, documentId: String, bbox: [Double], text: String = ""
-    ) async throws -> Artifact {
+    ) async throws -> RegionEditResult {
         try await editRegions(
             artifactId: artifactId, documentId: documentId,
             operation: .add, bbox: bbox, text: text
@@ -114,9 +127,10 @@ extension ArtifactService {
 
     /// Merge regions: union bbox, texts concatenated in READING order (the
     /// server decides the order — click order is not reading order).
+    @discardableResult
     func combineRegions(
         artifactId: String, documentId: String, indices: [Int]
-    ) async throws -> Artifact {
+    ) async throws -> RegionEditResult {
         try await editRegions(
             artifactId: artifactId, documentId: documentId,
             operation: .combine, indices: indices
