@@ -283,15 +283,6 @@ def _action_format_import(db: Database, params: FormatImportParams, ctx: ActionC
     return result, spec_change
 
 
-def describe_tei_page(page: Any, number: int) -> str:
-    """How a person finds one page of a TEI file: `page 6 (#zone_0006)` -- its `<pb n>` and what
-    its `<pb>` points at -- or `page 2 of the file` when the page break says nothing."""
-    pb = (page.foreign.get("tei") or {}).get("pb") or {}
-    label = f"page {pb['n']}" if pb.get("n") else f"page {number} of the file"
-    pointer = pb.get("corresp") or pb.get("facs")
-    return f"{label} ({pointer})" if pointer else label
-
-
 def _tei_pages_taken(data: bytes, wanted: list[int] | None, filename: str) -> tuple[Any, int, list[str]]:
     """The TEI pages this import takes, as ONE page; how many the file has; the ones left out.
 
@@ -302,7 +293,7 @@ def _tei_pages_taken(data: bytes, wanted: list[int] | None, filename: str) -> tu
     from dataclasses import replace
 
     from fichero_server.formats.harness import PageOrder
-    from fichero_server.formats.tei import read_pages
+    from fichero_server.formats.tei import describe_page, read_pages
 
     pages = read_pages(data)
     numbers = sorted(set(wanted or [1]))
@@ -322,7 +313,7 @@ def _tei_pages_taken(data: bytes, wanted: list[int] | None, filename: str) -> tu
             orders=[PageOrder(name=page.orders[0].name if page.orders else "as-written", refs=refs)]
             if refs else [],
         )
-    left_out = [describe_tei_page(p, n) for n, p in enumerate(pages, start=1) if n not in numbers]
+    left_out = [describe_page(p, n) for n, p in enumerate(pages, start=1) if n not in numbers]
     return page, len(pages), left_out
 
 

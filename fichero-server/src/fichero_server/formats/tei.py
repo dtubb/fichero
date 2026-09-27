@@ -381,7 +381,14 @@ def read_pages(data: bytes) -> list[SourcePage]:
             state["region"] = region = None
             _tail(element)
             return
-        if tag in REGION_TAGS and element.get("type") != "anonymous":
+        verse_inside_a_line = (
+            tag == "l" and state["line"] is not None
+            and any(_tag(a) == "seg" for a in element.iterancestors())
+        )
+        # A poem INSIDE a printed line (the Digital Genji's waka: `<lb/><seg>　　<lg><l>..</l>
+        # ..</lg>いとか</seg>`) is verse divisions of that line, not regions of the page. Read as
+        # regions, the line was split into five and the text after the poem was DROPPED (#5143).
+        if tag in REGION_TAGS and element.get("type") != "anonymous" and not verse_inside_a_line:
             # A `<lb/>` written just BEFORE its block still owns the block's first text (real
             # files do this): an open line with nothing in it is adopted, not flushed.
             adopt = state["line"] if (state["line"] is not None and not "".join(state["buffer"]).strip()) else None
@@ -613,6 +620,15 @@ def read_pages(data: bytes) -> list[SourcePage]:
             if "page" in page.foreign.get("tei", {}):
                 page.foreign["tei"]["page"] = f"{index + 1} of {len(out)}"
     return out
+
+
+def describe_page(page: SourcePage, number: int) -> str:
+    """How a person finds one page of a TEI file: `page 6 (#zone_0006)` -- its `<pb n>` and what
+    its `<pb>` points at -- or `page 2 of the file` when the page break says nothing (#5143)."""
+    pb = (page.foreign.get("tei") or {}).get("pb") or {}
+    label = f"page {pb['n']}" if pb.get("n") else f"page {number} of the file"
+    pointer = pb.get("corresp") or pb.get("facs")
+    return f"{label} ({pointer})" if pointer else label
 
 
 def read(data: bytes) -> SourcePage:
