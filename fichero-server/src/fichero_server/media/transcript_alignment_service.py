@@ -43,7 +43,17 @@ def resolve_transcript(db: object, document_id: str) -> str | None:
     align, so the caller can say "no transcript" rather than align against "".
     """
     document = db.get(Document, document_id)  # type: ignore[attr-defined]
-    if document is not None and (document.page_content or "").strip():
+    # EXEMPT from the `page_content` cache on purpose (#5077). Once a page's text is derived,
+    # `page_content` follows a person's corrections; alignment is against what the MACHINE produced
+    # (the artifact below), so a curated page reads the artifact and NOT the cache. Do not "fix"
+    # this to read `page_content` for every page.
+    from fichero_server.workflows.curation_guard import page_text_is_derived
+
+    if (
+        document is not None
+        and (document.page_content or "").strip()
+        and not page_text_is_derived(db, document_id)
+    ):
         return document.page_content
 
     transcriptions = db.query(  # type: ignore[attr-defined]

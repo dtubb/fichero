@@ -252,9 +252,15 @@ class ActionRegistry:
             for target_id in target_ids:
                 authz.assert_can_write(ctx.actor, ctx.library_path, target_id)
 
+        from fichero_server.actions import page_text_cache
+
+        refreshed: list[str] = []
         if reg.atomic:
             with db.transaction():
                 result, spec = reg.execute(db, params, ctx)
+                # `page_content` is a cache of the derived text (#5077); the one writer is called
+                # here so it commits or rolls back with the change that made it stale.
+                refreshed = page_text_cache.refresh_in_transaction(db, spec, name, params)
 
                 # Audit write is NOT best-effort: if it fails the action fails. The
                 # before/after captured by execute ARE the undo payload.
@@ -273,6 +279,7 @@ class ActionRegistry:
                 save_chained_audit(db, audit)
         else:
             result, spec = reg.execute(db, params, ctx)
+            refreshed = page_text_cache.refresh_in_transaction(db, spec, name, params)
             audit = ActionAudit(
                 **({"id": spec.audit_id} if spec.audit_id else {}),
                 action_name=name,
@@ -286,6 +293,10 @@ class ActionRegistry:
                 inverse_of=inverse_of,
             )
             save_chained_audit(db, audit)
+
+        # Best-effort tail, after commit: search must match the corrected text (#5077).
+        if refreshed:
+            page_text_cache.embed_after_commit(db, refreshed)
 
         # Broadcast to the observable layer — best-effort, never breaks the action.
         self._emit(ctx, spec)
