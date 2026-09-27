@@ -28,8 +28,9 @@ behaviour below:
    transform. The transform is **worked out** from the GCPs.
 2. A **place** is tied to a gazetteer by a **typed identifier**, never free text, with candidates,
    confidence and a chosen one.
-3. The **coordinate reference system** (CRS) is always explicit: an EPSG code, with WGS 84
-   (EPSG:4326) as the exchange default. "Lat/lon" alone is never enough.
+3. The **coordinate reference system** (CRS) is always explicit: every coordinate arrives with
+   an EPSG code, and is **stored in WGS 84 (EPSG:4326)** (ruled 2026-09-27, #5124). "Lat/lon"
+   alone is never enough.
 4. **IIIF Georeference Annotations** go in and come out through the format harness, tested on
    real files other people made, as PAGE, ALTO and TEI already are.
 
@@ -153,17 +154,22 @@ A segment outside the mask is answered "outside the map", never extrapolated sil
 
 ### The coordinate reference system is always said (question 3)
 
-- Every world coordinate Fichero stores carries its **CRS as an EPSG code** (or, for a CRS with
-  no EPSG code, its WKT2 text). No world coordinate is written without one.
-- **As entered, then worked out.** A GCP typed in a national grid (British National Grid,
-  EPSG:27700) is stored in that grid. Its WGS 84 form is worked out, and says which conversion
-  was used, because a datum shift is not exact and the choice is a fact about the result. Nothing
-  is silently reprojected.
+- **Stored in WGS 84 (ruled 2026-09-27, #5124).** Every world coordinate Fichero stores is in
+  EPSG:4326. The maintainer's ruling overrides this spec's earlier recommendation, which was to
+  store coordinates as entered.
+- **The input CRS is still always said.** A coordinate cannot be converted correctly without
+  knowing what it arrived in, so the CRS it arrived in is an EPSG code (or, for a CRS with no EPSG
+  code, its WKT2 text) and is never assumed. A GCP typed in a national grid (British National
+  Grid, EPSG:27700) is converted to WGS 84 when it is written. The stored coordinate records the
+  CRS it came from and the conversion used, because a datum shift is not exact and the choice is
+  a fact about the result.
 - **Exchange default: EPSG:4326**, written longitude then latitude wherever the format does so
   (GeoJSON, IIIF). The axis order is recorded, not assumed.
 - **Unknown is a value.** A file that arrives with no CRS (a world file with no `.prj`) is
-  imported with CRS **unknown**; it can be looked at, and it cannot be overlaid or exported as
-  geographic data until a person says what it is. It is never taken to be WGS 84.
+  imported with CRS **unknown**. It cannot be converted, so its numbers are held unconverted and
+  marked unknown: they can be looked at, but they are not a stored world coordinate and cannot be
+  overlaid or exported as geographic data. Once a person declares the CRS, they are converted and
+  stored. It is never taken to be WGS 84.
 - Existing `GeoPoint` and `EvidentialPlace` values are WGS 84 by assumption today. They are
   **declared** EPSG:4326 by an additive schema change that states the assumption, rather than
   left implicit.
@@ -333,10 +339,10 @@ A segment's place in the world
   "outside the map", never extrapolated.
 
 The coordinate reference system
-- `source.geo.crs-explicit` — **[GAP]** (#4933) every stored world coordinate carries a CRS as an
-  EPSG code or WKT2, and a write without one is refused.
-- `source.geo.crs-as-entered` — **[GAP]** (#4933) a coordinate is stored in the CRS it was entered
-  in, and its WGS 84 form is worked out and names the conversion used.
+- `source.geo.crs-explicit` — **[GAP]** (#4933) every coordinate arrives with its CRS as an EPSG
+  code or WKT2, and a write that names no CRS is refused (or held as unknown, below).
+- `source.geo.crs-stored-as-wgs84` — **[GAP]** (#4933; ruled on #5124) a coordinate is converted to
+  WGS 84 (EPSG:4326) and stored in it, recording the CRS it arrived in and the conversion used.
 - `source.geo.crs-exchange-default` — **[GAP]** (#4933) EPSG:4326 is the exchange default and the
   axis order written is recorded, never assumed.
 - `source.geo.crs-unknown` — **[GAP]** (#4933) data imported without a CRS is marked unknown and
@@ -471,9 +477,10 @@ None: this slice has no screen. The future map-view UI spec owns them.
    place segment by a typed `names` link, so a place is reconciled once however many pages name
    it (the alternative, a gazetteer URI on each segment, reconciles the same town a thousand
    times and cannot say two segments are the same place).
-2. **Store coordinates as entered, or normalise to WGS 84 on write?** Recommended: as entered,
-   with the EPSG code, and WGS 84 worked out; normalising on write loses the surveyor's own
-   numbers and hides a datum shift inside the data.
+2. ~~Store coordinates as entered, or normalise to WGS 84 on write?~~ **Ruled 2026-09-27 (#5124):
+   stored in WGS 84.** The input CRS stays explicit, because converting correctly depends on it.
+   The recommendation here had been "as entered", and the ruling overrides it. The design and
+   `source.geo.crs-stored-as-wgs84` now follow the ruling.
 3. PROJ's database is several megabytes. Ship it through `pyproj`, or through DuckDB Spatial
    (which bundles PROJ and GDAL and also gives GeoPackage writing)? Recommended: DuckDB Spatial,
    one native dependency for queries, CRS and GeoPackage, subject to its size in the bundle.
