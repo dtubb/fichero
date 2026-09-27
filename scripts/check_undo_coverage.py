@@ -20,6 +20,15 @@ strictly and are seeded with that as their reason, which is the honest state: th
 holding a line at zero, not at six. The substring, comment and brace-collapse defects
 behind them are #5108; this script uses the repaired reader.
 
+The zero was then partly the guard's own blindness (#5144): it looked only for PATH strings,
+and the house rule sends nearly every call through the generated client, whose methods are
+named for the operationId. An undo-registering file that names an operation's generated method
+now counts -- for an operation whose answer carries `audit_id`, since an app-side registration
+of a server edit reverses that audit row (`ActionUndo.register`). The audit-row condition keeps
+the witness at the code's granularity: without it, every call in a file that registers undo
+for something else read as covered. Found covered on 2026-09-27: `POST /api/actions/invoke`
+and `PUT /api/artifacts/{artifact_id}/regions`.
+
 Usage:
     scripts/check_undo_coverage.py
     scripts/check_undo_coverage.py --list
@@ -42,17 +51,24 @@ from matrix_guardrail_common import (
     dialled_paths,
     normalize_path,
     read_swift_code_blob,
+    source_identifiers,
+    swift_operation_name,
 )
 from _scan_files import scan_rglob
 
-UNDO_SOURCES = sorted(
-    path
-    for path in scan_rglob(ROOT.joinpath("fichero", "fichero"), "*.swift")
-    if any(
-        token in path.read_text(encoding="utf-8", errors="ignore")
-        for token in ("UndoManager", "registerUndo", "undoAction", "canUndo")
+UNDO_TOKENS = ("UndoManager", "registerUndo", "undoAction", "canUndo")
+
+
+def undo_sources(paths) -> list[Path]:
+    """The Swift files that register undo: those naming one of `UNDO_TOKENS`."""
+    return sorted(
+        path
+        for path in paths
+        if any(token in path.read_text(encoding="utf-8", errors="ignore") for token in UNDO_TOKENS)
     )
-)
+
+
+UNDO_SOURCES = undo_sources(scan_rglob(ROOT.joinpath("fichero", "fichero"), "*.swift"))
 KNOWN_GAPS = load_known_gaps(Path(__file__).with_name("check_undo_coverage_known_gaps.json"))
 REVERSE_MARKERS = ("undo", "rollback", "restore")
 NON_UNDO_MUTATIONS = {
@@ -76,14 +92,63 @@ def _is_candidate(path: str) -> bool:
     return not any(marker in lower for marker in REVERSE_MARKERS)
 
 
-def scan() -> list[Row]:
-    _, spec = load_openapi()
+def _schema_properties(schema: object, components: dict, depth: int = 0) -> set[str]:
+    """The property names a response schema declares, through `$ref` and `allOf`/`anyOf`."""
+    if not isinstance(schema, dict) or depth > 6:
+        return set()
+    if "$ref" in schema:
+        return _schema_properties(components.get(schema["$ref"].rsplit("/", 1)[-1]), components, depth + 1)
+    found = set(schema.get("properties") or {})
+    for key in ("allOf", "anyOf", "oneOf"):
+        for part in schema.get(key) or []:
+            found |= _schema_properties(part, components, depth + 1)
+    return found
+
+
+def answers_with_an_audit_row(operation: dict, spec: dict) -> bool:
+    """Whether the operation's success answer carries `audit_id`.
+
+    An app-side registration of a SERVER edit is `ActionUndo.register(auditId: ...)`: ⌘Z
+    reverses the audit row the edit wrote. An operation whose answer carries no audit row
+    cannot be registered that way, however close to an undo call it sits. This is what keeps
+    the operation-name witness at the granularity of the code (#5144): an undo-registering
+    FILE also calls operations it never registers -- `createArtifact` beside the region edits,
+    `share` beside `invokeAction` -- and a file-level match counted them as covered.
+    """
+    components = (spec.get("components") or {}).get("schemas") or {}
+    for status, response in (operation.get("responses") or {}).items():
+        if not str(status).startswith("2") or not isinstance(response, dict):
+            continue
+        for media in (response.get("content") or {}).values():
+            if "audit_id" in _schema_properties(media.get("schema"), components):
+                return True
+    return False
+
+
+def _label(source: Path) -> str:
+    try:
+        return str(source.relative_to(ROOT))
+    except ValueError:
+        return str(source)
+
+
+def scan(spec: dict | None = None, sources: list[Path] | None = None) -> list[Row]:
+    """One row per mutating operation. `spec` and `sources` default to the contract and the
+    app's undo-registering files; the tests pass fixtures."""
+    if spec is None:
+        _, spec = load_openapi()
+    if sources is None:
+        sources = UNDO_SOURCES
     # One read per undo file, not one per file per endpoint: the old evidence loop read all
-    # 17 sources twice for each of 393 operations (2026-09-27).
-    per_source = {
-        str(source.relative_to(ROOT)): dialled_paths(read_swift_code_blob([source]))
-        for source in UNDO_SOURCES
-    }
+    # 17 sources twice for each of 393 operations (2026-09-27). Each file answers two
+    # questions: which paths it dials, and which identifiers it names -- the house rule sends
+    # nearly every call through the GENERATED client, whose method is named for the
+    # operationId and carries no path string at all (#5144). Counting paths only, every
+    # generated-client call read as a gap, however much undo it registered.
+    per_source: dict[str, tuple[frozenset[str], frozenset[str]]] = {}
+    for source in sources:
+        blob = read_swift_code_blob([source])
+        per_source[_label(source)] = (dialled_paths(blob), source_identifiers(blob))
     rows: list[Row] = []
     for path, path_item in sorted(spec.get("paths", {}).items()):
         if not _is_candidate(path) or not isinstance(path_item, dict):
@@ -100,8 +165,15 @@ def scan() -> list[Row]:
             # Strictly: the path, in code, at both its ends. The old test was a substring
             # of `normalize_path(file_text)`, which collapsed Swift braces as if the file
             # were an OpenAPI path and let a comment stand in for a registration (#5108).
+            operation_name = (
+                swift_operation_name(operation.get("operationId", ""))
+                if answers_with_an_audit_row(operation, spec)
+                else ""
+            )
             evidence: tuple[str, ...] = tuple(
-                name for name, paths in per_source.items() if normalized in paths
+                name
+                for name, (paths, identifiers) in per_source.items()
+                if normalized in paths or (operation_name and operation_name in identifiers)
             )
             rows.append(
                 Row(

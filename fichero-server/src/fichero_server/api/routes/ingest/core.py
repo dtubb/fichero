@@ -624,7 +624,7 @@ def import_folder_impl(
         should_cancel=should_cancel,
         db=db,
         package_path=package_path,
-        skip_paths=set(plan.pairs) if plan else None,
+        skip_paths=(set(plan.pairs) | set(plan.pages)) if plan else None,
     )
     if plan is not None:
         report = _import_paired_layout(db, docs, plan, ctx)
@@ -679,6 +679,29 @@ def _import_paired_layout(db: Database, docs: list[Document], plan, ctx: "Action
             failed[layout.name] = str(exc.detail)
         except Exception as exc:  # noqa: BLE001 -- reported by name; the folder goes on
             failed[layout.name] = f"{type(exc).__name__}: {exc}"
+    # A multi-page file (TEI, #5143): each image gets the pages that name it, as ONE pass.
+    for layout, by_image in sorted(plan.pages.items()):
+        for image, numbers in sorted(by_image.items()):
+            label = f"{layout.name} pages {', '.join(map(str, numbers))} -> {image.name}"
+            document = by_source.get(str(image))
+            if document is None:
+                failed[label] = (
+                    f"its image {image.name} was not imported in this run (already in the library, "
+                    "or it failed)"
+                )
+                continue
+            try:
+                registry.invoke(
+                    db,
+                    "format.import",
+                    {"document_id": document.id, "path": str(layout), "format": "tei", "pages": numbers},
+                    ctx,
+                )
+                imported.append(label)
+            except HTTPException as exc:
+                failed[label] = str(exc.detail)
+            except Exception as exc:  # noqa: BLE001 -- reported by name; the folder goes on
+                failed[label] = f"{type(exc).__name__}: {exc}"
     unpaired = {layout.name: why for layout, why in plan.unpaired.items()}
     for name, why in {**unpaired, **failed}.items():
         logger.warning("layout file %s did not become a pass: %s", name, why)
