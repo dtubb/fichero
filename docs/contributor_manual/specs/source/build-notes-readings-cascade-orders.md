@@ -769,6 +769,36 @@ no order named (422); `OrderNeedsRenumbering`; a `legacy:` id.
   `created_at`, unordered uuids) is stable and is NOT uuid order. If neither existing rule fits a
   case, that is a finding to report, not a licence to write a third.
 
+### The typed link, as built — 2026-09-26 (#4931)
+
+`TypedLink` and `LibraryLinkType` are in, segments are on them, routes read a link
+**from either end in one call**, and the vocabulary is seeded on open beside the reading kinds.
+Four things decided while building that the design above did not settle:
+
+- **`LinkRead.label`, not `link_type`, is what a surface shows.** The same row read from the other
+  end reads differently — A *glosses* B, B *is glossed by* A — so the read returns the label for
+  the end that was asked about and `inverse_label` answers the other. A surface showing
+  `link_type` from both ends tells a reader the wrong sentence half the time.
+- **Symmetric relations store `directed=False`** (`same_as`, `free`, `related_to`) so no reader is
+  shown a direction that says nothing. "A is the same as B" has no other end to read it from.
+- **The KG's labels are derived from its keys rather than restated.** `ClaimRelationType` is read
+  at import, so adding a relation there adds it here: the two cannot drift, which is the point of
+  sharing one ontology rather than copying it.
+- **A link to itself is refused** (`LinkNeedsTwoEnds`). A segment related to itself is either a
+  mistake or a statement about the record rather than the source, and storing one would make
+  "everything related to this" include the thing itself forever.
+
+**`references` is a display alias for `cites`, resolved in ONE place** (`resolve_link_type`, called
+by the single `assert_known_link_type`), because an alias honoured by some writers and refused by
+others is how an alias becomes a second key. Tests pin that no alias is also a key and that every
+alias points at a real one — an alias whose target was renamed would resolve to nothing and refuse
+every write, blamed on the caller.
+
+**The near-miss guard is a test about the SHAPE of the list, not its words**: no two keys, and no
+seeded key against any `ClaimRelationType` value, may differ only by an underscore or an
+inflection. That is what stops `derived_from` returning beside `derives_from` the next time
+somebody adds a word, and it keeps working as the list grows because it never names a word.
+
 ### One typed-link record
 
 **What exists (four link records, four vocabularies) — verified against the code 2026-09-26
