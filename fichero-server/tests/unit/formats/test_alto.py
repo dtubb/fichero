@@ -600,3 +600,37 @@ class TestAnUntranscribedPageExportsValid:
         back, _ = round_trip("alto", page)
         words = [s for s in back.segments if s.kind == "word"]
         assert [s.readings for s in words] == [[], [("transcription", "read")], []]
+
+
+class TestAnIllustrationBlockStaysAComposedBlock:
+    """#5130: the Cherokee Phoenix's `ComposedBlock TYPE="Illustration"` came back as a TextBlock
+    around its GraphicalElement -- which a TextBlock may not hold -- and the export was refused."""
+
+    SOURCE = b"""
+        <alto xmlns="http://www.loc.gov/standards/alto/ns-v4#">
+          <Description><MeasurementUnit>pixel</MeasurementUnit></Description>
+          <Layout><Page ID="p" WIDTH="1000" HEIGHT="1000" PHYSICAL_IMG_NR="1">
+            <PrintSpace HPOS="0" VPOS="0" WIDTH="1000" HEIGHT="1000">
+              <ComposedBlock ID="cb" HPOS="100" VPOS="100" WIDTH="800" HEIGHT="300" TYPE="Illustration">
+                <GraphicalElement ID="g" HPOS="100" VPOS="100" WIDTH="800" HEIGHT="300"/>
+              </ComposedBlock>
+            </PrintSpace>
+          </Page></Layout>
+        </alto>
+    """.strip()
+
+    def test_it_exports_valid_as_a_composed_block_with_its_type(self):
+        page = read_page("alto", self.SOURCE)
+        data, _ = write_page("alto", page)  # validated against ALTO 4.4, or raises
+        assert b'<ComposedBlock ID="cb"' in data and b'TYPE="Illustration"' in data
+        assert b"<TextBlock" not in data
+
+    def test_a_region_of_ours_that_holds_a_graphic_is_written_as_a_composed_block(self):
+        from fichero_server.formats import PageSegment, SourcePage
+
+        page = SourcePage(image_size=(1000, 1000), segments=[
+            PageSegment(kind="region", ref="r", rect=[0.1, 0.1, 0.8, 0.3]),
+            PageSegment(kind="graphic", ref="g", parent_ref="r", rect=[0.1, 0.1, 0.8, 0.3]),
+        ])
+        data, _ = write_page("alto", page)
+        assert b'<ComposedBlock ID="r"' in data

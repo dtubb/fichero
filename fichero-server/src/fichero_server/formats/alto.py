@@ -217,6 +217,12 @@ def read(data: bytes) -> SourcePage:
                         owner.readings.append(("transcription", element.get("CONTENT")))
             continue
         segment = PageSegment(kind=kind, ref=element.get("ID"))
+        if _tag(element) == "ComposedBlock":
+            # A region that HOLDS other blocks (an illustration's frame, a table): kept as what it
+            # was, so the writer puts it back as a ComposedBlock and not a TextBlock (#5130).
+            segment.foreign["alto:element"] = "ComposedBlock"
+            if element.get("TYPE"):
+                segment.foreign["alto:TYPE"] = element.get("TYPE")
         parent = element.getparent()
         while parent is not None and _tag(parent) not in ELEMENT_KINDS:
             parent = parent.getparent()
@@ -372,9 +378,19 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         for segment in page.segments
         if segment.kind == "word" and segment.parent_ref
     }
+    # A region that holds anything but lines -- a graphic, a picture, another block -- is a
+    # ComposedBlock: a TextBlock may hold only TextLines (#5130: the Cherokee Phoenix's
+    # `ComposedBlock TYPE="Illustration"` came back as a TextBlock around its GraphicalElement,
+    # and the export was refused).
+    composed = {
+        segment.parent_ref for segment in page.segments
+        if segment.parent_ref and segment.kind not in ("line", "word", "character")
+    } | {segment.ref for segment in page.segments if segment.foreign.get("alto:element") == "ComposedBlock"}
     by_ref: dict[str, Any] = {}
     for index, segment in enumerate(ordered):
         element_name = KIND_ELEMENTS.get(segment.kind)
+        if element_name == "TextBlock" and segment.ref in composed:
+            element_name = "ComposedBlock"
         if element_name is None:
             report.note(
                 f"{segment.kind} segments", 1, "ALTO has no element for this granularity"
@@ -407,6 +423,8 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             # which `xsd:string` allows, and the reader takes an empty CONTENT as no
             # reading. Omitting the attribute failed 15 of 239 real pages.
             attrs["CONTENT"] = segment.readings[0][1] if segment.readings else ""
+        if element_name == "ComposedBlock" and segment.foreign.get("alto:TYPE"):
+            attrs["TYPE"] = str(segment.foreign["alto:TYPE"])
         element = etree.SubElement(
             parent_el, f"{{{ALTO_NS_V4}}}{element_name}", **attrs
         )
