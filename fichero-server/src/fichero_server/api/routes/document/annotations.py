@@ -31,11 +31,12 @@ from fichero_server.models.knowledge import (
     Annotation,
     AnnotationKind,
     KnowledgeClaim,
+    MarkTarget,
     ProvenanceKind,
     validate_annotation_color,
 )
 from fichero_server.core.utf16_offsets import utf16_range_to_codepoint_range
-from fichero_server.models import DocType, Document
+from fichero_server.models import DocType, Document, Segment
 from fichero_server.db.storage import resolve_source
 
 logger = logging.getLogger(__name__)
@@ -87,6 +88,8 @@ class AnnotationCreateRequest(BaseModel):
     # rendition was stored indistinguishably from one drawn on the original.
     anchor: SourceAnchor | None = None
     anchor_kind: str | None = None
+    #: The selected segments this mark is attached to (Q6). Validated against the mark's page.
+    targets: list[MarkTarget] = []
     paragraph_index: int | None = None
     ink_payload: str | None = None
     ocr_text: str | None = None
@@ -184,6 +187,38 @@ def _annotation_scope_document_ids(ann: Annotation) -> list[str]:
     return [i for i in [ann.document_id, ann.page_id, ann.folder_id] if i]
 
 
+def _anchor_for_targets(db: Database, targets: list[MarkTarget], owner_id: str | None) -> SourceAnchor:
+    """Check a selection's segments and give the anchor a mark attached to them is drawn at.
+
+    Every target must be a LIVE segment of the mark's own page: a mark on page A attached to a
+    segment of page B would be drawn where nothing is, and a deleted segment has no place to draw.
+    The anchor is the union of the segments' boxes -- where the mark is drawn; the targets remain
+    what it is attached to.
+    """
+    if owner_id is None:
+        raise HTTPException(422, "a mark attached to segments belongs to their page; name the page")
+    rects: list[list[float]] = []
+    for target in targets:
+        segment = db.get(Segment, target.segment_id)
+        if segment is None or segment.deleted_at is not None:
+            raise HTTPException(404, f"Segment not found: {target.segment_id}")
+        if segment.document_id != owner_id:
+            raise HTTPException(
+                422,
+                f"segment {target.segment_id} is on another page ({segment.document_id}); a mark is "
+                "attached to segments of its own page",
+            )
+        if segment.anchor.rect:
+            rects.append(list(segment.anchor.rect))
+    if not rects:
+        return SourceAnchor(document_id=owner_id)
+    left = min(r[0] for r in rects)
+    top = min(r[1] for r in rects)
+    right = max(r[0] + r[2] for r in rects)
+    bottom = max(r[1] + r[3] for r in rects)
+    return SourceAnchor(document_id=owner_id, rect=[left, top, right - left, bottom - top])
+
+
 def create_annotation_impl(
     db: Database, request: AnnotationCreateRequest, *, actor: str = "human"
 ) -> Annotation:
@@ -207,6 +242,10 @@ def create_annotation_impl(
     payload = request.model_dump()
     payload.update(scope.model_dump())
     payload["created_by"] = actor
+    if request.targets:
+        derived = _anchor_for_targets(db, request.targets, scope.page_id or scope.document_id)
+        if request.anchor is None:
+            payload["anchor"] = derived.model_dump()
     ann = Annotation(**payload)
     db.save(ann)
     return ann
