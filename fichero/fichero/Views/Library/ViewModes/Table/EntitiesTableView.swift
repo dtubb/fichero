@@ -37,6 +37,15 @@ struct EntitiesTableView: View {
         var setType: ([Components.Schemas.KnowledgeEntity], String) -> Void
         /// Merge duplicates — via EntityStore.merge (host picks the survivor).
         var merge: ([Components.Schemas.KnowledgeEntity]) -> Void
+        /// Merge OTHER entities into this one — presents `EntityMergeSheet`, where the
+        /// user picks which to absorb (#5110). A different verb from `merge` above, not
+        /// a replacement: this one names the survivor and chooses the absorbed, that one
+        /// takes a multi-selection and picks the survivor for you.
+        var mergeInto: (Components.Schemas.KnowledgeEntity) -> Void
+        /// Split previously-merged entities back out of this one — presents
+        /// `EntitySplitSheet` (#5110). The inverse of a merge, not a division: it clears
+        /// `merged_into_id` on the entities that were absorbed into this one.
+        var split: (Components.Schemas.KnowledgeEntity) -> Void
         /// Delete — via EntityStore.delete.
         var delete: ([Components.Schemas.KnowledgeEntity]) -> Void
     }
@@ -200,6 +209,24 @@ struct EntitiesTableView: View {
                     Label("Edit…", systemImage: "pencil")
                 }
                 .accessibilityIdentifier("kg.entity.menu.edit")
+                // #5110: both of these were complete, built sheets with no door —
+                // their host `EntityDetailView` has no caller (#4828), so nothing
+                // could present them. They are SINGLE-selection verbs, which is why
+                // they sit here rather than replacing "Merge N duplicates" below:
+                // that one takes a multi-selection and picks the survivor itself.
+                Button { actions.mergeInto(one) } label: {
+                    Label("Merge Other Entities Into This…", systemImage: "arrow.triangle.merge")
+                }
+                .accessibilityIdentifier("kg.entity.menu.mergeInto")
+                // Always offered: whether anything was merged into this entity depends
+                // on the LIBRARY-wide set, and this table may be folder-scoped. The
+                // sheet resolves that and says "nothing merged into this one" itself,
+                // which is honest — a menu gated on the scoped rows would hide the
+                // door exactly when the absorbed entity sits outside the folder.
+                Button { actions.split(one) } label: {
+                    Label("Split Merged Entities…", systemImage: "arrow.triangle.branch")
+                }
+                .accessibilityIdentifier("kg.entity.menu.split")
                 Divider()
             }
             Button { actions.setCuration(targets, .blessed) } label: {
