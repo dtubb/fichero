@@ -7009,10 +7009,26 @@ class Database(DatabaseEmbeddingMixin):
         specific mismatch and not about reconciling every type in general —
         changing a VARCHAR to a DOUBLE, say, is a data decision and this is not.
 
-        Best-effort per column: a library that cannot be widened is a library
-        that still works exactly as it did, and refusing to open it over a column
-        that has held every value it ever needed would be worse than the ceiling.
-        The warning names the column so it is findable.
+        Best-effort, and the granularity is the TABLE, not the column — measured
+        against DuckDB 2026-09-27, correcting what this said before. Altering an
+        indexed column raises `CatalogException: an index depends on it!`, and
+        altering any OTHER column of that same table then raises
+        `DependencyException: Cannot alter entry "<table>" because there are
+        entries that depend on it` — an error about the table. So one index freezes
+        the integer width of every column beside it, and the question to ask of an
+        index-blocked table is whether ANY of its int columns can overflow, not
+        just the indexed one.
+
+        A library that cannot be widened is a library that still works exactly as
+        it did, and refusing to open it over a column that has held every value it
+        ever needed would be worse than the ceiling. The warning names the column
+        so it is findable.
+
+        The six columns this leaves at INT32 on a pre-#5059 library are enumerated
+        and shape-checked by TestTheExemptionListIsCompleteAndJudged in
+        tests/unit/db/test_int_columns_are_bigint.py, so a seventh fails a test
+        rather than appearing in a log nobody reads. This docstring named two of
+        them and four had never been judged.
         """
         try:
             rows = execute(f"PRAGMA table_info({sql_table})").fetchall()
@@ -7043,11 +7059,17 @@ class Database(DatabaseEmbeddingMixin):
                 # so this warns and carries on rather than doing it — and the
                 # column still holds every value it ever held.
                 #
-                # Known and deliberate (#5059): `references.year` and
-                # `canvas_layout.z_index` in libraries created before this. A
-                # publication year and a layout stacking order are inherently
-                # bounded — these are cases where, as the reviewer put it, the
-                # DECLARATION should be narrower rather than the column wider.
+                # Known and deliberate (#5059), SIX of them, not the two this
+                # listed until 2026-09-27: `references.year`,
+                # `canvas_layout.z_index`, `segments.version`,
+                # `segmentversions.version`, `readingorderentrys.version` and
+                # `segmentforwardings.sequence`. A publication year, a layout
+                # stacking order, three revision counters and a forwarding
+                # ordinal are all inherently bounded — cases where, as the
+                # reviewer put it, the DECLARATION should be narrower rather than
+                # the column wider. The four that were missing here had never
+                # been judged at all; they are now, and the list is pinned by a
+                # test so the next one cannot arrive unseen.
                 # Their CREATE TABLE is BIGINT now, so new libraries are clean.
                 #
                 # THOSE TWO ARE NOT A PRECEDENT, and the reason is luck. The
