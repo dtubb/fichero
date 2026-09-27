@@ -142,8 +142,8 @@ enum PreviewRegionVerb: String {
 /// The highlight split-button's persistent state: one of five colors, or an
 /// underline/strikethrough mode — Preview.app's highlight menu. The COLOR
 /// persists to the engine on each saved highlight (`addNote(color:)` already
-/// carries it); underline/strikethrough have no annotation-kind backing yet,
-/// so they persist only as the control's state (see the report note).
+/// carries it); underline and strikethrough save as their OWN annotation kinds
+/// (`AnnotationBar`, `ZoomableImagePreviewMac+Annotations`), uncoloured.
 enum PreviewHighlightStyle: String, CaseIterable, Identifiable {
     case yellow, green, blue, pink, purple
     case underline, strikethrough

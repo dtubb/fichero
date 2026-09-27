@@ -2,12 +2,15 @@ import CoreGraphics
 import Foundation
 import Observation
 
-/// Shared selection of PERSISTED regions — boxes inside one artifact's
-/// `ocr_geometry` — for the regions-as-first-class work (Daniel, 2026-08-29).
+/// The selection of PERSISTED regions — boxes inside one artifact's `ocr_geometry` — in ONE
+/// Source-view pane (Daniel, 2026-08-29; per pane since 2026-09-27, #5020).
 ///
-/// The `FocusedArtifact` idiom: one small shared focus holder that the
-/// inspector's region rows WRITE and the Preview overlay OBSERVES (and vice
-/// versa — clicking a box in Preview lights its row). Boxes carry no server
+/// **Each pane owns one** (ruled 2026-09-27, applying two standing rulings: panes are not linked
+/// unless a person connects them, 2026-09-19; and "visible surface, always", 2026-08-23 — a verb
+/// acts on the selection of the surface you can see, and focus decides which). It used to be ONE
+/// app-wide instance, so a click in one Preview lit a box in every other Preview of the page, and
+/// by an index that could name a different box there (#5020). The Inspector and the markup row
+/// follow the FOCUSED pane's selection through `WindowState.focusedRegionSelection`. Boxes carry no server
 /// ids, so a region is addressed the way the engine addresses it: by its
 /// position in the artifact's full `boxes` list. Indices are ordered by
 /// selection time; the palette color is keyed to the BOX index (stable while
@@ -15,8 +18,6 @@ import Observation
 @MainActor
 @Observable
 final class RegionSelection {
-    static let shared = RegionSelection()
-
     /// The artifact whose boxes are selected. A selection never spans
     /// artifacts — regions from two geometries share no coordinate frame.
     private(set) var artifactId: String?

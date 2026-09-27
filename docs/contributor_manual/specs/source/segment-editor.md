@@ -727,6 +727,15 @@ The editor
   different box in the other, typically the next in reading order. Every pane draws the one
   selection, so it leaks into panes nobody clicked. Owed: selection per pane, followed by the
   Inspector and the Reader for the focused pane, and named by identity rather than position.
+  **Ruled 2026-09-27: each Source-view pane owns its selection; the Inspector and the Reader
+  follow the FOCUSED pane.** This applies two standing rulings: panes are not linked unless a
+  person connects them (2026-09-19), and "visible surface, always" (2026-08-23), under which a verb
+  acts on the selection of the surface you can see and focus decides which. Two Previews of one page
+  therefore show only the clicked pane's highlight. Mirroring comes with CONNECTED panes, by then
+  naming boxes by identity so it lands on the right box. Per-pane selection is built (the canvas
+  owns a `RegionSelection`; `WindowState.focusedRegionSelection` with focus, offer and release
+  rules; pinned by `fichero/Tests/Unit/general/Models/RegionSelectionPerPaneTests.swift`); selection
+  by identity is owed.
 - `source.editor.overlay-moves-with-the-image` — **[BROKEN]** (→ #5142) segment overlays move with the image,
   frame for frame, while it is scrolled and zoomed, on a page as dense as the Cherokee Phoenix p. 2.
   **Broken:** they lag, then catch up. Diagnosed 2026-09-27 (no fix yet): the image is transformed by

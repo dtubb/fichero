@@ -34,7 +34,7 @@ struct PreviewSelectAllPolicyGuardTests {
         // …and the list it starts from is the gated one.
         #expect(source.contains("let all = frameMatchedGeometryBoxes"))
         #expect(source.contains("guard !all.isEmpty else { return }"))
-        #expect(source.contains("RegionSelection.shared.selectAll("))
+        #expect(source.contains("regionSelection.selectAll("))
     }
 
     @Test("the interaction layer reads the frame-gated list, not the raw geometry")

@@ -12,9 +12,9 @@ import SwiftUI
 // otherwise (the handler already supports both).
 //
 // 2026-08-29 (regions as first-class): rows now also TOGGLE membership in the
-// shared `RegionSelection` — the same instance the Preview overlay observes —
-// so N selected rows highlight on the image in N distinct, stable palette
-// colors, and the Combine verb appears here exactly as it does in Preview.
+// FOCUSED Preview pane's `RegionSelection` (per pane since 2026-09-27, #5020;
+// `WindowState.focusedRegionSelection`), so selected rows highlight on the image
+// of the pane being worked in, and the Join verb appears here as it does in Preview.
 
 /// Loads the full artifact (list payloads omit geometry to stay lean) and
 /// renders its line-level regions as clickable rows.
@@ -39,7 +39,11 @@ struct ArtifactRegionsSection: View {
     /// region for curation, so filtering must not renumber.
     @State private var rows: [(index: Int, box: OCRGeometryBox)] = []
     @State private var loaded = false
-    @State private var selection = RegionSelection.shared
+    @Environment(WindowState.self) private var windowState: WindowState?
+    /// The FOCUSED Source-view pane's selection (#5020, ruled 2026-09-27): the Inspector follows the
+    /// pane you are working in. With no pane focused yet, an inert one of its own.
+    @State private var unfocusedSelection = RegionSelection()
+    private var selection: RegionSelection { windowState?.focusedRegionSelection ?? unfocusedSelection }
     /// The fetched artifact, kept so selecting a row can FOCUS it — the
     /// preview draws the focused artifact's boxes (2026-09-02, Daniel: "when
     /// I select multiple regions in artifacts browser, they're supposed to
