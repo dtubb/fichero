@@ -90,7 +90,7 @@ easy. How that is met, after review:
 | **YOLO labels** | yes | yes | a class and a box or polygon for each object | everything else |
 | **Kraken training data** | yes | yes | ALTO or PageXML; line picture plus text; the compiled Arrow file | everything but lines, regions and text |
 | **Columnar dataset (Arrow / Parquet)** | yes | yes | one row per segment: picture, shape, kind, reading, language, script, hand, period, source, guideline, level, licence, split | links and structure, unless asked for as extra tables |
-| **Geographic** (IIIF Georeference Annotation, GCP tables, world file / GeoTIFF, GeoJSON, GeoPackage, Linked Places Format) | yes (georef, GCPs, world file) | yes | control points as segments with their CRS; the worked-out transform; places with gazetteer identifiers; places over time | specified in `maps-and-georeference.md`, whose Formats behaviours these are |
+| **Geographic** (IIIF Georeference Annotation, GCP tables, world file / GeoTIFF, KML, GeoJSON, GeoPackage, Linked Places Format) | yes (georef, GCPs, world file) | yes | control points as segments with their CRS; the worked-out transform; places with gazetteer identifiers; places over time | specified in `maps-and-georeference.md`, whose Formats behaviours these are |
 | **CSV / spreadsheet** | yes | yes | a table segment as rows and columns; each cell keeps a reference back to its segment | everything that is not the table |
 | **SVG** | no | yes | the page to look at: image, shapes, text in its direction and along its baseline, descriptions | it is a picture, not data |
 | **Searchable PDF** | as a source | yes | the text in place under the image; descriptions as alt text | it is a picture, not data |
@@ -346,7 +346,12 @@ Each format (one import and one export behaviour each)
   the latest release (ruled 2026-09-27), declaring it (`SCHEMAVERSION` and the schema file, since
   4.x shares one namespace), and names what it cannot carry. `Page@LANG`, which 4.4 added, is
   written when it is a BCP 47 tag and is no longer a loss
-  (`test_alto.py::TestARealHebrewExportStatesItsLanguageWhereAltoDoesNotAllowIt::test_the_page_language_is_written_back_in_4_4_and_is_no_longer_a_loss`). It also invents the `TextBlock` and `TextLine` a bare `String` needs
+  (`test_alto.py::TestARealHebrewExportStatesItsLanguageWhereAltoDoesNotAllowIt::test_the_page_language_is_written_back_in_4_4_and_is_no_longer_a_loss`).
+  An **untranscribed** word or line is written `CONTENT=""` and not left without `String`. The schema
+  requires a `String` in every `TextLine` and a `CONTENT` on every `String`, and allows it to be
+  empty. A segmented page nobody has read yet is the ordinary case, and omitting the attribute refused
+  15 of 239 real pages (`test_alto.py::TestAnUntranscribedPageExportsValid::test_untranscribed_words_and_lines_export_valid`,
+  `::TestAnUntranscribedPageExportsValid::test_an_empty_content_comes_back_as_no_reading_not_an_empty_one`). It also invents the `TextBlock` and `TextLine` a bare `String` needs
   (→ #5084) — **marked `fichero-implicit-` and dropped again on re-import**, so a scholar who exports
   and re-imports gets their word back rather than a block nobody drew. Pinned by
   `test_alto.py::TestTheImplicitParentIsWrittenAndMarked` (5 tests, including that a real page with

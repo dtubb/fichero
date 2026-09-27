@@ -533,11 +533,20 @@ build notes for slice 6).
     other, any order, after 8.
 15. Recordings; maps and control points; the canvas: self-contained, any time after 7.
 
-**Not to be built until the maintainer rules** (each is written up in the morning file with
-the reviewers' recommendation): recipes beside the shipped default workflows; a Segments pane
-beside the ruling that there is no browser pane kind; rights records beside the permissions
-that already exist; and whether an action's audited record may hold a researcher's words at
-all (it sits inside the tamper-evident chain, which a purge could not then reach).
+**Ruled 2026-09-27** on the four items that had waited on the maintainer:
+- **Rights records: go ahead.** They sit beside the permissions that already exist, and belong with
+  slice 14.
+- **A Segments pane: go ahead.** It sits beside the ruling that there is no browser pane kind, and
+  belongs with slice 13 (the editor), after the speed trial (12).
+- **Recipes beside the shipped default workflows: go ahead.** They belong to the workflow system,
+  not this programme, so they are noted here and not built in it.
+- **An action's audited record holding a researcher's own words: NOT approved, and ruled out.** The
+  record sits inside the tamper-evident chain, which a purge could not then reach. A researcher's
+  words live in readings and notes, which can be withdrawn and purged, and never in an audit row.
+
+**Slice order after 11 and #5132** (ruled 2026-09-27): **12** (the speed trial, a hard gate on the
+editor's UI) → **13** → **13b** → **14** → **15** (maps) → **8b** (whole-project conversion), and
+8b only after the maintainer has tested.
 
 **Build milestones proposed** (the spec set stays on `source-model`, 322): *source-model:
 identity and storage* (slices 1 to 6); *source-model: shapes and readings* (7 to 10, 14);
@@ -715,17 +724,16 @@ rule it says so, and the manager carries any difference to the maintainer as one
 
 ### Still open
 
-**Blocked on the maintainer** (found by review on the night of 2026-09-19; each is in the
-morning file with the reviewers' recommendation; nothing is built on any of them):
-recipes as files beside the fifty shipped default workflows; a Segments pane beside the ruling
-that there is no browser kind of pane; rights records beside the permissions that already
-exist; and whether an action's audited record may hold a researcher's words at all.
+**No longer blocked on the maintainer: ruled 2026-09-27** (see the build order above). Rights
+records and a Segments pane go ahead, and recipes go ahead in the workflow system. An audited
+action record holding a researcher's words is ruled out.
 
 1. **The Segments pane.** What it shows and does: a list, a strip or a grid of segment
    pictures with their readings; reordering by dragging; moving segments between regions and
    passes; editing a reading in place or in the Reader beside it. How it stays one code path
-   with the Library's listing and the Source view's editor. This needs its own design pass
-   with the maintainer.
+   with the Library's listing and the Source view's editor. **Approved 2026-09-27; built with
+   slice 13.** Its design is part of that slice, and new shapes are escalated rather than
+   assumed.
 2. **The Library pane's name** once a library is a project (for the rename spec).
 3. **Who may see restricted material among editors**: every editor, or only those a rights
    record names?

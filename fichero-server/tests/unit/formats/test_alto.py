@@ -547,3 +547,56 @@ class TestARealHebrewExportStatesItsLanguageWhereAltoDoesNotAllowIt:
 
         assert len(back.segments) == len(page.segments) == 122
         assert sum(len(s.readings) for s in back.segments) == 86
+
+
+class TestAnUntranscribedPageExportsValid:
+    """#5130: 15 of 239 real pages (ottoman, occitan, makhzan, aljamiado) were refused
+    because our writer emitted `<String>` without the required CONTENT. A segmented page
+    nobody has transcribed yet is the ORDINARY state, so this is pinned on a minimal file
+    of our own -- three of those four sets are NonCommercial and cannot be vendored.
+
+    Decided against the schema, deliberately: a TextLine must hold at least one String
+    and `CONTENT` is required but may be empty, so the answer is `CONTENT=""`, not "no
+    String".
+    """
+
+    SOURCE = b"""
+        <?xml version="1.0" encoding="UTF-8"?>
+        <alto xmlns="http://www.loc.gov/standards/alto/ns-v4#">
+          <Description><MeasurementUnit>pixel</MeasurementUnit></Description>
+          <Layout><Page ID="p" WIDTH="1000" HEIGHT="1000" PHYSICAL_IMG_NR="1">
+            <PrintSpace HPOS="0" VPOS="0" WIDTH="1000" HEIGHT="1000">
+              <TextBlock ID="b1" HPOS="100" VPOS="100" WIDTH="800" HEIGHT="300">
+                <TextLine ID="l1" HPOS="100" VPOS="100" WIDTH="800" HEIGHT="50">
+                  <String ID="w1" HPOS="100" VPOS="100" WIDTH="200" HEIGHT="50" CONTENT=""/>
+                  <String ID="w2" HPOS="320" VPOS="100" WIDTH="200" HEIGHT="50" CONTENT="read"/>
+                </TextLine>
+                <TextLine ID="l2" HPOS="100" VPOS="200" WIDTH="800" HEIGHT="50">
+                  <String ID="w3" HPOS="100" VPOS="200" WIDTH="800" HEIGHT="50" CONTENT=""/>
+                </TextLine>
+              </TextBlock>
+            </PrintSpace>
+          </Page></Layout>
+        </alto>
+    """.strip()
+
+    def test_untranscribed_words_and_lines_export_valid(self):
+        page = read_page("alto", self.SOURCE)
+        data, _ = write_page("alto", page)  # validates against ALTO 4.4, or raises InvalidExport
+        assert data.count(b'CONTENT=""') == 2
+
+    def test_a_line_with_no_words_and_no_text_still_exports_valid(self):
+        """The other half: a converted page's line with no words and no reading got no
+        String at all, which the schema refuses as surely as a String with no CONTENT."""
+        page = read_page("alto", self.SOURCE)
+        page.segments = [s for s in page.segments if s.kind != "word"]
+        for segment in page.segments:
+            segment.readings = []
+        data, _ = write_page("alto", page)
+        assert data.count(b"<String") == 2 and data.count(b'CONTENT=""') == 2
+
+    def test_an_empty_content_comes_back_as_no_reading_not_an_empty_one(self):
+        page = read_page("alto", self.SOURCE)
+        back, _ = round_trip("alto", page)
+        words = [s for s in back.segments if s.kind == "word"]
+        assert [s.readings for s in words] == [[], [("transcription", "read")], []]
