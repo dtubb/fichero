@@ -136,10 +136,23 @@ Because language, script, signs and letterforms sit on segments, two sources can
 by character: a Japanese page beside a Chinese one; the same sign in two hands; every
 instance of one abbreviation in a codex.
 
-## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
+## Behaviors (each cites its issue on milestone `source-model`, 322)
+
+This section said "every one is **[GAP]**: designed, not built" until 2026-09-26, when an audit
+against the code found that most of the language, script and direction half had been BUILT by
+slice 9 and the tags had never been moved. A stale `[GAP]` is not harmless: it hides finished work,
+it makes the remaining count look worse than it is, and it invites someone to build a second
+implementation of what already exists. Every tag below that changed now names the test that pins
+it, because a tag with no citation is the thing that went stale in the first place.
 
 Language and script
-- `source.lang.three-facts` — **[GAP]** (#4938) language, script and encoding are recorded separately.
+- `source.lang.three-facts` — **[OK]** (→ #4938) language, script and encoding are recorded
+  separately, each with its own provenance, and they resolve independently of one another. Tested by
+  `tests/unit/models/test_segment_language_and_script.py::TestASegmentCanHoldItsOwnLanguageAndScript::test_language_and_script_round_trip_with_their_provenance`
+  and `tests/unit/llm/test_language_cascade_levels.py::TestScriptIsItsOwnFact::test_language_and_script_resolve_independently`.
+  The separateness is the point and is asserted as such: one page can hold the same language in two
+  scripts, differing in exactly one fact
+  (`test_segment_language_and_script.py::TestOnePageHoldsSeveralLanguagesAtOnce::test_the_same_language_in_a_different_script_differs_in_one_fact_only`).
 - `source.lang.registries` — **[PARTIAL]** (#4938; the BCP 47 clause is **[GAP]** → #5078) script is
   ISO 15924 including unwritten (`Zxxx`), undetermined (`Zyyy`) and private-use (`Qaaa`–`Qabx`),
   and a Glottolog code sits beside the tag on the engine's existing language record
@@ -161,28 +174,77 @@ Language and script
   field holds a name, so the declaration and the value are the same string, and a project
   working in an unregistered language already writes its name — a `LibraryLanguage` table would
   be a second place holding one fact, and a test pins its absence.
-- `source.lang.unknown-is-not-unexamined` — **[GAP]** (#4938) "unknown" and "not yet looked at" are
+- `source.lang.unknown-is-not-unexamined` — **[OK]** (→ #4938) "unknown" and "not yet looked at" are
   different. **This is a rule about CONTROL FLOW and not only about storage**, which is the thing
   a reader of the three states is most likely to miss: examined-and-undetermined must STOP the
   cascade's walk, while never-examined must fall through to the next level. A design that stored
   all three states and dispatched on two would pass every storage test and still lose the
   distinction the moment a value was resolved — the difference shows up as which level answers,
-  not as which value is stored.
-- `source.lang.cascade` — **[GAP]** (#4938) language and script inherit downward from app to character and can
-  be overridden at any level (direction inherits the same way: see `source.dir.per-segment`).
+  not as which value is stored. **Both halves are pinned, separately, which is what makes this
+  [OK] rather than a storage claim**: the storage by
+  `tests/unit/models/test_segment_language_and_script.py::TestASegmentCanHoldItsOwnLanguageAndScript::test_examined_and_undetermined_is_a_third_state_here_too`,
+  and the control flow by
+  `tests/unit/llm/test_language_cascade_levels.py::TestUnknownAtASegmentDoesNotFallThrough`, whose
+  two tests assert that an examined-and-undetermined segment is an ANSWER that stops the walk while
+  a never-examined one falls through. A clearing route returns a fact to never-determined and it
+  falls through the cascade again
+  (`tests/unit/api/test_many_languages_per_page.py::TestAFactCanBeClearedNotOnlyCorrected::test_a_cleared_fact_falls_through_the_cascade_again`),
+  which is the third state proved live rather than in a resolver.
+- `source.lang.cascade` — **[OK]** (→ #4938) language and script inherit downward and can be
+  overridden at any level (direction inherits the same way: see `source.dir.per-segment`). The rungs
+  are reading → segment → document → project, with a pinned request above all of them; a character
+  is a segment (`source.segment.open-kinds`), so the character level needs no rung of its own.
+  Tested by `tests/unit/llm/test_language_cascade_levels.py::TestTheLevelIsTheRungTheAnswerCameFrom`
+  (six tests, one per rung and one for the pinned request) and
+  `::TestScriptIsItsOwnFact::test_it_falls_back_and_says_which_rung_answered`. The project rung is
+  pinned separately at
+  `tests/unit/models/test_project_declared_scripts.py` because it is the only rung that can REFUSE
+  a value rather than supply one.
 - `source.lang.says-where-from` — **[OK]** (→ #4938) a shown value says which level it came from
   (`LanguageResolution.level`, the same `LEVEL_*` constants `language_meta` stores). Tested by
   `tests/unit/llm/test_language_cascade_levels.py::TestTheLevelIsTheRungTheAnswerCameFrom::test_a_fallback_reports_the_rung_it_came_from_not_the_one_that_asked`.
-- `source.lang.reading-overrides` — **[GAP]** (#4938) a reading's own language and script win for that reading.
-- `source.lang.many-per-page` — **[GAP]** (#4938) one page can hold several languages and scripts at once.
+- `source.lang.reading-overrides` — **[OK]** (→ #4938) a reading's own language and script win for
+  that reading — a transliterated reading of a Latin-script line is in Arabic script and the line is
+  not. Tested by
+  `tests/unit/llm/test_language_cascade_levels.py::TestScriptIsItsOwnFact::test_a_readings_own_script_wins_for_that_reading`
+  and, for direction, `tests/unit/llm/test_direction_cascade.py::TestItWalksTheSameRungs::test_a_reading_overrides_its_segment`.
+- `source.lang.many-per-page` — **[OK]** (→ #4938) one page can hold several languages and scripts
+  at once. Pinned END TO END rather than in storage alone: three regions of one page are SET to
+  three scripts through the real route and READ BACK as three
+  (`tests/unit/api/test_many_languages_per_page.py::TestManyPerPageEndToEnd::test_three_regions_are_SET_to_three_scripts_and_READ_BACK_as_three`),
+  with the storage half at
+  `tests/unit/models/test_segment_language_and_script.py::TestOnePageHoldsSeveralLanguagesAtOnce`.
+  This is the behaviour that makes a segment's own answer outrank the document's: a Latin marginal
+  note beside a Spanish entry is a fact about the REGION, and the document's answer is the wrong
+  one for it.
 
 Direction
-- `source.dir.per-segment` — **[GAP]** (#4938) direction is set per segment: four straight directions,
-  alternating, or follows the baseline; plus the direction in which lines or columns succeed.
-- `source.dir.logical-order-stored` — **[GAP]** (#4938) stored text is in reading order; mixed direction in a
-  line follows the Unicode bidirectional rules on display.
-- `source.dir.reader-lays-out` — **[GAP]** (#4938) the Reader lays text out in its direction, and falls back to
-  reading order plus the shape on the image where it cannot.
+- `source.dir.per-segment` — **[PARTIAL]** (→ #4938; the line/column succession clause is
+  **[GAP]** → #5087) direction is set per segment: four straight directions, alternating
+  (`boustrophedon`), or follows the baseline. **The six values, the cascade and the refusals are
+  built**: `tests/unit/llm/test_direction_cascade.py::TestTheVocabulary::test_the_six_directions_a_manuscript_needs`
+  names them, `::TestItWalksTheSameRungs` walks the same four rungs language does,
+  `::TestTheDerivation` works a direction out from the script and reports `level=derived-from-script`
+  so a derived answer is never mistaken for a chosen one, and
+  `tests/unit/api/test_many_languages_per_page.py::TestTheWritePathRefusesWhatTheReadPathWouldNotUnderstand::test_a_direction_outside_the_six_is_refused`
+  proves the refusal is live. **The direction in which lines or columns succeed is stored nowhere**
+  (#5087) — no field, on any rung. It is a second fact and not a consequence of the first: a
+  right-to-left page runs its lines top-to-bottom, a vertical page runs its columns right-to-left,
+  and PAGE XML carries `readingDirection` and `textLineOrder` as separate attributes for exactly
+  that reason.
+- `source.dir.logical-order-stored` — **[OK]** (→ #4938) stored text is in reading order; mixed
+  direction in a line follows the Unicode bidirectional rules on display. Nothing in the engine
+  reorders a string: a mixed-direction reading round trips byte for byte and resolving a direction
+  does not touch the text
+  (`tests/unit/llm/test_direction_cascade.py::TestStoredTextIsNeverReordered`, both tests), and a
+  right-to-left line read from PAGE XML is not reordered on the way in
+  (`tests/unit/formats/test_pagexml_read.py`). Bidi is a DISPLAY rule, and the test that matters is
+  the one asserting the engine does nothing.
+- `source.dir.reader-lays-out` — **[GAP]** (#4938) the Reader lays text out in its direction, and
+  falls back to reading order plus the shape on the image where it cannot. **App work, and honestly
+  untested** — `test_direction_cascade.py` says so in its own header rather than implying coverage.
+  It is also blocked on #5087: the Reader can lay out a line's direction and cannot lay out the
+  order the lines run in, which is the other half of the page.
 
 Signs
 - `source.sign.declared` — **[GAP]** (#4939) a sign with no character can be declared with a name and a picture
