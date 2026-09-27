@@ -44,16 +44,6 @@ final class MiniToolbarMetricPolicyTests: XCTestCase {
         XCTAssertEqual(PaneFilterBar<EmptyView>.height, MiniToolbar<EmptyView, EmptyView>.standardHeight)
     }
 
-    // #2415: WorkflowMiniToolbarButton must be constructable in both enabled and
-    // disabled states. Behavioural gating by FeatureManager is exercised in
-    // FeatureManagerTests.testWorkflowRunOnSelectionDefault.
-    @MainActor func testWorkflowMiniToolbarButtonIsInstantiable() {
-        let enabled = WorkflowMiniToolbarButton(isEnabled: true, action: {}, showRunOnSelection: true)
-        let disabled = WorkflowMiniToolbarButton(isEnabled: false, action: {}, showRunOnSelection: false)
-        _ = enabled
-        _ = disabled
-    }
-
     // #2460: Mini-toolbar visibility preference key and default are stable.
     // Changing the key silently breaks persisted user preference on existing installs.
     func testMiniToolbarVisibilityPreferenceIsDefaultOn() {

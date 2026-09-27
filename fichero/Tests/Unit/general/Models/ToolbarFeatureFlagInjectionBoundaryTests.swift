@@ -8,9 +8,10 @@ final class ToolbarFeatureFlagInjectionBoundaryTests: XCTestCase {
         XCTAssertTrue(workflowToolbar.contains("let showLangGraphPreview: Bool"))
         XCTAssertTrue(workflowToolbar.contains("let showFilesToolbarButton: Bool"))
 
-        let miniToolbar = try Self.appSource("Views/Components/MiniToolbarComponents.swift")
-        XCTAssertFalse(miniToolbar.contains("FeatureManager.shared.isWorkflowRunOnSelectionEnabled"))
-        XCTAssertTrue(miniToolbar.contains("let showRunOnSelection: Bool"))
+        // MiniToolbarComponents.swift was deleted 2026-09-27 (#2955): all four of its
+        // components were unreferenced, superseded by the generic `MiniToolbar`. The
+        // boundary it half-guarded is still asserted above on `WorkflowToolbar`, the
+        // live toolbar leaf that takes injected flags.
     }
 
     func testWorkflowEditorReadsFeatureManagerFromEnvironment() throws {
