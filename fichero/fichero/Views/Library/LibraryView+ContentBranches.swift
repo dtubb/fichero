@@ -195,10 +195,10 @@ extension LibraryView {
     /// documents. `nil`/`nil` (never touched) reproduces the exact pre-#4884
     /// behavior — this is what makes `BuiltInWorkspaceLayout.read` provably
     /// unchanged: its library leaf sets neither.
-    // #4902-class trap avoided up front: `LibraryView` is a View, so its
-    // static members are @MainActor by default — `nonisolated` here is
-    // load-bearing for `LibraryEffectiveContentKindTests` (a non-@MainActor
-    // Swift Testing suite) to call this directly. Pure over its parameters.
+    /// #4902-class trap avoided up front: `LibraryView` is a View, so its
+    /// static members are @MainActor by default — `nonisolated` here is
+    /// load-bearing for `LibraryEffectiveContentKindTests` (a non-@MainActor
+    /// Swift Testing suite) to call this directly. Pure over its parameters.
     nonisolated static func effectiveKind(
         paneKind: LibraryContentKind?,
         localOverride: LibraryContentKind?,

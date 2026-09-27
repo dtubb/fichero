@@ -41,10 +41,10 @@ struct LibraryLayoutSection: View {
     /// "Icons"/"List"/…, a DIFFERENT vocabulary; see `App/ViewSettings.swift`). `nil` for a case
     /// the per-pane field doesn't recognize (`.grid`/`.cards`/`.timeline`/`.calendar`/`.geoMap` —
     /// Dataset-Stage-2 cases this menu doesn't even render buttons for, per `availableLayouts`).
-    // `static`/`nonisolated`, not instance methods: pure conversions with no view state, so a
-    // non-@MainActor Swift Testing suite can call them directly (`LibraryLayoutSection` is a
-    // `View`, @MainActor-isolated by default — same reasoning as `ContentView.canSplit`,
-    // `WorkspaceSplitStack.resolvedFixedExtent` elsewhere in this slice).
+    /// `static`/`nonisolated`, not instance methods: pure conversions with no view state, so a
+    /// non-@MainActor Swift Testing suite can call them directly (`LibraryLayoutSection` is a
+    /// `View`, @MainActor-isolated by default — same reasoning as `ContentView.canSplit`,
+    /// `WorkspaceSplitStack.resolvedFixedExtent` elsewhere in this slice).
     nonisolated static func paneLayoutRawValue(for layout: LibraryLayout) -> String? {
         switch layout {
         case .icons: "icons"

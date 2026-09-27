@@ -165,10 +165,10 @@ struct EntitySourceGroupsView: View {
     }
 
     /// Custom scheme for the in-prose clause links; never leaves the view.
-    // #4902: `nonisolated` is load-bearing on this AND `buildClauseAttributedString`
-    // below (same-type isolation is transitive) — EntitySourceGroupsLinkTests is a
-    // non-@MainActor Swift Testing suite reaching both; both are pure (a constant,
-    // and a function reading only its own parameter plus this constant).
+    /// #4902: `nonisolated` is load-bearing on this AND `buildClauseAttributedString`
+    /// below (same-type isolation is transitive) — EntitySourceGroupsLinkTests is a
+    /// non-@MainActor Swift Testing suite reaching both; both are pure (a constant,
+    /// and a function reading only its own parameter plus this constant).
     nonisolated static let claimLinkScheme = "fichero-claim"
 
     /// Build the dense semicolon-separated prose for a source group, each clause

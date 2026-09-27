@@ -306,9 +306,9 @@ struct ContentView: View {
     /// reusing the existing baseline dirty-tracking (`lastSyncedWorkflow`,
     /// see `MainContentModifiers`), not re-saving unchanged content on every
     /// selection move.
-    // #4902: `nonisolated` is load-bearing — ShouldAutoSaveWorkflowTests is a
-    // non-@MainActor Swift Testing suite calling this directly; pure over its
-    // own parameters, no actor-isolated state read.
+    /// #4902: `nonisolated` is load-bearing — ShouldAutoSaveWorkflowTests is a
+    /// non-@MainActor Swift Testing suite calling this directly; pure over its
+    /// own parameters, no actor-isolated state read.
     nonisolated static func shouldAutoSaveWorkflow(
         old: WorkflowSidebarItem?,
         new: WorkflowSidebarItem?,
@@ -597,13 +597,13 @@ struct ContentView: View {
     /// two libraries and closed/split both: those bugs are the inactive legacy path showing
     /// through). Re-set by applying a workspace (⌘⌥1–5); close/split mutate THIS by leaf id, which
     /// is what makes them pane-scoped (spec panes.close.this-pane-only / .split.focused-only).
-    // NON-optional (2026-09-17, #4683): a workspace is ALWAYS applied. Nothing ever assigned
-    // nil, and `removingLeaf` returns a non-optional PaneList, so the Optional existed only to
-    // keep an unreachable pre-workspace renderer alive in the routing. Making it non-optional
-    // deletes that branch by construction — there is one renderer, not one plus a fallback.
-    // Seeded from `WorkspaceLayoutDefaults` (#4686) — the same "remember the last deliberate
-    // choice" pattern `showChatPane` above uses — falling back to the Read default when nothing
-    // was ever remembered (first run, or a store predating this).
+    /// NON-optional (2026-09-17, #4683): a workspace is ALWAYS applied. Nothing ever assigned
+    /// nil, and `removingLeaf` returns a non-optional PaneList, so the Optional existed only to
+    /// keep an unreachable pre-workspace renderer alive in the routing. Making it non-optional
+    /// deletes that branch by construction — there is one renderer, not one plus a fallback.
+    /// Seeded from `WorkspaceLayoutDefaults` (#4686) — the same "remember the last deliberate
+    /// choice" pattern `showChatPane` above uses — falling back to the Read default when nothing
+    /// was ever remembered (first run, or a store predating this).
     @State var activePaneList: PaneList =
         WorkspaceLayoutDefaults.rememberedPaneList() ?? BuiltInWorkspaceLayout.read.panes
     // Summoned search (#4521): the engine-search field in the library's mini

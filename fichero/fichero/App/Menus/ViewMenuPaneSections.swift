@@ -107,9 +107,9 @@ struct WorkspaceCommandsSection: View {
     /// for user workspaces (spec §"v2 workspace design", the slot→workspace map). Kept HERE
     /// rather than on the shared `WorkspacesMenuBody` (#4968) because `MenuShortcutUniquenessTests`
     /// calls it by this name; `WorkspacesMenuBody` reuses it rather than re-minting it.
-    // #4902: `nonisolated` is load-bearing — MenuShortcutUniquenessTests is a
-    // non-@MainActor Swift Testing suite calling this directly; pure over its
-    // own parameter, no actor-isolated state read.
+    /// #4902: `nonisolated` is load-bearing — MenuShortcutUniquenessTests is a
+    /// non-@MainActor Swift Testing suite calling this directly; pure over its
+    /// own parameter, no actor-isolated state read.
     nonisolated static func shortcut(for layout: BuiltInWorkspaceLayout) -> KeyboardShortcut? {
         let number = layout.defaultSlot
         guard (1...9).contains(number) else { return nil }
