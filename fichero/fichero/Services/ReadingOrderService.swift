@@ -29,14 +29,18 @@ final class ReadingOrderService: ReadingOrderTransport {
         }
     }
 
-    func entries(orderId: String) async throws -> [ReadingOrderMove.Entry] {
+    /// One LEVEL of an order: the top with `parentEntryId` nil, else the entries under that one.
+    func entries(orderId: String, parentEntryId: String?) async throws -> [ReadingOrderMove.Entry] {
         let response = try await client.api.listOrderEntriesApiReadingOrdersOrderIdEntriesGet(
-            path: .init(orderId: orderId)
+            path: .init(orderId: orderId),
+            query: .init(parentEntryId: parentEntryId)
         )
         switch response {
         case .ok(let ok):
             return try ok.body.json.entries.map {
-                ReadingOrderMove.Entry(entryId: $0.id, segmentId: $0.segmentId, version: $0.version)
+                ReadingOrderMove.Entry(
+                    entryId: $0.id, segmentId: $0.segmentId, version: $0.version, parentEntryId: $0.parentEntryId
+                )
             }
         case .unprocessableContent:
             throw ReadingOrderError.refused("the engine refused the order id")
@@ -52,6 +56,7 @@ final class ReadingOrderService: ReadingOrderTransport {
             body: .json(.init(
                 segmentId: place.segmentId,
                 afterEntryId: place.afterEntryId,
+                parentEntryId: place.parentEntryId,
                 expectedVersion: place.expectedVersion
             ))
         )
@@ -84,6 +89,6 @@ struct ReadingOrderSummary: Equatable, Identifiable {
 @MainActor
 protocol ReadingOrderTransport {
     func orders(documentId: String) async throws -> [ReadingOrderSummary]
-    func entries(orderId: String) async throws -> [ReadingOrderMove.Entry]
+    func entries(orderId: String, parentEntryId: String?) async throws -> [ReadingOrderMove.Entry]
     func place(_ place: ReadingOrderMove.Place) async throws -> String?
 }

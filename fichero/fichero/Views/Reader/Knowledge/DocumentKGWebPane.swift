@@ -148,6 +148,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
         context.coordinator.parent = self
         context.coordinator.claimSourceNavigationState = claimSourceNavigationState
         context.coordinator.readerPageActivationState = readerPageActivationState
+        context.coordinator.library = libraryManager.library(atPath: libraryPath)
         context.coordinator.injectContext(into: webView)
         context.coordinator.loadIfNeeded(webView)
         context.coordinator.syncSelection(into: webView)

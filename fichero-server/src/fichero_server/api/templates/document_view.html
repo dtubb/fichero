@@ -889,6 +889,12 @@ function reportTextSelection() {
     });
 }
 document.addEventListener("mouseup", () => setTimeout(reportTextSelection, 0));
+document.addEventListener("keydown", (event) => {
+    const message = LINE_MOVE_STEPS[event.key] ? lineMoveMessage(event, lineAtCaret()) : null;
+    if (!message) return;
+    event.preventDefault();
+    notify("lineMove", message);
+});
 document.addEventListener("keyup", (event) => {
     if (event.shiftKey || event.key === "Shift") setTimeout(reportTextSelection, 0);
 });
@@ -1090,6 +1096,16 @@ function lineAtCaret() {
     return segmentId ? { pageId, segmentId } : null;
 }
 window.ficheroLineAtCaret = lineAtCaret;
+
+// ⌥⌘↑ / ⌥⌘↓ / ⌥⌘⇞ / ⌥⌘⇟ on the caret's line (3c part d): the bridge message the app turns into
+// the SAME reading-order move the Inspector's keys make. Null for any other key, or off a line.
+const LINE_MOVE_STEPS = { ArrowUp: "up", ArrowDown: "down", PageUp: "toStart", PageDown: "toEnd" };
+function lineMoveMessage(event, at) {
+    const step = event.altKey && event.metaKey && !event.shiftKey && !event.ctrlKey
+        ? LINE_MOVE_STEPS[event.key] : undefined;
+    if (!step || !at) return null;
+    return { segmentId: at.segmentId, pageId: at.pageId, step };
+}
 // </line-map>
 
 function transcriptPageMarkup(page) {

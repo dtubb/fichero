@@ -113,3 +113,28 @@ def test_a_stale_page_text_gets_no_map_rather_than_a_wrong_one(db, client):
     db.save(doc)
     payload, _ = _view(client, doc_id)
     assert payload["pages"][0]["lines"] == []
+
+
+@pytest.mark.skipif(NODE is None, reason="needs node to run the page's own script")
+def test_the_move_keys_name_the_caret_line_and_a_step_the_app_knows(db, client):
+    """⌥⌘↑ / ⌥⌘↓ / ⌥⌘⇞ / ⌥⌘⇟ post `lineMove` with the caret's line (3c part d). The step names
+    are the ones `ReaderLineMove.step(named:)` parses -- a name the app does not know moves nothing,
+    silently -- and any other chord, or a caret off every line, posts nothing."""
+    doc_id = _import(db, CLM)
+    _, html = _view(client, doc_id)
+    at = {"pageId": "p1", "segmentId": "line-7"}
+    got = _node(_page_script(html) + f"""
+const at = {json.dumps(at)};
+const chord = (key, extra = {{}}) => ({{ key, altKey: true, metaKey: true, shiftKey: false, ctrlKey: false, ...extra }});
+console.log(JSON.stringify({{
+    moves: ["ArrowUp", "ArrowDown", "PageUp", "PageDown"].map((key) => lineMoveMessage(chord(key), at)),
+    noMeta: lineMoveMessage(chord("ArrowUp", {{ metaKey: false }}), at),
+    withShift: lineMoveMessage(chord("ArrowUp", {{ shiftKey: true }}), at),
+    otherKey: lineMoveMessage(chord("ArrowLeft"), at),
+    offLine: lineMoveMessage(chord("ArrowUp"), null),
+}}));
+""")
+    assert got["moves"] == [{"segmentId": "line-7", "pageId": "p1", "step": step}
+                            for step in ("up", "down", "toStart", "toEnd")]
+    assert got["noMeta"] is None and got["withShift"] is None
+    assert got["otherKey"] is None and got["offLine"] is None
