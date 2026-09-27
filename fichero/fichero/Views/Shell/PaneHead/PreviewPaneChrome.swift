@@ -29,6 +29,11 @@ final class PreviewPaneChrome {
     /// Flips the canvas to the chosen rendition index.
     var selectRendition: ((Int) -> Void)?
 
+    /// Whether the mounted canvas has segments to edit, so the head shows the Edit Segments
+    /// switch (ruled 2026-09-27, Q3: in the head AND in What to show). Only the image canvas
+    /// publishes it today; a PDF or a workflow canvas leaves it false and the head shows nothing.
+    var canEditSegments = false
+
     /// Clears everything a departing canvas published, so a pane that swaps
     /// from image to PDF (or to a non-visual document) doesn't keep serving
     /// the old canvas's controls.
@@ -37,6 +42,7 @@ final class PreviewPaneChrome {
         renditionNames = []
         renditionIndex = 0
         selectRendition = nil
+        canEditSegments = false
     }
 }
 

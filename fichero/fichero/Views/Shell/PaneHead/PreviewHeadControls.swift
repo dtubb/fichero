@@ -91,15 +91,41 @@ struct PreviewHeadSelectorGroup: View {
 /// menu.
 struct PreviewHeadLensControls: View {
     let chrome: PreviewPaneChrome
+    /// The window's Edit Segments mode -- the SAME state the What-to-show toggle writes, so
+    /// the two switches can never disagree (`WindowState.isEditingSegments`).
+    @Environment(WindowState.self) private var windowState: WindowState?
 
     /// Whether the floating magnification cluster (mini-map / zoom pill /
     /// loupe + magnifier toggles) is showing over the canvas.
     @AppStorage("imagePreview.zoomControlsVisible") private var zoomControlsVisible = true
 
     var body: some View {
+        editSegmentsToggle
         zoomControlsToggle
         renditionSteppers
         renditionsMenu
+    }
+
+    /// Edit Segments in the HEAD (ruled 2026-09-27, Q3): the mode was reachable only inside the
+    /// What-to-show menu, which is a place to look for display options, not for "can I change
+    /// this page". Both switches write one state; the menu entry stays.
+    @ViewBuilder
+    private var editSegmentsToggle: some View {
+        if chrome.canEditSegments, let windowState {
+            let on = windowState.isEditingSegments
+            Button {
+                windowState.isEditingSegments.toggle()
+            } label: {
+                Image(systemName: "rectangle.and.pencil.and.ellipsis")
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(on ? Color.accentColor : Color.secondary)
+            .help(on ? "Stop editing segments -- the page is for reading"
+                     : "Edit Segments -- draw, move, join and delete segments on this page")
+            .accessibilityLabel("Edit Segments")
+            .accessibilityValue(on ? "On" : "Off")
+            .accessibilityIdentifier("previewHeadEditSegments")
+        }
     }
 
     /// ▲▼ rendition stepping RIGHT of the breadcrumb (Daniel, 2026-09-02:
