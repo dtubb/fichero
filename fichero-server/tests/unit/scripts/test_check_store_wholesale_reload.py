@@ -293,3 +293,55 @@ def test_allowlist_entry_without_reason_fails(tmp_path):
          "method": "delete", "class": "violation", "reason": "", "issue": 9999},
     ]), encoding="utf-8")
     assert _mod.check() == 1
+
+
+class TestNamingAReloadIsNotCallingOne:
+    """A leading-dot member expression is a value, not a call (2026-09-27).
+
+    `SegmentStore.plan` is a pure function that decides what to do and returns
+    `.reload(documentIds:)` for the document-level case, with the doing kept
+    separate so "those items and no others" is testable as a CHOICE rather than as
+    a fetch that happened to be right (#4954). The check read that `return` as a
+    wholesale reload inside a mutator and failed — punishing exactly the separation
+    this rule exists to encourage.
+
+    In Swift `.reload(x)` with nothing before the dot is an implicit member lookup:
+    an enum case or a static member, never a method on a store. `store.reload(x)`
+    keeps its receiver and is a call. That is the whole distinction, and the second
+    half of these cases is what stops the mask from swallowing real calls.
+    """
+
+    def test_returning_an_enum_case_is_not_a_call(self):
+        assert not _mod._has_reload_call("return .reload(documentIds: documents)")
+        assert not _mod._has_reload_call("return .patch(segmentIds: ids)")
+
+    def test_an_enum_case_in_a_collection_or_comparison_is_not_a_call(self):
+        assert not _mod._has_reload_call('let x = [.reload(a), .patch(b)]')
+        assert not _mod._has_reload_call('plan == .reload(documentIds: ["d"])')
+
+    def test_a_real_call_still_counts_however_it_is_spelled(self):
+        for line in (
+            "await loadModels()",
+            "self.reload()",
+            "await store.reload(force: true)",
+            "await refresh()",
+            "scheduleReload()",
+        ):
+            assert _mod._has_reload_call(line), line
+
+    def test_a_word_merely_containing_load_is_still_not_a_call(self):
+        """The pre-existing camelCase care, kept: `downloadModel` starts with `down`."""
+        assert not _mod._has_reload_call("downloadModel(type: t)")
+
+    def test_the_repo_passes_with_every_finding_accounted_for(self):
+        """If this fails, a store gained a wholesale reload — or the mask went wide."""
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[4]
+        result = subprocess.run(
+            [sys.executable, "scripts/check_store_wholesale_reload.py"],
+            cwd=root, capture_output=True, text=True, check=False,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr

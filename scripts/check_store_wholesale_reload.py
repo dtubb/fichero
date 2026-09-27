@@ -103,8 +103,30 @@ def _is_reload_call(identifier: str) -> bool:
     )
 
 
+#: A LEADING-dot member expression: `.reload(` where the dot opens the expression
+#: rather than following a receiver. In Swift that is an implicit member lookup —
+#: an enum case or a static member — and never a method call on a store.
+#: `store.reload(` has `store` before the dot and is a call; `return .reload(x)`
+#: does not and is a value.
+_LEADING_DOT_MEMBER = re.compile(r"(?:^|[\s(\[{,=:?]|->)\s*\.[A-Za-z_][A-Za-z0-9_]*\s*\(")
+
+
 def _has_reload_call(line: str) -> bool:
-    return any(_is_reload_call(m.group(1)) for m in _CALL_RE.finditer(line))
+    """Whether this line CALLS a reload, as opposed to naming one as a value.
+
+    `SegmentStore.plan` is a pure function that decides what to do and returns
+    `.reload(documentIds:)` for the document-level case, with the doing kept
+    separate so that "those items and no others" can be tested as a CHOICE rather
+    than as a fetch that happened to be right (#4954). The old check read that
+    `return` as a wholesale reload inside a mutator and failed the guard — which
+    punished exactly the separation this rule wants (2026-09-27).
+
+    So a leading-dot member expression is masked out before the call scan. A real
+    call keeps its receiver: `self.reload(`, `reload(`, `store.reload(` all still
+    match.
+    """
+    masked = _LEADING_DOT_MEMBER.sub(" ", line)
+    return any(_is_reload_call(m.group(1)) for m in _CALL_RE.finditer(masked))
 
 
 def _is_private_line(line: str) -> bool:
