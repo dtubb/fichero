@@ -46,6 +46,9 @@ checked against what was vendored.
 | `tesseract_english_hocrtools-tess.hocr` | `https://raw.githubusercontent.com/ocropus/hocr-tools/master/test/testdata/tess.hocr` | **Apache-2.0** — hocr-tools `LICENSE` file (the licence API says NOASSERTION; the file itself is the Apache 2.0 text) | 2026-09-27 | **The first real engine hOCR** — `ocr-system` `tesseract 3.03`, 64,316 B, `ocr_carea` / `ocr_par` / `ocr_line` / `ocrx_word` with `bbox` and `x_wconf`, `lang='eng'`, 10 areas, 37 lines, 503 words. `PROVENANCE.md` recorded hocr-tools' samples as having no boxes; its `tess.hocr` does. Closes that residue. sha256 `7916237abc00` |
 | `dta_german_luther-fabeln.tei.xml` | `https://raw.githubusercontent.com/deutschestextarchiv/DiBiLit-Korpus/main/data/fabel/luther_etliche-fabeln-aus-esopo-verdeutscht_1924.txt.xml` | **CC-BY-SA-4.0** — repository licence (GitHub licence API) | 2026-09-27 | **A real TEI edition** (Deutsches Textarchiv basis format), 34,817 B — with **no `<facsimile>` at all**, so no geometry: it imports as 8 regions of text and reports `page size` as its loss. sha256 `d67395a25cf7` |
 | `transkribus_tibetan-layout_pagantibet-corr1.tei.xml` | `https://zenodo.org/records/19205598/files/Corr1-20230809_GT_layout.xml` | **CC-BY-SA-4.0** — Zenodo record 19205598 licence field | 2026-09-27 | **Transkribus's TEI export**, and **26 pages in one file** (26 `<surface>`s, `<l facs>` line pointers, layout only — no Tibetan text). `<pb xml:id>` values are image file names, which are not NCNames: **import fails** (#5130). The smallest file of the deposit (the one first offered, 165 KB, was not taken). sha256 `99ccc8fa9658` |
+| `transkribus_greek-papyrus_zenon-59434.page.xml` | Zenodo 6565706, file `P.Cair.Zen.III.59434.xml` (md5 `d345242b2a92…` per the record's API) | **CC-BY-4.0** — Zenodo record 6565706 licence field | 2026-09-27 | **The oldest writing here: a Greek documentary papyrus of the 3rd century BCE** (Zenon archive, D-Scribes, Basel), Transkribus PAGE 2013, 9,563 B, 1 region, 20 lines. **A region drawn above the top edge of the scan: `points="165,-1 253,-1 …"`.** We write the `-1` back; PAGE's pattern admits only non-negative integers, so **export refused** (finding, below). The image beside it in the deposit is a torn fragment with damaged edges. sha256 `caa74e2a5a52` |
+| `escriptorium_latin-oldenglish_benedict-ctaiv-028.alto.xml` | Zenodo 21242748, `bilingual_RSB_GT.zip` → `annotations/BL-CTAiv_028.xml` (one member, by CRC-32) | **CC-BY-4.0** — Zenodo record 21242748 licence field | 2026-09-27 | **Two languages tagged LINE BY LINE**: the bilingual Rule of St Benedict (London BL Cotton Titus A.iv, 11th c.), eScriptorium ALTO 4.2, 10,723 B, 14 lines whose types are `LatinLine`, `EnglishLine`, `InterlinearLine`, `HeadingLine`, `DefaultLine`. **Every element carries an `ns0:` namespace prefix** (`<ns0:alto>`, `<ns0:fileName>`), which the `fileName`/`Page` regexes in `scripts/fetch_sample_corpus.py` had to learn. Validates as a source; export valid. sha256 `921093eccc0e` |
+| `digitalgenji_japanese-vertical_kouigenji-01.tei.xml` | `https://raw.githubusercontent.com/kouigenjimonogatari/kouigenjimonogatari.github.io/89a60fe7b18c1eebb91f160c068b31e857776022/xml/master/01.xml` | **CC0-1.0** — the file's own `<availability>` (teiHeader); the repository's licence API says CC-BY-4.0 | 2026-09-27 | **The only Japanese, the only vertical print, and the only TEI edition with a `<facsimile>`**: the Tale of Genji, Kiritsubo chapter, from Ikeda Kikan's 1942 variorum, 77,765 B, hand-encoded TEI P5. 13 `<surface>`s each with a `<graphic>` at its pixel size and one or two `<zone>`s (half-spreads: page level, not lines), 24 `<pb facs>` pointers to IIIF region URLs, 352 bare `<lb/>`. **Imports to NOTHING**: the zones hold no lines and the `<lb/>`s no coordinates, so the reader produces zero segments (finding, below). sha256 `221fc26e10f6` |
 
 ## Findings — what these files do
 
@@ -68,6 +71,39 @@ checked against what was vendored.
   is refused. In the local test-corpus folder this refused 24 of 272 ALTO exports
   (Flamenca, IRHAS Aljamiado, OpenITI MAKHZAN). Same shape as the Coords defect: an
   empty value dropped where the schema requires an element or attribute.
+
+**Found by the world-corpus round (2026-09-27, 17 more sets in the local folder;
+strict xfail where a vendored page shows it):**
+
+- **A negative coordinate is written as-is.** Transkribus let a papyrus region be drawn
+  one pixel above the scan (`165,-1`); our PAGE writer copies it and PAGE's `points`
+  pattern refuses it. 1 of 27 Zenon papyri pages. Clamp or refuse on read — the
+  writer's call, not this file's.
+- **ALTO in `mm10` or `inch1200` is re-exported on a 1000×1000 grid declared as
+  `pixel`.** The Padeřov Bible (Transkribus, `mm10`, page 1960×2819) and the Cherokee
+  Phoenix (NDNP, `inch1200`, page 17216×26004) both come out as `<Page WIDTH="1000"
+  HEIGHT="1000">` with `<MeasurementUnit>pixel</MeasurementUnit>`: the page's aspect
+  ratio is gone, and a 236-unit word is written 14 wide. The export VALIDATES, which is
+  why only a look at the bytes finds it. Pixel-unit ALTO (Eutyches, 3305×4186) keeps its
+  size. Not vendored: the smallest such page is 567 KB.
+- **A `GraphicalElement` inside a `ComposedBlock` is written inside a `TextBlock`.** The
+  Cherokee Phoenix front page has `<ComposedBlock TYPE="Illustration">` holding one
+  `<GraphicalElement>`; we read the block as a text region and the graphic as its child,
+  and the ALTO writer nests `GraphicalElement` in `TextBlock`, where the schema allows
+  only `Shape` and `TextLine`. Export refused. 1 of 4 pages.
+- **A TEI whose facsimile zones carry no lines imports as nothing.** The Digital Genji's
+  zones are half-spreads and its `<lb/>`s have no `facs`; the reader raises nothing and
+  returns zero segments, so 25 pages of vertical Japanese vanish silently. Vendored.
+- **YOLO class numbers mean zone types in the wild.** YALTAi's labels (SegmOnto:
+  0 = DamageZone … 4 = MainZone) import through `CLASS_KINDS` as region/line/word/
+  character by number, so a MainZone becomes a "character". Every file exports valid;
+  the meaning is wrong. The local folder puts `classes.txt` beside the labels.
+- **Real `TableRegion`/`TableCell` pages (Reichsanzeiger, HisClima) import and export
+  valid**; so do 8 Armenian PAGE 2019 pages whose source is invalid (a region with no
+  `Coords` — the eScriptorium dummy-block shape) — the export mints a shape.
+- Already known and not re-reported: `<String>` without `CONTENT` (2 of 18
+  TranscriboQuest 2025 pages, including the Lebor na hUidre page) and `points=""` (1 of 6
+  NZZ pages) — #5130.
 
 **The same defect classes at scale.** Run over the larger sets below (1,327 files from
 CHI-KNOW-PO, RASAM, both Syriac deposits, the Greek set and PaganTibet's `Manual1`),
@@ -127,6 +163,17 @@ it.
 | eScriptorium's own TEI export sample (`tei_xml_export_full_part1.xml`, MIT repo) | MIT repository, but the file's own `<availability>` says CC-BY-NC-SA 4.0 | Contradictory; left out |
 | NDL `ndl-minhon-ocrdataset`, CODH kuzushiji, HJDataset (Japanese) | CC-BY-SA-4.0 / gated | JSON / CSV / COCO, not PAGE, ALTO, TEI or hOCR |
 | Cree syllabics (Zenodo 6915296), Tibetan-Cursive-GT, Kuzushiji HTR model (Zenodo 13942714), Old Cyrillic model (Zenodo 7755483) | CC-BY / CC0 | Tesseract `.box`, plain text, or a model with no ground truth |
+| Cherokee Phoenix ALTO 2 (LoC NDNP `ver03`) | public domain per LoC; the rights page refuses scripted reads | in the local folder; the smallest page is 567 KB, too big to vendor |
+| TranscriboQuest 2025 Medieval Latin (Zenodo 17093528) — the one gloss-focused Latin set found | **CC-BY-NC-SA-4.0** | NonCommercial; not fetched either |
+| 全交法師常々艸, 1794 kuzushiji woodblock TEI with polygon zones, `<ruby>`, `<choice>` | **none declared** | No licence; the one line-level vertical Japanese TEI found |
+| Homer Multitext, Venetus A with scholia (the glossed-page demo) | CC-BY-NC-SA per its site (not re-read) | CEX with fractional rectangles, not PAGE/ALTO/TEI |
+| DIVA-HisDB (Zenodo 19127869): St Gall glossed manuscripts | CC-BY-4.0 + MIT on Zenodo; older statements say research-only | 1.3 GB `.tar.gz` (not range-sampleable), pixel-label PNGs, no transcription; not fetched |
+| HOME-Alcar cartularies (Zenodo 5600884) | CC-BY-4.0 | images an 11.4 GB zip; TEI/ALTO/PAGE — not fetched this round (a candidate for the folder) |
+| Eutyches, BnF lat. 7499 pages | Apache-2.0 | the repository's JPEGs are ~88 px shorter than the ALTO states (a crop): not paired; Leiden VLO 41 pages are |
+| Armenian UCLA MS 72 (same HF dataset) | images: "clearance is the researcher's responsibility" (UCLA) | BnF Arménien 172 taken instead (Gallica: non-commercial free) |
+| HisClima full deposit (Zenodo 7442971) | CC-BY-4.0 | 2.3 GB `.tar.gz`; the 292 MB `HisClima_table_IE.zip` (Zenodo 6937608) was sampled instead |
+| Digital Peter (Cyrillic), NDL kuzushiji / NDLOCR (Japanese), BN-HTRd (Bengali), CODH | various | COCO / Pascal VOC / JSON, not PAGE, ALTO, TEI, hOCR or YOLO |
+| British Library REID2019 early printed Bengali (DOI 10.23636/1168) | Public Domain Mark | PAGE + TIFF, 1.27 GB — a candidate, not fetched (budget: one striking script per continent) |
 
 ## Larger sets for a local sample library (not vendored)
 
@@ -149,6 +196,30 @@ pairing (#5132). Neither script runs in tests or CI; neither folder is ever comm
 | Printed Devanagari (heiDATA EGOKEI), `diksita1895.zip` | CC-BY-4.0 | 3 MB | Transkribus ALTO + images |
 | Printed Malayalam (heiDATA L2KRZO), `39A8599.zip` | CC-BY-4.0 | 6.9 MB | Transkribus ALTO + images |
 | RASAM (github.com/calfa-co/rasam-dataset) | Apache-2.0 | ~ tens of MB | 547 Maghrebi Arabic PAGE files |
+
+The world-corpus round (2026-09-27) added 17 sets to the same script — each a few pages,
+each checked as above (Zenodo loose files by the record's own md5, Hugging Face files by
+LFS sha256, IIIF images by pixel size, with a 2 px tolerance for a library that rounds a
+resize differently, said in the report):
+
+| Set | Licence | What it adds |
+|---|---|---|
+| Zenon papyri (Zenodo 6565706) | CC-BY-4.0 | 27 Greek papyri, 3rd c. BCE, PAGE + JPG |
+| Cherokee Phoenix 1828 (LoC NDNP `ver03`, via `tile.loc.gov`) | public domain | Cherokee syllabary + English on one page; ALTO 2 in `inch1200`; IIIF full scans |
+| Ajami Fulfulde (Zenodo 20392539, 2.6 GB zip sampled) | CC-BY-4.0 | an African language in Arabic script, `manual/` transcriptions only |
+| Classical Armenian, BnF Arménien 172 (Hugging Face `nomikos-project`) | CC-BY-4.0 + Gallica terms | the Armenian alphabet; PAGE 2019 |
+| Tale of Genji 1942 (GitHub `kouigenjimonogatari`) + NDL IIIF | CC0 + PDM | vertical Japanese; TEI facsimile over a library's IIIF |
+| YALTAi SegmOnto + YALTAi tables (Zenodo 6814770, 6827706; sampled) | CC-BY-4.0 | YOLO labels beside ALTO and images, with `classes.txt` |
+| TranscriboQuest 2025 religious vernacular (Zenodo 17062963) | CC-BY-4.0 | Lebor na hUidre (Old Irish + Latin), Old Swedish, Old Castilian, Bavarian, French; six decorated codices |
+| Gallicorpora 15th-c. manuscripts (GitHub, CC0) | CC0-1.0 | illuminated BnF pages with SegmOnto zones |
+| Eutyches (GitHub `malamatenia/Eutyches`) | Apache-2.0 | interlinear glosses (`InterlinearLine`), the glossed-page demo |
+| Burchards Dekret Digital (GitHub) + MDZ IIIF | CC-BY-4.0 + PDM | 11th-c. canon law in two columns, layout only, images by the dataset's own URL table |
+| Padeřov Bible (Zenodo 7467034) | CC-BY-4.0 | Czech Hussite Bible; ALTO in `mm10` |
+| NZZ Fraktur front pages (Zenodo 3333627, sampled) | CC-BY-4.0 | dense newspaper columns with `primaryLanguage`, TIFF |
+| Lectaurep marriage registers (GitHub) | CC-BY-4.0 | a printed form filled by hand (Print / Handwritten / Signature lines) |
+| Reichsanzeiger (GitHub `UB-Mannheim`) + Mannheim image server | CC0-1.0 | real `TableRegion`/`TableCell` pages, 10368×7104 |
+| HisClima tables (Zenodo 6937608, sampled) | CC-BY-4.0 | ship's logbook tables, ~435 cells a page |
+| Bilingual Rule of St Benedict (Zenodo 21242748, 7 GB zip sampled) | CC-BY-4.0 | Latin + Old English tagged line by line, three witnesses |
 
 Too big to fetch by default, listed for reference: CATMuS Medieval (Hugging Face
 `CATMuS/medieval`, CC-BY-4.0, parquet, ~1–2 GB), e-NDP Notre-Dame registers with
@@ -174,3 +245,26 @@ Spanish and Occitan (GitHub, CC-BY-4.0, clone), TRIDIS (Zenodo 10788591, MIT).
 - **No Cyrillic, Ge'ez, Armenian or Georgian** with a permissive licence.
 - **No file with several readings per line** (PAGE `TextEquiv index` > 0 or ALTO
   `ALTERNATIVE`).
+
+**After the world-corpus round (2026-09-27)** — what changed, and what still does not
+exist under an open licence in PAGE, ALTO, TEI, hOCR or YOLO (searched: HTR-United's
+whole catalogue, Zenodo, Hugging Face, GitHub, OCR-D, NDL Lab, CODH, papyri.info, LoC,
+Papers Past, the researchers' lists in the manager's relay):
+
+- **Filled:** ancient (papyri), Americas (Cherokee), Africa (Ajami), Armenian, Japanese
+  vertical (page-level zones only), two languages per page tagged per line (Latin /
+  Old English), interlinear glosses (Eutyches), tables with cells, a hand-filled form,
+  YOLO, illuminated and monastic pages, Czech.
+- **Still none:** a CJK, Mongolian, Manchu or Korean page-level file that STATES
+  `top-to-bottom` (the Genji TEI is vertical by nature and states nothing; NDL's and
+  CODH's vertical sets are JSON / Pascal VOC); a genuinely bidirectional LINE (Hebrew or
+  Arabic with Latin or digits) under an open licence; a classic central-text-with-gloss
+  page (Glossa ordinaria, Decretum with gloss) — Eutyches' interlinear glosses are the
+  nearest; Old Irish or Old English glosses on a Latin text with coordinates (the
+  Priscian and Würzburg gloss databases are text-only); Egyptian hieroglyphs, hieratic,
+  cuneiform, Linear B or Maya with image-aligned layout in these formats (CDLI/ORACC are
+  transliteration; the sign-detection sets are COCO or bespoke); Cyrillic, Georgian,
+  Glagolitic, Tangut, Old Uyghur, Sogdian, or any South-East Asian palm-leaf script
+  (ICFHR palm-leaf sets are research-only or bespoke); Hawaiian and Māori newspapers
+  (the same LoC recipe would serve Hawaiian titles; Papers Past needs a key) —
+  not fetched this round, one script per continent being the brief.

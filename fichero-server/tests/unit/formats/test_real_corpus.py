@@ -55,7 +55,7 @@ CORPUS = Path(__file__).parent / "fixtures" / "corpus"
 #: nothing** — a test elsewhere did exactly that the day this was written, because its
 #: directory did not exist. Raise this when files are added; never lower it to make a
 #: removal pass.
-MIN_FILES = 18
+MIN_FILES = 21
 
 #: Which format a file claims to be, from the `<producer>_<script>_<id>.<fmt>.xml`
 #: naming rule in CORPUS.md. The BYTES must agree (`format_for` sniffs), and the first
