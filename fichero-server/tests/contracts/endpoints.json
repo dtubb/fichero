@@ -3781,6 +3781,86 @@
         "response_model": "FormatListResponse"
       }
     ],
+    "hands": [
+      {
+        "method": "GET",
+        "path": "/hands",
+        "operation_id": "list_hands_api_hands_get",
+        "summary": "List Hands",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HandListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/hands",
+        "operation_id": "create_hand_api_hands_post",
+        "summary": "Create Hand",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "HandCreateParams",
+        "response_model": "HandActionAnswer"
+      },
+      {
+        "method": "POST",
+        "path": "/hands/attributions",
+        "operation_id": "attribute_segment_api_hands_attributions_post",
+        "summary": "Attribute Segment",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "HandAttributeParams",
+        "response_model": "HandActionAnswer"
+      },
+      {
+        "method": "POST",
+        "path": "/hands/attributions/{attribution_id}/withdraw",
+        "operation_id": "withdraw_attribution_api_hands_attributions__attribution_id__withdraw_post",
+        "summary": "Withdraw Attribution",
+        "path_params": [
+          "attribution_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HandActionAnswer"
+      },
+      {
+        "method": "GET",
+        "path": "/hands/segment/{segment_id}",
+        "operation_id": "hands_of_segment_api_hands_segment__segment_id__get",
+        "summary": "Hands Of Segment",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "AttributionListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/hands/{hand_id}/attributions",
+        "operation_id": "everything_in_a_hand_api_hands__hand_id__attributions_get",
+        "summary": "Everything In A Hand",
+        "path_params": [
+          "hand_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "AttributionListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/hands/{hand_id}/withdraw",
+        "operation_id": "withdraw_hand_api_hands__hand_id__withdraw_post",
+        "summary": "Withdraw Hand",
+        "path_params": [
+          "hand_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HandActionAnswer"
+      }
+    ],
     "health": [
       {
         "method": "GET",

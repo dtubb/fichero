@@ -5322,6 +5322,362 @@
         }
       }
     },
+    "/api/hands": {
+      "post": {
+        "tags": [
+          "hands"
+        ],
+        "summary": "Create Hand",
+        "operationId": "create_hand_api_hands_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HandCreateParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandActionAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "hands"
+        ],
+        "summary": "List Hands",
+        "description": "The project's hands, by label.",
+        "operationId": "list_hands_api_hands_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hands/{hand_id}/withdraw": {
+      "post": {
+        "tags": [
+          "hands"
+        ],
+        "summary": "Withdraw Hand",
+        "operationId": "withdraw_hand_api_hands__hand_id__withdraw_post",
+        "parameters": [
+          {
+            "name": "hand_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Hand Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandActionAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hands/attributions": {
+      "post": {
+        "tags": [
+          "hands"
+        ],
+        "summary": "Attribute Segment",
+        "operationId": "attribute_segment_api_hands_attributions_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HandAttributeParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandActionAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hands/attributions/{attribution_id}/withdraw": {
+      "post": {
+        "tags": [
+          "hands"
+        ],
+        "summary": "Withdraw Attribution",
+        "operationId": "withdraw_attribution_api_hands_attributions__attribution_id__withdraw_post",
+        "parameters": [
+          {
+            "name": "attribution_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Attribution Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandActionAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hands/segment/{segment_id}": {
+      "get": {
+        "tags": [
+          "hands"
+        ],
+        "summary": "Hands Of Segment",
+        "description": "Every live judgement of who wrote this segment -- rivals side by side, oldest first.",
+        "operationId": "hands_of_segment_api_hands_segment__segment_id__get",
+        "parameters": [
+          {
+            "name": "segment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Segment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttributionListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hands/{hand_id}/attributions": {
+      "get": {
+        "tags": [
+          "hands"
+        ],
+        "summary": "Everything In A Hand",
+        "description": "Everything in one hand, across every source (\"everything in hand B\").",
+        "operationId": "everything_in_a_hand_api_hands__hand_id__attributions_get",
+        "parameters": [
+          {
+            "name": "hand_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Hand Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttributionListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{doc_id}/import": {
       "post": {
         "tags": [
@@ -41245,6 +41601,22 @@
         ],
         "title": "AttributesResponse"
       },
+      "AttributionListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HandAttribution"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "AttributionListResponse"
+      },
       "AttributionRole": {
         "type": "string",
         "enum": [
@@ -52584,6 +52956,231 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "Hand": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "scribe": {
+            "type": "string",
+            "nullable": true,
+            "title": "Scribe"
+          },
+          "date": {
+            "type": "string",
+            "nullable": true,
+            "title": "Date"
+          },
+          "place": {
+            "type": "string",
+            "nullable": true,
+            "title": "Place"
+          },
+          "style": {
+            "type": "string",
+            "nullable": true,
+            "title": "Style"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "title": "Notes"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind",
+            "default": "unknown"
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "deleted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Deleted At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "title": "Hand",
+        "description": "One hand in a project's list of hands (`source.hand.record`)."
+      },
+      "HandActionAnswer": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "result": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Result"
+          },
+          "audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "result"
+        ],
+        "title": "HandActionAnswer"
+      },
+      "HandAttributeParams": {
+        "properties": {
+          "hand_id": {
+            "type": "string",
+            "title": "Hand Id"
+          },
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "certainty": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Certainty"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "hand_id",
+          "segment_id"
+        ],
+        "title": "HandAttributeParams"
+      },
+      "HandAttribution": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "hand_id": {
+            "type": "string",
+            "title": "Hand Id"
+          },
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "certainty": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Certainty"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind",
+            "default": "unknown"
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "withdrawn_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Withdrawn At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hand_id",
+          "segment_id"
+        ],
+        "title": "HandAttribution",
+        "description": "One judgement that one segment was written by one hand (`source.hand.attributed`)."
+      },
+      "HandCreateParams": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "scribe": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true,
+            "title": "Scribe"
+          },
+          "date": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true,
+            "title": "Date"
+          },
+          "place": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true,
+            "title": "Place"
+          },
+          "style": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true,
+            "title": "Style"
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 500,
+            "nullable": true,
+            "title": "Notes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "title": "HandCreateParams"
+      },
+      "HandListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Hand"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "HandListResponse"
+      },
       "HealthResponse": {
         "properties": {
           "status": {
@@ -53573,6 +54170,30 @@
             "type": "number",
             "title": "Files Per Second",
             "default": 0.0
+          },
+          "imported_as_passes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Imported As Passes",
+            "default": []
+          },
+          "not_imported": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Not Imported",
+            "default": {}
+          },
+          "unpaired": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Unpaired",
+            "default": {}
           }
         },
         "type": "object",

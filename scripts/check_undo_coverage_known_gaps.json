@@ -397,5 +397,9 @@
   "POST /api/signs/{sign_id}/withdraw": "slice 14 declared signs (#4939): the ENGINE undo exists (audited, undoable declare/withdraw/restore); no Swift caller registers it yet because the sign-list UI waits for its wireframes",
   "POST /api/rights": "slice 14 rights records (#4953): the ENGINE undo exists (audited, undoable set/withdraw); no Swift caller registers it yet because the rights UI waits for its wireframes",
   "POST /api/rights/{record_id}/withdraw": "slice 14 rights records (#4953): the ENGINE undo exists (audited, undoable set/withdraw); no Swift caller registers it yet because the rights UI waits for its wireframes",
-  "POST /api/reading-orders/{order_id}/place": "slice 13 reorder (#5114): the ENGINE undo exists (reading_order.place is audited and undoable); the app's UndoManager registration lands with Q5 part 3's Swift service"
+  "POST /api/reading-orders/{order_id}/place": "slice 13 reorder (#5114): the ENGINE undo exists (reading_order.place is audited and undoable); the app's UndoManager registration lands with Q5 part 3's Swift service",
+  "POST /api/hands": "slice 14 hands (#4952): the ENGINE undo exists (audited, undoable create/withdraw/restore, attribute/unattribute); no Swift caller registers it yet because the hands UI waits for its wireframes",
+  "POST /api/hands/attributions": "slice 14 hands (#4952): the ENGINE undo exists (audited, undoable create/withdraw/restore, attribute/unattribute); no Swift caller registers it yet because the hands UI waits for its wireframes",
+  "POST /api/hands/attributions/{attribution_id}/withdraw": "slice 14 hands (#4952): the ENGINE undo exists (audited, undoable create/withdraw/restore, attribute/unattribute); no Swift caller registers it yet because the hands UI waits for its wireframes",
+  "POST /api/hands/{hand_id}/withdraw": "slice 14 hands (#4952): the ENGINE undo exists (audited, undoable create/withdraw/restore, attribute/unattribute); no Swift caller registers it yet because the hands UI waits for its wireframes"
 }
