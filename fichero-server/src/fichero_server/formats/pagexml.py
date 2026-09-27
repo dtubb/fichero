@@ -409,16 +409,77 @@ def read(data: bytes) -> SourcePage:
     for element in root.iter():
         if _tag(element) != "OrderedGroup":
             continue
-        refs = [
-            child.get("regionRef")
-            for child in element
+        indexed = [
+            (_int_or(child.get("index"), position), position, child.get("regionRef"))
+            for position, child in enumerate(element)
             if _tag(child) == "RegionRefIndexed" and child.get("regionRef")
         ]
+        refs = [ref for _index, _position, ref in sorted(indexed)]
         if refs:
+            if not page.orders:
+                refs = _merge_custom_order(page, sorted(indexed))
             page.orders.append(
                 PageOrder(name=element.get("id") or "as-written", refs=refs)
             )
     return page
+
+
+#: `custom="readingOrder {index:2;}"`: Transkribus writes each region's place here as well as,
+#: or instead of, in `<ReadingOrder>`.
+_CUSTOM_ORDER_INDEX = re.compile(r"readingOrder\s*\{[^}]*?index\s*:\s*(\d+)")
+#: `foreign` key on a region whose place the two sources of order disagree about (#5145).
+ORDER_NOTE = "pagexml:reading-order"
+
+
+def _int_or(value: str | None, default: int) -> int:
+    try:
+        return int(value) if value is not None else default
+    except ValueError:
+        return default
+
+
+def _merge_custom_order(page: SourcePage, indexed: list[tuple[int, int, str]]) -> list[str]:
+    """The page's order when `<ReadingOrder>` names only SOME of its regions (#5145).
+
+    The USS Albatross logbook names one region, at index 2, in its `<ReadingOrder>`; its two
+    tables say `readingOrder {index:0;}` and `{index:1;}` in `custom`. Read as the group alone,
+    the named region came first and the tables after it -- backwards. Here a top-level region
+    the group does not name, with a `custom` index, is placed by that index among the named
+    ones, whose relative order is kept. Where the two sources disagree, `<ReadingOrder>` wins
+    (it is the element the schema defines for this), and the region carries a note saying so,
+    which the export's loss report repeats. A region with neither is never dropped: it is not in
+    the order, and `file_positions` puts it after the ordered ones in file order, as before.
+    """
+    named = {ref: index for index, _position, ref in indexed}
+    entries: list[tuple[int, int, int, str]] = [
+        (index, 0, position, ref) for index, position, ref in indexed
+    ]
+    # Text-bearing regions only. Transkribus numbers its SEPARATORS in `custom` too and leaves
+    # them out of `<ReadingOrder>`: a line between columns is not something one reads, and
+    # adding it would put three rules into a page's order of text.
+    top_level = [
+        s for s in page.segments if s.parent_ref is None and s.ref and s.kind in ("region", "table")
+    ]
+    for position, segment in enumerate(top_level):
+        match = _CUSTOM_ORDER_INDEX.search(str(segment.foreign.get("custom") or ""))
+        if match is None:
+            continue
+        custom_index = int(match.group(1))
+        if segment.ref in named:
+            if named[segment.ref] != custom_index:
+                segment.foreign[ORDER_NOTE] = (
+                    f"<ReadingOrder> puts it at index {named[segment.ref]} and its custom "
+                    f"readingOrder at {custom_index}: <ReadingOrder> kept"
+                )
+            continue
+        if custom_index in named.values():
+            other = next(ref for ref, index in named.items() if index == custom_index)
+            segment.foreign[ORDER_NOTE] = (
+                f"its custom readingOrder index {custom_index} is also <ReadingOrder>'s index for "
+                f"{other}: placed after {other}"
+            )
+        entries.append((custom_index, 1, position, segment.ref))
+    return [ref for *_key, ref in sorted(entries)]
 
 
 def write(page: SourcePage, report: LossReport) -> bytes:
@@ -573,6 +634,9 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                     f"PAGE XML has no readingDirection for {segment.direction!r} "
                     "(alternating and follows-baseline are Fichero's own)",
                 )
+        if segment.foreign.get(ORDER_NOTE):
+            # The file's two statements of order disagreed on import, and one was kept (#5145).
+            report.note("reading order", 1, f"{segment.ref}: {segment.foreign[ORDER_NOTE]}")
         # `source.format.keeps-unrecognised` has TWO halves, and this is the second:
         # content the model has no field for is kept on read AND WRITTEN BACK on
         # export to that format. Found by eScriptorium's own file: its
