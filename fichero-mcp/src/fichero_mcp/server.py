@@ -441,6 +441,117 @@ def fichero_segment_reference(segment_id: str) -> Any:
         return client.segment_reference(segment_id)
 
 
+# -- segments: reading the text (#5139) ---------------------------------------
+#
+# Until these, an agent could list a page's 4,525 shapes and read none of them:
+# the text lives in READINGS, and no tool reached a reading, the page's derived
+# text, its reading orders, or a listing wider than one document. Each tool is
+# one GET on the route the app and the CLI already use -- no second path, and
+# the route's answer is returned unchanged.
+
+
+@mcp.tool()
+def fichero_segment_readings(segment_id: str, kind: Optional[str] = None) -> Any:
+    """Read a segment's readings: its transcription(s), normalisations and
+    translations, each with its text (read-only, writes nothing).
+
+    ``kind`` restricts to one reading kind (e.g. ``transcription``)."""
+    with _client() as client:
+        return client.request(
+            "GET", f"/api/segments/{segment_id}/readings", params={"kind": kind}
+        )
+
+
+@mcp.tool()
+def fichero_document_text(
+    doc_id: str,
+    pass_id: Optional[str] = None,
+    order: Optional[str] = None,
+    kind: Optional[str] = None,
+    include_furniture: Optional[bool] = None,
+) -> Any:
+    """Read a page's whole text, derived from its segments' readings, with
+    each block's span back to its segments (read-only, writes nothing).
+
+    ``order`` follows a named reading order (an id from
+    ``fichero_reading_orders``); omitted, box order. ``pass_id`` reads a named
+    pass instead of the working one; ``kind`` picks the reading kind
+    (default transcription); ``include_furniture`` false drops running heads,
+    folio numbers and catchwords."""
+    with _client() as client:
+        return client.request(
+            "GET",
+            f"/api/segments/document/{doc_id}/text",
+            params={
+                "pass_id": pass_id,
+                "order": order,
+                "kind": kind,
+                "include_furniture": include_furniture,
+            },
+        )
+
+
+@mcp.tool()
+def fichero_segments_in_scope(
+    document_ids: Optional[list[str]] = None,
+    parent_id: Optional[str] = None,
+    kind: Optional[str] = None,
+    pass_id: Optional[str] = None,
+    include_furniture: Optional[bool] = None,
+    limit: int = 200,
+    offset: int = 0,
+) -> Any:
+    """List segments across several documents or a whole folder, one bounded
+    page at a time (read-only, writes nothing).
+
+    Give exactly one of ``document_ids`` or ``parent_id`` (a folder: its
+    descendants are the scope). ``limit`` is at most 1000; page with
+    ``offset``. ``kind`` (region, line, word, ...) and ``pass_id`` narrow it."""
+    with _client() as client:
+        return client.request(
+            "GET",
+            "/api/segments",
+            params={
+                "document_ids": ",".join(document_ids) if document_ids is not None else None,
+                "parent_id": parent_id,
+                "kind": kind,
+                "pass_id": pass_id,
+                "include_furniture": include_furniture,
+                "limit": limit,
+                "offset": offset,
+            },
+        )
+
+
+@mcp.tool()
+def fichero_reading_orders(doc_id: str, include_deleted: Optional[bool] = None) -> Any:
+    """List a source's named reading orders (as-written, commentary, ...)
+    (read-only, writes nothing). Pass an order's id to
+    ``fichero_document_text`` to read the page in that order, or to
+    ``fichero_reading_order_entries`` to walk it."""
+    with _client() as client:
+        return client.request(
+            "GET",
+            f"/api/reading-orders/document/{doc_id}",
+            params={"include_deleted": include_deleted},
+        )
+
+
+@mcp.tool()
+def fichero_reading_order_entries(
+    order_id: str, parent_entry_id: Optional[str] = None
+) -> Any:
+    """Read one level of a reading order: its entries in sequence, each naming
+    a segment (read-only, writes nothing). ``parent_entry_id`` descends into
+    a nested entry; omitted, the top level."""
+    with _client() as client:
+        return client.request(
+            "GET",
+            f"/api/reading-orders/{order_id}/entries",
+            params={"parent_entry_id": parent_entry_id},
+        )
+
+
 # -- segments: the editor's verbs, for an agent (`source.editor.agent-parity`) ---
 #
 # Reads above, writes here. Until 2026-09-27 an agent could LOOK at a page's
@@ -937,7 +1048,9 @@ def fichero_page_import(
 
     Args:
         doc_id: The page's document id.
-        path: Path to the interchange file, on the machine the ENGINE runs on.
+        path: Path to the interchange file on the machine THIS MCP server runs on. Its
+            bytes are uploaded (for YOLO, with the classes.txt or data.yaml found beside
+            it), so the engine may be remote.
         format: Force a format instead of recognising one from the bytes.
         name: What to call the new pass.
     """

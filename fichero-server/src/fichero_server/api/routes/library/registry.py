@@ -862,7 +862,7 @@ def get_global_database() -> Database:
     reachable with no ``X-Fichero-Library-Path`` header. The package and its
     DuckDB file are created on first access by the DatabaseManager.
     """
-    return db_manager.get_database(str(settings.global_library_path))
+    return db_manager.get_database(str(settings.global_library_path), create=True)
 
 
 @router.get("/registry", response_model=LibraryRegistryResponse)

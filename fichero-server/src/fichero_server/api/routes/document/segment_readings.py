@@ -327,8 +327,27 @@ def readings_of_segment(
     return items
 
 
-def _text_bearing_rows(db: Database, document_id: str, pass_id: str) -> list[Segment]:
+def _document_readings(db: Database, document_id: str) -> list[ContentRepresentation]:
+    """Every stored reading of a document, loaded ONCE per derivation (slice 12, #4940).
+
+    `_text_bearing_rows` needs them for their segment ids and `_readings_for_live_rows` for
+    their content. Each used to query them itself, so every reading was hydrated twice: on the
+    Cherokee page (3,910 words) the second load was most of the derivation's time.
+    """
+    return list(db.query(ContentRepresentation, document_id=document_id))
+
+
+def _text_bearing_rows(
+    db: Database,
+    document_id: str,
+    pass_id: str,
+    *,
+    readings: list[ContentRepresentation] | None = None,
+) -> list[Segment]:
     """The rows of `pass_id` that can have a reading -- the only rows `document_text` uses.
+
+    `readings` is the document's stored readings when the caller has them already
+    (`_document_readings`); omitted, they are loaded here.
 
     A row has a reading when a stored reading names it, or -- in a pass converted from a
     machine artifact -- when it recorded its box in that artifact (`metadata["box_index"]`,
@@ -337,10 +356,9 @@ def _text_bearing_rows(db: Database, document_id: str, pass_id: str) -> list[Seg
     are hydrated. The same rows, in the same order, as loading the whole pass
     (`TestTheTextIsDerivedFromTheLinesThatCarryIt`).
     """
-    ids = {
-        rep_row.segment_id for rep_row in db.query(ContentRepresentation, document_id=document_id)
-        if rep_row.segment_id
-    }
+    if readings is None:
+        readings = _document_readings(db, document_id)
+    ids = {rep_row.segment_id for rep_row in readings if rep_row.segment_id}
     pass_row = db.get(SegmentPass, pass_id)
     if pass_row is not None and pass_row.source_artifact_id:
         table = db._sql_table_name(Segment)
@@ -388,7 +406,12 @@ def counting_texts(db: Database, rows: list[Segment], kind: str = "transcription
 
 
 def _readings_for_live_rows(
-    db: Database, rows: list[Segment], document_id: str, artifact_memo: dict[str, Artifact | None]
+    db: Database,
+    rows: list[Segment],
+    document_id: str,
+    artifact_memo: dict[str, Artifact | None],
+    *,
+    readings: list[ContentRepresentation] | None = None,
 ) -> dict[str, list[ReadingRead]]:
     """`readings_of_segment` for every row of a page at once -- the SAME items, in the same order.
 
@@ -400,7 +423,9 @@ def _readings_for_live_rows(
     the kinds once, each pass once, no forwarding walk.
     """
     by_segment: dict[str, list[ReadingRead]] = {row.id: [] for row in rows}
-    for rep_row in db.query(ContentRepresentation, document_id=document_id):
+    if readings is None:
+        readings = _document_readings(db, document_id)
+    for rep_row in readings:
         if rep_row.segment_id in by_segment:
             by_segment[rep_row.segment_id].append(_reading_read_from_row(rep_row))
     kinds = reading_kinds(db)
@@ -793,6 +818,8 @@ def document_text(
         # belongs to the pass it was made on and continues onto others.
         raise OrderIsOfAnotherPass(named_order.id, named_order.pass_id, answer.pass_id)
 
+    # Loaded once and handed to both readers below (#4940): each used to load them itself.
+    document_readings = _document_readings(db, document_id)
     rows = [
         row
         for row in (
@@ -800,7 +827,7 @@ def document_text(
             # 20,000-shape page ~2.9 s of 3.3 s was loading every character and word just to
             # skip it for having no reading. A named order still needs every row, because it
             # must say why each id it names is missing.
-            _text_bearing_rows(db, document_id, answer.pass_id)
+            _text_bearing_rows(db, document_id, answer.pass_id, readings=document_readings)
             if ordered_segment_ids is None
             else db.query(Segment, pass_id=answer.pass_id)
         )
@@ -851,7 +878,9 @@ def document_text(
     # rather than re-walked from them, so the two can never read the page differently.
     span_directions: list[tuple[str | None, str | None, str | None, DerivedTextSpan]] = []
     cursor = 0
-    page_readings = _readings_for_live_rows(db, rows, document_id, artifact_memo)
+    page_readings = _readings_for_live_rows(
+        db, rows, document_id, artifact_memo, readings=document_readings
+    )
     record_rule = project_record_rule(db)
     choices_by_segment: dict[str, list[ReadingChoice]] = {}
     for choice in db.query_in(ReadingChoice, "segment_id", [row.id for row in rows]):

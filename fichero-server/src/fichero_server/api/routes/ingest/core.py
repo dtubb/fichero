@@ -151,6 +151,13 @@ class IngestTaskStatus(BaseModel):
     failed: int = 0
     failures: list[dict[str, str]] = []
     files_per_second: float = 0.0
+    # The pairing report (#5132, surfaced by #5140): which layout files in the
+    # folder became passes on their images, and which did not and why. It
+    # reached only the engine log before, so the person was never told that a
+    # PAGE/ALTO file they dropped was left out.
+    imported_as_passes: list[str] = []
+    not_imported: dict[str, str] = {}
+    unpaired: dict[str, str] = {}
 
 
 class IngestCancelResponse(BaseModel):
@@ -678,6 +685,30 @@ def _import_paired_layout(db: Database, docs: list[Document], plan, ctx: "Action
     return {"imported_as_passes": imported, "not_imported": failed, "unpaired": unpaired}
 
 
+def _nothing_was_imported(task: dict, doc_ids: list[str]) -> bool:
+    """True when files were refused and not one file or pass went in (#5140).
+
+    A partly failed folder stays ``completed``: its ``failed``/``failures``
+    and pairing report name what was left out, and the app already shows
+    them. Only an import that refused everything it was given is ``failed``.
+    """
+    if not task.get("failed"):
+        return False
+    refused = {f.get("document_id") for f in task.get("failures") or []}
+    imported = [d for d in doc_ids if d not in refused]
+    return not imported and not task.get("imported_as_passes")
+
+
+def _refusal_summary(task: dict) -> str:
+    """One line naming each refused file and why, for the task's ``error``."""
+    reasons = [
+        f"{Path(str(f.get('path') or '')).name}: {f.get('error')}"
+        for f in task.get("failures") or []
+    ]
+    reasons += [f"{name}: {why}" for name, why in (task.get("not_imported") or {}).items()]
+    return f"Nothing was imported; {task['failed']} file(s) refused: " + "; ".join(reasons)
+
+
 # Routes
 
 
@@ -741,6 +772,9 @@ async def ingest_folder(
         "failed": 0,
         "failures": [],
         "files_per_second": 0.0,
+        "imported_as_passes": [],
+        "not_imported": {},
+        "unpaired": {},
         "cancel_requested": False,
         "library_path": x_fichero_library_path,
     }
@@ -831,8 +865,21 @@ async def ingest_folder(
                 ),
             )
             doc_ids = result.result["document_ids"]
+            interchange = result.result.get("interchange") or {}
+            for key in ("imported_as_passes", "not_imported", "unpaired"):
+                if interchange.get(key):
+                    _tasks[task_id][key] = interchange[key]
             cancelled = _tasks[task_id]["cancel_requested"]
-            _tasks[task_id]["status"] = "cancelled" if cancelled else "completed"
+            if cancelled:
+                _tasks[task_id]["status"] = "cancelled"
+            elif _nothing_was_imported(_tasks[task_id], doc_ids):
+                # #5140: every file was refused (e.g. scans over the pixel
+                # cap) -- "completed" told the app and the CLI the folder
+                # went in when nothing did.
+                _tasks[task_id]["status"] = "failed"
+                _tasks[task_id]["error"] = _refusal_summary(_tasks[task_id])
+            else:
+                _tasks[task_id]["status"] = "completed"
             _tasks[task_id]["finished_at"] = time.monotonic()
             if not cancelled:
                 _tasks[task_id]["progress"] = 1.0
@@ -1009,6 +1056,9 @@ async def get_ingest_status(
         failed=task.get("failed", 0),
         failures=task.get("failures", []),
         files_per_second=task.get("files_per_second", 0.0),
+        imported_as_passes=task.get("imported_as_passes", []),
+        not_imported=task.get("not_imported", {}),
+        unpaired=task.get("unpaired", {}),
     )
 
 

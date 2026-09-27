@@ -5299,10 +5299,10 @@ async def process_vision(
     if library_path:
         from fichero_server.db import db_manager
 
-        # Activity attribution is auxiliary: get_database() CREATES the
-        # library path when missing, so a bad/fake path (tests, races) must
-        # degrade to unscoped activity with a loud log — never crash the
-        # transcription fan-out or side-effect-create a library.
+        # Activity attribution is auxiliary: get_database() raises
+        # LibraryNotFoundError (an OSError) for a missing library (#5136),
+        # so a bad/fake path (tests, races) must degrade to unscoped
+        # activity with a loud log — never crash the transcription fan-out.
         try:
             activity_db_path = str(db_manager.get_database(library_path).path)
             # A path that does not exist on disk is not a library db —

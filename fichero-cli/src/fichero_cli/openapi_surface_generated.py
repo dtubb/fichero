@@ -5423,6 +5423,126 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('hands')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for hands endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='hands')
+        existing_apps['hands'] = target_app
+
+    @target_app.command("list")
+    def hands_list_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Hands (GET /api/hands)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/hands"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("create")
+    def hands_create_post(
+        ctx: typer.Context,
+        date: Optional[str] = typer.Option(None, "--date", help="Request field: date."),
+        label: str = typer.Option(..., "--label", help="Request field: label."),
+        notes: Optional[str] = typer.Option(None, "--notes", help="Request field: notes."),
+        place: Optional[str] = typer.Option(None, "--place", help="Request field: place."),
+        scribe: Optional[str] = typer.Option(None, "--scribe", help="Request field: scribe."),
+        style: Optional[str] = typer.Option(None, "--style", help="Request field: style."),
+    ) -> None:
+        """Create Hand (POST /api/hands)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/hands"
+            params = None
+            payload = _build_json_payload({
+                "date": date,
+                "label": label,
+                "notes": notes,
+                "place": place,
+                "scribe": scribe,
+                "style": style,
+            }, {
+                "date": {'type': 'string', 'maxLength': 200, 'nullable': True, 'title': 'Date', 'x-cli-required': False},
+                "label": {'type': 'string', 'maxLength': 200, 'minLength': 1, 'title': 'Label', 'x-cli-required': True},
+                "notes": {'type': 'string', 'maxLength': 500, 'nullable': True, 'title': 'Notes', 'x-cli-required': False},
+                "place": {'type': 'string', 'maxLength': 200, 'nullable': True, 'title': 'Place', 'x-cli-required': False},
+                "scribe": {'type': 'string', 'maxLength': 200, 'nullable': True, 'title': 'Scribe', 'x-cli-required': False},
+                "style": {'type': 'string', 'maxLength': 200, 'nullable': True, 'title': 'Style', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("attribute-segment")
+    def hands_attribute_segment_post(
+        ctx: typer.Context,
+        certainty: Optional[float] = typer.Option(None, "--certainty", help="Request field: certainty."),
+        hand_id: str = typer.Option(..., "--hand-id", help="Request field: hand_id."),
+        segment_id: str = typer.Option(..., "--segment-id", help="Request field: segment_id."),
+    ) -> None:
+        """Attribute Segment (POST /api/hands/attributions)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/hands/attributions"
+            params = None
+            payload = _build_json_payload({
+                "certainty": certainty,
+                "hand_id": hand_id,
+                "segment_id": segment_id,
+            }, {
+                "certainty": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Certainty', 'x-cli-required': False},
+                "hand_id": {'type': 'string', 'title': 'Hand Id', 'x-cli-required': True},
+                "segment_id": {'type': 'string', 'title': 'Segment Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("withdraw-attribution")
+    def hands_withdraw_attribution_post(
+        ctx: typer.Context,
+        attribution_id: str = typer.Argument(..., help="Path parameter: attribution_id."),
+    ) -> None:
+        """Withdraw Attribution (POST /api/hands/attributions/{attribution_id}/withdraw)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hands/attributions/{attribution_id}/withdraw"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("of-segment")
+    def hands_of_segment_get(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+    ) -> None:
+        """Hands Of Segment (GET /api/hands/segment/{segment_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hands/segment/{segment_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("everything-in-a")
+    def hands_everything_in_a_get(
+        ctx: typer.Context,
+        hand_id: str = typer.Argument(..., help="Path parameter: hand_id."),
+    ) -> None:
+        """Everything In A Hand (GET /api/hands/{hand_id}/attributions)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hands/{hand_id}/attributions"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("withdraw")
+    def hands_withdraw_post(
+        ctx: typer.Context,
+        hand_id: str = typer.Argument(..., help="Path parameter: hand_id."),
+    ) -> None:
+        """Withdraw Hand (POST /api/hands/{hand_id}/withdraw)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hands/{hand_id}/withdraw"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('hermeneutics')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for hermeneutics endpoints.', no_args_is_help=True)
@@ -11125,6 +11245,36 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("place-in")
+    def reading_orders_place_in_post(
+        ctx: typer.Context,
+        order_id: str = typer.Argument(..., help="Path parameter: order_id."),
+        after_entry_id: Optional[str] = typer.Option(None, "--after-entry-id", help="Request field: after_entry_id."),
+        at_end: Optional[bool] = typer.Option(None, "--at-end/--no-at-end", help="Request field: at_end."),
+        expected_version: Optional[int] = typer.Option(None, "--expected-version", help="Request field: expected_version."),
+        parent_entry_id: Optional[str] = typer.Option(None, "--parent-entry-id", help="Request field: parent_entry_id."),
+        segment_id: str = typer.Option(..., "--segment-id", help="Request field: segment_id."),
+    ) -> None:
+        """Place In Reading Order (POST /api/reading-orders/{order_id}/place)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/reading-orders/{order_id}/place"
+            params = None
+            payload = _build_json_payload({
+                "after_entry_id": after_entry_id,
+                "at_end": at_end,
+                "expected_version": expected_version,
+                "parent_entry_id": parent_entry_id,
+                "segment_id": segment_id,
+            }, {
+                "after_entry_id": {'type': 'string', 'nullable': True, 'title': 'After Entry Id', 'x-cli-required': False},
+                "at_end": {'type': 'boolean', 'title': 'At End', 'default': False, 'x-cli-required': False},
+                "expected_version": {'type': 'integer', 'nullable': True, 'title': 'Expected Version', 'x-cli-required': False},
+                "parent_entry_id": {'type': 'string', 'nullable': True, 'title': 'Parent Entry Id', 'x-cli-required': False},
+                "segment_id": {'type': 'string', 'title': 'Segment Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('references')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for references endpoints.', no_args_is_help=True)
@@ -12256,6 +12406,81 @@ def register_generated_openapi_commands(
                 "timeout_seconds": {'type': 'integer', 'maximum': 120.0, 'minimum': 5.0, 'title': 'Timeout Seconds', 'default': 30, 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    target_app = existing_apps.get('rights')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for rights endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='rights')
+        existing_apps['rights'] = target_app
+
+    @target_app.command("set")
+    def rights_set_post(
+        ctx: typer.Context,
+        conditions: Optional[str] = typer.Option(None, "--conditions", help="Request field: conditions."),
+        consent: Optional[str] = typer.Option(None, "--consent", help="Request field: consent."),
+        holders: Optional[str] = typer.Option(None, "--holders", help="Request field: holders."),
+        labels: Optional[str] = typer.Option(None, "--labels", help="Request field: labels."),
+        model_use: Optional[str] = typer.Option(None, "--model-use", help="Request field: model_use."),
+        readers: Optional[str] = typer.Option(None, "--readers", help="Request field: readers."),
+        restricted: Optional[bool] = typer.Option(None, "--restricted/--no-restricted", help="Request field: restricted."),
+        target_id: Optional[str] = typer.Option(None, "--target-id", help="Request field: target_id."),
+        target_kind: str = typer.Option(..., "--target-kind", help="Request field: target_kind."),
+    ) -> None:
+        """Set Rights (POST /api/rights)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/rights"
+            params = None
+            payload = _build_json_payload({
+                "conditions": conditions,
+                "consent": consent,
+                "holders": holders,
+                "labels": labels,
+                "model_use": model_use,
+                "readers": readers,
+                "restricted": restricted,
+                "target_id": target_id,
+                "target_kind": target_kind,
+            }, {
+                "conditions": {'type': 'string', 'maxLength': 500, 'nullable': True, 'title': 'Conditions', 'x-cli-required': False},
+                "consent": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Consent', 'x-cli-required': False},
+                "holders": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Holders', 'x-cli-required': False},
+                "labels": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Labels', 'x-cli-required': False},
+                "model_use": {'type': 'string', 'enum': ['none', 'local', 'cloud'], 'title': 'ModelUse', 'description': 'Where a segment may be sent (`source.rights.model-use`), strictest first.', 'x-cli-required': False},
+                "readers": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Readers', 'x-cli-required': False},
+                "restricted": {'type': 'boolean', 'title': 'Restricted', 'default': False, 'x-cli-required': False},
+                "target_id": {'type': 'string', 'title': 'Target Id', 'default': 'library', 'x-cli-required': False},
+                "target_kind": {'type': 'string', 'enum': ['library', 'document', 'segment'], 'title': 'RightsTarget', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-effective")
+    def rights_get_effective_get(
+        ctx: typer.Context,
+        target_id: Optional[str] = typer.Option(None, "--target-id", help="Query parameter: target_id."),
+        target_kind: str = typer.Option(..., "--target-kind", help="Query parameter: target_kind."),
+    ) -> None:
+        """Get Effective Rights (GET /api/rights/effective)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/rights/effective"
+            params = {
+                "target_id": target_id,
+                "target_kind": target_kind,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("withdraw")
+    def rights_withdraw_post(
+        ctx: typer.Context,
+        record_id: str = typer.Argument(..., help="Path parameter: record_id."),
+    ) -> None:
+        """Withdraw Rights (POST /api/rights/{record_id}/withdraw)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/rights/{record_id}/withdraw"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('sandbox')
@@ -13610,6 +13835,82 @@ def register_generated_openapi_commands(
                 "selected_url": {'type': 'string', 'title': 'Selected Url', 'description': 'URL of the endpoint the enrichment uses by default.', 'default': 'https://query.wikidata.org/sparql', 'x-cli-required': False},
             }, required=True)
             return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    target_app = existing_apps.get('signs')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for signs endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='signs')
+        existing_apps['signs'] = target_app
+
+    @target_app.command("list")
+    def signs_list_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Signs (GET /api/signs)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/signs"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("declare")
+    def signs_declare_post(
+        ctx: typer.Context,
+        code_point: Optional[str] = typer.Option(None, "--code-point", help="Request field: code_point."),
+        list_references: Optional[str] = typer.Option(None, "--list-references", help="Request field: list_references."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        notes: Optional[str] = typer.Option(None, "--notes", help="Request field: notes."),
+        picture_segment_id: str = typer.Option(..., "--picture-segment-id", help="Request field: picture_segment_id."),
+        variant: Optional[str] = typer.Option(None, "--variant", help="Request field: variant."),
+        variant_of: Optional[str] = typer.Option(None, "--variant-of", help="Request field: variant_of."),
+    ) -> None:
+        """Declare Sign (POST /api/signs)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/signs"
+            params = None
+            payload = _build_json_payload({
+                "code_point": code_point,
+                "list_references": list_references,
+                "name": name,
+                "notes": notes,
+                "picture_segment_id": picture_segment_id,
+                "variant": variant,
+                "variant_of": variant_of,
+            }, {
+                "code_point": {'type': 'string', 'nullable': True, 'title': 'Code Point', 'x-cli-required': False},
+                "list_references": {'items': {'$ref': '#/components/schemas/SignListReference'}, 'type': 'array', 'title': 'List References', 'x-cli-required': False},
+                "name": {'type': 'string', 'minLength': 1, 'title': 'Name', 'x-cli-required': True},
+                "notes": {'type': 'string', 'maxLength': 500, 'nullable': True, 'title': 'Notes', 'x-cli-required': False},
+                "picture_segment_id": {'type': 'string', 'title': 'Picture Segment Id', 'x-cli-required': True},
+                "variant": {'type': 'string', 'nullable': True, 'title': 'Variant', 'x-cli-required': False},
+                "variant_of": {'type': 'string', 'nullable': True, 'title': 'Variant Of', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-instances")
+    def signs_list_instances_get(
+        ctx: typer.Context,
+        sign_id: str = typer.Argument(..., help="Path parameter: sign_id."),
+    ) -> None:
+        """List Sign Instances (GET /api/signs/{sign_id}/instances)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/signs/{sign_id}/instances"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("withdraw")
+    def signs_withdraw_post(
+        ctx: typer.Context,
+        sign_id: str = typer.Argument(..., help="Path parameter: sign_id."),
+    ) -> None:
+        """Withdraw Sign (POST /api/signs/{sign_id}/withdraw)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/signs/{sign_id}/withdraw"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('source-settings')

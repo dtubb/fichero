@@ -325,7 +325,7 @@
   "POST /api/search/saved/{search_id}/duplicate": "no undo registration in current tree",
   "POST /api/search/stream": "read-only search compute streamed as NDJSON (#4604) - nothing to undo",
   "PATCH /api/segments": "#4941 source-model - engine undo exists via /api/actions/audit/{id}/undo (segment.update_many is ONE audited action and ONE undo step across a selection, undoable=True), Swift UI undo wiring deferred with the rest of the source-model routes until the segment editor",
-  "POST /api/segments":"#4921/#4923 source-model - engine undo exists via /api/actions/audit/{id}/undo (segment.create -> the real, versioned segment.delete, undoable=True since slice 5), Swift UI undo wiring for the source-model routes as a whole is deferred until the segment editor gives it a UI to wire",
+  "POST /api/segments": "#4921/#4923 source-model - engine undo exists via /api/actions/audit/{id}/undo (segment.create -> the real, versioned segment.delete, undoable=True since slice 5), Swift UI undo wiring for the source-model routes as a whole is deferred until the segment editor gives it a UI to wire",
   "POST /api/segments/bulk": "#4921/#4923 source-model - same as POST /api/segments: segment.create_many's inverse is the real, versioned segment.delete (undoable=True since slice 5), Swift UI undo wiring deferred until the segment editor",
   "POST /api/segments/carry": "#4922 source-model slice 4 - engine undo exists via /api/actions/audit/{id}/undo (segment.carry -> segment.uncarry, undoable=True), Swift UI undo wiring deferred until the segment editor",
   "POST /api/segments/delete": "#4923 source-model slice 5 - engine undo exists via /api/actions/audit/{id}/undo (segment.delete -> segment.undelete, undoable=True -- this is the REAL versioned delete, replacing slice 3's internal stand-in), Swift UI undo wiring deferred until the segment editor",
@@ -392,5 +392,14 @@
   "PUT /api/source-settings": "ENGINE INVERSE EXISTS (source_setting.set, undoable=True, invert=_invert_source_setting_set); what is missing is the APP's UndoManager wiring, which this guard reads. Blocked by the programme's own ruling that nothing of source-model slices 6-10 reaches the app until the programme is done (source-model.md). Not 'no undo': undo through the audited action layer works today over the route and the CLI. #4930/#4943.",
   "PUT /api/sources/{source_id}": "no undo registration in current tree",
   "PUT /api/triggers/{trigger_id}": "no undo registration in current tree",
-  "PUT /api/workflows/{workflow_id}": "no undo registration in current tree"
+  "PUT /api/workflows/{workflow_id}": "no undo registration in current tree",
+  "POST /api/signs": "slice 14 declared signs (#4939): the ENGINE undo exists (audited, undoable declare/withdraw/restore); no Swift caller registers it yet because the sign-list UI waits for its wireframes",
+  "POST /api/signs/{sign_id}/withdraw": "slice 14 declared signs (#4939): the ENGINE undo exists (audited, undoable declare/withdraw/restore); no Swift caller registers it yet because the sign-list UI waits for its wireframes",
+  "POST /api/rights": "slice 14 rights records (#4953): the ENGINE undo exists (audited, undoable set/withdraw); no Swift caller registers it yet because the rights UI waits for its wireframes",
+  "POST /api/rights/{record_id}/withdraw": "slice 14 rights records (#4953): the ENGINE undo exists (audited, undoable set/withdraw); no Swift caller registers it yet because the rights UI waits for its wireframes",
+  "POST /api/reading-orders/{order_id}/place": "slice 13 reorder (#5114): the ENGINE undo exists (reading_order.place is audited and undoable); the app's UndoManager registration lands with Q5 part 3's Swift service",
+  "POST /api/hands": "slice 14 hands (#4952): the ENGINE undo exists (audited, undoable create/withdraw/restore, attribute/unattribute); no Swift caller registers it yet because the hands UI waits for its wireframes",
+  "POST /api/hands/attributions": "slice 14 hands (#4952): the ENGINE undo exists (audited, undoable create/withdraw/restore, attribute/unattribute); no Swift caller registers it yet because the hands UI waits for its wireframes",
+  "POST /api/hands/attributions/{attribution_id}/withdraw": "slice 14 hands (#4952): the ENGINE undo exists (audited, undoable create/withdraw/restore, attribute/unattribute); no Swift caller registers it yet because the hands UI waits for its wireframes",
+  "POST /api/hands/{hand_id}/withdraw": "slice 14 hands (#4952): the ENGINE undo exists (audited, undoable create/withdraw/restore, attribute/unattribute); no Swift caller registers it yet because the hands UI waits for its wireframes"
 }

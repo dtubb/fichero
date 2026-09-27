@@ -57,6 +57,12 @@ EXPECTED_TOOLS = {
     "fichero_segment",
     "fichero_segment_versions",
     "fichero_segment_reference",
+    # #5139: reading the text of the shapes above.
+    "fichero_segment_readings",
+    "fichero_document_text",
+    "fichero_segments_in_scope",
+    "fichero_reading_orders",
+    "fichero_reading_order_entries",
     # #4485: KG writes through the audited /api/mcp/tools/knowledge/* path
     # (actor from auth state, change events emitted).
     "fichero_kg_entity_upsert",

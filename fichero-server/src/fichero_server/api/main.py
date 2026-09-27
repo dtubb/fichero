@@ -44,6 +44,7 @@ from fichero_server.api.library_header import optional_library_path, require_lib
 from fichero_server.api.feature_tiers_generated import CUMULATIVE_ROUTE_PREFIXES, ROUTE_PREFIX_TIERS
 from fichero_server.api.routes.ai.local_inference import shutdown_managed_local_inference_services
 from fichero_server.db import Database, db_manager
+from fichero_server.db.manager import LibraryNotFoundError
 from fichero_server.api.routes.document.segment_conversion import ConversionRefusal
 from fichero_server.security import authz
 from fichero_server.security.discovery import start_bonjour_advertiser
@@ -1192,6 +1193,16 @@ async def _handle_library_access_denied(
     return JSONResponse(exc.payload, status_code=403)
 
 
+@app.exception_handler(LibraryNotFoundError)
+async def _handle_library_not_found(
+    _request: Request,
+    exc: LibraryNotFoundError,
+):
+    """A request named a library that does not exist: 404, nothing created
+    (#5136). Only ``POST /api/library`` creates a library."""
+    return JSONResponse({"detail": str(exc)}, status_code=404)
+
+
 @app.exception_handler(ConversionRefusal)
 async def _handle_conversion_refusal(_request: Request, exc: ConversionRefusal):
     """#4924: every typed refusal from the source-model conversion, mapped
@@ -1499,6 +1510,9 @@ def _get_library_database_for_access(
         db = db_manager.get_database(x_fichero_library_path)
         logger.debug(f"Using database for library: {x_fichero_library_path}")
         return db
+    except LibraryNotFoundError as e:
+        # #5136: a missing library is refused, never created.
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Failed to get database for {x_fichero_library_path}: {e}")
         raise HTTPException(

@@ -4616,6 +4616,79 @@
         }
       }
     },
+    "/api/reading-orders/{order_id}/place": {
+      "post": {
+        "tags": [
+          "reading-orders"
+        ],
+        "summary": "Place In Reading Order",
+        "description": "The ONE reorder call the Reader, the Inspector and the Segments pane all make, by drag or\nby key (ruled 2026-09-27, Q5). Thin: the audited `reading_order.place` does the work, so\nit is undoable through the audit trail like every other edit.",
+        "operationId": "place_in_reading_order_api_reading_orders__order_id__place_post",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Order Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadingOrderPlaceBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingOrderActionAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/formats": {
       "get": {
         "tags": [
@@ -4869,6 +4942,725 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Create Link Api Links Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/signs": {
+      "post": {
+        "tags": [
+          "signs"
+        ],
+        "summary": "Declare Sign",
+        "operationId": "declare_sign_api_signs_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "signs"
+        ],
+        "summary": "List Signs",
+        "operationId": "list_signs_api_signs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/signs/{sign_id}/withdraw": {
+      "post": {
+        "tags": [
+          "signs"
+        ],
+        "summary": "Withdraw Sign",
+        "operationId": "withdraw_sign_api_signs__sign_id__withdraw_post",
+        "parameters": [
+          {
+            "name": "sign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sign Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/signs/{sign_id}/instances": {
+      "get": {
+        "tags": [
+          "signs"
+        ],
+        "summary": "List Sign Instances",
+        "operationId": "list_sign_instances_api_signs__sign_id__instances_get",
+        "parameters": [
+          {
+            "name": "sign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sign Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInstanceListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rights": {
+      "post": {
+        "tags": [
+          "rights"
+        ],
+        "summary": "Set Rights",
+        "operationId": "set_rights_api_rights_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RightsSetParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RightsAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rights/{record_id}/withdraw": {
+      "post": {
+        "tags": [
+          "rights"
+        ],
+        "summary": "Withdraw Rights",
+        "operationId": "withdraw_rights_api_rights__record_id__withdraw_post",
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Record Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RightsAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rights/effective": {
+      "get": {
+        "tags": [
+          "rights"
+        ],
+        "summary": "Get Effective Rights",
+        "description": "What applies to a target: every record above it, combined tighten-only.",
+        "operationId": "get_effective_rights_api_rights_effective_get",
+        "parameters": [
+          {
+            "name": "target_kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RightsTarget"
+            }
+          },
+          {
+            "name": "target_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "library",
+              "title": "Target Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EffectiveRightsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hands": {
+      "post": {
+        "tags": [
+          "hands"
+        ],
+        "summary": "Create Hand",
+        "operationId": "create_hand_api_hands_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HandCreateParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandActionAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "hands"
+        ],
+        "summary": "List Hands",
+        "description": "The project's hands, by label.",
+        "operationId": "list_hands_api_hands_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hands/{hand_id}/withdraw": {
+      "post": {
+        "tags": [
+          "hands"
+        ],
+        "summary": "Withdraw Hand",
+        "operationId": "withdraw_hand_api_hands__hand_id__withdraw_post",
+        "parameters": [
+          {
+            "name": "hand_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Hand Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandActionAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hands/attributions": {
+      "post": {
+        "tags": [
+          "hands"
+        ],
+        "summary": "Attribute Segment",
+        "operationId": "attribute_segment_api_hands_attributions_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HandAttributeParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandActionAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hands/attributions/{attribution_id}/withdraw": {
+      "post": {
+        "tags": [
+          "hands"
+        ],
+        "summary": "Withdraw Attribution",
+        "operationId": "withdraw_attribution_api_hands_attributions__attribution_id__withdraw_post",
+        "parameters": [
+          {
+            "name": "attribution_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Attribution Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandActionAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hands/segment/{segment_id}": {
+      "get": {
+        "tags": [
+          "hands"
+        ],
+        "summary": "Hands Of Segment",
+        "description": "Every live judgement of who wrote this segment -- rivals side by side, oldest first.",
+        "operationId": "hands_of_segment_api_hands_segment__segment_id__get",
+        "parameters": [
+          {
+            "name": "segment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Segment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttributionListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hands/{hand_id}/attributions": {
+      "get": {
+        "tags": [
+          "hands"
+        ],
+        "summary": "Everything In A Hand",
+        "description": "Everything in one hand, across every source (\"everything in hand B\").",
+        "operationId": "everything_in_a_hand_api_hands__hand_id__attributions_get",
+        "parameters": [
+          {
+            "name": "hand_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Hand Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttributionListResponse"
                 }
               }
             }
@@ -38092,6 +38884,30 @@
         ],
         "title": "AccessibleLibraryListResponse"
       },
+      "ActionAnswer": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "result": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Result"
+          },
+          "audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "result"
+        ],
+        "title": "ActionAnswer"
+      },
       "ActionCategoriesResponse": {
         "properties": {
           "categories": {
@@ -40785,6 +41601,22 @@
         ],
         "title": "AttributesResponse"
       },
+      "AttributionListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HandAttribution"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "AttributionListResponse"
+      },
       "AttributionRole": {
         "type": "string",
         "enum": [
@@ -41628,6 +42460,13 @@
             "contentMediaType": "application/octet-stream",
             "title": "File",
             "description": "The interchange file"
+          },
+          "dataset": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "nullable": true,
+            "title": "Dataset",
+            "description": "YOLO only: the dataset's `classes.txt` or `data.yaml`, which says what each class number means. Placed beside the labels, where the import looks for it."
           }
         },
         "type": "object",
@@ -47224,6 +48063,77 @@
         ],
         "title": "DatasetSort"
       },
+      "DeclaredSign": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "picture_segment_id": {
+            "type": "string",
+            "title": "Picture Segment Id"
+          },
+          "code_point": {
+            "type": "string",
+            "nullable": true,
+            "title": "Code Point"
+          },
+          "list_references": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "List References"
+          },
+          "variant_of": {
+            "type": "string",
+            "nullable": true,
+            "title": "Variant Of"
+          },
+          "variant": {
+            "type": "string",
+            "nullable": true,
+            "title": "Variant"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "title": "Notes"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind",
+            "default": "unknown"
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "deleted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Deleted At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "picture_segment_id"
+        ],
+        "title": "DeclaredSign",
+        "description": "One declared sign in a project's sign list (`source.sign.declared`, `.project-list`)."
+      },
       "DeletedWithIdResponse": {
         "properties": {
           "status": {
@@ -49026,6 +49936,58 @@
         ],
         "title": "EffectiveAttributesResponse",
         "description": "A node's structured data, resolved (datasets Stage 1).\n\n``declarations`` come from the prototype chain (typed, with renderer\nroles); ``values`` are the declarations' defaults overlaid with the\nnode's OWN ``attributes`` \u2014 what a grid cell or inspector row shows."
+      },
+      "EffectiveRightsResponse": {
+        "properties": {
+          "target_kind": {
+            "type": "string",
+            "title": "Target Kind"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "restricted": {
+            "type": "boolean",
+            "title": "Restricted"
+          },
+          "readers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Readers"
+          },
+          "model_use": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model Use"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Labels"
+          },
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/RightsRecord"
+            },
+            "type": "array",
+            "title": "Records"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target_kind",
+          "target_id",
+          "restricted",
+          "labels",
+          "records"
+        ],
+        "title": "EffectiveRightsResponse"
       },
       "EleventySiteExportRequest": {
         "properties": {
@@ -51994,6 +52956,231 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "Hand": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "scribe": {
+            "type": "string",
+            "nullable": true,
+            "title": "Scribe"
+          },
+          "date": {
+            "type": "string",
+            "nullable": true,
+            "title": "Date"
+          },
+          "place": {
+            "type": "string",
+            "nullable": true,
+            "title": "Place"
+          },
+          "style": {
+            "type": "string",
+            "nullable": true,
+            "title": "Style"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "title": "Notes"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind",
+            "default": "unknown"
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "deleted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Deleted At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "title": "Hand",
+        "description": "One hand in a project's list of hands (`source.hand.record`)."
+      },
+      "HandActionAnswer": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "result": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Result"
+          },
+          "audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "result"
+        ],
+        "title": "HandActionAnswer"
+      },
+      "HandAttributeParams": {
+        "properties": {
+          "hand_id": {
+            "type": "string",
+            "title": "Hand Id"
+          },
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "certainty": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Certainty"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "hand_id",
+          "segment_id"
+        ],
+        "title": "HandAttributeParams"
+      },
+      "HandAttribution": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "hand_id": {
+            "type": "string",
+            "title": "Hand Id"
+          },
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "certainty": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Certainty"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind",
+            "default": "unknown"
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "withdrawn_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Withdrawn At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hand_id",
+          "segment_id"
+        ],
+        "title": "HandAttribution",
+        "description": "One judgement that one segment was written by one hand (`source.hand.attributed`)."
+      },
+      "HandCreateParams": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "scribe": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true,
+            "title": "Scribe"
+          },
+          "date": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true,
+            "title": "Date"
+          },
+          "place": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true,
+            "title": "Place"
+          },
+          "style": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true,
+            "title": "Style"
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 500,
+            "nullable": true,
+            "title": "Notes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "title": "HandCreateParams"
+      },
+      "HandListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Hand"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "HandListResponse"
+      },
       "HealthResponse": {
         "properties": {
           "status": {
@@ -52983,6 +54170,30 @@
             "type": "number",
             "title": "Files Per Second",
             "default": 0.0
+          },
+          "imported_as_passes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Imported As Passes",
+            "default": []
+          },
+          "not_imported": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Not Imported",
+            "default": {}
+          },
+          "unpaired": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Unpaired",
+            "default": {}
           }
         },
         "type": "object",
@@ -58872,6 +60083,16 @@
         "title": "ModelSpec",
         "description": "Specification for a model to compare."
       },
+      "ModelUse": {
+        "type": "string",
+        "enum": [
+          "none",
+          "local",
+          "cloud"
+        ],
+        "title": "ModelUse",
+        "description": "Where a segment may be sent (`source.rights.model-use`), strictest first."
+      },
       "ModelsByTierResponse": {
         "properties": {
           "frontier": {
@@ -62895,6 +64116,30 @@
         "title": "ReadingListResponse",
         "description": "A segment's readings AND which one counts, in one answer.\n\nThe counting answer rides on the list DELIBERATELY: a client that had to\nmake a second call for it would render the list first, and the first frame\na person sees would show a machine's guess with no label on it."
       },
+      "ReadingOrderActionAnswer": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "result": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Result"
+          },
+          "audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "result"
+        ],
+        "title": "ReadingOrderActionAnswer"
+      },
       "ReadingOrderEntryListResponse": {
         "properties": {
           "order_id": {
@@ -62979,6 +64224,41 @@
           "orders"
         ],
         "title": "ReadingOrderListResponse"
+      },
+      "ReadingOrderPlaceBody": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "after_entry_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "After Entry Id"
+          },
+          "at_end": {
+            "type": "boolean",
+            "title": "At End",
+            "default": false
+          },
+          "parent_entry_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Entry Id"
+          },
+          "expected_version": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Expected Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "segment_id"
+        ],
+        "title": "ReadingOrderPlaceBody",
+        "description": "`POST /api/reading-orders/{order_id}/place` -- move or insert one segment (slice 13, Q5).\n\nThe body of `reading_order.place` without the order id, which is in the path."
       },
       "ReadingOrderRead": {
         "properties": {
@@ -63072,7 +64352,7 @@
           "pass_id"
         ],
         "title": "ReadingOrderWrite",
-        "description": "`POST /api/reading-orders` \u2014 make an order. The other writes are the\naudited actions, reached through the action layer like every other write."
+        "description": "`POST /api/reading-orders` \u2014 make an order. The other writes are the\naudited actions; the ones the app needs get a typed route here, because the\ngeneric action route is not in the contract the app is generated from."
       },
       "ReadingRead": {
         "properties": {
@@ -65111,6 +66391,183 @@
         ],
         "title": "ReviewSummaryResponse",
         "description": "Compact queue status for badge/UI polling."
+      },
+      "RightsAnswer": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "result": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Result"
+          },
+          "audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "result"
+        ],
+        "title": "RightsAnswer"
+      },
+      "RightsRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "target_kind": {
+            "type": "string",
+            "title": "Target Kind"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "holders": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Holders"
+          },
+          "consent": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Consent"
+          },
+          "conditions": {
+            "type": "string",
+            "nullable": true,
+            "title": "Conditions"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Labels"
+          },
+          "restricted": {
+            "type": "boolean",
+            "title": "Restricted",
+            "default": false
+          },
+          "readers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Readers"
+          },
+          "model_use": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model Use"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind",
+            "default": "unknown"
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "withdrawn_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Withdrawn At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target_kind",
+          "target_id"
+        ],
+        "title": "RightsRecord"
+      },
+      "RightsSetParams": {
+        "properties": {
+          "target_kind": {
+            "$ref": "#/components/schemas/RightsTarget"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id",
+            "default": "library"
+          },
+          "holders": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Holders"
+          },
+          "consent": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Consent"
+          },
+          "conditions": {
+            "type": "string",
+            "maxLength": 500,
+            "nullable": true,
+            "title": "Conditions"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Labels"
+          },
+          "restricted": {
+            "type": "boolean",
+            "title": "Restricted",
+            "default": false
+          },
+          "readers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Readers"
+          },
+          "model_use": {
+            "$ref": "#/components/schemas/ModelUse",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "target_kind"
+        ],
+        "title": "RightsSetParams"
+      },
+      "RightsTarget": {
+        "type": "string",
+        "enum": [
+          "library",
+          "document",
+          "segment"
+        ],
+        "title": "RightsTarget"
       },
       "RollbackRequest": {
         "properties": {
@@ -67728,6 +69185,11 @@
             "nullable": true,
             "title": "Kind Raw"
           },
+          "parent_segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Segment Id"
+          },
           "provenance_kind": {
             "$ref": "#/components/schemas/ProvenanceKind"
           },
@@ -68498,6 +69960,149 @@
         ],
         "title": "ShareResponse",
         "description": "Result of a share: the granted access + a link the recipient can open."
+      },
+      "SignInstance": {
+        "properties": {
+          "representation_id": {
+            "type": "string",
+            "title": "Representation Id"
+          },
+          "segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Segment Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "representation_id",
+          "document_id",
+          "count"
+        ],
+        "title": "SignInstance"
+      },
+      "SignInstanceListResponse": {
+        "properties": {
+          "sign_id": {
+            "type": "string",
+            "title": "Sign Id"
+          },
+          "code_point": {
+            "type": "string",
+            "nullable": true,
+            "title": "Code Point"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SignInstance"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sign_id",
+          "items",
+          "total"
+        ],
+        "title": "SignInstanceListResponse"
+      },
+      "SignListReference": {
+        "properties": {
+          "authority": {
+            "type": "string",
+            "title": "Authority"
+          },
+          "number": {
+            "type": "string",
+            "title": "Number"
+          }
+        },
+        "type": "object",
+        "required": [
+          "authority",
+          "number"
+        ],
+        "title": "SignListReference",
+        "description": "\"Number 561 in this catalogue\": the authority and the sign's number in its list."
+      },
+      "SignListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DeclaredSign"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "SignListResponse",
+        "description": "The project's sign list, as it can be exported and shared (`source.sign.project-list`)."
+      },
+      "SignWrite": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Name"
+          },
+          "picture_segment_id": {
+            "type": "string",
+            "title": "Picture Segment Id"
+          },
+          "code_point": {
+            "type": "string",
+            "nullable": true,
+            "title": "Code Point"
+          },
+          "list_references": {
+            "items": {
+              "$ref": "#/components/schemas/SignListReference"
+            },
+            "type": "array",
+            "title": "List References"
+          },
+          "variant_of": {
+            "type": "string",
+            "nullable": true,
+            "title": "Variant Of"
+          },
+          "variant": {
+            "type": "string",
+            "nullable": true,
+            "title": "Variant"
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 500,
+            "nullable": true,
+            "title": "Notes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "picture_segment_id"
+        ],
+        "title": "SignWrite"
       },
       "SimilarEntity": {
         "properties": {
@@ -73923,6 +75528,14 @@
           "checksum": {
             "type": "string",
             "title": "Checksum"
+          },
+          "unknown_classes": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Unknown Classes",
+            "default": []
           },
           "geometry_problems": {
             "type": "integer",
