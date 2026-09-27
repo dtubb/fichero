@@ -125,6 +125,10 @@ struct ReaderToolbar: View {
     /// Toggles the word/line bounding boxes captured by the transcription pass
     /// as an overlay on the page image.
     var textBoxesEnabled: Binding<Bool>?
+    /// The IMAGE layer (ruled 2026-09-27, Q2): the page's pixels on or off, the overlays left as
+    /// they are -- "overlays without the image" is a view the maintainer wants. nil where the
+    /// canvas has no image to hide.
+    var imageEnabled: Binding<Bool>?
     /// Annotation overlays show/hide (what-to-show menu, 2026-08-30).
     var annotationsEnabled: Binding<Bool>?
     /// Saved region marks show/hide (what-to-show menu, 2026-08-31).
@@ -211,8 +215,14 @@ struct ReaderToolbar: View {
     /// because the inspector has its own affordances.
     @ViewBuilder
     private var whatToShowMenu: some View {
-        if textBoxesEnabled != nil || annotationsEnabled != nil {
+        if textBoxesEnabled != nil || annotationsEnabled != nil || imageEnabled != nil {
             Menu {
+                if let imageEnabled {
+                    Toggle("Show Image", isOn: imageEnabled)
+                        .help("Off, only the overlays are drawn -- boxes, lines and marks on a blank page")
+                        .accessibilityIdentifier("previewShowImage")
+                    Divider()
+                }
                 if let annotationsEnabled {
                     Toggle("Show Annotations", isOn: annotationsEnabled)
                 }
@@ -238,7 +248,7 @@ struct ReaderToolbar: View {
             }
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("Choose what this page displays — annotations, word boxes, regions, inline text")
+            .help("Choose what this page displays — the image, annotations, word boxes, regions, inline text")
             .accessibilityLabel("What to show")
             .accessibilityIdentifier("previewWhatToShow")
         }

@@ -174,6 +174,7 @@ extension ZoomableImagePreview {
             zoomOut: zoomOut,
             fitToWindow: fitToWindow,
             actualSize: actualSize,
+            imageEnabled: $imageVisible,
             textBoxesEnabled: $ocrBoxesEnabled,
             annotationsEnabled: $annotationsEnabled,
             regionsEnabled: $regionsEnabled,
@@ -248,7 +249,8 @@ extension ZoomableImagePreview {
                             set: { loupeSize = Double($0) }
                         ),
                         coordinator: $imageCoordinator,
-                        onPointer: { pointerFeed.publish($0) }
+                        onPointer: { pointerFeed.publish($0) },
+                        imageVisible: imageVisible
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .overlay(alignment: .topLeading) {

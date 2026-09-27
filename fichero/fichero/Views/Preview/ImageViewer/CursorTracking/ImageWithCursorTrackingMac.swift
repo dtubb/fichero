@@ -45,6 +45,10 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     /// Region-layer input (2026-09-01): clicks/drags the loupe left alone,
     /// already NORMALIZED to image space. nil in hosts without a region layer.
     var onPointer: ((PreviewPointerEvent) -> Void)?
+    /// The IMAGE layer (ruled 2026-09-27, Q2: display switches are layers, and overlays without
+    /// the image is a case wanted). Off, the pixels are not drawn, but the image view keeps its
+    /// frame, zoom and scroll position, so every overlay stays exactly where it was.
+    var imageVisible: Bool = true
 
     /// The scroll view's own configuration — zoom limits, Preview.app-style
     /// overlay scrollers, and the initial hidden state that prevents a flash
@@ -198,6 +202,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        context.coordinator.imageView?.alphaValue = ImageLayer.alpha(visible: imageVisible)
         // Entry ladder: the region rung owns the vertical swipe axis even
         // though the page around the crop could pan (2026-08-23).
         (scrollView as? SiblingSwipeScrollView)?.verticalSwipeAlwaysNavigates =
