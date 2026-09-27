@@ -156,20 +156,39 @@ exportable = not done. Every behavior below names which spine segment it lands o
   screen.
   No manual split step. Not yet checked: whether the refusal reaches the run log as a
   readable message or only as a failed run.
-- `segment.overlay.artifact-event-covers-every-write-tool` — **[PARTIAL]** (#4890) until every
-  artifact-writing tool's ids reach the event, an overlay subscriber (once built) will be correct
-  for some tools and silently stale for others.
-  **This entry's own list was wrong, audited 2026-09-27.** The run boundary's emit is not
-  `process_vision`-specific: `collect_created_artifact_ids` reads any node output's `artifacts`
-  list, so every tool that reports its ids under that key is already covered. Three of the nine
-  named here do: **`merge_geometry`, `similarity` and `catalogue`**. They were listed as gaps
-  because the entry was written from which TOOL the fix was tested against rather than from what
-  the collector reads.
-  **`align_transcript` is now covered** (route and tool, see above). **Genuinely still uncovered,
-  five**: `extract_all`, `extractors`, `import_artifacts`, `date_extract`, `cleanup` — each saves
-  artifacts and none reports their ids. Not one shape: their returns differ (a claims-by-entity
-  map, a `{text, value}` pair, a summary dict), so each needs its own look rather than the same
-  line pasted five times, and that is why they are not done here.
+- `segment.overlay.artifact-event-covers-every-write-tool` — **[OK]** (→ #4890) every tool that
+  writes an artifact announces it, so an overlay subscriber is not correct for some tools and
+  silently stale for others.
+  **There are TWO ways to be covered, and this entry's list was wrong twice for not saying so.**
+  A tool either reports its ids under the `artifacts` key, which the run boundary's
+  `collect_created_artifact_ids` reads and broadcasts, **or** it emits mid-run itself through
+  `emit_workflow_artifact_changes`. Both are real coverage; the entry had been written from which
+  TOOL the original fix was tested against (`process_vision`), so it named as gaps first three
+  tools that report the key (`merge_geometry`, `similarity`, `catalogue`) and then three more that
+  emit directly (`extract_all`, `extractors`, `import_artifacts`).
+  **Two were genuinely uncovered and were fixed on 2026-09-27**, each needing more than a key
+  because neither captured an artifact id at all:
+  `date_extract` — which already announced the DOCUMENTS whose date columns moved and said nothing
+  about the `dates` artifacts beside them — now records both save sites' ids and emits separately,
+  deliberately not folded into the document emit, because a page whose columns did not move still
+  gets a new artifact and folding them would rebuild this defect's own cause in a new place; and
+  `cleanup`, whose `<key>_clean` replacement now announces itself from inside `_replace_artifact`,
+  the one helper both call sites use, and stays silent when the save failed. Pinned by
+  `test_date_and_cleanup_artifacts_announce_themselves.py`.
+  **`artifact.created` and `artifact.updated` are ONE signal**, which is why the two mechanisms
+  can use different names: dispatch is by DOMAIN — `ChangeEvent.domain` is the prefix before the
+  dot, `LibraryChangeStream` delivers on that, and `ArtifactEntityStore.apply` guards on
+  `event.domain == "artifact"` with no verb filter. The run boundary and the alignment route emit
+  `updated`; the six mid-run emitters default to `created`.
+  **That equivalence is pinned by NOTHING as of 2026-09-27** — it holds by architecture, and
+  `ArtifactEntityStoreTests` covers only `artifact.updated`. A tidy-up narrowing that guard to one
+  verb would silence six emitters while every existing test still passed. The cases that would pin
+  it (both verbs bump the revision, and another domain's `created` still bumps nothing) are written
+  and handed to the app lane; this sentence is the record that they are owed, and it should be
+  replaced by their node ids rather than deleted.
+  The engine half is pinned here: `test_align_transcript_announces_itself.py` and
+  `test_date_and_cleanup_artifacts_announce_themselves.py`, plus
+  `test_align_transcript_reports_its_artifacts.py` for the run-boundary key.
 
 ### C. AI / MCP / CLI — made available to an agent
 - `segment.mcp.get` [MISSING] (#4766) — an MCP tool returns a segment with requested
