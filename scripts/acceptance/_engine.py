@@ -32,7 +32,13 @@ REPO = Path(__file__).resolve().parents[2]
 PYTHON = "/Users/danieltubb/code/fichero/.venv/bin/python"
 CORPUS = Path.home() / "Fichero Test Corpus"
 LIBRARY_ROOT = Path.home() / "Fichero Test Library"
-LIBRARY = LIBRARY_ROOT / "Acceptance 2026-09-27.fichero"
+#: `ACCEPTANCE_LIBRARY` names a FRESH package for a re-run (a package NAME only, placed under
+#: LIBRARY_ROOT): create_library refuses an existing one, and an earlier run's library is
+#: evidence, never overwritten.
+_NAME = os.environ.get("ACCEPTANCE_LIBRARY", "Acceptance 2026-09-27.fichero")
+if "/" in _NAME or not _NAME.endswith(".fichero"):
+    raise SystemExit(f"ACCEPTANCE_LIBRARY={_NAME!r}: give a .fichero package name, not a path")
+LIBRARY = LIBRARY_ROOT / _NAME
 # A Unix socket path is limited to 104 bytes on macOS, so the socket sits in /tmp under a
 # name that says whose it is.
 SOCKET = Path("/tmp/fichero-acceptance.sock")
@@ -198,6 +204,7 @@ def stop(proc: subprocess.Popen) -> None:
 def save(name: str, data: Any) -> Path:
     OUT.mkdir(parents=True, exist_ok=True)
     path = OUT / name
+    path.parent.mkdir(parents=True, exist_ok=True)  # `dump/<key>.json` on a fresh ACCEPTANCE_OUT
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
     return path
 

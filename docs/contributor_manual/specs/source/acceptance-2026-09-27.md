@@ -174,3 +174,54 @@ Each defect below is one line: the call, what came back, and what was expected.
 15. `FicheroClient(library_path="")` is documented as "explicit no library", but
     `library_path or os.environ[...]` turns `""` back into the environment's path. Expected: the
     empty string honoured.
+
+## Re-run after the fixes (2026-09-27, evening)
+
+The same selection and scripts, from integration at `fbc059708`, into a FRESH library,
+`~/Fichero Test Library/Acceptance 2026-09-27b.fichero`. The first run's library was not
+touched: `_engine.py` now takes `ACCEPTANCE_LIBRARY` (a package name under the test-library
+folder), and `create_library.py` refuses an existing package rather than an existing folder.
+The steps run were create_library, import_corpus, readback, mcp_check, dump, export_check and
+`validate_exports.py` over the exports. speed.py was not run, because the machine's load stood
+at 40-140 and its timings would have been void.
+
+Every page that went in reads back exactly: **4,997 of 4,997 segment texts are exact**, every
+count matches at every level, and every one of the 1,072 stated baselines on those pages
+survives (the other 1,323 in the source files are on the Reichsanzeiger pages, which did not go
+in). Checked through each segment's `parent_segment_id` against plain lxml's parents, nesting is
+right for all 6,229 child segments, with none wrong. The 19 exports all validate
+(`validate_exports.py`: 19 exported, 0 invalid), and none writes an invented region.
+
+| # | Defect | Now | Evidence from the re-run | Fixed by |
+|---|---|---|---|---|
+| 1 | Folder import `completed` while its scans were refused | FIXED (reporting) | Reichsanzeiger: task `failed`, `error` names both scans (9448x6520, 9632x6648) and both PAGE files left out. Importing a 64 MP scan is still refused; downscaling or raising the cap is with the maintainer. | 447fe14b1 |
+| 2 | No pairing report in the task status | FIXED | status carries `imported_as_passes`, `not_imported`, `unpaired` | 447fe14b1 |
+| 3 | Genji TEI refused ("outside the page") | FIXED | the Genji folder drop pairs its pages with its scans: R0000022 gets page 1 (14 lines), R0000023 pages 2 and 3 (28 lines), each line anchored in its zone (left or right half). A later one-file import of the same file is a 409, because it is already there. | 8fb3c9ef1, e229e4aad, e3680c831, 1bf7fe4b3 |
+| 4 | YOLO class 2 stored as `word`, no class name | FIXED | `kind_raw` DropCapitalZone, MainZone, RunningTitleZone; `classes.txt` sent with the labels | d3a08c01f, 7428fc536 |
+| 5 | ALTO baselines dropped, on import and export | FIXED | 647 of 647 on the five ALTO page sets, kept and written back (`BASELINE` on every exported TextLine) | d3a08c01f |
+| 6 | ALTO TAGREFS types dropped | FIXED | `kind_raw` MainZone, DefaultLine, InterlinearLine, LatinLine, MarginTextZone | d3a08c01f |
+| 7 | Syriac and Hebrew blocks `ltr` | FIXED | Hebrew: every block `rtl`; Syriac: the text blocks `rtl`, the numbering zone (digits) `ltr` | 62c62fbbd |
+| 8 | Clm columns interleaved; Cherokee out of order | FIXED | 0 backward steps on Clm 38r and 41v; Cherokee 0 backward steps in 3,910 spans, 600 blocks for 600 lines (was 2,234 and 1,243) | 62c62fbbd, fdfdc8fae, 76953b774 |
+| 9 | Vertical Chinese lines scrambled | FIXED | 0 backward steps on both pages | 62c62fbbd |
+| 10 | PAGE export invents `implicit` regions | FIXED | Syriac 3, 2, 2, Chinese 3, 4, Albatross 438 regions written, as in the source; `implicit:true` appears 0 times | d3a08c01f |
+| 11 | Segment lists `text: null`, no parent | FIXED | every text-bearing segment has its text (a line whose text lives in its words, and a region, stay null); `parent_segment_id` on every segment | b16db7917 |
+| 12 | MCP cannot read text | FIXED | `fichero_segment_readings`, `fichero_document_text`, `fichero_reading_orders`, `fichero_reading_order_entries`, `fichero_segments_in_scope` | 7765cbf7c |
+| 13 | No source element id | FIXED | `metadata.source_id` on every segment whose element has an id; ALTO `String`s in these files carry none | d3a08c01f |
+| 14 | A library header creates the package | FIXED | `GET /api/health` naming a missing package answers `unhealthy` ("Library does not exist ..."); `GET /api/documents` answers 404; nothing on disk, parent folder included | 0d777f05a |
+| 15 | `FicheroClient(library_path="")` falls back to the env | FIXED | `library_path == ""` with `FICHERO_LIBRARY_PATH` set | 0d777f05a |
+
+**New, filed:** #5145. The Albatross page reads its text region first. The file's
+`<ReadingOrder>` names only that region, at index 2, and its two tables carry index 0 and 1 in
+`custom="readingOrder {index:n;}"`. That leaves one backward step in the page text, and the PAGE
+export writes its lines in that order. It is the only order problem left on these pages.
+
+**Not defects, noted:**
+* The vertical Chinese and Genji blocks report `ltr`. The files state no direction, and the
+  engine's ruling (`language_policy._MAYBE_VERTICAL_SCRIPTS`) resolves a script that *may* be
+  vertical to `ltr` rather than guessing.
+* Two of the harness's own checks are now out of date. `readback.py`'s nesting check maps words
+  to regions through the text route's blocks, and the blocks are now one per line, so it reports
+  0 for words. Nesting checked through `parent_segment_id` is 100% right. `import_corpus.py`'s
+  one-file TEI import after the folder drop gets a 409, because the folder drop now imports the
+  file itself. `dump.py` could not write into a fresh `ACCEPTANCE_OUT`; `save()` now makes the
+  folder.
