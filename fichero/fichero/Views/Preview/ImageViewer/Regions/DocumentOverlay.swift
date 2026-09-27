@@ -18,6 +18,11 @@ struct DocumentOverlay: Equatable {
     var entryWashes: [[Double]] = []
     /// Words lit by the Reader's text selection, sharper than the entry wash.
     var linkedWashes: [[Double]] = []
+    /// Edit Segments is on: a selection shows its resize handles (never while reading).
+    var isEditing = false
+    /// This pane's selection is the window's focused one (`WindowState.focusedRegionSelection`):
+    /// with a key window, the selection is emphasized; otherwise it dims, as Finder's does.
+    var isFocusedPane = false
 
     static let empty = DocumentOverlay()
 

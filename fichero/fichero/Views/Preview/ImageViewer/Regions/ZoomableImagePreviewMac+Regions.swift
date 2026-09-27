@@ -38,7 +38,9 @@ extension ZoomableImagePreview {
             boxes: shown.map { .init(bbox: $0.box.bbox, confidence: $0.box.confidence) },
             selected: selected,
             entryWashes: annotationFrameMatchesDisplay(nil) ? highlightBoxes : [],
-            linkedWashes: linkedFrameMatches ? linkedSelectionBoxes : []
+            linkedWashes: linkedFrameMatches ? linkedSelectionBoxes : [],
+            isEditing: windowState?.isEditingSegments == true,
+            isFocusedPane: windowState?.focusedRegionSelection === regionSelection
         )
     }
 
