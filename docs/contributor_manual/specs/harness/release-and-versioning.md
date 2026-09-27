@@ -117,7 +117,7 @@ sparkle-update-review-2026-09-19.md`), requested after the maintainer reported S
 update and FAILED to install it. Every behavior below cites #4901, the one issue this review's
 evidence backs.
 
-- `release.update.feed-is-current` — **[BROKEN]** (#4901) the public appcast
+- `release.update.feed-is-current` — **[PARTIAL]** (#4901) the public appcast
   (`https://tubb.ca/apps/fichero/appcast.xml`) should carry the release just made. Verified live
   (2026-09-19, a genuinely fresh fetch — `age: 0`, `cache-status: fwd=miss` — not a stale edge
   cache): the feed's newest item is `2026.09.07` build 3, while the tree is stamped `2026.09.18`
@@ -129,7 +129,20 @@ evidence backs.
   that second step to run, nothing warns if it's skipped, and nothing after the fact re-checks
   that the live feed actually reflects what was just released — so this can, and evidently did,
   silently not happen for however many releases separate `2026.09.07` from today's stamp.
-- `release.update.build-number-strictly-increases` — **[BROKEN, historical]** (#4901) Sparkle
+  **Re-tagged PARTIAL, 2026-09-27.** The first half of that cause is fixed, the second is not.
+  `create-github-release.sh:165` now runs `check_sparkle_update_ready.py` as a BLOCKING
+  pre-publish step under `set -e`, before signing or publishing anything, so a build that cannot
+  actually reach a user — already in the feed, not strictly above the feed's maximum, a feed-URL
+  or enclosure mismatch, an unreachable feed — fails the release instead of shipping; and
+  `release-all.sh:811` runs `deploy-site.sh` by default straight after the GitHub step, so the
+  publish is no longer a step someone has to remember. Pinned by
+  `fichero-server/tests/unit/scripts/test_check_sparkle_update_ready.py`
+  (`test_feed_url_mismatch_fails`, `test_enclosure_length_mismatch_fails`,
+  `test_unreachable_feed_fails`, `test_exit_code_follows_the_verdict_not_ready`). NOT yet [OK]:
+  `FICHERO_SKIP_SITE=1` still opts the deploy out, the check runs only on the releasing machine
+  and never in CI, and nothing re-reads the live feed AFTER the deploy to confirm it landed. The
+  check is a pre-flight, not a receipt.
+- `release.update.build-number-strictly-increases` — **[PARTIAL]** (#4901) Sparkle
   compares `sparkle:version` (the integer build number), not the marketing string; two different
   releases must never share one. Verified live: the feed's own `2026.09.04` and `2026.09.05`
   items BOTH carry `sparkle:version=2` — a real collision, not a hypothetical risk. What assigns
@@ -144,6 +157,14 @@ evidence backs.
   same version and the same build number by design (see `release.update.appcast-item-insert-is-
   idempotent` below) — comparing the new build number against the feed's newest item regardless
   of channel would false-positive on that intentional pair.
+  **Re-tagged PARTIAL, 2026-09-27.** Forward monotonicity IS now enforced against the live feed:
+  `check_build_number_increases` fails a build equal to or below the feed's maximum, and the
+  per-channel subtlety above was honoured — `test_fail_gate_uses_the_global_maximum_across_every_
+  channel` and `test_a_public_dev_pair_is_not_reported_as_a_duplicate_or_a_collision` pin both
+  halves, so the intentional public/dev pair does not false-positive. What stays imperfect is
+  historical and permanent: the `2026.09.04`/`2026.09.05` collision already sits in the feed and
+  cannot be un-shipped, so by design it is reported as a WARNING and never fails a release
+  (`test_real_collision_between_two_releases_warns_and_does_not_fail`).
 - `release.update.signature-made-after-stapling` — **[PARTIAL]** (#4901) an EdDSA signature must
   be computed AFTER `xcrun stapler staple`, since stapling modifies the file and a
   pre-staple signature would no longer verify. Verified BY READING, not by a test or script
