@@ -244,6 +244,12 @@ struct Segment: Codable, Hashable, Identifiable {
     /// OR of `provider`/`source`). The app never re-derives the OR itself;
     /// it only asks the engine's own answer.
     var isHandCurated: Bool { provenanceKind == .human }
+
+    /// The engine's mark for a segment whose FILE stated no place for it -- a TEI edition with no
+    /// facsimile, a line whose `<lb>` names no zone (`format_import.SHAPE_UNSTATED`, acceptance
+    /// defect 3). Its anchor is the whole page only because a stored segment must be somewhere;
+    /// nobody drew that rectangle, so nothing may draw it.
+    var shapeIsUnstated: Bool { (metadata?["shape"]?.value as? String) == "unstated" }
 }
 
 /// One pass, read either from today's blob (one per artifact) or (later) a

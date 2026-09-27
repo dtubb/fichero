@@ -19,7 +19,8 @@ struct SegmentDisplayTests {
         boxIndex: Int?,
         rect: [Double]?,
         text: String? = nil,
-        humanCurated: Bool = false
+        humanCurated: Bool = false,
+        metadata: [String: AnyCodable]? = nil
     ) -> Segment {
         Segment(
             id: id, provisional: true, documentId: "doc-1", passId: passId,
@@ -29,8 +30,30 @@ struct SegmentDisplayTests {
                 generated: Components.Schemas.SourceAnchorOutput(documentId: "doc-1", rect: rect)
             ),
             baseline: nil, text: text, confidence: nil,
-            sourceArtifactId: "a1", boxIndex: boxIndex, pageIndex: nil, metadata: nil
+            sourceArtifactId: "a1", boxIndex: boxIndex, pageIndex: nil, metadata: metadata
         )
+    }
+
+    /// A segment whose file stated no place (an EpiDoc papyrus line, a Genji line with no zone) is
+    /// stored on a whole-page anchor and marked `shape: unstated`. Drawn from its anchor it would be
+    /// a page-sized box over everything -- a shape nobody drew. It maps to the zero-size placeholder,
+    /// keeping its text and its place so no later box shifts.
+    @Test("a segment whose file stated no place is never drawn as the whole page")
+    func unstatedShapeIsNotDrawn() throws {
+        let segments = [
+            segment(id: "placed", boxIndex: 0, rect: [0.1, 0.1, 0.2, 0.2], text: "drawn"),
+            segment(id: "text-only", boxIndex: 1, rect: [0, 0, 1, 1], text: "ἐξηριθμήθη",
+                    metadata: ["shape": AnyCodable("unstated")]),
+            segment(id: "after", boxIndex: 2, rect: [0.3, 0.3, 0.1, 0.1], text: "also drawn")
+        ]
+        let geometry = try #require(
+            SegmentDisplay.geometry(from: segments, provider: "transcription", model: nil, renditionId: nil)
+        )
+        try #require(geometry.boxes.count == 3)
+        #expect(geometry.boxes[1].bbox == [0, 0, 0, 0])
+        #expect(geometry.boxes[1].text == "ἐξηριθμήθη")
+        #expect(geometry.boxes[0].bbox == [0.1, 0.1, 0.2, 0.2])
+        #expect(geometry.boxes[2].bbox == [0.3, 0.3, 0.1, 0.1])
     }
 
     @Test("segments map to boxes ordered by boxIndex, so index-based selection keeps meaning the same box")
