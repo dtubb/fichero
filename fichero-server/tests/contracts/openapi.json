@@ -46985,6 +46985,14 @@
             "type": "string",
             "nullable": true,
             "title": "Order"
+          },
+          "omitted": {
+            "items": {
+              "$ref": "#/components/schemas/OmittedSegment"
+            },
+            "type": "array",
+            "title": "Omitted",
+            "default": []
           }
         },
         "type": "object",
@@ -59751,6 +59759,30 @@
         ],
         "title": "OCRGeometryResult",
         "description": "Normalized OCR/transcription text plus geometry records."
+      },
+      "OmittedSegment": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "pass_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pass Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id",
+          "reason"
+        ],
+        "title": "OmittedSegment",
+        "description": "A segment a named order names and the text does not contain, and WHY.\n\nBefore this existed (#5090) every such segment was dropped by one\n`if sid in by_id`, and four different things looked identical: a line\nsomebody deleted, furniture the caller asked to leave out, a segment of\nANOTHER pass -- which is how a cross-pass flow reads, and is the bug -- and\nan id naming nothing at all. The first two are correct and expected; the\nthird silently shortens a transcription, which is the worst failure this\nprogramme has, because nothing looks wrong.\n\nSo the reason is reported rather than the omission being hidden. A caller\nthat sees `other_pass` knows a continuation is missing; one that sees\n`deleted` knows the text is complete."
       },
       "OpenItemResponse": {
         "properties": {
