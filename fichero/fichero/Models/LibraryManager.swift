@@ -103,6 +103,10 @@ class LibraryManager {
         let providerService: ProviderAPIService
         let modelService: ModelService
         let artifactService: ArtifactService
+        /// The one segments call's only caller (`source.app.one-segment-store`,
+        /// #4954). Declared here so `SegmentStore.shared(for:)` resolves the same
+        /// instance for the change-stream registration and for the drawing paths.
+        let segmentService: SegmentService
         let entityService: EntityService  // /api/entities + /api/claims (#728)
         let kgCurationService: KGCurationService
         let activityService: ActivityService
@@ -261,6 +265,11 @@ class LibraryManager {
             // own `@Environment(ArtifactService.self)` — this IS that
             // instance, so no new plumbing reaches the loaders (#4890).
             stream.register(ArtifactEntityStore.shared(for: self.artifactService))
+            // The same arrangement one behaviour later: the segments seam's store,
+            // keyed on the service the loaders resolve it from
+            // (`source.app.segment-events-patch-in-place`, #4954). Without this
+            // registration the store's `apply`/`resync` exist and never run.
+            stream.register(SegmentStore.shared(for: self.segmentService))
             stream.register(self.citationStore)
             stream.register(self.referenceStore)
             stream.register(self.interpretationStore)
@@ -400,6 +409,7 @@ class LibraryManager {
             self.providerService = providerService ?? ProviderAPIService(ficheroClient: self.ficheroClient)
             self.modelService = modelService ?? ModelService(ficheroClient: self.ficheroClient)
             self.artifactService = ArtifactService(ficheroClient: self.ficheroClient)
+            self.segmentService = SegmentService(ficheroClient: self.ficheroClient)
             self.entityService = EntityService(ficheroClient: self.ficheroClient)
             self.kgCurationService = KGCurationService(ficheroClient: self.ficheroClient)
             self.activityService = ActivityService(ficheroClient: self.ficheroClient)
