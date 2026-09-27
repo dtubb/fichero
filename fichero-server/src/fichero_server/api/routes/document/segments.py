@@ -372,6 +372,110 @@ def provenance_kind_from_ctx(ctx: ActionContext) -> ProvenanceKind:
 # ---------------------------------------------------------------------------
 
 
+class ScopedSegmentListResponse(BaseModel):
+    """A page of segments across MANY documents (`source.editor.library-lists-segments`).
+
+    Not `SegmentListResponse`: that one answers `document_id` and the page's passes,
+    which a scoped list has neither of — the rows come from many documents and naming
+    one would be a lie. `total` is the match count so a Library can page without
+    fetching to find out how much there is.
+    """
+
+    items: list[SegmentRead]
+    count: int
+    total: int
+    #: The documents the scope resolved to, so a caller can tell an empty page
+    #: ("nothing in these 40 documents") from an empty scope ("that folder has no
+    #: documents") -- two different answers that both come back as no rows.
+    document_ids: list[str]
+
+
+@router.get("", response_model=ScopedSegmentListResponse)
+async def list_segments_in_scope(
+    document_ids: Optional[str] = Query(
+        None,
+        description=(
+            "Comma-separated document ids to list segments for. Either this or "
+            "`parent_id`; `parent_id` resolves to a folder's descendants."
+        ),
+    ),
+    parent_id: Optional[str] = Query(
+        None, description="A folder (or page-bearing document): its descendants are the scope"
+    ),
+    kind: Optional[str] = Query(
+        None, description="Restrict to one segment kind (region, line, word, ...)"
+    ),
+    pass_id: Optional[str] = Query(None, description="Restrict to one pass"),
+    include_furniture: bool = Query(
+        True, description="Include running heads, folio numbers and catchwords"
+    ),
+    limit: int = Query(200, ge=1, le=1000, description="Page size; bounded on purpose"),
+    offset: int = Query(0, ge=0),
+    db: Database = Depends(get_library_database),
+) -> ScopedSegmentListResponse:
+    """`GET /api/segments` — a bounded page of segments across a SCOPE.
+
+    For `source.editor.library-lists-segments` (#4941): every other segments read is
+    per document or per segment, so a Library listing segments would have had to ask
+    once per page of the book. That is the N+1 the one-store seam exists to avoid,
+    and moving it into the engine is the only way a project-wide list of lines is
+    answerable at all.
+
+    Only REAL rows. The per-document route also serves the old boxes of artifacts
+    nobody has converted (`source.seam.read-either-store`), and that resolution is
+    per artifact by nature — it reads one artifact's block and numbers its boxes.
+    Doing it across a scope would mean hydrating every geometry blob in the folder to
+    answer one page, which is the cost this endpoint exists to avoid. So a scoped list
+    shows what has been converted, and says so here rather than appearing to show
+    everything.
+
+    `limit` is capped at 1000 by the signature (`source.store.bounded-reads`): a
+    caller cannot ask for a whole project in one request, because a page of a library
+    view never needs it and an agent asking for it would be asking for the thing that
+    takes the engine down.
+    """
+    if (document_ids is None) == (parent_id is None):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Give exactly one of `document_ids` or `parent_id`: two scopes cannot "
+                "be intersected here, and no scope would mean the whole library."
+            ),
+        )
+
+    if document_ids is not None:
+        scope = [value.strip() for value in document_ids.split(",") if value.strip()]
+    else:
+        # The tree walk lives here, not in the persistence method: what a scope IS
+        # is a question about documents, and paging segment rows is a question about
+        # segments. Mixing them would make the read's cost depend on a tree it
+        # cannot see.
+        scope = [parent_id] if parent_id else []
+        frontier = list(scope)
+        seen = set(scope)
+        while frontier:
+            children = db.query(Document, parent_id=frontier.pop())
+            for child in children:
+                if child.id in seen:
+                    continue
+                seen.add(child.id)
+                scope.append(child.id)
+                frontier.append(child.id)
+
+    rows, total = db.segments_page(
+        document_ids=scope,
+        kind=kind,
+        pass_id=pass_id,
+        include_furniture=include_furniture,
+        limit=limit,
+        offset=offset,
+    )
+    items = [segment_read_from_row(row) for row in rows]
+    return ScopedSegmentListResponse(
+        items=items, count=len(items), total=total, document_ids=scope
+    )
+
+
 @router.get("/document/{doc_id}", response_model=SegmentListResponse)
 async def list_document_segments(
     doc_id: str,

@@ -49,7 +49,7 @@ if TYPE_CHECKING:
     # and a forward reference to a type nothing imports resolves for no reader —
     # a checker, an IDE or a generator all get nothing (#5059 follow-up).
     from fichero_server.models.conversion import UnconvertedScope
-    from fichero_server.models import Artifact, Workflow
+    from fichero_server.models import Artifact, Segment, Workflow
 from dataclasses import dataclass, field
 from datetime import datetime
 from fichero_server.core.timeutil import ensure_utc, utc_now
@@ -3243,6 +3243,93 @@ class Database(DatabaseEmbeddingMixin):
             hydrated
             for row in rows
             if (hydrated := self._hydrate_row(Artifact, columns, row)) is not None
+        ]
+        return items, total
+
+    def segments_page(
+        self,
+        *,
+        document_ids: list[str],
+        kind: str | None = None,
+        pass_id: str | None = None,
+        include_furniture: bool = True,
+        limit: int,
+        offset: int = 0,
+    ) -> tuple[list["Segment"], int]:
+        """One DB-side page of segments across MANY documents, plus the total.
+
+        For `source.editor.library-lists-segments` (#4941): a Library that lists
+        segments cannot ask per document. Every segments read before this one was
+        scoped to a single document or a single segment, so a project-wide list would
+        have been one request per page of the book — the N+1 the one-store seam exists
+        to avoid, moved from the app into the engine.
+
+        `document_ids` is the scope, resolved by the CALLER (a folder's descendants, a
+        selection, a search's hits). Kept out of here on purpose: walking the document
+        tree is a different question from paging segment rows, and mixing them would
+        make this method's cost depend on a tree it cannot see.
+
+        Deleted rows are never returned — a list of a project's segments is a list of
+        what is there.
+
+        Ordering is `document_id, bbox_y, bbox_x, id`: down and ACROSS each page, then
+        the id as a total tie-break. Two reasons, and both matter. It is stable, so a
+        page break falls in the same place every time and two requests cannot show one
+        row twice while never showing another — `created_at` cannot do that, because
+        rows written in one transaction share a timestamp. And it is the same order
+        `_segment_order_key` uses for a page's reading order, so a scoped list reads
+        the way the page reads rather than in some third sequence.
+
+        NOT `box_index`: a real row has no such column. The engine's index for a row
+        lives in `metadata["box_index"]` and is resolved per pass by the read seam
+        (`segment_read_from_row`'s own docstring says so), so ordering by it here would
+        have to unpack JSON for every row in the scope — and would order by a value
+        that is only meaningful within one pass.
+
+        Raw SQL lives here rather than in a route, per the persistence rule (#1876).
+        """
+        from fichero_server.models import Segment
+
+        if limit < 1 or offset < 0:
+            raise ValueError("limit must be positive and offset must not be negative")
+        if not document_ids:
+            return [], 0
+
+        self._ensure_table(Segment)
+        sql_table = self._sql_table_name(Segment)
+
+        placeholders = ", ".join(f"$doc{index}" for index in range(len(document_ids)))
+        params: dict[str, Any] = {
+            f"doc{index}": value for index, value in enumerate(document_ids)
+        }
+        clauses = [f"document_id IN ({placeholders})", "deleted_at IS NULL"]
+        if kind is not None:
+            clauses.append("kind = $kind")
+            params["kind"] = kind
+        if pass_id is not None:
+            clauses.append("pass_id = $pass_id")
+            params["pass_id"] = pass_id
+        if not include_furniture:
+            # A running head is on the page and is not the text of the document; a
+            # project-wide list of lines should be able to leave it out.
+            clauses.append("(is_furniture IS NULL OR is_furniture = FALSE)")
+        where = f" WHERE {' AND '.join(clauses)}"
+
+        total_row = self._execute(
+            f"SELECT COUNT(*) FROM {sql_table}{where}", dict(params), fetch="one"
+        )
+        total = int(total_row[0]) if total_row else 0
+
+        rows, columns = self._execute_fetch_with_columns(
+            f"SELECT * FROM {sql_table}{where} "
+            "ORDER BY document_id ASC, bbox_y ASC NULLS LAST, bbox_x ASC NULLS LAST, id ASC "
+            "LIMIT $page_limit OFFSET $page_offset",
+            {**params, "page_limit": limit, "page_offset": offset},
+        )
+        items = [
+            hydrated
+            for row in rows
+            if (hydrated := self._hydrate_row(Segment, columns, row)) is not None
         ]
         return items, total
 
