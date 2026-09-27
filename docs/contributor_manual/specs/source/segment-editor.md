@@ -734,8 +734,11 @@ The editor
   therefore show only the clicked pane's highlight. Mirroring comes with CONNECTED panes, by then
   naming boxes by identity so it lands on the right box. Per-pane selection is built (the canvas
   owns a `RegionSelection`; `WindowState.focusedRegionSelection` with focus, offer and release
-  rules; pinned by `fichero/Tests/Unit/general/Models/RegionSelectionPerPaneTests.swift`); selection
-  by identity is owed.
+  rules; pinned by `fichero/Tests/Unit/general/Models/RegionSelectionPerPaneTests.swift`). **Selection
+  by identity is built too** (`3af7a003c`): each selected box keeps its bbox, text and level beside its
+  index, and every reader resolves it in its own list -- a box a list no longer holds is dropped, never
+  replaced by the box at its old index (the same test file). Still owed before this is `[OK]`: the
+  maintainer's check on screen at two zooms, and the drawing half (`overlay-moves-with-the-image`).
 - `source.editor.overlay-moves-with-the-image` — **[BROKEN]** (→ #5142) segment overlays move with the image,
   frame for frame, while it is scrolled and zoomed, on a page as dense as the Cherokee Phoenix p. 2.
   **Broken:** they lag, then catch up. Diagnosed 2026-09-27 (no fix yet): the image is transformed by
