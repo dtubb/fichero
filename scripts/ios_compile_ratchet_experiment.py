@@ -3,6 +3,10 @@
 
 **Do not wire this in. The experiment was run; these are the numbers.**
 
+(Named `check_ios_compile_ratchet.py` until 2026-09-27, which made it a guard by glob:
+every gate and the every-guard test ran it, and since nothing writes its input it could
+only print NOT ARMED. Renamed off `check_*.py` so it is kept as the record it is.)
+
     run 1   341 s     (cold DerivedData)
     run 2    32 s     (warm)
     run 3    27 s     (warm)
@@ -71,7 +75,7 @@ deliberate, for three reasons:
 2. **A measurement harness that re-runs the thing it measures is measuring a
    different thing** — a warm second build is not the build the gate ran.
 3. It keeps this script pure and therefore testable. Every branch below is
-   exercised by `test_check_ios_compile_ratchet.py` against synthesised
+   exercised by `test_ios_compile_ratchet_experiment.py` against synthesised
    durations, with no Xcode involved.
 
 ## Reuses the existing ratchet, does not reimplement it
@@ -130,9 +134,9 @@ Exit codes:
     2   BLIND -- no duration to judge
 
 Usage:
-    scripts/check_ios_compile_ratchet.py --seconds 214.7
-    scripts/check_ios_compile_ratchet.py --from-file build/ios-compile-seconds
-    scripts/check_ios_compile_ratchet.py --name ios.compile_ms --seconds 214.7
+    scripts/ios_compile_ratchet_experiment.py --seconds 214.7
+    scripts/ios_compile_ratchet_experiment.py --from-file build/ios-compile-seconds
+    scripts/ios_compile_ratchet_experiment.py --name ios.compile_ms --seconds 214.7
 """
 
 from __future__ import annotations
