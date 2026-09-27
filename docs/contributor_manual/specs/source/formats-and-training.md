@@ -248,13 +248,29 @@ what the loss report named), one for each format that goes both ways:
   and by the route's own `test_page_export_route.py`. (The CLI test root was outside `TEST_ROOTS`
   until 2026-09-27, so this behaviour's only evidence was in the one place the pipeline could not
   read — which is why it still read `[GAP]`.)
-- `source.format.everywhere` — **[PARTIAL]** (#4943) import and export work from the app, MCP and the command line,
-  with a remote engine. **Export: app and CLI** (`GET /api/documents/{id}/export/{format}`, and
-  `fichero export page`, pinned by `fichero-cli/tests/test_export_page_command.py`). **Import: app
-  only** (`POST /api/documents/{doc_id}/import`, pinned by
-  `test_import_into_library.py::TestTheImportRoute`). **Neither on MCP, and no CLI import** — so the
-  surfaces are two of three for export and one of three for import. Named rather than averaged: a
-  scholar working from the command line can get a file out and not in.
+- `source.format.everywhere` — **[OK]** (→ #4943) import and export work from the app, MCP and the
+  command line, with a remote engine. One engine route each way and three thin surfaces over them,
+  so no surface has an import or export path of its own.
+  **Out**: `GET /api/documents/{id}/export/{format}`, `fichero export page`
+  (`fichero-cli/tests/test_export_page_command.py`), `fichero_page_export`
+  (`fichero-mcp/tests/test_mcp_server.py::test_page_export_builds_the_route_and_returns_the_choices_and_losses`).
+  **In**: `POST /api/documents/{doc_id}/import`
+  (`test_import_into_library.py::TestTheImportRoute`), `fichero import page`
+  (`fichero-cli/tests/test_import_page_command.py`), `fichero_page_import`
+  (`test_mcp_server.py::test_page_import_posts_the_file_and_hands_back_what_landed`).
+  The CLI mirrors the app's honesty rather than reporting success: the format that was
+  **recognised**, a note when the file's name disagreed with its bytes, the count of shapes the
+  engine repaired, and — pinned by
+  `test_import_page_command.py::test_reimporting_the_same_bytes_is_an_answer_with_status_zero` —
+  **status 0** for a re-import of the same bytes, because a nightly script must not break on "you
+  already have this" and must still be able to tell it from a file that was refused. On MCP the loss
+  report and the repair count are handed back as data, since a model told only that a file was
+  written will describe it as complete.
+  This entry read "**Neither on MCP, and no CLI import**" until 2026-09-27, and the first half was
+  wrong when it was written: `fichero_page_export` landed in the same commit as the CLI's export
+  (`6a458b251`, whose subject says "the route, the CLI and MCP"). The tag was written from what the
+  spec's prose expected rather than from the MCP server, which is the error this programme keeps
+  making in different costumes.
 
 Each format (one import and one export behaviour each)
 - `source.format.pagexml-in` · `source.format.pagexml-out` — **[OK]** (→ #4944). `pagexml-in` is pinned by

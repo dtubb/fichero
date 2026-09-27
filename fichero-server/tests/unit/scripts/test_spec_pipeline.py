@@ -23,11 +23,19 @@ from pathlib import Path
 import pytest
 
 _SCRIPT = Path(__file__).resolve().parents[4] / "scripts" / "spec_pipeline.py"
+#: The repo root, so the "every package that ships tests" check reads the real tree
+#: rather than whatever directory pytest was started from.
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 _SPEC = importlib.util.spec_from_file_location("spec_pipeline", _SCRIPT)
 assert _SPEC and _SPEC.loader
 _mod = importlib.util.module_from_spec(_SPEC)
 sys.modules[_SPEC.name] = _mod
 _SPEC.loader.exec_module(_mod)  # type: ignore[attr-defined]
+
+#: The REAL roots, captured before `_isolate` monkeypatches them per test. A test that
+#: asks "does the script look in every package that ships tests" must read the shipped
+#: value, not the fixture's two-element stand-in.
+_REAL_TEST_ROOTS = [str(root) for root in _mod.TEST_ROOTS]
 
 
 def _seed_test_file(tmp_path: Path, rel: str, body: str) -> Path:
@@ -1154,6 +1162,35 @@ def test_rule_i_applies_to_every_spec_family_not_only_source(tmp_path, monkeypat
     """
     _seed(tmp_path, RULE_I_SPEC)
     _seed_test_file(tmp_path, "fichero-server/tests/test_it_is_built.py", "# m2p.built-but-tagged-gap\n")
+    assert any("m2p.built-but-tagged-gap" in i for i in _infos(tmp_path, monkeypatch) if "rule i" in i)
+
+
+def test_every_package_that_ships_tests_is_a_test_root(tmp_path, monkeypatch):
+    """The general form of the two defects below, so the third one fails here first.
+
+    `fichero-cli/tests` was missing until 2026-09-26 and `fichero-mcp/tests` until
+    2026-09-27, each found only when a behaviour's ONLY evidence lived in the missing
+    root. A per-root test catches the root somebody remembered; this catches the one
+    nobody did.
+    """
+    roots = set(_REAL_TEST_ROOTS)
+    shipped = {
+        str((d.parent / "tests").relative_to(_REPO_ROOT))
+        for d in _REPO_ROOT.glob("fichero-*/src")
+        if (d.parent / "tests").is_dir()
+    }
+    missing = sorted(shipped - roots)
+    assert not missing, (
+        "these packages ship tests that spec_pipeline cannot see, so a behaviour pinned "
+        f"only there cannot be tagged [OK]: {missing}"
+    )
+
+
+def test_rule_i_reads_the_mcp_test_root_too(tmp_path, monkeypatch):
+    """The MCP half of the same defect: a behaviour whose only evidence is an MCP test."""
+    monkeypatch.setattr(_mod, "TEST_ROOTS", [*_mod.TEST_ROOTS, tmp_path / "fichero-mcp" / "tests"])
+    _seed(tmp_path, RULE_I_SPEC)
+    _seed_test_file(tmp_path, "fichero-mcp/tests/test_mcp_thing.py", "# pins m2p.built-but-tagged-gap\n")
     assert any("m2p.built-but-tagged-gap" in i for i in _infos(tmp_path, monkeypatch) if "rule i" in i)
 
 

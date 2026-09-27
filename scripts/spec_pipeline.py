@@ -58,6 +58,13 @@ TEST_ROOTS = [
     # Found by rule (i): `source.format.export-choices` is pinned by a CLI test and by nothing
     # else, so the one root left out was the one holding the evidence.
     pathlib.Path("fichero-cli/tests"),
+    # And the MCP server's, left out for the same reason and found the same way on
+    # 2026-09-27: `source.format.everywhere` is pinned on the MCP side by
+    # `fichero-mcp/tests/test_mcp_server.py` and by nothing else, so the citation could
+    # not resolve and the behaviour could not be tagged [OK] honestly. THE PATTERN, twice
+    # now: a root nobody added is the root holding the only evidence for the surface
+    # nobody checks. Every package that ships tests belongs here.
+    pathlib.Path("fichero-mcp/tests"),
 ]
 AGENT_WORK_DIR = pathlib.Path("agent-work")
 BASELINE_PATH = pathlib.Path("scripts/spec_pipeline_baseline.json")

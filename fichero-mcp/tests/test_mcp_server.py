@@ -41,6 +41,10 @@ EXPECTED_TOOLS = {
     "fichero_document_kg",
     "fichero_artifact_get",
     "fichero_page_export",
+    # Both directions, not just out (`source.format.everywhere`: app, MCP and the
+    # command line). An agent that can only export can read somebody else's work
+    # out of the library and never bring any in.
+    "fichero_page_import",
     "fichero_formats_list",
     "fichero_search",
     "fichero_activity",
@@ -511,6 +515,24 @@ def test_page_export_builds_the_route_and_returns_the_choices_and_losses(monkeyp
     assert seen[0].url.path == "/api/documents/d1/export/tei"
     assert dict(seen[0].url.params) == {"pass_id": "p1", "reading_kind": "normalised"}
     assert out["losses"] and out["choices"], "the agent must be handed the losses, not just the file"
+
+
+def test_page_import_posts_the_file_and_hands_back_what_landed(monkeypatch, tmp_path):
+    """`source.format.everywhere`'s other direction. The agent is handed the RECOGNISED
+    format and the repair count, not a success flag: a model told only that the import
+    worked will describe a page as cleanly imported when forty of its boxes were
+    repaired."""
+    source = tmp_path / "folio.xml"
+    source.write_text("<PcGts/>", encoding="utf-8")
+    body = {"pass_id": "p9", "format": "pagexml", "segments": 812, "readings": 806,
+            "order_entries": 812, "checksum": "abc123", "geometry_problems": 40}
+    with _mock_client(monkeypatch, body=body) as seen:
+        out = mcp_server.fichero_page_import("d1", str(source), format="pagexml", name="theirs")
+    assert seen[0].url.path == "/api/documents/d1/import"
+    assert dict(seen[0].url.params) == {"format": "pagexml", "name": "theirs"}
+    assert seen[0].method == "POST"
+    assert out["format"] == "pagexml" and out["geometry_problems"] == 40
+    assert out["pass_id"] == "p9"
 
 
 def test_formats_list_calls_the_route(monkeypatch):

@@ -69,6 +69,10 @@ app.add_typer(auth_app, name="auth")
 # implementation.
 export_app = typer.Typer(help="Export the library server-side.", no_args_is_help=True)
 app.add_typer(export_app, name="export")
+# `import page` rather than `page import`, to mirror `export page`: the two halves of
+# one round trip should read the same way round.
+import_app = typer.Typer(help="Bring somebody else's work in.", no_args_is_help=True)
+app.add_typer(import_app, name="import")
 
 
 def _register_export_commands() -> None:
@@ -139,6 +143,77 @@ def export_page_command(
         typer.echo(render({k: v for k, v in data.items() if k != "content"} | {"path": str(target)}, as_json=True))
     else:
         for line in lines:
+            typer.echo(line)
+
+
+def _import_page_lines(data: dict[str, Any], path: Path) -> list[str]:
+    """What the person must SEE after an import.
+
+    `format` is what was RECOGNISED, not what the name suggested, and it is printed
+    even when it agrees: "did it read my file properly" is the question an import
+    raises, and answering it only on disagreement means the answer is absent
+    exactly when somebody is unsure.
+
+    `geometry_problems` is printed as a count of shapes the file could not express
+    properly and the engine repaired. A page where forty boxes were repaired is a
+    page somebody should look at, and a repair nobody is told about is the swallow
+    shape in a new costume.
+    """
+    lines = [
+        f"imported {path.name} as {data['format']}",
+        f"  pass: {data['pass_id']}",
+        f"  segments: {data['segments']}    readings: {data['readings']}"
+        f"    order entries: {data['order_entries']}",
+    ]
+    suffix = path.suffix.lower().lstrip(".")
+    if suffix and suffix not in {"xml", "txt"} and suffix != data["format"]:
+        # Only worth saying when the extension made a claim the bytes did not keep.
+        lines.append(
+            f"  note: the name says {suffix!r} and the bytes read as {data['format']}"
+        )
+    problems = data.get("geometry_problems", 0)
+    if problems:
+        lines.append(
+            f"  REPAIRED {problems} shape(s) the file could not express properly "
+            "— worth looking at the page"
+        )
+    return lines
+
+
+@import_app.command("page", help="Import a PAGE XML, ALTO, hOCR, TEI or YOLO file as a new pass.")
+def import_page_command(
+    ctx: typer.Context,
+    doc_id: str = typer.Argument(..., help="The page's document id."),
+    path: str = typer.Argument(..., help="The interchange file to read."),
+    import_format: str | None = typer.Option(
+        None, "--format", "-f", help="Force a format instead of recognising one from the bytes."
+    ),
+    name: str | None = typer.Option(None, "--name", help="What to call the new pass."),
+) -> None:
+    source = Path(path).expanduser()
+    if not source.is_file():
+        typer.secho(f"No such file: {source}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    try:
+        with _client(ctx) as client:
+            data = client.import_page(doc_id, source, import_format=import_format, name=name)
+    except FicheroError as exc:
+        if exc.status_code == 409:
+            # `source.format.reimport-recognised`: the library already holds these
+            # bytes. That is an ANSWER, not a failure -- the caller did nothing
+            # wrong and nothing was written -- so it leaves with status 0. A script
+            # that imports a folder nightly must not break on "you already have
+            # this"; it must be able to tell that from a file that was refused.
+            if ctx.obj["json"]:
+                typer.echo(render({"already_imported": True, "detail": str(exc)}, as_json=True))
+            else:
+                typer.secho(f"already imported: {exc}", fg=typer.colors.YELLOW)
+            return
+        _report_fichero_error(ctx, exc)
+    if ctx.obj["json"]:
+        typer.echo(render(data, as_json=True))
+    else:
+        for line in _import_page_lines(data, source):
             typer.echo(line)
 
 
