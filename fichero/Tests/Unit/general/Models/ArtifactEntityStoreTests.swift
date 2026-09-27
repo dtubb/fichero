@@ -185,6 +185,72 @@ final class ArtifactEntityStoreTests: XCTestCase {
         XCTAssertEqual(store.revision(for: "doc-1"), 0)
     }
 
+    // MARK: - created and updated are ONE signal (#4890)
+    //
+    // The engine emits BOTH names for "this page's artifacts changed", and which
+    // one you get is a matter of which code path wrote the artifact:
+    //
+    //   `artifact.updated` — the run boundary (`completion.finalize_run_documents`)
+    //                        and the on-demand alignment route
+    //                        (`POST /api/artifacts/{id}/align-transcript`).
+    //   `artifact.created` — six workflow tools that emit mid-run through
+    //                        `emit_workflow_artifact_changes`, whose `change_type`
+    //                        defaults to "created": extract_all, extractors,
+    //                        import_artifacts, catalogue, cleanup, date_extract.
+    //
+    // They are one signal because dispatch is by DOMAIN: `ChangeEvent.domain` is
+    // the prefix before the dot, `LibraryChangeStream` delivers by that domain,
+    // and `apply` guards on `event.domain == "artifact"` with no verb filter.
+    //
+    // That is an architectural property and, before these two tests, it was
+    // pinned by nothing. A tidy-up adding `guard event.type == "artifact.updated"`
+    // would silence six emitters — and silently, because the store would keep
+    // working perfectly for the two paths the existing tests cover. These tests
+    // make the property a stated contract instead of an accident.
+
+    /// `artifact.created` must bump the revision exactly as `artifact.updated` does.
+    /// If this fails, six engine tools have gone silent and no other test notices.
+    func testArtifactCreatedBumpsTheRevisionToo() throws {
+        let store = makeStore()
+
+        store.apply(try makeChangeEvent(type: "artifact.created", documentIds: ["doc-1"]))
+
+        XCTAssertEqual(
+            store.revision(for: "doc-1"), 1,
+            "artifact.created is the name six workflow tools emit; the overlay must react to it"
+        )
+    }
+
+    /// The two names are interchangeable for this store: same document, one of
+    /// each, two bumps. Asserted as a PAIR rather than as two separate cases,
+    /// because the claim is about their equivalence and not about either alone.
+    func testCreatedAndUpdatedAreTheSameSignalForTheSameDocument() throws {
+        let store = makeStore()
+
+        store.apply(try makeChangeEvent(type: "artifact.created", documentIds: ["doc-1"]))
+        store.apply(try makeChangeEvent(type: "artifact.updated", documentIds: ["doc-1"]))
+
+        XCTAssertEqual(
+            store.revision(for: "doc-1"), 2,
+            "each artifact.* event is one bump regardless of its verb — a loader keyed on "
+            + "revision(for:) re-fires for both"
+        )
+    }
+
+    /// The guard that must NOT be widened by accident while doing the above: the
+    /// domain still decides. `document.created` is a real event name, and it is
+    /// the near miss most likely to be let through by a looser check.
+    func testAnotherDomainsCreatedEventStillBumpsNothing() throws {
+        let store = makeStore()
+
+        store.apply(try makeChangeEvent(type: "document.created", documentIds: ["doc-1"]))
+
+        XCTAssertEqual(
+            store.revision(for: "doc-1"), 0,
+            "the domain decides, not the verb — document.created is not an artifact event"
+        )
+    }
+
     /// Proves the `artifact_ids` key (the engine's actual payload shape,
     /// `completion.py`'s `emit_change(..., artifact_ids=..., document_ids=...)`)
     /// decodes alongside `document_ids` and neither is harmed by the other's

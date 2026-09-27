@@ -180,12 +180,18 @@ exportable = not done. Every behavior below names which spine segment it lands o
   dot, `LibraryChangeStream` delivers on that, and `ArtifactEntityStore.apply` guards on
   `event.domain == "artifact"` with no verb filter. The run boundary and the alignment route emit
   `updated`; the six mid-run emitters default to `created`.
-  **That equivalence is pinned by NOTHING as of 2026-09-27** — it holds by architecture, and
-  `ArtifactEntityStoreTests` covers only `artifact.updated`. A tidy-up narrowing that guard to one
-  verb would silence six emitters while every existing test still passed. The cases that would pin
-  it (both verbs bump the revision, and another domain's `created` still bumps nothing) are written
-  and handed to the app lane; this sentence is the record that they are owed, and it should be
-  replaced by their node ids rather than deleted.
+  **That equivalence is now PINNED** — it holds because dispatch is by domain, and a tidy-up
+  narrowing that guard to one verb would silence six emitters while every other test still passed.
+  `fichero/Tests/Unit/general/Models/ArtifactEntityStoreTests.swift::testArtifactCreatedBumpsTheRevisionToo`,
+  `::testCreatedAndUpdatedAreTheSameSignalForTheSameDocument` (one of each on the same document,
+  asserted as a PAIR because the claim is their equivalence and not either alone) and
+  `::testAnotherDomainsCreatedEventStillBumpsNothing` (the guard that must not be widened while
+  doing the other two — `document.created` is a real event name and the likeliest near miss).
+
+  The sentence this replaces said the equivalence was pinned by nothing and that the cases were
+  owed. Replaced rather than deleted, as it asked to be: a spec that records what it is missing
+  should be able to record that it stopped missing it, in the same place, so the reason the tests
+  exist stays attached to them.
   The engine half is pinned here: `test_align_transcript_announces_itself.py` and
   `test_date_and_cleanup_artifacts_announce_themselves.py`, plus
   `test_align_transcript_reports_its_artifacts.py` for the run-boundary key.
