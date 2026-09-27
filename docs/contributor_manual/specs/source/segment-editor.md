@@ -427,8 +427,18 @@ Reading before editing (the app's first step: it draws from the seam, and edits 
   reason was true when written and went stale with last week's work.
 
 The editor
-- `source.editor.segment-focus` — **[GAP]** (#4941) the Source view has a segment focus in which the editing
-  tools appear; it can sit beside a Reader, an Inspector, the Library or another Source view.
+- `source.editor.segment-focus` — **[GAP]** (#4941; the sentence needs a ruling, → #5114) the Source view has a
+  segment focus in which the editing tools appear; it can sit beside a Reader, an Inspector, the
+  Library or another Source view.
+  **Two readings, and they are different pieces of work** (asked 2026-09-27, #5114). The Source
+  view's chrome ALREADY carries the tools (`PreviewMarkupTool`: select, wordSelect, drawRegion,
+  line, highlight, note, star, check) and `RegionInteractionLayer` is mounted whenever an image
+  is measured, so editing is always live with no mode to enter; panes already sit beside each
+  other. So either (a) a focus is a new mode the person enters, which adds a toggle of the shape
+  a standing ruling forbids unless it is doing real scoping work — ⌘Z's meaning, which surface's
+  selection the Inspector follows — or (b) this behaviour is already satisfied and wants a test
+  and a tag. Tagging the wrong reading `[OK]` is the mirror of the built-and-unwired defect:
+  crediting a bar of tools for an editing mode nobody built.
 - `source.textedit.reader-shows-segments` — **[PARTIAL]** (#5001) for a source whose segments have readings, the text
   surface shows the lines of the working pass in the named reading order, one block for each
   region and direction, and is editable; with no Source view in sight each line shows its
@@ -506,8 +516,25 @@ The editor
   readings are typed in the Reader; the Inspector shows and does not edit.
 - `source.editor.selection-shared` — **[GAP]** (#4941) selecting a segment in the Source view, Reader or Inspector
   selects it in the others.
-- `source.editor.edits-are-actions` — **[GAP]** (#4941) every edit is one audited, reversible engine action; the
+- `source.editor.edits-are-actions` — **[PARTIAL]** (#4941) every edit is one audited, reversible engine action; the
   editor updates only the changed segments.
+  **Both halves hold for the edit path that exists today** (audited 2026-09-27); what is owed is
+  the editor itself, whose own verbs will have to keep them.
+  *One audited, reversible action*: a region edit reaches `segment.convert_and_edit`
+  (`undoable=True`, `invert=_invert_convert`, domains segment/artifact/document), and the first
+  edit CONVERTS and edits in the same step — pinned by
+  `TestTheFirstEditConvertsAndEdits.test_one_action_and_one_undo_step`, which asserts exactly one
+  audit row for an edit that does two things, and by
+  `.test_the_block_is_byte_equal_through_edit_and_undo`, which is the stronger claim: the stored
+  block is byte-equal before the edit, after it, and after the undo, so reversing leaves no
+  residue in the record the boxes came from.
+  *Only the changed segments*: the undo restores the moved row by a NEW VERSION rather than
+  erasing one and keeps the conversion
+  (`.test_the_geometry_goes_back_and_the_rows_stay`), and on the app side a change event patches
+  the rows it names instead of re-reading the page
+  (`SegmentStoreTests.testAnEventNamingHeldSegmentsPatchesThoseAndDoesNotReload`). The verbs
+  re-render from the response's own fresh geometry rather than re-fetching, which is the same
+  rule from the other end.
 - `source.editor.redo-works` — **[PARTIAL]** (#4957) after undoing a segment edit, Redo (⇧⌘Z) does it again;
   redo is worked out afresh as the undo of the undo, so it succeeds although the segment's
   version has moved on; it is refused only if something else has changed the segment since.
