@@ -103,12 +103,24 @@ against their sources before approval.)
 - `source.rights.one-check` — **[GAP]** (#4953) a rights record is enforced by the existing permission layer (a
   grant or deny on a segment id, inherited the way it already is); there is no second check.
   (Recommended; blocked on the maintainer with the rest of this slice.)
-- `source.rights.record` — **[GAP]** (#4953) a rights and consent record can be attached to a project, a source
-  or any segment, with labels from an open list.
-- `source.rights.tighten-only` — **[GAP]** (#4953) a record passes downward; a lower level may restrict further
-  and never loosen.
-- `source.rights.who-acts` — **[GAP]** (#4953) owners and editors set rights records, restrict and redact; only
-  the owner can purge.
+- `source.rights.record` — **[PARTIAL]** (#4953) a rights and consent record can be attached to a project, a source
+  or any segment, with labels from an open list. **Built, engine side:** `RightsRecord` (`models/rights.py`)
+  with holders, consent (what, by whom, when), conditions (capped: it enters the audit chain), open labels,
+  a restriction with the accounts it names, and model use. `rights.set` / `rights.withdraw` are audited and
+  undoable (`fichero-server/tests/unit/api/test_rights_records.py::TestARecordSaysWhatItSays::test_a_record_hangs_on_the_library_a_source_or_a_segment_with_open_labels`,
+  `::TestWithdrawingAndUndo::test_a_withdrawn_record_stops_applying_and_undo_brings_it_back`). A restriction
+  that names nobody is refused. **Not built:** any surface; enforcement (`one-check`).
+- `source.rights.tighten-only` — **[OK]** (→ #4953) a record passes downward; a lower level may restrict further
+  and never loosen. `effective_rights` combines every live record from the library down: restricted if ANY
+  record restricts, readers the INTERSECTION of each restricting record's names, model use the STRICTEST
+  stated. A record that would loosen model use is refused out loud, naming what is above it, rather than
+  silently ignored (`fichero-server/tests/unit/api/test_rights_records.py::TestItPassesDownAndOnlyTightens::test_a_lower_record_narrows_who_may_see_and_cannot_widen_it`,
+  `::TestItPassesDownAndOnlyTightens::test_an_unrestricted_record_below_does_not_lift_a_restriction_above`,
+  `::TestItPassesDownAndOnlyTightens::test_model_use_takes_the_strictest_and_a_looser_record_is_refused_out_loud`).
+- `source.rights.who-acts` — **[PARTIAL]** (#4953) owners and editors set rights records, restrict and redact; only
+  the owner can purge. **Built:** setting and restricting, through the existing write check (a record's
+  target is a write target, so a viewer is refused before the action runs:
+  `fichero-server/tests/unit/api/test_rights_records.py::TestWhoActs::test_a_viewer_cannot_set_a_record_and_an_editor_can`). **Not built:** redact and purge.
 - `source.rights.restricted-is-said` — **[GAP]** (#4953) for anyone not allowed to see it (always a viewer, and any editor or owner the
   rights record does not name: ruled 2026-09-20), a restricted segment's content is hidden, and the page says
   that something is hidden.
