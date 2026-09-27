@@ -38,6 +38,7 @@ from typing import Any
 
 from fichero_server.formats import register
 from fichero_server.formats.harness import (
+    pixel_grid,
     FormatSpec,
     LossReport,
     PageOrder,
@@ -173,6 +174,10 @@ def read(data: bytes) -> SourcePage:
     if page_el.get("LANG"):
         page.language = page_el.get("LANG")
     page.foreign["alto:MeasurementUnit"] = unit
+    if width and height:
+        # The page's size in ITS OWN unit, for every unit: the only record of its proportions
+        # when the unit is not pixels, and what lets ALTO write it back as it came (#5130).
+        page.page_extent = (float(width), float(height), unit)
     if unit == "pixel" and width and height:
         page.image_size = (int(width), int(height))
 
@@ -278,14 +283,14 @@ def write(page: SourcePage, report: LossReport) -> bytes:
     """One page as ALTO 4.4, with everything it cannot carry reported."""
     from lxml import etree
 
-    width, height = page.image_size or (1000, 1000)
-    if page.image_size is None:
-        report.note(
-            "page size",
-            1,
-            "no pixel grid was recorded for this page, so 1000x1000 was written "
-            "and ALTO's coordinates are against an invented page",
-        )
+    # A page with no pixel grid but a STATED size in another unit is written back in that unit
+    # and at that size (#5130): ALTO can say `mm10`, so nothing needs inventing. Before this a
+    # `mm10` page came back as a square 1000x1000 `pixel` page and every shape was stretched.
+    unit_out = "pixel"
+    if page.image_size is None and page.page_extent is not None and page.page_extent[2] != "pixel":
+        width, height, unit_out = page.page_extent
+    else:
+        width, height = pixel_grid(page, report, "ALTO")
 
     root = etree.Element(f"{{{ALTO_NS_V4}}}alto", nsmap={None: ALTO_NS_V4, "xsi": XSI_NS})
     # The release is DECLARED, not left to the reader: ALTO keeps one namespace for all of
@@ -296,7 +301,7 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         f"{ALTO_NS_V4} http://www.loc.gov/standards/alto/v4/{ALTO_WRITTEN_SCHEMA}",
     )
     description = etree.SubElement(root, f"{{{ALTO_NS_V4}}}Description")
-    etree.SubElement(description, f"{{{ALTO_NS_V4}}}MeasurementUnit").text = "pixel"
+    etree.SubElement(description, f"{{{ALTO_NS_V4}}}MeasurementUnit").text = unit_out
     source = etree.SubElement(
         description, f"{{{ALTO_NS_V4}}}sourceImageInformation"
     )

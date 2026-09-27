@@ -148,6 +148,19 @@ class TestEachRealFile:
 
         assert validate(format_named(claimed), written) == []
 
+    def test_the_page_keeps_its_proportions_through_our_export(self, corpus_file):
+        """A CONTENT check, not a schema one (#5130). A `mm10` / `inch1200` ALTO page was
+        re-exported as a square 1000x1000 `pixel` page: valid, and every shape stretched. The
+        page's width over its height -- pixel grid or stated extent -- must come back the same."""
+        path, claimed, data = corpus_file
+        page = read_page(claimed, data)
+        before = _proportion(page)
+        if before is None:
+            pytest.skip(f"{path.name} states no page size")
+        written, _report = write_page(claimed, page)
+        after = _proportion(read_page(claimed, written))
+        assert after == pytest.approx(before, rel=0.01), f"{path.name}: {before:.4f} came back {after}"
+
     def test_the_loss_report_accounts_for_everything_that_did_not_come_back(self, corpus_file):
         path, claimed, data = corpus_file
         page = read_page(claimed, data)
@@ -194,3 +207,11 @@ def _stated(page: SourcePage, fact: str) -> set[str]:
 
 def _texts(page: SourcePage) -> set[str]:
     return {text for segment in page.segments for _kind, text in segment.readings if text and text.strip()}
+
+
+def _proportion(page: SourcePage) -> float | None:
+    if page.image_size and page.image_size[1]:
+        return page.image_size[0] / page.image_size[1]
+    if page.page_extent and page.page_extent[1]:
+        return page.page_extent[0] / page.page_extent[1]
+    return None

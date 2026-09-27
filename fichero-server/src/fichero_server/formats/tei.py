@@ -47,6 +47,7 @@ from typing import Any
 
 from fichero_server.formats import register
 from fichero_server.formats.harness import (
+    pixel_grid,
     FormatSpec,
     LossReport,
     PageOrder,
@@ -509,14 +510,7 @@ def write(page: SourcePage, report: LossReport) -> bytes:
     def q(name: str) -> str:
         return f"{{{TEI_NS}}}{name}"
 
-    width, height = page.image_size or (1000, 1000)
-    if page.image_size is None:
-        report.note(
-            "page size",
-            1,
-            "the model stores normalised coordinates and this page had no pixel size recorded, "
-            "so a 1000x1000 surface was written and the original pixel grid cannot be recovered",
-        )
+    width, height = pixel_grid(page, report, "TEI")
 
     root = etree.Element(q("TEI"), nsmap={None: TEI_NS})
     header = _header(page, report, root)
