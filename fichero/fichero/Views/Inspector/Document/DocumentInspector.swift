@@ -78,6 +78,14 @@ struct DocumentInspector: View {
     @Environment(ArtifactService.self) var artifactService
     @Environment(KGCurationService.self) var kgCurationService
     @Environment(ClaimFocusState.self) var claimFocusState
+    /// The observable data layer for claims (#5098: `entityArm` used to reach
+    /// `LibraryManager.shared.globalLibrary?.claimStore` directly — the singleton
+    /// reach the rule exists to stop, and exactly where a stale library reference
+    /// would show as the wrong document's data). Optional for the same reason
+    /// `EntityDigestView`'s is (#3300): a non-optional read traps in a host with
+    /// no library open, and `entityArm`'s own comment already says it falls back
+    /// to a direct fetch when there is none.
+    @Environment(ClaimStore.self) var claimStore: ClaimStore?
     @State private var focusedArtifact = FocusedArtifact.shared
     /// Cross-view KG focus. Entity selection now routes into the Entities tab's
     /// lower detail pane instead of replacing the whole inspector. (#3400)
@@ -167,12 +175,14 @@ struct DocumentInspector: View {
 
     /// The entity arm, with the library's claim store injected so the digest's
     /// statements load through the observable data layer (spec: F3). Store
-    /// resolved defensively — if no library is open the digest falls back to a
-    /// direct fetch rather than trapping.
+    /// resolved from THIS view's own `@Environment` (#5098; used to reach
+    /// `LibraryManager.shared.globalLibrary?.claimStore`, the singleton this
+    /// view is presented for one specific library to avoid) — if no library
+    /// is open the digest falls back to a direct fetch rather than trapping.
     @ViewBuilder
     private func entityArm(_ entityId: String) -> some View {
         let arm = EntityInspectorArm(entityId: entityId, entityService: entityService)
-        if let claimStore = LibraryManager.shared.globalLibrary?.claimStore {
+        if let claimStore {
             arm.environment(claimStore)
         } else {
             arm
