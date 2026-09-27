@@ -1559,7 +1559,18 @@ async def edit_artifact_regions(
             if all(0 <= i < len(ordered) for i in edit.indices):
                 target_ids = [ordered[i].id for i in edit.indices]
         else:
-            box_count = len(artifact.ocr_geometry.boxes) if artifact.ocr_geometry else 0
+            # The UNCONVERTED branch of the `is_converted` test above, where the stored
+            # block IS the live geometry -- so this is not the stale read the guardrail
+            # hunts. `live_geometry` would return this same block and buy nothing here.
+            #
+            # Why this reader cannot simply go through `live_geometry` for BOTH branches:
+            # it does not want geometry, it wants IDENTITY -- which box each index names,
+            # so a redo replays on the same boxes (#4991). `live_geometry` answers with
+            # boxes and no ids, so the converted branch reads `live_rows_in_order` above
+            # and this one mints the repeatable conversion ids. Counting the boxes is all
+            # the block is used for.
+            block = artifact.ocr_geometry  # raw-geometry-ok: unconverted branch; counted, not served
+            box_count = len(block.boxes) if block else 0
             if all(0 <= i < box_count for i in edit.indices):
                 target_ids = [_converted_segment_id(artifact_id, i) for i in edit.indices]
     registry.invoke(

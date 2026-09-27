@@ -126,7 +126,12 @@ def main() -> int:
                 dynamic.append(f"  {rel}:{lineno}  {src}")
             if rel in PERMITTED:
                 continue
-            for lineno, src in visitor.reads:
+            # One SOURCE LINE can hold the same read twice (`len(a.x.boxes) if a.x
+            # else 0`), and reporting it twice inflates the count and makes a fixed
+            # site look half-fixed. Deduped by (line, text), so two DIFFERENT reads
+            # on one line still count twice -- and the pragma is per line anyway, so
+            # this matches the granularity of the allowance.
+            for lineno, src in dict.fromkeys(visitor.reads):
                 line = lines[lineno - 1] if 0 < lineno <= len(lines) else ""
                 if PRAGMA in line:
                     reason = line.split(PRAGMA, 1)[1].strip()
@@ -170,12 +175,21 @@ def main() -> int:
         print(line)
     print(
         "\nOn a converted page that block is frozen at the state BEFORE its "
-        "owner's first\nedit. Call "
-        "`api/routes/document/segment_conversion.py::live_geometry(db, artifact)`\n"
-        "instead -- it returns the block for an unconverted artifact and the "
-        "live rows for a\nconverted one. If this reader genuinely wants the "
-        "MACHINE'S ORIGINAL, add its file\nto PERMITTED in this script AND say "
-        "why in a comment beside the read (#4924)."
+        "owner's first\nedit. Both doors are in "
+        "`api/routes/document/segment_conversion.py`, and WHICH ONE depends on\n"
+        "what the reader actually wants:\n\n"
+        "  * boxes -- where things are -- `live_geometry(db, artifact)`: the block for an\n"
+        "    unconverted artifact, an ordered projection of the live rows for a converted\n"
+        "    one.\n"
+        "  * identity -- WHICH box an index names -- `live_rows_in_order(db, pass_id)`: the\n"
+        "    rows themselves, with their ids. `live_geometry` projects rows into boxes and\n"
+        "    drops the ids, so a caller that needs to name a box (a redo replaying on the\n"
+        "    SAME boxes, an edit target) cannot get it from there and must not fall back to\n"
+        "    the stored block to index positionally.\n\n"
+        "If this reader genuinely wants the MACHINE'S ORIGINAL, add its file to PERMITTED\n"
+        "in this script AND say why in a comment beside the read -- or, better, put the\n"
+        f"reason on the read itself with `{PRAGMA} <why>`, which keeps the next raw read\n"
+        "somebody adds to that file honest (#4924)."
     )
     return 1
 
