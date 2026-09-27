@@ -62,10 +62,31 @@ IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".tif", ".tiff", ".jp2")
 # ---------------------------------------------------------------------------
 
 
+def _github_token() -> str:
+    """A GitHub token if one is at hand: the anonymous API allows 60 calls an hour, and
+    a run over several GitHub-hosted sets lists a tree per set. `GITHUB_TOKEN`, else
+    the `gh` CLI's stored login, else nothing (anonymous still works for a few sets)."""
+    import os
+
+    token = os.environ.get("GITHUB_TOKEN", "")
+    if not token and shutil.which("gh"):
+        done = subprocess.run(["gh", "auth", "token"], capture_output=True, text=True)
+        token = done.stdout.strip() if done.returncode == 0 else ""
+    return token
+
+
+_TOKEN: list[str | None] = [None]
+
+
 def _http(url: str, rng: str | None = None) -> tuple[bytes, dict]:
     headers = dict(AGENT)
     if rng:
         headers["Range"] = rng
+    if url.startswith("https://api.github.com/"):
+        if _TOKEN[0] is None:
+            _TOKEN[0] = _github_token()
+        if _TOKEN[0]:
+            headers["Authorization"] = f"Bearer {_TOKEN[0]}"
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=300) as r:
             if rng and r.status != 206:
@@ -228,6 +249,62 @@ class GitHub(Store):
         return data
 
 
+class ZenodoFiles(Store):
+    """A Zenodo record whose pages are deposited as loose files, not a zip.
+
+    Each file is checked against the size and md5 the record's own API lists; the
+    listing itself is pinned by `listing_md5`, the md5 of its sorted "name size
+    checksum" lines, so a republished record is refused rather than sampled.
+    """
+
+    def __init__(self, record: int, listing_md5: str) -> None:
+        self.record = record
+        data = json.loads(_http(f"https://zenodo.org/api/records/{record}")[0])
+        self.files = {f["key"]: (f["size"], f["checksum"].removeprefix("md5:")) for f in data["files"]}
+        lines = sorted(f"{k} {size} md5:{md5}" for k, (size, md5) in self.files.items())
+        got = hashlib.md5("\n".join(lines).encode()).hexdigest()
+        if got != listing_md5:
+            raise SystemExit(f"zenodo {record}: the file listing changed upstream ({got}); re-check its licence")
+
+    def names(self) -> list[str]:
+        return list(self.files)
+
+    def read(self, name: str) -> bytes:
+        data = _http(ZENODO.format(self.record, urllib.parse.quote(name)))[0]
+        size, md5 = self.files[name]
+        if (len(data), hashlib.md5(data).hexdigest()) != (size, md5):
+            raise OSError(f"{name}: not the bytes the record lists")
+        return data
+
+
+class HuggingFace(Store):
+    """Files of a Hugging Face dataset at a PINNED commit.
+
+    The hub lists every file with a git blob sha (small files) or an LFS sha256
+    (large ones, which is how the images and most XML are stored); each download is
+    checked against whichever it has.
+    """
+
+    def __init__(self, repo: str, commit: str, prefix: str) -> None:
+        self.repo, self.commit = repo, commit
+        listing = json.loads(_http(f"https://huggingface.co/api/datasets/{repo}/tree/{commit}/{prefix.rstrip('/')}?recursive=true")[0])
+        self.files = {
+            f["path"]: (f.get("lfs") or {}).get("oid") or f["oid"]
+            for f in listing if f["type"] == "file" and f["path"].startswith(prefix)
+        }
+
+    def names(self) -> list[str]:
+        return list(self.files)
+
+    def read(self, name: str) -> bytes:
+        data = _http(f"https://huggingface.co/datasets/{self.repo}/resolve/{self.commit}/{urllib.parse.quote(name)}")[0]
+        want = self.files[name]
+        got = hashlib.sha256(data).hexdigest() if len(want) == 64 else hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+        if got != want:
+            raise OSError(f"{name}: hash mismatch against the hub's listing")
+        return data
+
+
 @dataclass
 class IIIF:
     """Page images from a library's IIIF Image API.
@@ -283,6 +360,30 @@ def _onb_phil_gr_130(store: Store) -> dict[str, str]:
     return urls
 
 
+def _bdd_urls(store: Store) -> dict[str, str]:
+    """Burchards Dekret Digital ships `<sigil>.json`: PAGE file -> the library's IIIF
+    URL at the very size the PAGE was drawn on (the images themselves are not in the
+    repository, for copyright reasons its README states)."""
+    urls = {}
+    for name in store.names():
+        if name.endswith(".json"):
+            for row in json.loads(store.read(name)):
+                urls[row["file_name"].rsplit(".", 1)[0]] = row["image_url"]
+    return urls
+
+
+def _reichsanzeiger_urls(store: Store) -> dict[str, str]:
+    """`data/imageurls.list`: `<film path> <page>.jpg`, served by Mannheim's image
+    server; the base URL is the one `download_images.sh` decodes."""
+    base = "https://digi.bib.uni-mannheim.de/reichsanzeiger.fcgi?FIF=/reichsanzeiger/film/"
+    urls = {}
+    for line in store.read("data/imageurls.list").decode("utf-8").splitlines():
+        if line.strip():
+            path, name = line.rsplit(" ", 1)
+            urls[name.rsplit(".", 1)[0]] = base + path
+    return urls
+
+
 # ---------------------------------------------------------------------------
 # The manifest
 # ---------------------------------------------------------------------------
@@ -306,6 +407,8 @@ class Set:
     pages: int = 20
     skip: tuple[str, ...] = (".chocomufin.xml", "METS.xml", "mets.xml", "metadata.xml")
     custom: object = None  # callable(set, pages_dir, report) for a source that is not XML
+    want: object = None  # callable(xml bytes) -> bool: take only pages that show something
+    unit: str = "pixel"  # what the XML's coordinates are in, when not pixels (mm10, inch1200)
 
 
 def _florentine_codex(s: "Set", pages: Path, report: dict) -> None:
@@ -356,6 +459,108 @@ def _tesseract_hocr(pages: Path, report: dict) -> None:
         raise OSError(f"alice_1.png is {image_size(image)}, the hOCR bbox says 2488x3507")
     (pages / "alice_1.png").write_bytes(image)
     report["pages"], report["with_image"] = 1, 1
+
+
+LOC_NDNP = "https://tile.loc.gov/storage-services/service/ndnp/dlc/batch_dlc_misctopsn83020866_ver03/data/sn83020866/print"
+LOC_IIIF = "https://tile.loc.gov/image-services/iiif/service:ndnp:dlc:batch_dlc_misctopsn83020866_ver03:data:sn83020866:print:{issue}:{page}"
+
+
+def _cherokee_phoenix(s: "Set", pages: Path, report: dict) -> None:
+    """The Cherokee Phoenix, 6 March 1828: Cherokee syllabary and English on one page.
+
+    ALTO 2.0 from the Library of Congress's NDNP batch (`ver03`; `ver01`'s OCR read
+    the Cherokee columns as Latin garbage), its coordinates in `inch1200` -- 1/1200
+    inch, so pixels at the scan's 300 dpi are the value ÷ 4. The image is the batch's
+    own scan through the IIIF Image API, at full size; its pixel size must equal the
+    ALTO's page size ÷ 4, which is the whole check. `tile.loc.gov` answers plain
+    scripts; `www.loc.gov` and `chroniclingamerica.loc.gov` do not.
+    """
+    issue = "1828030601"
+    for page in ("0001", "0002", "0003", "0004")[: s.pages]:
+        stem = f"cherokee-phoenix_{issue}_{page}"
+        if (pages / f"{stem}.xml").exists() and (pages / f"{stem}.jpg").exists():
+            report["pages"] += 1
+            report["with_image"] += 1
+            continue
+        xml = _http(f"{LOC_NDNP}/{issue}/{page}.xml")[0]
+        m = re.search(rb'<Page [^>]*?HEIGHT="(\d+)"[^>]*?WIDTH="(\d+)"', xml)
+        want = (int(m.group(2)) // 4, int(m.group(1)) // 4)
+        info = json.loads(_http(LOC_IIIF.format(issue=issue, page=page) + "/info.json")[0])
+        if (info["width"], info["height"]) != want:
+            raise OSError(f"{stem}: IIIF says {info['width']}x{info['height']}, the ALTO {want} at 300 dpi")
+        image = _http(LOC_IIIF.format(issue=issue, page=page) + "/full/full/0/default.jpg")[0]
+        if image_size(image) != want:
+            raise OSError(f"{stem}: the full image is {image_size(image)}, expected {want}")
+        (pages / f"{stem}.jpg").write_bytes(image)
+        (pages / f"{stem}.xml").write_bytes(xml)
+        report["pages"] += 1
+        report["with_image"] += 1
+        print(f"  {stem} with image")
+
+
+def _genji_tei(s: "Set", pages: Path, report: dict) -> None:
+    """Kōi Genji monogatari (Ikeda Kikan's 1942 variorum), chapter 1 Kiritsubo: one
+    TEI file whose `<facsimile>` maps every page to a zone on the National Diet
+    Library's IIIF scans (each canvas is a two-page spread, and each zone half of
+    it). The TEI is written once, under the chapter's name; the first `pages`
+    spreads it points at are fetched beside it, each checked against the pixel
+    size the `<graphic>` states. The TEI names IIIF URLs, not files, so the images
+    sit beside it by proximity, not by name.
+    """
+    repo = GitHub("kouigenjimonogatari/kouigenjimonogatari.github.io", "89a60fe7b18c1eebb91f160c068b31e857776022", "xml/master/01.xml")
+    tei = repo.read("xml/master/01.xml")
+    (pages / "kouigenji-01-kiritsubo.tei.xml").write_bytes(tei)
+    graphics = re.findall(rb'<graphic height="(\d+)px" sameAs="([^"]+)" url="([^"]+)" width="(\d+)px"/>', tei)
+    for height, image_id, url, width in graphics[: s.pages]:
+        stem = image_id.decode().rsplit("/", 1)[-1]
+        if not (pages / f"{stem}.jpg").exists():
+            image = _http(url.decode())[0]
+            if image_size(image) != (int(width), int(height)):
+                raise OSError(f"{stem}: image is {image_size(image)}, the TEI says {width}x{height}")
+            (pages / f"{stem}.jpg").write_bytes(image)
+        report["pages"] += 1
+        report["with_image"] += 1
+        print(f"  {stem} with image")
+
+
+def _yolo_pages(store_factory, prefix: str, classes: str, names_key: str = "names"):
+    """YALTAi's layout: `<split>/images/X.jpg`, `<split>/labels/X.txt` (YOLO boxes)
+    and `<split>/labels/X.xml` (the ALTO the boxes were cut from). All three go
+    beside each other under X, and the class list beside them as `classes.txt`,
+    read from the dataset's own YAML (`names: [...]` or one name per line)."""
+
+    def fetch(s: "Set", pages: Path, report: dict) -> None:
+        store = store_factory()
+        names = store.names()
+        text = store.read(classes).decode("utf-8")
+        m = re.search(r"names:\s*\[([^\]]*)\]", text)
+        labels = [x.strip().strip("'\"") for x in m.group(1).split(",")] if m else [
+            x.strip().lstrip("- ").strip() for x in text.splitlines() if x.strip() and not x.startswith(("train", "val", "nc"))
+        ]
+        (pages / "classes.txt").write_text("\n".join(labels) + "\n", encoding="utf-8")
+        images = sorted(n for n in names if n.startswith(prefix + "/images/") and n.lower().endswith(IMAGE_EXTS))
+        for name in images:
+            if report["pages"] >= s.pages:
+                break
+            stem = name.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+            label, alto = f"{prefix}/labels/{stem}.txt", f"{prefix}/labels/{stem}.xml"
+            if label not in names:
+                continue
+            if not (pages / f"{stem}.txt").exists():
+                image = store.read(name)
+                xml = store.read(alto) if alto in names else None
+                want = stated_size(xml) if xml else None
+                if want and image_size(image) != want:
+                    raise OSError(f"{stem}: image is {image_size(image)}, the ALTO says {want}")
+                (pages / name.rsplit("/", 1)[-1]).write_bytes(image)
+                (pages / f"{stem}.txt").write_bytes(store.read(label))
+                if xml:
+                    (pages / f"{stem}.xml").write_bytes(xml)
+            report["pages"] += 1
+            report["with_image"] += 1
+            print(f"  {stem} with image, YOLO labels{' and ALTO' if alto in names else ''}")
+
+    return fetch
 
 
 def _makhzan(*docs: str):
@@ -611,6 +816,200 @@ SETS: dict[str, Set] = {
         xml=None, pages=1,
         no_images="the deposit holds layout XML only; its images are not published",
     ),
+    # --- the world-corpus round: striking pages, one per script, shape or continent ---
+    "zenon-papyri": Set(
+        folder="Greek papyri - Zenon archive, 3rd century BCE",
+        language="Ancient Greek (Ptolemaic documentary)", script="Greek (papyrus cursive)", direction="left-to-right",
+        producer="Transkribus, PAGE 2013 (D-Scribes, Basel)", licence="CC-BY-4.0",
+        licence_read="Zenodo record 6565706 licence field",
+        source="Ground-Truthed Data Set of Zenon Papyri, https://zenodo.org/records/6565706",
+        exercises="a papyrus fragment with image-aligned lines: the oldest writing in the library, "
+        "on a torn irregular support with damaged edges",
+        xml=lambda: ZenodoFiles(6565706, "279d95aab7533ee34df01b9b9dd47197"), pages=44,
+    ),
+    "cherokee-phoenix": Set(
+        folder="Cherokee and English - Cherokee Phoenix newspaper, 1828 (ALTO 2, inch1200)",
+        language="Cherokee, English", script="Cherokee syllabary and Latin, on one page", direction="left-to-right",
+        producer="CCS docWizz / ABBYY FineReader 8.1 machine OCR (NDNP), ALTO 2.0, MeasurementUnit inch1200",
+        licence="Public domain (Library of Congress, Chronicling America: no known restrictions)",
+        licence_read="NDNP data at tile.loc.gov; the Chronicling America rights page on www.loc.gov refuses scripted "
+        "reads (Cloudflare), so the statement was NOT re-read by this script -- verify it in a browser",
+        source="https://tile.loc.gov/storage-services/service/ndnp/dlc/batch_dlc_misctopsn83020866_ver03/",
+        exercises="a syllabary of the Americas beside English on the same page (TextBlock language=\"chr\" / \"eng\"); "
+        "coordinates in 1/1200 inch, not pixels; machine OCR at a stated ~90%, not hand-corrected",
+        xml=None, custom=_cherokee_phoenix, pages=4, unit="inch1200",
+    ),
+    "ajami-fulfulde": Set(
+        folder="Fulfulde in Arabic script (Ajami) - West African manuscript (right-to-left)",
+        language="Fulfulde (Pular), with Arabic", script="Arabic (Ajami)", direction="right-to-left",
+        producer="eScriptorium, ALTO 4 (manual transcription; the sibling folders are model outputs and are not taken)",
+        licence="CC-BY-4.0", licence_read="Zenodo record 20392539 licence field",
+        source="Ajami Handwritten Text Recognition Dataset, https://zenodo.org/records/20392539 (Fulfulde.zip)",
+        exercises="an African language in Arabic script, hand-drawn polygons; the only sub-Saharan set",
+        xml=lambda: RemoteZip(ZENODO.format(20392539, "Fulfulde.zip"), 2583380633),
+        xml_pattern=r"ELIT_WAN_00130/manual/.*\.xml$", pages=8,
+    ),
+    "armenian-nomos": Set(
+        folder="Classical Armenian - BnF Arménien 172 (Hugging Face)",
+        language="Classical Armenian (Grabar)", script="Armenian (bolorgir)", direction="left-to-right",
+        producer="eScriptorium, PAGE 2019 (NOMOS project, LMU)",
+        licence="CC-BY-4.0 (transcriptions and geometry); images: Gallica terms, non-commercial reuse free with the "
+        "credit 'Source gallica.bnf.fr / Bibliothèque nationale de France' -- personal research use only",
+        licence_read="the dataset's LICENSE.md on the Hub (two regimes, quoted there)",
+        source="https://huggingface.co/datasets/nomikos-project/armenian-manuscript-htr",
+        exercises="the Armenian alphabet; a dataset fetched from the Hugging Face hub with per-file LFS sha256 checks",
+        xml=lambda: HuggingFace("nomikos-project/armenian-manuscript-htr", "a52076040c69c3dcbb6a7e86ef09e8b7ebccb8b4", "page-xml/bnf-armenien-172/"),
+        images=lambda: HuggingFace("nomikos-project/armenian-manuscript-htr", "a52076040c69c3dcbb6a7e86ef09e8b7ebccb8b4", "images/bnf-armenien-172/"),
+        pages=8,
+    ),
+    "genji-tei": Set(
+        folder="Japanese - Tale of Genji, 1942 variorum, vertical print (TEI facsimile over NDL IIIF)",
+        language="Classical Japanese", script="Japanese (kanji and kana), vertical, columns right to left", direction="top-to-bottom",
+        producer="hand-encoded TEI P5 with <facsimile>/<surface>/<zone> (Digital Genji Monogatari, Tokyo)",
+        licence="CC0-1.0 (TEI, stated in the teiHeader <availability> and the repository); images: Public Domain Mark "
+        "('Access Restrictions = PDM' in the NDL IIIF manifest), attribution National Diet Library",
+        licence_read="teiHeader of xml/master/01.xml; GitHub licence API CC-BY-4.0 for the repository; NDL manifest 3437686 metadata",
+        source="https://github.com/kouigenjimonogatari/kouigenjimonogatari.github.io; images https://dl.ndl.go.jp/pid/3437686",
+        exercises="vertical typeset Japanese from the most famous work in the language; one TEI for a whole chapter, "
+        "zones are half-spreads (page level, not lines); the TEI names IIIF URLs, so images pair by proximity only",
+        xml=None, custom=_genji_tei, pages=6,
+    ),
+    "yaltai-segmonto": Set(
+        folder="YOLO layout - YALTAi SegmOnto, medieval manuscripts and early print (labels beside ALTO)",
+        language="Latin, Old and Middle French, others", script="Latin (manuscript and early print)", direction="left-to-right",
+        producer="YALTAi (Kraken/eScriptorium ALTO converted to YOLOv5 boxes), classes = SegmOnto zones",
+        licence="CC-BY-4.0", licence_read="Zenodo record 6814770 licence field",
+        source="YALTAi: Segmonto Manuscript and Early Printed Book Dataset, https://zenodo.org/records/6814770 (2.8 GB, sampled by HTTP Range)",
+        exercises="a real YOLO case: `class cx cy w h` per zone, with `classes.txt` (DropCapitalZone, GraphicZone, MainZone, "
+        "MarginTextZone...) and the ALTO the boxes came from beside each image. Class numbers here are ZONE TYPES, not the "
+        "region/line/word granularity our YOLO reader assumes",
+        xml=None, pages=8,
+        custom=_yolo_pages(lambda: RemoteZip(ZENODO.format(6814770, "yaltai-segmonto-dataset.zip"), 2826543829),
+                           "yaltai-segmonto-dataset/val", "yaltai-segmonto-dataset/medieyolo.yml"),
+    ),
+    "yaltai-table": Set(
+        folder="YOLO layout - YALTAi tables (columns and headers of registers)",
+        language="French", script="Latin (print and manuscript)", direction="left-to-right",
+        producer="YALTAi, YOLOv5 boxes with ALTO beside them", licence="CC-BY-4.0",
+        licence_read="Zenodo record 6827706 licence field",
+        source="YALTAi: Tabular Dataset, https://zenodo.org/records/6827706 (376 MB, sampled by HTTP Range)",
+        exercises="table layout as YOLO boxes: Header, Col, Marginal, text",
+        xml=None, pages=6,
+        custom=_yolo_pages(lambda: RemoteZip(ZENODO.format(6827706, "yaltai-table.zip"), 376190064),
+                           "yaltai-table/val", "yaltai-table/config.yml"),
+    ),
+    "tq25-religious": Set(
+        folder="Medieval vernacular religious texts - Old Irish, Old Swedish, Old Castilian, Bavarian, French",
+        language="Old/Middle Irish with Latin (Lebor na hUidre), Old Swedish, Old Castilian, Early New High German, Old and Middle French",
+        script="Latin (Insular Carolingian minuscule, Gothic textura and cursiva)", direction="left-to-right",
+        producer="eScriptorium, ALTO 4 (TranscriboQuest 2025)", licence="CC-BY-4.0",
+        licence_read="Zenodo record 17062963 licence field",
+        source="https://zenodo.org/records/17062963",
+        exercises="six decorated manuscripts from five countries in one set, 11th-15th c.; RIA 23 E 25 is the Lebor na hUidre, "
+        "the oldest surviving manuscript in Irish",
+        xml=lambda: Archive(ZENODO.format(17062963, "TranscriboQuest25_MedVernacReligio.zip"), 61486845, "da84c56505a57c923a1c64d3e796e1a5"),
+        xml_pattern=r"/data/.*\.xml$", pages=18,
+    ),
+    "gallicorpora-15e": Set(
+        folder="French - 15th-century illuminated manuscripts, BnF (SegmOnto zones)",
+        language="Middle French", script="Latin (Gothic bâtarde)", direction="left-to-right",
+        producer="eScriptorium, ALTO 4 (Gallicorpora / BnF DataLab)", licence="CC0-1.0 (repository); images Gallica",
+        licence_read="repository LICENSE (GitHub licence API CC0-1.0); HTR-United catalogue says CC-BY 4.0",
+        source="https://github.com/Gallicorpora/HTR-MSS-15e-Siecle",
+        exercises="decorated pages with the SegmOnto vocabulary (MainZone, MarginTextZone, DropCapitalZone, GraphicZone...)",
+        xml=lambda: GitHub("Gallicorpora/HTR-MSS-15e-Siecle", "707a106f7dfa12c463ef40ec5cb53eae5e1b5e63", "data/btv1b84260029/"),
+        xml_pattern=r"data/btv1b84260029/[^/]+\.xml$", pages=8,
+    ),
+    "eutyches-glossed": Set(
+        folder="Latin with interlinear glosses - Eutyches grammar, 9th-11th c. (Leiden VLO 41, BnF lat. 7499)",
+        language="Medieval Latin (with Greek)", script="Latin (Caroline minuscule)", direction="left-to-right",
+        producer="eScriptorium, ALTO 4", licence="Apache-2.0 (repository LICENSE); HTR-United lists CC-BY 4.0. Images: Leiden and BnF, terms unstated -- personal research use only",
+        licence_read="repository LICENSE (GitHub licence API apache-2.0); HTR-United catalogue entry",
+        source="https://github.com/malamatenia/Eutyches",
+        exercises="THE glossed page: lines tagged InterlinearLine sit between the main lines, with MarginTextZone, "
+        "DropCapitalZone and MusicZone -- reading order across main text and gloss",
+        xml=lambda: GitHub("malamatenia/Eutyches", "4daf191b0018e65a6f918515406c38cf721c3b58", ""),
+        xml_pattern=r"^VLO41/GT/alto/.*\.xml$", pages=12,  # Lat7499's JPEGs are ~88 px shorter than its ALTO states: a crop, not paired
+        want=lambda xml: b"InterlinearLine" in xml,
+    ),
+    "bdd-decretum": Set(
+        folder="Latin canon law - Burchard's Decretum, 11th c., Bamberg Msc.Can.6 (layout only, IIIF images)",
+        language="Medieval Latin", script="Latin (Caroline minuscule)", direction="left-to-right",
+        producer="Transkribus then eScriptorium, PAGE 2019 (Burchards Dekret Digital, Kassel)",
+        licence="CC-BY-4.0 (PAGE); images: Staatsbibliothek Bamberg via MDZ, Public Domain Mark",
+        licence_read="repository LICENSE file; MDZ IIIF manifest bsb00140701 'license' field",
+        source="https://github.com/michaelscho/bdd-segmentation-data; images https://api.digitale-sammlungen.de",
+        exercises="a two-column law book with inscriptions and chapter counts as region types; regions and baselines "
+        "with NO text; images fetched at the exact size the PAGE was drawn on, from the library's own IIIF",
+        xml=lambda: GitHub("michaelscho/bdd-segmentation-data", "39b47e1de9d5973ff5c839d1e52c3d530afb250c", "kraken/B/"),
+        xml_pattern=r"kraken/B/B_00[1-2]\d\.xml$", images=IIIF(_bdd_urls), pages=8,
+    ),
+    "paderov-bible": Set(
+        folder="Czech - Padeřov Bible, 1432-35 (Transkribus ALTO in mm10)",
+        language="Old Czech", script="Latin (Gothic textura)", direction="left-to-right",
+        producer="Transkribus, ALTO 4 with MeasurementUnit mm10", licence="CC-BY-4.0",
+        licence_read="Zenodo record 7467034 licence field",
+        source="https://zenodo.org/records/7467034",
+        exercises="a Hussite illuminated Bible; coordinates in tenths of a millimetre, not pixels, so the pixel-size check "
+        "cannot apply and the image is paired by name alone",
+        xml=lambda: Archive(ZENODO.format(7467034, urllib.parse.quote("Padeřov-Bible-handwriting-ground-truth Initial release.zip")), 76281597, "a3018491ce27ebee7d809e93220356fe"),
+        xml_pattern=r"/alto/.*\.xml$", pages=8, unit="mm10",
+    ),
+    "nzz-fraktur": Set(
+        folder="German - Neue Zürcher Zeitung 1780-1946, Fraktur front pages (PAGE with language)",
+        language="German", script="Latin (Fraktur, later Antiqua)", direction="left-to-right",
+        producer="Transkribus, PAGE 2013 with primaryLanguage on lines and words", licence="CC-BY-4.0",
+        licence_read="Zenodo record 3333627 licence field",
+        source="https://zenodo.org/records/3333627 (472 MB, sampled by HTTP Range)",
+        exercises="dense multi-column newspaper pages with a ReadingOrder, words with TextStyle, TIFF images; "
+        "the XML names the image by Transkribus id (1199914.tif), not by the deposit's file name",
+        xml=lambda: RemoteZip(ZENODO.format(3333627, "NZZ-black-letter-ground-truth-master.zip"), 472003256),
+        xml_pattern=r"xml/NZZ_groundtruth/.*\.xml$", pages=6,
+    ),
+    "lectaurep-mariages": Set(
+        folder="French - Paris notaries' marriage registers, printed form filled by hand",
+        language="French", script="Latin (print and 19th-20th c. cursive)", direction="left-to-right",
+        producer="eScriptorium, PAGE 2019 (and ALTO, not taken)", licence="CC-BY-4.0",
+        licence_read="repository LICENSE (GitHub licence API CC-BY-4.0)",
+        source="https://github.com/HTR-United/lectaurep-mariages-et-divorces",
+        exercises="a FORM: printed labels (line type Print) beside handwritten answers (Handwritten) and signatures, "
+        "in SegmOnto zones (MainZone, TableZone, NumberingZone)",
+        xml=lambda: GitHub("HTR-United/lectaurep-mariages-et-divorces", "f0f65b7c3edc9cf21bb81c606c50f5370558d312", "data/lectaurep-cm1/"),
+        xml_pattern=r"data/lectaurep-cm1/page/.*\.xml$", pages=8,
+    ),
+    "reichsanzeiger-tables": Set(
+        folder="German - Reichsanzeiger newspaper tables (PAGE TableRegion and TableCell)",
+        language="German", script="Latin (Fraktur and Antiqua)", direction="left-to-right",
+        producer="Transkribus, PAGE 2013 with TableRegion/TableCell (UB Mannheim)",
+        licence="CC0-1.0 (repository LICENSE and .zenodo.json); scans: Mannheim University Library",
+        licence_read="repository LICENSE (CC0 text) and .zenodo.json 'license: cc-zero'",
+        source="https://github.com/UB-Mannheim/reichsanzeiger-gt; images https://digi.bib.uni-mannheim.de",
+        exercises="real tables: TableCell with row/col/rowSpan/colSpan and text, the Transkribus dialect; 10368x7104 scans",
+        xml=lambda: GitHub("UB-Mannheim/reichsanzeiger-gt", "0a3a0daf03679dc1d206e17dfdabf62b762b0476", "data/"),
+        xml_pattern=r"with-TableRegion/GT-PAGE/.*\.xml$", images=IIIF(_reichsanzeiger_urls), pages=4,
+        want=lambda xml: b"<TableCell" in xml,
+    ),
+    "hisclima-tables": Set(
+        folder="English - USS Albatross logbooks 1880s, ruled tables filled by hand (PAGE TableRegion)",
+        language="English", script="Latin (19th-c. cursive on a printed form)", direction="left-to-right",
+        producer="Transkribus, PAGE 2013 with TableRegion/TableCell", licence="CC-BY-4.0",
+        licence_read="Zenodo record 6937608 licence field",
+        source="HisClima (Information Extraction in Handwritten Historical Logbooks), https://zenodo.org/records/6937608",
+        exercises="a ship's weather log: a printed table of ~435 cells per page filled in by hand -- form labels and answers as cells",
+        xml=lambda: RemoteZip(ZENODO.format(6937608, "HisClima_table_IE.zip"), 291621205), pages=4,
+    ),
+    "benedict-bilingual": Set(
+        folder="Latin and Old English - bilingual Rule of St Benedict, 10th-11th c. (line language tags)",
+        language="Latin, Old English", script="Latin (Anglo-Saxon minuscule and Caroline)", direction="left-to-right",
+        producer="eScriptorium, ALTO 4 (with an ns0: namespace prefix)", licence="CC-BY-4.0",
+        licence_read="Zenodo record 21242748 licence field; images from the British Library, Corpus Christi Cambridge and "
+        "Oxford digital collections ship inside the deposit under that record -- personal research use",
+        source="https://zenodo.org/records/21242748 (bilingual_RSB_GT.zip, 7 GB, sampled by HTTP Range)",
+        exercises="two languages tagged LINE BY LINE (LatinLine / EnglishLine, plus InterlinearLine) in a monastic rule; "
+        "three witnesses, TIFF and JPEG images",
+        xml=lambda: RemoteZip(ZENODO.format(21242748, "bilingual_RSB_GT.zip"), 7055398671),
+        xml_pattern=r"annotations/(BL-CTAiv_02[89]|BL-CTAiv_03[0-1]|CCCCMS178_p33[89]|OCCC197_57[rv])\.xml$", pages=8,
+    ),
 }
 # The Tibetan TEI is a single file, not an archive: fetched by `_single`.
 SINGLE = {"pagantibet-tibetan": (ZENODO.format(19205598, "Manual1-20230809_GT_layout.xml"), 165473, "48334278b49dab19c8326faa7a00778d")}
@@ -622,7 +1021,7 @@ SINGLE = {"pagantibet-tibetan": (ZENODO.format(19205598, "Manual1-20230809_GT_la
 
 _IMAGE_REF = (
     re.compile(rb'imageFilename="([^"]+)"'),  # PAGE
-    re.compile(rb"<fileName>([^<]+)</fileName>"),  # ALTO
+    re.compile(rb"<(?:\w+:)?fileName>([^<]+)</(?:\w+:)?fileName>"),  # ALTO, prefixed or not (ns0:fileName)
 )
 
 
@@ -636,9 +1035,19 @@ def image_named_by(xml: bytes) -> str | None:
 
 
 def image_size(data: bytes) -> tuple[int, int] | None:
-    """(width, height) from a JPEG SOF or PNG IHDR header, without decoding."""
+    """(width, height) from a JPEG SOF, PNG IHDR or TIFF IFD header, without decoding."""
     if data[:8] == b"\x89PNG\r\n\x1a\n":
         return struct.unpack(">II", data[16:24])
+    if data[:4] in (b"II*\x00", b"MM\x00*"):
+        order = "<" if data[:2] == b"II" else ">"
+        (ifd,) = struct.unpack(order + "I", data[4:8])
+        (count,) = struct.unpack(order + "H", data[ifd:ifd + 2])
+        found = {}
+        for i in range(count):
+            tag, kind, n, value = struct.unpack(order + "HHII", data[ifd + 2 + 12 * i:ifd + 14 + 12 * i])
+            if tag in (256, 257):  # ImageWidth, ImageLength; SHORT values sit in the field's first two bytes
+                found[tag] = value if kind == 4 else struct.unpack(order + "H", data[ifd + 10 + 12 * i:ifd + 12 + 12 * i])[0]
+        return (found[256], found[257]) if len(found) == 2 else None
     if data[:2] == b"\xff\xd8":
         i = 2
         while i + 9 < len(data):
@@ -654,13 +1063,22 @@ def image_size(data: bytes) -> tuple[int, int] | None:
 
 
 def stated_size(xml: bytes) -> tuple[int, int] | None:
-    m = re.search(rb'imageWidth="(\d+)"\s+imageHeight="(\d+)"', xml[:20000]) or re.search(
-        rb'<Page[^>]*?HEIGHT="(\d+)"[^>]*?WIDTH="(\d+)"', xml[:20000]
-    )
-    if not m:
+    """The pixel size the XML says its image has -- or None when it says none, or when
+    its coordinates are not in pixels (ALTO `mm10`, `inch1200`), since then the page
+    size is not a pixel size and cannot be compared with one."""
+    head = xml[:20000]
+    if re.search(rb"<(?:\w+:)?MeasurementUnit>\s*(mm10|inch1200)\s*<", head):
         return None
-    a, b = int(m.group(1)), int(m.group(2))
-    return (a, b) if b"imageWidth" in m.group(0) else (b, a)
+    m = re.search(rb'imageWidth="(\d+)"\s+imageHeight="(\d+)"', head)
+    if m:
+        return int(m.group(1)), int(m.group(2))
+    page = re.search(rb"<(?:\w+:)?Page\b[^>]*>", head)
+    if page:
+        w = re.search(rb'\bWIDTH="(\d+)"', page.group(0))
+        h = re.search(rb'\bHEIGHT="(\d+)"', page.group(0))
+        if w and h:
+            return int(w.group(1)), int(h.group(1))
+    return None
 
 
 def fetch_set(key: str, s: Set) -> dict:
@@ -700,12 +1118,15 @@ def fetch_set(key: str, s: Set) -> dict:
         if re.search(s.xml_pattern, n) and not any(n.endswith(x) or n.rsplit("/", 1)[-1] == x for x in s.skip)
     )
     seen: set[str] = set()
+    mismatches = 0
     for name in candidates:
         if report["pages"] >= s.pages:
             break
         xml = store.read(name)
         suffix = "." + name.rsplit(".", 1)[-1].lower()
-        if suffix == ".xml" and b"PcGts" not in xml[:3000] and b"<alto" not in xml[:3000]:
+        if suffix == ".xml" and b"PcGts" not in xml[:3000] and b"alto" not in xml[:3000]:
+            continue
+        if s.want and not s.want(xml):
             continue
         ref = image_named_by(xml)
         stem = (ref.rsplit(".", 1)[0] if ref else name.rsplit("/", 1)[-1].rsplit(".", 1)[0])
@@ -719,9 +1140,13 @@ def fetch_set(key: str, s: Set) -> dict:
         image, ext = None, ""
         # The image the XML names; failing that (an ALTO with no <fileName>), the image
         # with the XML's own stem, which is how Transkribus's ALTO export pairs them.
+        # Failing both, an image whose name ENDS with the XML's stem (NZZ ships
+        # `0001_nzz_17800719_..tif` for `nzz_17800719_...xml`, and names a Transkribus
+        # id inside the XML).
+        xml_stem = name.rsplit("/", 1)[-1].rsplit(".", 1)[0]
         found = image_index.get(ref or "") or next(
-            (image_index[stem + e] for e in (".jpg", ".jpeg", ".png", ".tif", ".JPG") if stem + e in image_index), None
-        )
+            (image_index[stem + e] for e in (".jpg", ".jpeg", ".png", ".tif", ".JPG", ".JPEG") if stem + e in image_index), None
+        ) or next((v for k, v in image_index.items() if k.rsplit(".", 1)[0].endswith("_" + xml_stem)), None)
         if s.no_images:
             pass
         elif isinstance(images, IIIF):
@@ -736,15 +1161,22 @@ def fetch_set(key: str, s: Set) -> dict:
             report["missing"].append(f"{stem}: the XML names {ref!r}, which the source does not hold")
         if image is not None:
             want, got = stated_size(xml), image_size(image)
-            if want and got and want != got:
+            if want and got and want != got and max(abs(want[0] - got[0]), abs(want[1] - got[1])) <= 2:
+                # The same scan, resized by the library with a different rounding
+                # (MDZ serves 1500x1847 for a PAGE drawn on 1500x1848): every region
+                # still lands within a pixel. Paired, and said.
+                report["missing"].append(f"{stem}: the image is {got[0]}x{got[1]}, the XML says {want[0]}x{want[1]} -- the same scan, rounded differently; paired")
+            elif want and got and want != got:
                 # Not the image the regions were drawn on (a different scan or crop):
-                # pairing it would put every region in the wrong place. Say so, once,
-                # and stop fetching images for this set.
+                # pairing it would put every region in the wrong place. Say so, and after
+                # three such pages stop fetching images for this set.
                 report["missing"].append(
                     f"{stem}: the source's image is {got[0]}x{got[1]} and the XML was drawn on "
                     f"{want[0]}x{want[1]} -- a different scan, so no image is paired"
                 )
-                s.no_images = s.no_images or "the available images are a different scan from the one the XML was drawn on"
+                mismatches += 1
+                if mismatches >= 3:
+                    s.no_images = s.no_images or "the available images are a different scan from the one the XML was drawn on"
                 image = None
         if image is not None:
             (pages / f"{stem}{ext}").write_bytes(image)

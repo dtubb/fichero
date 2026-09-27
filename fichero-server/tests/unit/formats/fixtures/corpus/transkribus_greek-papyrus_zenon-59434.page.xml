@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<PcGts xmlns="http://schema.primaresearch.org/PAGE/gts/pagecontent/2013-07-15" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://schema.primaresearch.org/PAGE/gts/pagecontent/2013-07-15 http://schema.primaresearch.org/PAGE/gts/pagecontent/2013-07-15/pagecontent.xsd">
+    <Metadata>
+        <Creator>Transkribus</Creator>
+        <Created>2019-10-07T14:39:55.182+02:00</Created>
+        <LastChange>2020-06-18T11:04:54.766+02:00</LastChange>
+        <TranskribusMetadata docId="377848" pageId="14795557" pageNr="26" tsid="32127419" status="IN_PROGRESS" userId="59201" imgUrl="https://files.transkribus.eu/Get?id=PUVPLCGCIAZXSERVLIZNZMXM&amp;fileType=view" xmlUrl="https://files.transkribus.eu/Get?id=RCHHRNFAHWCPPLOEBPTNFUUG" imageId="6200990"/>
+    </Metadata>
+    <Page imageFilename="P.Cair.Zen.III.59434.jpg" imageWidth="372" imageHeight="596">
+        <ReadingOrder>
+            <OrderedGroup id="ro_1653029274665" caption="Regions reading order">
+                <RegionRefIndexed index="0" regionRef="region_1570579187284_2039"/>
+            </OrderedGroup>
+        </ReadingOrder>
+        <TextRegion id="region_1570579187284_2039" custom="readingOrder {index:0;}">
+            <Coords points="141,18 353,18 353,588 141,588"/>
+            <TextLine id="line_1570579197251_2042" custom="readingOrder {index:0;}">
+                <Coords points="165,-1 253,-1 342,7 338,57 251,49 165,49"/>
+                <Baseline points="165,44 251,44 338,52"/>
+                <TextEquiv>
+                    <Unicode>ζηνοδωρο   ν</Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="line_1570579202110_2047" custom="readingOrder {index:1;}">
+                <Coords points="169,25 339,26 339,76 169,75"/>
+                <Baseline points="169,70 339,71"/>
+                <TextEquiv>
+                    <Unicode>νιχαιρ </Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="line_1570579206984_2052" custom="readingOrder {index:2;}">
+                <Coords points="165,56 264,47 333,51 330,101 265,97 169,106"/>
+                <Baseline points="169,101 265,92 330,96"/>
+                <TextEquiv>
+                    <Unicode>ψαϲπ    ν</Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="line_1570579211614_2057" custom="readingOrder {index:3;}">
+                <Coords points="169,77 254,74 336,82 330,132 253,124 171,127"/>
+                <Baseline points="171,122 253,119 331,127"/>
+                <TextEquiv>
+                    <Unicode>ϲκαφεωνευδη</Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="line_1570579216498_2062" custom="readingOrder {index:4;}">
+                <Coords points="173,105 251,103 320,105 319,155 251,153 174,155"/>
+                <Baseline points="174,150 251,148 319,150"/>
+                <TextEquiv>
+                    <Unicode>μ ιδουναι</Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="line_1570579221910_2067" custom="readingOrder {index:5;}">
+                <Coords points="171,127 254,128 344,133 342,183 252,178 170,177"/>
+                <Baseline points="170,172 252,173 342,178"/>
+                <TextEquiv>
+                    <Unicode>εγωουντοιϲκα</Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="line_1570579227685_2072" custom="readingOrder {index:6;}">
+                <Coords points="177,152 235,153 297,160 344,159 345,209 295,210 232,203 176,202"/>
+                <Baseline points="176,197 232,198 295,205 345,204"/>
+                <TextEquiv>
+                    <Unicode>φεοιουπ  ακολ</Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="line_1570579233561_2077" custom="readingOrder {index:7;}">
+                <Coords points="176,176 243,181 300,181 334,177 340,227 302,231 241,231 173,226"/>
+                <Baseline points="173,221 241,226 302,226 339,222"/>
+                <TextEquiv>
+                    <Unicode>θωουκειταιδια</Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="line_1570579239304_2082" custom="readingOrder {index:8;}">
+                <Coords points="181,200 235,205 282,204 349,205 348,255 282,254 234,255 177,250"/>
+                <Baseline points="177,245 234,250 282,249 348,250"/>
+                <TextEquiv>
+                    <Unicode>τοευαρχονμηεν</Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="line_1570579244651_2087" custom="readingOrder {index:9;}">
+                <Coords points="173,223 237,221 290,226 348,232 342,282 284,276 235,271 174,273"/>
+                <Baseline points="174,268 235,266 285,271 343,277"/>
+                <TextEquiv>
+                    <Unicode>δημεινωρον</Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="line_1570579249684_2092" custom="readingOrder {index:10;}">
+                <Coords points="173,255 240,257 297,258 339,256 341,306 298,308 239,307 172,305"/>
+                <Baseline points="172,300 239,302 298,303 341,301"/>
+                <TextEquiv>
+                    <Unicode>δεφαϲκουϲινπα</Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="line_1570579256096_2097" custom="readingOrder {index:11;}">
+                <Coords points="177,277 235,277 292,278 345,282 341,332 290,328 235,327 177,327"/>
+                <Baseline points="177,322 235,322 290,323 341,327"/>
+                <TextEquiv>
+                    <Unicode>ρακολουθεινου</Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="line_1570579261981_2102" custom="readingOrder {index:12;}">
+                <Coords points="182,307 247,310 294,317 332,310 341,359 295,367 243,360 180,357"/>
+                <Baseline points="180,352 243,355 295,362 340,354"/>
+                <TextEquiv>
+                    <Unicode>κειταιπαρεϲο</Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="line_1570579268785_2107" custom="readingOrder {index:13;}">
+                <Coords points="179,330 234,332 279,335 322,338 344,337 346,387 321,388 276,385 232,382 177,380"/>
+                <Baseline points="177,375 232,377 276,380 321,383 346,382"/>
+                <TextEquiv>
+                    <Unicode>μαιδεϲοιαυτον</Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="line_1570579275000_2112" custom="readingOrder {index:14;}">
+                <Coords points="181,357 230,358 286,359 330,360 329,410 285,409 229,408 180,407"/>
+                <Baseline points="180,402 229,403 285,404 329,405"/>
+                <TextEquiv>
+                    <Unicode>αγωναυριον</Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="line_1570579280970_2117" custom="readingOrder {index:15;}">
+                <Coords points="182,383 232,383 276,388 327,388 327,438 273,438 229,433 182,433"/>
+                <Baseline points="182,428 229,428 273,433 327,433"/>
+                <TextEquiv>
+                    <Unicode>εανδεδωιτα</Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="line_1570579286479_2122" custom="readingOrder {index:16;}">
+                <Coords points="185,406 229,409 277,409 335,411 333,461 276,459 228,459 182,456"/>
+                <Baseline points="182,451 228,454 276,454 333,456"/>
+                <TextEquiv>
+                    <Unicode>ϲκαφ  αυτοϲ  </Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="line_1570579291537_2127" custom="readingOrder {index:17;}">
+                <Coords points="189,434 256,439 330,439 330,489 254,489 186,484"/>
+                <Baseline points="186,479 254,484 330,484"/>
+                <TextEquiv>
+                    <Unicode>αποιϲ</Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="line_1570579295298_2132" custom="readingOrder {index:18;}">
+                <Coords points="182,459 245,458 246,508 183,509"/>
+                <Baseline points="183,504 246,503"/>
+                <TextEquiv>
+                    <Unicode>μωι</Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextLine id="line_1570579299422_2137" custom="readingOrder {index:19;}">
+                <Coords points="238,480 307,469 315,518 246,529"/>
+                <Baseline points="245,524 314,513"/>
+                <TextEquiv>
+                    <Unicode>ερρωϲο</Unicode>
+                </TextEquiv>
+            </TextLine>
+            <TextEquiv>
+                <Unicode>ζηνοδωρο   ν&#13;
+νιχαιρ &#13;
+ψαϲπ    ν&#13;
+ϲκαφεωνευδη&#13;
+μ ιδουναι&#13;
+εγωουντοιϲκα&#13;
+φεοιουπ  ακολ&#13;
+θωουκειταιδια&#13;
+τοευαρχονμηεν&#13;
+δημεινωρον&#13;
+δεφαϲκουϲινπα&#13;
+ρακολουθεινου&#13;
+κειταιπαρεϲο&#13;
+μαιδεϲοιαυτον&#13;
+αγωναυριον&#13;
+εανδεδωιτα&#13;
+ϲκαφ  αυτοϲ  &#13;
+αποιϲ&#13;
+μωι&#13;
+ερρωϲο</Unicode>
+            </TextEquiv>
+        </TextRegion>
+    </Page>
+</PcGts>
