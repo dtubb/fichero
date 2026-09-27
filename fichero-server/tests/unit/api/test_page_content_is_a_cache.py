@@ -318,7 +318,7 @@ class TestTheTextIsDerivedFromTheLinesThatCarryIt:
 
         fast = sr.document_text(db, document_id)
         with monkeypatch.context() as m:
-            m.setattr(sr, "_text_bearing_rows", lambda db_, doc_, pass_id: db_.query(Segment, pass_id=pass_id))
+            m.setattr(sr, "_text_bearing_rows", lambda db_, doc_, pass_id, **_kw: db_.query(Segment, pass_id=pass_id))
             full = sr.document_text(db, document_id)
         return fast, full
 
@@ -378,3 +378,39 @@ class TestTheTextIsDerivedFromTheLinesThatCarryIt:
         monkeypatch.setattr(db, "query", refuse_whole_pass)
         derived = sr.document_text(db, doc.id)
         assert "first line" in derived.text
+
+    @pytest.mark.parametrize("named_order", [False, True])
+    def test_each_reading_is_loaded_once_per_derivation(self, db, tmp_path, monkeypatch, named_order):
+        """On the real Cherokee page (3,910 words) ~83% of deriving the text was hydrating rows,
+        11,745 calls, because every reading was loaded TWICE: once for its segment id
+        (`_text_bearing_rows`) and again for its content (`_readings_for_live_rows`). Counted
+        here as hydrated readings; if either reader goes back to loading them itself, the count
+        doubles and this fails. The text is pinned equal to deriving from the whole pass by
+        `test_furniture_delete_merge_and_split_all_derive_the_same_text`."""
+        import fichero_server.api.routes.document.segment_readings as sr
+
+        doc, lines, rows = self._imported_page(db, tmp_path)
+        stored = list(db.query(ContentRepresentation, document_id=doc.id))
+        assert len(stored) == 3
+        order = None
+        if named_order:
+            import fichero_server.api.routes.document.reading_orders  # noqa: F401  (registers the action)
+
+            made = registry.invoke(
+                db, "reading_order.create",
+                {"document_id": doc.id, "pass_id": lines[0].pass_id, "seed_from_pass": True}, CTX,
+            )
+            order = made.result["order_id"]
+
+        hydrated: list[str] = []
+        original = db._hydrate_row
+
+        def counting(model, columns, row):
+            if model is ContentRepresentation:
+                hydrated.append(model.__name__)
+            return original(model, columns, row)
+
+        monkeypatch.setattr(db, "_hydrate_row", counting)
+        derived = sr.document_text(db, doc.id, order=order)
+        assert "first line" in derived.text
+        assert len(hydrated) == len(stored), f"{len(hydrated)} readings hydrated for {len(stored)} stored"
