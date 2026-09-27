@@ -37,7 +37,7 @@ SCHEMALESS = {
 
 #: Real files by format, identified by their BYTES, not their names.
 _REAL = {}
-for _path in sorted(_FIXTURES.glob("*.xml")):
+for _path in sorted([*_FIXTURES.glob("*.xml"), *_FIXTURES.glob("*.json")]):
     _spec = format_for(_path.name, _path.read_bytes())
     if _spec is not None:
         _REAL.setdefault(_spec.name, []).append(_path)
@@ -47,17 +47,18 @@ for _path in sorted(_FIXTURES.glob("*.xml")):
 def test_a_format_that_writes_has_a_schema_or_says_why_not(spec):
     """A new format registered with `schema=None` and no entry here fails: it would
     otherwise export forever with nothing checking a single byte."""
-    if spec.schema is None:
+    if spec.schema is None and spec.check is None:
         assert spec.name in SCHEMALESS, (
-            f"{spec.name} writes files and has no schema. Vendor one "
-            "(schemas/PROVENANCE.md) or add it to SCHEMALESS with the reason."
+            f"{spec.name} writes files and has no schema and no checker. Vendor a schema "
+            "(schemas/PROVENANCE.md), write a checker from the format's normative text, "
+            "or add it to SCHEMALESS with the reason."
         )
     else:
-        assert spec.name not in SCHEMALESS, f"{spec.name} has a schema now; drop it from SCHEMALESS"
+        assert spec.name not in SCHEMALESS, f"{spec.name} is validated now; drop it from SCHEMALESS"
 
 
 @pytest.mark.parametrize(
-    "spec", [s for s in known_formats() if s.writes and s.schema], ids=lambda s: s.name
+    "spec", [s for s in known_formats() if s.writes and (s.schema or s.check)], ids=lambda s: s.name
 )
 def test_a_format_with_a_schema_validates_a_file_somebody_else_wrote(spec):
     """At least one third-party file validates as-is. Without one, a schema that
@@ -131,9 +132,9 @@ class TestTheScriptSaysWhatItDidNotCheck:
         assert script.main([str(tmp_path)]) == 1
 
     def test_the_real_fixtures_as_a_directory_report_every_outcome_honestly(self, capsys):
-        """Two third-party files are invalid by their own schemas (Kraken's ALTO, a
-        Transkribus table with `DU_*` attributes). The directory FAILS for them, which
+        """Three third-party files are invalid by their own rules (Kraken's ALTO, a
+        Transkribus table with `DU_*` attributes, Allmaps' earlier-dialect annotation). The directory FAILS for them, which
         is right: the script reports files, it does not forgive other tools."""
         assert script.main([str(_FIXTURES)]) == 1
         out = capsys.readouterr().out
-        assert "6 valid, 2 INVALID, 1 other version, 0 no schema, 1 unrecognised" in out
+        assert "7 valid, 3 INVALID, 1 other version, 0 no schema, 1 unrecognised" in out

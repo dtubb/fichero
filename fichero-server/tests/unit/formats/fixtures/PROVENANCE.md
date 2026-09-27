@@ -168,3 +168,18 @@ has no *valid* one, and a real file in the wild uses one anyway.
 - **A real TEI edition** with a permissive licence. The Consortium's own test file is
   vendored and is thinner than an edition.
 - **A Transkribus export in the 2019 namespace.** Both files here are 2013.
+
+## IIIF Georeference Annotations (Allmaps), vendored 2026-09-27 (#5125)
+
+Licence checked BEFORE fetching, at the source: each file's own package declares MIT in a
+`LICENSE.md` and in `package.json` (the repository root declares none). The map images the
+annotations point at are **not** fetched or vendored; the tests need the pixel and world
+coordinates, not the pixels. Unmodified; the git blob hashes below are upstream's.
+
+| File | Source | Licence | Blob | What it exercises |
+|---|---|---|---|---|
+| `allmaps_paris_thin_plate_spline.georef.json` | `github.com/allmaps/allmaps`, `main`, `packages/annotation/test/input/annotation.1.body-transformation-thin-plate-spline.json` | **MIT**, © Bert Spaan (`packages/annotation/LICENSE.md`) | `044d48c1` | The PUBLISHED dialect: georef/1 context, `SpecificResource` target, `ImageService2` source with width and height, a 4-point SVG mask, `thinPlateSpline`, four GCPs as `resourceCoords` + WGS 84 Points (a plan of Paris). Passes the checker as-is. |
+| `allmaps_delft_earlier_dialect.georef.json` | same repository, `apps/cli/test/input/annotations/7a69f9470b49a744-resourceCrs.json` | **MIT**, © Manuel Claeys Bouuaert (`apps/cli/LICENSE.md`) | `b17998e6` | The EARLIER dialect: an `AnnotationPage`, a target of `type: Image` with the image service beside it, a 14-point mask, GCPs as `pixelCoords`, pixel size only in the SVG (a plan in Delft). **Fails the published checker** (no georef context, `pixelCoords`), which is true and is why the reader is tolerant and the writer strict. The `resourceCrs` in its name is a CLI option under test, not a field in the file. |
+
+**Still wanted:** a Georeference Annotation from a second producer (Mapwarper, QGIS), so one
+producer's reading of the format is not the only one tested.

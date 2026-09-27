@@ -94,8 +94,11 @@ def check_bytes(filename: str, data: bytes) -> tuple[str, str | None, list[str]]
     spec = format_for(filename, data)
     if spec is None:
         return "unrecognised", None, []
-    if spec.schema is None:
+    if spec.schema is None and spec.check is None:
         return "no schema", spec.name, []
+    if spec.schema is None:  # a checker written from the format's normative text
+        problems = validate(spec, data)
+        return ("INVALID" if problems else "valid"), spec.name, problems
     version = other_version(spec, data)
     if version is not None:
         schema = OTHER_VERSION_SCHEMAS.get(version)

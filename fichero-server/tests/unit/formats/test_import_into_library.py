@@ -629,3 +629,26 @@ class TestWhatTheImportKeptSurvivesTheExport:
             f"{customs_direct} custom attributes survive file→file and "
             f"{customs_library} survive file→library→file"
         )
+
+
+class TestAGeoreferencingFileIsRefusedByName:
+    """#5125 reads IIIF Georeference; a library cannot hold a GCP's world end until #5122.
+
+    Before the refusal was named, the same file was refused as having shapes "outside the
+    page" -- a control point has a point and no rect or polygon, so the placeability check
+    found nothing drawable and blamed the page size. True of nothing in the file.
+    """
+
+    def test_it_is_refused_with_the_reason_and_nothing_is_written(self, db, tmp_path):
+        doc = _document(db, "plan.jpg")
+        copied = tmp_path / "plan.georef.json"
+        copied.write_bytes((FIXTURES / "allmaps_paris_thin_plate_spline.georef.json").read_bytes())
+        passes_before = len(db.all(SegmentPass))
+
+        with pytest.raises(HTTPException) as raised:
+            _import(db, doc, copied)
+
+        assert raised.value.status_code == 422
+        assert "#5122" in str(raised.value.detail)
+        assert "outside the page" not in str(raised.value.detail)
+        assert len(db.all(SegmentPass)) == passes_before
