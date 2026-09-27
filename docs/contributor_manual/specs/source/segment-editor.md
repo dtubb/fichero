@@ -571,8 +571,31 @@ The editor
   original request. The editor cannot ship without this.)
 - `source.editor.system-undo` — **[GAP]** (#4941) ⌘Z and ⇧⌘Z undo and redo editor actions through the action
   pass.
-- `source.editor.agent-parity` — **[GAP]** (#4941) every edit the editor can make can be made over MCP and the
+- `source.editor.agent-parity` — **[PARTIAL]** (#4941) every edit the editor can make can be made over MCP and the
   command line through the same actions.
+  **The command line: yes, and by construction rather than by design** (audited 2026-09-27).
+  `fichero-cli`'s `openapi_surface_generated.py` generates a command for every endpoint in the
+  contract, so all 22 segment operations are reachable — `segments_update_put`,
+  `segments_split_post`, `segments_merge_post`, `segments_delete_post`,
+  `segments_choose_reading_post`, `segments_carry_across_match_post` and the rest. Worth stating
+  plainly because it is the same property that made `check_endpoint_usage`'s CLI axis meaningless
+  (#5105): the CLI reaches everything whether or not anybody designed a command for it, so this
+  half of the behaviour cannot fail and cannot be evidence of anything either.
+  **MCP: reads only until 2026-09-27, six write tools now.** `fichero_segment_update`,
+  `_split`, `_merge`, `_delete`, `_undelete` and `_choose_reading`, each one call to the route
+  that already owns the audited action — no second write path. The refusals travel with them,
+  which is the whole design constraint: `update` requires `expected_version` and `delete` a
+  version per id, so a row somebody edited since is a 409 the agent must read and act on rather
+  than something to paper over by re-fetching the version first. Pinned by
+  `test_mcp_server.py::TestSegmentWriteToolsCarryTheRoutesRefusals`, including that the update
+  sends only the fields the caller set (blanking a segment's language because somebody moved its
+  box is the obvious way to get this wrong) and that a 409 **propagates rather than returning a
+  dict that reads like success**.
+  `choose_reading` is offered although a machine acting as itself is refused with 403: the tool
+  exists so the refusal is REPORTABLE instead of invisible for want of a surface offering it.
+  **Still `[PARTIAL]`**, because the behaviour is "every edit the editor can make" and the editor
+  is unbuilt: reshape, cut, join-group, set-kind and the rest have no verb yet on any surface, so
+  parity is currently a claim about six verbs rather than about an editor.
 - `source.editor.two-switches` — **[GAP]** (#4941) the editor has two view switches only (show the order; show
   the links); everything else shown follows from zoom and selection.
 - `source.editor.draw-shapes` — **[GAP]** (#4941) box, polygon, point, line and baseline can be drawn.
