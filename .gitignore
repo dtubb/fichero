@@ -55,6 +55,8 @@ opencode.json
 
 # Project archives / large references
 sample_code/
+# Local HTR/OCR sample library, filled by scripts/fetch_sample_corpus.py
+sample_corpus/
 
 # Real archival corpus — kept out of the open-source tree (engineering notes stay)
 agent-work/icanh-clean/source/
