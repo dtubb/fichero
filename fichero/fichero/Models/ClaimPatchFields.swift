@@ -23,39 +23,69 @@ struct ClaimPatchFields: Equatable {
     }
 
     /// The full-sheet editor: free text plus a typed subject NAME.
-    static func sheet(
-        text: String, subject: String, predicate: String, object: String, sourcePageLabel: String,
-        claimType: String, epistemicStatus: String
-    ) -> ClaimPatchFields {
+    static func sheet(_ draft: ClaimDraft) -> ClaimPatchFields {
         ClaimPatchFields(
-            text: text.trimmingCharacters(in: .whitespacesAndNewlines),
-            subjectCanonical: trimmedOrNil(subject),
-            predicateVerb: trimmedOrNil(predicate),
-            objectPhrase: trimmedOrNil(object),
-            sourcePageLabel: trimmedOrNil(sourcePageLabel),
-            claimType: Components.Schemas.ClaimType(rawValue: claimType),
-            epistemicStatus: Components.Schemas.EpistemicStatus(rawValue: epistemicStatus)
+            text: draft.text.trimmingCharacters(in: .whitespacesAndNewlines),
+            subjectCanonical: trimmedOrNil(draft.subject),
+            predicateVerb: trimmedOrNil(draft.predicate),
+            objectPhrase: trimmedOrNil(draft.object),
+            sourcePageLabel: trimmedOrNil(draft.sourcePageLabel),
+            claimType: Components.Schemas.ClaimType(rawValue: draft.claimType),
+            epistemicStatus: Components.Schemas.EpistemicStatus(rawValue: draft.epistemicStatus)
         )
     }
 
     /// The per-sentence editor: a subject entity ID (never a name made up on the client, the
     /// engine derives it) sent only when the picker changed it, plus the date fields.
-    static func inline(
-        subjectEntityId: String?, originalSubjectEntityId: String?, predicate: String, object: String,
-        sourcePageLabel: String, claimType: String, epistemicStatus: String,
-        timeStart: String, timeEnd: String, timePrecision: String
-    ) -> ClaimPatchFields {
+    static func inline(_ draft: ClaimDraft, originalSubjectEntityId: String?) -> ClaimPatchFields {
         ClaimPatchFields(
-            subjectEntityId: subjectEntityId != originalSubjectEntityId ? subjectEntityId : nil,
-            predicateVerb: trimmedOrNil(predicate),
-            objectPhrase: trimmedOrNil(object),
-            sourcePageLabel: trimmedOrNil(sourcePageLabel),
-            claimType: Components.Schemas.ClaimType(rawValue: claimType),
-            epistemicStatus: Components.Schemas.EpistemicStatus(rawValue: epistemicStatus),
-            timeStart: trimmedOrNil(timeStart),
-            timeEnd: trimmedOrNil(timeEnd),
-            timePrecision: trimmedOrNil(timePrecision)
+            subjectEntityId: draft.subjectEntityId != originalSubjectEntityId ? draft.subjectEntityId : nil,
+            predicateVerb: trimmedOrNil(draft.predicate),
+            objectPhrase: trimmedOrNil(draft.object),
+            sourcePageLabel: trimmedOrNil(draft.sourcePageLabel),
+            claimType: Components.Schemas.ClaimType(rawValue: draft.claimType),
+            epistemicStatus: Components.Schemas.EpistemicStatus(rawValue: draft.epistemicStatus),
+            timeStart: trimmedOrNil(draft.timeStart),
+            timeEnd: trimmedOrNil(draft.timeEnd),
+            timePrecision: trimmedOrNil(draft.timePrecision)
         )
+    }
+}
+
+/// What a claim editor is holding while a person types: ONE value in place of the ten loose
+/// `@State` strings each editor used to carry (#5092). Both editors open on the same claim with the
+/// same defaults, so those live here once; each editor uses the fields it shows and the factories
+/// above decide what is sent. `subject` is the display NAME (typed in the sheet, shown by the picker
+/// in the inline editor); only the sheet sends it.
+struct ClaimDraft: Equatable {
+    var text: String
+    var subject: String
+    var subjectEntityId: String?
+    var predicate: String
+    var object: String
+    var sourcePageLabel: String
+    var claimType: String
+    var epistemicStatus: String
+    var timeStart: String
+    var timeEnd: String
+    var timePrecision: String
+}
+
+/// The draft an editor opens on. In an extension so the memberwise initialiser stays available to
+/// tests, which build drafts value by value.
+extension ClaimDraft {
+    init(claim: Components.Schemas.KnowledgeClaim) {
+        text = claim.text
+        subject = claim.subjectCanonical ?? ""
+        subjectEntityId = claim.subjectEntityId
+        predicate = claim.predicateVerb ?? ""
+        object = claim.objectPhrase ?? ""
+        sourcePageLabel = claim.sourcePageLabel ?? ""
+        claimType = claim.claimType?.rawValue ?? "claim"
+        epistemicStatus = claim.epistemicStatus?.rawValue ?? "tentative"
+        timeStart = claim.timeStart ?? ""
+        timeEnd = claim.timeEnd ?? ""
+        timePrecision = claim.timePrecision ?? ""
     }
 }
 

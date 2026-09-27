@@ -14,14 +14,25 @@ import Testing
 struct ClaimPatchFieldsTests {
     // MARK: - Per-sentence (inline) editor
 
+    private func draft(
+        subject: String? = "e1", predicate: String = "sold", object: String = "the mine",
+        timeStart: String = "", timeEnd: String = "", timePrecision: String = ""
+    ) -> ClaimDraft {
+        ClaimDraft(
+            text: "", subject: "Ana", subjectEntityId: subject, predicate: predicate, object: object,
+            sourcePageLabel: "p. 4", claimType: "assertion", epistemicStatus: "asserted",
+            timeStart: timeStart, timeEnd: timeEnd, timePrecision: timePrecision
+        )
+    }
+
     private func inline(
         subject: String? = "e1", original: String? = "e1", predicate: String = "sold", object: String = "the mine",
         timeStart: String = "", timeEnd: String = "", timePrecision: String = ""
     ) -> ClaimPatchFields {
         .inline(
-            subjectEntityId: subject, originalSubjectEntityId: original, predicate: predicate, object: object,
-            sourcePageLabel: "p. 4", claimType: "assertion", epistemicStatus: "asserted",
-            timeStart: timeStart, timeEnd: timeEnd, timePrecision: timePrecision
+            draft(subject: subject, predicate: predicate, object: object,
+                  timeStart: timeStart, timeEnd: timeEnd, timePrecision: timePrecision),
+            originalSubjectEntityId: original
         )
     }
 
@@ -53,10 +64,11 @@ struct ClaimPatchFieldsTests {
     // MARK: - Full sheet
 
     private func sheet(text: String = "  Ana sold the mine.  ", subject: String = " Ana ", predicate: String = " ") -> ClaimPatchFields {
-        .sheet(
-            text: text, subject: subject, predicate: predicate, object: "the mine", sourcePageLabel: "",
-            claimType: "assertion", epistemicStatus: "asserted"
-        )
+        .sheet(ClaimDraft(
+            text: text, subject: subject, subjectEntityId: nil, predicate: predicate, object: "the mine",
+            sourcePageLabel: "", claimType: "assertion", epistemicStatus: "asserted",
+            timeStart: "", timeEnd: "", timePrecision: ""
+        ))
     }
 
     @Test("the sheet trims its text and sends the typed subject name")
@@ -73,5 +85,32 @@ struct ClaimPatchFieldsTests {
         #expect(fields.predicateVerb == nil)
         #expect(fields.sourcePageLabel == nil)
         #expect(fields.timeStart == nil)
+    }
+
+    // MARK: - The draft an editor opens on
+
+    @Test("a draft opens on the claim's own values, with the editors' defaults where it has none")
+    func draftOpensOnTheClaim() {
+        var claim = Components.Schemas.KnowledgeClaim(id: "c1", text: "Ana sold the mine.")
+        claim.subjectCanonical = "Ana"
+        claim.subjectEntityId = "e1"
+        claim.timeStart = "1933-01-31"
+        let opened = ClaimDraft(claim: claim)
+        #expect(opened.text == "Ana sold the mine.")
+        #expect(opened.subject == "Ana")
+        #expect(opened.subjectEntityId == "e1")
+        #expect(opened.timeStart == "1933-01-31")
+        #expect(opened.predicate == "")
+        // Both editors default an unclassified claim the same way, and only here.
+        #expect(opened.claimType == "claim")
+        #expect(opened.epistemicStatus == "tentative")
+    }
+
+    @Test("an untouched draft sends no subject change, whichever editor sends it")
+    func untouchedDraftChangesNoSubject() {
+        var claim = Components.Schemas.KnowledgeClaim(id: "c1", text: "t")
+        claim.subjectEntityId = "e1"
+        let opened = ClaimDraft(claim: claim)
+        #expect(ClaimPatchFields.inline(opened, originalSubjectEntityId: "e1").subjectEntityId == nil)
     }
 }
