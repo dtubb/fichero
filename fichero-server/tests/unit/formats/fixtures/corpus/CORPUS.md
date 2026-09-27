@@ -40,6 +40,7 @@ checked against what was vendored.
 | `escriptorium_latin-mufi_clm13027-38r.alto.xml` | `https://raw.githubusercontent.com/HTR-United/CREMMA-Medieval-LAT/main/data/CLM13027/38r.xml` | **CC-BY-4.0** — repository `htr-united.yml` `license:` block | 2026-09-27 | **The only file with private-use (MUFI) characters**: 50 × U+F1AC in medieval Latin, Clm 13027, eScriptorium ALTO v4, 86,774 B, 121 lines. The PUA text round-trips. sha256 `0263a4c7e183` |
 | `escriptorium_oldfrench_bnffr412-218.alto.xml` | `https://raw.githubusercontent.com/HTR-United/cremma-medieval/main/data/bnf_fr_412-wauchier/218_5b342_default.chocomufin.xml` | **CC-BY-4.0** — repository `htr-united.yml` and `README.md` ("Models and data are under ... CC-BY 4.0") | 2026-09-27 | Old French (BnF fr. 412), eScriptorium ALTO v4, 48,726 B, 7 blocks / 97 lines — **multiple columns with marginal zones** (`MarginTextZone`, `DropCapitalZone`). sha256 `66d5954fad34` |
 | `escriptorium_occitan_flamenca-0001.alto.xml` | `https://raw.githubusercontent.com/HTRogene/occitan/main/data/carcassonne-34/Flamenca0001.xml` | **CC-BY-4.0** — repository `htr-united.yml` and `README.md` | 2026-09-27 | Old Occitan (*Roman de Flamenca*), eScriptorium ALTO v4, 31,725 B. **Fails its own schema**: line ids are UUIDs starting with a digit, not `xsd:ID`s (finding, below). sha256 `e5abfb72127c` |
+| `escriptorium_occitan-empty-string_flamenca-0006.alto.xml` | `https://raw.githubusercontent.com/HTRogene/occitan/9983c1bb41e1d0e7f179b90352ebbaeec79b1ecb/data/carcassonne-34/Flamenca0006.xml` (git blob `6c5801451eb0`) | **CC-BY-4.0** — repository `htr-united.yml` and `README.md` | 2026-09-27 | **Words with no text**: `<String CONTENT=""/>` and an `eSc_dummyblock_` line whose `String` has no `CONTENT` at all. Found by the local test-corpus folder, not by search: import works, and the ALTO export writes the `String` without `CONTENT`, which ALTO requires, so it is refused (#5130). 34,448 B. sha256 `a8b492289b6f` |
 | `transkribus_hindi-devanagari_diksita1895-02.alto.xml` | heiDATA `doi:10.11588/data/EGOKEI` ("Ground truth data for printed Devanagari"), `diksita1895.zip` → `diksita1895/diksita1895/alto/02.xml` | **CC-BY-4.0** — heiDATA dataset licence field (API `latestVersion.license`) | 2026-09-27 | **The only Devanagari**: Hindi/Braj print (1895), **Transkribus's ALTO** (`READ COOP`) rather than eScriptorium's, with `page:` PAGE namespace declared inside ALTO, 17,656 B. sha256 `1994a95f8400` |
 | `transkribus_malayalam_telisseri-0061.alto.xml` | heiDATA `doi:10.11588/data/L2KRZO` ("Ground Truth data for printed Malayalam"), `39A8599.zip` → `39A8599/alto/39A8599_Telisseri-0061.xml` | **CC-BY-4.0** — heiDATA dataset licence field | 2026-09-27 | **The only Dravidian script**, and colonial-era material: the Tellicherry records (Malabar, East India Company correspondence), Transkribus ALTO v4, 30,077 B, Malayalam with embedded Latin and numerals. sha256 `ce2010bf70a3` |
 | `tesseract_english_hocrtools-tess.hocr` | `https://raw.githubusercontent.com/ocropus/hocr-tools/master/test/testdata/tess.hocr` | **Apache-2.0** — hocr-tools `LICENSE` file (the licence API says NOASSERTION; the file itself is the Apache 2.0 text) | 2026-09-27 | **The first real engine hOCR** — `ocr-system` `tesseract 3.03`, 64,316 B, `ocr_carea` / `ocr_par` / `ocr_line` / `ocrx_word` with `bbox` and `x_wconf`, `lang='eng'`, 10 areas, 37 lines, 503 words. `PROVENANCE.md` recorded hocr-tools' samples as having no boxes; its `tess.hocr` does. Closes that residue. sha256 `7916237abc00` |
@@ -60,6 +61,13 @@ checked against what was vendored.
   NCName, and `0001_100_003_011_445.png` starts with a digit. The reader's strict lxml
   parse raises. The file is non-conformant; the question for the formats lane is whether
   the reader should recover (the data is otherwise ordinary).
+
+- **A word with no text is written without `CONTENT`.** ALTO requires `String@CONTENT`;
+  eScriptorium writes `CONTENT=""` (and, on a dummy block, no `CONTENT`). We read that as
+  no reading — correctly — and the ALTO writer then omits the attribute, so the export
+  is refused. In the local test-corpus folder this refused 24 of 272 ALTO exports
+  (Flamenca, IRHAS Aljamiado, OpenITI MAKHZAN). Same shape as the Coords defect: an
+  empty value dropped where the schema requires an element or attribute.
 
 **The same defect classes at scale.** Run over the larger sets below (1,327 files from
 CHI-KNOW-PO, RASAM, both Syriac deposits, the Greek set and PaganTibet's `Manual1`),
@@ -122,9 +130,14 @@ it.
 
 ## Larger sets for a local sample library (not vendored)
 
-`scripts/fetch_sample_corpus.py` downloads these into the git-ignored `sample_corpus/`
-directory at the repository root, checking each against the size and md5 recorded in
-its manifest. It never runs in tests or CI.
+`scripts/fetch_sample_corpus.py` downloads these — and, for personal research use on
+one disk only, NonCommercial sets this file's licence rule keeps out of the repository
+(BiblIA, OpenITI MAKHZAN, IRHAS, the Florentine Codex) — into the ignored
+`sample_corpus/`, each page beside the image it names, every file checked against a
+recorded size, md5, CRC-32, blob sha or pixel size. `scripts/make_test_corpus_folder.py`
+then assembles `~/Fichero Test Corpus/`, one subfolder per script, with a README of each
+set's licence: a folder to drag into Fichero, and the acceptance test for image/XML
+pairing (#5132). Neither script runs in tests or CI; neither folder is ever committed.
 
 | Set | Licence | Size | What it adds |
 |---|---|---|---|
