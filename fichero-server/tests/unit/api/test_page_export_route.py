@@ -24,18 +24,19 @@ def _converted(db, client):
 class TestExportingAPage:
     LINES = ["In the year of our Lord", "one thousand eight hundred", "and fifty two, the ship", "sailed from Cadiz"]
 
-    @pytest.mark.parametrize("fmt", [
-        "tei",
-        pytest.param("pagexml", marks=pytest.mark.xfail(strict=True, reason=(
-            "found by exporting a real library page: the PAGE XML writer writes our hex ids as XML "
-            "IDs/IDREFs (they can start with a digit, which is not a valid NCName) and puts a "
-            "TextLine directly under Page when the page has lines and no regions, as Kraken's do. "
-            "The other lane's writer; reported, not fixed here"))),
-        pytest.param("alto", marks=pytest.mark.xfail(strict=True, reason=(
-            "ALTO validates now (xlink vendored, #5082) and refuses this page: the writer emits a "
-            "TextLine/String with no TextBlock above it when a page has lines and no regions, as "
-            "Kraken's do. Same class as #5084, the other lane's writer"))),
-    ])
+    @pytest.mark.parametrize("fmt", ["tei", "pagexml", "alto"])
+    # The two strict xfails here are gone: both were fixed 2026-09-27 and both were
+    # found by THIS test rather than by a round trip, which is why it is worth running
+    # after any format change.
+    #
+    # PAGE XML and ALTO were writing our 32-character hex ids straight into `xs:ID` and
+    # `xs:IDREF`, and roughly six in ten start with a digit, which an NCName forbids --
+    # so the element and every reference to it were invalid. One `xml_id()` in the
+    # harness now derives them, deterministically, so a reference still matches the
+    # element it names. And ALTO refused a `TextLine` with no `String`, which is most
+    # lines of a converted page (their text is on the line): the required child is
+    # invented, marked, and dropped again on re-import, with the line's text handed
+    # back to the LINE rather than to a word nobody segmented.
     def test_a_converted_page_exports_in_each_format_and_reads_back(self, db, client, fmt):
         page, _ = _converted(db, client)
         r = client.get(f"/api/documents/{page.id}/export/{fmt}")
@@ -122,25 +123,44 @@ class TestTheDocumentsLanguageReachesTheFile:
     recorded on the DOCUMENT, which is where a library normally records it.
 
     The three writers handle language well -- PAGE XML maps it to its closed 188-name enumeration,
-    ALTO refuses a NAME where it wants a BCP 47 tag and says so, TEI builds an `xml:lang`. None of
-    that runs, because `page_export` reads `row.language` off each segment row and a segment that
-    states nothing stays None. The cascade (slice 9) is never consulted, so the document's language
-    reaches no format, and nothing reports it as lost either. Silence, in all three.
+    ALTO refuses a NAME where it wants a BCP 47 tag and says so, TEI builds an `xml:lang`. When this
+    was written none of that ran: `page_export` read `row.language` off each segment row, a segment
+    that states nothing stayed None, the cascade was never consulted, and the document's language
+    reached no format while nothing reported it lost either. Silence, in all three.
+
+    **Two of the three are fixed now** (#5085): `SourcePage` carries the page's own language, script
+    and direction, `page_export` fills them from the Document, PAGE XML states them on `Page` and
+    ALTO declares the loss. TEI is the remaining half and is the xfail below. This paragraph is
+    written in the past tense on purpose -- a docstring that still described all three as broken
+    would be the same stale claim this suite exists to catch, one file further in.
 
     The assertion is deliberately NOT "the file says Spanish": ALTO honestly cannot carry a language
     NAME, and demanding it could would be demanding a lie. It is the weaker, true rule -- **state it
     or declare it lost, never neither** -- so any of the honest fixes satisfies it.
     """
 
-    @pytest.mark.xfail(strict=True, reason=(
-        "#5085. page_export.py maps `language=row.language`, the segment's own column, and never resolves "
-        "the cascade, so a document-level language is silently absent from every export. The fix is "
-        "page-level, not per-segment: promoting the document's answer onto each line would store a "
-        "derived fact as a stated one, and a re-import would read it back as 188 lines each "
-        "independently declaring Spanish. PAGE XML's PageType carries primaryLanguage, "
-        "readingDirection and textLineOrder for exactly this, so `SourcePage` needs the three fields "
-        "PageSegment already has"))
-    @pytest.mark.parametrize("fmt", ["tei", "pagexml", "alto"])
+    @pytest.mark.parametrize(
+        "fmt",
+        [
+            pytest.param(
+                "tei",
+                marks=pytest.mark.xfail(
+                    strict=True,
+                    reason=(
+                        "#5085, TEI half. `SourcePage` now carries the page's own language, script "
+                        "and direction, `page_export` fills them from the Document, PAGE XML states "
+                        "them on `Page` (primaryLanguage / primaryScript / readingDirection) and "
+                        "ALTO declares the loss (it has no page-level attribute, and copying a "
+                        "page's fact onto every line would store a derived fact as a stated one). "
+                        "`<text xml:lang=…>` is where it belongs, and until then TEI neither "
+                        "states the language nor declares losing it"
+                    ),
+                ),
+            ),
+            "pagexml",
+            "alto",
+        ],
+    )
     def test_it_is_stated_in_the_file_or_declared_lost(self, db, client, fmt):
         from fichero_server.models import Document
 
@@ -151,7 +171,11 @@ class TestTheDocumentsLanguageReachesTheFile:
 
         body = client.get(f"/api/documents/{page.id}/export/{fmt}").json()
         stated = "Spanish" in body["content"] or "es" in _lang_attributes(body["content"])
-        declared = any(l["what"] == "language" for l in body["losses"])
+        # `in` rather than `==`: ALTO reports "the page's language", and merging that
+        # with a segment's "language" would give a reader `language: 401` for one page
+        # fact and four hundred line facts. The loss is declared either way, which is
+        # what this test is about.
+        declared = any("language" in loss["what"] for loss in body["losses"])
         assert stated or declared, (
             f"{fmt} export of a Spanish document neither states the language nor reports losing it"
         )

@@ -43,6 +43,7 @@ from fichero_server.formats.harness import (
     PageOrder,
     PageSegment,
     SourcePage,
+    xml_id,
 )
 from fichero_server.formats.validation import parse
 
@@ -179,8 +180,20 @@ def read(data: bytes) -> SourcePage:
         if kind is None:
             continue
         if _is_implicit(element):
-            # A parent we invented on a previous export; dropped so a round trip gives
-            # back the page the source described.
+            # Something we invented on a previous export. A marked STRING carries a
+            # line's own text, so the text goes back onto the line rather than being
+            # dropped with the scaffolding -- losing it would be worse than the phantom
+            # word we are avoiding.
+            if kind == "word" and element.get("CONTENT"):
+                parent = element.getparent()
+                while parent is not None and _tag(parent) not in ELEMENT_KINDS:
+                    parent = parent.getparent()
+                if parent is not None:
+                    owner = next(
+                        (s for s in page.segments if s.ref == parent.get("ID")), None
+                    )
+                    if owner is not None and not owner.readings:
+                        owner.readings.append(("transcription", element.get("CONTENT")))
             continue
         segment = PageSegment(kind=kind, ref=element.get("ID"))
         parent = element.getparent()
@@ -286,6 +299,20 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         HEIGHT=str(int(height)),
     )
 
+    # ALTO has no page-level language, script or direction: `LANG` is per element and
+    # there is no `Page@LANG`. So a document-level fact is DECLARED LOST rather than
+    # copied onto every line, which would turn one stated fact into hundreds and read
+    # back as four hundred independent claims (#5085).
+    for what, value in (("language", page.language), ("script", page.script), ("direction", page.direction)):
+        if value:
+            report.note(
+                f"the page's {what}",
+                1,
+                f"ALTO states {what} per element and has no page-level attribute, and "
+                "copying a page's fact onto every line would store a derived fact as a "
+                "stated one",
+            )
+
     if len(page.orders) > 1:
         report.note(
             "named reading orders",
@@ -295,6 +322,17 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         )
 
     ordered = _in_first_order(page)
+    # Which lines already have words under them. ALTO requires a `TextLine` to hold at
+    # least one `String`, and a converted page's lines usually have none -- their text
+    # is on the line itself. So a line with a reading and no words gets an implicit
+    # `String`, which is the implicit-parent ruling turned upside down: invent the
+    # required CHILD, put the line's own reading in it, mark it, and drop it again on
+    # re-import so a round trip does not grow a word per line.
+    has_words = {
+        segment.parent_ref
+        for segment in page.segments
+        if segment.kind == "word" and segment.parent_ref
+    }
     by_ref: dict[str, Any] = {}
     for index, segment in enumerate(ordered):
         element_name = KIND_ELEMENTS.get(segment.kind)
@@ -315,7 +353,7 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                     etree, print_space, segment.kind, ref, by_ref, report, width, height
                 )
             )
-        attrs = {"ID": ref}
+        attrs = {"ID": xml_id(ref)}
         rect = segment.rect or _bounds(segment.polygon)
         if rect:
             attrs.update(
@@ -360,12 +398,33 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                 "ALTO has no reading-direction attribute, so a right-to-left page "
                 "reads as its coordinates alone",
             )
-        if segment.kind != "word" and segment.readings:
+        if segment.kind == "line" and segment.readings and ref not in has_words:
+            # The required child, carrying the line's own words. Marked, so the reader
+            # drops it and the line's text comes back on the LINE rather than as a word
+            # nobody segmented.
+            etree.SubElement(
+                element,
+                f"{{{ALTO_NS_V4}}}String",
+                ID=xml_id(f"{IMPLICIT_ID_PREFIX}string-{ref}"),
+                CONTENT=segment.readings[0][1],
+                HPOS=attrs.get("HPOS", "0"),
+                VPOS=attrs.get("VPOS", "0"),
+                WIDTH=attrs.get("WIDTH", "0"),
+                HEIGHT=attrs.get("HEIGHT", "0"),
+            )
             report.note(
-                "text on a region or line",
+                "implicit words",
                 1,
-                "ALTO carries text on String elements only, so a reading attached "
-                "to a region or a line has nowhere to go",
+                "ALTO requires a TextLine to hold a String, and this line's text is on "
+                "the line itself, so one String was invented with an id marked "
+                "`fichero-implicit-` and is dropped again on re-import",
+            )
+        elif segment.kind == "region" and segment.readings:
+            report.note(
+                "text on a region",
+                1,
+                "ALTO carries text on String elements only, and a region's own reading "
+                "has nowhere to go (a line's is carried by an implicit String)",
             )
         if len(segment.readings) > 1:
             report.note(
@@ -407,7 +466,7 @@ def _implicit_parents(
     chain_names = chains.get(kind, ["TextBlock"])
     parent_el = print_space
     for name in chain_names:
-        implicit_id = f"{IMPLICIT_ID_PREFIX}{name.lower()}-{ref}"
+        implicit_id = xml_id(f"{IMPLICIT_ID_PREFIX}{name.lower()}-{ref}")
         parent_el = etree.SubElement(
             parent_el,
             f"{{{ALTO_NS_V4}}}{name}",

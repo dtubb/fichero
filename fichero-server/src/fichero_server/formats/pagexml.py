@@ -30,6 +30,7 @@ from fichero_server.formats.harness import (
     PageOrder,
     PageSegment,
     SourcePage,
+    xml_id,
 )
 from fichero_server.formats.validation import parse
 
@@ -288,6 +289,10 @@ def read(data: bytes) -> SourcePage:
         image_name=page_el.get("imageFilename"),
         image_size=(width, height) if width and height else None,
     )
+    page.language = _language_in(page_el.get("primaryLanguage"))
+    page.script = _script_in(page_el.get("primaryScript"))
+    page.direction = DIRECTIONS_IN.get(page_el.get("readingDirection") or "")
+
     creator = next((child for child in root.iter() if _tag(child) == "Creator"), None)
     page.producer = (creator.text or "").strip() or None if creator is not None else None
 
@@ -411,6 +416,26 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         imageHeight=str(height),
     )
 
+    # The PAGE's own facts (#5085). `PageType` carries these attributes for exactly
+    # this purpose, so a document-level language is STATED rather than lost -- and
+    # stated ONCE, where the page states it, instead of copied onto every line.
+    page_language = _language_out(page.language, report)
+    if page_language:
+        page_el.set("primaryLanguage", page_language)
+    page_script = _script_out(page.script, report)
+    if page_script:
+        page_el.set("primaryScript", page_script)
+    if page.direction:
+        mapped = DIRECTIONS_OUT.get(page.direction)
+        if mapped:
+            page_el.set("readingDirection", mapped)
+        else:
+            report.note(
+                "direction",
+                1,
+                f"PAGE XML has no readingDirection for {page.direction!r}",
+            )
+
     if page.orders:
         order_el = etree.SubElement(page_el, f"{{{PAGE_NS_2019}}}ReadingOrder")
         first = page.orders[0]
@@ -422,7 +447,10 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                 group,
                 f"{{{PAGE_NS_2019}}}RegionRefIndexed",
                 index=str(index),
-                regionRef=ref,
+                # The SAME derivation as the element's own id, so the reference and the
+                # element it names still match (#5084): an `xs:IDREF` that does not
+                # resolve is a reading order pointing at nothing.
+                regionRef=xml_id(ref),
             )
         if len(page.orders) > 1:
             report.note(
@@ -458,7 +486,9 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                     segment.rect or _bounds_of(segment.polygon), width, height,
                 )
             )
-        element = etree.SubElement(parent_el, f"{{{PAGE_NS_2019}}}{element_name}", id=ref)
+        element = etree.SubElement(
+            parent_el, f"{{{PAGE_NS_2019}}}{element_name}", id=xml_id(ref)
+        )
         by_ref[ref] = element
 
         points = segment.polygon or _rect_points(segment.rect)
@@ -559,7 +589,7 @@ def _implicit_parents(
     chain_names = chains.get(kind, ["TextRegion"])
     parent_el = page_el
     for depth, name in enumerate(chain_names):
-        implicit_id = f"{IMPLICIT_ID_PREFIX}{name.lower()}-{ref}"
+        implicit_id = xml_id(f"{IMPLICIT_ID_PREFIX}{name.lower()}-{ref}")
         parent_el = etree.SubElement(
             parent_el,
             f"{{{PAGE_NS_2019}}}{name}",

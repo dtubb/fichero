@@ -35,6 +35,45 @@ SCHEMA_DIR = Path(__file__).parent / "schemas"
 
 
 # ---------------------------------------------------------------------------
+# Ids a schema will accept
+# ---------------------------------------------------------------------------
+
+
+def xml_id(raw: str) -> str:
+    """A value usable as `xs:ID` / `xs:IDREF`, derived from one of ours.
+
+    **Found by exporting a real library page (#5084's second half).** Our ids are
+    32-character hex, and roughly six in ten begin with a digit — which `xs:ID`
+    refuses, because it is an `NCName` and an NCName may not start with a digit. The
+    export failed on the id AND on every reference to it (`RegionRefIndexed/@regionRef`
+    in PAGE XML, `TextLineID` in ALTO), so it has to be derived in ONE place and used
+    on both sides of every reference.
+
+    Deterministic: the same segment id always gives the same XML id, so a reference
+    written in one part of the file matches the element written in another. Not
+    reversible, and it does not need to be — the file's own ids exist to resolve
+    references *inside the file*, and a re-import mints new ones.
+
+    The hand-built pages in the format tests all happened to use ids like `r1` and
+    `l1`, which are valid NCNames. **A constructed fixture cannot find this**: it is
+    the fourth time a real artefact has caught what a made-up one could not.
+    """
+    if not raw:
+        return "id"
+    kept = [
+        character if (character.isalnum() or character in "._-") else "_"
+        for character in raw
+    ]
+    out = "".join(kept)
+    first = out[0]
+    if not (first.isalpha() or first == "_"):
+        # A LETTER in front, not a digit stripped: keeping every character means two
+        # ids that differ only in their first digit stay different.
+        out = "id" + out
+    return out
+
+
+# ---------------------------------------------------------------------------
 # The shape both directions speak
 # ---------------------------------------------------------------------------
 
@@ -116,6 +155,18 @@ class SourcePage:
     #: here are ALWAYS normalised; this is what they were normalised BY, so a
     #: writer can put integers back.
     image_size: tuple[int, int] | None = None
+    #: The PAGE's own language, script and direction (#5085). A document states these
+    #: (slice 9) and until now no writer could see them: `page_export` read them off
+    #: SEGMENTS, so a page whose language is recorded once, at document level, reached
+    #: no file at all.
+    #:
+    #: **Not the resolved cascade copied onto every line.** Writing a document's
+    #: Spanish onto four hundred lines would store a DERIVED fact as a STATED one, and a
+    #: re-import would read back a page whose every line independently declares Spanish
+    #: — the `says-where-from` distinction destroyed by an export.
+    language: str | None = None
+    script: str | None = None
+    direction: str | None = None
     segments: list[PageSegment] = field(default_factory=list)
     orders: list[PageOrder] = field(default_factory=list)
     #: File-level content the model has no field for

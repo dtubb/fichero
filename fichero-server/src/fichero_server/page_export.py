@@ -166,6 +166,12 @@ def page_from_library(
         producer=(pass_row.model or pass_row.provider or pass_row.name) if pass_row else None,
         image_name=PurePosixPath(document.path or document.name or "").name or document.name,
         image_size=(int(width), int(height)) if width and height else None,
+        # The DOCUMENT's own three facts (#5085), read from the document rather than
+        # resolved onto every segment: a page states its language once, and a writer
+        # that has to look at a line to find it will report a page with no language.
+        language=document.language,
+        script=document.script,
+        direction=document.direction,
         segments=segments,
         orders=orders,
     )
