@@ -42,10 +42,12 @@ import uuid
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, ConfigDict
 
-from fichero_server.actions.registry import ActionContext, ChangeSpec, action
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero_server.api.auth import action_context
+from fichero_server.api.main import get_library_database_for_write
 from fichero_server.api.routes.document.reading_orders import ensure_as_written_order
 from fichero_server.api.routes.document.segments import (
     SegmentSpec,
@@ -546,3 +548,92 @@ def _as_http_error(exc: Exception) -> HTTPException:
     if isinstance(exc, (UnrecognisedImportFile, UnknownFormat)):
         return HTTPException(status_code=422, detail=str(exc))
     raise exc
+
+
+# ---------------------------------------------------------------------------
+# The route (`source.format.everywhere`, the app's half)
+# ---------------------------------------------------------------------------
+
+router = APIRouter()
+
+
+class ImportResponse(BaseModel):
+    """What the app is told about an import.
+
+    The counts are what a person wants to see (`812 segments, 806 readings`), and
+    `format` is what was RECOGNISED rather than what they said it was -- a renamed
+    eScriptorium export still reports `pagexml`, which is the answer to "did it read
+    my file properly".
+    """
+
+    pass_id: str
+    format: str
+    segments: int
+    readings: int
+    order_entries: int
+    checksum: str
+    #: How many segments had a shape the file could not express properly. Surfaced
+    #: rather than buried in rows: a page where forty boxes were repaired is a page
+    #: somebody should look at.
+    geometry_problems: int = 0
+
+
+@router.post(
+    "/documents/{doc_id}/import",
+    response_model=ImportResponse,
+    summary="Import a PAGE XML, ALTO, hOCR, TEI or YOLO file as a new pass",
+)
+async def import_document_page(
+    doc_id: str,
+    file: UploadFile = File(..., description="The interchange file"),
+    format_name: Optional[str] = Query(
+        None,
+        alias="format",
+        description="Force a format instead of recognising one from the bytes",
+    ),
+    name: Optional[str] = Query(None, description="What to call the pass"),
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ImportResponse:
+    """`POST /api/documents/{doc_id}/import` — a file becomes a pass.
+
+    The upload is spooled to a temporary file because the action takes a PATH: an
+    action's parameters go into the tamper-evident audit row, and a megabyte of
+    somebody's transcription in a chain nothing can purge is not a parameter. The path
+    is recorded; the content becomes rows.
+
+    The temporary file is removed afterwards **whatever happens**, including on a
+    refusal -- an import that refuses should leave nothing behind, least of all a copy
+    of a scholar's file in a temp directory.
+    """
+    import tempfile
+
+    data = await file.read()
+    suffix = Path(file.filename or "upload").suffix or ".xml"
+    handle = tempfile.NamedTemporaryFile(
+        prefix="fichero-import-", suffix=suffix, delete=False
+    )
+    try:
+        handle.write(data)
+        handle.close()
+        # The pass is named after the file the PERSON chose, not the temporary copy.
+        result = registry.invoke(
+            db,
+            "format.import",
+            {
+                "document_id": doc_id,
+                "path": handle.name,
+                **({"format": format_name} if format_name else {}),
+                "name": name or file.filename or Path(handle.name).name,
+            },
+            ctx,
+        ).result
+    finally:
+        Path(handle.name).unlink(missing_ok=True)
+
+    problems = sum(
+        1
+        for row in db.query(Segment, pass_id=result["pass_id"])
+        if row.metadata.get("geometry_problem")
+    )
+    return ImportResponse(**result, geometry_problems=problems)

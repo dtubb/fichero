@@ -114,17 +114,10 @@ class TestReadingARealAltoFile:
         assert format_for("00001.xml", real_alto).name == "alto"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "found the day ALTO first VALIDATED (xlink vendored, #5082): the writer puts a <String> "
-        "directly under PrintSpace when a word has no line and block above it, which ALTO's "
-        "schema refuses. The same family as #5084 (PAGE XML: a line with no region): a segment "
-        "without its usual parent needs an implicit one, and whether that comes back on "
-        "re-import is the open design question. The writer is the other lane's; reported"
-    ),
-)
 class TestWritingAltoDeclaresWhatItCannotCarry:
+    """The strict xfail that guarded #5084's ALTO half is gone: the writer now invents
+    the parent ALTO's schema requires, marks it, and drops it again on re-import."""
+
     def test_a_language_NAME_cannot_be_written_and_is_reported(self):
         """**The two formats disagree**: ALTO's `LANG` is `xsd:language`, a BCP 47
         TAG; PAGE XML's `primaryLanguage` is a closed list of NAMES. So whichever
@@ -313,3 +306,170 @@ class TestTheWriterNamesItsLossesWithoutValidating:
         assert crossed_words == sum(1 for s in page.segments if s.kind == "word")
         # Honest about the crossing: PAGE XML carries a language NAME, ALTO cannot.
         assert "language" in report.lost
+
+
+class TestTheImplicitParentIsWrittenAndMarked:
+    """#5084, both halves of it: **write what the schema demands, mark it, and give
+    back what the source said.**
+
+    PAGE XML requires a `TextLine` inside a region and a `Word` inside a line; ALTO
+    requires a `String` inside a `TextLine` inside a `TextBlock`. The model allows a
+    line nobody put in a region — a marginal note drawn on its own is one. So the
+    parent is invented because the format requires it, and marked so a re-import
+    returns the page the source described rather than a region nobody drew.
+
+    That is the off-page ruling applied to structure instead of geometry: the format's
+    demand is met, and the difference between the file and the page is recorded.
+    """
+
+    def _orphan_word(self):
+        from fichero_server.formats.harness import PageSegment, SourcePage
+
+        return SourcePage(
+            image_size=(1000, 1000),
+            segments=[
+                PageSegment(
+                    kind="word", ref="w1", rect=[0.1, 0.1, 0.1, 0.02],
+                    readings=[("transcription", "solo")],
+                ),
+            ],
+        )
+
+    def test_alto_invents_the_block_and_line_a_word_needs(self):
+        data, report = write_page("alto", self._orphan_word())
+
+        assert b"TextBlock" in data and b"TextLine" in data
+        assert b"fichero-implicit-" in data
+        assert "implicit parents" in report.lost
+
+    def test_pagexml_invents_the_region_and_line_a_word_needs(self):
+        data, report = write_page("pagexml", self._orphan_word())
+
+        assert b"TextRegion" in data and b"TextLine" in data
+        assert b"fichero {implicit:true;}" in data
+        assert "implicit parents" in report.lost
+
+    @pytest.mark.parametrize("name", ["alto", "pagexml"])
+    def test_a_re_import_returns_the_word_with_NO_invented_parent(self, name):
+        """The marking earning its place: a scholar who exports and re-imports must get
+        their one word back, not a word inside a region they never drew."""
+        data, _report = write_page(name, self._orphan_word())
+
+        returned = read_page(name, data)
+
+        kinds = [segment.kind for segment in returned.segments]
+        assert kinds == ["word"], kinds
+        assert returned.segments[0].parent_ref is None
+        assert not any(
+            (segment.ref or "").startswith("fichero-implicit-")
+            for segment in returned.segments
+        )
+
+    def test_a_real_page_with_proper_parents_invents_nothing(self):
+        """The other half of the claim: nothing is invented when the source HAS the
+        structure. A writer that wrapped everything would pass the tests above and
+        produce phantom blocks on every real page."""
+        page = read_page("pagexml", PAGEXML_FIXTURE.read_bytes())
+
+        data, report = write_page("pagexml", page)
+
+        assert b"fichero-implicit-" not in data
+        assert "implicit parents" not in report.lost
+
+    def test_the_invented_parent_is_exactly_as_big_as_its_child(self):
+        """It claims nothing extra about the page: a box the size of the thing inside
+        it is the least the format will accept."""
+        data, _report = write_page("pagexml", self._orphan_word())
+
+        returned_all = read_page("pagexml", data)
+        assert len(returned_all.segments) == 1  # the parent is dropped on read
+        # And in the bytes, the invented region carries the word's own box.
+        assert data.count(b"100,100") >= 2
+
+
+class TestTheAltoRoundTrip:
+    """`source.format.round-trip-alto`, now that ALTO validates (xlink vendored, #5082).
+
+    The round trip subtracts exactly what the loss report names — and for ALTO that is
+    a long list, because it carries geometry and text and almost nothing else.
+    """
+
+    def _page(self):
+        from fichero_server.formats.harness import PageOrder, PageSegment, SourcePage
+
+        return SourcePage(
+            image_name="folio.tif",
+            image_size=(1000, 2000),
+            segments=[
+                PageSegment(kind="region", ref="b1", rect=[0.1, 0.1, 0.8, 0.2]),
+                PageSegment(kind="line", ref="l1", parent_ref="b1",
+                            rect=[0.1, 0.1, 0.8, 0.05]),
+                PageSegment(kind="word", ref="w1", parent_ref="l1",
+                            rect=[0.1, 0.1, 0.2, 0.05], language="es",
+                            readings=[("transcription", "dios")]),
+                PageSegment(kind="word", ref="w2", parent_ref="l1",
+                            rect=[0.35, 0.1, 0.2, 0.05], language="es",
+                            readings=[("transcription", "nombre")]),
+            ],
+            orders=[PageOrder(name="as-written", refs=["b1"])],
+        )
+
+    def test_the_structure_and_nesting_survive(self):
+        from fichero_server.formats import round_trip
+
+        returned, _report = round_trip("alto", self._page())
+
+        by_ref = {s.ref: s for s in returned.segments}
+        assert set(by_ref) >= {"b1", "l1", "w1", "w2"}
+        assert by_ref["l1"].parent_ref == "b1"
+        assert by_ref["w1"].parent_ref == "l1"
+
+    def test_the_words_and_their_text_survive(self):
+        from fichero_server.formats import round_trip
+
+        returned, _report = round_trip("alto", self._page())
+
+        words = {s.ref: s.readings for s in returned.segments if s.kind == "word"}
+        assert words["w1"] == [("transcription", "dios")]
+        assert words["w2"] == [("transcription", "nombre")]
+
+    def test_a_tag_language_survives_where_a_name_would_not(self):
+        from fichero_server.formats import round_trip
+
+        returned, report = round_trip("alto", self._page())
+
+        assert {s.language for s in returned.segments if s.language} == {"es"}
+        assert "language" not in report.lost
+
+    def test_boxes_survive_to_a_pixel_of_the_declared_page(self):
+        from fichero_server.formats import round_trip
+
+        page = self._page()
+        returned, _report = round_trip("alto", page)
+
+        by_ref = {s.ref: s for s in returned.segments}
+        for segment in page.segments:
+            mine, theirs = segment.rect, by_ref[segment.ref].rect
+            assert mine[0] == pytest.approx(theirs[0], abs=1 / 1000)
+            assert mine[1] == pytest.approx(theirs[1], abs=1 / 2000)
+
+    def test_what_alto_cannot_hold_is_named_and_subtracted(self):
+        """The report is the specification of the round trip: script, direction and
+        several readings have no ALTO home, and the comparison above never asked for
+        them."""
+        from fichero_server.formats import round_trip
+        from fichero_server.formats.harness import PageSegment
+
+        page = self._page()
+        page.segments.append(
+            PageSegment(kind="word", ref="w3", parent_ref="l1",
+                        rect=[0.6, 0.1, 0.2, 0.05], script="Latn", direction="rtl",
+                        readings=[("transcription", "uno"), ("transcription", "una")])
+        )
+
+        returned, report = round_trip("alto", page)
+
+        assert {"script", "direction", "several readings"} <= report.lost
+        word = next(s for s in returned.segments if s.ref == "w3")
+        assert word.script is None and word.direction is None
+        assert len(word.readings) == 1

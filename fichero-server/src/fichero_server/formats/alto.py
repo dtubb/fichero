@@ -101,6 +101,21 @@ class UnknownMeasurementUnit(ValueError):
         )
 
 
+#: The marker a SYNTHESISED parent carries (#5084's ALTO half). ALTO's schema puts a
+#: `String` inside a `TextLine` inside a `TextBlock`, so a word with neither cannot be
+#: written where it belongs.
+#:
+#: **ALTO has no free-form attribute like PAGE XML's `custom`**, so the marker is the
+#: ID PREFIX alone. That is weaker -- a tool that rewrites ids would erase it -- and it
+#: is the strongest thing the format offers, which is worth stating rather than
+#: pretending the two formats are equally markable.
+IMPLICIT_ID_PREFIX = "fichero-implicit-"
+
+
+def _is_implicit(element: Any) -> bool:
+    return (element.get("ID") or "").startswith(IMPLICIT_ID_PREFIX)
+
+
 def _tag(element: Any) -> str:
     tag = element.tag
     return tag.rsplit("}", 1)[-1] if isinstance(tag, str) and "}" in tag else str(tag)
@@ -163,11 +178,15 @@ def read(data: bytes) -> SourcePage:
         kind = ELEMENT_KINDS.get(_tag(element))
         if kind is None:
             continue
+        if _is_implicit(element):
+            # A parent we invented on a previous export; dropped so a round trip gives
+            # back the page the source described.
+            continue
         segment = PageSegment(kind=kind, ref=element.get("ID"))
         parent = element.getparent()
         while parent is not None and _tag(parent) not in ELEMENT_KINDS:
             parent = parent.getparent()
-        if parent is not None:
+        if parent is not None and not _is_implicit(parent):
             segment.parent_ref = parent.get("ID")
 
         x = _float(element.get("HPOS"))
@@ -285,7 +304,17 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             )
             continue
         ref = segment.ref or f"s{index}"
-        parent_el = by_ref.get(segment.parent_ref or "", print_space)
+        parent_el = by_ref.get(segment.parent_ref or "")
+        if parent_el is None:
+            # A block belongs directly under `PrintSpace`; only a line or a word has a
+            # required ancestor in ALTO.
+            parent_el = (
+                print_space
+                if segment.kind not in ("line", "word", "character")
+                else _implicit_parents(
+                    etree, print_space, segment.kind, ref, by_ref, report, width, height
+                )
+            )
         attrs = {"ID": ref}
         rect = segment.rect or _bounds(segment.polygon)
         if rect:
@@ -355,6 +384,45 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             )
 
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8", pretty_print=True)
+
+
+def _implicit_parents(
+    etree: Any, print_space: Any, kind: str, ref: str, by_ref: dict,
+    report: LossReport, width: int, height: int,
+) -> Any:
+    """The elements a segment must sit inside, invented when the source had none (#5084).
+
+    ALTO refuses a `String` directly under `PrintSpace` -- **found the day ALTO first
+    validated**, which is the whole argument for validating before handing over bytes.
+
+    Each invented element needs a BOX, because ALTO's are required, so it takes the
+    child's own: an invented block is exactly as big as the thing inside it, which is
+    the least the format will accept and claims nothing extra about the page.
+    """
+    chains = {
+        "word": ["TextBlock", "TextLine"],
+        "line": ["TextBlock"],
+        "character": ["TextBlock", "TextLine", "String"],
+    }
+    chain_names = chains.get(kind, ["TextBlock"])
+    parent_el = print_space
+    for name in chain_names:
+        implicit_id = f"{IMPLICIT_ID_PREFIX}{name.lower()}-{ref}"
+        parent_el = etree.SubElement(
+            parent_el,
+            f"{{{ALTO_NS_V4}}}{name}",
+            ID=implicit_id,
+            HPOS="0", VPOS="0", WIDTH=str(int(width)), HEIGHT=str(int(height)),
+        )
+        by_ref[implicit_id] = parent_el
+    report.note(
+        "implicit parents",
+        1,
+        f"ALTO requires a {kind} inside {', '.join(chain_names)}; this one had none, "
+        "so they were invented with an id marked `fichero-implicit-` and are dropped "
+        "again on re-import",
+    )
+    return parent_el
 
 
 def _in_first_order(page: SourcePage) -> list[PageSegment]:

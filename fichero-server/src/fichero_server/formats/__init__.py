@@ -116,13 +116,28 @@ def format_for(filename: str, data: bytes | None = None) -> FormatSpec | None:
     """
     suffix = ("." + filename.rsplit(".", 1)[-1].lower()) if "." in filename else ""
     candidates = [spec for spec in known_formats() if suffix in spec.extensions]
+
     if data is not None:
-        for spec in candidates or known_formats():
+        # The extension NARROWS; the bytes DECIDE. Candidates first, so a `.xml` file
+        # is checked against the XML formats before anything else.
+        for spec in candidates:
             if spec.sniff is not None and spec.sniff(data):
                 return spec
-    if len(candidates) == 1:
-        return candidates[0]
-    return None
+        # Then EVERYTHING, because an extension is a hint and people rename files.
+        # **This second pass was missing and the extension won by default**: an XML
+        # file named `.txt` narrowed to YOLO (the only `.txt` format), YOLO's sniff
+        # said no, and the single-candidate fallback below returned it anyway -- so the
+        # importer tried to read PAGE XML as label lines and blamed the file.
+        for spec in known_formats():
+            if spec.sniff is not None and spec.sniff(data):
+                return spec
+        # A candidate with NO sniff cannot refuse, so its extension still decides; a
+        # candidate whose sniff SAID NO has refused, and an extension must not overrule
+        # that.
+        unsniffable = [spec for spec in candidates if spec.sniff is None]
+        return unsniffable[0] if len(unsniffable) == 1 else None
+
+    return candidates[0] if len(candidates) == 1 else None
 
 
 def read_page(name: str, data: bytes) -> SourcePage:
