@@ -44,3 +44,17 @@ def test_main_fails_when_known_violations_are_stale(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["check_native_controls.py"])
 
     assert check_native_controls.main() == 1
+
+
+def test_every_entry_says_why_not_just_that_it_was_there():
+    """Eight entries once read only "#1912 baseline": the date they were grandfathered,
+    not a reason. Read per site, most were cards, grids or pages that are not row
+    collections, and three were real hand-rolled selection lists, two with the tap inside a
+    helper, where check_native_row_containers cannot see it. A bare baseline tag hides
+    which is which."""
+    bare = sorted(
+        key for key, reason in check_native_controls.KNOWN_VIOLATIONS.items()
+        if reason.strip() in {"#1912 baseline", "baseline"}
+        or reason.startswith("#1912 baseline")
+    )
+    assert bare == [], bare
