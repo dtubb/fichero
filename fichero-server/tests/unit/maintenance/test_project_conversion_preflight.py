@@ -35,7 +35,14 @@ from fichero_server.core.duckdb_session import connect_utc
 from fichero_server.db import Database
 from fichero_server.maintenance import project_conversion as pc
 from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryResult
-from fichero_server.models import Artifact, DocType, Document, FileType, Status
+from fichero_server.models import (
+    Artifact,
+    DocType,
+    Document,
+    FileType,
+    LibrarySnapshot,
+    Status,
+)
 from fichero_server.models.conversion import (
     ConversionFailure,
     ConversionRun,
@@ -86,18 +93,31 @@ def _page_with_boxes(db, *, boxes: int = 2, artifact_type: str = "transcription"
     return artifact
 
 
-def _fake_snapshot(tmp_path, *, snapshot_id: str = "snap-1") -> SimpleNamespace:
+def _fake_snapshot(tmp_path, *, snapshot_id: str = "snap-1") -> LibrarySnapshot:
+    """The snapshot `snapshot_library` really returns, not a stand-in for it.
+
+    This was a `SimpleNamespace` until 2026-09-27, and two tests in
+    `TestIsThereAWayBack` had been failing since #5070 added a PIN to
+    `plan_conversion`: pinning writes the snapshot RECORD, a record is written with
+    `model_dump`, and a namespace has no `model_dump`. The fixture described a
+    snapshot loosely enough to pass every test that only read two of its fields, and
+    the first caller to use it as a model fell over.
+
+    A real `LibrarySnapshot` costs three more lines and cannot drift from the thing
+    it stands for. The registry it writes to is isolated under `tmp` by conftest's
+    test-only app storage — verified, not assumed, before letting a test write one.
+    """
     root = tmp_path / "snapshots" / snapshot_id
     (root / "duckdb_export").mkdir(parents=True)
     (root / "duckdb_file").mkdir(parents=True)
-    return SimpleNamespace(
+    return LibrarySnapshot(
         id=snapshot_id,
+        library_path=str(tmp_path / "Temporary.fichero"),
+        library_name="Temporary",
         snapshot_path=str(root),
         duckdb_path="duckdb_file",
-        is_pinned=False,
+        lance_path="lance",
         duckdb_size_bytes=1024,
-        lance_size_bytes=0,
-        files_size_bytes=0,
     )
 
 
@@ -385,7 +405,15 @@ class TestIsThereAWayBack:
         )
 
         def boom(_record):
-            raise RuntimeError("app database is read-only")
+            # OSError, because that is what a read-only registry actually raises.
+            # This said `RuntimeError` until 2026-09-27 and the test failed for a
+            # second reason: `_pin` narrowed its tolerance to the filesystem
+            # (`OSError`) and serialisation (`ValueError`, `TypeError`) in the #4420
+            # sweep, deliberately, so a RuntimeError escapes — as it should. The
+            # tolerance was right and the stand-in for the failure was wrong. Widening
+            # the `except` to match the test would have swallowed genuine programming
+            # errors in order to make a fixture's choice of exception come true.
+            raise OSError("app database is read-only")
 
         monkeypatch.setattr(
             "fichero_server.db.storage_snapshots._save_snapshot_record", boom
