@@ -161,11 +161,18 @@ struct PreviewMarkupRowOrderGuardTests {
 
     @Test("Delete and Join appear only while regions are selected")
     func editVerbsFollowTheSelection() throws {
-        let source = try headSource()
+        // The markup row, where the verbs live. This read `PreviewHeadControls.swift` and so had
+        // been failing since the row moved out of the head (2026-08-30): corrected 2026-09-27.
+        let source = try String(
+            contentsOf: AppSource.root().appendingPathComponent(
+                "Views/Shell/PaneHead/PreviewMarkupToolsRow.swift"
+            ), encoding: .utf8
+        )
         // The verbs act on the selection, so the bar must not offer them
         // against nothing (ruling 2). Join additionally needs two.
-        #expect(source.contains("let selection = RegionSelection.shared"))
-        #expect(source.contains("if !selection.isEmpty {"))
+        // The FOCUSED pane's selection (#5020): never an app-wide one.
+        #expect(source.contains("let selection = windowState?.focusedRegionSelection ?? RegionSelection()"))
+        #expect(source.contains("if !selection.isEmpty"))
         #expect(source.contains("if selection.count >= 2 {"))
     }
 }
@@ -239,7 +246,7 @@ struct PreviewMarkupSelectionVerbGuardTests {
         )
         // Region selection first, reader text selection second — the two
         // seams a highlight already knew about.
-        #expect(canvas.contains("let selection = RegionSelection.shared"))
+        #expect(canvas.contains("let selection = regionSelection"))
         #expect(canvas.contains("return linkedSelectionBoxes.map {"))
         // Per-line strips, via the helper the drag path and word-promotion
         // both use — not one page-blotting union.
@@ -360,6 +367,8 @@ struct DocumentOverlayWiringGuardTests {
         let overlays = try source("Views/Preview/ImageViewer/ZoomableImagePreviewMac+Overlays.swift")
         #expect(overlays.contains("documentOverlay: documentOverlay"))
         #expect(overlays.contains("drawsBoxes: false"))
+        #expect(overlays.contains("drawsGeometricMarks: false"))
+        #expect(overlays.contains("drawsInlineText: false"))
         let regions = try source("Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Regions.swift")
         #expect(regions.contains("drawsSelection: false"))
         let tracking = try source("Views/Preview/ImageViewer/CursorTracking/ImageWithCursorTrackingMac.swift")

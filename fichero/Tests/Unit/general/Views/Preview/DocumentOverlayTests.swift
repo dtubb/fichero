@@ -19,18 +19,18 @@ struct DocumentOverlayTests {
     func onlyTheExposedStrip() {
         // The bottom of the page is LOW y in the unflipped document space.
         let bottomStrip = CGRect(x: 0, y: 0, width: 1000, height: 250)
-        let drawn = overlay().boxes(in: bottomStrip, documentSize: page)
+        let drawn = overlay().boxes(in: bottomStrip, imageRect: CGRect(origin: .zero, size: page))
         #expect(drawn.map(\.box.bbox) == [[0.1, 0.8, 0.1, 0.1]])
-        #expect(overlay().selected(in: bottomStrip, documentSize: page).count == 1)
+        #expect(overlay().selected(in: bottomStrip, imageRect: CGRect(origin: .zero, size: page)).count == 1)
         let topStrip = CGRect(x: 0, y: 750, width: 1000, height: 250)
-        #expect(overlay().boxes(in: topStrip, documentSize: page).map(\.box.bbox) == [[0.1, 0.1, 0.1, 0.1]])
-        #expect(overlay().selected(in: topStrip, documentSize: page).isEmpty)
+        #expect(overlay().boxes(in: topStrip, imageRect: CGRect(origin: .zero, size: page)).map(\.box.bbox) == [[0.1, 0.1, 0.1, 0.1]])
+        #expect(overlay().selected(in: topStrip, imageRect: CGRect(origin: .zero, size: page)).isEmpty)
     }
 
     @Test("a placeholder box is never painted, whatever is redrawn")
     func placeholdersNeverPaint() {
         let everything = CGRect(origin: .zero, size: page)
-        #expect(overlay().boxes(in: everything, documentSize: page).count == 2)
+        #expect(overlay().boxes(in: everything, imageRect: CGRect(origin: .zero, size: page)).count == 2)
     }
 
     @Test("the same overlay is equal, so an unchanged page does not redraw")
@@ -47,9 +47,34 @@ struct DocumentOverlayTests {
     func washesFollowTheDirtyRect() {
         let bottomStrip = CGRect(x: 0, y: 0, width: 1000, height: 250)
         let washes = [[0.1, 0.8, 0.2, 0.05], [0.1, 0.1, 0.2, 0.05]]   // one low, one high on the page
-        #expect(DocumentOverlay.rects(washes, in: bottomStrip, documentSize: page).count == 1)
+        #expect(DocumentOverlay.rects(washes, in: bottomStrip, imageRect: CGRect(origin: .zero, size: page)).count == 1)
         var lit = overlay()
         lit.linkedWashes = [[0.1, 0.8, 0.2, 0.05]]
         #expect(lit != overlay())
+    }
+
+    /// #5142: saved marks move with the page too. Geometry kinds draw inside the scroll view; the
+    /// glyph and tappable kinds stay in SwiftUI. What breaks without it: a highlight drawn twice (both
+    /// layers) or not at all (neither), or a note that can no longer be tapped.
+    @Test("the geometry kinds draw here, the glyph and tappable kinds stay in SwiftUI")
+    func markKinds() {
+        #expect(DocumentOverlay.Mark.shape(for: .highlight) == .wash)
+        #expect(DocumentOverlay.Mark.shape(for: .underline) == .underline)
+        #expect(DocumentOverlay.Mark.shape(for: .strikethrough) == .strike)
+        #expect(DocumentOverlay.Mark.shape(for: .line) == .line)
+        #expect(DocumentOverlay.Mark.shape(for: .unknown) == .box)
+        for kind in [AnnotationKind.rating, .note, .bookmark] {
+            #expect(DocumentOverlay.Mark.shape(for: kind) == nil, "\(kind) must stay in SwiftUI")
+        }
+    }
+
+    @Test("a new mark or a newly selected mark redraws")
+    func marksRedraw() {
+        var marked = DocumentOverlay()
+        marked.marks = [.init(shape: .wash, bbox: [0.1, 0.1, 0.2, 0.05], color: nil)]
+        #expect(marked != DocumentOverlay())
+        var chosen = DocumentOverlay()
+        chosen.selectedMark = [0.1, 0.1, 0.2, 0.05]
+        #expect(chosen != DocumentOverlay())
     }
 }

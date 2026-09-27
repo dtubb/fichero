@@ -135,12 +135,10 @@ extension ZoomableImagePreview {
     /// selection", which is the signal to fall back to the drag/click tools.
     var selectedMarkupBoxes: [OCRGeometryBox] {
         guard let geometry = ocrGeometry, geometryFrameMatchesDisplay(geometry) else { return [] }
-        let selection = RegionSelection.shared
+        let selection = regionSelection
         if let artifactId = ocrGeometryArtifactId, selection.artifactId == artifactId,
            !selection.isEmpty {
-            let picked = selection.indices
-                .filter { geometry.boxes.indices.contains($0) }
-                .map { geometry.boxes[$0] }
+            let picked = selection.resolvedIndices(in: geometry.boxes).map { geometry.boxes[$0] }
             if !picked.isEmpty { return picked }
         }
         return linkedSelectionBoxes.map {
@@ -253,6 +251,16 @@ extension ZoomableImagePreview {
     /// `geometryFrameMatchesDisplay` uses — blank beats a plausible band in
     /// the wrong place, and one predicate means the two layers cannot
     /// disagree about what frame is on screen.
+    /// The marks the page shows, after the two switches (2026-08-31): `annotationsEnabled` gates
+    /// the whole set, `regionsEnabled` drops the untyped legacy region boxes. ONE place, read by both
+    /// the SwiftUI glyph layer and the document overlay, so they cannot disagree about what shows.
+    var shownAnnotationMarks: [AnnotationMark] {
+        guard annotationsEnabled else { return [] }
+        return regionsEnabled
+            ? annotationMarks
+            : annotationMarks.filter { $0.kind != .unknown && $0.kind != .comment }
+    }
+
     var annotationMarks: [AnnotationMark] {
         guard let documentId else { return [] }
         return annotationStore.annotations

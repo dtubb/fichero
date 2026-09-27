@@ -196,6 +196,9 @@ struct ZoomableImagePreview: View {
     @State var imageVisible = UserDefaults.standard.object(forKey: ImageLayer.defaultsKey) as? Bool ?? true
     @Environment(\.panePreviewLayers) var panePreviewLayers
     @State var ocrGeometry: OCRGeometry?
+    /// THIS pane's region selection (#5020): never another pane's. The window's focus points at it
+    /// once the pane is used (`WindowState.focusedRegionSelection`).
+    @State var regionSelection = RegionSelection()
     /// WHICH artifact the displayed geometry came from (2026-08-29, regions
     /// as first-class): the curation verbs — move / delete / add / combine —
     /// must address the artifact whose boxes are on screen, so the id rides
@@ -351,6 +354,7 @@ struct ZoomableImagePreview: View {
         .onAppear {
             handleViewAppeared()
             publishHeadChrome()
+            windowState?.offerRegionSelection(regionSelection)
             // The workspace's layer defaults, per pane (Q2). Nil fields leave the remembered value.
             imageVisible = PreviewLayerDefaults.start(workspace: panePreviewLayers?.image, remembered: imageVisible)
             ocrBoxesEnabled = PreviewLayerDefaults.start(
@@ -409,6 +413,11 @@ struct ZoomableImagePreview: View {
                     UserDefaults.standard.set(enabled, forKey: "imagePreview.ocrBoxesEnabled")
                 }
             }
+            // Using this pane's selection makes it the one the Inspector and the markup row act on.
+            .onChange(of: regionSelection.indices) { _, _ in
+                windowState?.focusRegionSelection(regionSelection)
+            }
+            .onDisappear { windowState?.releaseRegionSelection(regionSelection) }
             .onChange(of: imageVisible) { _, visible in
                 if PreviewLayerDefaults.shouldRemember(visible, workspace: panePreviewLayers?.image) {
                     UserDefaults.standard.set(visible, forKey: ImageLayer.defaultsKey)

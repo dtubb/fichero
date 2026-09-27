@@ -287,18 +287,6 @@ class TrackingImageView: NSImageView {
         didSet { if drawsImagePixels != oldValue { needsDisplay = true } }
     }
 
-    /// Where the image sits in this view: centred when the view is larger (zoomed out below fit).
-    /// The same arithmetic the checker ground and the loupe use, so the overlay sits on the pixels.
-    var imageRect: NSRect? {
-        guard let image else { return nil }
-        return NSRect(
-            x: max(0, (bounds.width - image.size.width) / 2),
-            y: max(0, (bounds.height - image.size.height) / 2),
-            width: min(image.size.width, bounds.width),
-            height: min(image.size.height, bounds.height)
-        )
-    }
-
     override func draw(_ dirtyRect: NSRect) {
         guard drawsImagePixels else { return }
         if imageHasAlpha, let image {

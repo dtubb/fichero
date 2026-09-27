@@ -2,12 +2,15 @@ import CoreGraphics
 import Foundation
 import Observation
 
-/// Shared selection of PERSISTED regions — boxes inside one artifact's
-/// `ocr_geometry` — for the regions-as-first-class work (Daniel, 2026-08-29).
+/// The selection of PERSISTED regions — boxes inside one artifact's `ocr_geometry` — in ONE
+/// Source-view pane (Daniel, 2026-08-29; per pane since 2026-09-27, #5020).
 ///
-/// The `FocusedArtifact` idiom: one small shared focus holder that the
-/// inspector's region rows WRITE and the Preview overlay OBSERVES (and vice
-/// versa — clicking a box in Preview lights its row). Boxes carry no server
+/// **Each pane owns one** (ruled 2026-09-27, applying two standing rulings: panes are not linked
+/// unless a person connects them, 2026-09-19; and "visible surface, always", 2026-08-23 — a verb
+/// acts on the selection of the surface you can see, and focus decides which). It used to be ONE
+/// app-wide instance, so a click in one Preview lit a box in every other Preview of the page, and
+/// by an index that could name a different box there (#5020). The Inspector and the markup row
+/// follow the FOCUSED pane's selection through `WindowState.focusedRegionSelection`. Boxes carry no server
 /// ids, so a region is addressed the way the engine addresses it: by its
 /// position in the artifact's full `boxes` list. Indices are ordered by
 /// selection time; the palette color is keyed to the BOX index (stable while
@@ -15,8 +18,6 @@ import Observation
 @MainActor
 @Observable
 final class RegionSelection {
-    static let shared = RegionSelection()
-
     /// The artifact whose boxes are selected. A selection never spans
     /// artifacts — regions from two geometries share no coordinate frame.
     private(set) var artifactId: String?
@@ -26,8 +27,32 @@ final class RegionSelection {
     /// selection order (combine order falls to READING order server-side,
     /// so click order is free to mean "what I picked, when").
     private(set) var indices: [Int] = []
+    /// WHAT each selected box is, beside WHERE it was (#5020, commit 2): its bbox, text and level,
+    /// parallel to `indices`, nil when the writer passed no box list. Two panes can hold one
+    /// artifact's boxes in different orders (the artifact's and the segment seam's), or one list
+    /// from before an edit and one from after; an index means a different box in each. A key does
+    /// not. Read the selection through `resolvedIndices(in:)`.
+    private(set) var keys: [BoxKey?] = []
 
     init() {}
+
+    /// The selected boxes' positions in THIS list: found by identity where the writer recorded it,
+    /// by the raw index only where it did not. A box the list no longer holds is dropped -- never
+    /// replaced by whatever now sits at its old index, which is the "below and right" of #5020.
+    func resolvedIndices(in boxes: [OCRGeometryBox]) -> [Int] {
+        var out: [Int] = []
+        for (position, index) in indices.enumerated() {
+            let key = position < keys.count ? keys[position] : nil
+            let found: Int?
+            if let key {
+                found = boxes.firstIndex { BoxKey($0) == key }
+            } else {
+                found = boxes.indices.contains(index) ? index : nil
+            }
+            if let found, !out.contains(found) { out.append(found) }
+        }
+        return out
+    }
 
     var count: Int { indices.count }
     var isEmpty: Bool { indices.isEmpty }
@@ -36,34 +61,45 @@ final class RegionSelection {
         self.artifactId == artifactId && indices.contains(index)
     }
 
-    /// Replace the selection with one region (plain click).
-    func select(_ index: Int, artifactId: String, documentId: String?) {
+    /// Replace the selection with one region (plain click). `boxes` is the writer's own full list,
+    /// so the box's identity is kept with its index.
+    func select(_ index: Int, artifactId: String, documentId: String?, in boxes: [OCRGeometryBox]? = nil) {
         retarget(artifactId: artifactId, documentId: documentId)
         indices = [index]
+        keys = [Self.key(index, in: boxes)]
     }
 
     /// Add/remove one region (⇧-click, inspector row toggle).
-    func toggle(_ index: Int, artifactId: String, documentId: String?) {
+    func toggle(_ index: Int, artifactId: String, documentId: String?, in boxes: [OCRGeometryBox]? = nil) {
         retarget(artifactId: artifactId, documentId: documentId)
         if let position = indices.firstIndex(of: index) {
             indices.remove(at: position)
+            if position < keys.count { keys.remove(at: position) }
         } else {
             indices.append(index)
+            keys.append(Self.key(index, in: boxes))
         }
+    }
+
+    private static func key(_ index: Int, in boxes: [OCRGeometryBox]?) -> BoxKey? {
+        guard let boxes, boxes.indices.contains(index) else { return nil }
+        return BoxKey(boxes[index])
     }
 
     /// Replace the selection with a whole set at once (⌘A over the preview,
     /// Daniel 2026-08-31: all text with the text tool, all boxes with the
     /// select tool). Order is the caller's — reading order for a geometry.
-    func selectAll(_ indices: [Int], artifactId: String, documentId: String?) {
+    func selectAll(_ indices: [Int], artifactId: String, documentId: String?, in boxes: [OCRGeometryBox]? = nil) {
         retarget(artifactId: artifactId, documentId: documentId)
         self.indices = indices
+        keys = indices.map { Self.key($0, in: boxes) }
     }
 
     func clear() {
         artifactId = nil
         documentId = nil
         indices = []
+        keys = []
     }
 
     /// A server-side edit changed the artifact's box list, so every held
@@ -77,9 +113,24 @@ final class RegionSelection {
     private func retarget(artifactId: String, documentId: String?) {
         if self.artifactId != artifactId {
             indices = []
+            keys = []
             self.artifactId = artifactId
         }
         if let documentId { self.documentId = documentId }
+    }
+}
+
+/// What a box IS, for finding it again in another list (#5020): its rect, words and level. Boxes
+/// carry no server id; two boxes identical in all three are the same box as far as anyone can tell.
+struct BoxKey: Hashable {
+    let bbox: [Double]
+    let text: String
+    let level: String
+
+    init(_ box: OCRGeometryBox) {
+        bbox = box.bbox
+        text = box.text
+        level = box.level
     }
 }
 

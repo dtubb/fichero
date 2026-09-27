@@ -88,6 +88,27 @@ class WindowState {
     /// Source views split in one window edit together.
     var isEditingSegments = false
 
+    /// The FOCUSED Source-view pane's region selection (#5020, ruled 2026-09-27): each pane owns
+    /// its own, and the Inspector and the markup row act on this one. Strong, not weak (an
+    /// `@Observable` property), so the pane releases it when it goes (`releaseRegionSelection`).
+    private(set) var focusedRegionSelection: RegionSelection?
+
+    /// A pane was USED (a click, a band, ⌘A, a verb): its selection is the one the window acts on.
+    func focusRegionSelection(_ selection: RegionSelection) {
+        if focusedRegionSelection !== selection { focusedRegionSelection = selection }
+    }
+
+    /// A pane appeared: it becomes the focus only if nothing is focused yet, so opening a second
+    /// Preview does not steal the Inspector from the one a person is working in.
+    func offerRegionSelection(_ selection: RegionSelection) {
+        if focusedRegionSelection == nil { focusedRegionSelection = selection }
+    }
+
+    /// A pane went away: drop the focus only if it was that pane's.
+    func releaseRegionSelection(_ selection: RegionSelection) {
+        if focusedRegionSelection === selection { focusedRegionSelection = nil }
+    }
+
     /// Coding v1 (Daniel, 2026-08-30, ruling 4): comma-separated tags entered
     /// via the highlight menu's "Tag Next Highlight…" ride the NEXT saved
     /// highlight / underline / strikethrough / check, then clear — one-shot,

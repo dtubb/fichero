@@ -150,17 +150,21 @@ struct AnnotationMarkLayer: View {
     /// notes are created and edited in place, not in a popover). nil in
     /// hosts without the inline editor (PDF, headless).
     var onNoteTap: ((String) -> Void)?
+    /// Whether this SwiftUI layer draws the marks that are pure geometry (wash, bars, line, legacy
+    /// box) and the selected-mark ring. False on the Mac image canvas, where the document overlay
+    /// draws them inside the scroll view (#5142); this layer then keeps the glyph and text marks.
+    var drawsGeometricMarks: Bool = true
 
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .topLeading) {
-                ForEach(marks) { mark in
+                ForEach(marks.filter { drawsGeometricMarks || DocumentOverlay.Mark.shape(for: $0.kind) == nil }) { mark in
                     // Display-only, EXCEPT notes: their `.help` tooltip
                     // (the full text) needs hover hit-testing to fire.
                     markView(mark, in: geo.size)
                         .allowsHitTesting(mark.kind == .note)
                 }
-                if let selectedId, let rect = selectionRect(for: selectedId, in: geo.size) {
+                if drawsGeometricMarks, let selectedId, let rect = selectionRect(for: selectedId, in: geo.size) {
                     RoundedRectangle(cornerRadius: 3)
                         .stroke(Color.accentColor, lineWidth: 2)
                         .background(Color.accentColor.opacity(0.10))

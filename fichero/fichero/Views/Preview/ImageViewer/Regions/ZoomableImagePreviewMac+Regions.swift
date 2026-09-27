@@ -3,8 +3,8 @@ import SwiftUI
 
 // MARK: - Region curation verbs (Daniel, 2026-08-29: regions as first-class)
 //
-// Selection lives on `RegionSelection.shared` (the FocusedArtifact idiom, so
-// the inspector's region rows and this preview stay in sync); ephemeral
+// Selection lives on THIS pane's `regionSelection` (#5020, ruled 2026-09-27: each pane owns
+// its own; the Inspector follows the focused pane via `WindowState.focusedRegionSelection`); ephemeral
 // marquees on the per-window `WindowState.previewMarquees` seam. Every
 // persistent verb goes through `ArtifactService` — one audited, undoable
 // engine action per edit — and re-renders from the RESPONSE geometry rather
@@ -24,21 +24,39 @@ extension ZoomableImagePreview {
     /// What the document overlay draws INSIDE the image view (#5020, #5142): the boxes the canvas
     /// shows and the selected ones, from the SAME two lists the hit-test and the region layer use,
     /// so a click, its box and its highlight cannot disagree about which box it is.
+    /// This page's ephemeral marquees -- a marquee drawn on another document is not this page's.
+    var currentMarquees: [[Double]] {
+        guard let marquees = windowState?.previewMarquees, marquees.documentId == documentId else { return [] }
+        return marquees.rects
+    }
+
     var documentOverlay: DocumentOverlay {
         let shown = displayedGeometryBoxes
         let all = frameMatchedGeometryBoxes
-        let selection = RegionSelection.shared
+        let selection = regionSelection
         let selected: [[Double]] = (ocrGeometryArtifactId != nil && selection.artifactId == ocrGeometryArtifactId)
-            ? selection.indices.filter { all.indices.contains($0) }.map { all[$0].bbox }
+            ? selection.resolvedIndices(in: all).map { all[$0].bbox }
             : []
         // The same frame gates the SwiftUI washes had: the entry wash is anchored on the page's
         // own image, the linked words on the geometry they were measured on.
         let linkedFrameMatches = ocrGeometry.map { geometryFrameMatchesDisplay($0) } ?? false
         return DocumentOverlay(
-            boxes: shown.map { .init(bbox: $0.box.bbox, confidence: $0.box.confidence) },
+            boxes: shown.map {
+                .init(bbox: $0.box.bbox, confidence: $0.box.confidence, text: $0.box.text,
+                      showsText: inlineTextEnabled && OCRBoxConfidence.drawsInlineText($0.box.confidence))
+            },
             selected: selected,
             entryWashes: annotationFrameMatchesDisplay(nil) ? highlightBoxes : [],
-            linkedWashes: linkedFrameMatches ? linkedSelectionBoxes : []
+            linkedWashes: linkedFrameMatches ? linkedSelectionBoxes : [],
+            marks: shownAnnotationMarks.compactMap { mark in
+                guard let bbox = mark.rect, let shape = DocumentOverlay.Mark.shape(for: mark.kind) else { return nil }
+                return .init(shape: shape, bbox: bbox, color: AnnotationMarkGeometry.rgba(hex: mark.color))
+            },
+            selectedMark: shownAnnotationMarks.first { $0.id == FocusedAnnotation.shared.id }?.rect,
+            marquees: currentMarquees,
+            pickedMarquee: windowState?.previewMarquees.selectedIndex,
+            isEditing: windowState?.isEditingSegments == true,
+            isFocusedPane: windowState?.focusedRegionSelection === regionSelection
         )
     }
 
@@ -67,7 +85,7 @@ extension ZoomableImagePreview {
             let shown = displayedGeometryBoxes.map(\.index)
             indices = shown.isEmpty ? Array(all.indices) : shown
         }
-        RegionSelection.shared.selectAll(indices, artifactId: artifactId, documentId: documentId)
+        regionSelection.selectAll(indices, artifactId: artifactId, documentId: documentId, in: all)
     }
 
     /// The interactive layer + its context menu. Mounted whenever an image is
@@ -104,7 +122,8 @@ extension ZoomableImagePreview {
                 onPromote: { name, index in
                     promoteMarquees(named: name, onlyIndex: index)
                 },
-                onOpenRegion: { index in openRegion(atIndex: index) }
+                onOpenRegion: { index in openRegion(atIndex: index) },
+                selection: regionSelection
             )
             .contextMenu { regionContextMenu }
         }
@@ -142,7 +161,7 @@ extension ZoomableImagePreview {
             Button("Clear Selections") { marquees.clear() }
                 .help("Discard the drawn selections without saving them")
         }
-        let selection = RegionSelection.shared
+        let selection = regionSelection
         if isEditingSegments, let artifactId = ocrGeometryArtifactId, selection.artifactId == artifactId {
             if selection.count >= 2 {
                 Button("Join \(selection.count) Regions") { combineSelectedRegions() }
@@ -201,7 +220,7 @@ extension ZoomableImagePreview {
     /// DELETE: server-side soft (undoable action + curation log). The held
     /// indices are meaningless afterwards, so the selection clears.
     func deleteSelectedRegions() {
-        let selection = RegionSelection.shared
+        let selection = regionSelection
         guard let artifactId = RegionEditTarget.forSelectionEdit(
                   shownArtifactId: ocrGeometryArtifactId,
                   selectionArtifactId: selection.artifactId,
@@ -209,7 +228,9 @@ extension ZoomableImagePreview {
                   minimumCount: 1
               ),
               let documentId, let artifactService else { return }
-        let indices = selection.indices
+        // The selected boxes' positions in THIS pane's list, found by identity (#5020).
+        let indices = selection.resolvedIndices(in: ocrGeometry?.boxes ?? [])
+        guard !indices.isEmpty else { return }
         Task {
             do {
                 let updated = try await artifactService.deleteRegions(
@@ -227,7 +248,7 @@ extension ZoomableImagePreview {
     /// COMBINE: union bbox + texts in reading order — the ORDER is the
     /// server's call, so click order stays free.
     func combineSelectedRegions() {
-        let selection = RegionSelection.shared
+        let selection = regionSelection
         guard let artifactId = RegionEditTarget.forSelectionEdit(
                   shownArtifactId: ocrGeometryArtifactId,
                   selectionArtifactId: selection.artifactId,
@@ -235,7 +256,8 @@ extension ZoomableImagePreview {
                   minimumCount: 2
               ),
               let documentId, let artifactService else { return }
-        let indices = selection.indices
+        let indices = selection.resolvedIndices(in: ocrGeometry?.boxes ?? [])
+        guard indices.count >= 2 else { return }
         Task {
             do {
                 let updated = try await artifactService.combineRegions(
@@ -335,10 +357,11 @@ extension ZoomableImagePreview {
     /// geometry — the only selection "New Region from Words" can honestly
     /// promote (line rows already ARE regions).
     var selectionIsWordLevel: Bool {
-        let selection = RegionSelection.shared
+        let selection = regionSelection
         guard let artifactId = ocrGeometryArtifactId, selection.artifactId == artifactId,
               !selection.isEmpty, let boxes = ocrGeometry?.boxes else { return false }
-        return selection.indices.allSatisfy { boxes.indices.contains($0) && boxes[$0].level == "word" }
+        let resolved = selection.resolvedIndices(in: boxes)
+        return !resolved.isEmpty && resolved.allSatisfy { boxes[$0].level == "word" }
     }
 
     /// PROMOTE the word selection to regions (ruling 2): the selected words
@@ -346,13 +369,11 @@ extension ZoomableImagePreview {
     /// uses, and each strip lands as its own region — like `promoteMarquees`,
     /// but word-bounded instead of hand-drawn.
     func promoteSelectedWords() {
-        let selection = RegionSelection.shared
+        let selection = regionSelection
         guard let artifactId = ocrGeometryArtifactId, selection.artifactId == artifactId,
               !selection.isEmpty, let documentId, let artifactService,
               let geometry = ocrGeometry else { return }
-        let words = selection.indices
-            .filter { geometry.boxes.indices.contains($0) }
-            .map { geometry.boxes[$0] }
+        let words = selection.resolvedIndices(in: geometry.boxes).map { geometry.boxes[$0] }
         guard !words.isEmpty else { return }
         // The words' union as the "drag": snappedRects then yields one
         // strip per line of exactly these words. Bounded sub-expressions —
@@ -395,7 +416,7 @@ extension ZoomableImagePreview {
         switch SegmentEditingMode.deleteKey(
             marqueePicked: marquees?.selectedIndex != nil,
             isEditing: isEditingSegments,
-            selectionCount: RegionSelection.shared.count
+            selectionCount: regionSelection.count
         ) {
         case .removeMarquee: marquees?.removeSelected()
         case .deleteRegions: deleteSelectedRegions()
@@ -411,7 +432,7 @@ extension ZoomableImagePreview {
     func handleRegionVerb(_ note: Notification) {
         guard let raw = note.object as? String, let verb = PreviewRegionVerb(rawValue: raw) else { return }
         switch SegmentEditingMode.action(
-            for: verb, isEditing: isEditingSegments, selectionCount: RegionSelection.shared.count
+            for: verb, isEditing: isEditingSegments, selectionCount: regionSelection.count
         ) {
         case .delete: deleteSelectedRegions()
         case .combine: combineSelectedRegions()
@@ -423,7 +444,7 @@ extension ZoomableImagePreview {
     func clearEphemeralRegionState() {
         isAddingRegion = false
         windowState?.previewMarquees.clear()
-        RegionSelection.shared.clear()
+        regionSelection.clear()
     }
 }
 

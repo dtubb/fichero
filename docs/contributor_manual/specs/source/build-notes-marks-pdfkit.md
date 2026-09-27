@@ -35,8 +35,8 @@ Text (FreeText), Note (Text), Sign (Ink), and the loupe (a view, not an annotati
 | Fichero today | Anchored by today | PDF export as | Gap |
 |---|---|---|---|
 | highlight (5 colours) | char range, or bbox, or the selected word boxes | **Highlight** with one quad per selected box run | none in kind; quads to be kept (see 3) |
-| underline | as highlight | **Underline** | the ENGINE has the kind (`AnnotationKind.underline`, 2026-08-30), but the app's `PreviewHighlightStyle` still says it has "no annotation-kind backing yet" and keeps it only as the control's state; and the PDF IMPORT folds Underline into highlight (`importers/pdf_annotations.py`), which loses what the mark said |
-| strikethrough | as highlight | **StrikeOut** | the same two gaps |
+| underline | as highlight | **Underline** | none now. The app saves it as its own kind (`AnnotationBar`, the canvas); only `PreviewHighlightStyle`'s comment said otherwise, corrected 2026-09-27. The PDF IMPORT folded Underline into highlight; fixed in `c3b99eab9` |
+| strikethrough | as highlight | **StrikeOut** | the same, both fixed |
 | note (inline margin note) | a point beside the text | **FreeText** (written on the page) or **Text** (an icon that opens); proposal: FreeText, since ours shows its words in place | none |
 | bookmark (the star) | a point, or the selection | **Stamp** named `Star` | PDF has no star; a named stamp is the standard way to carry one |
 | check (✓ ✓✓ ✓✓✓), paragraph | a paragraph index, or the selection | **Stamp** named `Check`, `Check2`, `Check3` | none |

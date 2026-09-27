@@ -161,7 +161,8 @@ struct PreviewMarkupToolsRow: View {
     /// so reading it here re-renders the row as the selection comes and goes.
     @ViewBuilder
     private var editVerbs: some View {
-        let selection = RegionSelection.shared
+        // The FOCUSED pane's selection (#5020): the bar's verbs act on the pane you are in.
+        let selection = windowState?.focusedRegionSelection ?? RegionSelection()
         // Delete and Combine write segments, so they appear only in the segment-editing
         // mode (#5114); reading a page, a selection is for reading.
         if !selection.isEmpty, windowState?.isEditingSegments == true {

@@ -92,7 +92,8 @@ struct RegionInteractionLayer: View {
     @Environment(WindowState.self) private var windowState: WindowState?
     @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore?
 
-    @State private var selection = RegionSelection.shared
+    /// THE PANE'S selection, handed in (#5020): the layer never reaches for another pane's.
+    let selection: RegionSelection
     /// The armed "name this region" request (shared with the context-menu
     /// verb, which arms it without a badge of its own).
     @State private var naming = RegionNamingRequest.shared
@@ -112,7 +113,7 @@ struct RegionInteractionLayer: View {
                 // Display layer: never hit-testable, so every trackpad
                 // gesture falls through to the NSScrollView beneath.
                 ZStack(alignment: .topLeading) {
-                    marqueeRects(in: geo.size)
+                    if drawsSelection { marqueeRects(in: geo.size) }  // else the document overlay does
                     selectedRegionRects(in: geo.size)
                     if let rect = liveBandRect {
                         RoundedRectangle(cornerRadius: 2)
@@ -143,8 +144,8 @@ struct RegionInteractionLayer: View {
     @ViewBuilder
     private func selectedRegionRects(in size: CGSize) -> some View {
         if artifactId != nil, selection.artifactId == artifactId {
-            ForEach(selection.indices.filter {
-                allBoxes.indices.contains($0) && (drawsSelection || moveDrag?.index == $0)
+            ForEach(selection.resolvedIndices(in: allBoxes).filter {
+                drawsSelection || moveDrag?.index == $0
             }, id: \.self) { index in
                 let box = allBoxes[index]
                 if let rect = BoundingBoxGeometry.viewRect(
@@ -380,9 +381,9 @@ struct RegionInteractionLayer: View {
            ) {
             let fullIndex = boxes[picked].index
             if additive {
-                selection.toggle(fullIndex, artifactId: artifactId, documentId: documentId)
+                selection.toggle(fullIndex, artifactId: artifactId, documentId: documentId, in: allBoxes)
             } else {
-                selection.select(fullIndex, artifactId: artifactId, documentId: documentId)
+                selection.select(fullIndex, artifactId: artifactId, documentId: documentId, in: allBoxes)
             }
             marquees?.selectedIndex = nil
             return
@@ -411,7 +412,7 @@ struct RegionInteractionLayer: View {
     /// A SELECTED box under the point (full-list index), for move drags.
     private func selectedBoxIndex(at location: CGPoint, in size: CGSize) -> Int? {
         guard let artifactId, selection.artifactId == artifactId else { return nil }
-        let candidates = selection.indices.filter { allBoxes.indices.contains($0) }
+        let candidates = selection.resolvedIndices(in: allBoxes)
         guard let picked = RegionHitTesting.pick(
             at: location, boxes: candidates.map { allBoxes[$0].bbox }, in: size, visible: visible
         ) else { return nil }
@@ -474,11 +475,11 @@ struct RegionInteractionLayer: View {
         }
         var remaining = hits[...]
         if !shiftHeld {
-            selection.select(hits[0], artifactId: artifactId, documentId: documentId)
+            selection.select(hits[0], artifactId: artifactId, documentId: documentId, in: allBoxes)
             remaining = hits.dropFirst()
         }
         for index in remaining where !selection.isSelected(index, in: artifactId) {
-            selection.toggle(index, artifactId: artifactId, documentId: documentId)
+            selection.toggle(index, artifactId: artifactId, documentId: documentId, in: allBoxes)
         }
     }
 
@@ -494,11 +495,11 @@ struct RegionInteractionLayer: View {
         }
         var remaining = hits[...]
         if !shiftHeld {
-            selection.select(hits[0], artifactId: artifactId, documentId: documentId)
+            selection.select(hits[0], artifactId: artifactId, documentId: documentId, in: allBoxes)
             remaining = hits.dropFirst()
         }
         for index in remaining where !selection.isSelected(index, in: artifactId) {
-            selection.toggle(index, artifactId: artifactId, documentId: documentId)
+            selection.toggle(index, artifactId: artifactId, documentId: documentId, in: allBoxes)
         }
     }
 
