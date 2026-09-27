@@ -187,3 +187,67 @@ def _lang_attributes(content: str) -> set[str]:
     import re
 
     return set(re.findall(r'(?:xml:lang|LANG|primaryLanguage)="([^"]+)"', content))
+
+
+class TestTheRefusalsAreDeclaredAndNotOnlyRaised:
+    """#5089's SIBLING, swept rather than waited for.
+
+    The import route declared its error bodies and this one did not, while raising 404 and 409
+    with a sentence. The consequence was not theoretical: the generated Swift client saw them as
+    undocumented, and `DocumentService.exportPage` turned *"document X has no pass to export:
+    nothing has been segmented or imported"* into `unexpectedResponse` — a word that names
+    nothing, in place of the one sentence that says what to do next.
+
+    Asserted against `app.openapi()` AND against the wire, because the whole defect was a
+    contract and a route disagreeing: checking either alone is checking the half that was right.
+    """
+
+    def _schema(self, client):
+        from fichero_server.api.main import app
+
+        return app.openapi()["paths"]["/api/documents/{doc_id}/export/{format_name}"]["get"]
+
+    @pytest.mark.parametrize("status", ["404", "409", "422"])
+    def test_each_refusal_declares_the_body_it_actually_sends(self, client, status):
+        responses = self._schema(client)["responses"]
+        assert status in responses, f"{status} is raised by this route and declared nowhere"
+        ref = responses[status]["content"]["application/json"]["schema"]["$ref"]
+        assert ref.endswith("/ErrorDetail"), ref
+
+    def test_it_is_the_SAME_component_the_import_route_uses(self, client):
+        """One shape, one component. Two classes named `ErrorDetail` would not be shared — FastAPI
+        names a component after its class, so they would collide and both be emitted under long
+        qualified names, handing the app two types for one thing."""
+        from fichero_server.api.main import app
+
+        schema = app.openapi()
+        assert "ErrorDetail" in schema["components"]["schemas"]
+        assert not [
+            name for name in schema["components"]["schemas"] if name.endswith("__ErrorDetail")
+        ], "a qualified ErrorDetail means two classes collided instead of one being shared"
+
+    def test_detail_is_a_plain_required_string(self, client):
+        """Not FastAPI's validation-error ARRAY, which is what an undeclared 422 documents and
+        what the client could not decode. And required, so the app has no optional to unwrap and
+        no placeholder to invent when the engine did write a sentence."""
+        from fichero_server.api.main import app
+
+        model = app.openapi()["components"]["schemas"]["ErrorDetail"]
+        assert model["properties"]["detail"]["type"] == "string"
+        assert model.get("required") == ["detail"]
+
+    def test_a_document_with_no_pass_sends_that_sentence_on_the_wire(self, db, client):
+        from fichero_server.models import DocType, Document, FileType, Status
+
+        doc = Document(name="blank.jpg", doc_type=DocType.file, file_type=FileType.image, path="/b.jpg", status=Status.completed)
+        db.save(doc)
+        r = client.get(f"/api/documents/{doc.id}/export/tei")
+        assert r.status_code == 404
+        body = r.json()
+        assert isinstance(body["detail"], str), "a string, as declared — not a list of field errors"
+        assert "no pass" in body["detail"]
+
+    def test_an_unknown_format_sends_a_string_detail_too(self, db, client):
+        page, _ = _converted(db, client)
+        r = client.get(f"/api/documents/{page.id}/export/docx")
+        assert r.status_code == 404 and isinstance(r.json()["detail"], str)

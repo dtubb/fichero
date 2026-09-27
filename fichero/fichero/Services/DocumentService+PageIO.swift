@@ -53,11 +53,22 @@ extension DocumentService {
         switch response {
         case .ok(let okResponse):
             return try okResponse.body.json
+        // Each refusal carries the ENGINE'S SENTENCE, and the `default` that used to stand here
+        // threw `unexpectedResponse` for all of them. A 404 on this route says "document X has no
+        // pass to export: nothing has been segmented or imported" -- which tells a scholar exactly
+        // what to do -- and the app was replacing it with a word that names nothing. Declaring the
+        // bodies (#5089's sibling) is what makes them readable; reading them is this half.
+        case .notFound(let error):
+            throw DocumentServiceError.serverError(try error.body.json.detail)
+        case .conflict(let error):
+            throw DocumentServiceError.serverError(try error.body.json.detail)
         case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
-        default:
-            throw DocumentServiceError.unexpectedResponse
+            throw DocumentServiceError.serverError(try error.body.json.detail)
+        case .undocumented(let statusCode, let payload):
+            // Still here, and still last: a status the contract does not declare is exactly what
+            // this branch is for, and silently succeeding on one would be worse than saying so.
+            let detail = await Self.errorDetail(from: payload.body)
+            throw DocumentServiceError.serverError(detail ?? "The engine answered \(statusCode).")
         }
     }
 
@@ -104,19 +115,33 @@ extension DocumentService {
                 orderEntries: Int(body.orderEntries),
                 geometryProblems: Int(body.geometryProblems ?? 0)
             ))
+        // Every refusal below hands the person THE ENGINE'S OWN SENTENCE. "Nothing
+        // recognises 'x.xml'. This build reads: ..." is what tells a scholar what to do
+        // next; a message the app invented in its place would be the app guessing at the
+        // engine's meaning, and the next refusal added would not be in the guess.
+        case .conflict(let answer):
+            // NOT a failure, and it stopped being `.undocumented` when the route declared
+            // its error bodies (#5089). It used to work only because nothing declared the
+            // 409 -- the same accident facing the other way -- and it now arrives typed.
+            return .alreadyImported(detail: try answer.body.json.detail)
+        case .notFound(let error):
+            throw DocumentServiceError.serverError(try error.body.json.detail)
         case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+            // `ErrorDetail.detail` is a required String, so there is no optional to
+            // unwrap and no "Validation error" placeholder to fall back to. That
+            // placeholder was the thing #5089 existed to remove.
+            throw DocumentServiceError.serverError(try error.body.json.detail)
         case .undocumented(let statusCode, let payload):
             let detail = await Self.errorDetail(from: payload.body)
-            if statusCode == 409 {
-                return .alreadyImported(detail: detail ?? "This file is already on this page.")
-            }
             throw DocumentServiceError.serverError(detail ?? "The engine answered \(statusCode).")
         }
     }
 
     /// The `{"detail": "..."}` sentence an engine refusal carries, if it has one.
+    ///
+    /// Only for a status the contract does NOT declare. Everything the route declares is
+    /// read from its typed body instead -- reaching into a raw payload for a documented
+    /// response would be keeping a second, hand-rolled decoder beside the generated one.
     private static func errorDetail(from body: OpenAPIRuntime.HTTPBody?) async -> String? {
         guard let body, let data = try? await Data(collecting: body, upTo: 1_048_576) else { return nil }
         struct Detail: Decodable { let detail: String }

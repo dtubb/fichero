@@ -4540,12 +4540,32 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "404": {
+            "description": "No such document, no such format, or the document has no pass to export -- nothing has been segmented or imported yet.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "This build can read that format but cannot write it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The file was written and did not validate against the format's own schema, so nothing is returned (`source.format.export-validated`). A file that does not validate is a failure and no file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
                 }
               }
             }
@@ -4779,12 +4799,32 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "404": {
+            "description": "No such document, or the uploaded file could not be read.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "This exact file is already a pass on this document (`source.format.reimport-recognised`). Nothing was written, and the sentence names the pass that already holds it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Nothing recognises the file, or its shapes lie outside the page it declares. The sentence says which formats this build reads, or which segments disagree with the page size \u2014 it is the refusal's whole value and the app must show it rather than a decoding error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
                 }
               }
             }
@@ -50311,6 +50351,20 @@
           "rejected"
         ],
         "title": "EpistemicStatus"
+      },
+      "ErrorDetail": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorDetail",
+        "description": "The body this route's refusals actually send: `{\"detail\": \"<a sentence>\"}`.\n\n**Declared because it was not, and the omission ate the sentence** (#5089). Without\na `responses=` entry FastAPI documents 422 as its own `HTTPValidationError`, whose\n`detail` is an ARRAY of field errors \u2014 and the generated Swift client decodes the\nbody while producing the response, so a person picking the wrong file got a client\ndecoding error instead of *\"nothing recognises 'x.xml'. This build reads: \u2026\"*.\n**That sentence is the whole value of the refusal**: a scholar who chose the wrong\nfile needs to be told what this build can read.\n\nThe 409 is declared for the same reason even though it works today: it works only\nbecause nothing declared it, which is the same accident facing the other way."
       },
       "EvidenceBasis": {
         "type": "string",

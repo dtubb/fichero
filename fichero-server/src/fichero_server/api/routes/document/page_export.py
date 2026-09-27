@@ -18,6 +18,7 @@ from fichero_server.formats import (
     UnknownFormat,
     known_formats,
 )
+from fichero_server.api.routes.document.format_import import ErrorDetail
 from fichero_server.page_export import ExportRefused, export_page
 
 router = APIRouter()
@@ -82,6 +83,38 @@ async def list_formats() -> FormatListResponse:
     "/documents/{doc_id}/export/{format_name}",
     response_model=PageExportResponse,
     summary="Export one page as PAGE XML, ALTO or TEI",
+    # THE SIBLING OF #5089, found by sweeping the class rather than waiting for it: this route
+    # raises 404 and 409 with a SENTENCE and declared neither, so the generated client saw them
+    # as undocumented and the app turned "this document has no pass to export: nothing has been
+    # segmented or imported" into `unexpectedResponse`. The sentence names what to do next and
+    # the app was replacing it with a word that names nothing.
+    #
+    # `ErrorDetail` is IMPORTED from the import route rather than redefined. FastAPI names a
+    # schema component after its class, so a second class of the same name would not be shared --
+    # it would collide, and both would be emitted under long qualified names, leaving the app two
+    # types for one shape. It should live somewhere neither route owns; that move waits until the
+    # import route is not being edited, and is said here rather than left as a silent oddity.
+    responses={
+        404: {
+            "model": ErrorDetail,
+            "description": (
+                "No such document, no such format, or the document has no pass to export "
+                "-- nothing has been segmented or imported yet."
+            ),
+        },
+        409: {
+            "model": ErrorDetail,
+            "description": "This build can read that format but cannot write it.",
+        },
+        422: {
+            "model": ErrorDetail,
+            "description": (
+                "The file was written and did not validate against the format's own schema, so "
+                "nothing is returned (`source.format.export-validated`). A file that does not "
+                "validate is a failure and no file."
+            ),
+        },
+    },
 )
 async def export_document_page(
     doc_id: str,
