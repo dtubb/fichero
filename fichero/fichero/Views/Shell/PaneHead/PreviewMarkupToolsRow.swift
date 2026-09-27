@@ -181,13 +181,14 @@ struct PreviewMarkupToolsRow: View {
                 )
             }
 
-            // Combine needs two boxes to have anything to merge.
+            // Join needs two boxes to have anything to merge. JOIN, not Combine (ruled 2026-09-27,
+            // Q4): one word on the page, the Inspector and the menu.
             if selection.count >= 2 {
                 toolButton(
                     icon: "arrow.triangle.merge",
-                    label: "Combine \(selection.count)",
+                    label: "Join \(selection.count)",
                     identifier: "previewMarkupCombine",
-                    key: "c", help: "Combine — merge the selected regions into one (⌘⌥C)"
+                    key: "c", help: "Join — merge the selected regions into one (⌘⌥C)"
                 ) {
                     NotificationCenter.default.post(
                         name: .previewRegionVerb, object: PreviewRegionVerb.combine.rawValue
