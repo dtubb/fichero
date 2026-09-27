@@ -145,9 +145,24 @@ def main() -> int:
         return 1
 
     if stale:
-        print(f"\n  ✓ {len(stale)} baseline entr(ies) now have a preview — run --update to drop:")
+        # WHY each one went stale, not one reason for all three. This said "now have a preview"
+        # for every stale entry, and on 2026-09-27 two of them had not: one file no longer
+        # declared a View after a split, and another had been DELETED nine days earlier by the
+        # KG-sidebar retirement. A lane read the guard's own message and repeated it as fact,
+        # which is the guard's fault rather than the reader's — a tool that states a reason is
+        # believed, so it must state the one that is true.
+        print(f"\n  ✓ {len(stale)} baseline entr(ies) no longer apply — run --update to drop:")
         for key in stale:
-            print(f"      {key}")
+            path = VIEWS_DIR / key
+            if not path.exists():
+                why = "the file no longer exists — the entry outlived its subject"
+            else:
+                code = _decomment(path.read_text(errors="ignore"))
+                if not _VIEW_STRUCT.search(code):
+                    why = "the file no longer declares a View (extracted or retired)"
+                else:
+                    why = "it gained a #Preview"
+            print(f"      {key}  —  {why}")
 
     print("\n✓ No new view files without a preview.")
     return 0
