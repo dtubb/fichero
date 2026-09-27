@@ -65827,6 +65827,11 @@
             "type": "integer",
             "title": "Count"
           },
+          "withheld_documents": {
+            "type": "integer",
+            "title": "Withheld Documents",
+            "default": 0
+          },
           "total": {
             "type": "integer",
             "title": "Total"
