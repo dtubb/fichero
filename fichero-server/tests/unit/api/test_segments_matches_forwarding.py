@@ -497,12 +497,25 @@ class TestForwardingNotes:
     def test_split_then_merge_the_parts_back_both_ways_round(self, db):
         """#4922 third look: a diamond made by splitting and later
         rejoining by hand must NOT be refused as a loop, in either
-        direction. Under the old (buggy) `forwards_to` this raised."""
+        direction. Under the old (buggy) `forwards_to` this raised.
+
+        It asserts where the original id RESOLVES, not merely that nothing
+        raised. Until 2026-09-27 it called the helper twice and checked
+        nothing, so the two things it can get wrong were indistinguishable:
+        a refusal (which is what #4922 fixed) and a resolution to the wrong
+        survivor. `keep_id` is the whole point of the round trip, and only
+        the second direction can tell a real resolution from a rule that
+        always answers with the original id.
+        """
         ctx = _ctx(db, actor="daniel")
         # Direction 1: the original id absorbs its own split-off sibling.
-        self._split_then_merge_back(db, ctx, keep_first=True)
-        # Direction 2: the sibling absorbs the original id.
-        self._split_then_merge_back(db, ctx, keep_first=False)
+        original_id, _sibling_id = self._split_then_merge_back(db, ctx, keep_first=True)
+        assert resolve_segment(db, original_id).live_segment_ids == [original_id]
+
+        # Direction 2: the sibling absorbs the original id, so resolving the
+        # original must now cross the merge and land on the sibling.
+        original_id, sibling_id = self._split_then_merge_back(db, ctx, keep_first=False)
+        assert resolve_segment(db, original_id).live_segment_ids == [sibling_id]
 
     def test_the_diamond_split_into_two_then_both_merged_into_a_third(self, db):
         """#4922 third look: A split into A and B; A and B later merged

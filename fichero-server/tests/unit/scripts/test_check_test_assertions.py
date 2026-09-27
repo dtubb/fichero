@@ -117,3 +117,77 @@ def test_new_vacuous_entry_returns_nonzero(monkeypatch):
     monkeypatch.setattr(check_test_assertions, "require_scan_floor", lambda *a, **k: None)
     monkeypatch.setattr(check_test_assertions.sys, "argv", ["check_test_assertions.py"])
     assert check_test_assertions.main() == 1
+
+
+class TestAnAssertionHelperCounts:
+    """A call to an `assert_*` function is an assertion, wherever it lives.
+
+    Added 2026-09-27. The detector knew `self.assertX` and the exact string `assert_called`,
+    and nothing else, so six tests were reported vacuous that all do assert:
+
+        assert_known_direction(direction)                        # module-level helper
+        assert_known_script(library, code)                        # same, imported
+        kraken_runtime.assert_memory_available_for_kraken(...)    # reached through a module
+        mock_clone.assert_called_once()                            # a mock, past `assert_called`
+
+    Three of those were already sitting in KNOWN_VACUOUS, i.e. the blind spot had already been
+    recorded as permissions rather than fixed. That is the failure mode #5095 and #5108 both
+    name, and it is why this is a detector change and not six annotations.
+    """
+
+    def test_a_module_level_assert_helper_counts(self):
+        assert check_test_assertions._python_asserts(
+            _as_function(
+                """
+def test_direction():
+    assert_known_direction("rtl")
+"""
+            )
+        )
+
+    def test_a_helper_reached_through_a_module_counts(self):
+        assert check_test_assertions._python_asserts(
+            _as_function(
+                """
+def test_memory():
+    kraken_runtime.assert_memory_available_for_kraken(available_bytes=lambda: 1)
+"""
+            )
+        )
+
+    def test_any_mock_assert_method_counts_not_only_assert_called(self):
+        """`assert_called_once`, `assert_called_with`, `assert_not_called`, `assert_awaited`."""
+        for call in (
+            "m.assert_called_once()",
+            "m.assert_called_with(1)",
+            "m.assert_not_called()",
+            "m.assert_awaited_once_with(2)",
+        ):
+            assert check_test_assertions._python_asserts(
+                _as_function(f"def test_x():\n    {call}\n")
+            ), call
+
+    def test_a_name_that_merely_starts_with_assert_does_not_count(self):
+        """`assert_` with the underscore: a variable or a value is not a check.
+
+        Without the underscore, `assertion_count += 1` or a call to `asserted_value()` would
+        pass for an assertion, and the guard would go quiet exactly where it is needed.
+        """
+        assert not check_test_assertions._python_asserts(
+            _as_function(
+                """
+def test_x():
+    asserted_value()
+    assertions = collect()
+"""
+            )
+        )
+
+    def test_the_predicate_itself_is_exact(self):
+        helper = check_test_assertions._is_assertion_helper
+        assert helper("assert_known_script")
+        assert helper("assert_called_once")
+        assert helper("assert")
+        assert not helper("asserted_value")
+        assert not helper("assertions")
+        assert not helper("reassert_something")

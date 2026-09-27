@@ -101,9 +101,6 @@ KNOWN_VACUOUS = {
     "fichero-server/tests/unit/workflows/test_default_workflow_e2e_harness.py::test_catalogue_twostage_workflow_lands_kg_rows",
     "fichero-server/tests/unit/workflows/test_ner_config_schema.py::test_extract_all_exposes_ner_provider_and_model",
     "fichero-server/tests/unit/workflows/test_ner_config_schema.py::test_section_extractors_expose_ner_provider_and_model",
-    "fichero-server/tests/unit/security/test_backend_integration.py::TestIngestWithTextExtraction::test_ingest_file_skips_non_extractable",
-    "fichero-server/tests/unit/importers/test_ingest_module.py::TestCopyToLibrary::test_falls_back_to_shutil",
-    "fichero-server/tests/unit/importers/test_ingest_module.py::TestCopyToLibrary::test_uses_apfs_clone_when_available",
 }
 
 SWIFT_FUNC_RE = re.compile(r"^\s*(?:\w+\s+)*func\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\(")
@@ -153,6 +150,25 @@ def _py_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="ignore")
 
 
+def _is_assertion_helper(name: str) -> bool:
+    """Whether a called name is an assertion helper by convention.
+
+    `self.assertX` was already recognised; a module-level or imported one was not, and that was
+    the whole of six of the seven tests this guard reported on 2026-09-27 — every one of them a
+    call to a function that raises on a bad value:
+
+        assert_known_direction(direction)
+        assert_known_script(library, code)
+        kraken_runtime.assert_memory_available_for_kraken(...)
+
+    Those tests assert; the detector could not see it. Annotating six tests as deliberately
+    vacuous would have recorded the blind spot as six permissions, which is the shape #5095 and
+    #5108 both got wrong. `assert_` with the underscore, so `asserted_value` or a variable named
+    `assertion` cannot pass for a check.
+    """
+    return name == "assert" or name.startswith("assert_")
+
+
 def _python_asserts(function: ast.AST) -> bool:
     for node in ast.walk(function):
         if isinstance(node, ast.Assert):
@@ -163,12 +179,17 @@ def _python_asserts(function: ast.AST) -> bool:
             if isinstance(callee, ast.Name):
                 if callee.id == "raises":
                     return True
+                if _is_assertion_helper(callee.id):
+                    return True
             elif isinstance(callee, ast.Attribute):
                 if isinstance(callee.value, ast.Name) and callee.value.id == "pytest" and callee.attr == "raises":
                     return True
                 if isinstance(callee.value, ast.Name) and callee.value.id == "self" and callee.attr.startswith("assert"):
                     return True
                 if callee.attr == "assert_called":
+                    return True
+                # A helper reached through a module: kraken_runtime.assert_memory_available_for_kraken
+                if _is_assertion_helper(callee.attr):
                     return True
 
         if isinstance(node, ast.With):
