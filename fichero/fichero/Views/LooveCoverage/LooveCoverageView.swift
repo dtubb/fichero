@@ -8,11 +8,13 @@ import SwiftUI
 // score (colored by band), a 4-segment tier bar (native/embedded/byte/unreachable),
 // and the token tax (tokens per character).
 //
-// Self-contained: it owns its `LooveCoverageService`, which talks to the existing
-// `/api/model-comparison/language-fit` engine route through the generated client.
+// Self-contained: it owns its `LooveCoverageStore` (#5098), which wraps
+// `LooveCoverageService`, which talks to the existing
+// `/api/model-comparison/language-fit` engine route through the generated client —
+// the view never calls the transport directly.
 
 struct LooveCoverageView: View {
-    @State private var service = LooveCoverageService()
+    @State private var store = LooveCoverageStore()
 
     /// The chosen language columns, persisted as a comma-separated list of codes
     /// so the selection survives closing and reopening the window.
@@ -50,14 +52,14 @@ struct LooveCoverageView: View {
         .frame(minWidth: 640, minHeight: 480)
         .task {
             // Auto-load once on first open; the picker / Generate re-run it.
-            if service.matrix == nil && !service.isLoading {
-                await service.load(languages: visibleLanguages)
+            if store.matrix == nil && !store.isLoading {
+                await store.load(languages: visibleLanguages)
             }
         }
         // Re-fetch when the chosen language set changes — columns are added or
         // removed and the progressive fill runs for the new set.
         .onChange(of: selectedCodesRaw) {
-            Task { await service.load(languages: visibleLanguages) }
+            Task { await store.load(languages: visibleLanguages) }
         }
     }
 
@@ -83,11 +85,11 @@ struct LooveCoverageView: View {
                 languageMenu
                 addLanguageButton
                 Button {
-                    Task { await service.load(languages: visibleLanguages) }
+                    Task { await store.load(languages: visibleLanguages) }
                 } label: {
-                    Label(service.matrix == nil ? "Generate" : "Refresh", systemImage: "arrow.clockwise")
+                    Label(store.matrix == nil ? "Generate" : "Refresh", systemImage: "arrow.clockwise")
                 }
-                .disabled(service.isLoading)
+                .disabled(store.isLoading)
             }
 
             legend
@@ -113,7 +115,7 @@ struct LooveCoverageView: View {
         } label: {
             Label("Languages (\(selectedCodes.count))", systemImage: "character.book.closed")
         }
-        .disabled(service.isLoading)
+        .disabled(store.isLoading)
     }
 
     /// A checkbox binding for one language code, writing the canonical
@@ -146,7 +148,7 @@ struct LooveCoverageView: View {
         } label: {
             Label("Add language", systemImage: "plus.magnifyingglass")
         }
-        .disabled(service.isLoading)
+        .disabled(store.isLoading)
         .popover(isPresented: $showingLanguageSearch, arrowEdge: .bottom) {
             LanguageSearchPopover(
                 query: $languageQuery,
@@ -207,9 +209,9 @@ struct LooveCoverageView: View {
 
     @ViewBuilder
     private var content: some View {
-        if service.isLoading && (service.matrix?.isEmpty ?? true) {
+        if store.isLoading && (store.matrix?.isEmpty ?? true) {
             loadingState
-        } else if let matrix = service.matrix, !matrix.isEmpty {
+        } else if let matrix = store.matrix, !matrix.isEmpty {
             matrixTable(matrix)
         } else {
             emptyState
@@ -231,15 +233,15 @@ struct LooveCoverageView: View {
             Image(systemName: "character.book.closed")
                 .font(.largeTitle)
                 .foregroundStyle(.secondary)
-            Text(service.errorMessage ?? "No coverage data yet.")
+            Text(store.errorMessage ?? "No coverage data yet.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 420)
             Button("Generate") {
-                Task { await service.load(languages: visibleLanguages) }
+                Task { await store.load(languages: visibleLanguages) }
             }
-            .disabled(service.isLoading || visibleLanguages.isEmpty)
+            .disabled(store.isLoading || visibleLanguages.isEmpty)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
@@ -319,7 +321,7 @@ struct LooveCoverageView: View {
                 .frame(width: modelColumnWidth, alignment: .leading)
                 .padding(.horizontal, 8)
             ForEach(languages) { language in
-                let pending = service.pendingLanguages.contains(language.code)
+                let pending = store.pendingLanguages.contains(language.code)
                 VStack(spacing: 1) {
                     Text(language.name).font(.caption.bold())
                     Text(language.code.uppercased())
@@ -352,7 +354,7 @@ struct LooveCoverageView: View {
             ForEach(languages) { language in
                 CoverageCellView(
                     cell: row.cellsByLanguage[language.code],
-                    isPending: service.pendingLanguages.contains(language.code)
+                    isPending: store.pendingLanguages.contains(language.code)
                 )
                 .frame(width: languageColumnWidth)
             }

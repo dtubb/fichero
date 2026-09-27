@@ -1,33 +1,17 @@
-import FicheroAPIClient
-import Foundation
-import OSLog
 import SwiftUI
 
-private let knowledgeSettingsLogger = Logger(
-    subsystem: "app.fichero.fichero", category: "KnowledgeSettings"
-)
-
-/// One configured SPARQL endpoint (name + URL) the Wikidata enrichment can query.
-struct SparqlEndpointRow: Identifiable, Hashable {
-    let name: String
-    let url: String
-    var id: String { url }
-}
-
 /// Knowledge settings — the SPARQL endpoints the "Enrich from Wikidata" feature
-/// queries. App-wide (persisted via `get_app_db` setting), configured through
-/// `/api/settings/sparql-endpoints`. The Wikidata default is always present and
-/// cannot be removed, so enrichment can never be left with no endpoint. Endpoint
-/// access routes through the generated client so the bearer token + middleware
-/// are supplied, exactly like `LocalModelsSettingsView`.
+/// queries. The Wikidata default is always present and cannot be removed, so
+/// enrichment can never be left with no endpoint. All endpoint access happens
+/// through `KnowledgeSettingsStore` (#5098: the observable-data-layer guard —
+/// this view used to call the generated client directly, exactly like
+/// `LocalModelsSettingsView` still does); the store owns the request/response
+/// mapping and which client (per-library or app-wide fallback) to use.
 struct KnowledgeSettingsView: View {
     @Environment(AppState.self) private var appState
     @Environment(LibraryManager.self) private var libraryManager
 
-    @State private var endpoints: [SparqlEndpointRow] = []
-    @State private var selectedURL: String = ""
-    @State private var isLoading = true
-    @State private var statusMessage: String?
+    @State private var store = KnowledgeSettingsStore()
     @State private var newName: String = ""
     @State private var newURL: String = ""
 
@@ -38,12 +22,12 @@ struct KnowledgeSettingsView: View {
                     Label("Backend not connected", systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.secondary)
                 }
-            } else if isLoading {
+            } else if store.isLoading {
                 Section { ProgressView("Loading endpoints…") }
             } else {
                 endpointsSection
                 addEndpointSection
-                if let statusMessage {
+                if let statusMessage = store.statusMessage {
                     Section {
                         Text(statusMessage)
                             .font(.caption)
@@ -53,7 +37,10 @@ struct KnowledgeSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .task { await load() }
+        .task {
+            store.configure(libraryManager: libraryManager)
+            await store.load()
+        }
     }
 
     private var endpointsSection: some View {
@@ -66,14 +53,13 @@ struct KnowledgeSettingsView: View {
                 """)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Picker("Default endpoint", selection: $selectedURL) {
-                ForEach(endpoints) { endpoint in
+            Picker("Default endpoint", selection: $store.selectedURL) {
+                ForEach(store.endpoints) { endpoint in
                     Text(endpoint.name).tag(endpoint.url)
                 }
             }
-            .onChange(of: selectedURL) { _, _ in Task { await save() } }
 
-            ForEach(endpoints) { endpoint in
+            ForEach(store.endpoints) { endpoint in
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(endpoint.name).font(.body)
@@ -83,13 +69,13 @@ struct KnowledgeSettingsView: View {
                             .textSelection(.enabled)
                     }
                     Spacer()
-                    if endpoint.url == KnowledgeSettingsView.wikidataDefaultURL {
+                    if endpoint.url == KnowledgeSettingsStore.wikidataDefaultURL {
                         Text("Default")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     } else {
                         Button(role: .destructive) {
-                            Task { await remove(endpoint) }
+                            Task { await store.remove(endpoint) }
                         } label: {
                             Image(systemName: "trash")
                         }
@@ -107,85 +93,19 @@ struct KnowledgeSettingsView: View {
             TextField("Name", text: $newName)
             TextField("SPARQL URL (https://…/sparql)", text: $newURL)
             Button("Add endpoint") {
-                Task { await add() }
+                // Cleared immediately, before the save round trip — matching the
+                // view's original ordering, so the fields don't sit populated
+                // while the network call is in flight.
+                let name = newName
+                let url = newURL
+                newName = ""
+                newURL = ""
+                Task { await store.add(name: name, url: url) }
             }
             .disabled(
                 newName.trimmingCharacters(in: .whitespaces).isEmpty
                     || newURL.trimmingCharacters(in: .whitespaces).isEmpty
             )
-        }
-    }
-
-    // MARK: - Data
-
-    static let wikidataDefaultURL = "https://query.wikidata.org/sparql"
-
-    private var client: FicheroClient {
-        libraryManager.globalLibrary?.ficheroClient
-            ?? FicheroClient(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
-    }
-
-    private func load() async {
-        isLoading = true
-        defer { isLoading = false }
-        do {
-            let response = try await client.api.getSparqlEndpointsApiSettingsSparqlEndpointsGet(.init())
-            switch response {
-            case .ok(let ok):
-                apply(try ok.body.json)
-            case .undocumented(let status, _):
-                statusMessage = "Couldn't load endpoints (status \(status))."
-            }
-        } catch {
-            statusMessage = "Couldn't load endpoints: \(error.localizedDescription)"
-        }
-    }
-
-    private func apply(_ config: Components.Schemas.SparqlEndpointsConfig) {
-        endpoints = (config.endpoints ?? []).map { SparqlEndpointRow(name: $0.name, url: $0.url) }
-        selectedURL = config.selectedUrl ?? KnowledgeSettingsView.wikidataDefaultURL
-    }
-
-    private func add() async {
-        let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let url = newURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty, !url.isEmpty else { return }
-        endpoints.append(SparqlEndpointRow(name: name, url: url))
-        newName = ""
-        newURL = ""
-        await save()
-    }
-
-    private func remove(_ endpoint: SparqlEndpointRow) async {
-        endpoints.removeAll { $0.url == endpoint.url }
-        if selectedURL == endpoint.url {
-            selectedURL = KnowledgeSettingsView.wikidataDefaultURL
-        }
-        await save()
-    }
-
-    private func save() async {
-        let config = Components.Schemas.SparqlEndpointsConfig(
-            endpoints: endpoints.map { Components.Schemas.SparqlEndpoint(name: $0.name, url: $0.url) },
-            selectedUrl: selectedURL
-        )
-        do {
-            let response = try await client.api.setSparqlEndpointsApiSettingsSparqlEndpointsPut(
-                .init(body: .json(config))
-            )
-            switch response {
-            case .ok(let ok):
-                // Reflect what the server actually persisted (it keeps the
-                // Wikidata default present and rejects an unknown selection).
-                apply(try ok.body.json)
-                statusMessage = nil
-            case .unprocessableContent:
-                statusMessage = "Couldn't save endpoints: the server rejected the request."
-            case .undocumented(let status, _):
-                statusMessage = "Couldn't save endpoints (status \(status))."
-            }
-        } catch {
-            statusMessage = "Couldn't save endpoints: \(error.localizedDescription)"
         }
     }
 }
