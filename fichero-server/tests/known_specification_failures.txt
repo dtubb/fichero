@@ -60,14 +60,6 @@ tests/unit/scripts/test_every_guard_passes_on_the_real_tree.py::test_every_guard
 # 2026-07-29 and nothing produces its input, so it has never been able to fire.
 tests/unit/scripts/test_coverage_ratchet_guardrail.py::TestTheCommittedBaselineIsSeeded::test_both_stacks_have_a_recorded_baseline
 
-# ---- #5135 (2) ----
-# GET /api/segments (scoped listing) and PATCH /api/segments (bulk edit) skip the
-# per-document access check: the listing trusts the scope, and the bulk edit's ids sit in
-# the body where the per-target check cannot see them. Red on integration since those
-# routes merged. The archive lane is fixing it as its own reviewed access-control commit.
-tests/unit/api/test_segments_multiuser_access.py::test_every_write_route_is_covered
-tests/unit/api/test_segments_matches_forwarding.py::test_router_route_list_matches_the_checked_route_list
-
 # ---- #5100 (1) ----
 # Duplicating a 1,050-deep tree exhausts the per-connection DuckDB cap (1.5 GB; the recursive
 # walk cannot spill). Both the depth and the cap are intentional; which gives is open on #5100.
