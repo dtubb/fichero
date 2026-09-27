@@ -79,10 +79,36 @@ def candidates(text: str, tops: set[str]) -> set[str]:
     return out
 
 
-def load_allowlist() -> set[str]:
+def load_allowlist() -> tuple[set[str], dict[str, str]]:
+    """The reason-less legacy list, and the reasoned map.
+
+    Two shapes on purpose (#5098): `known_absent_paths` is a flat list nobody can audit
+    — it says a path is excused and not why — and it is kept working so nothing breaks
+    while entries move across. `absent_on_purpose` maps path (or a PREFIX ending in `/`)
+    to the reason, and the reason is the whole value: the alternative is #5095's shape,
+    where 551 of 569 paths shared one pasted sentence.
+    """
     if not ALLOWLIST.exists():
-        return set()
-    return set(json.loads(ALLOWLIST.read_text()).get("known_absent_paths", []))
+        return set(), {}
+    data = json.loads(ALLOWLIST.read_text())
+    reasoned = data.get("absent_on_purpose", {})
+    assert isinstance(reasoned, dict), "absent_on_purpose must map path -> reason"
+    return set(data.get("known_absent_paths", [])), reasoned
+
+
+def excused(path: str, legacy: set[str], reasoned: dict[str, str]) -> bool:
+    """Whether this absent path is accounted for, by exact entry or by prefix.
+
+    A prefix entry (one ending in `/`) covers a whole gitignored tree, so a doc citing
+    a ninth working note does not need a ninth identical entry. Only the reasoned map
+    may use prefixes: a blanket excuse is exactly the thing that has to say why.
+    """
+    if path in legacy or path in reasoned:
+        return True
+    return any(
+        prefix.endswith("/") and (path + "/").startswith(prefix)
+        for prefix in reasoned
+    )
 
 
 def missing() -> dict[str, list[str]]:
@@ -133,11 +159,20 @@ def main() -> int:
         assert candidates("`api/routes/`", tops) == set()  # namespace, not a repo path
         assert candidates("`docs/**/*.md`", tops) == set()  # glob rejected
         assert strip_fences("a\n```\n`docs/nope.md`\n```\nb") .strip() == "a\n\nb".strip()
+        # Prefix excuses cover a tree; an unreasoned path still needs its own entry.
+        assert excused("agent-work/x/y.md", set(), {"agent-work/": "why"})
+        assert not excused("agents/x.md", set(), {"agent-work/": "why"})
+        assert excused("build/x", {"build/x"}, {})
+        assert not excused("build/x", set(), {})
+        # A prefix in the legacy list must NOT excuse a tree: a blanket excuse with no
+        # reason is the shape this guard exists to refuse.
+        assert not excused("agent-work/x/y.md", {"agent-work/"}, {})
         print("check_docs_paths self-test passed")
         return 0
 
     absent = missing()
-    allowed = load_allowlist()
+    legacy, reasoned = load_allowlist()
+    allowed = {p for p in absent if excused(p, legacy, reasoned)}
 
     if "--write-allowlist" in argv:
         ALLOWLIST.write_text(
@@ -148,7 +183,12 @@ def main() -> int:
                         "(build artifacts, or things described as deleted). Every "
                         f"other absent path is a bug. See {RULE_DOC}."
                     ),
-                    "known_absent_paths": sorted(absent),
+                    # The reasoned map is PRESERVED: a ratchet that dropped the reasons
+                    # would turn every decision back into a placeholder.
+                    "absent_on_purpose": reasoned,
+                    "known_absent_paths": sorted(
+                        p for p in absent if not excused(p, set(), reasoned)
+                    ),
                 },
                 indent=2,
             )
@@ -158,7 +198,13 @@ def main() -> int:
         return 0
 
     new = {p: v for p, v in absent.items() if p not in allowed}
-    stale = sorted(p for p in allowed - set(absent) if not is_git_ignored(p))
+    # A stale entry is one nothing names any more. Prefix entries are skipped: a tree
+    # that is gitignored by design is not "back" just because no doc cites it this week.
+    stale = sorted(
+        p
+        for p in (legacy | {k for k in reasoned if not k.endswith("/")}) - set(absent)
+        if not is_git_ignored(p)
+    )
 
     if "--list" in argv:
         print(f"absent paths named in docs ({len(absent)}):\n")

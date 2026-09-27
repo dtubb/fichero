@@ -219,7 +219,7 @@ the rest belong to `ai-settings.md` or maintainer triage (folded there, not rest
 | Pure rule (Swift) | y | `ProviderKeyStore` primitives (store/read/remove/trim/migrate) | `fichero/Tests/Unit/general/Services/ProviderKeyStoreTests.swift` |
 | Availability (Swift) | y | `supplyProviderKeysToEngine()` pushes the CURRENT app-owned key, including after a Settings save/remove; remote-engine guard short-circuits | proposed, no file yet — the #4815 regression test |
 | Backend (pytest) | y | per-call key resolution + cache invalidation on write/supply/forget | `fichero-server/tests/unit/security/test_llm_api_key_cache.py`, `test_supplied_provider_keys.py` |
-| Backend (pytest) | y | `/test` returns a real probe result per provider, `not_verified` for the rest | `fichero-server/tests/unit/api/test_provider_keys.py` (proposed, no file yet found) |
+| Backend (pytest) | y | `/test` returns a real probe result per provider, `not_verified` for the rest | `fichero-server/tests/unit/api/test_routes_provider_keys.py` (`test_connection_test_real_probe_success_sets_verified`, `test_connection_test_untested_provider_reports_saved_not_verified`) |
 | Click-around (XCUITest) | n | this is a Settings + engine-connect contract, not a full-app flow worth a dedicated UI test yet | — |
 
 Hard-gate: `keys.settings-save-survives-relaunch`, `keys.remove-survives-relaunch`,
