@@ -20,6 +20,13 @@ Findings, per behaviour, reported alongside these tests:
   otherwise, direction-aware for RTL/boustrophedon), does not exist anywhere in the tree. Not
   invented here: the "estimated" proportional algorithm is a design decision, not a gap to fill
   freehand.
+* `source.textedit.stale-keeps-your-words` -- GAP, confirmed absent. `Segment` writes all
+  compare-and-set against `expected_version` (`SegmentStale`); `representation.create` -- the
+  action a text edit actually calls -- takes no such field and has no conflict machinery at all,
+  proven below by two corrections of one target both silently succeeding. Not invented here: what
+  a caller's "my edit is against version N" token even means for an append-only, immutable row
+  store where several readings of one line legitimately coexist is a design decision, the same
+  shape as the caret-to-geometry gap above.
 """
 from __future__ import annotations
 
@@ -146,14 +153,82 @@ class TestReturnSplitsTheLineSegmentSplitPrimitive:
     def test_no_caret_to_geometry_mapping_exists_in_the_tree(self):
         """Confirms absence rather than assuming it: grepped for the shapes the spec's fallback
         names (word-aligned cut, proportional-along-baseline estimate) and found none. This is
-        the one piece of `return-splits-the-line` that is genuinely unbuilt, not merely unwired."""
+        the one piece of `return-splits-the-line` that is genuinely unbuilt, not merely unwired.
+
+        CORRECTED 2026-09-27: `parents[4]` from this file is the WORKTREE ROOT, one level above
+        `fichero-server` -- `server_src` resolved to a directory that does not exist, so
+        `rglob` silently walked nothing and `hits == []` passed VACUOUSLY, proving nothing. Fixed
+        to `parents[3]`, verified by asserting the directory the search walks actually exists."""
         import re
         from pathlib import Path
 
-        server_src = Path(__file__).resolve().parents[4] / "src" / "fichero_server"
+        server_src = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
+        assert server_src.is_dir(), f"search root does not exist, would search nothing: {server_src}"
         hits = []
         for path in server_src.rglob("*.py"):
             text = path.read_text(errors="ignore")
             if re.search(r"proportion.*baseline|baseline.*proportion|caret.*offset|offset.*caret", text, re.I):
                 hits.append(str(path))
         assert hits == [], f"a caret-to-geometry mapping may already exist: {hits}"
+
+
+class TestStaleKeepsYourWordsHasNoCompareAndSetOnAReadingWrite:
+    """`source.textedit.stale-keeps-your-words` -- confirmed absent, not invented here.
+
+    `Segment` writes (`segment.update`/`.merge`/`.split`/`.restore_version`) all take an
+    `expected_version` and refuse with `SegmentStale` when the live row has moved on
+    (`_VERSIONED_FIELDS`, `models/segments.py`). `ContentRepresentation` -- the row a
+    text edit actually writes -- has NO such field and NO compare-and-set anywhere:
+    `representation.create` takes no `expected_version`/`expected_representation_id`, so two
+    corrections of the same reading, one written without knowledge of the other, both simply
+    succeed as two more candidate readings. Nothing refuses the second, and nothing tells either
+    caller the other one happened. What the design needs before this can be built -- and is NOT
+    decided here, the same as the caret-to-geometry mapping -- is what a caller's 'my edit is
+    against version N' token IS for an append-only, immutable row store where three readings of
+    one line legitimately coexist: `corrects_representation_id` names what a correction targets,
+    but nothing today says whether that target is still the CURRENT candidate at write time."""
+
+    def test_two_corrections_of_the_same_reading_both_silently_succeed(self, db, client):
+        page, art, row = _converted(db, client)
+        ctx = ActionContext(actor="dtubb", library_path=None, is_bootstrap=True)
+        original = registry.invoke(db, "representation.create", {
+            "document_id": page.id, "segment_id": row.id, "kind": "transcription",
+            "content": "In the year of Our Lord"}, ctx).result["id"]
+        # Two correctors, neither aware of the other, both correcting the SAME target.
+        mine = registry.invoke(db, "representation.create", {
+            "document_id": page.id, "segment_id": row.id, "kind": "transcription",
+            "content": "In the year of Our Lord and Saviour",
+            "corrects_representation_id": original}, ctx).result
+        theirs = registry.invoke(db, "representation.create", {
+            "document_id": page.id, "segment_id": row.id, "kind": "transcription",
+            "content": "In the yeere of Our Lorde",
+            "corrects_representation_id": original}, ctx).result
+        # Confirms absence: no refusal, no conflict signal -- both corrections of one target
+        # land, and nothing in the response tells either caller the other one exists.
+        assert mine["id"] != theirs["id"]
+        assert "conflict" not in mine and "stale" not in mine
+
+    def test_representation_create_params_take_no_expected_version(self):
+        """`RepresentationCreateParams` (`extra="forbid"`) has no field for a caller to say
+        which version of the target it read before writing -- there is nothing to compare
+        against even if the engine wanted to."""
+        from fichero_server.api.routes.document.content_representations import (
+            RepresentationCreateParams,
+        )
+        assert "expected_version" not in RepresentationCreateParams.model_fields
+        assert "expected_representation_id" not in RepresentationCreateParams.model_fields
+
+    def test_no_stale_or_conflict_machinery_exists_in_content_representations(self):
+        """Confirms absence rather than assuming it, the same discipline as
+        `test_no_caret_to_geometry_mapping_exists_in_the_tree`."""
+        import re
+        from pathlib import Path
+
+        target = (
+            Path(__file__).resolve().parents[3]
+            / "src" / "fichero_server" / "api" / "routes" / "document"
+            / "content_representations.py"
+        )
+        assert target.is_file(), f"target file not found, would prove nothing: {target}"
+        text = target.read_text()
+        assert not re.search(r"expected_version|Stale|conflict|409", text, re.I)

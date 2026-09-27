@@ -466,7 +466,18 @@ The editor
   or two seconds' pause; structural edits are their own action at once.
 - `source.textedit.stale-keeps-your-words` — **[GAP]** (#5001) an edit against a version that has moved on is refused
   and the typed words are kept and offered: keep mine, take theirs, compare; out of reach of
-  the engine the text is read-only.
+  the engine the text is read-only. **Confirmed absent 2026-09-27, not merely stale-tagged:**
+  `Segment` writes already have this shape — `segment.update`/`.merge`/`.split`/`.restore_version`
+  all take an `expected_version` and refuse with `SegmentStale` when the live row has moved on.
+  `representation.create` — the action a text edit actually calls — takes no such field and has
+  no conflict machinery at all; two corrections of one reading, neither aware of the other, both
+  simply succeed as two more candidate readings
+  (`fichero-server/tests/unit/api/test_textedit_engine_primitives.py::TestStaleKeepsYourWordsHasNoCompareAndSetOnAReadingWrite`,
+  3 tests). **Not invented here:** what a caller's "my edit is against version N" token even means
+  for an append-only, immutable row store where several readings of one line legitimately
+  coexist — a version number, a last-known `representation_id`, a timestamp — is a design
+  decision, the same shape as `return-splits-the-line`'s caret-to-geometry gap above, and needs a
+  ruling before it is built.
 - `source.textedit.every-direction` — **[GAP]** (#5001) each block is laid out and edited in its own direction;
   line starts, joins and cuts follow reading order and the baseline; a direction the platform
   cannot lay out is labelled, never reordered.
@@ -596,14 +607,15 @@ still owed.
 | `source.app.overlays-draw-from-the-seam` | `SegmentDisplayTests.swift` | **needed, and it is the whole acceptance** | The claim is "a page looks the same before and after", which no unit test can make. Image and PDF, on each platform. |
 | `source.app.segment-events-patch-in-place` | `SegmentStoreTests.swift` (8 new) | **needed** | The unit tests pin the decision; the screen leg is "edit a line in one window and watch the other window's box change without the page flickering" — a wholesale reload is visible as a flash and nothing else catches it. |
 
-Engine-side rows filled 2026-09-27 (`source.textedit.*`'s first three; the click-around leg is
-still to be filled at approval):
+Engine-side rows filled 2026-09-27 (`source.textedit.*`'s first three, plus `stale-keeps-your-words`;
+the click-around leg is still to be filled at approval):
 
 | Behaviour | Engine primitive | Test |
 |---|---|---|
 | `reader-shows-segments` | `document_text()` | `test_textedit_engine_primitives.py::TestReaderShowsSegmentsUsesTheWorkingPassAndNamedOrder` (follows the working pass and order) + `test_textedit_reader_blocks.py` (9 tests across `TestOneDirectionIsOneBlock`, `TestADirectionChangeStartsANewBlock`, `TestNonOrientableValuesNeverMerge`, `TestRegionGrouping`: region/direction packaging, boustrophedon one-block-per-line, follows-baseline/alternating never merge) |
 | `typing-is-a-new-reading` | `representation.create` + `provenance_kind_from_ctx` | `test_textedit_engine_primitives.py::TestTypingIsANewReadingSetsTheMakerFromContext` (4 tests: human, workflow, refused client-supplied maker, earlier reading unchanged) |
 | `return-splits-the-line` | `segment.split` | `test_textedit_engine_primitives.py::TestReturnSplitsTheLineSegmentSplitPrimitive` (2 tests: independent anchor + reading_span per part; no caret-to-geometry mapping exists) |
+| `stale-keeps-your-words` | none — confirmed absent | `test_textedit_engine_primitives.py::TestStaleKeepsYourWordsHasNoCompareAndSetOnAReadingWrite` (3 tests: two corrections of one target both silently succeed; params take no expected-version field; no conflict machinery in the file at all) |
 
 ## Open questions
 
