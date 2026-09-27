@@ -42,6 +42,26 @@ def llm_config():
 # Fix 1: _parse_json_fields — NULL dict column → {} not None
 # =============================================================================
 
+def _pages_for_documents(page_rows: list):
+    """Answer `db.query(Model, ...)` per MODEL, returning `page_rows` only for Document.
+
+    Every test below set `mock_db.query.return_value = [pages...]`, which answered EVERY query
+    with the same rows. `llm_base` looks for an existing Artifact to reuse before saving, so it
+    was handed page Documents, treated one as an artifact it could reuse, and took the
+    reuse branch -- no save, `page_content` never written. The five failures looked like
+    "propagation stopped working" and were a mock answering a question it had never been asked
+    (2026-09-27).
+
+    Answering by model keeps each test exercising the branch it was written for.
+    """
+    from fichero_server.models import Document
+
+    def answer(model, **_kwargs):
+        return list(page_rows) if model is Document else []
+
+    return answer
+
+
 class TestParseJsonFieldsNullMetadata:
     """db.py: _parse_json_fields must return {} for NULL dict columns."""
 
@@ -272,7 +292,7 @@ class TestPropagateToPageChildren:
         page3.metadata = {}
 
         mock_db = MagicMock()
-        mock_db.query.return_value = [page1, page2, page3]
+        mock_db.query.side_effect = _pages_for_documents([page1, page2, page3])
 
         with patch("fichero_server.db.db_manager") as mock_manager:
             mock_manager.get_database.return_value = mock_db
@@ -300,7 +320,7 @@ class TestPropagateToPageChildren:
         page2.metadata = {}
 
         mock_db = MagicMock()
-        mock_db.query.return_value = [page1, page2]
+        mock_db.query.side_effect = _pages_for_documents([page1, page2])
 
         with patch("fichero_server.db.db_manager") as mock_manager:
             mock_manager.get_database.return_value = mock_db
@@ -327,7 +347,7 @@ class TestPropagateToPageChildren:
         page2.metadata = {}
 
         mock_db = MagicMock()
-        mock_db.query.return_value = [page1, page2]
+        mock_db.query.side_effect = _pages_for_documents([page1, page2])
 
         with patch("fichero_server.db.db_manager") as mock_manager:
             mock_manager.get_database.return_value = mock_db
@@ -348,7 +368,7 @@ class TestPropagateToPageChildren:
         from fichero_server.workflows.tools.vision_base import _propagate_to_page_children
 
         mock_db = MagicMock()
-        mock_db.query.return_value = []
+        mock_db.query.side_effect = _pages_for_documents([])
 
         with patch("fichero_server.db.db_manager") as mock_manager:
             mock_manager.get_database.return_value = mock_db
@@ -368,7 +388,7 @@ class TestPropagateToPageChildren:
         page.metadata = None  # NULL in DB
 
         mock_db = MagicMock()
-        mock_db.query.return_value = [page]
+        mock_db.query.side_effect = _pages_for_documents([page])
 
         with patch("fichero_server.db.db_manager") as mock_manager:
             mock_manager.get_database.return_value = mock_db
@@ -393,7 +413,7 @@ class TestPropagateToPageChildren:
         page.metadata = {}
 
         mock_db = MagicMock()
-        mock_db.query.return_value = [page]
+        mock_db.query.side_effect = _pages_for_documents([page])
 
         with patch("fichero_server.db.db_manager") as mock_manager:
             mock_manager.get_database.return_value = mock_db
@@ -421,7 +441,7 @@ class TestPropagateToPageChildren:
         page2.metadata = {}
 
         mock_db = MagicMock()
-        mock_db.query.return_value = [page1, page2]
+        mock_db.query.side_effect = _pages_for_documents([page1, page2])
 
         saved_artifacts = []
 

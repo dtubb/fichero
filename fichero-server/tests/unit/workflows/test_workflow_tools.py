@@ -963,6 +963,25 @@ class TestDatabaseSaving:
                 assert "artifacts" in result
 
 
+def _query_by_model(document_rows: list):
+    """Answer `db.query(Model, ...)` per MODEL instead of one list for every call.
+
+    `mock_db.query.return_value = [doc]` answered every query with the same row, so when
+    `save_artifact` began also asking `query(Artifact, document_id=...)` these tests broke --
+    one on a call count, one on a `StopIteration` from iterating the wrong kind of row
+    (2026-09-27). Neither failure was about anything the tests are for.
+
+    A mock that answers by model says what the code asked FOR rather than how many times it
+    asked, so it survives an honest change to a code path the test does not care about.
+    """
+    from fichero_server.models import Document
+
+    def answer(model, **_kwargs):
+        return list(document_rows) if model is Document else []
+
+    return answer
+
+
 class TestSaveArtifact:
     """Test save_artifact function directly."""
 
@@ -1023,7 +1042,9 @@ class TestSaveArtifact:
 
         mock_db = MagicMock()
         mock_db.get.return_value = None  # ID lookup fails
-        mock_db.query.return_value = [mock_doc]  # Path lookup succeeds
+        # Per-MODEL, not one list for every query: `save_artifact` also asks for this
+        # document's Artifacts, and handing it a Document there is what broke these tests.
+        mock_db.query.side_effect = _query_by_model([mock_doc])
 
         tool_config = LLMToolConfig(
             artifact_type="description",
@@ -1046,8 +1067,11 @@ class TestSaveArtifact:
                 tool_config=tool_config,
             )
 
-            # Should query by path
-            mock_db.query.assert_called_once()
+            # WHAT it asked for, not how many times: `assert_called_once` was a claim about
+            # an implementation detail and broke on an unrelated, honest change to this path.
+            from fichero_server.models import Document as _Document
+            queried = [c.args[0] for c in mock_db.query.call_args_list if c.args]
+            assert _Document in queried, "the document must be looked up by its path"
             assert result is not None
             assert mock_doc.metadata["description"] == "Photo content"
 
@@ -1069,7 +1093,19 @@ class TestSaveArtifact:
 
         mock_db = MagicMock()
         mock_db.get.return_value = None
-        mock_db.query.side_effect = [[], [mock_doc]]
+        # Answer by the PATH asked for, not by call order. An ordered list said "the first
+        # query misses, the second hits", which stopped being true the moment `save_artifact`
+        # added a third query (its Artifacts) and exhausted the list -- StopIteration, from a
+        # change this test is not about. Keying on the path tests the BEHAVIOUR this test is
+        # named for: an absolute path misses and the `files/...` retry hits.
+        def _answer(model, **kwargs):
+            from fichero_server.models import Document
+
+            if model is not Document:
+                return []
+            return [mock_doc] if kwargs.get("path", "").startswith("files/") else []
+
+        mock_db.query.side_effect = _answer
 
         tool_config = LLMToolConfig(
             artifact_type="description",
@@ -1094,10 +1130,18 @@ class TestSaveArtifact:
             assert result is not None
             assert mock_db.save.call_count == 2
             assert mock_doc.metadata["description"] == "Recovered content"
-            assert mock_db.query.call_args_list == [
-                call(Document, path=absolute_path),
-                call(Document, path=relative_path),
+            # The PATHS it tried, in order, and not the whole call list. Comparing the entire
+            # list made this test assert that `save_artifact` queries nothing else -- a claim it
+            # was never written to make, and one that broke when the function began asking for the
+            # document's Artifacts too.
+            document_paths = [
+                c.kwargs.get("path")
+                for c in mock_db.query.call_args_list
+                if c.args and c.args[0] is Document
             ]
+            assert document_paths == [absolute_path, relative_path], (
+                "the absolute path is tried first and the files/... form is the retry"
+            )
 
     @pytest.mark.asyncio
     async def test_save_artifact_document_not_found(self):
