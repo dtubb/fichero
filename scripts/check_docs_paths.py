@@ -58,7 +58,37 @@ def strip_fences(text: str) -> str:
 
 
 def top_level() -> set[str]:
-    return {p.name for p in ROOT.iterdir()}
+    """The top-level names a repo path may start with — the SAME on every checkout.
+
+    It used to be `ROOT.iterdir()`, so `build/` was a top only where something had been
+    built: a doc citing `build/releases` was checked in the main checkout and silently
+    skipped in every fresh worktree, which then reported the allowlist entry as stale.
+    Tracked top-level names plus the plain top-level names `.gitignore` declares (`build/`,
+    `agent-work/`) are a fact about the repository, not about this disk.
+    """
+    listed = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files"], capture_output=True, text=True, check=False,
+    )
+    if listed.returncode != 0:
+        return {p.name for p in ROOT.iterdir()}  # git unavailable: best effort
+    tops = {line.split("/", 1)[0] for line in listed.stdout.splitlines() if line}
+    gitignore = ROOT / ".gitignore"
+    if gitignore.is_file():
+        tops |= ignored_top_level_names(gitignore.read_text(errors="ignore"))
+    return tops
+
+
+def ignored_top_level_names(gitignore_text: str) -> set[str]:
+    """Plain names from a root `.gitignore` — `build/` yes, `*.pyc` or `a/b/` no."""
+    out = set()
+    for raw in gitignore_text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith(("#", "!")):
+            continue
+        name = line.strip("/")
+        if name and "/" not in name and not any(c in name for c in "*?["):
+            out.add(name)
+    return out
 
 
 #: `docs/user_manual/` is written BY HAND by the maintainer and is deliberately not
@@ -162,17 +192,47 @@ def missing() -> dict[str, list[str]]:
     guards is broken for every clone.
     """
     tops = top_level()
-    out: dict[str, list[str]] = {}
+    named: dict[str, list[str]] = {}
     for f in doc_files():
         for tok in candidates(strip_fences(f.read_text(errors="ignore")), tops):
             # A path INSIDE the hand-written manual is not ours to check either: the
             # maintainer adds and renames those chapters as the writing goes.
             if tok.split("/")[:2] == ["docs", HAND_WRITTEN_MANUAL] or tok == f"docs/{HAND_WRITTEN_MANUAL}":
                 continue
-            here = (ROOT / tok).exists()
-            if not here or (not is_git_ignored(tok) and is_untracked(tok)):
-                out.setdefault(tok, []).append(str(f.relative_to(ROOT)))
+            named.setdefault(tok, []).append(str(f.relative_to(ROOT)))
+    ignored = git_ignored(named)
+    out: dict[str, list[str]] = {}
+    for tok, where in named.items():
+        # A GITIGNORED path is reported whether or not it exists here. Whether a build
+        # output is on disk is a fact about this machine, not the repository: until
+        # 2026-09-27 `fichero/fichero-api-client/.build` (named by AGENTS.md) passed in the
+        # main checkout, where Xcode had built it, and failed in every fresh worktree. A
+        # guard whose verdict depends on what was last built is not measuring the docs.
+        # The allowlist's reasoned map is where a deliberate gitignored citation says why.
+        if tok in ignored or not (ROOT / tok).exists() or is_untracked(tok):
+            out[tok] = where
     return out
+
+
+def git_ignored(paths) -> set[str]:
+    """The subset of `paths` git ignores — one subprocess, not one per path.
+
+    `check-ignore` matches patterns, so it answers for a path that does not exist, which
+    is what makes the verdict the same on every checkout. Each path is asked twice, with
+    and without a trailing `/`: a directory pattern like `.build/` only matches the
+    slashed form when the directory is not on disk to tell git it is one.
+    """
+    paths = list(paths)
+    if not paths:
+        return set()
+    query = [q for p in paths for q in (p, p + "/")]
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "check-ignore", "--stdin"],
+        input="\n".join(query) + "\n", capture_output=True, text=True, check=False,
+    )
+    if result.returncode not in (0, 1):
+        return set()  # git unavailable: fall back to existence rather than invent failures
+    return {line.strip().rstrip("/") for line in result.stdout.splitlines() if line.strip()}
 
 
 def is_git_ignored(path: str) -> bool:
@@ -253,10 +313,10 @@ def main() -> int:
     new = {p: v for p, v in absent.items() if p not in allowed}
     # A stale entry is one nothing names any more. Prefix entries are skipped: a tree
     # that is gitignored by design is not "back" just because no doc cites it this week.
+    # Exact gitignored entries are NOT exempt any more: `missing()` now reports a named
+    # gitignored path on every checkout, so one absent from `absent` is one no doc names.
     stale = sorted(
-        p
-        for p in (legacy | {k for k in reasoned if not k.endswith("/")}) - set(absent)
-        if not is_git_ignored(p)
+        (legacy | {k for k in reasoned if not k.endswith("/")}) - set(absent)
     )
 
     if "--list" in argv:
