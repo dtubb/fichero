@@ -286,6 +286,68 @@ extension DocumentService {
         }
     }
 
+    /// One interchange file into a page as a NEW PASS (`source.format.import-is-pass`).
+    ///
+    /// Returns an `Outcome`, not a bare result, because "this exact file is already
+    /// here" (409) is an ANSWER and not a failure: the engine names the pass that
+    /// holds the same bytes, and the app says so. Everything else the engine refuses
+    /// (a file nothing recognises, shapes outside the declared page) is thrown with
+    /// the engine's own sentence.
+    ///
+    /// `longRunningAPI`: a dense page is thousands of segments and the import scales
+    /// with the file, not with server health.
+    func importPage(
+        documentId: String,
+        data: Data,
+        filename: String,
+        format: String? = nil
+    ) async throws -> PageImportRunner.Outcome {
+        logger.info("Importing \(filename) into page \(documentId)")
+
+        let part = OpenAPIRuntime.MultipartPart(
+            payload: Components.Schemas.BodyImportDocumentPageApiDocumentsDocIdImportPost.FilePayload(
+                body: OpenAPIRuntime.HTTPBody(data)
+            ),
+            filename: filename
+        )
+        let response = try await client.longRunningAPI.importDocumentPageApiDocumentsDocIdImportPost(
+            .init(
+                path: .init(docId: documentId),
+                query: .init(format: format, name: filename),
+                body: .multipartForm([.file(part)])
+            )
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            return .imported(PageImportRunner.Result(
+                passId: body.passId,
+                format: body.format,
+                segments: Int(body.segments),
+                readings: Int(body.readings),
+                orderEntries: Int(body.orderEntries),
+                geometryProblems: Int(body.geometryProblems ?? 0)
+            ))
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            let detail = await Self.errorDetail(from: payload.body)
+            if statusCode == 409 {
+                return .alreadyImported(detail: detail ?? "This file is already on this page.")
+            }
+            throw DocumentServiceError.serverError(detail ?? "The engine answered \(statusCode).")
+        }
+    }
+
+    /// The `{"detail": "..."}` sentence an engine refusal carries, if it has one.
+    private static func errorDetail(from body: OpenAPIRuntime.HTTPBody?) async -> String? {
+        guard let body, let data = try? await Data(collecting: body, upTo: 1_048_576) else { return nil }
+        struct Detail: Decodable { let detail: String }
+        return (try? JSONDecoder().decode(Detail.self, from: data))?.detail
+    }
+
     func exportWord(
         outputPath: String,
         targetId: String? = nil,
