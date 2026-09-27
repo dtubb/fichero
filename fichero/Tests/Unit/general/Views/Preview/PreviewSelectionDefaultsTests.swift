@@ -151,6 +151,21 @@ struct PreviewSelectionDefaultsTests {
         #expect(mouseDown.contains("modifierFlags.contains(.option)"))
     }
 
+    // Maintainer report: simply holding Option made a magnifier appear —
+    // mouseMoved used to reveal/reposition the loupe on any hover with ⌥
+    // down, whenever Loupe happened to still be enabled (an @AppStorage flag
+    // that persists across launches). Reachability survives: the Loupe
+    // menu/shortcut opens it at center and it drags/resizes by clicking it.
+    @Test("merely holding Option over the page does not summon the loupe")
+    func holdingOptionAloneDoesNotShowLoupe() throws {
+        let tracking = try appSource("Views/Preview/ImageViewer/TrackingImageView.swift")
+        let mouseMoved = try #require(
+            tracking.components(separatedBy: "override func mouseMoved").last?
+                .components(separatedBy: "override func").first
+        )
+        #expect(!mouseMoved.contains(".option"), "hovering alone must never move or reveal the loupe")
+    }
+
     // MARK: - Search results own the sibling walk
 
     @Test("while search results show, the sibling swipe walks the results")

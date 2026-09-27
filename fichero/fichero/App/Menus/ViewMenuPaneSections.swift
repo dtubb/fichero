@@ -150,11 +150,16 @@ struct ShowMiniToolbarToggle: View {
     }
 }
 
-// MARK: - Go Up (Cmd+`)
+// MARK: - Go Up
 
 // Walks one level up the folder hierarchy via the focused window's
 // navigateToParent action. Lets users ascend when the sidebar is hidden,
 // since there's no other way to climb back out of a folder. (#786)
+//
+// No keyboard shortcut: ⌘` used to be bound here, but ⌘` is the SYSTEM
+// shortcut for cycling windows of the frontmost app, and binding it here
+// silently stole that (a maintainer-reported regression). The menu item
+// itself is the way in now.
 struct NavigateToParentButton: View {
     @FocusedValue(\.navigateToParentAction) private var action
 
@@ -164,13 +169,12 @@ struct NavigateToParentButton: View {
         } label: {
             Label("Go Up", systemImage: "arrow.up.to.line.compact")
         }
-        .keyboardShortcut("`", modifiers: [.command])
         .disabled(action == nil)
     }
 }
 
 /// Go menu (#4121, HIG: Finder's Go/View split): pure navigation commands —
-/// Back/Forward (per-window AppNavigation history, #3581) and Go Up (⌘`) —
+/// Back/Forward (per-window AppNavigation history, #3581) and Go Up —
 /// out of the overfull View menu. Composed as ONE Commands element (the app
 /// CommandsBuilder is at its arity cap, #3347); the empty `.sidebar`
 /// replacement keeps the system sidebar items suppressed as before.

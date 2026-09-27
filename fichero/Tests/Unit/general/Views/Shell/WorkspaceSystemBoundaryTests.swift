@@ -126,6 +126,27 @@ final class WorkspaceSystemBoundaryTests: XCTestCase {
         )
     }
 
+    /// A maintainer reported Fichero had taken over ⌘` (Command-backtick), the SYSTEM shortcut
+    /// for cycling windows of the frontmost app — pressing it no longer switched windows because
+    /// "Go Up" (`NavigateToParentButton`) had bound the same chord. The fix removed the app-level
+    /// binding entirely (the menu item itself is still reachable by click); this guards against
+    /// the chord growing back on that button or being re-added elsewhere in this file.
+    func testGoUpDoesNotStealCommandBacktickFromTheSystem() throws {
+        let source = try Self.appSource("App/Menus/ViewMenuPaneSections.swift")
+        guard let goUpBody = source.components(separatedBy: "struct NavigateToParentButton").last else {
+            XCTFail("NavigateToParentButton not found in ViewMenuPaneSections.swift")
+            return
+        }
+        // Only look inside this one struct's body, not the whole file, so a
+        // legitimate ⌘` binding elsewhere (there is none today) wouldn't be
+        // mistaken for a regression here.
+        let structBody = goUpBody.components(separatedBy: "\n}\n").first ?? goUpBody
+        XCTAssertFalse(
+            structBody.contains("\"`\""),
+            "Go Up must not mint a keyboard shortcut on the backtick/grave key — ⌘` belongs to "
+            + "the system (cycle windows of the frontmost app), not this app.")
+    }
+
     // MARK: - Source helpers (mirror MenuShortcutBoundaryTests)
 
     private static func appSwiftFiles() throws -> [String] {
