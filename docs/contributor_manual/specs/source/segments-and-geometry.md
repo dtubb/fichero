@@ -535,8 +535,45 @@ Structure
   nobody has ruled on. Silent shortening of a transcription is the worst failure this programme has,
   because nothing looks wrong; this makes it loud without guessing the ruling.
 - `source.segment.furniture` — **[GAP]** (#4927) page furniture is marked, and a reading can leave it out.
-- `source.segment.table-cells` — **[GAP]** (#4928) a table's cells are segments with row, column, spans and
-  header kind.
+- `source.segment.table-cells` — **[PARTIAL]** (#4928) a table's cells are segments with row, column, spans and
+  header kind. **Cells are segments on import since 2026-09-27**, found by a real file: a
+  Transkribus parish register's 172 `TableCell`s were being skipped, which re-parented every line
+  to the table and made the page impossible to export (the schema forbids a line directly under a
+  table). A cell is now read as a `region` — what PAGE 2019 says a cell is, a `TextRegion` with a
+  `TableCellRole` — with `row`, `col`, `rowSpan` and `colSpan` kept in `foreign`, pinned by
+  `test_transkribus_real_files.py::TestATablePageWithCells::test_the_cells_are_read_as_regions_and_keep_their_place`.
+  Still owed: the model has NO fields for row, column, span or header — they ride in `foreign`
+  because inventing them in a format reader would decide this behaviour for the whole model — and
+  **header-ness is not captured at all**, because the 2013 files carry none.
+
+Tables, forms and marks — the paragraph "Tables and forms" above, tagged 2026-09-27 so the
+pipeline tracks what it promises (#4928). It had one tagged behaviour and seven claims.
+- `source.table.is-a-segment` — **[PARTIAL]** (#4928) a table is a segment. True on import: PAGE's
+  `TableRegion` is read as a `table`-kind segment, pinned by
+  `test_transkribus_real_files.py::TestATablePageWithCells::test_the_page_round_trips_and_loses_nothing`
+  (the table survives a write and a re-read). No editor verb draws one yet.
+- `source.table.cell-text-is-lines` — **[PARTIAL]** (#4928) a cell's text is ordinary lines and words inside it.
+  True on import: every line of a real table page has a CELL as its parent, never the table,
+  pinned by `test_transkribus_real_files.py::TestATablePageWithCells::test_every_line_has_a_legal_parent`.
+  Partial because import is the only path that makes cells; the extractor below does not.
+- `source.table.extraction-makes-cells` — **[GAP]** (#4928) the table-extraction tool's output becomes cell
+  segments, so the data and the ink are tied. Today `workflows/tools/table_extract.py` returns
+  rows and columns as DATA with no segment ids, so a value in its output cannot be traced to the
+  ink it came from — the untied state this behaviour exists to end.
+- `source.table.reads-out-as-data` — **[GAP]** (#4928) a table's rows and columns can be read out as data,
+  sent to a spreadsheet and searched by column. Nothing assembles cells into rows and columns yet;
+  it needs the cell fields `source.segment.table-cells` still owes.
+- `source.table.row-feeds-the-graph` — **[GAP]** (#4928) each row can feed the knowledge graph (one row of
+  a census is one household's claims), with every cell still pointing at its ink. The account book
+  and the census return are the maintainer's named cases, and this is the behaviour that makes
+  them worth having as tables rather than as text.
+- `source.form.label-and-answer` — **[PARTIAL]** (#4928) a form's label and its filled-in answer are two
+  segments joined by a typed link. The vocabulary already carries it — `labels` and `answers` are
+  both built-in link types (slice 10) — and links between two segments are recorded and read both
+  ways. What is missing is anything that recognises a form or proposes the link.
+- `source.segment.mark-with-state` — **[GAP]** (#4928) ticks, crosses and cancellation marks are `mark`
+  segments with a state. `mark` is in the open list of kinds; there is no state on a segment to
+  say whether a box is ticked, crossed or struck through.
 - `source.segment.node-has-its-region` — **[GAP]** (#4927) a node made from part of a page (a diary entry, a
   letter, a register entry) is a segment of that page with a shape, never structured data
   with no tie to its ink.
