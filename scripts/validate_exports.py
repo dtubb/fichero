@@ -13,7 +13,8 @@ Five outcomes per file, never collapsed into two:
 * `valid`         -- the schema was consulted and found nothing.
 * `INVALID`       -- the schema's own messages follow.
 * `other version` -- the file is a version of the format we vendor no schema for
-                     (PAGE 2013, ALTO 2.0, ALTO 4.3). NOT invalid and NOT valid:
+                     (ALTO 2.0, say). A version we DO vendor (PAGE 2013, ALTO 4.3)
+                     is validated against its own schema instead. NOT invalid and NOT valid:
                      validating a 2013 PAGE file against the 2019 schema reports
                      every element as wrong, and that is a statement about us.
 * `no schema`     -- the format has none by nature (hOCR is HTML, YOLO is lines of
@@ -35,11 +36,19 @@ from functools import lru_cache
 from pathlib import Path
 
 from fichero_server.formats import FormatSpec, format_for, validate
-from fichero_server.formats.validation import parse
+from fichero_server.formats.harness import SCHEMA_DIR
+from fichero_server.formats.validation import parse, validate_xml
 
 XSI = "{http://www.w3.org/2001/XMLSchema-instance}schemaLocation"
 #: `alto-4-3.xsd`: a family and a version in the file name. ALTO keeps ONE namespace
 #: for every 4.x, so the namespace cannot tell 4.2 from 4.3 and the declared file can.
+#: Other versions we DO vendor a schema for, by what `other_version` returns. Exports
+#: are written in the newest; these are for reading what other tools wrote.
+#: Transkribus writes PAGE 2013; Kraken writes ALTO 4.3.
+OTHER_VERSION_SCHEMAS = {
+    "http://schema.primaresearch.org/PAGE/gts/pagecontent/2013-07-15": "pagecontent-2013-07-15.xsd",
+    "alto-4-3.xsd": "alto-4-3.xsd",
+}
 VERSIONED_XSD = re.compile(r"^(?P<family>.+?)-(?P<version>\d+(?:-\d+)*)\.xsd$")
 
 
@@ -87,7 +96,11 @@ def check_bytes(filename: str, data: bytes) -> tuple[str, str | None, list[str]]
         return "no schema", spec.name, []
     version = other_version(spec, data)
     if version is not None:
-        return "other version", spec.name, [f"declares {version}; the vendored schema is {spec.schema}"]
+        schema = OTHER_VERSION_SCHEMAS.get(version)
+        if schema is None:
+            return "other version", spec.name, [f"declares {version}; no schema for it is vendored"]
+        problems = validate_xml(data, SCHEMA_DIR / schema)
+        return ("INVALID" if problems else "valid"), f"{spec.name} ({schema})", problems
     problems = validate(spec, data)
     return ("INVALID" if problems else "valid"), spec.name, problems
 
@@ -108,7 +121,7 @@ def main(argv: list[str] | None = None) -> int:
     for path in files:
         outcome, name, problems = check(path)
         counts[outcome] = counts.get(outcome, 0) + 1
-        label = f"{outcome:<13} {name or '-':<8} {path.relative_to(args.directory)}"
+        label = f"{outcome:<13} {name or '-':<30} {path.relative_to(args.directory)}"
         print(label)
         for problem in problems[:20]:
             print(f"    {problem}")
