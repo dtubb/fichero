@@ -349,18 +349,46 @@ Reading before editing (the app's first step: it draws from the seam, and edits 
 The editor
 - `source.editor.segment-focus` — **[GAP]** (#4941) the Source view has a segment focus in which the editing
   tools appear; it can sit beside a Reader, an Inspector, the Library or another Source view.
-- `source.textedit.reader-shows-segments` — **[GAP]** (#5001) for a source whose segments have readings, the text
+- `source.textedit.reader-shows-segments` — **[PARTIAL]** (#5001) for a source whose segments have readings, the text
   surface shows the lines of the working pass in the named reading order, one block for each
   region and direction, and is editable; with no Source view in sight each line shows its
   picture. (Home recommended: the Reader; a sixth pane kind is the other option; the
-  maintainer's to choose.)
-- `source.textedit.typing-is-a-new-reading` — **[GAP]** (#5001) typing corrects the reading of the segment under the
+  maintainer's to choose.) **Read from the code, not the tag, 2026-09-27:** the derivation is
+  already whole — `document_text()` reads the working pass and follows the named order, spans
+  and all (`fichero-server/tests/unit/api/test_textedit_engine_primitives.py::TestReaderShowsSegmentsUsesTheWorkingPassAndNamedOrder::test_the_derived_text_follows_the_working_pass_and_names_its_segments`).
+  **Not built:** the packaging this line names — one block per region, each with its own
+  direction. `DerivedTextSpan` carries only `segment_id`/`representation_id`/`start`/`end` today,
+  pinned by `::test_spans_carry_no_region_grouping_or_direction_today` so the day it grows region
+  and direction is a deliberate change to that test, not a silent one. No Source-view surface
+  exists yet either way.
+- `source.textedit.typing-is-a-new-reading` — **[PARTIAL]** (#5001) typing corrects the reading of the segment under the
   caret as a new reading whose maker is the person, set by the engine; the earlier reading
-  stays.
-- `source.textedit.return-splits-the-line` — **[GAP]** (#5001) Return inside a line splits that segment at the caret
+  stays. **The engine primitive is whole**, tested against the request the app would actually send
+  (a real actor, no run_id, no via_mcp) rather than a synthetic id:
+  `representation.create` sets the maker from `ActionContext` via `provenance_kind_from_ctx` —
+  the same function the machine-claims-stored-as-human defect (2026-09-18) fixed — never from
+  client input (`RepresentationCreateParams` forbids a `created_by`/`provenance_kind` field
+  outright), and no update action exists for a reading, so the earlier one cannot be touched.
+  **Stays PARTIAL**, not OK: the SURFACE — a text edit that calls this action on
+  keystroke-commit — does not exist, and #5001 (the umbrella this whole family is tracked under)
+  is still open. Pinned:
+  `test_textedit_engine_primitives.py::TestTypingIsANewReadingSetsTheMakerFromContext` (all four
+  cases: a real actor recorded as human, a workflow run recorded as workflow even under the same
+  actor name, a client-supplied maker refused outright, the earlier reading unchanged by a
+  correction). **What is not built is the SURFACE** — a text edit that calls this action on
+  keystroke-commit does not exist; that is #5001's UI half, tracked separately.
+- `source.textedit.return-splits-the-line` — **[PARTIAL]** (#5001) Return inside a line splits that segment at the caret
   in one action: the reading divides at the caret; the cut falls between words when their
   places are known, otherwise by proportion along the baseline and marked estimated; the
-  first part keeps the id.
+  first part keeps the id. **Read from the code, 2026-09-27:** `segment.split` already takes an
+  independent geometric `anchor` and text `reading_span` per part — the primitive a Return
+  handler would call — pinned by
+  `test_textedit_engine_primitives.py::TestReturnSplitsTheLineSegmentSplitPrimitive::test_a_split_takes_an_independent_anchor_and_reading_span_per_part`.
+  **Not built, confirmed absent by search rather than assumed** (`::test_no_caret_to_geometry_mapping_exists_in_the_tree`):
+  the mapping from a caret's character offset to a geometric cut point, in any direction —
+  word-aligned when word children exist, proportional-along-the-baseline and marked estimated
+  otherwise. This is a design decision (what the estimate looks like, how it behaves for RTL and
+  boustrophedon text) and is not implemented anywhere in the tree.
 - `source.textedit.backspace-joins-in-reading-order` — **[GAP]** (#5001) Backspace at a line's start joins it to the line
   before it in the reading order, in one action, keeping the earlier line's id; refused with
   the reason across regions or passes.
@@ -489,6 +517,15 @@ The trial that settles it, and what makes its numbers checkable (slice 12; all *
 
 To be filled at approval. The click-around leg matters most here, on the Mac, the iPad and
 the iPhone.
+
+Engine-side rows filled 2026-09-27 (`source.textedit.*`'s first three; the click-around leg is
+still to be filled at approval):
+
+| Behaviour | Engine primitive | Test |
+|---|---|---|
+| `reader-shows-segments` | `document_text()` | `test_textedit_engine_primitives.py::TestReaderShowsSegmentsUsesTheWorkingPassAndNamedOrder` (2 tests: follows the working pass and order; spans carry no region/direction today) |
+| `typing-is-a-new-reading` | `representation.create` + `provenance_kind_from_ctx` | `test_textedit_engine_primitives.py::TestTypingIsANewReadingSetsTheMakerFromContext` (4 tests: human, workflow, refused client-supplied maker, earlier reading unchanged) |
+| `return-splits-the-line` | `segment.split` | `test_textedit_engine_primitives.py::TestReturnSplitsTheLineSegmentSplitPrimitive` (2 tests: independent anchor + reading_span per part; no caret-to-geometry mapping exists) |
 
 ## Open questions
 

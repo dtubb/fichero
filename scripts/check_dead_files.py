@@ -69,9 +69,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Library/ViewModes/Graph/Ontology/Entity/EntitySplitSheet.swift": (
         "#5110 — built, compiles, no door: splitting one entity into two"
     ),
-    "Views/Onboarding/FirstRunWindow+Library.swift": (
-        "#5110 — built, compiles, no door: the first-run library setup actions row"
-    ),
     "Views/Shell/ContentView/Layout/ContentView+WindowEnvironment.swift": (
         "#4902 — false positive, NOT dead: WindowEnvironmentModifier IS used, but only "
         "indirectly — three boundaries (ContentView+Navigation.swift:154, PaneSpec.swift:313, "
