@@ -67,9 +67,28 @@ Two reasons it is not a real file, both stated rather than worked around:
   its samples are minimal spec cases with **no bounding boxes at all**, so they exercise the
   microformat and none of the geometry.
 
-**Still owed: one page of real engine hOCR** — tesseract `-c hocr` output, or a sample from a
-digitisation whose licence is declared. Until then hOCR's reader is tested against our own idea of
-the format, exactly the weakness that a real PAGE XML file exposed three times in one evening.
+**SEARCHED 2026-09-27 AND NOT FOUND. Recorded as refused rather than left open**, because "still
+owed" invites someone to satisfy it with a file we wrote.
+
+What was checked, licence metadata only — **no content was fetched from anything whose licence was
+absent**:
+
+| Candidate | Licence | Why not |
+|---|---|---|
+| `ocropus/hocr-tools` | Apache-2.0 | Its samples are spec-conformance minimums with **no bounding boxes at all**, so they exercise the microformat and none of the geometry. |
+| `thebabellibrarybot/BabelHistoricAnnotator` | MIT | One 342-byte `example/index.html` — a page of the tool's own UI, not hOCR output. |
+| `rich-info/Net-Core-hOCR` | MIT | No hOCR file in the repository at all. |
+| `qurator-spk/dinglehopper`, `OCR-D/core` | Apache-2.0 | Neither ships an hOCR path; their test data is PAGE XML and ALTO. |
+| `thebabellibrarybot/BabelAnno-Test`, `trevormunoz/dpi-dinglehopper-eval`, `tesseract-ocr/tessdoc` | **none declared** | Not fetched. An unlicensed fixture is worse than a missing one. |
+
+`tesseract` is not installed on this machine, so no genuine engine output could be produced here
+either — and generating one would only reproduce **our own idea of the format**, which is what the
+existing fixture already is and what we now know cannot find a defect: every silent drop tonight was
+caught by somebody else's file.
+
+**So hOCR's reader is tested against a fixture we wrote, knowingly, and the gap is named rather than
+papered over.** The thing that would close it is one page of tesseract `-c hocr` output from a
+corpus with a declared licence, or tesseract installed here.
 
 **YOLO needs no fixture**: the format is five numbers a line, so a file that exercises it is a file
 anybody can read at a glance, and there is nothing a real one would contain that ours does not.

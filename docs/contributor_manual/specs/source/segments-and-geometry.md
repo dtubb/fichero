@@ -572,18 +572,25 @@ Passes, orders, links
   further kind. **The record is built and the convergence has not started.** `TypedLink` carries all
   four facts, `directed` is false for a symmetric relation so a reader is never shown a direction
   that says nothing, and the MAKER is the engine's answer and not the caller's
-  (`fichero-server/tests/unit/api/test_typed_links.py::TestLinkingSegments`). The vocabulary reuses the KG's
+  (`fichero-server/tests/unit/api/test_typed_links.py::TestLinkingSegments`), and it joins segments of any
+  GRANULARITY — a word to a word, a region to a region — which this behaviour owns and
+  `source.link.any-depth` does NOT (`::test_links_join_segments_of_any_granularity`; the test
+  cited the wrong behaviour until 2026-09-27, and so did this spec). The vocabulary reuses the KG's
   words rather than respelling them, refuses near-misses by inflection or underscore, and reports
   its one alias so no client keeps a list of its own
   (`::TestTheVocabularyHasNoNearMisses`, `::TestTheAlias`). But `NoteLink`,
   `SpatialConnection`, `PredictionLink` and `KnowledgeClaimLink` all still exist —
   `::TestTheOtherFourRecordsAreNotMoved` asserts it deliberately — so there are FIVE link records
   where this says one, and this record is for now the further kind it says it must not be (#5091).
-- `source.link.any-depth` — **[OK]** (→ #4931) links chain (a comment on a comment), and can cross
-  sources: they join segments of any granularity
-  (`fichero-server/tests/unit/api/test_typed_links.py::TestLinkingSegments::test_links_join_segments_of_any_granularity`),
-  with a link to itself refused and a provisional id refused — depth is not an excuse for a cycle
-  or for a link to an id that may still change.
+- `source.link.any-depth` — **[GAP]** (#4931) links chain (a comment on a comment), and can cross sources.
+  **The tag is right, and checked 2026-09-27 rather than assumed**: rule (i) flagged it because
+  `test_typed_links.py` mentioned the id, and reading the test showed the citation was wrong, not the
+  tag. What is built is that a link joins segments of any GRANULARITY (a word to a word, a region to
+  a region) — `source.link.typed`'s business. **Chaining is genuinely absent**: an end's kind is one
+  of `segment`, `note`, `document`, `claim`, `canvas_item`, and there is no `link`, so nothing can
+  comment on a comment. Crossing sources is untested, which is not the same as absent — the create
+  action checks each end exists and never checks they share a document, so it may already work and
+  nobody has said so.
 - `source.link.both-ways` — **[OK]** (→ #4931) from either end of a link you can reach the other
   (`fichero-server/tests/unit/api/test_typed_links.py::TestLinkingSegments::test_a_link_is_reachable_from_either_end`),
   a symmetric relation reads the same from both ends, and a withdrawn link disappears from both
