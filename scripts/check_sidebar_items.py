@@ -45,6 +45,11 @@ VIEW_MODE_FILE = SWIFT_ROOT / "Models" / "SidebarViewTypes.swift"
 ROUTER_FILES = [
     SWIFT_ROOT / "Views" / "Shell" / "ContentView" / "ContentView+Navigation.swift",
     SWIFT_ROOT / "Views" / "Shell" / "PaneContentPlan.swift",
+    # The AppViewMode extension that turns a mode into a surface moved here when
+    # PaneContentPlan.swift was split for file_length (#5113). `case .batches` went with
+    # it, so omitting this file made `batch` read as unrouted — the same orphaned-pin
+    # failure this list was widened to fix in the first place.
+    SWIFT_ROOT / "Views" / "Shell" / "PaneSurface.swift",
 ]
 
 STRUCTURAL_ITEM_TYPES = {"folder", "libraryHeader"}
