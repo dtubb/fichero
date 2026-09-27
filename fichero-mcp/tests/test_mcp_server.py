@@ -66,6 +66,13 @@ EXPECTED_TOOLS = {
     "fichero_segment_delete",
     "fichero_segment_undelete",
     "fichero_segment_choose_reading",
+    # Reading the text (#5139): without these an agent saw every shape on a page
+    # and could read none of them.
+    "fichero_segment_readings",
+    "fichero_document_text",
+    "fichero_segments_in_scope",
+    "fichero_reading_orders",
+    "fichero_reading_order_entries",
     # Library scoping + doc/workflow drive tools that were registered but had
     # gone missing from this contract set (S37762) — added here so the exact
     # set is truthful again.
@@ -817,3 +824,72 @@ class TestSegmentWriteToolsCarryTheRoutesRefusals:
 
         assert seen[0].url.path == "/api/segments/seg-1/readings/choice"
         assert json.loads(seen[0].content) == {"representation_id": "rep-1"}
+
+
+class TestReadingTheText:
+    """#5139: an agent can read the text it can already see the shapes of.
+
+    WHY: the acceptance run (2026-09-27) listed 4,525 segments on one page over
+    MCP and could read none of them -- the text lives in readings, and no tool
+    reached a reading, the page's text, its reading orders, or a listing wider
+    than one document. Each tool is ONE GET on the route the app and CLI use,
+    returning the route's answer unchanged; if a tool drifts to another path
+    or reshapes the answer, these fail. The route is mocked: the engine half
+    (texts that are not null) is a separate fix, and these hold the contract.
+    """
+
+    def test_segment_readings_is_the_readings_route(self, monkeypatch):
+        body = {"segment_id": "seg-1", "readings": [{"kind": "transcription", "text": "ܒܪܝܫܝܬ"}]}
+        with _mock_client(monkeypatch, body=body) as seen:
+            result = mcp_server.fichero_segment_readings("seg-1", kind="transcription")
+        assert seen[0].method == "GET"
+        assert seen[0].url.path == "/api/segments/seg-1/readings"
+        assert dict(seen[0].url.params) == {"kind": "transcription"}
+        assert result == body
+
+    def test_document_text_is_the_page_text_route(self, monkeypatch):
+        body = {"document_id": "doc-1", "text": "In principio", "blocks": [], "order": "ord-1"}
+        with _mock_client(monkeypatch, body=body) as seen:
+            result = mcp_server.fichero_document_text(
+                "doc-1", order="ord-1", include_furniture=False
+            )
+        assert seen[0].url.path == "/api/segments/document/doc-1/text"
+        # Unset options are not sent: the route's own defaults apply.
+        assert dict(seen[0].url.params) == {"order": "ord-1", "include_furniture": "false"}
+        assert result == body
+
+    def test_segments_in_scope_joins_document_ids_the_way_the_route_reads_them(
+        self, monkeypatch
+    ):
+        body = {"items": [{"id": "s1", "text": "a"}], "count": 1}
+        with _mock_client(monkeypatch, body=body) as seen:
+            result = mcp_server.fichero_segments_in_scope(
+                document_ids=["d1", "d2"], kind="line", limit=1000, offset=1000
+            )
+        assert seen[0].url.path == "/api/segments"
+        assert dict(seen[0].url.params) == {
+            "document_ids": "d1,d2", "kind": "line", "limit": "1000", "offset": "1000",
+        }
+        assert result == body
+
+    def test_segments_in_scope_by_folder(self, monkeypatch):
+        with _mock_client(monkeypatch, body={"items": [], "count": 0}) as seen:
+            mcp_server.fichero_segments_in_scope(parent_id="folder-1")
+        assert dict(seen[0].url.params) == {"parent_id": "folder-1", "limit": "200", "offset": "0"}
+
+    def test_reading_orders_and_their_entries(self, monkeypatch):
+        with _mock_client(monkeypatch, body={"items": []}) as seen:
+            mcp_server.fichero_reading_orders("doc-1")
+            mcp_server.fichero_reading_order_entries("ord-1", parent_entry_id="e-1")
+        assert [r.url.path for r in seen] == [
+            "/api/reading-orders/document/doc-1",
+            "/api/reading-orders/ord-1/entries",
+        ]
+        assert dict(seen[0].url.params) == {}
+        assert dict(seen[1].url.params) == {"parent_entry_id": "e-1"}
+
+    def test_a_refusal_propagates(self, monkeypatch):
+        """A 404 for an unknown segment raises; it is not returned as if it were text."""
+        with _mock_client(monkeypatch, status=404, body={"detail": "no such segment"}):
+            with pytest.raises(FicheroError):
+                mcp_server.fichero_segment_readings("missing")

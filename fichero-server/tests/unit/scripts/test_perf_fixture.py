@@ -52,6 +52,22 @@ def test_two_runs_measure_one_page():
     assert first == second
 
 
+def test_every_word_has_text_as_long_as_its_characters():
+    """The page-text timing measured an EMPTY page: the fixture wrote no readings, so the
+    ~90 ms derivation read nothing while a real 600-line page took 0.5-1.2 s. Every word now
+    carries a transcription whose length is its sampled character count (the characters are
+    its children), so a text timing measures text. If the readings vanish again, this fails."""
+    page = fixture.generate(5000)
+    characters = Counter(s.parent_ref for s in page.segments if s.kind == "character")
+    words = [s for s in page.segments if s.kind == "word"]
+    assert words
+    for word in words:
+        [(kind, text)] = word.readings
+        assert kind == "transcription"
+        assert len(text) == characters[word.ref] > 0
+    assert all(not s.readings for s in page.segments if s.kind != "word")
+
+
 def test_relative_sizes_are_the_real_ones():
     """Uniform scaling keeps a word's width over its line's height exactly as sampled."""
     page = fixture.generate(5000)

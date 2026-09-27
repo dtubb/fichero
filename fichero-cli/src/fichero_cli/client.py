@@ -436,7 +436,13 @@ class FicheroClient:
         # means discover from the environment on demand so a late-bound window
         # can still recover without reconstructing the client.
         self._discover_library_path = library_path is None
-        self.library_path = library_path or os.environ.get("FICHERO_LIBRARY_PATH")
+        # `is not None`, not `or`: `""` is falsy, and `or` turned the explicit
+        # "no library" back into the environment's library (#5136).
+        self.library_path = (
+            library_path
+            if library_path is not None
+            else os.environ.get("FICHERO_LIBRARY_PATH")
+        )
         # Which client surface is speaking (e.g. "fichero-cli", "fichero-mcp").
         # Sent as X-Fichero-Client and recorded on ActionAudit rows so an audit
         # entry says WHICH surface used a credential, not just whose credential

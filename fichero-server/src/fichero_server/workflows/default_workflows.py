@@ -449,7 +449,7 @@ def get_global_defaults_database() -> "Database | None":
         from fichero_server.db.manager import db_manager
         from fichero_server.db.storage import settings
 
-        return db_manager.get_database(str(settings.global_library_path))
+        return db_manager.get_database(str(settings.global_library_path), create=True)
     except Exception as exc:
         logger.warning(f"Cannot open global library database for defaults: {exc}")
         return None

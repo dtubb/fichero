@@ -21,6 +21,22 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class LibraryNotFoundError(FileNotFoundError):
+    """A request named a ``.fichero`` package that does not exist (#5136).
+
+    Opening a library never creates one: only ``POST /api/library`` (and the
+    engine's own global library) pass ``create=True``. The API maps this to
+    a 404 whose detail names the missing path.
+    """
+
+    def __init__(self, package_path: str | Path):
+        self.package_path = str(package_path)
+        super().__init__(
+            f"Library does not exist: {self.package_path}. "
+            "Create it with POST /api/library (New Library) first."
+        )
+
+
 class DatabaseManager:
     """Manages Database instances for package documents — ONE per package,
     shared across all threads (#2508).
@@ -49,8 +65,10 @@ class DatabaseManager:
         self._lock = threading.Lock()
         logger.info("DatabaseManager initialized")
 
-    def get_database(self, package_path: str | Path) -> "Database":
-        """Get or create the one shared Database instance for a package.
+    def get_database(
+        self, package_path: str | Path, *, create: bool = False
+    ) -> "Database":
+        """Get or open the one shared Database instance for a package.
 
         The same instance (one DuckDB connection + one RLock) is returned on
         every thread (#2508); all access serializes on that lock.
@@ -58,6 +76,15 @@ class DatabaseManager:
         Args:
             package_path: Path to the .fichero package directory
                          (e.g., /Users/name/Documents/MyLibrary.fichero)
+            create: Create the package (and missing parent folders) when it
+                does not exist. Only library creation passes this (#5136):
+                every request carries a library header, and opening one used
+                to create any path it named -- a health probe with a
+                mistyped path made an empty library on disk.
+
+        Raises:
+            LibraryNotFoundError: the package directory does not exist and
+                ``create`` is False. Nothing is written to disk.
 
         Returns:
             The single shared Database instance for this package.
@@ -84,6 +111,12 @@ class DatabaseManager:
 
         with self._lock:
             if cache_key not in self._databases:
+                if (
+                    not create
+                    and not package_path.expanduser().is_dir()
+                    and not self._is_engine_global_library(cache_key)
+                ):
+                    raise LibraryNotFoundError(package_str)
                 db_path = package_path / "fichero.duckdb"
                 logger.info(
                     f"Creating shared database connection for package: {package_str}"
@@ -185,6 +218,15 @@ class DatabaseManager:
                 )
 
             return self._databases[cache_key]
+
+    def _is_engine_global_library(self, cache_key: str) -> bool:
+        """The engine's OWN global library (the registry and shipped presets) is the one
+        package opening may create: it is the engine's state, not a library a request named,
+        and a fresh install has none until first use. Matched by the exact configured path,
+        never by name, so a header naming some other `global.fichero` is still refused."""
+        from fichero_server.db.storage import settings
+
+        return cache_key == self._cache_key(settings.global_library_path)
 
     @staticmethod
     def _cache_key(package_path: str | Path) -> str:

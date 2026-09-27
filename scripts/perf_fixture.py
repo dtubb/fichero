@@ -41,6 +41,7 @@ SOURCES = ("ocrd_gt_aepinus_0020.page.xml", "altoxml_glyph_00001.alto.xml")
 SEED = 20260927
 #: A large scan, in pixels, so PAGE XML's integer coordinates keep sub-word precision.
 IMAGE_SIZE = (12000, 16000)
+_ALPHABET = "abcdefghijklmnopqrstuvwxyz"
 
 
 def _box(segment) -> list[float] | None:
@@ -91,8 +92,10 @@ def measure() -> dict:
             "GENERATED page for the segment editor's speed trial. Nesting, characters per "
             "word and word width relative to line height are SAMPLED from the real pages in "
             "`sources` (zero-width word boxes excluded: they have no place to be drawn); "
-            "characters splitting their word equally, columns, and one uniform scale "
-            "to fit the shape count are CHOSEN. Not a real page."
+            "characters splitting their word equally, columns, one uniform scale "
+            "to fit the shape count, and each word's text (a transcription of as many "
+            "letters as its sampled character count, cycling the alphabet) are CHOSEN. "
+            "Not a real page."
         ),
         "sources": list(SOURCES),
         "seed": SEED,
@@ -111,6 +114,7 @@ def generate(shape_count: int, distribution: dict | None = None, seed: int | Non
     # Build each REGION as a block in line-height units, relative to its own top-left.
     column_width = 60.0  # line heights; about a column of print
     blocks: list[tuple[float, list[tuple[str, str, str | None, list[float]]]]] = []
+    texts: dict[str, str] = {}
     count = 0
     region_index = 0
     while count < shape_count:
@@ -131,6 +135,10 @@ def generate(shape_count: int, distribution: dict | None = None, seed: int | Non
             for word_ref, wx, width in words:
                 rows.append(("word", word_ref, line_ref, [wx, y, width, 1.0]))
                 chars = rng.choice(s["chars_per_word"])
+                # The word's text, so a text derivation measures a page that HAS text (the
+                # fixture had none, and the page-text timing measured an empty page).
+                # Drawn WITHOUT the rng: the shapes stay exactly the page they were.
+                texts[word_ref] = "".join(_ALPHABET[(len(texts) + c) % 26] for c in range(chars))
                 for c in range(chars):
                     rows.append(("character", f"{word_ref}c{c}", word_ref, [wx + c * width / chars, y, width / chars, 1.0]))
             y += 1.4
@@ -170,6 +178,7 @@ def generate(shape_count: int, distribution: dict | None = None, seed: int | Non
                 parent_ref=parent,
                 rect=[bx * scale / IMAGE_SIZE[0], by * scale / IMAGE_SIZE[1],
                       bw * scale / IMAGE_SIZE[0], bh * scale / IMAGE_SIZE[1]],
+                readings=[("transcription", texts[ref])] if ref in texts else [],
             )
         )
     return page

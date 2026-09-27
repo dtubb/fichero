@@ -1,6 +1,6 @@
 {
   "generated": true,
-  "declaration": "GENERATED page for the segment editor's speed trial. Nesting, characters per word and word width relative to line height are SAMPLED from the real pages in `sources` (zero-width word boxes excluded: they have no place to be drawn); characters splitting their word equally, columns, and one uniform scale to fit the shape count are CHOSEN. Not a real page.",
+  "declaration": "GENERATED page for the segment editor's speed trial. Nesting, characters per word and word width relative to line height are SAMPLED from the real pages in `sources` (zero-width word boxes excluded: they have no place to be drawn); characters splitting their word equally, columns, one uniform scale to fit the shape count, and each word's text (a transcription of as many letters as its sampled character count, cycling the alphabet) are CHOSEN. Not a real page.",
   "sources": [
     "ocrd_gt_aepinus_0020.page.xml",
     "altoxml_glyph_00001.alto.xml"
