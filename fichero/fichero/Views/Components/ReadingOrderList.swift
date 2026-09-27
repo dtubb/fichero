@@ -7,6 +7,9 @@ import SwiftUI
 /// place, are the same engine call, undoable with ⌘Z.
 struct ReadingOrderList: View {
     let documentId: String
+    /// List this segment's children (a block's lines, a line's words) instead of the page's top level
+    /// -- the Inspector's Order section at the inspected level.
+    var parentSegmentId: String?
 
     @Environment(ReadingOrderService.self) private var service: ReadingOrderService?
     @Environment(SegmentService.self) private var segmentService: SegmentService?
@@ -19,16 +22,16 @@ struct ReadingOrderList: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let store, !store.entries.isEmpty {
+            if let store, !store.shown.isEmpty {
                 List(selection: $selection) {
-                    ForEach(Array(store.entries.enumerated()), id: \.element.segmentId) { index, entry in
+                    ForEach(Array(store.shown.enumerated()), id: \.element.segmentId) { index, entry in
                         Text(label(for: entry.segmentId, at: index))
                             .lineLimit(2)
                             .tag(entry.segmentId)
                     }
                     .onMove { offsets, destination in
                         guard let from = offsets.first else { return }
-                        let segmentId = store.entries[from].segmentId
+                        let segmentId = store.shown[from].segmentId
                         let target = ReadingOrderMove.finalIndex(fromOffset: from, toOffset: destination)
                         Task { await record(store.move(segmentId, to: target), in: store) }
                     }
@@ -45,9 +48,10 @@ struct ReadingOrderList: View {
                 )
             }
         }
-        .task(id: documentId) {
+        .task(id: "\(documentId)/\(parentSegmentId ?? "")") {
             if store == nil, let service { store = ReadingOrderStore(transport: service) }
-            try? await store?.load(documentId: documentId)
+            if store?.documentId != documentId { try? await store?.load(documentId: documentId) }
+            await store?.show(childrenOf: parentSegmentId)
         }
     }
 

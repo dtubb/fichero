@@ -25,6 +25,11 @@ struct ReadingOrderStoreTests {
             .init(entryId: "e-l2", segmentId: "s-l2", version: 1, parentEntryId: "e-b"),
             .init(entryId: "e-l3", segmentId: "s-l3", version: 1, parentEntryId: "e-b"),
         ]
+        /// Line `s-l2`'s words (ruled 2026-09-27: words reorder under a line with the same verbs).
+        var wordsOfL2: [ReadingOrderMove.Entry] = [
+            .init(entryId: "e-w1", segmentId: "s-w1", version: 1, parentEntryId: "e-l2"),
+            .init(entryId: "e-w2", segmentId: "s-w2", version: 1, parentEntryId: "e-l2")
+        ]
         var sent: [ReadingOrderMove.Place] = []
         var failWith: Error?
 
@@ -33,6 +38,7 @@ struct ReadingOrderStoreTests {
             switch parentEntryId {
             case nil: entryList
             case "e-b": linesOfB
+            case "e-l2": wordsOfL2
             default: []
             }
         }
@@ -140,5 +146,37 @@ struct ReadingOrderStoreTests {
         #expect(await store.move("s-nowhere", step: .up) == nil)
         #expect(transport.sent.isEmpty)
         #expect(store.lastRefusal?.contains("notInThisOrder") == true)
+    }
+
+    @Test("the Order section lists the inspected segment's children, and a drag there stays in that level")
+    func showsChildrenAndDragsWithinThem() async throws {
+        let (store, transport) = try await loaded()
+        await store.show(childrenOf: "s-b")
+        #expect(store.shown.map(\.segmentId) == ["s-l1", "s-l2", "s-l3"])
+        await store.move("s-l3", to: 0)
+        #expect(transport.sent.last?.parentEntryId == "e-b")
+        #expect(transport.sent.last?.afterEntryId == nil)
+        #expect(store.shown.map(\.segmentId) == ["s-l3", "s-l1", "s-l2"])
+        #expect(store.entries.map(\.segmentId) == ["s-a", "s-b", "s-c"])   // the top is untouched
+    }
+
+    @Test("words under a line are listed and moved with the same verbs as lines")
+    func wordsReorderUnderTheirLine() async throws {
+        let (store, transport) = try await loaded()
+        await store.show(childrenOf: "s-l2")
+        #expect(store.shown.map(\.segmentId) == ["s-w1", "s-w2"])
+        await store.move("s-w2", step: .up)
+        #expect(transport.sent.last == .init(
+            orderId: "o-written", segmentId: "s-w2", afterEntryId: nil, expectedVersion: 1, parentEntryId: "e-l2"
+        ))
+    }
+
+    @Test("a segment the order does not hold shows NOTHING, never the top in its place; nil shows the top")
+    func unknownParentShowsNothing() async throws {
+        let (store, _) = try await loaded()
+        await store.show(childrenOf: "s-nowhere")
+        #expect(store.shown.isEmpty)
+        await store.show(childrenOf: nil)
+        #expect(store.shown.map(\.segmentId) == ["s-a", "s-b", "s-c"])
     }
 }

@@ -22,6 +22,26 @@ final class ReadingOrderStore {
     /// Why the last move did not happen, for the list to say; nil after a move that did.
     private(set) var lastRefusal: String?
 
+    private enum Shown: Equatable {
+        case top
+        /// The children of one entry: a block's lines, a line's words (the Inspector's Order section).
+        case children(ofEntry: String)
+        /// A segment the order does not hold: its children cannot be listed, and the top is NOT
+        /// shown in their place -- that would be a different level wearing this one's name.
+        case nothing
+    }
+
+    private var shownLevel: Shown = .top
+
+    /// The level a list shows and a drag moves in: the top until `show(childrenOf:)` picks another.
+    var shown: [ReadingOrderMove.Entry] {
+        switch shownLevel {
+        case .top: entries
+        case .children(let entryId): levels[entryId] ?? []
+        case .nothing: []
+        }
+    }
+
     init(transport: ReadingOrderTransport) {
         self.transport = transport
     }
@@ -32,6 +52,7 @@ final class ReadingOrderStore {
         orders = try await transport.orders(documentId: documentId)
         orderId = (orders.first { $0.name == name } ?? orders.first)?.id
         levels = [:]
+        shownLevel = .top
         if let orderId {
             entries = try await transport.entries(orderId: orderId, parentEntryId: nil)
         } else {
@@ -43,7 +64,23 @@ final class ReadingOrderStore {
     @discardableResult
     func move(_ segmentId: String, to index: Int) async -> String? {
         guard let orderId else { return nil }
-        return await perform(ReadingOrderMove.place(orderId: orderId, entries: entries, moving: segmentId, to: index))
+        return await perform(ReadingOrderMove.place(orderId: orderId, entries: shown, moving: segmentId, to: index))
+    }
+
+    /// Show the children of `segmentId` in the order (ruled 2026-09-27: the Inspector's Order section
+    /// lists the inspected segment's children, lines under a block and words under a line alike), or
+    /// the top with nil.
+    func show(childrenOf segmentId: String?) async {
+        guard let segmentId else { shownLevel = .top; return }
+        guard let orderId, let level = await level(holding: segmentId),
+              let entry = level.first(where: { $0.segmentId == segmentId }) else {
+            shownLevel = .nothing
+            return
+        }
+        if levels[entry.entryId] == nil {
+            levels[entry.entryId] = (try? await transport.entries(orderId: orderId, parentEntryId: entry.entryId)) ?? []
+        }
+        shownLevel = .children(ofEntry: entry.entryId)
     }
 
     /// A KEY: one place up or down, or to the start or end, within the segment's OWN level (a line
@@ -101,6 +138,9 @@ final class ReadingOrderStore {
         guard let orderId else { return }
         levels = [:]
         if let fresh = try? await transport.entries(orderId: orderId, parentEntryId: nil) { entries = fresh }
+        if case .children(let entryId) = shownLevel {
+            levels[entryId] = (try? await transport.entries(orderId: orderId, parentEntryId: entryId)) ?? []
+        }
     }
 
     /// ⌘Z for a move, through the app's `UndoManager` (`ActionUndo`): the engine inverts the audit
