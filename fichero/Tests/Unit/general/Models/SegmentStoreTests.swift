@@ -400,6 +400,44 @@ final class SegmentStoreTests: XCTestCase {
         XCTAssertEqual(store.segments(documentId: "doc-1")[1].text, "TWO")
     }
 
+    /// A surface that SNAPSHOTS this store (the image Preview copies it into its draw
+    /// model) keys its reload on `revision(for:)`. Without the bump, ⌘Z on a region edit
+    /// -- a segment event, patched here -- left the page drawing the undone edit.
+    func testAPatchBumpsThatDocumentsRevisionAndNoOther() async throws {
+        let store = Self.storeWithMockTransport()
+        Self.stubSuccess(
+            documentId: "doc-1",
+            passes: [Self.passJSON(id: "pass-1", documentId: "doc-1")],
+            segments: [Self.segmentJSON(id: "seg-1", documentId: "doc-1", passId: "pass-1", boxIndex: 0, text: "one")]
+        )
+        await store.load(documentId: "doc-1")
+        XCTAssertEqual(
+            store.revision(for: "doc-1"), 0,
+            "a first load is asked for by the surface; bumping it would re-fire that surface's own task"
+        )
+
+        store.patch(segmentId: "seg-1", with: nil)
+
+        XCTAssertEqual(store.revision(for: "doc-1"), 1)
+        XCTAssertEqual(store.revision(for: "doc-other"), 0)
+    }
+
+    func testAForcedReloadBumpsTheRevisionAndAPatchOfAnUnheldIdDoesNot() async throws {
+        let store = Self.storeWithMockTransport()
+        Self.stubSuccess(
+            documentId: "doc-1",
+            passes: [Self.passJSON(id: "pass-1", documentId: "doc-1")],
+            segments: [Self.segmentJSON(id: "seg-1", documentId: "doc-1", passId: "pass-1", boxIndex: 0, text: "one")]
+        )
+        await store.load(documentId: "doc-1")
+        store.patch(segmentId: "seg-elsewhere", with: nil)
+        XCTAssertEqual(store.revision(for: "doc-1"), 0)
+
+        await store.load(documentId: "doc-1", force: true)
+
+        XCTAssertEqual(store.revision(for: "doc-1"), 1)
+    }
+
     func testPatchingWithNothingDropsTheRowRatherThanKeepingAStaleCopy() async throws {
         let store = Self.storeWithMockTransport()
         Self.stubSuccess(

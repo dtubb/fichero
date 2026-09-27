@@ -330,6 +330,9 @@ struct ZoomableImagePreview: View {
                 // auto-run-at-import, which `executionObserver` above never
                 // sees (it only tracks CLIENT-initiated executions).
                 + "|\(artifactEntityRevision)"
+                // ⌘Z on a region edit emits a SEGMENT event, not an artifact one: the
+                // store patched its row and the page kept drawing the undone edit.
+                + "|\(segmentRevision)"
         ) {
             await loadOCRGeometry()
             // The geometry is what the search hit's passage was waiting for.

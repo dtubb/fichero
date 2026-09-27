@@ -23,6 +23,15 @@ final class SegmentStore {
     private(set) var passesByDocument: [String: [SegmentPassValue]] = [:]
     private(set) var loadingDocumentIds: Set<String> = []
     private(set) var loadErrorsByDocumentId: [String: String] = [:]
+    /// Per-document generation, bumped when rows CHANGE UNDER a surface: a patch from a
+    /// change event, or a forced re-read. NOT by a first load, which a surface asks for
+    /// itself -- bumping there would re-fire the very task that asked.
+    ///
+    /// Why it exists: the image Preview copies this store's answer into its own draw
+    /// model once per task run, keyed on ARTIFACT events. ⌘Z on a region edit emits a
+    /// SEGMENT event, this store patched the row, and the page kept drawing the edit
+    /// that had just been undone. A surface that snapshots puts this in its task key.
+    private(set) var revisions: [String: Int] = [:]
 
     private let service: SegmentService
 
@@ -65,6 +74,7 @@ final class SegmentStore {
             let result = try await service.listDocumentSegments(documentId: documentId)
             passesByDocument[documentId] = result.passes
             segmentsByDocument[documentId] = result.segments
+            if force { revisions[documentId, default: 0] += 1 }
         } catch {
             if error.isCancellationError { return }
             loadErrorsByDocumentId[documentId] = error.localizedDescription
@@ -151,8 +161,14 @@ final class SegmentStore {
                 updated.remove(at: index)
             }
             segmentsByDocument[documentId] = updated
+            revisions[documentId, default: 0] += 1
             return
         }
+    }
+
+    /// This document's generation; see `revisions`.
+    func revision(for documentId: String) -> Int {
+        revisions[documentId] ?? 0
     }
 
     private var heldSegmentIds: Set<String> {

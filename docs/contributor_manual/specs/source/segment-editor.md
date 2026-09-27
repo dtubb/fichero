@@ -619,19 +619,17 @@ The editor
   If the maintainer would rather keep the sentence as written, the honest consequence is that the
   behaviour is `[BROKEN]` rather than `[PARTIAL]`, and the work it implies is replacing `PDFView`
   with a SwiftUI page renderer — which is a much larger decision than this spec carries.
-- `source.editor.shapes-in-source-view` — **[PARTIAL]** (#4941; the Inspector contradicts it, → #5115) a segment's
-  shape is edited in the Source view; its readings are typed in the Reader; the Inspector shows
-  and does not edit.
-  **Clause by clause, read on disk 2026-09-27.** *Shapes in the Source view*: yes — move, delete,
-  combine and draw live in `ZoomableImagePreviewMac+Regions`. *The Inspector shows and does not
-  edit*: **false.** `ArtifactPanel+Regions.swift:61` is a visible `Button("Combine")` calling the
-  same audited action the Source view's verb calls, built deliberately ("COMBINE from the
-  attribute browser — the same audited engine action as the Preview's verb"). Either the split is
-  the rule and the button goes, or the sentence is too strong and the Inspector may invoke verbs
-  on what it lists; #5115 asks. What decides it for me is not tidiness but that the Inspector's
-  verb is a SECOND implementation of the selection clause — it does check
-  `selection.artifactId == artifactId`, and a second copy of that check is where the rule rots.
-  *Readings typed in the Reader*: no surface at all yet (`source.textedit.*`, #5001).
+- `source.editor.shapes-in-source-view` — **[PARTIAL]** (#4941; ruled on #5115) a segment's shape
+  is edited in the Source view and its readings are typed in the Reader. The Inspector may offer the
+  same audited verbs as the Source view on what it lists, **never a second implementation**.
+  **Ruled 2026-09-27 (#5115):** the Inspector's Combine stays, because a panel that holds other
+  things keeps its verb there. The earlier sentence ("the Inspector shows and does not edit") was
+  too strong. What the ruling forbids is a second implementation. As of this change both surfaces
+  call the same service verb (`ArtifactService.combineRegions`) and register ⌘Z through the same
+  `RegionEditResult.registerUndo`. **One duplicate remains, named so it is not mistaken for
+  compliance:** the Inspector checks `selection.artifactId == artifactId` itself instead of
+  sharing the Source view's check. *Readings typed in the Reader* has no surface yet
+  (`source.textedit.*`, #5001), and that is why this stays PARTIAL.
 - `source.editor.selection-shared` — **[PARTIAL]** (#4941) selecting a segment in the Source view, Reader or Inspector
   selects it in the others.
   **Two of the three pairs exist, by two different mechanisms** (read on disk 2026-09-27), and
@@ -739,9 +737,20 @@ The editor
   `.redoInvertsTheUndosOwnRow`, `.theChainKeepsGoing`).
   **Stays `[PARTIAL]` until it has been compiled and seen working**, and three limits are stated:
   a marquee PROMOTION is one engine action per marquee, so it registers no ⌘Z rather than an
-  "Undo Promote" that undoes one region of three; the Inspector's Combine is not wired, because
-  whether the Inspector may edit at all is #5115; and the redraw after ⌘Z rides the change stream,
-  which is the click-around leg of the test matrix rather than something a unit test can show.
+  "Undo Promote" that undoes one region of three. The Inspector's Combine is now wired (#5115,
+  ruled) through the same `RegionEditResult.registerUndo` the Source view uses.
+  **The redraw after ⌘Z was broken, and an earlier line here said it "rides the change stream".**
+  Checked over HTTP against the real engine: the edit emits `segment.converted`, ⌘Z emits
+  `segment.updated`, and ⇧⌘Z re-applies the move. The engine half is pinned by
+  `fichero-server/tests/unit/api/test_region_edit_undo_redo_over_http.py::test_undo_restores_and_redo_reapplies_by_the_ids_each_step_answers`. The event did reach `SegmentStore`, which
+  patched its row. But the image Preview, the PDF page and the Inspector's region list each
+  COPY what they draw, and they re-read only on artifact events and their own ids. So the
+  page kept drawing the edit that had just been undone. `SegmentStore.revisions` is now a
+  per-document generation, bumped by a patch or a forced re-read but not by a first load, and
+  it is in all three task keys. Pinned by
+  `SegmentStoreTests.testAPatchBumpsThatDocumentsRevisionAndNoOther` and
+  `SegmentStoreTests.testAForcedReloadBumpsTheRevisionAndAPatchOfAnUnheldIdDoesNot`. That a view
+  actually redraws is still the click-around leg of the test matrix.
 - `source.editor.agent-parity` — **[PARTIAL]** (#4941) every edit the editor can make can be made over MCP and the
   command line through the same actions.
   **The command line: yes, and by construction rather than by design** (audited 2026-09-27).
