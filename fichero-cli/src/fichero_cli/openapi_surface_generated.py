@@ -11125,6 +11125,36 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("place-in")
+    def reading_orders_place_in_post(
+        ctx: typer.Context,
+        order_id: str = typer.Argument(..., help="Path parameter: order_id."),
+        after_entry_id: Optional[str] = typer.Option(None, "--after-entry-id", help="Request field: after_entry_id."),
+        at_end: Optional[bool] = typer.Option(None, "--at-end/--no-at-end", help="Request field: at_end."),
+        expected_version: Optional[int] = typer.Option(None, "--expected-version", help="Request field: expected_version."),
+        parent_entry_id: Optional[str] = typer.Option(None, "--parent-entry-id", help="Request field: parent_entry_id."),
+        segment_id: str = typer.Option(..., "--segment-id", help="Request field: segment_id."),
+    ) -> None:
+        """Place In Reading Order (POST /api/reading-orders/{order_id}/place)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/reading-orders/{order_id}/place"
+            params = None
+            payload = _build_json_payload({
+                "after_entry_id": after_entry_id,
+                "at_end": at_end,
+                "expected_version": expected_version,
+                "parent_entry_id": parent_entry_id,
+                "segment_id": segment_id,
+            }, {
+                "after_entry_id": {'type': 'string', 'nullable': True, 'title': 'After Entry Id', 'x-cli-required': False},
+                "at_end": {'type': 'boolean', 'title': 'At End', 'default': False, 'x-cli-required': False},
+                "expected_version": {'type': 'integer', 'nullable': True, 'title': 'Expected Version', 'x-cli-required': False},
+                "parent_entry_id": {'type': 'string', 'nullable': True, 'title': 'Parent Entry Id', 'x-cli-required': False},
+                "segment_id": {'type': 'string', 'title': 'Segment Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('references')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for references endpoints.', no_args_is_help=True)

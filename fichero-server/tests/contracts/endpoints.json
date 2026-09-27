@@ -7765,6 +7765,18 @@
         ],
         "request_model": null,
         "response_model": "NeighboursResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/reading-orders/{order_id}/place",
+        "operation_id": "place_in_reading_order_api_reading_orders__order_id__place_post",
+        "summary": "Place In Reading Order",
+        "path_params": [
+          "order_id"
+        ],
+        "query_params": [],
+        "request_model": "ReadingOrderPlaceBody",
+        "response_model": "ReadingOrderActionAnswer"
       }
     ],
     "references": [

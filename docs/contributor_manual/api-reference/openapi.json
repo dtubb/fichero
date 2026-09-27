@@ -4616,6 +4616,79 @@
         }
       }
     },
+    "/api/reading-orders/{order_id}/place": {
+      "post": {
+        "tags": [
+          "reading-orders"
+        ],
+        "summary": "Place In Reading Order",
+        "description": "The ONE reorder call the Reader, the Inspector and the Segments pane all make, by drag or\nby key (ruled 2026-09-27, Q5). Thin: the audited `reading_order.place` does the work, so\nit is undoable through the audit trail like every other edit.",
+        "operationId": "place_in_reading_order_api_reading_orders__order_id__place_post",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Order Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadingOrderPlaceBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingOrderActionAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/formats": {
       "get": {
         "tags": [
@@ -63422,6 +63495,30 @@
         "title": "ReadingListResponse",
         "description": "A segment's readings AND which one counts, in one answer.\n\nThe counting answer rides on the list DELIBERATELY: a client that had to\nmake a second call for it would render the list first, and the first frame\na person sees would show a machine's guess with no label on it."
       },
+      "ReadingOrderActionAnswer": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "result": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Result"
+          },
+          "audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "result"
+        ],
+        "title": "ReadingOrderActionAnswer"
+      },
       "ReadingOrderEntryListResponse": {
         "properties": {
           "order_id": {
@@ -63506,6 +63603,41 @@
           "orders"
         ],
         "title": "ReadingOrderListResponse"
+      },
+      "ReadingOrderPlaceBody": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "after_entry_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "After Entry Id"
+          },
+          "at_end": {
+            "type": "boolean",
+            "title": "At End",
+            "default": false
+          },
+          "parent_entry_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Entry Id"
+          },
+          "expected_version": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Expected Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "segment_id"
+        ],
+        "title": "ReadingOrderPlaceBody",
+        "description": "`POST /api/reading-orders/{order_id}/place` -- move or insert one segment (slice 13, Q5).\n\nThe body of `reading_order.place` without the order id, which is in the path."
       },
       "ReadingOrderRead": {
         "properties": {
@@ -63599,7 +63731,7 @@
           "pass_id"
         ],
         "title": "ReadingOrderWrite",
-        "description": "`POST /api/reading-orders` \u2014 make an order. The other writes are the\naudited actions, reached through the action layer like every other write."
+        "description": "`POST /api/reading-orders` \u2014 make an order. The other writes are the\naudited actions; the ones the app needs get a typed route here, because the\ngeneric action route is not in the contract the app is generated from."
       },
       "ReadingRead": {
         "properties": {
