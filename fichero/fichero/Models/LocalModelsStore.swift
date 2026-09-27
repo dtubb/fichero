@@ -112,7 +112,7 @@ final class LocalModelsStore {
             )
             switch response {
             case .ok:
-                await loadModels()
+                await refreshOneModel(type: type, modelId: modelId)
             case .unprocessableContent, .undocumented:
                 errorMessage = "Download failed"
             }
@@ -128,12 +128,51 @@ final class LocalModelsStore {
             )
             switch response {
             case .ok:
-                await loadModels()
+                await refreshOneModel(type: type, modelId: modelId)
             case .unprocessableContent, .undocumented:
                 errorMessage = "Delete failed"
             }
         } catch {
             errorMessage = "Delete failed: \(error.localizedDescription)"
+        }
+    }
+
+    /// Re-read the engine and replace the ONE row that changed.
+    ///
+    /// `downloadModel` and `deleteModel` both called `loadModels()`, which reassigns the whole
+    /// `embeddingsModels` array and re-renders every row — the wholesale-reload rule exists
+    /// because that loses scroll position, selection and row identity for a change to one model.
+    ///
+    /// It re-READS rather than patching locally, and that is deliberate: `isDownloaded`,
+    /// `sizeBytes` and `path` are the engine's facts, and there is no per-model GET (the engine
+    /// offers `/api/local-models` and nothing narrower), so the honest way to learn one row's
+    /// new state is to ask for the list and take that row from it. The network cost is the same
+    /// as before; what changes is that one element is replaced instead of all of them.
+    ///
+    /// `isLoading` is deliberately NOT set: this is a row-level refresh, and raising the
+    /// whole-view spinner for it would undo the point of the change.
+    private func refreshOneModel(type: String, modelId: String) async {
+        let rowId = "\(type)/\(modelId)"
+        do {
+            let fresh = try await fetchLocalModels()
+            if let updated = fresh.first(where: { $0.id == rowId }) {
+                if let index = embeddingsModels.firstIndex(where: { $0.id == rowId }) {
+                    embeddingsModels[index] = updated
+                } else if updated.modelType == "embeddings" {
+                    embeddingsModels.append(updated)
+                }
+            } else {
+                // The engine no longer lists it at all: a delete that removed the entry rather
+                // than flipping isDownloaded. Drop that one row, and only that one.
+                embeddingsModels.removeAll { $0.id == rowId }
+            }
+            // A scalar, not a list — there is no row identity to lose here.
+            diskUsage = try await fetchDiskUsage()
+        } catch {
+            localModelsStoreLogger.error(
+                "Failed to refresh \(rowId, privacy: .public): \(error.localizedDescription)"
+            )
+            errorMessage = "Failed to refresh: \(error.localizedDescription)"
         }
     }
 
