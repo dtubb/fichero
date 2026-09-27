@@ -27,7 +27,17 @@ def _load(name: str):
     return module
 
 
-guard = _load("check_ios_compile_ratchet")
+guard = _load("ios_compile_ratchet_experiment")
+
+
+def test_the_experiment_is_not_a_guard():
+    """It was `check_ios_compile_ratchet.py`, so every gate and the every-guard test ran
+    it, and it could only ever print NOT ARMED: nothing in the repo writes
+    `ios-compile-seconds`, and its own docstring says "do not wire this in". A check that
+    cannot fail is not a guard. It keeps its code, data and tests under a name the
+    `check_*.py` glob does not match, ready if the cold-build question is answered yes."""
+    assert not (SCRIPTS / "check_ios_compile_ratchet.py").exists()
+    assert "check_ios_compile_ratchet.py" not in {p.name for p in SCRIPTS.glob("check_*.py")}
 
 
 # ---------------------------------------------------------------------------

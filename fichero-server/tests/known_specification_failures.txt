@@ -54,3 +54,8 @@ tests/unit/scripts/test_every_guard_passes_on_the_real_tree.py::test_every_guard
 # milestone to FIX, never a baseline to raise. The guard was right the whole time
 # and ran nowhere anyone looked (#4861); this node is where it now runs.
 tests/unit/scripts/test_every_guard_passes_on_the_real_tree.py::test_every_guard_passes_on_the_real_tree[check_swiftlint_warning_ratchet.py]
+
+# ---- #5134 (1) ----
+# The coverage ratchet's committed baseline has been 0.0 for both stacks since
+# 2026-07-29 and nothing produces its input, so it has never been able to fire.
+tests/unit/scripts/test_coverage_ratchet_guardrail.py::TestTheCommittedBaselineIsSeeded::test_both_stacks_have_a_recorded_baseline

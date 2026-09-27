@@ -144,7 +144,7 @@ def measure(
     Why SIZE and not compile time for iOS: a compile-time ratchet was written
     and measured, and the numbers killed it — 341s / 32s / 27s across three
     runs, a 12x spread that tracks DerivedData warmth and nothing else. See
-    `check_ios_compile_ratchet.py`. Bytes have no such problem: an artifact
+    `ios_compile_ratchet_experiment.py`. Bytes have no such problem: an artifact
     does not get smaller because the cache was warm, which is what lets this
     ratchet hold sizes EXACTLY, with no jitter allowance at all.
     """

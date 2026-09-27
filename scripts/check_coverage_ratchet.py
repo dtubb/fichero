@@ -111,6 +111,14 @@ def main() -> int:
                 "(coverage json / xccov view --report --json) or pass "
                 "--engine-json/--swift-json."
             )
+            base = _load_json(args.baseline)
+            zero = [s for s in ("engine", "swift")
+                    if float(base.get(s, {}).get("line_rate_pct", 0.0)) <= 0.0]
+            if zero:
+                print(
+                    f"  (and the committed baseline is UNSEEDED for {', '.join(zero)}: "
+                    "armed, this ratchet would refuse to judge — see #5134)"
+                )
             return 0
 
     baseline = _load_json(args.baseline)
@@ -132,6 +140,23 @@ def main() -> int:
         args.baseline.write_text(json.dumps(baseline, indent=2) + "\n")
         print(f"\ncoverage ratchet: baseline updated -> {args.baseline}")
         return 0
+
+    # A 0.0 baseline cannot be dropped below, so comparing against it always passes. The
+    # committed baseline sat at 0.0 for both stacks from 2026-07-29 ("until the manager's
+    # first real coverage run") and nobody ran one, so this ratchet could not have fired
+    # on any tree. An unseeded stack is BLIND, not OK.
+    unseeded = [
+        stack for stack in measured
+        if float(baseline.get(stack, {}).get("line_rate_pct", 0.0)) <= 0.0
+    ]
+    if unseeded:
+        print(
+            f"\ncoverage ratchet: BLIND — no baseline recorded for {', '.join(unseeded)} "
+            "(0.0 cannot be dropped below, so any run would pass). Seed it: rerun with "
+            "--update-baseline and commit coverage-baseline.json.",
+            file=sys.stderr,
+        )
+        return 2
 
     fired = False
     print()
