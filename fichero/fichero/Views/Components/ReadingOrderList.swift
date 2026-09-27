@@ -31,8 +31,12 @@ struct ReadingOrderList: View {
         // library's service makes one.
         _store = State(initialValue: store)
     }
+
     /// The selected line, by segment id.
     @State private var selection: String?
+    /// Whether the list itself has keyboard focus: its ⌥⌘ keys exist only then, so with the Reader
+    /// focused the same keys reach the Reader's caret line (`ReaderLineMove`), not this list.
+    @FocusState private var listFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -50,6 +54,7 @@ struct ReadingOrderList: View {
                         Task { await record(store.move(segmentId, to: target), in: store) }
                     }
                 }
+                .focused($listFocused)
                 Divider()
                 keyRow(store)
                 if let refusal = store.lastRefusal {
@@ -94,7 +99,7 @@ struct ReadingOrderList: View {
         } label: {
             Label(title, systemImage: icon).labelStyle(.iconOnly)
         }
-        .keyboardShortcut(key, modifiers: [.command, .option])
+        .keyboardShortcut(ReadingOrderListKeys.shortcut(key, listFocused: listFocused))
         .help("\(title) (⌥⌘\(Self.keyName(key)))")
         .accessibilityIdentifier("readingOrder.\(title)")
     }
@@ -120,6 +125,15 @@ struct ReadingOrderList: View {
         case .pageUp: "⇞"
         default: "⇟"
         }
+    }
+}
+
+/// The list's ⌥⌘ keys, claimed only while the list has focus. `.keyboardShortcut` on a button is
+/// WINDOW-wide: with the list showing a selection, ⌥⌘↑ pressed in the Reader moved the list's row
+/// instead of the Reader's caret line. Nil detaches the shortcut; the buttons still work by click.
+enum ReadingOrderListKeys {
+    static func shortcut(_ key: KeyEquivalent, listFocused: Bool) -> KeyboardShortcut? {
+        listFocused ? KeyboardShortcut(key, modifiers: [.command, .option]) : nil
     }
 }
 
