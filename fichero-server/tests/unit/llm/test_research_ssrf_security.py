@@ -419,14 +419,37 @@ class TestSSRFResourceLimits:
             assert len(content) < 10_000_000, \
                 "MEDIUM: No content size limit - potential DoS"
 
-    def test_web_search_timeout_enforced(self, client):
-        """Timeout should be enforced to prevent hanging requests.
-        
-        This test is informational - already has timeout support.
-        Just verifying it works.
+    def test_web_search_timeout_is_BOUNDED_not_merely_present(self, client):
+        """A caller-supplied timeout is refused outside 5..120 seconds.
+
+        This test was a `pass` body under a docstring calling itself
+        "informational" (#5106's triage): it reported green and checked nothing,
+        so "we have timeout support" was never once verified.
+
+        Having a timeout is not the protection. `WebSearchRequest.timeout_seconds`
+        is passed straight into `httpx.Timeout(...)`, so an UNBOUNDED value is a
+        caller holding a connection open for as long as it likes — the resource
+        exhaustion this class of test exists for, reached without any SSRF. The
+        bound is the contract, and 422 is the engine refusing at the edge rather
+        than starting the request.
         """
-        # Already covered in existing tests, but document it's intentional
-        pass
+        for absurd in (0, 4, 121, 86_400, -1):
+            response = client.post(
+                "/api/research/tools/web-search",
+                json={"query": "marshall diaries", "timeout_seconds": absurd},
+            )
+            assert response.status_code == 422, (
+                f"timeout_seconds={absurd} was accepted; the bound is not enforced "
+                f"({response.status_code})"
+            )
+
+        # And the bound is not so tight that the documented default is refused:
+        # a test that only proves refusals can pass against a route that refuses
+        # everything.
+        from fichero_server.models.research import WebSearchRequest
+
+        assert WebSearchRequest(query="ok").timeout_seconds == 30
+        assert WebSearchRequest(query="ok", timeout_seconds=120).timeout_seconds == 120
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
