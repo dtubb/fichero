@@ -104,6 +104,16 @@ class TestTheScriptSaysWhatItDidNotCheck:
         assert any("LABEL" in p for p in problems)
         assert any("'LANG'" in p for p in problems)
 
+    def test_alto_4_4_is_its_own_schema_where_page_lang_is_allowed(self):
+        """4.4 is where `Page@LANG` became legal. The same Kraken bytes declaring 4.4
+        lose exactly that complaint and keep the LABEL one -- which proves the 4.4
+        schema was consulted rather than 4.3 or 4.2 under another name."""
+        data = (_FIXTURES / "kraken_alto_multilingual_bsb00084914.alto.xml").read_bytes()
+        outcome, name, problems = script.check_bytes("k.alto.xml", data.replace(b"alto-4-3.xsd", b"alto-4-4.xsd"))
+        assert (outcome, name) == ("INVALID", "alto (alto-4-4.xsd)")
+        assert any("LABEL" in p for p in problems)
+        assert not any("'LANG'" in p for p in problems)
+
     def test_a_broken_export_is_invalid_with_the_schemas_own_words(self, tmp_path):
         data = (_FIXTURES / "ocrd_gt_aepinus_0020.page.xml").read_text(encoding="utf-8")
         broken = data.replace("<Page ", "<Page bogusAttribute=\"1\" ", 1)
