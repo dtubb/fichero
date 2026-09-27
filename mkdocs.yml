@@ -380,6 +380,14 @@ nav:
               - Exporter: contributor_manual/specs/export/exporter.md
           - Importer:
               - Importer: contributor_manual/specs/importer/importer.md
+          - Explore:
+              - Explore (seeing a whole project): contributor_manual/specs/explore/explore.md
+              - By meaning (what the vectors can do): contributor_manual/specs/explore/meaning.md
+              - By place (maps, journeys): contributor_manual/specs/explore/place.md
+              - By time (timelines, arcs): contributor_manual/specs/explore/time.md
+              - Networks (people and things joined): contributor_manual/specs/explore/networks.md
+              - Tables and counts (facets, flows): contributor_manual/specs/explore/tables-and-counts.md
+              - Experiments, saved views, sharing: contributor_manual/specs/explore/experiments-and-sharing.md
           - Harness:
               - Audited Action Layer: contributor_manual/specs/harness/audited-action-layer.md
               - Dev Orchestration Harness: contributor_manual/specs/harness/dev-orchestration-harness.md
@@ -388,6 +396,7 @@ nav:
               - Spec Pipeline: contributor_manual/specs/harness/spec-pipeline.md
               - Git / Worktree / GitHub Workflow: contributor_manual/specs/harness/git-worktree-workflow.md
               - Release & Versioning: contributor_manual/specs/harness/release-and-versioning.md
+              - Version & Contract Integrity: contributor_manual/specs/harness/version-and-contract-integrity.md
           - KG:
               - Hermeneutic Layer: contributor_manual/specs/kg/hermeneutic-layer.md
               - KG Enrichment, RDF & Linked Data: contributor_manual/specs/kg/kg-enrichment.md
@@ -409,6 +418,7 @@ nav:
               - Build Notes (identity & storage): contributor_manual/specs/source/build-notes-identity-and-storage.md
               - Build Notes (shapes & the anchor): contributor_manual/specs/source/build-notes-shapes-and-anchor.md
               - Build Notes (readings, cascade, orders): contributor_manual/specs/source/build-notes-readings-cascade-orders.md
+              - Build Notes (interchange harness, PAGE XML): contributor_manual/specs/source/build-notes-formats-harness.md
               - Segment Representations (earlier; first slice): contributor_manual/specs/source/segment-representations.md
               - Historical Text Normalization (earlier; the text side): contributor_manual/specs/source/historical-text-normalization.md
               - Archival Data Model (earlier; staged plan): contributor_manual/specs/source/archival-data-model-plan.md
