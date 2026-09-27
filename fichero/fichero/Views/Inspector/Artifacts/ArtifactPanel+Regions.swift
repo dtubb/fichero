@@ -97,7 +97,10 @@ struct ArtifactRegionsSection: View {
     private func regionRow(_ row: (index: Int, box: OCRGeometryBox)) -> some View {
         let isSelected = selection.isSelected(row.index, in: artifactId)
         Button {
-            selection.toggle(row.index, artifactId: artifactId, documentId: documentId)
+            selection.toggle(
+                row.index, artifactId: artifactId, documentId: documentId,
+                in: fullArtifact?.ocrGeometry?.boxes  // identity, so another pane finds the same box (#5020)
+            )
             // Selecting (not deselecting) still drives the reader/preview
             // word-linking seam, as before — and FOCUSES this artifact so
             // the preview is drawing the boxes the selection indexes into.
@@ -157,7 +160,9 @@ struct ArtifactRegionsSection: View {
     private func combineSelected() {
         guard let artifactService,
               selection.artifactId == artifactId, selection.count >= 2 else { return }
-        let indices = selection.indices
+        // Found by identity in the artifact's own list (#5020), not by a pane's positions.
+        let indices = selection.resolvedIndices(in: fullArtifact?.ocrGeometry?.boxes ?? [])
+        guard indices.count >= 2 else { return }
         Task {
             do {
                 let combined = try await artifactService.combineRegions(

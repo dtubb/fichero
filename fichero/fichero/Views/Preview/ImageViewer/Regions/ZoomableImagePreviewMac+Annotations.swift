@@ -138,9 +138,7 @@ extension ZoomableImagePreview {
         let selection = regionSelection
         if let artifactId = ocrGeometryArtifactId, selection.artifactId == artifactId,
            !selection.isEmpty {
-            let picked = selection.indices
-                .filter { geometry.boxes.indices.contains($0) }
-                .map { geometry.boxes[$0] }
+            let picked = selection.resolvedIndices(in: geometry.boxes).map { geometry.boxes[$0] }
             if !picked.isEmpty { return picked }
         }
         return linkedSelectionBoxes.map {
