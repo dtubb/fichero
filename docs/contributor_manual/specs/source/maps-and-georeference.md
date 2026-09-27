@@ -394,13 +394,44 @@ Places over time and in words
   with the conversion used, so the resolved area is recomputed when the conversion changes.
 
 Formats
-- `source.geo.iiif-georef-in` — **[GAP]** (#4946) a IIIF Georeference Annotation in either dialect
-  Allmaps accepts imports as a new georeferencing pass with its GCPs, mask and transformation.
-- `source.geo.iiif-georef-out` — **[GAP]** (#4946) a georeferencing pass exports as a georef/1
-  annotation that passes the vendored checker, with a loss report naming what it could not carry.
-- `source.geo.iiif-georef-round-trip` — **[GAP]** (#4946) the two vendored Allmaps files import,
+- `source.geo.iiif-georef-in` — **[PARTIAL]** (#4946, → #5125; the library half → #5122) a IIIF
+  Georeference Annotation in either dialect Allmaps accepts imports as a new georeferencing pass with
+  its GCPs, mask and transformation.
+  **Built: the format reads both dialects** (`formats/iiif_georef.py`). A GCP becomes a
+  `control-point` segment with a normalised `point` and a WGS 84 `world`. The mask becomes a `mask`
+  area segment. Each GCP names its mask in `foreign["georef:mask"]`, because the spec ties them by a
+  typed link and the harness has no links, so nesting is not used to fake it. The transformation is
+  the page's. Pinned on both real files:
+  `fichero-server/tests/unit/formats/test_iiif_georef.py::TestReadingThePublishedDialect::test_the_gcps_are_point_segments_with_both_ends`,
+  `::TestReadingTheEarlierDialect::test_pixel_coords_are_read_and_the_size_comes_from_the_svg`.
+  **Not built: into a library.** Nothing in a library can yet hold a GCP's world end, so the import
+  is **refused by name** (422, citing #5122) instead of keeping the pixel end and dropping the place
+  on the earth
+  (`fichero-server/tests/unit/formats/test_import_into_library.py::TestAGeoreferencingFileIsRefusedByName::test_it_is_refused_with_the_reason_and_nothing_is_written`).
+  Before that refusal existed, the same file was refused as having shapes "outside the page", which
+  was true of nothing in it.
+- `source.geo.iiif-georef-out` — **[PARTIAL]** (#4946, → #5125; the library half → #5122) a
+  georeferencing pass exports as a georef/1 annotation that passes the vendored checker, with a loss
+  report naming what it could not carry.
+  **Built format-side:** the published dialect is written, one Annotation per mask (an
+  AnnotationPage when there are several), and every write passes the checker, which the harness runs
+  (`fichero-server/tests/unit/formats/test_iiif_georef.py::TestWriting::test_every_real_file_exports_as_the_published_dialect`,
+  `::TestWriting::test_two_masks_become_two_annotations_each_with_its_own_gcps`,
+  `::TestTheChecker::test_an_invalid_export_is_no_file`). Losses are named: segments that are not
+  GCPs or masks, and the plain image URL when converting the earlier dialect
+  (`::TestWriting::test_converting_the_earlier_dialect_names_what_it_did_not_write`). A missing
+  pixel size is refused rather than invented. **The checker** is written from the extension's
+  normative text (https://iiif.io/api/extension/georef/, read 2026-09-27). Each rule quotes its
+  sentence in the code, and each is fired once by `::TestTheChecker`. Not built: a pass from a
+  library, which has no GCPs to give until #5122.
+- `source.geo.iiif-georef-round-trip` — **[OK]** (→ #5125) the two vendored Allmaps files import,
   export and import again with the same GCPs, mask and transformation type, less what the loss
-  report names.
+  report names (`fichero-server/tests/unit/formats/test_iiif_georef.py::TestWriting::test_the_round_trip_keeps_gcps_mask_and_transformation`,
+  format to format. Through a library it waits on the GCP model, which `iiif-georef-in` tracks).
+  **Found on the way:** the earlier-dialect file (Delft) **fails the published checker**. It has no
+  georef context and uses `pixelCoords`. That is true of the file, and it is why the reader is
+  tolerant and the writer strict
+  (`::TestReadingTheEarlierDialect::test_the_published_checker_rejects_it_for_the_stated_reasons`).
 - `source.geo.gcp-tables` — **[GAP]** (#4946) GCPs go in and out as a QGIS `.points` file and a
   Mapwarper GCP CSV with the CRS carried or declared.
 - `source.geo.world-file-geotiff` — **[GAP]** (#4946) an affine pass exports as a world file with

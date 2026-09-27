@@ -73,7 +73,7 @@ async def list_formats() -> FormatListResponse:
                 extensions=list(spec.extensions),
                 reads=spec.reads,
                 writes=spec.writes,
-                validated=spec.schema is not None,
+                validated=spec.schema is not None or spec.check is not None,
             )
             for spec in known_formats()
         ]

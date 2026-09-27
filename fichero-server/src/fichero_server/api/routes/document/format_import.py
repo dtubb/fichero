@@ -80,6 +80,25 @@ class UnrecognisedImportFile(ValueError):
         )
 
 
+class GeoreferencingNotYetImportable(ValueError):
+    """Raised for a file whose segments carry WORLD positions (IIIF Georeference GCPs).
+
+    The format reads (`formats/iiif_georef.py`) and round-trips format to format, but a
+    library has nowhere to put a ground control point's world end until the GCP model
+    lands (#5122). Importing anyway would keep the pixel end and drop the place on the
+    earth, which is the half that makes it a control point. So: refused, by name. Before
+    this, the same file was refused as having shapes "outside the page", which was true
+    of nothing in it.
+    """
+
+    def __init__(self, filename: str, count: int) -> None:
+        super().__init__(
+            f"{filename} is a georeferencing file with {count} ground control point(s). "
+            "Fichero reads and exports this format, but cannot yet keep a control point's "
+            "world position in a library (#5122), so nothing was imported."
+        )
+
+
 class ShapesOutsideThePage(ValueError):
     """Raised when a file's shapes lie outside the page size it declares.
 
@@ -403,6 +422,10 @@ def write_page_into_library(
     # with other work on it, so the honest claim is only that doing the same work once
     # is not worse. An import either happens or does not, so the check still runs
     # before the first write.
+    worlded = sum(1 for _ref, segment in order if segment.world is not None)
+    if worlded:
+        raise _as_http_error(GeoreferencingNotYetImportable(source_name, worlded))
+
     anchors: dict[str, tuple[SourceAnchor | None, str | None]] = {
         ref: _anchor_for(document_id, segment, page.image_size)
         for ref, segment in order
@@ -543,7 +566,7 @@ def _as_http_error(exc: Exception) -> HTTPException:
         # 409: the library already holds this, which is a state rather than a bad
         # request -- the caller did nothing wrong and nothing was written.
         return HTTPException(status_code=409, detail=str(exc))
-    if isinstance(exc, ShapesOutsideThePage):
+    if isinstance(exc, (ShapesOutsideThePage, GeoreferencingNotYetImportable)):
         return HTTPException(status_code=422, detail=str(exc))
     if isinstance(exc, (UnrecognisedImportFile, UnknownFormat)):
         return HTTPException(status_code=422, detail=str(exc))

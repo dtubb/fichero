@@ -99,6 +99,14 @@ class PageSegment:
     #: Normalised `[[x, y], ...]`. PAGE XML `Baseline`; the thing Kraken and
     #: eScriptorium are built around.
     baseline: list[list[float]] | None = None
+    #: Normalised `[x, y]`: a point shape (#4925). A ground control point's pixel end
+    #: (IIIF Georeference `resourceCoords`).
+    point: list[float] | None = None
+    #: A world position as `(longitude, latitude)` in WGS 84 (EPSG:4326), GeoJSON's axis
+    #: order: a ground control point's world end. WGS 84 because that is what Fichero
+    #: stores (#5124) and the only CRS IIIF Georeference allows; a format in another CRS
+    #: converts on read and says so, it does not put other numbers here.
+    world: tuple[float, float] | None = None
     #: The cascade's three facts (slice 9). PAGE XML and ALTO carry all three;
     #: `None` means the file said nothing, never a default.
     language: str | None = None
@@ -169,6 +177,12 @@ class SourcePage:
     direction: str | None = None
     segments: list[PageSegment] = field(default_factory=list)
     orders: list[PageOrder] = field(default_factory=list)
+    #: A georeferencing pass's transformation, as the format states it:
+    #: `{"type": "polynomial", "options": {"order": 1}}` or `{"type": "thinPlateSpline"}`.
+    #: A property of the PASS (`source.geo.transformation-type`), so it lives on the page
+    #: that becomes the pass. None when the file names none -- never a default, because
+    #: "the file chose nothing" and "the file chose affine" are different facts.
+    transformation: dict[str, Any] | None = None
     #: File-level content the model has no field for
     #: (`source.format.keeps-unrecognised`). Kept on the PAGE, which becomes the
     #: pass -- not on segments, because a format adds no field to segments and
@@ -272,6 +286,11 @@ class FormatSpec:
     #: PAGE XML file and an ALTO file are both `.xml` and only their root element
     #: tells them apart.
     sniff: Callable[[bytes], bool] | None = None
+    #: For a format with no XSD but with normative rules (IIIF Georeference is JSON-LD
+    #: and publishes prose, not a schema): a checker written from those rules, returning
+    #: problems or []. `validate()` uses it where `schema` is None. A format with
+    #: neither is unvalidatable by nature and must say so (test_export_validation.py).
+    check: Callable[[bytes], list[str]] | None = None
 
     @property
     def reads(self) -> bool:
