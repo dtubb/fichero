@@ -14,18 +14,20 @@ import CoreGraphics
 /// image's size in points), and the view is NOT flipped -- AppKit's y grows upward, while a
 /// normalized box's y grows downward from the top of the page.
 enum DocumentBoxMapping {
-    /// `normalized` is `[x, y, w, h]`, top-left origin, fractions of the page. Nil when it is not
+    /// `imageRect` is where the image sits in the image view (`DrawnImageFrame.drawnRect(in:)`):
+    /// its native size, centred when the view is enlarged below fit. `normalized` is `[x, y, w, h]`,
+    /// top-left origin, fractions of the page. Nil when it is not
     /// four numbers or has no area -- a zero-size placeholder (an unstated shape, an unset rect) is
     /// never drawn.
-    static func rect(normalized: [Double], documentSize: CGSize) -> CGRect? {
+    static func rect(normalized: [Double], imageRect: CGRect) -> CGRect? {
         guard normalized.count >= 4, normalized[2] > 0, normalized[3] > 0,
-              documentSize.width > 0, documentSize.height > 0 else { return nil }
-        let (x, y, w, h) = (normalized[0], normalized[1], normalized[2], normalized[3])
+              imageRect.width > 0, imageRect.height > 0 else { return nil }
+        let (left, top, width, height) = (normalized[0], normalized[1], normalized[2], normalized[3])
         return CGRect(
-            x: x * documentSize.width,
-            y: (1 - y - h) * documentSize.height,
-            width: w * documentSize.width,
-            height: h * documentSize.height
+            x: imageRect.minX + left * imageRect.width,
+            y: imageRect.minY + (1 - top - height) * imageRect.height,
+            width: width * imageRect.width,
+            height: height * imageRect.height
         )
     }
 
@@ -36,10 +38,10 @@ enum DocumentBoxMapping {
     static func onScreen(
         documentRect: CGRect, documentVisibleRect: CGRect, magnification: CGFloat
     ) -> CGRect {
-        let x = (documentRect.minX - documentVisibleRect.minX) * magnification
+        let left = (documentRect.minX - documentVisibleRect.minX) * magnification
         // Flip once, for the top-left screen space: the distance from the TOP of the visible window.
-        let y = (documentVisibleRect.maxY - documentRect.maxY) * magnification
-        return CGRect(x: x, y: y, width: documentRect.width * magnification,
+        let top = (documentVisibleRect.maxY - documentRect.maxY) * magnification
+        return CGRect(x: left, y: top, width: documentRect.width * magnification,
                       height: documentRect.height * magnification)
     }
 }
