@@ -523,9 +523,17 @@ Structure
   and an ordinary order correctly refuses a foreign segment
   (`::test_a_segment_of_another_pass_is_refused_outside_a_flow`) — that distinction is deliberate.
   But `document_text` draws its rows from ONE pass and then keeps only the ordered ids it holds, so
-  a cross-pass continuation is **silently dropped** from the derived text through the same filter
-  that legitimately drops a deleted line (#5090). Silent shortening of a transcription is the worst
-  failure this programme has, because nothing looks wrong.
+  a cross-pass continuation is still **left out** of the derived text by the same filter that
+  legitimately drops a deleted line (#5090).
+  **No longer silently, from 2026-09-27**: every segment a named order names and the text does not
+  contain is reported on `DerivedText.omitted` with a reason — `other_pass` (and the pass that holds
+  it), `deleted`, `furniture` or `unknown` — so a shortened transcription and a complete one are
+  different answers, pinned by
+  `test_document_derived_text.py::TestWhatAnOrderNamesAndTheTextDoesNotHold::test_a_deleted_line_and_a_missing_continuation_no_longer_look_the_same`.
+  Still `[GAP]` for the reading itself: a flow that reads its other passes needs a decision about
+  what the response's `pass_id` and the `page_content` cache then mean, which #5090 sketches and
+  nobody has ruled on. Silent shortening of a transcription is the worst failure this programme has,
+  because nothing looks wrong; this makes it loud without guessing the ruling.
 - `source.segment.furniture` — **[GAP]** (#4927) page furniture is marked, and a reading can leave it out.
 - `source.segment.table-cells` — **[GAP]** (#4928) a table's cells are segments with row, column, spans and
   header kind.

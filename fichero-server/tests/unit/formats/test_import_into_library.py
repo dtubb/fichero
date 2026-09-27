@@ -570,3 +570,62 @@ class TestTheRefusalsSayWhatTheyActuallySay:
 
         assert again.status_code == 409
         assert isinstance(again.json()["detail"], str)
+
+
+class TestWhatTheImportKeptSurvivesTheExport:
+    """`source.format.keeps-unrecognised`, the half that was missing.
+
+    Both halves were true **within a format's own round trip** — eScriptorium's
+    `custom="structure {type:title;}"` goes in and comes out — and `page_export` never
+    read `metadata["foreign"]` back out, so a file imported into a library and then
+    exported **lost what the import kept**. It passed every round-trip test, because a
+    round trip never puts a library in the middle.
+    """
+
+    def test_a_files_custom_survives_import_then_export(self, db, client):
+        doc = _document(db)
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "ocrd.xml"
+            path.write_bytes(OCRD.read_bytes())
+            imported = _import(db, doc, path)
+
+        # The import kept it on the segment.
+        rows = db.query(Segment, pass_id=imported["pass_id"])
+        kept = [r for r in rows if r.metadata.get("foreign", {}).get("custom")]
+        assert kept, "the import did not keep the file's custom attributes"
+
+        # And the export writes it back out, which is what was missing.
+        response = client.get(
+            f"/api/documents/{doc.id}/export/pagexml?pass_id={imported['pass_id']}"
+        )
+        assert response.status_code == 200, response.text
+        assert "structure {type:" in response.json()["content"]
+
+    def test_the_library_round_trip_keeps_it_the_way_a_format_round_trip_does(self, db, client):
+        """The claim stated as one sentence: file → library → file loses no more than
+        file → file does."""
+        import tempfile
+
+        from fichero_server.formats import read_page
+
+        doc = _document(db)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "ocrd.xml"
+            path.write_bytes(OCRD.read_bytes())
+            imported = _import(db, doc, path)
+
+        exported = client.get(
+            f"/api/documents/{doc.id}/export/pagexml?pass_id={imported['pass_id']}"
+        ).json()["content"]
+
+        straight_through = read_page("pagexml", OCRD.read_bytes())
+        via_library = read_page("pagexml", exported.encode("utf-8"))
+
+        customs_direct = sum(1 for s in straight_through.segments if s.foreign.get("custom"))
+        customs_library = sum(1 for s in via_library.segments if s.foreign.get("custom"))
+        assert customs_library == customs_direct, (
+            f"{customs_direct} custom attributes survive file→file and "
+            f"{customs_library} survive file→library→file"
+        )

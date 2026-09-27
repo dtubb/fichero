@@ -133,6 +133,16 @@ def page_from_library(
                 readings=[(i.kind, i.content) for i in items],
                 ref=row.id,
                 parent_ref=row.parent_segment_id if row.parent_segment_id in ids else None,
+                # What the IMPORT kept because the model has no field for it
+                # (`source.format.keeps-unrecognised`). Read back out here, or a file
+                # imported into a library and then exported loses what the import
+                # kept -- the write-back half was true format-to-format and false
+                # library-to-format, which is how it passed every round-trip test.
+                #
+                # eScriptorium's `custom="structure {type:title;}"` is the case: it
+                # survives PAGE XML in and out, and before this it did not survive a
+                # library in between.
+                foreign=dict(row.metadata.get("foreign") or {}),
             )
         )
     choices.segment_count = len(segments)
