@@ -19,6 +19,7 @@ from fichero_server.formats import (
     known_formats,
 )
 from fichero_server.api.routes.document.format_import import ErrorDetail
+from fichero_server.models.reading_orders import OrderIsOfAnotherPass
 from fichero_server.page_export import ExportRefused, export_page
 
 router = APIRouter()
@@ -134,6 +135,16 @@ async def export_document_page(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ExportRefused as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except OrderIsOfAnotherPass as exc:
+        # The same refusal the derived-text route sends, reaching HERE because this route passes
+        # `order_id` through to `document_text`. Found by asking who ELSE calls that function with
+        # an order, once the refusal existed: a `ValueError` nobody catches is a 500, so a caller
+        # naming a mismatched order would have been told the engine broke — when the engine had
+        # caught their mistake and could name the pass to ask for instead.
+        #
+        # 422 and not 404: the order exists and the pass exists. The PAIRING is what is wrong,
+        # and a 404 would send someone looking for a missing thing.
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except InvalidExport as exc:
         # A file that does not validate is a failure and no file (`source.format.export-validated`).
         raise HTTPException(status_code=500, detail=str(exc)) from exc

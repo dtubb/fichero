@@ -251,3 +251,50 @@ class TestTheRefusalsAreDeclaredAndNotOnlyRaised:
         page, _ = _converted(db, client)
         r = client.get(f"/api/documents/{page.id}/export/docx")
         assert r.status_code == 404 and isinstance(r.json()["detail"], str)
+
+
+class TestAnOrderOfAnotherPassIsRefusedNotA500:
+    """Found by asking who ELSE calls `document_text` with an order, once the refusal existed.
+
+    `document_text` began raising `OrderIsOfAnotherPass` where it used to return an empty text.
+    Three callers exist: the derived-text route (mapped by the change that added it), the
+    page-text cache (passes no order, unaffected), and THIS route, which passes `order_id`
+    straight through. A `ValueError` nobody catches is a 500 — so a caller naming a mismatched
+    order would have been told the engine broke, when the engine had caught their mistake and
+    could name the pass to ask for instead.
+
+    Same shape as #5089 and its export-route sibling: an engine refusal arriving as something
+    that helps nobody. **A fix is not finished until every caller of the changed function has
+    been looked at** — and the two suites that cover those callers were both green, because
+    neither exercises an order from another pass through this route.
+    """
+
+    def _another_passs_order(self, db, page):
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.models.reading_orders import ReadingOrder
+
+        ctx = ActionContext(actor="historian", library_path=None, is_bootstrap=True)
+        made = registry.invoke(db, "segment.pass_create", {
+            "document_id": page.id, "name": "other", "run_id": "run-other"}, ctx).result
+        other_pass = made.get("pass_id") or made.get("id")
+        orders = list(db.query(ReadingOrder, pass_id=other_pass))
+        assert orders, "pass_create seeds an as-written order (source.order.named-multiple)"
+        return other_pass, orders[0].id
+
+    def test_an_order_from_another_pass_is_a_422_naming_the_pass_to_ask_for(self, db, client):
+        page, _ = _converted(db, client)
+        other_pass, order_id = self._another_passs_order(db, page)
+
+        r = client.get(f"/api/documents/{page.id}/export/tei", params={"order_id": order_id})
+        assert r.status_code == 422, r.text
+        detail = r.json()["detail"]
+        assert isinstance(detail, str), "a sentence, as ErrorDetail declares — not a field-error list"
+        assert other_pass in detail, "the sentence must name the pass the order belongs to"
+        assert "pass_id=" in detail, "and say what to ask for instead"
+
+    def test_the_documents_own_order_still_exports(self, db, client):
+        """The guard must not refuse the ordinary case — the test I would want if somebody else
+        had written this one."""
+        page, _ = _converted(db, client)
+        body = client.get(f"/api/documents/{page.id}/export/tei").json()
+        assert body["choices"]["order_name"] == "as-written"
