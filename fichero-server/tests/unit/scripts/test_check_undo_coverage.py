@@ -2,12 +2,15 @@
 
 It had no test, and it reported six endpoints as covered that nothing anywhere undoes: each
 one matched a substring of its path inside a comment in a file that happens to mention
-UndoManager. `POST /api/library` passed on the comment "document/library undo". The guard now
-matches strictly, and the answer it gives is zero of 393 — see #5109 for why that number is a
-statement about the app, not about the guard.
+UndoManager. `POST /api/library` passed on the comment "document/library undo". The guard then
+matched strictly -- and read ZERO, because it looked only for path strings, and the house rule
+sends nearly every call through the generated client, whose methods are named for the
+operationId and carry no path (#5144). Region edits that DO register ⌘Z read as gaps.
 
-These tests fail if the loose match comes back, and if the honest zero is ever quietly
-re-inflated by a matcher change rather than by undo being built.
+It now also counts the generated operation's name, in an undo-registering file, for an
+operation whose answer carries the audit row a registration reverses. These tests fail if the
+loose match comes back, if the operation-name witness goes blind again, or if it widens to
+count a call merely because it sits in a file that registers undo for something else.
 """
 from __future__ import annotations
 
@@ -32,17 +35,7 @@ def _rows() -> tuple:
 
 
 class TestTheSixFalsePositives:
-    """Each of these was reported as having undo. None of them has any."""
-
-    def test_no_mutating_endpoint_is_reported_as_having_undo(self):
-        """Zero is the honest answer while undo is view-level.
-
-        If this ever passes with a non-zero count, either undo grew an endpoint axis — in
-        which case #5109 got decided and this test should say which way — or the matcher
-        went loose again.
-        """
-        covered = [row.endpoint for row in _rows() if row.undo_registered]
-        assert covered == [], covered
+    """Each of these was reported as having undo by a comment. None of them has any."""
 
     def test_the_library_endpoint_is_not_covered_by_a_comment_about_library_undo(self):
         """UndoRouting.swift:46 reads "document/library undo"; `/library` matched inside it."""
@@ -54,11 +47,12 @@ class TestTheSixFalsePositives:
         rows = {row.endpoint: row for row in _rows()}
         assert rows["POST /api/pair"].undo_registered is False
 
-    def test_all_six_are_seeded_with_the_reason_they_stopped_passing(self):
-        """A seeded gap has to say why, or the next reader cannot tell it from a deferral."""
+    def test_the_rest_are_seeded_with_the_reason_they_stopped_passing(self):
+        """A seeded gap has to say why, or the next reader cannot tell it from a deferral.
+        `POST /api/actions/invoke` left this list with #5144: it IS registered (its audit id
+        feeds the undo stack), found by the operation name, not by a comment."""
         for endpoint in (
             "POST /api/actions",
-            "POST /api/actions/invoke",
             "POST /api/authz/share",
             "POST /api/library",
             "POST /api/pair",
@@ -67,6 +61,101 @@ class TestTheSixFalsePositives:
             reason = check_undo_coverage.KNOWN_GAPS[endpoint]
             assert "#5109" in reason, endpoint
             assert "comment" in reason, endpoint
+
+
+class TestTheGeneratedClientIsSeen:
+    """#5144, on the app's own tree."""
+
+    def test_region_edits_that_register_undo_are_counted(self):
+        rows = {row.endpoint: row for row in _rows()}
+        row = rows["PUT /api/artifacts/{artifact_id}/regions"]
+        assert row.undo_registered, "the region edit registers ⌘Z through ActionUndo"
+        assert any("RegionCuration" in name for name in row.evidence)
+
+    def test_a_call_beside_an_undo_registration_is_not_counted_for_it(self):
+        """`createArtifact` sits in the same file as the region edits' registration and answers
+        with no audit row; `share` sits beside `invokeAction`. Neither is undone."""
+        rows = {row.endpoint: row for row in _rows()}
+        assert rows["POST /api/artifacts/"].undo_registered is False
+        assert rows["POST /api/authz/share"].undo_registered is False
+
+    def test_every_covered_row_is_witnessed_by_an_undo_file(self):
+        undo_files = {str(p.relative_to(check_undo_coverage.ROOT)) for p in check_undo_coverage.UNDO_SOURCES}
+        for row in _rows():
+            if row.undo_registered:
+                assert row.evidence and set(row.evidence) <= undo_files, row
+
+
+# --- the guard's own fixtures: a spec of two operations and Swift files written here ---------
+
+_SPEC_FIXTURE = {
+    "paths": {
+        "/api/reading-orders/{order_id}/place": {
+            "post": {
+                "operationId": "place_in_reading_order_api_reading_orders__order_id__place_post",
+                "responses": {"200": {"content": {"application/json": {
+                    "schema": {"$ref": "#/components/schemas/ActionResponse"}}}}},
+            }
+        },
+        "/api/things": {
+            "post": {
+                "operationId": "create_thing_api_things_post",
+                "responses": {"200": {"content": {"application/json": {
+                    "schema": {"type": "object", "properties": {"id": {"type": "string"}}}}}}},
+            }
+        },
+    },
+    "components": {"schemas": {"ActionResponse": {
+        "type": "object", "properties": {"ok": {}, "audit_id": {}, "result": {}}}}},
+}
+PLACE = "POST /api/reading-orders/{order_id}/place"
+THING = "POST /api/things"
+
+
+def _scan(tmp_path, **files: str) -> dict:
+    paths = []
+    for name, body in files.items():
+        path = tmp_path / f"{name}.swift"
+        path.write_text(body, encoding="utf-8")
+        paths.append(path)
+    sources = check_undo_coverage.undo_sources(paths)
+    return {row.endpoint: row for row in check_undo_coverage.scan(_SPEC_FIXTURE, sources)}
+
+
+_REGISTERS = """
+func place(_ id: String, undoManager: UndoManager?) async throws {
+    let response = try await client.api.placeInReadingOrderApiReadingOrdersOrderIdPlacePost(.init(path: .init(orderId: id)))
+    ActionUndo.register(auditId: try response.ok.body.json.auditId, actionName: "Place", undoManager: undoManager, performUndo: undo)
+}
+"""
+
+
+def test_fixture_a_generated_call_that_registers_undo_is_covered(tmp_path):
+    rows = _scan(tmp_path, ReadingOrderStore=_REGISTERS)
+    assert rows[PLACE].undo_registered
+    assert rows[PLACE].evidence == (str(tmp_path / "ReadingOrderStore.swift"),)
+
+
+def test_fixture_the_same_call_without_undo_is_a_gap(tmp_path):
+    no_undo = _REGISTERS.replace("undoManager: UndoManager?", "").replace(
+        "ActionUndo.register(auditId: try response.ok.body.json.auditId, actionName: \"Place\", "
+        "undoManager: undoManager, performUndo: undo)", "")
+    assert "Undo" not in no_undo.replace("placeInReadingOrder", "")
+    rows = _scan(tmp_path, ReadingOrderStore=no_undo)
+    assert not rows[PLACE].undo_registered
+
+
+def test_fixture_a_call_that_answers_no_audit_row_is_a_gap_even_in_an_undo_file(tmp_path):
+    body = _REGISTERS + "\nfunc make() async throws { _ = try await client.api.createThingApiThingsPost(.init()) }\n"
+    rows = _scan(tmp_path, Store=body)
+    assert rows[PLACE].undo_registered
+    assert not rows[THING].undo_registered
+
+
+def test_fixture_the_operation_named_only_in_a_comment_is_a_gap(tmp_path):
+    body = "// placeInReadingOrderApiReadingOrdersOrderIdPlacePost is undone elsewhere\nlet m: UndoManager? = nil\n"
+    rows = _scan(tmp_path, Notes=body)
+    assert not rows[PLACE].undo_registered
 
 
 class TestTheScanStillSeesTheWholeSurface:
