@@ -89,7 +89,11 @@ struct ActivityMonitorWindow: View {
                           let run = mergedRuns.first(where: { $0.id == id }) else { return }
                     openDetails(for: run)
                 }
+                // macOS-only SwiftUI modifier (#3018/#1928): unguarded, this breaks the iOS build.
+                // Delete is still reachable on iOS via the context menu's "Delete" item above.
+                #if os(macOS)
                 .onDeleteCommand { Task { await deleteSelected() } }
+                #endif
             }
         }
         .navigationTitle("Activity")
