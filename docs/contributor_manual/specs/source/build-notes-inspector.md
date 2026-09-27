@@ -1,8 +1,10 @@
-# Build notes: the Inspector, rethought from the archive model (proposal)
+# Build notes: the Inspector, rethought from the archive model
+
+**RULED 2026-09-27.** The maintainer ruled on all four questions in section 7; the rulings are in
+section 8 and in `segment-editor.md`. Nothing here is built yet.
 
 Asked for on 2026-09-27: rethink the Inspector from the archive model, not from the layout it had
-before the model existed. This file is a **proposal for wireframes**. Nothing here is built, and
-nothing here is ruled. It was read on disk on 2026-09-27 on `spec/page-model`.
+before the model existed. It was read on disk on 2026-09-27 on `spec/page-model`.
 
 ## 1. What the Inspector is today, and why that is the wrong starting point
 
@@ -116,8 +118,9 @@ The Inspector has no selection of its own to keep in sync; it is always showing 
   (segment-editor Q5 ruling; `source.editor.reorder` [PARTIAL], `source.textedit.lines-move-in-the-order` [GAP]).
   Today's `ReadingOrderList` is that one implementation. It moves out of the Source picker into this
   section unchanged.
-- **Word under line** is shown but not reordered by default: a word's place is its line's direction
-  (`source.dir.per-segment` [PARTIAL]). This is question 3.
+- **Word under line** is reordered too, with the same verbs as lines (ruled, section 8).
+  Its place still follows the line's direction when nobody has moved it
+  (`source.dir.per-segment` [PARTIAL]).
 
 ### 5.3 Language, script and direction
 - The three facts, each saying where it came from: set here, inherited from the block, the page or
@@ -195,3 +198,19 @@ selection.
    place follows the line's direction?
 4. **The document tabs**: keep the eleven tabs as the source level's view, or fold them into the
    same nine sections? (Knowledge folds into Links; Info into Making.)
+
+## 8. Ruled 2026-09-27
+
+1. **Verbs, not typing.** The Inspector never types a reading or draws a shape. It offers verbs on the
+   selection: reorder, Join, set language or hand, attribute. `segment-editor.md`'s "shows and does not
+   edit" is reworded to say this.
+2. **A path plus the same sections at every level**, empty sections hidden, as proposed.
+3. **Words can be reordered under a line**, with the same verbs as lines: drag, ⌥⌘↑/↓, start and end.
+   The same `ReadingOrderStore` does it.
+4. **The eleven document tabs stay** for the source level. The Artifacts tab's region rows fold into
+   Order.
+
+**Build order:** first the path head plus the Text and Order sections at line, word, block and page,
+using what exists (readings through the segment routes; `ReadingOrderList`). Then Language & script,
+Hands and Making, the facts with engine data behind them.
+

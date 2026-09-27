@@ -15,12 +15,14 @@
 Everything the model can hold can be seen and edited on the page. The editor lives in the
 **Source view** (the pane the app has called the Preview; the maintainer has decided on the
 new name, and the rename is not this spec's to carry through the app), on the image. **Shapes
-are edited in the Source view; readings are typed in the Reader; the Inspector shows and does
-not edit.** That is the split, and it is what keeps three surfaces three. It is **native SwiftUI** (ruled), so one editor
+are edited in the Source view; readings are typed in the Reader; the Inspector never types a
+reading or draws a shape, and offers verbs on the selection** (reorder, Join, set language or
+hand, attribute; ruled 2026-09-27, `build-notes-inspector.md`). That is the split, and it is what keeps three surfaces three. It is **native SwiftUI** (ruled), so one editor
 serves the Mac, the iPad and the iPhone, feels like a Mac app, and takes the Apple Pencil.
 
 The three surfaces stay three. The **Source view** shows the image and edits segments. The
-**Reader** shows readings. The **Inspector** shows the facts about the one selected segment.
+**Reader** shows readings. The **Inspector** shows the facts about the selection, at its level,
+and offers verbs on it.
 Selecting a segment in any of them selects it in the others.
 
 ## What exists today (read on disk 2026-09-19; to be re-read before tagging)
@@ -296,6 +298,16 @@ its panes: **left**, a Preview showing the image with the overlays OFF; **middle
 the overlays with the image OFF; **right**, the Reader, as the text editor. The other built-in
 workspaces keep the image on. Built as `PaneConfig` layer values on those two Preview leaves
 (`previewImage`, and the overlay layer), pinned by a `PaneListTests` test of all three panes.
+
+**Ruling, the Inspector rethought from the archive model (2026-09-27)**, on the four questions of
+`build-notes-inspector.md`:
+1. **Verbs, not typing.** The Inspector never types a reading or draws a shape. It offers verbs on
+   the selection: reorder, Join, set language or hand, attribute.
+2. **A path head and the same sections at every level**, empty sections hidden, as proposed.
+3. **Words can be reordered under a line**, with the same verbs as lines (drag, ⌥⌘↑/↓, start / end),
+   through the same `ReadingOrderStore`.
+4. **The eleven document tabs stay** as the source level's view. The Artifacts tab's region rows fold
+   into the Order section.
 
 Slice 12 (the speed trial) is a hard gate before any of this.
 
