@@ -100,15 +100,45 @@ struct ActionUndoTests {
         #expect(engine.inverted == ["a1", "a2", "a3"])
     }
 
+    @Test("a DISCARDED handle still undoes — the app's caller throws it away")
+    func discardedHandleStillUndoes() async {
+        // The app registers and ignores the result (`@discardableResult`). UndoManager does
+        // not retain its target, so if nothing else held the handle, ⌘Z invoked a freed
+        // object and crashed Fichero. This test does exactly what the app does, nothing more.
+        let manager = manager()
+        let engine = FakeEngine()
+        manager.beginUndoGrouping()
+        ActionUndo.register(
+            auditId: "a1", actionName: "Move Region", undoManager: manager,
+            performUndo: engine.undo
+        )
+        manager.endUndoGrouping()
+
+        manager.undo()
+        await settle(manager)
+        manager.redo()
+        await settle(manager)
+
+        #expect(engine.inverted == ["a1", "a2"], "undo and redo both reached the engine")
+    }
+
     @Test("with no audit id, nothing is registered — there is no row to invert")
     func noAuditIdRegistersNothing() {
         // The route answers audit_id; if it ever comes back empty, offering ⌘Z would
         // mean inverting a guessed row.
+        // Called WITHOUT the grouping helper: an empty begin/end grouping is itself an undo
+        // entry to UndoManager (canUndo reads true with nothing registered), which is what the
+        // first version of this test measured instead of ActionUndo.
         let manager = manager()
         let engine = FakeEngine()
 
-        #expect(register(nil, on: manager, engine: engine) == nil)
-        #expect(register("", on: manager, engine: engine) == nil)
+        for empty in [String?.none, ""] {
+            let handle = ActionUndo.register(
+                auditId: empty, actionName: "Move Region", undoManager: manager,
+                performUndo: engine.undo
+            )
+            #expect(handle == nil)
+        }
         #expect(manager.canUndo == false)
     }
 

@@ -51,7 +51,14 @@ enum ActionUndo {
         undoManager: UndoManager,
         performUndo: @escaping @MainActor (String) async throws -> String
     ) {
-        undoManager.registerUndo(withTarget: handle) { current in
+        // The closure holds `handle` STRONGLY, and it must. UndoManager does not retain its
+        // target: with only `current` (the target, passed back) the handle was freed as soon
+        // as `register` returned -- the app's one caller discards it, `@discardableResult` --
+        // and the first ⌘Z crashed inside `-[NSUndoManager undoNestedGroup]` on a dangling
+        // object (SIGTRAP, `swift_getObjectType`). Captured here, the handle lives exactly
+        // as long as the undo entry does. Found by ActionUndoTests on first execution.
+        undoManager.registerUndo(withTarget: handle) { _ in
+            let current = handle
             MainActor.assumeIsolated {
                 // Registered NOW, inside the handler, so UndoManager files it as the redo
                 // of this undo. Its id is filled in when the engine answers.
