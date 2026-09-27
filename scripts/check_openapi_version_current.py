@@ -95,7 +95,13 @@ def check(repo_root: Path) -> int:
             stale.append((relative, found))
 
     if not stale:
-        print(f"\nAll {len(CONTRACTS)} contracts match the code.")
+        # Say exactly what was compared. "All 3 contracts match the code" was printed all
+        # day on 2026-09-27 while three route changes sat outside every contract: this
+        # reads `info.version` and nothing else. Routes: check_openapi_route_set_current.
+        print(
+            f"\ninfo.version matches pyproject ({expected}) in all {len(CONTRACTS)} contracts. "
+            "Routes and schemas are not compared here."
+        )
         return 0
 
     print(f"\n{len(stale)} contract(s) do not match the code ({expected}):")
