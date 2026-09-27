@@ -43,7 +43,25 @@ def parse(data: bytes) -> Any:
     """
     from lxml import etree
 
-    return etree.fromstring(data, parser=safe_parser())
+    try:
+        return etree.fromstring(data, parser=safe_parser())
+    except etree.XMLSyntaxError:
+        # ONE error is tolerated, by name, and nothing else (#5130): an `xml:id` value that
+        # is not an NCName. Transkribus's TEI export writes image file names as
+        # `<pb xml:id="0001_100_003_011_445.png">` -- a digit first, so not an NCName, and
+        # libxml2 refuses the whole file for it. The document is otherwise well-formed and
+        # the value is kept verbatim. Recovery is accepted ONLY when every error it logged
+        # is that one type: recover mode logs everything it repairs, so an empty remainder
+        # means nothing else was repaired. Any other error raises the original, strict one.
+        tolerant = etree.XMLParser(
+            resolve_entities=False, no_network=True, load_dtd=False,
+            dtd_validation=False, huge_tree=False, recover=True,
+        )
+        root = etree.fromstring(data, parser=tolerant)
+        errors = list(tolerant.error_log)
+        if root is None or not errors or any(e.type_name != "DTD_XMLID_VALUE" for e in errors):
+            raise
+        return root
 
 
 #: Absolute schema URLs a vendored schema IMPORTS, mapped to the local file that

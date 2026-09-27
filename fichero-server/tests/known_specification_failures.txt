@@ -54,21 +54,3 @@ tests/unit/scripts/test_every_guard_passes_on_the_real_tree.py::test_every_guard
 # milestone to FIX, never a baseline to raise. The guard was right the whole time
 # and ran nowhere anyone looked (#4861); this node is where it now runs.
 tests/unit/scripts/test_every_guard_passes_on_the_real_tree.py::test_every_guard_passes_on_the_real_tree[check_swiftlint_warning_ratchet.py]
-
-# ---- #5130 (7) ----
-# Real files from other people's software that the formats cannot yet carry
-# (tests/unit/formats/test_real_corpus.py; provenance in fixtures/corpus/CORPUS.md).
-# Transkribus's TEI export uses image file names ("0001_...png") as <pb xml:id>, which
-# are not NCNames; the TEI reader's strict lxml parse raises instead of importing the
-# 26 surfaces. The write-back and loss tests fail only because the import does.
-tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_it_imports[transkribus_tibetan-layout_pagantibet-corr1.tei.xml]
-tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_our_export_validates_against_the_schema_we_export[transkribus_tibetan-layout_pagantibet-corr1.tei.xml]
-tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_the_loss_report_accounts_for_everything_that_did_not_come_back[transkribus_tibetan-layout_pagantibet-corr1.tei.xml]
-# A line with an EMPTY shape (`<Coords points=""/>`, baseline only -- Calfa RASAM) is
-# written back with no <Coords>, which PAGE 2019 requires: import works, export refused.
-tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_our_export_validates_against_the_schema_we_export[calfa_arabic-baseline-only_rasam417-0010.page.xml]
-tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_the_loss_report_accounts_for_everything_that_did_not_come_back[calfa_arabic-baseline-only_rasam417-0010.page.xml]
-# eScriptorium's `eSc_dummyblock_` region (lines outside any region) has NO <Coords> at
-# all; it is written back without one, so the export is refused -- same defect class.
-tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_our_export_validates_against_the_schema_we_export[escriptorium-transkribus_syriac_smmj36-0004.page.xml]
-tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_the_loss_report_accounts_for_everything_that_did_not_come_back[escriptorium-transkribus_syriac_smmj36-0004.page.xml]
