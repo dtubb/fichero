@@ -147,7 +147,10 @@ async def export_document_page(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except InvalidExport as exc:
         # A file that does not validate is a failure and no file (`source.format.export-validated`).
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        # 422, as `responses=` above has always DECLARED: it raised 500, which tells a person
+        # "the app broke" when the truth is "this page cannot be written validly in this
+        # format" -- and the sentence says why. The generated client saw an undeclared 500.
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return PageExportResponse(
         format=result.format,
         filename=result.filename,

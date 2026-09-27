@@ -393,8 +393,12 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                 WIDTH=str(int(round(rect[2] * width))),
                 HEIGHT=str(int(round(rect[3] * height))),
             )
-        if segment.kind == "word" and segment.readings:
-            attrs["CONTENT"] = segment.readings[0][1]
+        if segment.kind == "word":
+            # `String@CONTENT` is REQUIRED (#5130): an untranscribed word -- the ordinary
+            # state of a segmented page nobody has read yet -- is written `CONTENT=""`,
+            # which `xsd:string` allows, and the reader takes an empty CONTENT as no
+            # reading. Omitting the attribute failed 15 of 239 real pages.
+            attrs["CONTENT"] = segment.readings[0][1] if segment.readings else ""
         element = etree.SubElement(
             parent_el, f"{{{ALTO_NS_V4}}}{element_name}", **attrs
         )
@@ -429,7 +433,10 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                 "ALTO has no reading-direction attribute, so a right-to-left page "
                 "reads as its coordinates alone",
             )
-        if segment.kind == "line" and segment.readings and ref not in has_words:
+        # A TextLine must hold at least one String (the schema's sequence has no
+        # minOccurs="0"), so an UNTRANSCRIBED line with no words gets the implicit String
+        # too, with `CONTENT=""` -- writing none was the other half of #5130's defect.
+        if segment.kind == "line" and ref not in has_words:
             # The required child, carrying the line's own words. Marked, so the reader
             # drops it and the line's text comes back on the LINE rather than as a word
             # nobody segmented.
@@ -437,7 +444,7 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                 element,
                 f"{{{ALTO_NS_V4}}}String",
                 ID=xml_id(f"{IMPLICIT_ID_PREFIX}string-{ref}"),
-                CONTENT=segment.readings[0][1],
+                CONTENT=segment.readings[0][1] if segment.readings else "",
                 HPOS=attrs.get("HPOS", "0"),
                 VPOS=attrs.get("VPOS", "0"),
                 WIDTH=attrs.get("WIDTH", "0"),
@@ -446,8 +453,8 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             report.note(
                 "implicit words",
                 1,
-                "ALTO requires a TextLine to hold a String, and this line's text is on "
-                "the line itself, so one String was invented with an id marked "
+                "ALTO requires a TextLine to hold a String, and this line has no words (its text, if any, is on "
+                "the line itself), so one String was invented with an id marked "
                 "`fichero-implicit-` and is dropped again on re-import",
             )
         elif segment.kind == "region" and segment.readings:

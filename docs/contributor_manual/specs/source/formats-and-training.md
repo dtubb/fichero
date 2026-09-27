@@ -346,7 +346,12 @@ Each format (one import and one export behaviour each)
   the latest release (ruled 2026-09-27), declaring it (`SCHEMAVERSION` and the schema file, since
   4.x shares one namespace), and names what it cannot carry. `Page@LANG`, which 4.4 added, is
   written when it is a BCP 47 tag and is no longer a loss
-  (`test_alto.py::TestARealHebrewExportStatesItsLanguageWhereAltoDoesNotAllowIt::test_the_page_language_is_written_back_in_4_4_and_is_no_longer_a_loss`). It also invents the `TextBlock` and `TextLine` a bare `String` needs
+  (`test_alto.py::TestARealHebrewExportStatesItsLanguageWhereAltoDoesNotAllowIt::test_the_page_language_is_written_back_in_4_4_and_is_no_longer_a_loss`).
+  An **untranscribed** word or line is written `CONTENT=""` and not left without `String`. The schema
+  requires a `String` in every `TextLine` and a `CONTENT` on every `String`, and allows it to be
+  empty. A segmented page nobody has read yet is the ordinary case, and omitting the attribute refused
+  15 of 239 real pages (`test_alto.py::TestAnUntranscribedPageExportsValid::test_untranscribed_words_and_lines_export_valid`,
+  `::TestAnUntranscribedPageExportsValid::test_an_empty_content_comes_back_as_no_reading_not_an_empty_one`). It also invents the `TextBlock` and `TextLine` a bare `String` needs
   (→ #5084) — **marked `fichero-implicit-` and dropped again on re-import**, so a scholar who exports
   and re-imports gets their word back rather than a block nobody drew. Pinned by
   `test_alto.py::TestTheImplicitParentIsWrittenAndMarked` (5 tests, including that a real page with
