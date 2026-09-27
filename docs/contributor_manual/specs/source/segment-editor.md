@@ -520,12 +520,52 @@ The editor
   selection is shared.
 - `source.editor.library-lists-segments` — **[GAP]** (#4941) the Library can list segments as rows, so
   project-wide questions about segments are ordinary Library searches.
-- `source.editor.one-overlay` — **[GAP]** (#4941) one component draws and edits segments in the Source view; no
+- `source.editor.one-overlay` — **[PARTIAL]** (#4941) one component draws and edits segments in the Source view; no
   second overlay renderer exists in the app.
-- `source.editor.shapes-in-source-view` — **[GAP]** (#4941) a segment's shape is edited in the Source view; its
-  readings are typed in the Reader; the Inspector shows and does not edit.
-- `source.editor.selection-shared` — **[GAP]** (#4941) selecting a segment in the Source view, Reader or Inspector
+  **One SOURCE of geometry as of 2026-09-27, and two RENDERERS — which the behaviour as written
+  forbids and the platform requires.** Both surfaces now take their boxes from
+  `SegmentDisplay` (`source.app.overlays-draw-from-the-seam`), so there is one decision about
+  what to draw. But the drawing itself is `OCRGeometryOverlay`'s SwiftUI `Canvas` on an image and
+  `PDFAnnotation` squares on a PDF page, and the reason is recorded where the second one lives:
+  "AppKit's `PDFView` has no coordinate space a SwiftUI overlay can lay out in". A third renderer
+  does not exist — the Inspector's regions panel lists rows and draws nothing.
+  So the sentence needs deciding rather than implementing: either it means one renderer per
+  surface kind with one geometry source behind them (true today), or it means one renderer
+  full stop, which PDFKit makes unreachable without abandoning `PDFView`. **Not filed as its own
+  issue**: it is the same question as #5114 about what a sentence in this spec is asking for, and
+  it should be answered in the same sitting.
+- `source.editor.shapes-in-source-view` — **[PARTIAL]** (#4941; the Inspector contradicts it, → #5115) a segment's
+  shape is edited in the Source view; its readings are typed in the Reader; the Inspector shows
+  and does not edit.
+  **Clause by clause, read on disk 2026-09-27.** *Shapes in the Source view*: yes — move, delete,
+  combine and draw live in `ZoomableImagePreviewMac+Regions`. *The Inspector shows and does not
+  edit*: **false.** `ArtifactPanel+Regions.swift:61` is a visible `Button("Combine")` calling the
+  same audited action the Source view's verb calls, built deliberately ("COMBINE from the
+  attribute browser — the same audited engine action as the Preview's verb"). Either the split is
+  the rule and the button goes, or the sentence is too strong and the Inspector may invoke verbs
+  on what it lists; #5115 asks. What decides it for me is not tidiness but that the Inspector's
+  verb is a SECOND implementation of the selection clause — it does check
+  `selection.artifactId == artifactId`, and a second copy of that check is where the rule rots.
+  *Readings typed in the Reader*: no surface at all yet (`source.textedit.*`, #5001).
+- `source.editor.selection-shared` — **[PARTIAL]** (#4941) selecting a segment in the Source view, Reader or Inspector
   selects it in the others.
+  **Two of the three pairs exist, by two different mechanisms** (read on disk 2026-09-27), and
+  the mechanisms are the finding rather than the coverage.
+  *Source view ↔ Inspector*: one shared object, `RegionSelection.shared` — written and read by
+  both, plus `FocusedRegionSelection.shared` for region NODES, whose own comment explains the
+  shape: a process-wide instance rather than environment plumbing, because writer and reader live
+  in different view subtrees.
+  *Reader → Source view*: a notification, `.readerTextSelection`, carrying character offsets; the
+  preview turns them into the word boxes whose spans intersect. Not a segment selection — a text
+  range that resolves to boxes.
+  *Source view → Reader*: the seam accepts a passage landing and `PageContentPane+SourceHighlight`
+  names "a linked region" as one source of it, but **no region-selection code posts one**: the
+  only posters are the reader's own text selections. So clicking a box does not move the reader.
+  **What this means for the editor.** A segment selection shared three ways cannot be built on
+  either mechanism as it stands: `RegionSelection` holds INDICES into one artifact's box list — a
+  position used as an identity, the defect this slice has now met three times — and the reader's
+  link is character offsets. The editor needs a selection of segment IDS, which is a fourth thing,
+  and the honest move is to build it once rather than teach two mechanisms a third vocabulary.
 - `source.editor.edits-are-actions` — **[PARTIAL]** (#4941) every edit is one audited, reversible engine action; the
   editor updates only the changed segments.
   **Both halves hold for the edit path that exists today** (audited 2026-09-27); what is owed is
@@ -571,6 +611,23 @@ The editor
   original request. The editor cannot ship without this.)
 - `source.editor.system-undo` — **[GAP]** (#4941) ⌘Z and ⇧⌘Z undo and redo editor actions through the action
   pass.
+  **Genuinely absent, and the blocker is one missing value rather than the wiring** (read on disk
+  2026-09-27). The engine half is complete: `POST /api/actions/audit/{audit_id}/undo` inverts any
+  audited action, and redo is the undo of the undo (pinned in `test_action_undo.py`). The app
+  knows how to do its half too — `registerUndo` is used by the sidebar, the library canvas and the
+  workflow canvas, so there is a pattern to copy rather than a design to invent.
+  What was missing between them was one value: the region-edit route answered an
+  `ArtifactResponse` and never said which audit row it wrote, so the app had no `audit_id` to hand
+  `⌘Z` — and reading the newest audit row instead would be a race against any other writer, which
+  on a shared library is one person undoing another's edit. **Fixed 2026-09-27**:
+  `PUT /api/artifacts/{id}/regions` answers `ArtifactRegionsEditResponse`, a SUPERSET of
+  `ArtifactResponse` so every existing caller decodes it unchanged, carrying `audit_id`. Pinned by
+  `TestTheEditNamesTheActionItWrote.test_the_response_carries_the_audit_id` — which resolves the id
+  to its row and checks the action name, rather than only checking a field is present — and
+  `.test_it_is_still_the_artifact_response_every_caller_decodes`.
+  **Still `[GAP]`**: what remains is the app's `registerUndo` wiring, for which there is a pattern
+  to copy (the sidebar, the library canvas and the workflow canvas all use it) and no design to
+  invent. The engine side is now complete end to end.
 - `source.editor.agent-parity` — **[PARTIAL]** (#4941) every edit the editor can make can be made over MCP and the
   command line through the same actions.
   **The command line: yes, and by construction rather than by design** (audited 2026-09-27).

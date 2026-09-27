@@ -374,3 +374,48 @@ class TestContract:
         # And in the version rows, which is what undo reads.
         rows = _rows(db, a.id, live_only=False)
         assert any(row.version > 1 for row in rows)
+
+
+class TestTheEditNamesTheActionItWrote:
+    """`source.editor.system-undo` (#4941): the route answers its audit id.
+
+    Without it the app cannot offer ⌘Z for a region edit — `POST
+    /api/actions/audit/{id}/undo` inverts any audited action and the app had no id to
+    hand it. Reading the newest audit row instead would be a race against any other
+    writer, and on a shared library that is one person undoing another's edit.
+    """
+
+    def test_the_response_carries_the_audit_id(self, db, client):
+        doc = _make_doc(db)
+        artifact = _make_regions_artifact(db, doc.id)
+
+        response = _edit(
+            client, artifact.id,
+            {"op": "move", "indices": [1], "bbox": [0.7, 0.7, 0.1, 0.05]},
+        )
+
+        assert response.status_code == 200, response.text
+        audit_id = response.json().get("audit_id")
+        assert audit_id, "the app cannot undo an edit whose action it cannot name"
+
+        # And it names THIS edit's row, not merely some row: the id resolves to the
+        # action that was just invoked.
+        audit = db.get(ActionAudit, audit_id)
+        assert audit is not None, f"audit_id {audit_id} names no row"
+        assert audit.action_name == "segment.convert_and_edit"
+
+    def test_it_is_still_the_artifact_response_every_caller_decodes(self, db, client):
+        """A superset, not a new shape. The app decodes this route's answer as an
+        artifact today, so the fields it reads must all still be there — a narrower
+        response would break the caller this change exists to serve."""
+        doc = _make_doc(db)
+        artifact = _make_regions_artifact(db, doc.id)
+
+        body = _edit(
+            client, artifact.id,
+            {"op": "move", "indices": [1], "bbox": [0.7, 0.7, 0.1, 0.05]},
+        ).json()
+
+        for field in ("id", "document_id", "artifact_type", "ocr_geometry"):
+            assert field in body, f"{field} vanished from the region-edit response"
+        assert body["id"] == artifact.id
