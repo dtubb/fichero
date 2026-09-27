@@ -897,6 +897,33 @@ class FicheroClient:
             params={"pass_id": pass_id, "order_id": order_id, "reading_kind": reading_kind},
         )
 
+    def import_page(
+        self,
+        doc_id: str,
+        path: str | Path,
+        *,
+        import_format: str | None = None,
+        name: str | None = None,
+    ) -> Any:
+        """A PAGE XML, ALTO, hOCR, TEI or YOLO file as a new pass on one page
+        (`POST /api/documents/{id}/import`, `source.format.everywhere`).
+
+        Not `import_file`, which puts a NEW DOCUMENT in the library. This adds a
+        pass to a document that is already there, which is a different act: the
+        page exists and somebody else's transcription of it is arriving.
+
+        Thin, like `export_page`: the recognising, the repairing and the refusing
+        all happen once in the engine, and no second import path lives here.
+        """
+        file_path = Path(path).expanduser()
+        with file_path.open("rb") as handle:
+            return self.request(
+                "POST",
+                f"/api/documents/{doc_id}/import",
+                params={"format": import_format, "name": name},
+                files={"file": (file_path.name, handle)},
+            )
+
     def import_file(self, path: str | Path, parent_id: str | None = None) -> Document:
         """Upload a single file to the library (multipart/form-data)."""
         file_path = Path(path).expanduser()

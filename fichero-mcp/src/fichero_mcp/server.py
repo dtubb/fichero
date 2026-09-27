@@ -714,6 +714,46 @@ def fichero_page_export(
 
 
 @mcp.tool()
+def fichero_page_import(
+    doc_id: str,
+    path: str,
+    format: str | None = None,
+    name: str | None = None,
+) -> Any:
+    """Import a PAGE XML, ALTO, hOCR, TEI or YOLO file as a NEW PASS on one page.
+
+    The other direction of `fichero_page_export`. Not `fichero_import`, which puts a
+    new document in the library: this adds somebody else's transcription of a page that
+    is already there.
+
+    Returns the new `pass_id`, the format that was RECOGNISED (which may not be what the
+    file's name claimed — a renamed eScriptorium export still reads as `pagexml`), the
+    counts that landed (`segments`, `readings`, `order_entries`), the file's `checksum`,
+    and `geometry_problems`: how many shapes the file could not express properly and the
+    engine repaired. **Report the recognised format and any repairs to the person.** An
+    import described as clean when forty boxes were repaired is a confident wrong answer.
+
+    The import does NOT become the working pass. Somebody else's file arriving is not a
+    decision about which reading of the page is authoritative, so nothing already on the
+    page changes.
+
+    Refusals carry the sentence that matters: the same bytes already on this document
+    (nothing was written, and the sentence names the pass that holds them), a file nothing
+    recognises (the sentence lists the formats this build reads), or shapes lying outside
+    the page the file declares (the sentence names the segments that disagree). Pass the
+    sentence on rather than reporting that the import failed.
+
+    Args:
+        doc_id: The page's document id.
+        path: Path to the interchange file, on the machine the ENGINE runs on.
+        format: Force a format instead of recognising one from the bytes.
+        name: What to call the new pass.
+    """
+    with _mutating_client() as client:
+        return client.import_page(doc_id, path, import_format=format, name=name)
+
+
+@mcp.tool()
 def fichero_formats_list() -> Any:
     """List the interchange formats this build reads and writes, and whether each is validated."""
     with _client() as client:
