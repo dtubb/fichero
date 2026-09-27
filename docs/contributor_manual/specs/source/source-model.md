@@ -520,7 +520,10 @@ build notes for slice 6).
 10. Reading orders, flows and typed links.
 11. The format model and its harness (validate, loss report, round trip); then PageXML; then
     ALTO; then YOLO labels. TEI after those, with its own reader and writer.
-12. The editor's performance trial: a hard gate.
+12. The editor's performance trial: a hard gate. The numbers were ruled and the METHOD was
+    not, which is how a gate becomes an argument; `segment-editor.md`'s "Slice 12: the speed
+    trial, and how it is measured" now states the fixture, the machines, the run count, what
+    counts as idle and what the result is compared with (`source.perf.*`).
 13. The editor: one overlay, one input seam, every edit an action.
 13b. Editing a page by its text (direction given 2026-09-20; design in `segment-editor.md`,
     `source.textedit.*`): the lines' readings as editable text beside a linked Source view;

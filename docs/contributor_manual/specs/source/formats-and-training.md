@@ -7,8 +7,11 @@
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
 > code makes them pass. **Status: DRAFT.** A slice of the source model: read `source-model.md`
-> first. Evidence in `source-survey.md`. Every behaviour below is tagged **[GAP]** with its issue; everything
-> is design unless the foundation's "What exists today" says otherwise. (Today: no PageXML,
+> first. Evidence in `source-survey.md`. Build notes, and the decisions the real files forced on
+> the way: `build-notes-formats-harness.md`. Each behaviour below carries its own tag and its
+> issue — **[GAP]** was true of all of them when this was written, and the harness, PAGE XML,
+> ALTO, hOCR, YOLO and the import path have since landed; TEI has not. Everything still tagged
+> **[GAP]** is design unless the foundation's "What exists today" says otherwise. (Today: no PageXML,
 > ALTO, TEI, MEI, hOCR or YOLO code; a Convert-to-SVG tool exists (a vision model redraws the
 > page; it is not made from geometry); Parquet, IIIF, W3C annotation and RDF export ship
 > through one record stream, which carries no geometry; a IIIF and W3C-annotation importer

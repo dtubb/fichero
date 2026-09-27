@@ -583,3 +583,97 @@ class TestWhatAnOrderNamesAndTheTextDoesNotHold:
         assert document_text(
             db, doc.id, order=made["order_id"], include_furniture=True
         ).omitted == []
+
+
+class TestAnOrderOfAnotherPassIsRefused:
+    """The invariant `document_text`'s own comment claimed and nothing enforced.
+
+    The comment said a named order "must belong to the pass being read — a text
+    assembled from one pass's readings in another pass's order would be a
+    sentence nobody wrote". Nothing checked it, so such a request produced an
+    EMPTY text: every ordered id belonged to a pass whose rows were not loaded.
+    Found writing the refusals down for the api reference, 2026-09-27.
+
+    A flow is no exception. A flow belongs to the pass it was made on and
+    continues onto others, which is why the omission of a continuation is
+    reported (#5090) while the pairing of order and pass is refused.
+    """
+
+    def test_reading_one_passs_text_in_another_passs_order_is_refused_by_name(
+        self, db, client
+    ):
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.models.knowledge import ProvenanceKind
+        from fichero_server.models.reading_orders import OrderIsOfAnotherPass
+        from fichero_server.models.segments import SegmentPass
+
+        doc = _make_doc(db)
+        artifact = _artifact(db, doc)
+        _convert(client, artifact.id)
+        converted = converted_pass_id(artifact.id)
+        person = ActionContext(actor="historian", is_bootstrap=True)
+
+        other = SegmentPass(
+            document_id=doc.id, name="a second reading", provenance_kind=ProvenanceKind.human
+        )
+        db.save(other)
+        order_of_the_other = registry.invoke(
+            db, "reading_order.create",
+            {"document_id": doc.id, "pass_id": other.id, "name": "the other pass's order",
+             "kind": "commentary"},
+            person,
+        ).result
+
+        with pytest.raises(OrderIsOfAnotherPass) as refusal:
+            document_text(db, doc.id, pass_id=converted, order=order_of_the_other["order_id"])
+
+        # The sentence names both passes and says which one to ask for, because
+        # "empty text" told the caller nothing at all.
+        assert other.id in str(refusal.value)
+        assert converted in str(refusal.value)
+        assert f"pass_id={other.id}" in str(refusal.value)
+
+    def test_the_route_turns_it_into_a_422(self, db, client):
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.models.knowledge import ProvenanceKind
+        from fichero_server.models.segments import SegmentPass
+
+        doc = _make_doc(db)
+        artifact = _artifact(db, doc)
+        _convert(client, artifact.id)
+        converted = converted_pass_id(artifact.id)
+        person = ActionContext(actor="historian", is_bootstrap=True)
+        other = SegmentPass(
+            document_id=doc.id, name="a second reading", provenance_kind=ProvenanceKind.human
+        )
+        db.save(other)
+        made = registry.invoke(
+            db, "reading_order.create",
+            {"document_id": doc.id, "pass_id": other.id, "name": "elsewhere",
+             "kind": "commentary"},
+            person,
+        ).result
+
+        response = client.get(
+            f"/api/segments/document/{doc.id}/text",
+            params={"pass_id": converted, "order": made["order_id"]},
+        )
+        assert response.status_code == 422, response.text
+        assert "not of pass" in response.json()["detail"]
+
+    def test_an_orders_own_pass_still_reads(self, db, client):
+        """The guard must not refuse the ordinary case."""
+        from fichero_server.actions.registry import ActionContext, registry
+
+        doc = _make_doc(db)
+        artifact = _artifact(db, doc)
+        _convert(client, artifact.id)
+        pass_id = converted_pass_id(artifact.id)
+        made = registry.invoke(
+            db, "reading_order.create",
+            {"document_id": doc.id, "pass_id": pass_id, "name": "as written",
+             "kind": "as-written", "seed_from_pass": True},
+            ActionContext(actor="historian", is_bootstrap=True),
+        ).result
+
+        assert document_text(db, doc.id, pass_id=pass_id, order=made["order_id"]).text
