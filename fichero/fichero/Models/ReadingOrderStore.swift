@@ -32,7 +32,11 @@ final class ReadingOrderStore {
         orders = try await transport.orders(documentId: documentId)
         orderId = (orders.first { $0.name == name } ?? orders.first)?.id
         levels = [:]
-        entries = try await orderId.map { try await transport.entries(orderId: $0, parentEntryId: nil) } ?? []
+        if let orderId {
+            entries = try await transport.entries(orderId: orderId, parentEntryId: nil)
+        } else {
+            entries = []
+        }
     }
 
     /// A DRAG: `segmentId` to occupy `index` in the final list. Answers the audit id for ⌘Z.

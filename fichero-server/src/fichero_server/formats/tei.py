@@ -119,6 +119,9 @@ KNOWN_INLINE = frozenset({"lb", "pb", "w", "seg", "app", "lem", "rdg", "ab", "p"
 
 #: `<note type=...>` that carries a word segment whose text is not in its line's text (#5083).
 UNPLACED_WORD = "unplaced-word"
+#: `foreign` key on a line placed only by its page's `<pb>` zone (#5141): the zone's id, so the
+#: export writes `<pb facs="#id">` and bare `<lb/>`s, as the file did, not one zone per line.
+PAGE_ZONE = "tei-page-zone"
 
 DIRECTION_TO_STYLE = {
     "ltr": "direction: ltr",
@@ -384,7 +387,14 @@ def read_pages(data: bytes) -> list[SourcePage]:
             state["region"] = region = None
             _tail(element)
             return
-        if tag in REGION_TAGS and element.get("type") != "anonymous":
+        verse_inside_a_line = (
+            tag == "l" and state["line"] is not None
+            and any(_tag(a) == "seg" for a in element.iterancestors())
+        )
+        # A poem INSIDE a printed line (the Digital Genji's waka: `<lb/><seg>　　<lg><l>..</l>
+        # ..</lg>いとか</seg>`) is verse divisions of that line, not regions of the page. Read as
+        # regions, the line was split into five and the text after the poem was DROPPED (#5143).
+        if tag in REGION_TAGS and element.get("type") != "anonymous" and not verse_inside_a_line:
             # A `<lb/>` written just BEFORE its block still owns the block's first text (real
             # files do this): an open line with nothing in it is adopted, not flushed.
             adopt = state["line"] if (state["line"] is not None and not "".join(state["buffer"]).strip()) else None
@@ -561,7 +571,15 @@ def read_pages(data: bytes) -> list[SourcePage]:
                     break
         if surface is None and index < len(surfaces):
             surface = surfaces[index]
+        if pb is not None:
+            # What names this page, so a caller that takes some pages and not others can say
+            # WHICH it left out (#5143): `<pb n>` is the page's number, `facs`/`corresp` its image.
+            described = {k: pb.get(k) for k in ("n", "facs", "corresp") if pb.get(k)}
+            if described:
+                page.foreign.setdefault("tei", {})["pb"] = described
         if surface is not None:
+            if surface.element.get(_XML_ID):
+                page.foreign.setdefault("tei", {})["surface"] = surface.element.get(_XML_ID)
             page.image_name = surface.image_name
             if surface.size:
                 page.image_size = (int(round(surface.size[0])), int(round(surface.size[1])))
@@ -583,11 +601,21 @@ def read_pages(data: bytes) -> list[SourcePage]:
         # a region with nothing in it and no zone is a wrapper (`<sp>`'s speaker, an empty `<ab/>`),
         # not a region of the page
         raw_page["regions"] = [r for r in raw_page["regions"] if any(k.ref == r for k in kept_segments)]
+        page_zone = page.foreign.get("tei", {}).get("zone")
         for segment in kept_segments:
             facs = raw_page.get("facs", {}).get(segment.ref)
             if facs and facs in zones and facs in zone_owner:
                 rect, polygon, baseline = _zone_geometry(zones[facs], zone_owner[facs])
                 segment.rect, segment.polygon, segment.baseline = rect, polygon, baseline
+            elif segment.kind == "line" and page_zone in zones and page_zone in zone_owner:
+                # A line that names no zone of its own, on a page whose `<pb>` names one (the
+                # Digital Genji: `<pb corresp="#zone_0005">`, then bare `<lb/>`s). The file
+                # places the line in that zone and no more precisely, so its shape IS the zone
+                # (#5141) -- not `unstated`, which would say the file gave no place at all.
+                # Marked, so the export refers to the zone instead of minting one per line.
+                rect, polygon, _ = _zone_geometry(zones[page_zone], zone_owner[page_zone])
+                segment.rect, segment.polygon = rect, polygon
+                segment.foreign[PAGE_ZONE] = page_zone
             alts = segment.foreign.pop("_alts", [])
             segment.readings.extend(alts)
             segment.foreign.pop("_kind", None)
@@ -615,6 +643,15 @@ def read_pages(data: bytes) -> list[SourcePage]:
             if "page" in page.foreign.get("tei", {}):
                 page.foreign["tei"]["page"] = f"{index + 1} of {len(out)}"
     return out
+
+
+def describe_page(page: SourcePage, number: int) -> str:
+    """How a person finds one page of a TEI file: `page 6 (#zone_0006)` -- its `<pb n>` and what
+    its `<pb>` points at -- or `page 2 of the file` when the page break says nothing (#5143)."""
+    pb = (page.foreign.get("tei") or {}).get("pb") or {}
+    label = f"page {pb['n']}" if pb.get("n") else f"page {number} of the file"
+    pointer = pb.get("corresp") or pb.get("facs")
+    return f"{label} ({pointer})" if pointer else label
 
 
 def read(data: bytes) -> SourcePage:
@@ -763,11 +800,35 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         else:
             last.tail = (last.tail or "") + text
 
+    page_zones: dict[str, Any] = {}
+
+    def page_zone_for(line: PageSegment) -> str:
+        """The zone a `<pb>` names, written once and referred to by the page break, the way
+        the file placed the line (#5141): a bare `<lb/>` under `<pb facs="#zone">`."""
+        zid = str(line.foreign[PAGE_ZONE])
+        if zid not in page_zones:
+            zone = etree.SubElement(surface, q("zone"), {_XML_ID: zid})
+            if line.polygon:
+                zone.set("points", _points_out(line.polygon, width, height))
+            elif line.rect:
+                x, y, w, h = line.rect
+                zone.set("ulx", str(int(round(x * width))))
+                zone.set("uly", str(int(round(y * height))))
+                zone.set("lrx", str(int(round((x + w) * width))))
+                zone.set("lry", str(int(round((y + h) * height))))
+            pb = etree.Element(q("pb"), facs=f"#{zid}")
+            body.insert(len(page_zones), pb)
+            page_zones[zid] = zone
+        return zid
+
     def write_line(container: Any, line: PageSegment) -> None:
         lb = etree.SubElement(container, q("lb"))
-        zid = zone_for(line)
-        if zid:
-            lb.set("facs", f"#{zid}")
+        if line.foreign.get(PAGE_ZONE) and (line.rect or line.polygon):
+            page_zone_for(line)
+        else:
+            zid = zone_for(line)
+            if zid:
+                lb.set("facs", f"#{zid}")
         words = [s for s in children.get(line.ref, []) if s.kind == "word"]
         others = [s for s in children.get(line.ref, []) if s.kind not in ("word",)]
         for other in others:

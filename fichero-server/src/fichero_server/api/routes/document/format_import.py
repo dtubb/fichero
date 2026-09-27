@@ -182,6 +182,10 @@ class FormatImportParams(BaseModel):
     #: The file was UPLOADED into a temp folder the engine made: a YOLO dataset's class names
     #: are looked for in that folder only, never in the engine's folders above it.
     uploaded: bool = False
+    #: A multi-page file (TEI: one page per `<pb>`): which pages, numbered from 1 in the file's
+    #: order, become this pass. Omitted, the first. Several are ONE pass on this document --
+    #: the Digital Genji puts two printed pages on one scan (#5143).
+    pages: Optional[list[int]] = None
 
 
 def _invert_format_import(before, after, ctx: ActionContext):
@@ -235,7 +239,14 @@ def _action_format_import(db: Database, params: FormatImportParams, ctx: ActionC
 
         names = class_names_beside(path, walk_up=not params.uploaded)
         page = read_yolo(data, names)
+    elif spec.name == "tei":
+        page, pages_in_file, left_out = _tei_pages_taken(data, params.pages, path.name)
     else:
+        if params.pages and params.pages != [1]:
+            raise HTTPException(
+                status_code=422,
+                detail=f"{path.name} is a {spec.name} file: it has one page, so `pages` cannot name others",
+            )
         page = read_page(spec.name, data)
 
     result = write_page_into_library(
@@ -249,6 +260,11 @@ def _action_format_import(db: Database, params: FormatImportParams, ctx: ActionC
         ctx=ctx,
     )
 
+    if spec.name == "tei":
+        # Pages of the file NOT in this pass, named (#5143): a 25-page edition imported as its
+        # first page used to report success and drop 24 pages without a word.
+        result["pages_in_file"] = pages_in_file
+        result["pages_left_out"] = left_out
     if spec.name == "yolo":
         # Class numbers nobody named: said out loud, not guessed quietly (#5138). Their boxes were
         # read by Fichero's own convention, which is right only for a file Fichero wrote.
@@ -265,6 +281,40 @@ def _action_format_import(db: Database, params: FormatImportParams, ctx: ActionC
         document_ids=[params.document_id],
     )
     return result, spec_change
+
+
+def _tei_pages_taken(data: bytes, wanted: list[int] | None, filename: str) -> tuple[Any, int, list[str]]:
+    """The TEI pages this import takes, as ONE page; how many the file has; the ones left out.
+
+    Several pages taken are merged in the file's order: their segments (whose refs are unique
+    across the file) and their reading orders, one after the other. Each line keeps its own
+    shape, so two printed pages on one scan stay two places on it.
+    """
+    from dataclasses import replace
+
+    from fichero_server.formats.harness import PageOrder
+    from fichero_server.formats.tei import describe_page, read_pages
+
+    pages = read_pages(data)
+    numbers = sorted(set(wanted or [1]))
+    outside = [n for n in numbers if not 1 <= n <= len(pages)]
+    if outside:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{filename} has {len(pages)} page(s); there is no page {', '.join(map(str, outside))}",
+        )
+    taken = [pages[n - 1] for n in numbers]
+    page = taken[0]
+    if len(taken) > 1:
+        refs = [ref for p in taken for order in p.orders[:1] for ref in order.refs]
+        page = replace(
+            page,
+            segments=[s for p in taken for s in p.segments],
+            orders=[PageOrder(name=page.orders[0].name if page.orders else "as-written", refs=refs)]
+            if refs else [],
+        )
+    left_out = [describe_page(p, n) for n, p in enumerate(pages, start=1) if n not in numbers]
+    return page, len(pages), left_out
 
 
 def _anchor_for(
@@ -748,6 +798,11 @@ class ImportResponse(BaseModel):
     #: rather than buried in rows: a page where forty boxes were repaired is a page
     #: somebody should look at.
     geometry_problems: int = 0
+    #: TEI: how many pages (`<pb>`s) the file has, and each one NOT in this pass, by its `n` and
+    #: what it points at (#5143). A multi-page edition imported onto one image takes one page;
+    #: the rest are named here rather than dropped without a word.
+    pages_in_file: int = 1
+    pages_left_out: list[str] = []
 
 
 @router.post(

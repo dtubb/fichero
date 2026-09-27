@@ -938,6 +938,7 @@ def register_generated_openapi_commands(
         paragraph_index: Optional[int] = typer.Option(None, "--paragraph-index", help="Request field: paragraph_index."),
         rating: Optional[int] = typer.Option(None, "--rating", help="Request field: rating."),
         tags: Optional[str] = typer.Option(None, "--tags", help="Request field: tags."),
+        targets: Optional[str] = typer.Option(None, "--targets", help="Request field: targets."),
         text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
     ) -> None:
         """Create an annotation (POST /api/annotations)."""
@@ -969,6 +970,7 @@ def register_generated_openapi_commands(
                 "paragraph_index": paragraph_index,
                 "rating": rating,
                 "tags": tags,
+                "targets": targets,
                 "text": text,
             }, {
                 "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'shapes': {'items': {'$ref': '#/components/schemas/AnchorShape'}, 'type': 'array', 'nullable': True, 'title': 'Shapes'}, 'media_ref': {'type': 'string', 'nullable': True, 'title': 'Media Ref'}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}, 'segment_id': {'type': 'string', 'nullable': True, 'title': 'Segment Id'}, 'representation_id': {'type': 'string', 'nullable': True, 'title': 'Representation Id'}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
@@ -995,6 +997,7 @@ def register_generated_openapi_commands(
                 "paragraph_index": {'type': 'integer', 'nullable': True, 'title': 'Paragraph Index', 'x-cli-required': False},
                 "rating": {'type': 'integer', 'maximum': 5.0, 'minimum': 1.0, 'nullable': True, 'title': 'Rating', 'x-cli-required': False},
                 "tags": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tags', 'default': [], 'x-cli-required': False},
+                "targets": {'items': {'$ref': '#/components/schemas/MarkTarget'}, 'type': 'array', 'title': 'Targets', 'default': [], 'x-cli-required': False},
                 "text": {'type': 'string', 'nullable': True, 'title': 'Text', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)

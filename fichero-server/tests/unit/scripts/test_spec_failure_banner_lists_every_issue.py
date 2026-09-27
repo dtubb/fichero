@@ -11,12 +11,16 @@ If this test is ever failing, do not relax it: the banner is undercounting again
 
 from __future__ import annotations
 
-import sys
+import importlib.util
 from pathlib import Path
 
-_CONFTEST_DIR = Path(__file__).resolve().parents[2]  # fichero-server/tests
-sys.path.insert(0, str(_CONFTEST_DIR))
-from conftest import spec_failure_issues  # noqa: E402
+# Loaded by PATH, not `from conftest import`: in a run that also collects
+# fichero-mcp/tests, the bare name `conftest` resolves to THAT package's conftest.
+_CONFTEST = Path(__file__).resolve().parents[2] / "conftest.py"  # fichero-server/tests
+_spec = importlib.util.spec_from_file_location("fichero_server_tests_conftest", _CONFTEST)
+_module = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_module)
+spec_failure_issues = _module.spec_failure_issues
 
 
 class TestEveryIssueNumberIsFound:
@@ -58,5 +62,5 @@ class TestTheRealFileAgrees:
     def test_the_shipped_file_names_5121(self):
         """End-to-end on the real file: the four App Store tests are held against #5121, so
         the banner must say so or the debt is hidden again."""
-        real = (_CONFTEST_DIR / "known_specification_failures.txt").read_text()
+        real = (_CONFTEST.parent / "known_specification_failures.txt").read_text()
         assert "#5121" in spec_failure_issues(real)

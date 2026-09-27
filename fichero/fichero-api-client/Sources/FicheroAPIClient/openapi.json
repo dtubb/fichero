@@ -40114,6 +40114,13 @@
             "nullable": true,
             "title": "Anchor Kind"
           },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/MarkTarget"
+            },
+            "type": "array",
+            "title": "Targets"
+          },
           "paragraph_index": {
             "type": "integer",
             "nullable": true,
@@ -40278,6 +40285,14 @@
             "type": "string",
             "nullable": true,
             "title": "Anchor Kind"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/MarkTarget"
+            },
+            "type": "array",
+            "title": "Targets",
+            "default": []
           },
           "paragraph_index": {
             "type": "integer",
@@ -40599,6 +40614,13 @@
             "type": "string",
             "nullable": true,
             "title": "Anchor Kind"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/MarkTarget"
+            },
+            "type": "array",
+            "title": "Targets"
           },
           "paragraph_index": {
             "type": "integer",
@@ -53099,6 +53121,11 @@
             "nullable": true,
             "title": "Created By"
           },
+          "source": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -58754,6 +58781,32 @@
           "candidate_entity_id"
         ],
         "title": "ManualPairRequest"
+      },
+      "MarkTarget": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "char_start": {
+            "type": "integer",
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Char End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id"
+        ],
+        "title": "MarkTarget",
+        "description": "One segment a mark is attached to, and optionally the stretch of its reading it covers\n(Q6, ruled 2026-09-27: a mark applies to the SELECTION). Character offsets are into the\nsegment's counting reading, end exclusive."
       },
       "MarkdownFolderExportRequest": {
         "properties": {
@@ -75541,6 +75594,19 @@
             "type": "integer",
             "title": "Geometry Problems",
             "default": 0
+          },
+          "pages_in_file": {
+            "type": "integer",
+            "title": "Pages In File",
+            "default": 1
+          },
+          "pages_left_out": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Pages Left Out",
+            "default": []
           }
         },
         "type": "object",

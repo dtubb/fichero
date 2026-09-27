@@ -1033,7 +1033,9 @@ def fichero_page_import(
     file's name claimed — a renamed eScriptorium export still reads as `pagexml`), the
     counts that landed (`segments`, `readings`, `order_entries`), the file's `checksum`,
     and `geometry_problems`: how many shapes the file could not express properly and the
-    engine repaired. **Report the recognised format and any repairs to the person.** An
+    engine repaired. For a multi-page TEI file, `pages_in_file` and `pages_left_out` name the
+    pages that did NOT become this pass. **Report the recognised format, any repairs and any
+    pages left out to the person.** An
     import described as clean when forty boxes were repaired is a confident wrong answer.
 
     The import does NOT become the working pass. Somebody else's file arriving is not a

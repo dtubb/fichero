@@ -26,6 +26,7 @@ file, as before, so nothing is lost; it just does not become a pass.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -45,6 +46,9 @@ class PairingPlan:
     unpaired: dict[Path, str] = field(default_factory=dict)
     #: layout file -> its format name, for `format.import`
     formats: dict[Path, str] = field(default_factory=dict)
+    #: A MULTI-PAGE file (TEI: one page per `<pb>`, #5143) -> image -> the file's page numbers
+    #: (1-based) that describe that image. Two printed pages on one scan are one pass on it.
+    pages: dict[Path, dict[Path, list[int]]] = field(default_factory=dict)
 
 
 def _layout_stem(path: Path) -> str:
@@ -79,6 +83,8 @@ def plan_pairs(files: list[Path]) -> PairingPlan:
         except OSError:
             continue
         spec = format_for(path.name, data)
+        if spec is not None and spec.name == "tei" and _plan_tei_pages(plan, path, data, by_dir):
+            continue
         if spec is None or spec.name not in PAGED_FORMATS:
             # NEVER SILENTLY TEXT when it looks like interchange (#5132): a file whose root is
             # ALTO, PAGE or TEI but which is not paged layout -- or which no format claims --
@@ -105,6 +111,64 @@ def plan_pairs(files: list[Path]) -> PairingPlan:
         else:
             plan.unpaired[path] = match
     return plan
+
+
+def _names_in(url: str | None) -> set[str]:
+    """Every name a facsimile's image reference could match a file by: its last part, and each
+    part of its path -- a IIIF URL names its image in the MIDDLE
+    (`.../iiif/3437686/R0000022/full/full/0/default.jpg`)."""
+    if not url:
+        return set()
+    from urllib.parse import urlparse
+
+    path = urlparse(url).path if "://" in url else url
+    parts = [part for part in path.replace("\\", "/").split("/") if part]
+    if len(parts) > 4 and re.fullmatch(r"(default|color|colour|gray|grey|bitonal|native)\.\w+", parts[-1]):
+        # A IIIF Image API request ends `/{region}/{size}/{rotation}/{quality}.{format}`: those
+        # four parts name a rendering, not the image, and `default.jpg` would match every page.
+        parts = parts[:-4]
+    return set(parts)
+
+
+def _plan_tei_pages(plan: PairingPlan, path: Path, data: bytes, by_dir: dict[Path, list[Path]]) -> bool:
+    """Pair each page of a TEI file with the image its `<surface>` names (#5143).
+
+    A page is paired when exactly ONE image beside the file (or in its parent folder) has a name
+    or stem the surface's graphic reference names. True when at least one page paired: the file
+    is then a set of passes, and its pages that named no image here are listed by name.
+    """
+    from fichero_server.formats.tei import describe_page, read_pages
+
+    try:
+        pages = read_pages(data)
+    except Exception:  # noqa: BLE001 -- falls through to the ordinary "TEI is an edition" report
+        return False
+    by_image: dict[Path, list[int]] = {}
+    missing: list[str] = []
+    for number, page in enumerate(pages, start=1):
+        names = _names_in(page.image_name)
+        match: Path | None = None
+        for images in _candidates(path, by_dir):
+            found = [image for image in images if image.name in names or image.stem in names]
+            if len(found) == 1:
+                match = found[0]
+                break
+            if len(found) > 1:
+                break
+        if match is None:
+            missing.append(f"{describe_page(page, number)} names {page.image_name or 'no image'}")
+        else:
+            by_image.setdefault(match, []).append(number)
+    if not by_image:
+        return False
+    plan.formats[path] = "tei"
+    plan.pages[path] = by_image
+    if missing:
+        plan.unpaired[path] = (
+            f"{len(missing)} of {len(pages)} pages name no image in the same or the parent folder, "
+            "so they are not imported: " + "; ".join(missing)
+        )
+    return True
 
 
 #: Root namespaces and names that mark a file as interchange, whatever else it is.
