@@ -104,5 +104,13 @@ class TestExportingAPage:
 class TestTheFormatList:
     def test_it_names_what_this_build_reads_and_writes(self, client):
         items = {i["name"]: i for i in client.get("/api/formats").json()["items"]}
-        assert {"tei", "pagexml", "alto"} <= set(items)
-        assert all(i["reads"] and i["writes"] and i["validated"] for i in items.values())
+        assert {"tei", "pagexml", "alto", "hocr", "yolo"} <= set(items)
+        assert all(i["reads"] and i["writes"] for i in items.values())
+
+        # `validated` is NOT true of every format, and saying so is the point of the list.
+        # hOCR is HTML with an agreed microformat and YOLO is five numbers a line: neither
+        # HAS a schema, which is a different fact from a schema missing off an install
+        # (that raises). A caller choosing an export format needs to know which of its
+        # outputs was checked against somebody else's rules and which was not.
+        assert all(items[n]["validated"] for n in ("tei", "pagexml", "alto"))
+        assert not any(items[n]["validated"] for n in ("hocr", "yolo"))
