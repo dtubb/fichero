@@ -52,6 +52,13 @@ A segment has any number of **readings**. A reading has:
   > `source.reading.kinds` and the TEI round trip (`source.format.round-trip-tei`, #4945), not with
   > `historical-text-normalization.md`'s rules, which are about DERIVING a normalised reading, not
   > about carrying one an encoder already made.
+  >
+  > **Built so far (2026-09-27), and what is owed.** The TEI reader takes a `<choice>`'s AS-WRITTEN
+  > side (`orig` / `sic` / `abbr`) for the line's text, keeps the other side verbatim with its
+  > character position (the segment's `tei-choice`), and the export's loss report names each one on
+  > its own line. It no longer joins both sides into one word (#5130; four DDbDP papyri,
+  > `test_tei.py::TestAChoiceIsNotTwoWordsRunTogether`). **Owed:** the pair as TWO readings of one
+  > word segment, written back out as a `<choice>`. That waits for word-level segments from TEI.
 - its **language and script**;
 - **what it was read from**: which image of the page, and, for a reading made from another
   reading (a translation, a normalisation), which one;

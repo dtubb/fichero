@@ -57,9 +57,9 @@ checked against what was vendored.
 
 ## Findings — what these files do
 
-**Imported wrong (#5130, strict xfail):**
+**Imported wrong, then fixed (#5130):**
 
-- **Both sides of a TEI `<choice>` are read as one word.** Every DDbDP papyrus: `<choice><reg>κεχωνευμένα</reg><orig>κεχωνημένα</orig></choice>` imports as "κεχωνευμένακεχωνημένα", a word on neither the papyrus nor in the edition. Counted 2026-09-27: 29 of the 33 `<choice>`s in the four files import with both sides joined; the other 4 were not matched by that count and were not examined. `<choice>` is two readings of one stretch (`readings-and-apparatus.md`, the `<choice>` note). Pinned by `test_tei.py::TestAChoiceIsNotTwoWordsRunTogether`.
+- **Both sides of a TEI `<choice>` were read as one word** (fixed 2026-09-27: the as-written side is the text, the other is kept and named by the loss report). Every DDbDP papyrus: `<choice><reg>κεχωνευμένα</reg><orig>κεχωνημένα</orig></choice>` imports as "κεχωνευμένακεχωνημένα", a word on neither the papyrus nor in the edition. Counted 2026-09-27: 29 of the 33 `<choice>`s in the four files import with both sides joined; the other 4 were not matched by that count and were not examined. `<choice>` is two readings of one stretch (`readings-and-apparatus.md`, the `<choice>` note). Pinned by `test_tei.py::TestAChoiceIsNotTwoWordsRunTogether`. Of the 33, 32 are kept; the 33rd is inside a `<del>`, and deleted text is not part of a reading.
 
 **Export refused (#5130, strict xfail):**
 
