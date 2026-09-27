@@ -97,11 +97,19 @@ exportable = not done. Every behavior below names which spine segment it lands o
   artifact; the app has no subscriber for artifact updates. **The engine half is committed,
   193ce62ef**: one `artifact.updated` event per finished run, naming `artifact_ids` and
   `document_ids`, fired whether or not a document's status changed — covers every
-  `process_vision` tool. **NOT covered, its own gap**: `align_transcript`, `extract_all`,
-  `extractors`, `import_artifacts`, `merge_geometry`, `similarity`, `catalogue`, `date_extract`,
-  `cleanup` — none of these emit the new event yet. Not yet proven against a real run's final
-  state, and the app has no subscriber yet — the event existing is not the same claim as the
-  overlay redrawing. Tag stays BROKEN.
+  `process_vision` tool. **`align_transcript` is now covered too (2026-09-27), both ways it can
+  run**: the on-demand route `POST /api/artifacts/{id}/align-transcript` emits `artifact.updated`
+  itself, because no run boundary can cover it — there is no run — and the workflow tool now
+  reports its aligned ids under `artifacts`, the one key `collect_created_artifact_ids` reads.
+  It had been returning each `artifact_id` inside `documents`, under a name the collector does
+  not look at, so the artifacts landed silently. Pinned by
+  `test_align_transcript_announces_itself.py` (both ids, fires with no status change, the
+  broadcast comes AFTER the save, and a declined alignment broadcasts nothing) and
+  `test_align_transcript_reports_its_artifacts.py`.
+  Not yet proven against a real run's final state, and the app has no subscriber yet — the event
+  existing is not the same claim as the overlay redrawing. **Tag stays BROKEN**: this was seen
+  fail on a screen, and it is not claimed until the maintainer runs Kraken again and the boxes
+  appear on their own.
 - `segment.kraken.segments-a-pdf-page` — **[PARTIAL]** (#4892) seen live 2026-09-19: the
   maintainer ran Kraken segmentation on one page of a PDF and it failed, while Apple Vision on
   the same page worked. Cause, verified in source: the Kraken branch of the shared vision
@@ -129,12 +137,20 @@ exportable = not done. Every behavior below names which spine segment it lands o
   screen.
   No manual split step. Not yet checked: whether the refusal reaches the run log as a
   readable message or only as a failed run.
-- `segment.overlay.artifact-event-covers-every-write-tool` — **[GAP]** (#4890) the
-  `artifact.updated` event (above) covers `process_vision` only; `align_transcript`,
-  `extract_all`, `extractors`, `import_artifacts`, `merge_geometry`, `similarity`, `catalogue`,
-  `date_extract`, and `cleanup` all write artifacts without emitting it. Until every
-  artifact-writing tool emits the same event, an overlay subscriber (once built) will be
-  correct for Kraken-triggered segmentation and silently stale for everything else.
+- `segment.overlay.artifact-event-covers-every-write-tool` — **[PARTIAL]** (#4890) until every
+  artifact-writing tool's ids reach the event, an overlay subscriber (once built) will be correct
+  for some tools and silently stale for others.
+  **This entry's own list was wrong, audited 2026-09-27.** The run boundary's emit is not
+  `process_vision`-specific: `collect_created_artifact_ids` reads any node output's `artifacts`
+  list, so every tool that reports its ids under that key is already covered. Three of the nine
+  named here do: **`merge_geometry`, `similarity` and `catalogue`**. They were listed as gaps
+  because the entry was written from which TOOL the fix was tested against rather than from what
+  the collector reads.
+  **`align_transcript` is now covered** (route and tool, see above). **Genuinely still uncovered,
+  five**: `extract_all`, `extractors`, `import_artifacts`, `date_extract`, `cleanup` — each saves
+  artifacts and none reports their ids. Not one shape: their returns differ (a claims-by-entity
+  map, a `{text, value}` pair, a summary dict), so each needs its own look rather than the same
+  line pasted five times, and that is why they are not done here.
 
 ### C. AI / MCP / CLI — made available to an agent
 - `segment.mcp.get` [MISSING] (#4766) — an MCP tool returns a segment with requested
