@@ -109,3 +109,40 @@ class TestTheRootDecidesTheFormat:
 
         assert root_element(b"<!-- only a comment -->") is None
         assert root_element(b"not xml at all") is None
+
+
+class TestAPageInAnotherUnitKeepsItsShape:
+    """#5130: a `mm10` / `inch1200` ALTO page was re-exported as a square 1000x1000 `pixel`
+    page -- valid, and every shape stretched. The stated extent is kept, ALTO writes it back in
+    its own unit, and a pixel-only format invents a grid with the SAME proportions."""
+
+    ALTO = Path(__file__).parent / "fixtures" / "altoxml_glyph_00001.alto.xml"  # mm10, 1003 x 1469
+
+    def test_alto_is_written_back_in_its_own_unit_and_size(self):
+        page = read_page("alto", self.ALTO.read_bytes())
+        data, report = write_page("alto", page)
+        assert b"<MeasurementUnit>mm10</MeasurementUnit>" in data
+        assert read_page("alto", data).page_extent == (1003.0, 1469.0, "mm10")
+        assert "page size" not in report.lost, "nothing was invented, so nothing is lost"
+
+    def test_a_pixel_format_invents_a_grid_with_the_same_proportions_and_says_so(self):
+        page = read_page("alto", self.ALTO.read_bytes())
+        data, report = write_page("pagexml", page)
+        width, height = read_page("pagexml", data).image_size
+        assert width / height == pytest.approx(1003 / 1469, rel=0.01)
+        assert "page size" in report.lost
+
+
+class TestPointsOffThePageAreClampedAndReported:
+    """#5130: a Transkribus papyrus has `points="165,-1 ..."`; PAGE's points are non-negative,
+    so writing it back made the whole export invalid."""
+
+    def test_a_line_above_the_image_exports_valid_clamped_to_the_edge(self):
+        page = SourcePage(image_size=(1000, 1000), segments=[
+            PageSegment(kind="region", ref="r"),
+            PageSegment(kind="line", ref="l", parent_ref="r",
+                        polygon=[[0.165, -0.001], [0.25, -0.001], [0.25, 0.05], [0.165, 0.05]]),
+        ])
+        data, report = write_page("pagexml", page)  # validated, or raises InvalidExport
+        assert b"165,0 250,0" in data
+        assert "points outside the page" in report.lost

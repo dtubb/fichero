@@ -25,6 +25,7 @@ from typing import Any
 
 from fichero_server.formats import register
 from fichero_server.formats.harness import (
+    pixel_grid,
     FormatSpec,
     LossReport,
     PageOrder,
@@ -428,14 +429,14 @@ def write(page: SourcePage, report: LossReport) -> bytes:
     """
     from lxml import etree
 
-    width, height = page.image_size or (1000, 1000)
-    if page.image_size is None:
+    width, height = pixel_grid(page, report, "PAGE XML")
+    clamped = _clamped_segment_count(page)
+    if clamped:
         report.note(
-            "page size",
-            1,
-            "the model stores normalised coordinates and this page had no pixel "
-            "size recorded, so 1000x1000 was written and the original pixel grid "
-            "cannot be recovered",
+            "points outside the page",
+            clamped,
+            "PAGE XML coordinates are non-negative and on the page, so points the source put "
+            "outside it were clamped to its edge",
         )
 
     root = etree.Element(f"{{{PAGE_NS_2019}}}PcGts", nsmap={None: PAGE_NS_2019})
@@ -719,9 +720,30 @@ def _rect_points(rect: list[float] | None) -> list[list[float]]:
 
 
 def _points_out(points: list[list[float]], width: int, height: int) -> str:
+    """PAGE's `PointsType` is non-negative integers, so every point is CLAMPED to the page.
+
+    A real Transkribus papyrus page has `points="165,-1 ..."` -- a line drawn a pixel above
+    the image -- and writing it back unclamped made the whole export invalid (#5130). The
+    writer reports how many segments were clamped (`_clamped_segment_count`), so the change
+    to what the source said is visible.
+    """
     return " ".join(
-        f"{int(round(x * width))},{int(round(y * height))}" for x, y in points
+        f"{min(max(int(round(x * width)), 0), width)},{min(max(int(round(y * height)), 0), height)}"
+        for x, y in points
     )
+
+
+def _clamped_segment_count(page: SourcePage) -> int:
+    """Segments with any point, box corner or baseline point outside the page."""
+    def outside(points) -> bool:
+        return any(not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0) for x, y in points)
+
+    count = 0
+    for segment in page.segments:
+        shapes = [segment.polygon or [], segment.baseline or [], _rect_points(segment.rect)]
+        if any(outside(shape) for shape in shapes if shape):
+            count += 1
+    return count
 
 
 register(

@@ -163,6 +163,11 @@ class SourcePage:
     #: here are ALWAYS normalised; this is what they were normalised BY, so a
     #: writer can put integers back.
     image_size: tuple[int, int] | None = None
+    #: The page's size AS THE FILE STATES IT, in the file's own unit: `(width, height, unit)`,
+    #: e.g. `(1003.0, 1469.0, "mm10")`. Kept for EVERY unit, because it is the only record of
+    #: the page's proportions when there is no pixel grid (#5130: a `mm10` ALTO page was
+    #: re-exported as a square 1000x1000 pixel page and every shape lost its aspect ratio).
+    page_extent: tuple[float, float, str] | None = None
     #: The PAGE's own language, script and direction (#5085). A document states these
     #: (slice 9) and until now no writer could see them: `page_export` read them off
     #: SEGMENTS, so a page whose language is recorded once, at document level, reached
@@ -188,6 +193,38 @@ class SourcePage:
     #: pass -- not on segments, because a format adds no field to segments and
     #: unrecognised content is usually about the file rather than one line.
     foreign: dict[str, Any] = field(default_factory=dict)
+
+
+def pixel_grid(page: "SourcePage", report: "LossReport", fmt: str) -> tuple[int, int]:
+    """The pixel grid a PIXEL-ONLY format writes against, and the loss said when it is invented.
+
+    The recorded `image_size` when there is one. Otherwise a grid is INVENTED -- the formats
+    that need pixels (PAGE, hOCR, TEI facsimile) cannot express "no grid" -- and it keeps the
+    page's STATED PROPORTIONS (`page_extent`) at 1000 on the long side, falling back to a square
+    only when the file stated no size at all. Before this each writer invented a square and a
+    `mm10` ALTO page 1003 x 1469 came back 1000 x 1000: every shape stretched (#5130).
+    """
+    if page.image_size is not None:
+        return page.image_size
+    if page.page_extent is not None and page.page_extent[0] > 0 and page.page_extent[1] > 0:
+        w, h, unit = page.page_extent
+        scale = 1000.0 / max(w, h)
+        grid = (max(1, round(w * scale)), max(1, round(h * scale)))
+        report.note(
+            "page size",
+            1,
+            f"the page states its size in {unit} ({w:g} x {h:g}) and no pixel grid, and {fmt} "
+            f"needs pixels, so a {grid[0]}x{grid[1]} grid with the same proportions was written; "
+            "the original pixel grid cannot be recovered",
+        )
+        return grid
+    report.note(
+        "page size",
+        1,
+        f"no page size was recorded at all, so {fmt}'s coordinates are against an invented "
+        "1000x1000 page",
+    )
+    return (1000, 1000)
 
 
 # ---------------------------------------------------------------------------
