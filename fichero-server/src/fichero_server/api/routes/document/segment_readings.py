@@ -43,7 +43,13 @@ from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.api.auth import action_context
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
-from fichero_server.models import Artifact, ContentRepresentation
+from fichero_server.llm.language_policy import (
+    DIRECTION_ALTERNATING,
+    DIRECTION_FOLLOWS_BASELINE,
+    STATUS_UNKNOWN,
+    resolve_direction,
+)
+from fichero_server.models import Artifact, ContentRepresentation, Document
 from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.knowledge import ProvenanceKind
 from fichero_server.models.readings import (
@@ -433,6 +439,34 @@ class DerivedTextSpan(BaseModel):
     end: int
 
 
+class TextBlock(BaseModel):
+    """One directional run of the derived text (`source.textedit.reader-shows-segments`,
+    #5001): a maximal, in-order stretch of spans sharing the same region AND the same
+    resolved direction. A block boundary is a DIRECTION CHANGE, not a direction value --
+    a whole-page `rtl` region is one block; a boustrophedon region, where each line's own
+    stated direction alternates, is one block PER LINE, because there is no shared
+    orientation two alternating lines can be laid out under at once.
+
+    `alternating` and `follows-baseline` are per-segment values with no single orientation
+    of their own (`languages-scripts-signs.md`'s six-value list), so a segment resolving to
+    either NEVER merges with a neighbour even when the neighbour resolves to the same
+    non-orientable value -- there is nothing to share a block under.
+    """
+
+    #: The line's parent region, or None for a line with no region parent.
+    region_segment_id: str | None
+    #: The resolved direction shared by every span in this block, or None when the first
+    #: span's own direction could not be resolved at all (`STATUS_UNKNOWN`).
+    direction: str | None
+    #: Which rung of the cascade decided it (`source.dir.per-segment`'s own cascade) --
+    #: never invented, so a reader can tell a stated direction from a derived one.
+    direction_level: str | None
+    spans: list[DerivedTextSpan]
+    #: This block's own slice of the derived text (a subrange of `DerivedText.text`), so
+    #: a block can be rendered on its own without re-slicing by hand.
+    text: str
+
+
 class OmittedSegment(BaseModel):
     """A segment a named order names and the text does not contain, and WHY.
 
@@ -471,6 +505,10 @@ class DerivedText(BaseModel):
     #: its reason (#5090). Always empty for box order, which names nothing it
     #: cannot read.
     omitted: list[OmittedSegment] = []
+    #: One entry per directional run (#5001's `reader-shows-segments`). Always present,
+    #: never re-derived by a second caller: the SAME spans this text already carries,
+    #: grouped, so the two can never disagree about what the page contains.
+    blocks: list[TextBlock] = []
 
 
 def _pass_candidates(db: Database, document_id: str) -> list[PassCandidate]:
@@ -663,9 +701,19 @@ def document_text(
     # (`query_in(ContentRepresentation, "segment_id", ids)`) feeding the same
     # pure counting function -- not a cache of the answer, which this design
     # deliberately does not store.
+    document = db.get(Document, document_id)
+    # Non-orientable per-segment values (`languages-scripts-signs.md`'s six-value list):
+    # neither describes ONE orientation a block could be laid out under, so a segment
+    # resolving to either always starts (and ends) its own block.
+    _NON_ORIENTABLE = {DIRECTION_ALTERNATING, DIRECTION_FOLLOWS_BASELINE}
+
     artifact_memo: dict[str, Artifact | None] = {}
     pieces: list[str] = []
     spans: list[DerivedTextSpan] = []
+    # (region_segment_id, direction, direction_level, span) for every span this text
+    # carries, IN ORDER -- the same order `blocks` groups by; built alongside `spans`
+    # rather than re-walked from them, so the two can never read the page differently.
+    span_directions: list[tuple[str | None, str | None, str | None, DerivedTextSpan]] = []
     cursor = 0
     for row in rows:
         items = [
@@ -674,16 +722,19 @@ def document_text(
         ]
         if not items:
             continue
+        resolved = resolve_direction(segment=row, document=document)
+        direction = resolved.language if resolved.status != STATUS_UNKNOWN else None
+        direction_level = resolved.level
         counted = counting_by_kind(db, row.id, items).get(kind)
         if counted is None or counted.representation_id is None:
             # The line HAS readings and none of them counts (a strict project
             # where people disagree). Leaving a hole would be a lie about the
             # page; so would picking one. The span records the gap.
-            spans.append(
-                DerivedTextSpan(
-                    segment_id=row.id, representation_id=None, start=cursor, end=cursor
-                )
+            span = DerivedTextSpan(
+                segment_id=row.id, representation_id=None, start=cursor, end=cursor
             )
+            spans.append(span)
+            span_directions.append((row.parent_segment_id, direction, direction_level, span))
             continue
         text = next(
             item.content for item in items if item.id == counted.representation_id
@@ -691,17 +742,43 @@ def document_text(
         start = cursor
         pieces.append(text)
         cursor += len(text)
-        spans.append(
-            DerivedTextSpan(
-                segment_id=row.id,
-                representation_id=counted.representation_id,
-                start=start,
-                end=cursor,
-            )
+        span = DerivedTextSpan(
+            segment_id=row.id,
+            representation_id=counted.representation_id,
+            start=start,
+            end=cursor,
         )
+        spans.append(span)
+        span_directions.append((row.parent_segment_id, direction, direction_level, span))
         cursor += 1  # the separator below
 
     joined = " ".join(pieces)
+
+    blocks: list[TextBlock] = []
+    for region_id, direction, direction_level, span in span_directions:
+        non_orientable = direction in _NON_ORIENTABLE
+        joins_previous = (
+            blocks
+            and not non_orientable
+            and blocks[-1].region_segment_id == region_id
+            and blocks[-1].direction == direction
+            and blocks[-1].direction not in _NON_ORIENTABLE
+        )
+        if joins_previous:
+            blocks[-1].spans.append(span)
+        else:
+            blocks.append(
+                TextBlock(
+                    region_segment_id=region_id,
+                    direction=direction,
+                    direction_level=direction_level,
+                    spans=[span],
+                    text="",
+                )
+            )
+    for block in blocks:
+        block.text = joined[block.spans[0].start:block.spans[-1].end]
+
     return DerivedText(
         text=joined,
         spans=spans,
@@ -713,6 +790,7 @@ def document_text(
         # box order. Never a name the caller did not ask for -- a reader told an
         # order was used when it was not cannot check anything.
         order=order,
+        blocks=blocks,
     )
 
 

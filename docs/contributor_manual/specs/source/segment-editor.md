@@ -436,11 +436,21 @@ The editor
   maintainer's to choose.) **Read from the code, not the tag, 2026-09-27:** the derivation is
   already whole — `document_text()` reads the working pass and follows the named order, spans
   and all (`fichero-server/tests/unit/api/test_textedit_engine_primitives.py::TestReaderShowsSegmentsUsesTheWorkingPassAndNamedOrder::test_the_derived_text_follows_the_working_pass_and_names_its_segments`).
-  **Not built:** the packaging this line names — one block per region, each with its own
-  direction. `DerivedTextSpan` carries only `segment_id`/`representation_id`/`start`/`end` today,
-  pinned by `::test_spans_carry_no_region_grouping_or_direction_today` so the day it grows region
-  and direction is a deliberate change to that test, not a silent one. No Source-view surface
-  exists yet either way.
+  **Built 2026-09-27:** the packaging this line names — `document_text()` now also returns
+  `blocks: list[TextBlock]`, one block per region, split on a DIRECTION CHANGE within a region
+  (not grouped by direction value alone): a whole-page-rtl region is one block
+  (`test_textedit_reader_blocks.py::TestOneDirectionIsOneBlock::test_a_whole_page_of_one_direction_is_one_block`);
+  a boustrophedon (`alternating`) region is one block per line, proven by the explicit
+  alternating-lines test plus a same-direction run still merging within it
+  (`::TestADirectionChangeStartsANewBlock::test_boustrophedon_alternating_lines_are_one_block_per_line_not_one_merged_block`,
+  `::test_a_run_within_an_alternating_page_still_merges`). Decision written down here per the
+  spec: `alternating` and `follows-baseline` are both non-orientable and NEVER merge with a
+  neighbour, even an identical one — each such segment starts its own block
+  (`::TestNonOrientableValuesNeverMerge::test_follows_baseline_is_one_block_per_segment`,
+  `::test_alternating_as_a_per_segment_value_is_also_one_block_per_segment`). Region grouping
+  (two same-direction regions still stay two blocks; a segment with no region parent gets a null
+  region) is covered by `::TestRegionGrouping`. No Source-view surface exists yet either way —
+  this is the derivation and packaging only.
 - `source.textedit.typing-is-a-new-reading` — **[PARTIAL]** (#5001) typing corrects the reading of the segment under the
   caret as a new reading whose maker is the person, set by the engine; the earlier reading
   stays. **The engine primitive is whole**, tested against the request the app would actually send
@@ -620,7 +630,7 @@ still to be filled at approval):
 
 | Behaviour | Engine primitive | Test |
 |---|---|---|
-| `reader-shows-segments` | `document_text()` | `test_textedit_engine_primitives.py::TestReaderShowsSegmentsUsesTheWorkingPassAndNamedOrder` (2 tests: follows the working pass and order; spans carry no region/direction today) |
+| `reader-shows-segments` | `document_text()` | `test_textedit_engine_primitives.py::TestReaderShowsSegmentsUsesTheWorkingPassAndNamedOrder` (follows the working pass and order) + `test_textedit_reader_blocks.py` (9 tests across `TestOneDirectionIsOneBlock`, `TestADirectionChangeStartsANewBlock`, `TestNonOrientableValuesNeverMerge`, `TestRegionGrouping`: region/direction packaging, boustrophedon one-block-per-line, follows-baseline/alternating never merge) |
 | `typing-is-a-new-reading` | `representation.create` + `provenance_kind_from_ctx` | `test_textedit_engine_primitives.py::TestTypingIsANewReadingSetsTheMakerFromContext` (4 tests: human, workflow, refused client-supplied maker, earlier reading unchanged) |
 | `return-splits-the-line` | `segment.split` | `test_textedit_engine_primitives.py::TestReturnSplitsTheLineSegmentSplitPrimitive` (2 tests: independent anchor + reading_span per part; no caret-to-geometry mapping exists) |
 
