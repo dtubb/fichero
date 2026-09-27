@@ -102,7 +102,7 @@ exportable = not done. Every behavior below names which spine segment it lands o
   `cleanup` — none of these emit the new event yet. Not yet proven against a real run's final
   state, and the app has no subscriber yet — the event existing is not the same claim as the
   overlay redrawing. Tag stays BROKEN.
-- `segment.kraken.segments-a-pdf-page` — **[BROKEN]** (#4892) seen live 2026-09-19: the
+- `segment.kraken.segments-a-pdf-page` — **[PARTIAL]** (#4892) seen live 2026-09-19: the
   maintainer ran Kraken segmentation on one page of a PDF and it failed, while Apple Vision on
   the same page worked. Cause, verified in source: the Kraken branch of the shared vision
   pipeline (`workflows/tools/vision_base.py`) raises "split the PDF into page images first"
@@ -111,6 +111,22 @@ exportable = not done. Every behavior below names which spine segment it lands o
   themselves. Expected: Kraken segments a PDF page by rendering that page through the SAME
   page-render seam the other vision modes use and segmenting the render; the geometry is
   recorded against the page, and its provenance names the render (page index, resolution).
+
+  **THE ENGINE HALF IS BUILT AND PINNED** (audited 2026-09-27): `vision_base.py` has
+  `_render_pdf_page_to_temp_png` and `_KRAKEN_PDF_RENDER_DPI = 300` (matching Apple Vision's,
+  so Kraken is not the lower-fidelity render), and
+  `fichero-server/tests/unit/workflows/test_kraken_segments_pdf_page.py` pins every clause of
+  that expectation rather than the happy path alone: the PDF path is never handed to the
+  segmenter, the temp render is cleaned up, the artifact lands on the page AND a separate
+  assertion proves it does not land on the parent PDF, the geometry is normalised and so
+  independent of the render's pixel size and DPI, and the provenance names the render
+  (`metadata["pdf_page_render"] == {"page_index": 0, "dpi": 300}`).
+
+  **[PARTIAL] and not [OK] because this was seen fail on a SCREEN.** A passing engine test is
+  not that evidence, and the behaviour is not claimed until the maintainer runs Kraken on a PDF
+  page in the app and the boxes appear. If they are produced and appear only after clicking the
+  item, that is the overlay behaviour above (#4890) and not this one — two defects on one
+  screen.
   No manual split step. Not yet checked: whether the refusal reaches the run log as a
   readable message or only as a failed run.
 - `segment.overlay.artifact-event-covers-every-write-tool` — **[GAP]** (#4890) the
