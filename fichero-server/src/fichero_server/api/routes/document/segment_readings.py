@@ -780,11 +780,38 @@ def _why_omitted(
     return OmittedSegment(segment_id=segment_id, reason="unknown")
 
 
-def _direction_of(row: Segment, document: Any, text: str | None) -> tuple[str | None, str | None]:
+def _direction_of(
+    row: Segment, document: Any, text: str | None, lines_are_vertical: bool | None = None
+) -> tuple[str | None, str | None]:
     """A span's direction and the rung that said so. With nothing stated anywhere, the text's own
-    characters decide (#5137: Syriac and Hebrew lines came out `ltr`)."""
-    resolved = resolve_direction(segment=row, document=document, text=text)
+    characters decide (#5137: Syriac and Hebrew lines came out `ltr`), and for a script that may
+    be vertical, the page's line shapes (#5147)."""
+    resolved = resolve_direction(
+        segment=row, document=document, text=text, lines_are_vertical=lines_are_vertical
+    )
     return (resolved.language if resolved.status != STATUS_UNKNOWN else None), resolved.level
+
+
+def _lines_are_vertical(rows: list[Segment], document: Any) -> bool | None:
+    """Whether this page's lines are columns (`lines_are_columns`), measured in the page's pixels
+    when its size is known. Lines with no shape of their own -- `shape: unstated`, or placed only
+    by their page's TEI zone -- are not measured: their box is not the line's."""
+    from fichero_server.formats.tei import PAGE_ZONE
+    from fichero_server.llm.language_policy import lines_are_columns
+
+    metadata = getattr(document, "metadata", None) or {}
+    width = metadata.get("width") if isinstance(metadata.get("width"), (int, float)) else 1
+    height = metadata.get("height") if isinstance(metadata.get("height"), (int, float)) else 1
+    boxes: list[tuple[float, float]] = []
+    for row in rows:
+        if row.kind != "line" or row.anchor is None or not row.anchor.rect:
+            continue
+        meta = row.metadata or {}
+        if meta.get("shape") == "unstated" or (meta.get("foreign") or {}).get(PAGE_ZONE):
+            continue
+        _x, _y, w, h = row.anchor.rect
+        boxes.append((w * width, h * height))
+    return lines_are_columns(boxes)
 
 
 def document_text(
@@ -930,6 +957,8 @@ def document_text(
     read_through_children = {
         row.parent_segment_id for row in rows if row.id in carrying and row.parent_segment_id
     }
+    # Once per page: are its lines columns? Only asked of a text whose script may be vertical.
+    vertical = _lines_are_vertical(rows, document)
     record_rule = project_record_rule(db)
     choices_by_segment: dict[str, list[ReadingChoice]] = {}
     for choice in db.query_in(ReadingChoice, "segment_id", [row.id for row in rows]):
@@ -948,14 +977,14 @@ def document_text(
             span = DerivedTextSpan(
                 segment_id=row.id, representation_id=None, start=cursor, end=cursor
             )
-            direction, direction_level = _direction_of(row, document, None)
+            direction, direction_level = _direction_of(row, document, None, vertical)
             spans.append(span)
             span_directions.append((row.parent_segment_id, direction, direction_level, span))
             continue
         text = next(
             item.content for item in items if item.id == counted.representation_id
         )
-        direction, direction_level = _direction_of(row, document, text)
+        direction, direction_level = _direction_of(row, document, text, vertical)
         start = cursor
         pieces.append(text)
         cursor += len(text)
