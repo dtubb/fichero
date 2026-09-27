@@ -130,6 +130,26 @@ extension ZoomableImagePreview {
         }
     }
 
+    // MARK: Undo (`source.editor.system-undo`, #4941)
+
+    /// Register ⌘Z for one region edit, by the audit row the edit itself wrote.
+    ///
+    /// The engine inverts the row and answers the inverse's own id, which is what the
+    /// redo inverts in turn (`ActionUndo` owns that chain). No audit id, no undo manager
+    /// or no action store: nothing is registered, because every alternative is
+    /// inverting a guessed row — on a shared library, one person undoing another's edit.
+    func registerRegionUndo(_ result: RegionEditResult, actionName: String) {
+        guard let actionsService = actionStore?.actionsService else { return }
+        ActionUndo.register(
+            auditId: result.auditId,
+            actionName: actionName,
+            undoManager: undoManager,
+            performUndo: { auditId in
+                try await actionsService.undoAction(auditId: auditId).auditId
+            }
+        )
+    }
+
     // MARK: Verbs
 
     /// MOVE: committed on mouse-up. Indices are stable across a move, so the
@@ -143,7 +163,8 @@ extension ZoomableImagePreview {
                     artifactId: artifactId, documentId: documentId,
                     index: index, bbox: bbox
                 )
-                ocrGeometry = updated.ocrGeometry
+                ocrGeometry = updated.artifact.ocrGeometry
+                registerRegionUndo(updated, actionName: "Move Region")
             } catch {
                 Self.logger.error("Region move failed: \(String(describing: error))")
             }
@@ -167,7 +188,8 @@ extension ZoomableImagePreview {
                 let updated = try await artifactService.deleteRegions(
                     artifactId: artifactId, documentId: documentId, indices: indices
                 )
-                ocrGeometry = updated.ocrGeometry
+                ocrGeometry = updated.artifact.ocrGeometry
+                registerRegionUndo(updated, actionName: "Delete Regions")
                 selection.invalidate(artifactId: artifactId)
             } catch {
                 Self.logger.error("Region delete failed: \(String(describing: error))")
@@ -192,7 +214,8 @@ extension ZoomableImagePreview {
                 let updated = try await artifactService.combineRegions(
                     artifactId: artifactId, documentId: documentId, indices: indices
                 )
-                ocrGeometry = updated.ocrGeometry
+                ocrGeometry = updated.artifact.ocrGeometry
+                registerRegionUndo(updated, actionName: "Combine Regions")
                 selection.invalidate(artifactId: artifactId)
             } catch {
                 Self.logger.error("Region combine failed: \(String(describing: error))")
@@ -243,9 +266,13 @@ extension ZoomableImagePreview {
                 }
                 var latest: Artifact?
                 for (offset, rect) in rects.enumerated() {
+                    // One engine action per marquee, so ⌘Z is not registered here: undoing
+                    // a promotion of three marquees would need three steps, and offering
+                    // the first as "Undo Promote" would undo one region of three. A bulk
+                    // add is the fix, as `segment.update_many` was for attributes.
                     latest = try await artifactService.addRegion(
                         artifactId: artifactId, documentId: documentId, bbox: rect
-                    )
+                    ).artifact
                     await materializeRegionChild(
                         parentId: documentId, rect: rect, pixelSize: pixelSize,
                         name: Self.childName(trimmed, offset: offset, total: rects.count)
@@ -317,7 +344,7 @@ extension ZoomableImagePreview {
                 for strip in strips {
                     latest = try await artifactService.addRegion(
                         artifactId: artifactId, documentId: documentId, bbox: strip
-                    )
+                    ).artifact
                 }
                 if let latest {
                     ocrGeometry = latest.ocrGeometry

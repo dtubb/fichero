@@ -692,7 +692,7 @@ The editor
   set agrees.
   (Today a redo of a segment edit is refused as stale: the shared undo route replays the
   original request. The editor cannot ship without this.)
-- `source.editor.system-undo` — **[GAP]** (#4941) ⌘Z and ⇧⌘Z undo and redo editor actions through the action
+- `source.editor.system-undo` — **[PARTIAL]** (#4941) ⌘Z and ⇧⌘Z undo and redo editor actions through the action
   pass. (Rule (i) flags `test_artifact_regions_edit.py` as mentioning this id: that file pins the
   ENGINE half added for it — the route now names its audit row — and asserts nothing about ⌘Z,
   which is what keeps the tag `[GAP]`. The mention is the note above, not coverage.)
@@ -710,9 +710,21 @@ The editor
   `TestTheEditNamesTheActionItWrote.test_the_response_carries_the_audit_id` — which resolves the id
   to its row and checks the action name, rather than only checking a field is present — and
   `.test_it_is_still_the_artifact_response_every_caller_decodes`.
-  **Still `[GAP]`**: what remains is the app's `registerUndo` wiring, for which there is a pattern
-  to copy (the sidebar, the library canvas and the workflow canvas all use it) and no design to
-  invent. The engine side is now complete end to end.
+  **The app half is written (2026-09-27), not yet compiled.** `ActionUndo` bridges an audited
+  action to the system `UndoManager`, and move, delete and combine in the Source view register it
+  with the audit id their own response carries. The one subtlety is `UndoManager`'s bookkeeping: a
+  registration made while it is undoing is filed as a REDO, and the engine call is async, so its
+  answer — the inverse row's own id, which the redo must invert — arrives after the handler has
+  returned. Registering then would file a new undo and leave ⇧⌘Z doing nothing. So the redo is
+  registered synchronously inside the handler, holding a box the engine's answer fills; a redo
+  pressed before the answer arrives does nothing rather than inverting a guessed row. Pinned by
+  `ActionUndoTests` against a REAL `UndoManager` (`ActionUndoTests.redoIsRegisteredDuringTheUndo`,
+  `.redoInvertsTheUndosOwnRow`, `.theChainKeepsGoing`).
+  **Stays `[PARTIAL]` until it has been compiled and seen working**, and three limits are stated:
+  a marquee PROMOTION is one engine action per marquee, so it registers no ⌘Z rather than an
+  "Undo Promote" that undoes one region of three; the Inspector's Combine is not wired, because
+  whether the Inspector may edit at all is #5115; and the redraw after ⌘Z rides the change stream,
+  which is the click-around leg of the test matrix rather than something a unit test can show.
 - `source.editor.agent-parity` — **[PARTIAL]** (#4941) every edit the editor can make can be made over MCP and the
   command line through the same actions.
   **The command line: yes, and by construction rather than by design** (audited 2026-09-27).
