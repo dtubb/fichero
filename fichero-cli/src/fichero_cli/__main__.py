@@ -91,6 +91,60 @@ def _register_export_commands() -> None:
 
 
 _register_export_commands()
+
+
+def _write_page_export(data: dict[str, Any], output: str | None) -> tuple[Path, list[str]]:
+    """Write the exported file and build the lines the person must SEE: what was exported
+    (pass, order, reading kind) and what the format could not carry. A loss report nobody
+    sees is the swallow shape in a new costume, so it is printed, not logged."""
+    target = Path(output).expanduser() if output else Path(data["filename"])
+    if target.is_dir():
+        target = target / data["filename"]
+    target.write_text(data["content"], encoding="utf-8")
+    choices = data["choices"]
+    lines = [
+        f"wrote {target} ({data['format']})",
+        f"  pass: {choices.get('pass_name') or choices.get('pass_id')} ({choices.get('pass_basis')})",
+        f"  order: {choices['order_name']}    reading: {choices['reading_kind']}    segments: {choices['segment_count']}",
+    ]
+    lines += [f"  note: {note}" for note in choices.get("notes", [])]
+    losses = data.get("losses", [])
+    if losses:
+        lines.append(f"  NOT CARRIED by {data['format']} ({len(losses)}):")
+        lines += [f"    - {loss['what']} x{loss['count']}: {loss['why']}" for loss in losses]
+    else:
+        lines.append(f"  nothing was lost: {data['format']} carried everything this page has")
+    return target, lines
+
+
+@export_app.command("page", help="Export one page as PAGE XML, ALTO or TEI, with its loss report.")
+def export_page_command(
+    ctx: typer.Context,
+    doc_id: str = typer.Argument(..., help="The page's document id."),
+    export_format: str = typer.Option(..., "--format", "-f", help="pagexml, alto or tei."),
+    output: str | None = typer.Option(None, "--output", "-o", help="File or folder; default: the page's name."),
+    pass_id: str | None = typer.Option(None, "--pass", help="Pass id; default: the working pass."),
+    order_id: str | None = typer.Option(None, "--order", help="Named reading order id; default: as written."),
+    reading_kind: str | None = typer.Option(None, "--kind", help="Reading kind; default: transcription."),
+) -> None:
+    try:
+        with _client(ctx) as client:
+            data = client.export_page(
+                doc_id, export_format, pass_id=pass_id, order_id=order_id, reading_kind=reading_kind
+            )
+    except FicheroError as exc:
+        _report_fichero_error(ctx, exc)
+    target, lines = _write_page_export(data, output)
+    if ctx.obj["json"]:
+        typer.echo(render({k: v for k, v in data.items() if k != "content"} | {"path": str(target)}, as_json=True))
+    else:
+        for line in lines:
+            typer.echo(line)
+
+
+@export_app.command("formats", help="List the interchange formats this build reads and writes.")
+def export_formats_command(ctx: typer.Context) -> None:
+    _invoke(ctx, lambda c: c.list_formats())
 workflow_app.add_typer(threads_app, name="threads")
 
 # Execution statuses the workflow status endpoint may return when the run has
