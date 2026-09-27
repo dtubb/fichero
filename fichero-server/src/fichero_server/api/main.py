@@ -1915,6 +1915,7 @@ from fichero_server.api.routes.document import (  # noqa: E402
     source_settings as document_source_settings,
     sources,
     typed_links as document_typed_links,
+    signs as document_signs,
     view as document_view,
 )
 from fichero_server.api.routes.entity import (  # noqa: E402
@@ -2023,6 +2024,8 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # the four existing link records converge one per later slice, and this
     # vocabulary is seeded from all of them so no word is lost when they do.
     (document_typed_links.router, "/api", ["links"]),
+    # Slice 14 (#4939): declared signs -- the project sign list and every instance of a sign.
+    (document_signs.router, "/api", ["signs"]),
     # Source-model (#4943): a file becomes a pass. The export half lives in
     # `page_export`; this is the way in, so `source.format.everywhere` has both
     # directions from the app rather than an export-only surface.
