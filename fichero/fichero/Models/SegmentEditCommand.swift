@@ -92,3 +92,61 @@ enum SegmentEditCommand {
         return .success(updates)
     }
 }
+
+// MARK: - Join (`source.editor.join-group`)
+
+extension SegmentEditCommand {
+    /// One `segment.merge` request: the ids to merge, which one survives, and a version
+    /// for EVERY participant.
+    struct Merge: Equatable {
+        let segmentIds: [String]
+        let keepId: String
+        let expectedVersions: [String: Int]
+    }
+
+    /// Why a join is not sent.
+    enum MergeRefusal: Error, Equatable {
+        /// Fewer than two segments selected. Joining one line to itself is not an edit,
+        /// and sending it would be an audited action that changed nothing — noise in the
+        /// record a scholar reads to learn what happened to their page.
+        case needsTwoOrMore
+        case selectionIsOnAnotherPage
+        /// A participant has no known version. `segment.merge` takes a version for EVERY
+        /// id, the kept one included (#4957 follow-up 1): merge never bumps the survivor,
+        /// but a concurrent edit to it is still something that changed since the caller
+        /// last read it, and merging over that edit silently is what the token exists
+        /// to prevent.
+        case versionsUnknown
+    }
+
+    /// The merge to send for the current selection.
+    ///
+    /// THE SURVIVOR IS THE FIRST SEGMENT PICKED, and that is a decision worth stating:
+    /// the ids that are merged away keep forwarding to the survivor, so every citation
+    /// made to any of them still resolves — but the SURVIVOR's id is the one new
+    /// citations will use, and "the line I clicked first" is the only choice the person
+    /// visibly made. Letting the engine pick would hand that to an ordering rule nobody
+    /// on screen can see.
+    ///
+    /// Pass membership is NOT checked here. `segment.merge` refuses segments from two
+    /// passes with a sentence naming both (`SegmentPassMismatchError`), and a second copy
+    /// of that rule on the client would be the one that drifts — the same reason the
+    /// attribute verbs pass values through.
+    @MainActor
+    static func mergePlan(
+        for selection: SegmentSelection,
+        shownDocumentId: String?
+    ) -> Result<Merge, MergeRefusal> {
+        guard selection.count >= 2 else { return .failure(.needsTwoOrMore) }
+        guard let shown = shownDocumentId, selection.documentId == shown else {
+            return .failure(.selectionIsOnAnotherPage)
+        }
+        guard let versions = selection.expectedVersions,
+              let keepId = selection.segmentIds.first
+        else { return .failure(.versionsUnknown) }
+        return .success(Merge(
+            segmentIds: selection.segmentIds, keepId: keepId, expectedVersions: versions
+        ))
+    }
+}
+

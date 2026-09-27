@@ -758,8 +758,18 @@ The editor
 - `source.editor.propose-shape` — **[GAP]** (#4941) a click asks the engine to propose a shape, which can then be
   adjusted.
 - `source.editor.cut` — **[GAP]** (#4941) a scissors stroke splits one or many lines at once.
-- `source.editor.join-group` — **[GAP]** (#4941) selected segments can be merged; lines grouped into a region
+- `source.editor.join-group` — **[PARTIAL]** (#4941) selected segments can be merged; lines grouped into a region
   and ungrouped.
+  **The join half has its plan (2026-09-27); grouping lines into a region does not.**
+  `SegmentEditCommand.mergePlan` turns a `SegmentSelection` into one `segment.merge` request and
+  refuses three ways — fewer than two selected, a selection left over from another page, a
+  participant with no known version (merge takes one for EVERY id, the kept one included) —
+  pinned by `SegmentMergePlanTests`. **The first segment picked survives**, stated because it is a
+  decision: merged-away ids keep forwarding, so old citations resolve, but the survivor's id is
+  what new citations use and the first click is the only choice the person visibly made. Pass
+  membership is left to the engine's `SegmentPassMismatchError` rather than copied here. No menu
+  item or key calls it yet, and "lines grouped into a region" needs a create-parent verb that does
+  not exist on any surface.
 - `source.editor.set-kind` — **[PARTIAL]** (#4941) the selection's kind (and furniture or text) can be set.
   **The plan is built (2026-09-27), the verb is not.** `SegmentEditCommand.plan` turns an
   attribute and a `SegmentSelection` into the `segment.update` requests to send, and refuses
@@ -818,8 +828,17 @@ The editor
   row's OWN invert, because the generic replay freshens only a top-level `expected_version` and a
   bulk edit's versions live inside `updates[]` — the redo test failed until that was set.
 - `source.editor.set-hand-campaign` — **[GAP]** (#4941) the selection's hand and campaign can be set.
-- `source.editor.reorder` — **[GAP]** (#4941) a named reading order can be edited by dragging in a list or
+- `source.editor.reorder` — **[PARTIAL]** (#4941) a named reading order can be edited by dragging in a list or
   clicking segments in turn.
+  **The list half has its translation (2026-09-27); the on-page half does not.** A drag in a
+  list is ONE `reading_order.place`, which already moves an existing entry as one row and one
+  action. `ReadingOrderMove.place` turns a target index into the `after_entry_id` it needs —
+  measured in the list WITH THE MOVED ENTRY TAKEN OUT, which is the off-by-one that lands a
+  downward move one place too far if missed — and refuses a drop onto its own place (an audited
+  action that changed nothing) and a segment not in the level (a move must not quietly become an
+  insert). Pinned by `ReadingOrderMoveTests` in both directions, including the conversion from
+  SwiftUI's `onMove` offsets, which count the list as drawn. No list view calls it yet, and
+  reordering by drawing on the page needs the editor's overlay.
 - `source.editor.draw-link` — **[GAP]** (#4941) dragging from one segment to another makes a typed link.
 - `source.editor.match-across-passes` — **[GAP]** (#4941) a segment in one pass can be matched to one in
   another.
