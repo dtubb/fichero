@@ -191,3 +191,60 @@ def test_x():
         assert not helper("asserted_value")
         assert not helper("assertions")
         assert not helper("reassert_something")
+
+
+def test_a_fixture_named_test_something_is_not_collected_as_a_test():
+    """Four `@pytest.fixture`s named `test_*` sat in KNOWN_VACUOUS for having no
+    assertions. A fixture is never collected as a test, so it cannot be vacuous, and
+    excusing one records the guard's misreading as a fact about the suite. All three
+    spellings, because the decorator is what decides."""
+    for decorator in ("@pytest.fixture", "@fixture", '@pytest.fixture(scope="session")'):
+        fn = _as_function(
+            f"""
+{decorator}
+def test_sample_data():
+    return {{"name": "sample"}}
+"""
+        )
+        assert check_test_assertions._is_fixture(fn), decorator
+
+
+def test_an_ordinary_decorated_test_is_not_mistaken_for_a_fixture():
+    """The other side of the skip, and the one that would turn it into a hole: a test
+    carrying `parametrize` or a mark must still be scanned."""
+    for decorator in ('@pytest.mark.parametrize("x", [1])', "@pytest.mark.slow"):
+        fn = _as_function(
+            f"""
+{decorator}
+def test_real(x=1):
+    pass
+"""
+        )
+        assert not check_test_assertions._is_fixture(fn), decorator
+
+
+def test_the_scan_skips_a_fixture_and_still_reports_a_bare_test():
+    """Through `_scan_python`, not the predicate alone: the skip must remove the
+    fixture from the scan WITHOUT hiding the vacuous test beside it."""
+    import tempfile
+
+    source = '''
+import pytest
+
+
+@pytest.fixture
+def test_sample():
+    return {"a": 1}
+
+
+def test_nothing(test_sample):
+    pass
+'''
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "test_mixed.py"
+        path.write_text(source, encoding="utf-8")
+        entries = check_test_assertions._scan_python(root=Path(folder), paths=[path])
+
+    keys = {entry.key for entry in entries}
+    assert keys == {"test_mixed.py::test_nothing"}, keys
+    assert all(not entry.has_assertion for entry in entries)

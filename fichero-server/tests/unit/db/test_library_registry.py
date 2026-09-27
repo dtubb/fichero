@@ -12,8 +12,28 @@ import pytest
 
 os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
 
-from fichero_server.db import Database  # noqa: E402
+from fichero_server.api.auth import initialize_token  # noqa: E402
+from fichero_server.api.main import app  # noqa: E402
+from fichero_server.db.storage import settings  # noqa: E402
+from fichero_server.db import Database, db_manager  # noqa: E402
 from fichero_server.models import ActionAudit, DocType, Document, KnownLibrary  # noqa: E402
+
+
+_CLIENT_AUTH_TOKEN: str | None = None
+
+
+def _client():
+    """Same idiom as `test_routes_library.py`: the bootstrap bearer token, and no
+    late `add_middleware` (the conftest already attached it before the app started).
+    """
+    from fastapi.testclient import TestClient
+
+    global _CLIENT_AUTH_TOKEN
+    if _CLIENT_AUTH_TOKEN is None:
+        _CLIENT_AUTH_TOKEN = initialize_token()
+    client = TestClient(app)
+    client.headers["Authorization"] = f"Bearer {_CLIENT_AUTH_TOKEN}"
+    return client
 
 
 @pytest.fixture
@@ -196,14 +216,68 @@ class TestLibraryRegistryEndpoints:
 
 
 class TestLibraryAutoRegistration:
-    """Test that creating a library auto-registers it (#1131)."""
+    """Creating a library auto-registers it (#1131) — unless it is staging.
 
-    def test_create_library_auto_registers(self, client, tmp_path):
-        """POST /api/library auto-registers the created library."""
-        # This would require mocking the library creation endpoint
-        # and checking that the library appears in the registry.
-        # For now, we test the underlying CRUD operations.
-        pass  # Covered by integration tests
+    This class held one `pass` body for a long time, with a comment saying the
+    behaviour was "covered by integration tests" and a docstring saying it tested
+    the route. It tested nothing and reported green, which is the worst of the
+    three states a test can be in.
+
+    The reason it was hard is real and worth recording: `tmp_path` lives under
+    `/var/folders`, which `_is_staging_location` treats as STAGING, so the obvious
+    test — create under tmp_path, look for the row — asserts the opposite of what
+    its name says. That is why both halves are here: the refusal is tested where it
+    naturally happens, and the registration with the staging gate stubbed.
+    """
+
+    def test_a_staging_package_is_created_but_NOT_registered(self, tmp_path):
+        """The ghost-library rule (2026-08-25). The app materializes
+        `Untitled-<UUID>.fichero` under TMPDIR before its save panel; the package
+        moves away moments later, so a registry row for it points at nothing
+        forever and shows up in the sidebar and Open Recent as a library that
+        cannot be opened.
+
+        `tmp_path` IS such a location, which is what makes this testable directly.
+        """
+        from fichero_server.api.routes.library import core as library_core
+
+        target = tmp_path / "Untitled-DEADBEEF.fichero"
+        assert library_core._is_staging_location(str(target)), (
+            "this test depends on tmp_path being a staging location; if that "
+            "changes, it is asserting nothing"
+        )
+
+        response = _client().post("/api/library", json={"path": str(target)})
+        assert response.status_code == 200, response.text
+        assert response.json()["created"] is True
+
+        registry = db_manager.get_database(str(settings.global_library_path))
+        rows = registry.query(KnownLibrary, path=str(target))
+        assert rows == [], "a staging package must not enter the known-libraries registry"
+
+    def test_a_real_library_IS_registered_with_its_package_name(self, tmp_path, monkeypatch):
+        """The other half: outside staging, the create writes one `KnownLibrary`
+        row carrying the package's own name, because the registry is what the CLI
+        lists and what the sidebar opens.
+
+        The staging gate is stubbed rather than worked around: there is no writable
+        non-temp location a unit test may create packages in, and stubbing the ONE
+        predicate keeps the rest of the route — allowlist, package creation, schema
+        init, registration — real.
+        """
+        from fichero_server.api.routes.library import core as library_core
+
+        monkeypatch.setattr(library_core, "_is_staging_location", lambda _path: False)
+        target = tmp_path / "Marshall Diaries.fichero"
+
+        response = _client().post("/api/library", json={"path": str(target)})
+        assert response.status_code == 200, response.text
+
+        registry = db_manager.get_database(str(settings.global_library_path))
+        rows = registry.query(KnownLibrary, path=str(target))
+        names = [row.name for row in rows]
+        assert len(rows) == 1, f"expected exactly one registry row, got {rows}"
+        assert names == ["Marshall Diaries.fichero"]
 
 
 class TestGlobalRegistryHeaderless:

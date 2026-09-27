@@ -35,6 +35,19 @@ SWIFT_ROOT = ROOT / "fichero" / "fichero"
 
 # Seeded with current-tree vacuous tests.
 KNOWN_VACUOUS = {
+    # TWO more left on 2026-09-27 because the holes they excused were FILLED, not
+    # excused: `test_create_library_auto_registers` (was `pass  # Covered by
+    # integration tests`) and `test_web_search_timeout_enforced` (was `pass` under a
+    # docstring calling itself informational). Both now assert.
+    #
+    # FOUR entries left on 2026-09-27 when the scanner learned to skip fixtures
+    # (`test_package`, `test_action_data`, `test_db`, `test_tool` — all
+    # `@pytest.fixture`). Nothing was excused in their place; they were never tests.
+    #
+    # OWED: this is a set, so the entries below say a test is excused and not WHY.
+    # Converting it to a node id -> reason map belongs to whoever next decides about
+    # these tests, not to a bulk rewrite that would invent 47 sentences (#5105's
+    # argument about pasted reasons).
     # #4902: the assertion is a monkeypatched callback that raises if called
     # (`_fail_if_called`) — real, negative-assertion coverage ("must not
     # re-run NLP on an already-processed document") the AST detector can't
@@ -52,8 +65,6 @@ KNOWN_VACUOUS = {
     # cannot trace into; the assertions are real (#2153).
     "fichero-server/tests/unit/security/test_security_guardrails.py::test_security_guardrail_allowlist_entries_have_reasons",
     "fichero-server/tests/unit/security/test_security_guardrails.py::test_security_guardrail_allowlists_are_not_stale",
-    "fichero-server/tests/conftest.py::test_package",
-    "fichero-server/tests/integration/test_action_library_integration.py::test_action_data",
     "fichero-server/tests/integration/test_api_contracts.py::TestAPIConventions::test_snake_case_query_params",
     "fichero-server/tests/integration/test_api_contracts.py::TestExportedSchemaMatchesLive::test_exported_endpoints_match_live",
     "fichero-server/tests/integration/test_api_contracts.py::TestOpenAPISchemaValidity::test_endpoints_have_operation_ids",
@@ -68,11 +79,9 @@ KNOWN_VACUOUS = {
     "fichero-server/tests/unit/workflows/test_fuzzy_clean_rgba.py::test_fuzzy_clean_la_and_palette_modes",
     "fichero-server/tests/unit/mcp/test_integration_security.py::TestEnvironmentSecurity::test_api_key_required_in_production",
     "fichero-server/tests/unit/mcp/test_integration_security.py::TestLibraryPathSecurity::test_library_path_validates_allowed_locations",
-    "fichero-server/tests/unit/db/test_library_registry.py::TestLibraryAutoRegistration::test_create_library_auto_registers",
     "fichero-server/tests/unit/mcp/test_mcp_manager.py::TestMCPManager::test_remove_nonexistent_server",
     "fichero-server/tests/unit/llm/test_model_profiles.py::test_enforce_allows_private_local_profile",
     "fichero-server/tests/unit/llm/test_model_profiles.py::test_enforce_allows_standard_cloud_profile",
-    "fichero-server/tests/unit/models/test_new_data_layer.py::test_db",
     "fichero-server/tests/unit/media/test_ocr_geometry_helpers.py::test_bbox_edge_epsilon_tolerance",
     "fichero-server/tests/unit/media/test_ocr_geometry_helpers.py::test_policy_allows_cloud_when_not_local_only",
     "fichero-server/tests/unit/media/test_ocr_geometry_helpers.py::test_policy_allows_local_providers",
@@ -90,13 +99,11 @@ KNOWN_VACUOUS = {
     "fichero-server/tests/unit/llm/test_provider_validation.py::TestValidateProviderConfig::test_valid_anthropic_config",
     "fichero-server/tests/unit/llm/test_provider_validation_errors.py::test_clean_key_still_passes",
     "fichero-server/tests/unit/llm/test_provider_validation.py::TestValidateProviderConfig::test_valid_openai_config",
-    "fichero-server/tests/unit/llm/test_research_ssrf_security.py::TestSSRFResourceLimits::test_web_search_timeout_enforced",
     "fichero-server/tests/unit/db/test_storage.py::TestShutdown::test_shutdown_idempotent",
     "fichero-server/tests/unit/workflows/test_transcription_save.py::TestParseJsonFieldsNullMetadata::test_null_metadata_does_not_raise_validation_error",
     "fichero-server/tests/unit/workflows/test_vision_warning_activity.py::TestLogVisionWarning::test_no_tracker_does_not_raise",
     "fichero-server/tests/unit/workflows/test_vision_warning_activity.py::TestLogVisionWarning::test_tracker_import_failure_falls_back_gracefully",
     "fichero-server/tests/unit/workflows/test_vision_warning_activity.py::TestLogVisionWarning::test_tracker_log_exception_does_not_propagate",
-    "fichero-server/tests/unit/workflows/test_workflow_executor.py::test_tool",
     "fichero-server/tests/unit/workflows/test_default_workflow_e2e_harness.py::test_catalogue_default_workflow_lands_artifacts_and_kg_rows",
     "fichero-server/tests/unit/workflows/test_default_workflow_e2e_harness.py::test_catalogue_twostage_workflow_lands_kg_rows",
     "fichero-server/tests/unit/workflows/test_ner_config_schema.py::test_extract_all_exposes_ner_provider_and_model",
@@ -211,6 +218,30 @@ def _relative_key(path: Path, root: Path) -> str:
         return path.as_posix()
 
 
+def _is_fixture(function: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """True for a `@pytest.fixture` that happens to be NAMED `test_*`.
+
+    A fixture is not a test. Pytest never collects one as a test, so it cannot be
+    vacuous and cannot be a hole — and four of them sat in `KNOWN_VACUOUS` for
+    "having no assertions": `conftest.py::test_package`,
+    `test_action_library_integration.py::test_action_data`,
+    `test_new_data_layer.py::test_db`, `test_workflow_executor.py::test_tool`. They
+    are sample data and temporary packages. Those four entries recorded the guard's
+    own misreading as a fact about the suite, which is worse than a missing entry:
+    an excused test looks examined.
+
+    Matches `@pytest.fixture`, a bare `@fixture`, and the parametrised call form
+    (`@pytest.fixture(scope="session")`) — the DECORATOR decides, never the name.
+    """
+    for decorator in function.decorator_list:
+        target = decorator.func if isinstance(decorator, ast.Call) else decorator
+        if isinstance(target, ast.Attribute) and target.attr == "fixture":
+            return True
+        if isinstance(target, ast.Name) and target.id == "fixture":
+            return True
+    return False
+
+
 def _scan_python(*, root: Path | None = None, paths: list[Path] | None = None) -> list[TestEntry]:
     base_root = root or ROOT
     entries: list[TestEntry] = []
@@ -223,10 +254,14 @@ def _scan_python(*, root: Path | None = None, paths: list[Path] | None = None) -
         rel = _relative_key(path, base_root)
         for node in tree.body:
             if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+                if _is_fixture(node):
+                    continue
                 entries.append(TestEntry(f"{rel}::{node.name}", _python_asserts(node)))
             elif isinstance(node, ast.ClassDef):
                 for child in node.body:
                     if isinstance(child, ast.FunctionDef) and child.name.startswith("test_"):
+                        if _is_fixture(child):
+                            continue
                         entries.append(
                             TestEntry(f"{rel}::{node.name}::{child.name}", _python_asserts(child))
                         )
