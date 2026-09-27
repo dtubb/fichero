@@ -25,39 +25,57 @@ SWIFT_DIR = ROOT / "fichero" / "fichero"
 RULE_DOC = "agents/ROADMAP.md"
 
 KNOWN_VIOLATIONS: dict[str, str] = {
-    # #4524's decision-point citations: Apple-doc quotes ("Window scene's
-    # title is listed…automatically") full of backticked symbols read as code
-    # to the regex; they are the documented-vs-empirical record Daniel asked
-    # for, not commented-out code.
-    "fichero/fichero/FicheroApp.swift#933da2d3d8": "#4524 doc citations",
-    # Prose explaining the debounce starvation fix; the words "class"/"for"/
-    # "import" in ordinary sentences trip the code-like regex.
-    "fichero/fichero/Models/ObservableDomainStore.swift#099e95cd6d": "#4223 false positive (prose)",
-    # #4902 green-up: all six below are the same false-positive class as the
-    # two entries above — multi-line PROSE explaining a design decision
-    # (shortcut collisions, chat bridge reasoning, sidebar-sync scoping,
-    # model-shown=model-sent, detached-run status), not commented-out code.
-    # Verified by reading each block directly: none contains an actual Swift
-    # statement, just decision-history sentences whose keywords ("for", "let",
-    # method names in prose) trip the crude regex.
-    "fichero/fichero/App/Menus/ImagePreviewMenuCommands.swift#4ac9821465": "#4902 false positive (prose, #4693 shortcut-collision history)",
-    "fichero/fichero/Views/Chat/ChatView.swift#ab36c64e96": "#4902 false positive (prose, #4817 chat-bridge reasoning)",
-    "fichero/fichero/Views/Chat/ChatView.swift#e458ea8af6": "#4902 false positive (prose, #4705/#4817 scoping reasoning)",
-    "fichero/fichero/Views/Shell/ContentView/ContentView+StateEvents.swift#ab96b28b09": "#4902 false positive (prose, #4850/#4862 outline-id reasoning)",
-    "fichero/fichero/Views/Shell/ContentView/ContentViewModifiers.swift#dcec92f425": "#4902 false positive (prose, #4882 sidebar-sync scoping)",
-    "fichero/fichero/Views/Shell/ContentView/Layout/ContentView+WorkflowChainEngine.swift#019629ad5d": "#4902 false positive (prose, model-shown=model-sent reasoning)",
-    "fichero/fichero/Views/Shell/Toolbar/WorkflowBar.swift#63e6cf43c0": "#4902 false positive (prose, detached-run status reasoning)",
-    "fichero/fichero/Views/Library/ViewModes/LibraryView+Helpers.swift#6db3c7cd5e": "#1916 baseline (DocRowIdentity doc block moved here when LibraryView+DisplayModes was split by file_length)",
-    "fichero/fichero/Views/Preview/ImageViewer/ZoomableImagePreviewMac+ZoomActions.swift#c7669329ed": "#1916 baseline",
-    "fichero/fichero/Views/Library/LibraryView+KeyboardShortcuts.swift#d5e49f726d": "#1916 baseline",
-    "fichero/fichero/Views/Preview/PDFViewer/PDFPageView.swift#21f2204213": "#1916 baseline",
-    "fichero/fichero/Views/Library/DocumentPickerSheet.swift#727654079f": "#1916 baseline",
+    # One entry, and it is the guard's OTHER rule: an untracked `TODO:` with no issue number.
+    # The fourteen this replaced were all the code-like rule firing on prose; eleven of them
+    # said so ("false positive (prose)"). Tightening the rule cleared thirteen at once and
+    # flagged nothing new (2026-09-27). If this grows again, read the block before adding a
+    # line — an allowlist that is mostly workaround is measuring the guard, not the code.
+    "fichero/fichero/Views/Library/DocumentPickerSheet.swift#727654079f": (
+        "#1916 baseline — TODO with no issue: navigate to the batches sidebar and execute "
+        "a batch with SSE streaming"
+    ),
 }
 _TODO = re.compile(r"\b(?:TODO|FIXME)\b")
 _ISSUE = re.compile(r"#\d+")
-_CODEISH = re.compile(
-    r"(^|\s)(?:func|let|var|if|else|guard|for|while|switch|case|return|import|struct|class|enum)\b|[=;{}]"
+#: A comment line is code-like when it reads as a STATEMENT, not merely because it contains a
+#: keyword or a brace somewhere. The old rule matched any of `= ; { }` anywhere and any keyword
+#: after whitespace, which flags this codebase's own documented commenting style: prose that
+#: cites identifiers, names a caller by `File.swift:169-181`, ends a sentence in a parenthetical,
+#: lists enum cases as `.widescreen → …`, or uses the words "for", "class" or "import" in an
+#: ordinary sentence. Eleven of the fourteen allowlist entries said exactly that in prose —
+#: "false positive (prose)" — which is eleven people writing down the missing rule instead of
+#: adding it. Tightened 2026-09-27: 15 offenders -> 1, and nothing newly flagged.
+#:
+#: Validated in both directions by test, because a hygiene rule that cannot tell a commented-out
+#: `store.reload()` from a sentence about reloading is worse than none: it teaches people to
+#: stop explaining their decisions.
+_CODEISH_KEYWORD_START = re.compile(
+    r"^(?:@|\}|func|let|var|if|else|guard|for|while|switch|case|return|import|struct|class|enum|"
+    r"try|await|async|public|private|internal|final|static|override|extension|init|deinit|self\b)"
 )
+#: `{`, `}` and `;` only. NOT `)` or `,`: prose here ends in a parenthetical constantly.
+_CODEISH_STATEMENT_END = re.compile(r"[{};]\s*$")
+_CODEISH_ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_.\[\]]*\s*(?:=|\+=|-=)\s*\S")
+_CODEISH_CALL = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*\s*\(")
+
+
+class _CodeishRule:
+    """Kept regex-shaped (`.search`) so the two call sites in this module read unchanged."""
+
+    @staticmethod
+    def search(line: str) -> bool:
+        stripped = line.strip()
+        if not stripped:
+            return False
+        return bool(
+            _CODEISH_KEYWORD_START.match(stripped)
+            or _CODEISH_STATEMENT_END.search(stripped)
+            or _CODEISH_ASSIGN.match(stripped)
+            or _CODEISH_CALL.match(stripped)
+        )
+
+
+_CODEISH = _CodeishRule
 _RULE_PROSE = re.compile(
     r"\b(?:rule|guardrail|architecture|default|workaround|because|without|should|must|TODO: convert port\\.default_ if needed)\b",
     re.IGNORECASE,
