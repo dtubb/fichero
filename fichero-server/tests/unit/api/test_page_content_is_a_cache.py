@@ -272,3 +272,109 @@ class TestAPagesTextIsDerivedInOnePass:
         derived = sr.document_text(db, page.id)
         assert derived.text
         assert calls.count("Segment") == 0, f"{calls.count('Segment')} single-row Segment lookups"
+
+
+class TestTheTextIsDerivedFromTheLinesThatCarryIt:
+    """Slice 12 (#4940): a 20,000-shape page's text took ~3.3 s, 2.9 s of it loading every word and
+    character only to skip them for having no reading. The default order now loads only the rows
+    that CAN carry text (~80-100 ms warm). These pin that it is the same answer as deriving from the
+    whole pass after every kind of text-changing action, and that it never quietly goes back to
+    loading the whole pass."""
+
+    _PAGE = b"""<PcGts xmlns="http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15">
+      <Page imageFilename="p.jpg" imageWidth="1000" imageHeight="1000">
+        <TextRegion id="r"><Coords points="10,10 990,10 990,500 10,500"/>
+          <TextLine id="l1"><Coords points="10,10 990,10 990,60 10,60"/>
+            <Word id="w1"><Coords points="10,10 100,10 100,60 10,60"/></Word>
+            <Word id="w2"><Coords points="110,10 200,10 200,60 110,60"/></Word>
+            <TextEquiv><Unicode>first line</Unicode></TextEquiv></TextLine>
+          <TextLine id="l2"><Coords points="10,70 990,70 990,120 10,120"/>
+            <Word id="w3"><Coords points="10,70 100,70 100,120 10,120"/></Word>
+            <TextEquiv><Unicode>second line</Unicode></TextEquiv></TextLine>
+          <TextLine id="l3"><Coords points="10,130 990,130 990,180 10,180"/>
+            <TextEquiv><Unicode>third line</Unicode></TextEquiv></TextLine>
+        </TextRegion></Page></PcGts>"""
+
+    def _imported_page(self, db, tmp_path):
+        import fichero_server.api.routes.document.format_import  # noqa: F401
+        from fichero_server.models import DocType, FileType, Status
+        from fichero_server.models.segments import SegmentPass
+
+        doc = Document(name="p.jpg", doc_type=DocType.file, file_type=FileType.image,
+                       path="/p/p.jpg", status=Status.completed)
+        db.save(doc)
+        path = tmp_path / "p.page.xml"
+        path.write_bytes(self._PAGE)
+        registry.invoke(db, "format.import", {"document_id": doc.id, "path": str(path)}, CTX)
+        [pass_row] = [p for p in db.all(SegmentPass) if p.document_id == doc.id]
+        registry.invoke(db, "pass.choose_working", {"document_id": doc.id, "pass_id": pass_row.id}, CTX)
+        rows = {r.metadata.get("foreign", {}).get("ref") or r.id: r for r in db.all(Segment) if r.pass_id == pass_row.id}
+        lines = sorted((r for r in db.all(Segment) if r.pass_id == pass_row.id and r.kind == "line"),
+                       key=lambda r: r.bbox_y)
+        return doc, lines, rows
+
+    def _both(self, db, document_id, monkeypatch):
+        import fichero_server.api.routes.document.segment_readings as sr
+
+        fast = sr.document_text(db, document_id)
+        with monkeypatch.context() as m:
+            m.setattr(sr, "_text_bearing_rows", lambda db_, doc_, pass_id: db_.query(Segment, pass_id=pass_id))
+            full = sr.document_text(db, document_id)
+        return fast, full
+
+    def _assert_same(self, fast, full):
+        assert fast.text == full.text
+        assert [(s.segment_id, s.start, s.end) for s in fast.spans] == [(s.segment_id, s.start, s.end) for s in full.spans]
+
+    def test_furniture_delete_merge_and_split_all_derive_the_same_text(self, db, tmp_path, monkeypatch):
+        doc, lines, _ = self._imported_page(db, tmp_path)
+        l1, l2, l3 = lines
+        self._assert_same(*self._both(db, doc.id, monkeypatch))
+
+        v = lambda row: db.get(Segment, row.id).version  # noqa: E731
+        registry.invoke(db, "segment.update", {"segment_id": l3.id, "expected_version": v(l3), "is_furniture": True}, CTX)
+        fast, full = self._both(db, doc.id, monkeypatch)
+        self._assert_same(fast, full)
+        assert "third line" not in fast.text
+
+        registry.invoke(db, "segment.delete", {"segment_ids": [l2.id], "expected_versions": {l2.id: v(l2)}}, CTX)
+        fast, full = self._both(db, doc.id, monkeypatch)
+        self._assert_same(fast, full)
+        assert "second line" not in fast.text
+
+        registry.invoke(db, "segment.update", {"segment_id": l3.id, "expected_version": v(l3), "is_furniture": False}, CTX)
+        registry.invoke(db, "segment.merge", {
+            "segment_ids": [l3.id, l1.id], "keep_id": l1.id,
+            "expected_versions": {l3.id: v(l3), l1.id: v(l1)}}, CTX)
+        self._assert_same(*self._both(db, doc.id, monkeypatch))
+
+        registry.invoke(db, "segment.split", {
+            "segment_id": l1.id, "expected_version": v(l1),
+            "parts": [{"anchor": {"document_id": doc.id, "rect": [0.01, 0.01, 0.4, 0.05]}},
+                      {"anchor": {"document_id": doc.id, "rect": [0.5, 0.01, 0.4, 0.05]}}]}, CTX)
+        self._assert_same(*self._both(db, doc.id, monkeypatch))
+
+    def test_a_converted_page_with_provisional_readings_derives_the_same_text(self, db, client, monkeypatch):
+        """The other way a row carries text: a box in the artifact it was converted from, found
+        by one SQL scan of `metadata.box_index`, not by loading the pass."""
+        page, art, row = _converted(db, client)
+        fast, full = self._both(db, page.id, monkeypatch)
+        self._assert_same(fast, full)
+        assert fast.text
+
+    def test_it_never_loads_the_whole_pass(self, db, tmp_path, monkeypatch):
+        """Fails if the default order ever falls back to `db.query(Segment, pass_id=...)`."""
+        import fichero_server.api.routes.document.segment_readings as sr
+
+        doc, lines, rows = self._imported_page(db, tmp_path)
+        original = db.query
+
+        def refuse_whole_pass(model, **filters):
+            assert not (model is Segment and "pass_id" in filters and len(filters) == 1), (
+                "the default-order derivation loaded every row of the pass"
+            )
+            return original(model, **filters)
+
+        monkeypatch.setattr(db, "query", refuse_whole_pass)
+        derived = sr.document_text(db, doc.id)
+        assert "first line" in derived.text

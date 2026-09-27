@@ -948,8 +948,21 @@ which the undos that do change the text still pay. Deriving the 20,000-segment p
 14.5 s, with 20,017 single-row lookups: `readings_of_segment` re-walked forwarding for live rows
 already in hand, and ran one representation query and one kinds query per row. The page's
 readings are now gathered in one batch (`_readings_for_live_rows`). **About 1.8 s now**, again
-measured under load. That is still far past 100 ms for a text-changing undo, which the trial
-records rather than hides; the next cut is to derive only the lines an action touched. Pinned by
+measured under load. **The third finding:** 2.9 s of what remained was loading every word
+and character only to skip it for having no reading, and the other 20,000-row load was the
+working-pass check asking "is there a human segment?" by fetching them all. The default order now
+loads only the rows that can carry text (a stored reading, or a box in the artifact a pass was
+converted from, found by one SQL scan), the working-pass check counts instead of loading, and the
+page's reading choices are fetched once instead of once per line. **About 80 to 100 ms warm** for the
+whole 20,000-shape page, under load, and so inside the edit budget without per-action bookkeeping
+(a second copy of ordering, separators and bidirectional joining that would have to stay in step
+with the first). Pinned by
+`fichero-server/tests/unit/api/test_page_content_is_a_cache.py::TestTheTextIsDerivedFromTheLinesThatCarryIt::test_furniture_delete_merge_and_split_all_derive_the_same_text`
+(the same text and spans as deriving from the whole pass, after each kind of text-changing action),
+`::TestTheTextIsDerivedFromTheLinesThatCarryIt::test_a_converted_page_with_provisional_readings_derives_the_same_text`
+and `::TestTheTextIsDerivedFromTheLinesThatCarryIt::test_it_never_loads_the_whole_pass` (fails on the
+code before). A named reading order still loads every row, because it must say why each id it names
+is missing. Pinned by
 `fichero-server/tests/unit/api/test_page_content_is_a_cache.py::TestAPagesTextIsDerivedInOnePass::test_the_batch_gives_exactly_what_each_row_would`
 (the same answer as the per-row path, stored and provisional readings both) and
 `::TestAPagesTextIsDerivedInOnePass::test_deriving_a_page_looks_no_row_up_one_at_a_time` (fails on

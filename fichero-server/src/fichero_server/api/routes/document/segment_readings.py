@@ -327,6 +327,35 @@ def readings_of_segment(
     return items
 
 
+def _text_bearing_rows(db: Database, document_id: str, pass_id: str) -> list[Segment]:
+    """The rows of `pass_id` that can have a reading -- the only rows `document_text` uses.
+
+    A row has a reading when a stored reading names it, or -- in a pass converted from a
+    machine artifact -- when it recorded its box in that artifact (`metadata["box_index"]`,
+    the provisional reading's key). Every other row is skipped by the derivation anyway, so it
+    is not loaded: the ids come from the readings table and one SQL scan, and only those rows
+    are hydrated. The same rows, in the same order, as loading the whole pass
+    (`TestTheTextIsDerivedFromTheLinesThatCarryIt`).
+    """
+    ids = {
+        rep_row.segment_id for rep_row in db.query(ContentRepresentation, document_id=document_id)
+        if rep_row.segment_id
+    }
+    pass_row = db.get(SegmentPass, pass_id)
+    if pass_row is not None and pass_row.source_artifact_id:
+        table = db._sql_table_name(Segment)
+        ids.update(
+            row[0] for row in db.execute_fetchall(
+                f"SELECT id FROM {table} WHERE pass_id = $pass_id "
+                "AND json_extract(metadata, '$.box_index') IS NOT NULL",
+                {"pass_id": pass_id},
+            )
+        )
+    if not ids:
+        return []
+    return [row for row in db.query_in(Segment, "id", sorted(ids)) if row.pass_id == pass_id]
+
+
 def _readings_for_live_rows(
     db: Database, rows: list[Segment], document_id: str, artifact_memo: dict[str, Artifact | None]
 ) -> dict[str, list[ReadingRead]]:
@@ -381,7 +410,12 @@ def _candidate(item: ReadingRead) -> ReadingCandidate:
 
 
 def counting_by_kind(
-    db: Database, segment_id: str, items: list[ReadingRead]
+    db: Database,
+    segment_id: str,
+    items: list[ReadingRead],
+    *,
+    rule: Any = None,
+    choices: list[ReadingChoice] | None = None,
 ) -> dict[str, CountingAnswer]:
     """The counting answer for each kind present, worked out fresh.
 
@@ -389,8 +423,13 @@ def counting_by_kind(
     this is computed on every read rather than cached: a cache would be a
     second, stale copy of exactly the fact this design refuses to store.
     """
-    rule = project_record_rule(db)
-    choices = list(db.query(ReadingChoice, segment_id=segment_id))
+    # `rule` and `choices` may be handed in by a caller deriving a whole page, which fetches them
+    # ONCE (slice 12: one choice query per line was most of a dense page's remaining cost). The
+    # answer is the same either way -- it is still worked out fresh, never stored.
+    if rule is None:
+        rule = project_record_rule(db)
+    if choices is None:
+        choices = list(db.query(ReadingChoice, segment_id=segment_id))
     answers: dict[str, CountingAnswer] = {}
     for kind in sorted({item.kind for item in items}):
         answers[kind] = resolve_counting(
@@ -571,7 +610,11 @@ def _pass_candidates(db: Database, document_id: str) -> list[PassCandidate]:
         # ONLY the human rows are fetched: the question is "does this pass hold a person's
         # segment", and hydrating every row of a 20,000-segment import to ask it made the
         # working-pass check cost seconds (#5086, found measuring a dense import).
-        rows = db.query(Segment, pass_id=pass_row.id, provenance_kind=ProvenanceKind.human)
+        # A COUNT, not the rows: an imported pass is all human rows, and loading 20,000 of them to
+        # ask "is there one?" was half of a dense page's derivation (slice 12).
+        human_live = db.count(
+            Segment, pass_id=pass_row.id, provenance_kind=ProvenanceKind.human.value, deleted_at=None,
+        )
         from_text_layer = False
         if pass_row.source_artifact_id:
             artifact = db.get(Artifact, pass_row.source_artifact_id)
@@ -582,10 +625,7 @@ def _pass_candidates(db: Database, document_id: str) -> list[PassCandidate]:
             PassCandidate(
                 pass_id=pass_row.id,
                 provenance_kind=pass_row.provenance_kind,
-                has_human_segment=any(
-                    row.deleted_at is None and row.provenance_kind is ProvenanceKind.human
-                    for row in rows
-                ),
+                has_human_segment=human_live > 0,
                 from_text_layer=from_text_layer,
                 created_at=pass_row.created_at,
             )
@@ -713,7 +753,15 @@ def document_text(
 
     rows = [
         row
-        for row in db.query(Segment, pass_id=answer.pass_id)
+        for row in (
+            # The default order needs only the rows that can CARRY text (slice 12, #4940): on a
+            # 20,000-shape page ~2.9 s of 3.3 s was loading every character and word just to
+            # skip it for having no reading. A named order still needs every row, because it
+            # must say why each id it names is missing.
+            _text_bearing_rows(db, document_id, answer.pass_id)
+            if ordered_segment_ids is None
+            else db.query(Segment, pass_id=answer.pass_id)
+        )
         if row.deleted_at is None and (include_furniture or not row.is_furniture)
     ]
     omitted: list[OmittedSegment] = []
@@ -762,6 +810,10 @@ def document_text(
     span_directions: list[tuple[str | None, str | None, str | None, DerivedTextSpan]] = []
     cursor = 0
     page_readings = _readings_for_live_rows(db, rows, document_id, artifact_memo)
+    record_rule = project_record_rule(db)
+    choices_by_segment: dict[str, list[ReadingChoice]] = {}
+    for choice in db.query_in(ReadingChoice, "segment_id", [row.id for row in rows]):
+        choices_by_segment.setdefault(choice.segment_id, []).append(choice)
     for row in rows:
         items = [item for item in page_readings[row.id] if item.kind == kind]
         if not items:
@@ -769,7 +821,9 @@ def document_text(
         resolved = resolve_direction(segment=row, document=document)
         direction = resolved.language if resolved.status != STATUS_UNKNOWN else None
         direction_level = resolved.level
-        counted = counting_by_kind(db, row.id, items).get(kind)
+        counted = counting_by_kind(
+            db, row.id, items, rule=record_rule, choices=choices_by_segment.get(row.id, []),
+        ).get(kind)
         if counted is None or counted.representation_id is None:
             # The line HAS readings and none of them counts (a strict project
             # where people disagree). Leaving a hole would be a lie about the
