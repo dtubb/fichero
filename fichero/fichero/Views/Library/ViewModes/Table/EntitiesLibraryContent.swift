@@ -66,7 +66,15 @@ struct EntitiesLibraryContent: View {
     /// because `KnowledgeEntity.id` is optional, which `.sheet(item:)` cannot key on.
     @State private var entityToEdit: Components.Schemas.KnowledgeEntity?
 
-    private struct EditingEntity: Identifiable {
+    /// The entity a merge-into sheet would absorb others INTO (#5110).
+    @State private var entityToMergeInto: Components.Schemas.KnowledgeEntity?
+    /// The entity a split sheet would un-merge others OUT of (#5110).
+    @State private var entityToSplit: Components.Schemas.KnowledgeEntity?
+
+    /// `.sheet(item:)` needs an `Identifiable`, and `KnowledgeEntity.id` is optional.
+    /// Shared by the edit, merge-into and split sheets — named for what it does rather
+    /// than for the first sheet that needed it.
+    private struct IdentifiedEntity: Identifiable {
         let entity: Components.Schemas.KnowledgeEntity
         var id: String { entity.id ?? entity.canonicalName }
     }
@@ -106,13 +114,46 @@ struct EntitiesLibraryContent: View {
             NewEntitySheet(onCreated: handleCreatedEntity)
         }
         .sheet(item: Binding(
-            get: { entityToEdit.map(EditingEntity.init) },
+            get: { entityToEdit.map(IdentifiedEntity.init) },
             set: { entityToEdit = $0?.entity }
         )) { wrapped in
             // Same sheet, editing mode. On save, force-reload so the edited row
             // reflects the change in place.
             NewEntitySheet(editing: wrapped.entity) { _ in
                 entityToEdit = nil
+                Task { await reloadScope(force: true) }
+            }
+        }
+        // #5110: the doors for two complete sheets that had none. Both read their own
+        // EntityService from the environment — the library they mutate — exactly as
+        // NewEntitySheet above does, so all three agree about which graph they change.
+        // `store.libraryEntities` and not `items`: both sheets reason over the whole
+        // library (what can be absorbed, what was merged in), while `items` is this
+        // pane's possibly folder-scoped rows.
+        .sheet(item: Binding(
+            get: { entityToMergeInto.map(IdentifiedEntity.init) },
+            set: { entityToMergeInto = $0?.entity }
+        )) { wrapped in
+            EntityMergeSheet(
+                absorbingEntity: wrapped.entity,
+                allEntities: store.libraryEntities
+            ) {
+                entityToMergeInto = nil
+                // Force-reload: a merge removes the absorbed rows and changes the
+                // survivor's counts, so the scope has to be re-read rather than patched.
+                Task { await reloadScope(force: true) }
+            }
+        }
+        .sheet(item: Binding(
+            get: { entityToSplit.map(IdentifiedEntity.init) },
+            set: { entityToSplit = $0?.entity }
+        )) { wrapped in
+            EntitySplitSheet(
+                primaryEntity: wrapped.entity,
+                allEntities: store.libraryEntities
+            ) {
+                entityToSplit = nil
+                // A split makes absorbed entities independent again, so rows APPEAR.
                 Task { await reloadScope(force: true) }
             }
         }
@@ -286,6 +327,8 @@ struct EntitiesLibraryContent: View {
                 let absorbed = Array(ranked.dropFirst())
                 Task { try? await store.merge(absorbedIds: absorbed, into: survivor) }
             },
+            mergeInto: { entity in entityToMergeInto = entity },
+            split: { entity in entityToSplit = entity },
             delete: { entities in
                 let ids = entities.compactMap(\.id)
                 Task { try? await store.delete(entityIds: ids) }

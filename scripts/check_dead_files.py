@@ -56,19 +56,6 @@ PROTOCOL_REQUIREMENTS = frozenset({
 
 # Current candidate-dead backlog. Drop entries as files are removed or wired.
 KNOWN_VIOLATIONS: dict[str, str] = {
-    # #5110 — BUILT AND UNREACHABLE, which is not the same as dead. Each is one SwiftUI view,
-    # no extension on another type, and no presentation site anywhere: no `.sheet(item:)`, no
-    # menu command, no context action. Entity merge and split are real ontology operations and
-    # the engine side exists, so deleting them throws away built work while wiring them is a
-    # product decision about where the door goes. Verified 2026-09-27 by classifying every
-    # reference as code or prose first — each type name appears exactly once, at its own
-    # declaration. Do not let these entries outlive the ruling on #5110.
-    "Views/Library/ViewModes/Graph/Ontology/Entity/EntityMergeSheet.swift": (
-        "#5110 — built, compiles, no door: merging two knowledge-graph entities"
-    ),
-    "Views/Library/ViewModes/Graph/Ontology/Entity/EntitySplitSheet.swift": (
-        "#5110 — built, compiles, no door: splitting one entity into two"
-    ),
     "Views/Shell/ContentView/Layout/ContentView+WindowEnvironment.swift": (
         "#4902 — false positive, NOT dead: WindowEnvironmentModifier IS used, but only "
         "indirectly — three boundaries (ContentView+Navigation.swift:154, PaneSpec.swift:313, "

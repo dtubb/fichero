@@ -150,3 +150,40 @@ struct EntityMergeSheet: View {
         }
     }
 }
+
+// #5110: this sheet was complete and unreachable, so nobody had ever looked at it.
+// Now that the entity table presents it, it gets a preview — this project's way of
+// verifying a surface renders (RenderPreview), and the only verification available
+// for declarative wiring that no unit test can reach.
+//
+// No EntityService in the environment: that is the deliberate honest state. The
+// sheet's service is optional precisely so a host injecting none fails VISIBLY
+// rather than guessing a library (#4306/#4461), and the preview shows the form the
+// user would see before any service is consulted.
+#Preview("Merge — three candidates") {
+    EntityMergeSheet(
+        absorbingEntity: Components.Schemas.KnowledgeEntity(
+            id: "ent-survivor",
+            canonicalName: "Ana María Restrepo"
+        ),
+        allEntities: [
+            Components.Schemas.KnowledgeEntity(id: "ent-survivor", canonicalName: "Ana María Restrepo"),
+            Components.Schemas.KnowledgeEntity(id: "ent-dup-1", canonicalName: "A. M. Restrepo"),
+            Components.Schemas.KnowledgeEntity(id: "ent-dup-2", canonicalName: "Ana Restrepo"),
+            Components.Schemas.KnowledgeEntity(id: "ent-dup-3", canonicalName: "Restrepo, Ana María")
+        ],
+        onMerge: {}
+    )
+}
+
+// The empty case renders differently and is the one a user hits by accident, so it
+// gets its own preview rather than being assumed from the populated one.
+#Preview("Merge — nothing to absorb") {
+    EntityMergeSheet(
+        absorbingEntity: Components.Schemas.KnowledgeEntity(id: "ent-only", canonicalName: "Bogotá"),
+        allEntities: [
+            Components.Schemas.KnowledgeEntity(id: "ent-only", canonicalName: "Bogotá")
+        ],
+        onMerge: {}
+    )
+}

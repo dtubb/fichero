@@ -137,3 +137,54 @@ struct EntitySplitSheet: View {
         }
     }
 }
+
+// #5110: complete, unreachable until the entity table gained a door, and therefore
+// never looked at. See the note on EntityMergeSheet's previews for why there is no
+// EntityService here.
+//
+// Split is the INVERSE of a merge, not a division: it lists the entities whose
+// `mergedIntoId` points at the primary and clears it. So the populated preview has
+// to set that field — an entity list without it renders the empty state and would
+// quietly prove nothing.
+#Preview("Split — two merged in") {
+    EntitySplitSheet(
+        primaryEntity: Components.Schemas.KnowledgeEntity(
+            id: "ent-primary",
+            canonicalName: "Ana María Restrepo",
+            aliases: ["A. M. Restrepo", "Ana Restrepo"]
+        ),
+        allEntities: [
+            Components.Schemas.KnowledgeEntity(id: "ent-primary", canonicalName: "Ana María Restrepo"),
+            Components.Schemas.KnowledgeEntity(
+                id: "ent-absorbed-1",
+                canonicalName: "A. M. Restrepo",
+                mergedIntoId: "ent-primary"
+            ),
+            Components.Schemas.KnowledgeEntity(
+                id: "ent-absorbed-2",
+                canonicalName: "Ana Restrepo",
+                mergedIntoId: "ent-primary"
+            ),
+            // Merged into something else — must NOT appear in this sheet.
+            Components.Schemas.KnowledgeEntity(
+                id: "ent-elsewhere",
+                canonicalName: "Bogotá D.C.",
+                mergedIntoId: "ent-other-primary"
+            )
+        ],
+        onSplit: {}
+    )
+}
+
+// The state a user reaches by right-clicking an entity nothing was merged into —
+// which is most of them, and is why the menu item is always offered rather than
+// gated on this pane's possibly folder-scoped rows.
+#Preview("Split — nothing merged in") {
+    EntitySplitSheet(
+        primaryEntity: Components.Schemas.KnowledgeEntity(id: "ent-plain", canonicalName: "Medellín"),
+        allEntities: [
+            Components.Schemas.KnowledgeEntity(id: "ent-plain", canonicalName: "Medellín")
+        ],
+        onSplit: {}
+    )
+}
