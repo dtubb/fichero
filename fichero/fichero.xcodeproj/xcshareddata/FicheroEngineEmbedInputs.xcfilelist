@@ -219,6 +219,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/formats/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/alto.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/harness.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/hocr.py
+$(SRCROOT)/../fichero-server/src/fichero_server/formats/iiif_georef.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/pagexml.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/PROVENANCE.md
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/alto-4-2.xsd
