@@ -286,6 +286,16 @@ questions for the maintainer.
   check a whole paragraph (a region), star works like check, and highlight draws over segments.
   **The target is what Apple Preview supports for PDF annotations.** So PDFKit's annotation types are
   read before marks are designed, and marks stay exportable as real PDF annotations.
+  **Applied 2026-09-27** by the manager from that standing ruling, as defaults the maintainer can
+  overrule (`build-notes-marks-pdfkit.md`, its four questions): a note exports as Preview's Note
+  (PDF `Text`, the icon); star and check are named `Stamp`s; no Square, Circle or Ink tools until
+  asked for; and the PDF import stops folding other marks into highlight.
+
+**Ruling, the built-in three-column workspace (2026-09-27).** It opens with its layers split across
+its panes: **left**, a Preview showing the image with the overlays OFF; **middle**, a Preview showing
+the overlays with the image OFF; **right**, the Reader, as the text editor. The other built-in
+workspaces keep the image on. Built as `PaneConfig` layer values on those two Preview leaves
+(`previewImage`, and the overlay layer), pinned by a `PaneListTests` test of all three panes.
 
 Slice 12 (the speed trial) is a hard gate before any of this.
 
@@ -707,6 +717,24 @@ The editor
   partial map would delete what it knows and refuse the rest — half a Delete, worse than none.
   Not yet wired to a view, and that is the next step rather than a claim: what remains for this
   behaviour is the three surfaces writing to it.
+- `source.editor.highlight-on-its-box` — **[BROKEN]** (→ #5020) a selected segment's highlight is drawn
+  on the box that was clicked, in the pane where it was clicked, at that pane's own zoom and scroll.
+  **Broken:** the maintainer saw it land below and right of the clicked box, and in the other Preview
+  pane too. Diagnosed 2026-09-27 (no fix yet): selection is `RegionSelection.shared`, one app-wide
+  object holding box INDICES, and an index means "position in the box list this pane happens to
+  hold". Two panes can hold different lists for one artifact (the artifact's order and the segment
+  seam's, or a list from before an edit and one from after), so an index picked in one names a
+  different box in the other, typically the next in reading order. Every pane draws the one
+  selection, so it leaks into panes nobody clicked. Owed: selection per pane, followed by the
+  Inspector and the Reader for the focused pane, and named by identity rather than position.
+- `source.editor.overlay-moves-with-the-image` — **[BROKEN]** (→ #5142) segment overlays move with the image,
+  frame for frame, while it is scrolled and zoomed, on a page as dense as the Cherokee Phoenix p. 2.
+  **Broken:** they lag, then catch up. Diagnosed 2026-09-27 (no fix yet): the image is transformed by
+  AppKit's scroll view in the gesture's own pass; the overlays are SwiftUI views laid out from a
+  geometry measured on `boundsDidChange` and handed over through a `Task` hop, so they are always at
+  least one hop behind. Each tick then re-maps and re-strokes every box (4,525 on that page). Owed:
+  the boxes drawn inside the scroll view's document view, in image coordinates, so one transform
+  moves pixels and boxes together and only the visible boxes are drawn (`source.editor.one-overlay`).
 - `source.editor.edits-are-actions` — **[PARTIAL]** (#4941) every edit is one audited, reversible engine action; the
   editor updates only the changed segments.
   **Both halves hold for the edit path that exists today** (audited 2026-09-27); what is owed is
@@ -984,6 +1012,17 @@ is missing. Pinned by
 (the same answer as the per-row path, stored and provisional readings both) and
 `::TestAPagesTextIsDerivedInOnePass::test_deriving_a_page_looks_no_row_up_one_at_a_time` (fails on
 the code before).
+**The gate was met on the fixture and NOT on real pages (found 2026-09-27).** The generated
+20,000-shape fixture (`scripts/perf_fixture.py`) carries **no text at all**: imported through the
+library it has 111 regions, 474 lines, 3,172 words and 16,260 characters and **0 readings**, so its
+"about 80 to 100 ms" derivation read nothing. It measured the pass ranking and the queries of an empty
+page. A real page takes the path the fixture never did: the Cherokee Phoenix p. 2 (15 regions, 600
+lines, 3,910 words, a reading on every word) derived in **509 to 1171 ms warm, 1.31 s under the
+profiler**, at load 20 to 42, so VOID by the trial's rule but far outside the budget. The profile:
+about 83% is row hydration, every reading is loaded and hydrated TWICE (`_text_bearing_rows`, then
+`_readings_for_live_rows`), and each segment's anchor is re-validated on read. Owed, and owned by the
+bugs lane: the fixture gets text whose lengths follow its measured `chars_per_word`, through the
+trial's baseline update; readings load once; then a quiet-machine measurement of both pages.
 - `source.perf.worst-frame-not-mean` — **[PARTIAL]** (#4940; the verdict is built and pinned by `fichero-server/tests/unit/scripts/test_perf_trial.py::TestWorstFrameNotMean::test_one_dropped_frame_fails_a_run_whose_mean_is_fine`. No measurement has been recorded yet) the frame gate is on the worst frame in a
   run against a 16.7 ms budget, never the mean, because a mean hides the dropped frame a person
   feels.
