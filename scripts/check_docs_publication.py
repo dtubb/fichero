@@ -69,6 +69,18 @@ def excluded(text: str) -> set[str]:
     return out
 
 
+#: `docs/user_manual/` is written BY HAND by the maintainer and is deliberately not
+#: guarded (ruled 2026-09-27). The AI-written manuals — `reference_manual` and
+#: `contributor_manual` — are exactly what this check is for: a machine writing about
+#: code it can read should be held to what the code does. A human writing a user manual
+#: is describing what the software is FOR, at their own pace and in their own order, and a
+#: guard that fails on a half-written chapter is telling the author to stop writing.
+#:
+#: It was also the only remaining reason this guard and check_docs_paths were red, so
+#: guarding it cost two real signals to enforce a rule nobody wanted.
+HAND_WRITTEN_MANUAL = "user_manual"
+
+
 def built_pages(text: str) -> set[str]:
     root = docs_dir(text)
     skip = excluded(text)
@@ -76,6 +88,8 @@ def built_pages(text: str) -> set[str]:
     for p in root.rglob("*.md"):
         rel = p.relative_to(root).as_posix()
         if rel in skip or any(rel.startswith(s.rstrip("/") + "/") for s in skip):
+            continue
+        if rel.split("/", 1)[0] == HAND_WRITTEN_MANUAL:
             continue
         pages.add(rel)
     return pages

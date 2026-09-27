@@ -61,8 +61,29 @@ def top_level() -> set[str]:
     return {p.name for p in ROOT.iterdir()}
 
 
+#: `docs/user_manual/` is written BY HAND by the maintainer and is deliberately not
+#: guarded (ruled 2026-09-27). The AI-written manuals — `reference_manual` and
+#: `contributor_manual` — are exactly what these checks are for: a machine writing about
+#: code it can read should be held to what the code does. A human writing a user manual
+#: is describing what the software is FOR, at a pace and in an order that is theirs, and a
+#: guard that fails on a half-written chapter is telling the author to stop writing.
+#:
+#: It was also the only remaining reason two docs guards were red, so guarding it was
+#: costing two real signals to enforce a rule nobody wanted.
+HAND_WRITTEN_MANUAL = "user_manual"
+
+
+def is_hand_written(path: Path, docs_root: Path) -> bool:
+    """Whether this page belongs to the manual the maintainer writes by hand."""
+    try:
+        return path.relative_to(docs_root).parts[0] == HAND_WRITTEN_MANUAL
+    except (ValueError, IndexError):
+        return False
+
+
 def doc_files() -> list[Path]:
-    files = sorted((ROOT / "docs").rglob("*.md"))
+    docs = ROOT / "docs"
+    files = [p for p in sorted(docs.rglob("*.md")) if not is_hand_written(p, docs)]
     files += [ROOT / f for f in ROOT_DOCS if (ROOT / f).exists()]
     return files
 
@@ -144,6 +165,10 @@ def missing() -> dict[str, list[str]]:
     out: dict[str, list[str]] = {}
     for f in doc_files():
         for tok in candidates(strip_fences(f.read_text(errors="ignore")), tops):
+            # A path INSIDE the hand-written manual is not ours to check either: the
+            # maintainer adds and renames those chapters as the writing goes.
+            if tok.split("/")[:2] == ["docs", HAND_WRITTEN_MANUAL] or tok == f"docs/{HAND_WRITTEN_MANUAL}":
+                continue
             here = (ROOT / tok).exists()
             if not here or (not is_git_ignored(tok) and is_untracked(tok)):
                 out.setdefault(tok, []).append(str(f.relative_to(ROOT)))
