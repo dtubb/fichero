@@ -76,3 +76,29 @@ def test_unannotated_pdf_is_a_cheap_empty(tmp_path):
     pdf.close()
     assert extract_pdf_annotations(str(path)) == []
     assert import_pdf_annotations(MagicMock(), MagicMock(id="p"), str(path)) == 0
+
+
+def test_an_underline_and_a_strike_keep_their_own_kinds(tmp_path):
+    """Q6 (applied 2026-09-27): an underline or a strike made in Preview is a judgement, not a
+    tint. The import used to fold both into "highlight", so a struck-out word came back
+    highlighted -- the opposite of what the reader meant."""
+    path = tmp_path / "judged.pdf"
+    pdf = fitz.open()
+    page = pdf.new_page(width=500, height=1000)
+    page.insert_text((50, 100), "una linea subrayada")
+    page.insert_text((50, 200), "una linea tachada")
+    page.insert_text((50, 300), "una linea ondulada")
+    page.add_underline_annot(fitz.Rect(50, 90, 250, 110)).update()
+    page.add_strikeout_annot(fitz.Rect(50, 190, 250, 210)).update()
+    page.add_squiggly_annot(fitz.Rect(50, 290, 250, 310)).update()
+    pdf.save(path)
+    pdf.close()
+
+    by_subtype = {a["subtype"]: a["kind"] for a in extract_pdf_annotations(str(path))}
+    assert by_subtype == {"Underline": "underline", "StrikeOut": "strikethrough", "Squiggly": "underline"}
+
+    db = MagicMock()
+    saved = []
+    db.save.side_effect = saved.append
+    import_pdf_annotations(db, MagicMock(id="parent-1"), str(path))
+    assert sorted(a.kind.value for a in saved) == ["strikethrough", "underline", "underline"]

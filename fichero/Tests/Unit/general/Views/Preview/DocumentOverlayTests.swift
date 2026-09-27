@@ -40,4 +40,16 @@ struct DocumentOverlayTests {
         moved.selected = []
         #expect(moved != overlay())
     }
+
+    /// The entry wash and the Reader-linked words ride the same view, so they move with the words
+    /// they mark instead of lagging behind them like the rest of the SwiftUI overlay did.
+    @Test("washes are painted only where a redraw asks, and a new wash redraws")
+    func washesFollowTheDirtyRect() {
+        let bottomStrip = CGRect(x: 0, y: 0, width: 1000, height: 250)
+        let washes = [[0.1, 0.8, 0.2, 0.05], [0.1, 0.1, 0.2, 0.05]]   // one low, one high on the page
+        #expect(DocumentOverlay.rects(washes, in: bottomStrip, documentSize: page).count == 1)
+        var lit = overlay()
+        lit.linkedWashes = [[0.1, 0.8, 0.2, 0.05]]
+        #expect(lit != overlay())
+    }
 }

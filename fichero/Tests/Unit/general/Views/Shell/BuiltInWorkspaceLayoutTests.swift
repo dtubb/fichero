@@ -201,6 +201,30 @@ struct BuiltInWorkspaceLayoutTests {
         #expect(previews.contains { $0.config.previewWordBoxes == true })
     }
 
+    /// Ruled 2026-09-27: the three-column workspace splits its LAYERS across its panes -- left the
+    /// image with the overlays off, middle the overlays with the image off, right the Reader. What
+    /// breaks without it: two Previews showing the same thing, and no view of the boxes alone.
+    @Test("Transcribe·Tall opens image | overlays | Reader, each Preview with its own layers")
+    func transcribeTallSplitsTheLayers() throws {
+        let top = allLeaves(BuiltInWorkspaceLayout.transcribeTall.panes).filter { $0.kind != .library }
+        // `#require`, not `#expect`: a wrong count would make the subscripts below trap the run.
+        try #require(top.map(\.kind) == [.preview, .preview, .reading])
+        #expect(top[0].config.previewImage == true)
+        #expect(top[0].config.previewWordBoxes == false)
+        #expect(top[1].config.previewImage == false)
+        #expect(top[1].config.previewWordBoxes == true)
+        #expect(top[2].config.previewImage == nil)
+    }
+
+    @Test("every other built-in keeps the image on")
+    func otherBuiltInsKeepTheImage() {
+        for layout in [BuiltInWorkspaceLayout.read, .browse, .transcribe, .compare] {
+            for leaf in allLeaves(layout.panes) where leaf.kind == .preview {
+                #expect(leaf.config.previewImage != false, "\(layout.title) hides an image")
+            }
+        }
+    }
+
     @Test("the library strip is a NARROW pinned pane in Transcribe/Tall/Compare, not a normal column")
     func stripLibraryIsPinnedNarrow() {
         // CD 2026-09-16: "the library at the bottom [should be] just icons, and very narrow, like a
