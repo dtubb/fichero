@@ -69,7 +69,7 @@ def _document_ids(spec: Any, action_name: str, params: Any) -> list[str]:
     triggered = (
         bool(_TEXT_DOMAINS & set(spec.domains))
         or spec.emit_type in _TEXT_EMIT_TYPES
-        or action_name in _MEMBERSHIP_ACTIONS
+        or (action_name in _MEMBERSHIP_ACTIONS and _restore_may_change_text(spec, action_name))
         or (action_name == "segment.update" and getattr(params, "is_furniture", None) is not None)
         # Every box move from the app is a `convert_and_edit`; only a delete or a combine changes
         # which lines the page has (an add has no reading yet).
@@ -79,6 +79,21 @@ def _document_ids(spec: Any, action_name: str, params: Any) -> list[str]:
         )
     )
     return list(dict.fromkeys(spec.document_ids)) if triggered else []
+
+
+def _restore_may_change_text(spec: Any, action_name: str) -> bool:
+    """A restore refreshes only when it put back something that decides the text (slice 12).
+
+    `segment.restore_version(s)` is the UNDO of a box move as well as of a re-parent. The move
+    is exempt as an edit (`segment.update` counts only with `is_furniture`); its undo was not,
+    and on a 20,000-shape page one undo re-derived the whole page: 14 s against the editor's
+    100 ms. The action records `text_relevant` from the two rows it held. ABSENT means refresh
+    -- an older row, or an action that does not say, is never skipped on a guess.
+    """
+    if action_name not in ("segment.restore_version", "segment.restore_versions"):
+        return True
+    after = spec.after if isinstance(spec.after, dict) else {}
+    return after.get("text_relevant", True) is not False
 
 
 def _touched_passes(db: Any, spec: Any) -> set[str]:

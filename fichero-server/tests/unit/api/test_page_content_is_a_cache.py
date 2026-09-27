@@ -10,6 +10,7 @@ from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.api.routes.document.segment_conversion import live_rows_in_order
 from fichero_server.media.transcript_alignment_service import resolve_transcript
 from fichero_server.models import ActionAudit, Artifact, ContentRepresentation, Document
+from fichero_server.models.segments import Segment
 
 from .seeded_converted_page import seed_page
 
@@ -193,3 +194,48 @@ class TestAChangeOnAPassNobodyReadsDoesNotDerive:
         assert "imported words" not in db.get(Document, page.id).page_content
         registry.invoke(db, "pass.choose_working", {"document_id": page.id, "pass_id": pass_id}, CTX)
         assert db.get(Document, page.id).page_content == "imported words"
+
+
+class TestUndoingAMoveIsAsCheapAsTheMove:
+    """Slice 12's first finding (#4940). A plain move was exempt from the page-text refresh; its
+    UNDO -- a `segment.restore_version` -- was not, and on the trial's 20,000-shape page one undo
+    re-derived the whole page: ~14 s against the editor's 100 ms. A restore now records whether
+    it put back anything that decides the text, and only then refreshes."""
+
+    def _move_one_row(self, db, row):
+        live = db.get(Segment, row.id)
+        anchor = live.anchor.model_dump(mode="json")
+        anchor["rect"][0] = min(0.9, anchor["rect"][0] + 0.01)
+        return registry.invoke(db, "segment.update", {
+            "segment_id": row.id, "expected_version": live.version, "anchor": anchor}, CTX)
+
+    def test_undoing_a_move_does_not_derive_the_page(self, db, client, monkeypatch):
+        import fichero_server.api.routes.document.segment_readings as sr
+
+        page, art, row = _converted(db, client)
+        moved = self._move_one_row(db, row)
+        calls = []
+        monkeypatch.setattr(sr, "document_text", lambda *a, **k: calls.append(1) or (_ for _ in ()).throw(AssertionError("derived for an undo of a move")))
+        assert client.post(f"/api/actions/audit/{moved.audit_id}/undo").status_code == 200
+        assert calls == []
+
+    def test_undoing_a_furniture_change_still_refreshes(self, db, client):
+        """The exemption must not reach a restore that changes which lines count: furniture is
+        left out of the derived text, so undoing it puts a line back."""
+        page, art, row = _converted(db, client)
+        live = db.get(Segment, row.id)
+        changed = registry.invoke(db, "segment.update", {
+            "segment_id": row.id, "expected_version": live.version, "is_furniture": True}, CTX)
+        without = db.get(Document, page.id).page_content
+        assert client.post(f"/api/actions/audit/{changed.audit_id}/undo").status_code == 200
+        restored = db.get(Document, page.id).page_content
+        assert restored != without
+        assert restored == client.get(f"/api/segments/document/{page.id}/text").json()["text"]
+
+    def test_a_restore_that_does_not_say_is_refreshed_not_skipped_on_a_guess(self):
+        from types import SimpleNamespace
+
+        from fichero_server.actions.page_text_cache import _restore_may_change_text
+
+        assert _restore_may_change_text(SimpleNamespace(after={"segment_id": "s"}), "segment.restore_version")
+        assert not _restore_may_change_text(SimpleNamespace(after={"text_relevant": False}), "segment.restore_version")

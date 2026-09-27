@@ -1819,6 +1819,22 @@ def _copy_version_onto_row(row: Segment, target: "SegmentVersion") -> None:
     row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
 
 
+#: What a restore can change that decides a page's DERIVED TEXT: which lines there are and
+#: which count. The anchor, the baseline and the cascade facts do not.
+_TEXT_FIELDS = ("parent_segment_id", "is_furniture", "kind", "pass_id")
+
+
+def _restore_changes_text(row: Segment, target: SegmentVersion) -> bool:
+    """Whether restoring `target` onto `row` can change the page's derived text (slice 12).
+
+    The undo of a box MOVE is a `restore_version` that puts an anchor back. `segment.update`
+    is already exempt from the page-text refresh when it changes only geometry, and its
+    inverse was not: undoing one word's move on a 20,000-shape page re-derived the whole page
+    and took 14 s against a 100 ms budget. Read BEFORE the copy, from the two rows in hand.
+    """
+    return any(getattr(row, name) != getattr(target, name) for name in _TEXT_FIELDS)
+
+
 @action(
     "segment.restore_version",
     SegmentRestoreVersionParams,
@@ -1853,6 +1869,7 @@ def _action_segment_restore_version(db: Database, params: SegmentRestoreVersionP
 
     audit_id = uuid.uuid4().hex
     before_version = row.version
+    text_relevant = _restore_changes_text(row, target)
     snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
     _copy_version_onto_row(row, target)
     db.save(row)
@@ -1862,7 +1879,7 @@ def _action_segment_restore_version(db: Database, params: SegmentRestoreVersionP
         domains=["segment"],
         target_ids=[row.id],
         before={"segment_id": row.id, "version": before_version},
-        after={"segment_id": row.id, "version": row.version},
+        after={"segment_id": row.id, "version": row.version, "text_relevant": text_relevant},
         emit_type="segment.updated",
         segment_ids=[row.id],
         pass_ids=[row.pass_id],
@@ -2072,6 +2089,7 @@ def _action_segment_restore_versions(
     audit_id = uuid.uuid4().hex
     before_versions: list[dict[str, Any]] = []
     after_versions: list[dict[str, Any]] = []
+    text_relevant = any(_restore_changes_text(row, target) for row, target in pairs)
     for row, target in pairs:
         before_versions.append({"segment_id": row.id, "version": row.version})
         snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
@@ -2084,7 +2102,7 @@ def _action_segment_restore_versions(
         domains=["segment"],
         target_ids=[row.id for row, _target in pairs],
         before={"versions": before_versions},
-        after={"versions": after_versions},
+        after={"versions": after_versions, "text_relevant": text_relevant},
         emit_type="segment.updated",
         segment_ids=[row.id for row, _target in pairs],
         pass_ids=sorted({row.pass_id for row, _target in pairs}),
