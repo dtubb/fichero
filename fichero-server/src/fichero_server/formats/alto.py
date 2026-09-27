@@ -185,7 +185,24 @@ def read(data: bytes) -> SourcePage:
                     [float(points[i]) / width, float(points[i + 1]) / height]
                     for i in range(0, len(points) - 1, 2)
                 ]
-                segment.polygon = pairs or None
+                if len(pairs) >= 3:
+                    segment.polygon = pairs
+                elif pairs:
+                    # TWO-POINT POLYGON, which eScriptorium writes in ALTO as well as
+                    # in PAGE XML: two opposite corners, not a shape. A polygon of two
+                    # points cannot be drawn, so it is read as the rect it means and
+                    # the raw points are kept.
+                    #
+                    # **This fix landed on the PAGE XML reader first and not here**,
+                    # and their own ALTO export is what found the sibling — the same
+                    # one-caller-not-its-siblings shape this programme has met seven
+                    # times. Both readers now agree.
+                    xs = [point[0] for point in pairs]
+                    ys = [point[1] for point in pairs]
+                    segment.rect = [
+                        min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)
+                    ]
+                    segment.foreign["alto:polygon"] = polygon.get("POINTS")
         if segment.polygon is None and segment.rect:
             rx, ry, rw, rh = segment.rect
             segment.polygon = [[rx, ry], [rx + rw, ry], [rx + rw, ry + rh], [rx, ry + rh]]

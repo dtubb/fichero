@@ -279,7 +279,25 @@ def read(data: bytes) -> SourcePage:
         for child in element:
             child_tag = _tag(child)
             if child_tag == "Coords" and child.get("points"):
-                segment.polygon = _points(child.get("points"), width, height) or None
+                points = _points(child.get("points"), width, height)
+                if len(points) >= 3:
+                    segment.polygon = points
+                elif points:
+                    # TWO-POINT COORDS, which eScriptorium writes for its text
+                    # blocks: `190,25 510,65` is a rectangle given by opposite
+                    # corners, not a polygon. Found by importing their own export --
+                    # `SourceAnchor` refuses a polygon of two points, correctly,
+                    # because a two-point shape cannot be drawn.
+                    #
+                    # So it is read as the RECT it means, and the raw points are kept
+                    # (`keeps-unrecognised`) rather than either inventing a third
+                    # corner or dropping the shape.
+                    xs = [point[0] for point in points]
+                    ys = [point[1] for point in points]
+                    segment.rect = [
+                        min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)
+                    ]
+                    segment.foreign["pagexml:coords"] = child.get("points")
             elif child_tag == "Baseline" and child.get("points"):
                 segment.baseline = _points(child.get("points"), width, height) or None
             elif child_tag == "TextEquiv":
@@ -288,7 +306,7 @@ def read(data: bytes) -> SourcePage:
                 if text.strip():
                     segment.readings.append(("transcription", text))
 
-        if segment.polygon:
+        if segment.polygon and segment.rect is None:
             xs = [point[0] for point in segment.polygon]
             ys = [point[1] for point in segment.polygon]
             segment.rect = [min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)]
