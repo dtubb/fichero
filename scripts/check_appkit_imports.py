@@ -82,6 +82,15 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Services/ImageEditingService.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Services/EngineConfig+Launch.swift": "#2381 — macOS launch-mode bridge reads Option-key state via NSEvent; #2101 (split out of EngineConfig.swift)",
     "Services/RemoteClientPairing.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
+    # Split from RemoteClientPairing.swift for file_length (#5113). The UIKit use moved WITH
+    # the pairing flow — three references, so the import is real and not a leftover of the
+    # split. Same reason as its parent above, inherited rather than invented.
+    "Services/RemoteClientPairingFlow.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101; split for file_length #5113",
+    # Split from MobileCaptureQueueView.swift for file_length (#5113). These two ARE the
+    # platform bridge: UIViewControllerRepresentable wrappers around UIImagePickerController
+    # and VNDocumentCameraViewController, 21 UIKit references. A pure-SwiftUI version of a
+    # UIKit view controller is not a thing.
+    "Views/Capture/MobileCapturePickers.swift": "iOS capture: UIViewControllerRepresentable bridges to UIImagePickerController and VNDocumentCameraViewController; split for file_length #5113",
     "Views/Capture/MobileCaptureQueueView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Components/BackendConnection/BackendConnectionView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Components/BackendConnection/BackendConnectionView+Actions.swift": "#2713 — retry/reset actions use NSApplication.terminate + platform affordances via #if canImport (split from BackendConnectionView by file_length); #2101",
