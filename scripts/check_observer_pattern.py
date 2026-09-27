@@ -47,6 +47,15 @@ PATTERN_LABELS: dict[str, str] = {
     "direct-library-manager": "LibraryManager.shared.globalLibrary",
 }
 
+# Same exemption, same reason, as `check_view_endpoint_access.py`'s
+# `NON_TRANSPORT_STATEOBJECT_SERVICES` (2026-09-27): the `stateobject-service`
+# pattern is a NAME heuristic, and `BonjourDiscoveryService` browses the LAN
+# via `NetServiceBrowser`, never a backend endpoint. Duplicated rather than
+# imported — the two guards are independent scripts by this repo's own
+# convention, and a shared constant across them would be its own small
+# coupling for two lines of names.
+NON_TRANSPORT_STATEOBJECT_SERVICES = ("BonjourDiscoveryService",)
+
 # Post-#2960 baseline. The @Observable foundation flip (#2960/#1863) cleared
 # every @EnvironmentObject/.environmentObject/@StateObject-service/ObservableObject
 # offender. These remaining entries are UNRELATED anti-patterns still on the
@@ -55,7 +64,6 @@ PATTERN_LABELS: dict[str, str] = {
 # @Observable, so its former @EnvironmentObject consumers are no longer offenders.)
 KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
     [
-        "fichero/fichero/Views/Chat/ModelComparison/ComparisonDetailView+Actions.swift",
         # #4123: Transferable export closures run OUTSIDE the SwiftUI
         # environment — the drag-out file promise must resolve the library
         # via LibraryManager.shared at export time. (The c7f5cb00e lint sweep
@@ -81,8 +89,6 @@ KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
         "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+Toolbar.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/OntologyBrowser.swift",
         "fichero/fichero/Views/Components/NodeClassPicker.swift",
-        "fichero/fichero/Views/Connect/ConnectPairingIOS.swift",
-        "fichero/fichero/Views/Settings/AI/LocalModelsSettingsView.swift",
         "fichero/fichero/Views/Library/ViewModes/Canvas/3D/SpaceSceneView.swift",
         "fichero/fichero/Views/Library/ViewModes/Canvas/2D/Legacy/SpatialNodeThumbnail.swift",
         "fichero/fichero/Views/Workflow/Nodes/NodeConfigs/ExtractEntitiesNodeConfig.swift",
@@ -140,9 +146,12 @@ def _detect_patterns(src: str) -> list[str]:
     if re.search(r"\.environmentObject\s*\(", src):
         found.append("environment-object-injection")
 
-    if re.search(
-        r"@StateObject[^\n=]*=\s*[A-Za-z_][A-Za-z0-9_]*Service(?:Generated)?\s*\(",
-        src,
+    state_object_service = re.compile(
+        r"@StateObject[^\n=]*=\s*([A-Za-z_][A-Za-z0-9_]*Service(?:Generated)?)\s*\("
+    )
+    if any(
+        match.group(1) not in NON_TRANSPORT_STATEOBJECT_SERVICES
+        for match in state_object_service.finditer(src)
     ):
         found.append("stateobject-service")
 

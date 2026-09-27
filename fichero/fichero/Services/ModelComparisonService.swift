@@ -278,6 +278,42 @@ extension ModelComparisonService {
     }
 }
 
+// MARK: - Comparison detail
+
+extension ModelComparisonService {
+    enum ComparisonFetchError: LocalizedError {
+        case notFound
+        case unexpectedStatus(Int)
+
+        var errorDescription: String? {
+            switch self {
+            case .notFound: return "Comparison not found"
+            case .unexpectedStatus(let statusCode): return "Server error: \(statusCode)"
+            }
+        }
+    }
+
+    /// One comparison's full result, by id (#1701's migration completed 2026-09-27:
+    /// `ComparisonDetailView` called `client.api.*` directly instead of routing
+    /// through this service, the same offence the doc comment above already
+    /// claimed was fixed).
+    func getComparison(
+        comparisonId: String
+    ) async throws -> Components.Schemas.ComparisonResultResponse {
+        let response = try await client.api.getComparisonApiModelComparisonComparisonComparisonIdGet(
+            path: .init(comparisonId: comparisonId)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent:
+            throw ComparisonFetchError.notFound
+        case .undocumented(let statusCode, _):
+            throw ComparisonFetchError.unexpectedStatus(statusCode)
+        }
+    }
+}
+
 // MARK: - Catalog Loaders
 
 extension ModelComparisonService {

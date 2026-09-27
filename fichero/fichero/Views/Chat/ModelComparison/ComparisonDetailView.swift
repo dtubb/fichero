@@ -3,12 +3,20 @@ import SwiftUI
 
 let comparisonDetailLogger = Logger(subsystem: "app.fichero.fichero", category: "ComparisonDetailView")
 
-/// Detail view for a model comparison showing all model responses
+/// Detail view for a model comparison showing all model responses.
+///
+/// Fetches through `ModelComparisonStore` (#5098: the observable-data-layer
+/// guard — this view used to call the generated client directly; the fix
+/// matches the sibling `ModelComparisonView`/`NodeComparisonSheet`, which
+/// already each own their own store instance the same way).
 struct ComparisonDetailView: View {
     let comparisonSummary: ComparisonSummary
     @Environment(APIClient.self) var apiClient
-    @Environment(LibraryManager.self) var libraryManager
 
+    // NOT `private`: this view is split across `+Actions`, `+Models` and `+Sections` files,
+    // and a file-scope `private` is invisible to an extension in another file. Matches
+    // `ModelComparisonView`, which is split the same way and declares it the same way.
+    @State var store = ModelComparisonStore()
     @State var comparison: ComparisonDetail?
     @State var isLoading = true
     @State var error: String?

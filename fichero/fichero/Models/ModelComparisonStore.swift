@@ -1,3 +1,7 @@
+// `Components` (the generated request/response types) comes from FicheroAPIClient. The store
+// gained a passthrough returning one, and a missing import here is invisible to
+// `swiftc -parse` -- the syntax is fine and only a build resolves the type.
+import FicheroAPIClient
 import Foundation
 import Observation
 import OSLog
@@ -47,6 +51,10 @@ final class ModelComparisonStore {
     /// Recent comparison history — the sidebar's comparisons bucket (#4335)
     /// loads through the store like every other sidebar data source.
     func loadHistory(limit: Int = 10) async { await service.loadHistory(limit: limit) }
+
+    func getComparison(comparisonId: String) async throws -> Components.Schemas.ComparisonResultResponse {
+        try await service.getComparison(comparisonId: comparisonId)
+    }
 
     // MARK: - Named actions
 
