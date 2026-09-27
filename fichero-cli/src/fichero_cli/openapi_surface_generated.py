@@ -13612,6 +13612,82 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('signs')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for signs endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='signs')
+        existing_apps['signs'] = target_app
+
+    @target_app.command("list")
+    def signs_list_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Signs (GET /api/signs)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/signs"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("declare")
+    def signs_declare_post(
+        ctx: typer.Context,
+        code_point: Optional[str] = typer.Option(None, "--code-point", help="Request field: code_point."),
+        list_references: Optional[str] = typer.Option(None, "--list-references", help="Request field: list_references."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        notes: Optional[str] = typer.Option(None, "--notes", help="Request field: notes."),
+        picture_segment_id: str = typer.Option(..., "--picture-segment-id", help="Request field: picture_segment_id."),
+        variant: Optional[str] = typer.Option(None, "--variant", help="Request field: variant."),
+        variant_of: Optional[str] = typer.Option(None, "--variant-of", help="Request field: variant_of."),
+    ) -> None:
+        """Declare Sign (POST /api/signs)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/signs"
+            params = None
+            payload = _build_json_payload({
+                "code_point": code_point,
+                "list_references": list_references,
+                "name": name,
+                "notes": notes,
+                "picture_segment_id": picture_segment_id,
+                "variant": variant,
+                "variant_of": variant_of,
+            }, {
+                "code_point": {'type': 'string', 'nullable': True, 'title': 'Code Point', 'x-cli-required': False},
+                "list_references": {'items': {'$ref': '#/components/schemas/SignListReference'}, 'type': 'array', 'title': 'List References', 'x-cli-required': False},
+                "name": {'type': 'string', 'minLength': 1, 'title': 'Name', 'x-cli-required': True},
+                "notes": {'type': 'string', 'maxLength': 500, 'nullable': True, 'title': 'Notes', 'x-cli-required': False},
+                "picture_segment_id": {'type': 'string', 'title': 'Picture Segment Id', 'x-cli-required': True},
+                "variant": {'type': 'string', 'nullable': True, 'title': 'Variant', 'x-cli-required': False},
+                "variant_of": {'type': 'string', 'nullable': True, 'title': 'Variant Of', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-instances")
+    def signs_list_instances_get(
+        ctx: typer.Context,
+        sign_id: str = typer.Argument(..., help="Path parameter: sign_id."),
+    ) -> None:
+        """List Sign Instances (GET /api/signs/{sign_id}/instances)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/signs/{sign_id}/instances"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("withdraw")
+    def signs_withdraw_post(
+        ctx: typer.Context,
+        sign_id: str = typer.Argument(..., help="Path parameter: sign_id."),
+    ) -> None:
+        """Withdraw Sign (POST /api/signs/{sign_id}/withdraw)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/signs/{sign_id}/withdraw"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('source-settings')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for source-settings endpoints.', no_args_is_help=True)

@@ -9229,6 +9229,52 @@
         "response_model": "SparqlEndpointsConfig"
       }
     ],
+    "signs": [
+      {
+        "method": "GET",
+        "path": "/signs",
+        "operation_id": "list_signs_api_signs_get",
+        "summary": "List Signs",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SignListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/signs",
+        "operation_id": "declare_sign_api_signs_post",
+        "summary": "Declare Sign",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SignWrite",
+        "response_model": "ActionAnswer"
+      },
+      {
+        "method": "GET",
+        "path": "/signs/{sign_id}/instances",
+        "operation_id": "list_sign_instances_api_signs__sign_id__instances_get",
+        "summary": "List Sign Instances",
+        "path_params": [
+          "sign_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SignInstanceListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/signs/{sign_id}/withdraw",
+        "operation_id": "withdraw_sign_api_signs__sign_id__withdraw_post",
+        "summary": "Withdraw Sign",
+        "path_params": [
+          "sign_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ActionAnswer"
+      }
+    ],
     "source-settings": [
       {
         "method": "PUT",
