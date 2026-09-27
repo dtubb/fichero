@@ -383,6 +383,19 @@ def _app_socket_to_dial(base_url: str, *, base_url_was_explicit: bool) -> str | 
     return str(candidate)
 
 
+def _yolo_dataset_file(label_path: Path) -> Path | None:
+    """Where a YOLO dataset keeps its class names, in the order the engine looks
+    (`formats.yolo.class_names_beside`): `classes.txt` beside the labels, else a `data.yaml`
+    in their folder or one of the two above it."""
+    here = label_path.parent
+    if (here / "classes.txt").is_file():
+        return here / "classes.txt"
+    for folder in (here, here.parent, here.parent.parent):
+        if (folder / "data.yaml").is_file():
+            return folder / "data.yaml"
+    return None
+
+
 class FicheroClient:
     """Synchronous HTTP client for the Fichero backend.
 
@@ -916,13 +929,20 @@ class FicheroClient:
         all happen once in the engine, and no second import path lives here.
         """
         file_path = Path(path).expanduser()
-        with file_path.open("rb") as handle:
-            return self.request(
-                "POST",
-                f"/api/documents/{doc_id}/import",
-                params={"format": import_format, "name": name},
-                files={"file": (file_path.name, handle)},
-            )
+        files: dict[str, Any] = {"file": (file_path.name, file_path.read_bytes())}
+        dataset = _yolo_dataset_file(file_path) if (
+            import_format == "yolo" or (import_format is None and file_path.suffix.lower() == ".txt")
+        ) else None
+        if dataset is not None:
+            # A YOLO file's class numbers mean what its dataset says (#5138): the engine reads
+            # the dataset file, so it goes with the labels -- the engine may not share this disk.
+            files["dataset"] = (dataset.name, dataset.read_bytes())
+        return self.request(
+            "POST",
+            f"/api/documents/{doc_id}/import",
+            params={"format": import_format, "name": name},
+            files=files,
+        )
 
     def import_file(self, path: str | Path, parent_id: str | None = None) -> Document:
         """Upload a single file to the library (multipart/form-data)."""

@@ -7,6 +7,8 @@ a format adds a module and one `register()` call.
 
 from __future__ import annotations
 
+import dataclasses
+
 from fichero_server.formats.harness import (
     FormatSpec,
     Loss,
@@ -147,6 +149,35 @@ def read_page(name: str, data: bytes) -> SourcePage:
     return spec.read(data)
 
 
+def parents_first(page: SourcePage) -> SourcePage:
+    """The same page with every segment after its parent, otherwise in the order given.
+
+    HERE, not in each writer (#5138): a writer meeting a line before its region cannot place it,
+    and the PAGE writer then invented a `fichero {implicit:true;}` region for it -- a library
+    export, whose rows came in database order, turned Syriac's 3 regions into 15. The segments'
+    own order is kept wherever it does not put a child first; a page already in order is
+    returned as it is.
+    """
+    by_ref = {s.ref: s for s in page.segments if s.ref}
+    placed: set[int] = set()
+    out: list = []
+
+    def place(segment, trail: frozenset = frozenset()) -> None:
+        if id(segment) in placed:
+            return
+        parent = by_ref.get(segment.parent_ref) if segment.parent_ref else None
+        if parent is not None and id(parent) not in trail:  # a cycle is left as given
+            place(parent, trail | {id(segment)})
+        placed.add(id(segment))
+        out.append(segment)
+
+    for segment in page.segments:
+        place(segment)
+    if all(a is b for a, b in zip(out, page.segments)):
+        return page
+    return dataclasses.replace(page, segments=out)
+
+
 def write_page(name: str, page: SourcePage) -> tuple[bytes, LossReport]:
     """Write one page, validate it, and hand back the bytes with the loss report.
 
@@ -158,7 +189,7 @@ def write_page(name: str, page: SourcePage) -> tuple[bytes, LossReport]:
     if spec.write is None:
         raise FormatCannotWrite(name)
     report = LossReport(format=name)
-    data = spec.write(page, report)
+    data = spec.write(parents_first(page), report)
     if page.signs and not spec.carries_declared_signs:
         # HERE, not in each writer, so no format can forget it (`source.sign.export-honest`).
         report.note(

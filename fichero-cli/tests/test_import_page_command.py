@@ -160,3 +160,47 @@ def test_a_missing_file_is_refused_before_the_engine_is_called(tmp_path, monkeyp
 
     assert result.exit_code == 1
     assert "No such file" in result.output
+
+
+def _capture():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json=PAYLOAD)
+
+    client = FicheroClient(
+        base_url="http://127.0.0.1:8765", token="t", library_path="/tmp/l.fichero",
+        transport=httpx.MockTransport(handler),
+    )
+    return client, seen
+
+
+def test_a_yolo_file_goes_with_its_datasets_class_names(tmp_path):
+    """#5138: a YOLO class number means what `classes.txt` says, and the engine may not share this
+    disk, so the class file travels WITH the labels. Without it a drop capital (class 2 in
+    SegmOnto's list) was stored as a `word`."""
+    labels = tmp_path / "000.txt"
+    labels.write_text("2 0.1 0.3 0.1 0.1\n", encoding="utf-8")
+    (tmp_path / "classes.txt").write_text("MainZone\nDefaultLine\nDropCapitalZone\n", encoding="utf-8")
+    client, seen = _capture()
+    client.import_page("d1", labels, import_format="yolo")
+    assert b'name="dataset"; filename="classes.txt"' in seen[0].content
+    assert b"DropCapitalZone" in seen[0].content
+
+
+def test_a_data_yaml_two_folders_up_is_found_as_the_engine_would(tmp_path):
+    (tmp_path / "data.yaml").write_text("names: [MainZone]\n", encoding="utf-8")
+    labels = tmp_path / "labels" / "train" / "000.txt"
+    labels.parent.mkdir(parents=True)
+    labels.write_text("0 0.5 0.5 0.5 0.5\n", encoding="utf-8")
+    client, seen = _capture()
+    client.import_page("d1", labels)  # recognised as YOLO by its `.txt`
+    assert b'filename="data.yaml"' in seen[0].content
+
+
+def test_an_xml_file_sends_no_dataset_even_beside_a_classes_file(tmp_path):
+    (tmp_path / "classes.txt").write_text("MainZone\n", encoding="utf-8")
+    client, seen = _capture()
+    client.import_page("d1", _file(tmp_path), import_format="pagexml")
+    assert b'name="dataset"' not in seen[0].content

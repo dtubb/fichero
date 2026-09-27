@@ -37,6 +37,8 @@ correctness concern and not only a speed one.
 
 from __future__ import annotations
 
+import re
+
 import hashlib
 import uuid
 from pathlib import Path
@@ -385,6 +387,29 @@ def _clamped_rect(rect: list[float]) -> list[float]:
 FILE_POSITION = "file_position"
 
 
+#: The id the element had in its file (PAGE `@id`, ALTO `@ID`, TEI `@xml:id`).
+SOURCE_ID = "source_id"
+
+_PAGE_STRUCTURE_TYPE = re.compile(r"structure\s*\{[^}]*?type\s*:\s*([^;}]+)")
+
+
+def raw_kind(segment: Any) -> str | None:
+    """The file's own name for what a segment is, kept beside our `kind` (#5138).
+
+    ALTO: the label of the first declared tag it references (SegmOnto's `MainZone`, Benedict's
+    `LatinLine`). PAGE XML: `custom="structure {type:...}"` (eScriptorium and Transkribus). YOLO:
+    the dataset's class name. None when the file names nothing.
+    """
+    for tag in segment.foreign.get("alto:tags", []):
+        if tag.get("LABEL"):
+            return str(tag["LABEL"])
+    match = _PAGE_STRUCTURE_TYPE.search(str(segment.foreign.get("custom") or ""))
+    if match:
+        return match.group(1).strip()
+    name = segment.foreign.get("yolo:class_name")
+    return str(name) if name else None
+
+
 def file_positions(order: list[tuple[str, Any]], reading_order: list[str]) -> dict[str, int]:
     """Each segment's place in the FILE's order: its top-level blocks in the file's own reading
     order (PAGE `ReadingOrder`, ALTO block order), blocks the reading order does not name after
@@ -490,6 +515,7 @@ def write_page_into_library(
                 anchor=anchor,
                 baseline=segment.baseline,
                 parent_segment_id=ids_by_ref.get(segment.parent_ref or ""),
+                kind_raw=raw_kind(segment),
             ),
             actor=ctx.actor,
             provenance_kind=provenance_kind_from_ctx(ctx),
@@ -511,6 +537,10 @@ def write_page_into_library(
         if segment.foreign:
             row.metadata = {**row.metadata, "foreign": dict(segment.foreign)}
         row.metadata = {**row.metadata, FILE_POSITION: positions[ref]}
+        if segment.ref:
+            # The file's own id for this element (#5138): how a segment is traced back to the
+            # element it came from. Never used as OUR id -- a re-import mints new ones.
+            row.metadata = {**row.metadata, SOURCE_ID: segment.ref}
         if geometry_problem:
             # The same key the conversion path uses for the same situation: the
             # anchor could not hold what the file said, and the row records it rather
@@ -642,6 +672,10 @@ class ErrorDetail(BaseModel):
     detail: str
 
 
+#: The files a YOLO dataset keeps its class names in (`formats.yolo.class_names_beside`).
+DATASET_FILES = frozenset({"classes.txt", "data.yaml"})
+
+
 class ImportResponse(BaseModel):
     """What the app is told about an import.
 
@@ -700,6 +734,13 @@ async def import_document_page(
         description="Force a format instead of recognising one from the bytes",
     ),
     name: Optional[str] = Query(None, description="What to call the pass"),
+    dataset: Optional[UploadFile] = File(
+        None,
+        description=(
+            "YOLO only: the dataset's `classes.txt` or `data.yaml`, which says what each class "
+            "number means. Placed beside the labels, where the import looks for it."
+        ),
+    ),
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ImportResponse:
@@ -714,30 +755,39 @@ async def import_document_page(
     refusal -- an import that refuses should leave nothing behind, least of all a copy
     of a scholar's file in a temp directory.
     """
+    import shutil
     import tempfile
 
+    if dataset is not None and Path(dataset.filename or "").name not in DATASET_FILES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"a YOLO dataset file is {' or '.join(sorted(DATASET_FILES))}, not {dataset.filename!r}",
+        )
     data = await file.read()
     suffix = Path(file.filename or "upload").suffix or ".xml"
-    handle = tempfile.NamedTemporaryFile(
-        prefix="fichero-import-", suffix=suffix, delete=False
-    )
+    # A DIRECTORY, not a lone file (#5138): a YOLO file's numbers mean what the dataset file
+    # BESIDE it says, and a one-file upload used to leave that behind, so a drop capital arrived
+    # as a `word`. The dataset file goes where `class_names_beside` looks.
+    folder = Path(tempfile.mkdtemp(prefix="fichero-import-"))
     try:
-        handle.write(data)
-        handle.close()
+        label_path = folder / f"upload{suffix}"
+        label_path.write_bytes(data)
+        if dataset is not None:
+            (folder / Path(dataset.filename).name).write_bytes(await dataset.read())
         # The pass is named after the file the PERSON chose, not the temporary copy.
         result = registry.invoke(
             db,
             "format.import",
             {
                 "document_id": doc_id,
-                "path": handle.name,
+                "path": str(label_path),
                 **({"format": format_name} if format_name else {}),
-                "name": name or file.filename or Path(handle.name).name,
+                "name": name or file.filename or label_path.name,
             },
             ctx,
         ).result
     finally:
-        Path(handle.name).unlink(missing_ok=True)
+        shutil.rmtree(folder, ignore_errors=True)
 
     problems = sum(
         1
