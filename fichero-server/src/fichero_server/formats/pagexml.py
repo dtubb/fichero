@@ -675,8 +675,8 @@ def _implicit_parents(
 
 
 def _derived_bounds(segment: PageSegment, segments: list[PageSegment]) -> list[float] | None:
-    """A box for a segment the source gave no shape: its baseline's bounds, else the
-    union of its descendants' shapes. None when there is nothing to work from."""
+    """A box for a segment the source gave no shape: its baseline's bounds, else the union of
+    its descendants' shapes, else its nearest ancestor's. None when there is nothing at all."""
     if segment.baseline:
         return _bounds_of(segment.baseline)
     boxes = []
@@ -696,6 +696,19 @@ def _derived_bounds(segment: PageSegment, segments: list[PageSegment]) -> list[f
             if child.ref:
                 pending.append(child.ref)
     if not boxes:
+        # Nothing of its own and nothing under it: a WORD with `<Coords points=""/>` in a real
+        # NZZ page (#5130). The truthful box is its nearest ancestor's -- the word is somewhere
+        # in its line -- and like every worked-out shape it is marked and dropped on re-import,
+        # never claimed as drawn.
+        by_ref = {s.ref: s for s in segments if s.ref}
+        parent = by_ref.get(segment.parent_ref or "")
+        seen_parents: set[str] = set()
+        while parent is not None and parent.ref not in seen_parents:
+            seen_parents.add(parent.ref)
+            box = parent.rect or _bounds_of(parent.polygon) or _bounds_of(parent.baseline)
+            if box:
+                return box
+            parent = by_ref.get(parent.parent_ref or "")
         return None
     left = min(b[0] for b in boxes)
     top = min(b[1] for b in boxes)

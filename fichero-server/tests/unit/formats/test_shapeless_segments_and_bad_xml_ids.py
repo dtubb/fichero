@@ -69,6 +69,24 @@ class TestASegmentWithNoShape:
         assert back["r1"].polygon is None
 
 
+class TestAWordWithNothingToWorkFrom:
+    """#5130, the NZZ page: a WORD with `<Coords points=""/>`, no baseline and no children. There
+    was nothing of its own to work a shape from, so it was written without Coords -- invalid.
+    Its nearest ancestor's box is used, marked, and dropped again on re-import."""
+
+    def test_it_exports_valid_on_its_lines_box_and_comes_back_shapeless(self):
+        page = SourcePage(image_size=(1000, 1000), segments=[
+            PageSegment(kind="region", ref="r", rect=[0.1, 0.1, 0.8, 0.5]),
+            PageSegment(kind="line", ref="l", parent_ref="r", rect=[0.1, 0.2, 0.8, 0.05]),
+            PageSegment(kind="word", ref="w", parent_ref="l", readings=[("transcription", "bringt")]),
+        ])
+        data, report = write_page("pagexml", page)  # validated on the way out
+        assert "shapes worked out for segments that had none" in report.lost
+        back = {s.ref: s for s in read_page("pagexml", data).segments}
+        assert back["w"].polygon is None and back["w"].rect is None
+        assert back["w"].readings == [("transcription", "bringt")]
+
+
 class TestAnXmlIdThatIsNotAnNcname:
     """Transkribus's TEI writes `<pb xml:id="0001_100_003_011_445.png">`. libxml2 refuses the
     whole file for it. The tolerance is for THAT error alone."""
