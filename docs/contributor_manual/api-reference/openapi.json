@@ -4445,6 +4445,114 @@
         }
       }
     },
+    "/api/formats": {
+      "get": {
+        "tags": [
+          "formats"
+        ],
+        "summary": "Interchange formats this build reads and writes",
+        "operationId": "list_formats_api_formats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormatListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{doc_id}/export/{format_name}": {
+      "get": {
+        "tags": [
+          "formats"
+        ],
+        "summary": "Export one page as PAGE XML, ALTO or TEI",
+        "operationId": "export_document_page_api_documents__doc_id__export__format_name__get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "format_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Format Name"
+            }
+          },
+          {
+            "name": "pass_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "The pass to export; defaults to the working pass",
+              "title": "Pass Id"
+            },
+            "description": "The pass to export; defaults to the working pass"
+          },
+          {
+            "name": "order_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "A named reading order's id; defaults to the order as written",
+              "title": "Order Id"
+            },
+            "description": "A named reading order's id; defaults to the order as written"
+          },
+          {
+            "name": "reading_kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Which kind of reading to write",
+              "default": "transcription",
+              "title": "Reading Kind"
+            },
+            "description": "Which kind of reading to write"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageExportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/links/of/{end_id}": {
       "get": {
         "tags": [
@@ -50631,6 +50739,62 @@
         "title": "ExecutionStatusResponse",
         "description": "Response with workflow execution status."
       },
+      "ExportChoicesOut": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "pass_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pass Id"
+          },
+          "pass_basis": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pass Basis"
+          },
+          "pass_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pass Name"
+          },
+          "order_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Order Id"
+          },
+          "order_name": {
+            "type": "string",
+            "title": "Order Name"
+          },
+          "reading_kind": {
+            "type": "string",
+            "title": "Reading Kind"
+          },
+          "segment_count": {
+            "type": "integer",
+            "title": "Segment Count"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "order_name",
+          "reading_kind",
+          "segment_count",
+          "notes"
+        ],
+        "title": "ExportChoicesOut"
+      },
       "ExportResponse": {
         "properties": {
           "success": {
@@ -50935,6 +51099,58 @@
         ],
         "title": "FolderViewsResponse",
         "description": "Available folder/workspace lenses for the selected document folder."
+      },
+      "FormatInfo": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "extensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Extensions"
+          },
+          "reads": {
+            "type": "boolean",
+            "title": "Reads"
+          },
+          "writes": {
+            "type": "boolean",
+            "title": "Writes"
+          },
+          "validated": {
+            "type": "boolean",
+            "title": "Validated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "extensions",
+          "reads",
+          "writes",
+          "validated"
+        ],
+        "title": "FormatInfo"
+      },
+      "FormatListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FormatInfo"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "FormatListResponse"
       },
       "FrameworkCreateRequest": {
         "properties": {
@@ -56472,6 +56688,29 @@
         ],
         "title": "LoginResponse"
       },
+      "LossOut": {
+        "properties": {
+          "what": {
+            "type": "string",
+            "title": "What"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "what",
+          "count",
+          "why"
+        ],
+        "title": "LossOut"
+      },
       "MCPClaimDeletedResponse": {
         "properties": {
           "success": {
@@ -59471,6 +59710,41 @@
         ],
         "title": "OutputSchema",
         "description": "JSON Schema for structured output from LLM nodes.\n\nWhen specified, the LLM will be instructed to return\ndata matching this schema exactly (using structured output mode).\n\nExample for named entity extraction:\n{\n    \"type\": \"object\",\n    \"properties\": {\n        \"people\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"organizations\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"dates\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}\n    },\n    \"required\": [\"people\", \"organizations\", \"dates\"]\n}"
+      },
+      "PageExportResponse": {
+        "properties": {
+          "format": {
+            "type": "string",
+            "title": "Format"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "choices": {
+            "$ref": "#/components/schemas/ExportChoicesOut"
+          },
+          "losses": {
+            "items": {
+              "$ref": "#/components/schemas/LossOut"
+            },
+            "type": "array",
+            "title": "Losses"
+          }
+        },
+        "type": "object",
+        "required": [
+          "format",
+          "filename",
+          "content",
+          "choices",
+          "losses"
+        ],
+        "title": "PageExportResponse"
       },
       "PageRangeItem": {
         "properties": {

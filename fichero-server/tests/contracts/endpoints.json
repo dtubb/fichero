@@ -2902,6 +2902,35 @@
       },
       {
         "method": "GET",
+        "path": "/documents/{doc_id}/export/{format_name}",
+        "operation_id": "export_document_page_api_documents__doc_id__export__format_name__get",
+        "summary": "Export one page as PAGE XML, ALTO or TEI",
+        "path_params": [
+          "doc_id",
+          "format_name"
+        ],
+        "query_params": [
+          {
+            "name": "order_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "pass_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "reading_kind",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "PageExportResponse"
+      },
+      {
+        "method": "GET",
         "path": "/documents/{doc_id}/geo",
         "operation_id": "list_document_geo_api_documents__doc_id__geo_get",
         "summary": "List geocoded points for a document",
@@ -3715,6 +3744,18 @@
         "query_params": [],
         "request_model": null,
         "response_model": "FolderViewsResponse"
+      }
+    ],
+    "formats": [
+      {
+        "method": "GET",
+        "path": "/formats",
+        "operation_id": "list_formats_api_formats_get",
+        "summary": "Interchange formats this build reads and writes",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "FormatListResponse"
       }
     ],
     "health": [

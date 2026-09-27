@@ -4375,6 +4375,26 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("export-one-page-as-page-xml-alto-or-tei")
+    def documents_export_one_page_as_page_xml_alto_or_tei_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        format_name: str = typer.Argument(..., help="Path parameter: format_name."),
+        order_id: Optional[str] = typer.Option(None, "--order-id", help="Query parameter: order_id."),
+        pass_id: Optional[str] = typer.Option(None, "--pass-id", help="Query parameter: pass_id."),
+        reading_kind: Optional[str] = typer.Option(None, "--reading-kind", help="Query parameter: reading_kind."),
+    ) -> None:
+        """Export one page as PAGE XML, ALTO or TEI (GET /api/documents/{doc_id}/export/{format_name})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{doc_id}/export/{format_name}"
+            params = {
+                "order_id": order_id,
+                "pass_id": pass_id,
+                "reading_kind": reading_kind,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-geocoded-points-for-a")
     def documents_list_geocoded_points_for_a_get(
         ctx: typer.Context,
@@ -5360,6 +5380,23 @@ def register_generated_openapi_commands(
         """Get Folder Views (GET /api/folders/{folder_id}/views)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/folders/{folder_id}/views"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    target_app = existing_apps.get('formats')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for formats endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='formats')
+        existing_apps['formats'] = target_app
+
+    @target_app.command("interchange-this-build-reads-and-writes")
+    def formats_interchange_this_build_reads_and_writes_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Interchange formats this build reads and writes (GET /api/formats)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/formats"
             params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
