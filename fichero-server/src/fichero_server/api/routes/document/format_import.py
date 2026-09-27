@@ -612,12 +612,14 @@ def write_page_into_library(
             source=f"file: {source_name}", ctx=ctx,
         )
 
-    # The file's own reading order, as a named order. Written directly in the file's
-    # sequence: placing each entry against its siblings would be quadratic, and the
-    # file has already told us the order.
+    # The file's own reading order, as a named order -- EVERY segment, nested as the file nests
+    # them (lines under their block, words under their line), in the file's order: the same
+    # `file_position` the page's text follows (#5137), so the two cannot disagree. Every level has
+    # entries, so a LINE can be moved, not only a block (Q5, lines move in the Reader's text).
+    # Written directly in the file's sequence: placing each entry against its siblings would be
+    # quadratic, and the file has already told us the order.
     entries: list[ReadingOrderEntry] = []
-    reading_order = page.orders[0] if page.orders else None
-    if reading_order is not None:
+    if order:
         as_written = ensure_as_written_order(
             db,
             document_id=document_id,
@@ -625,17 +627,17 @@ def write_page_into_library(
             provenance_kind=pass_row.provenance_kind,
             created_by=ctx.actor or None,
         )
-        for position, ref in enumerate(reading_order.refs, start=1):
-            segment_id = ids_by_ref.get(ref)
-            if segment_id is None:
-                continue
-            entries.append(
-                ReadingOrderEntry(
-                    order_id=as_written.id, segment_id=segment_id, position=float(position)
-                )
+        entry_by_ref: dict[str, ReadingOrderEntry] = {}
+        for ref, segment in sorted(order, key=lambda item: positions[item[0]]):
+            parent = entry_by_ref.get(segment.parent_ref or "")
+            entry = ReadingOrderEntry(
+                order_id=as_written.id, segment_id=ids_by_ref[ref],
+                position=float(positions[ref] + 1),
+                parent_entry_id=parent.id if parent is not None else None,
             )
-        if entries:
-            db.save_many(entries)
+            entry_by_ref[ref] = entry
+            entries.append(entry)
+        db.save_many(entries)
 
     return {
         "pass_id": pass_row.id,

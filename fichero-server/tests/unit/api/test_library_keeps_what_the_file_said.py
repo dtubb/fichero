@@ -165,3 +165,33 @@ def test_a_folder_import_still_finds_a_data_yaml_above_its_labels(db, tmp_path):
                              ActionContext(actor="historian", is_bootstrap=True)).result
     assert result["unknown_classes"] == []
     assert "DropCapitalZone" in {s.kind_raw for s in _rows(db, doc.id)}
+
+
+def test_the_imported_order_lists_every_line_under_its_block_in_file_order(db):
+    """Q5, lines move in the Reader's text: a LINE can only be moved if the order has an entry for
+    it. An import's as-written order used to hold the file's blocks alone; now every segment is in
+    it, nested as the file nests it, in the file's order (`file_position`)."""
+    from fichero_server.models.reading_orders import ReadingOrder, ReadingOrderEntry
+
+    doc_id = _import(db, CLM)
+    rows = {s.id: s for s in _rows(db, doc_id)}
+    [order] = [o for o in db.all(ReadingOrder) if o.document_id == doc_id]
+    entries = [e for e in db.all(ReadingOrderEntry) if e.order_id == order.id]
+    assert {e.segment_id for e in entries} == set(rows)
+    by_segment = {e.segment_id: e for e in entries}
+    for entry in entries:
+        segment = rows[entry.segment_id]
+        parent = by_segment.get(segment.parent_segment_id) if segment.parent_segment_id else None
+        assert entry.parent_entry_id == (parent.id if parent else None)
+    lines = sorted((by_segment[s.id] for s in rows.values() if s.kind == "line"), key=lambda e: e.position)
+    assert [rows[e.segment_id].metadata["file_position"] for e in lines] == sorted(
+        rows[e.segment_id].metadata["file_position"] for e in lines
+    )
+
+
+def test_a_page_export_s_reading_order_still_names_only_its_regions(db):
+    """The nested entries must not leak into a format's reading order, which is of blocks."""
+    doc_id = _import(db, SYRIAC)
+    page, _choices = page_from_library(db, doc_id)
+    data, _report = write_page("pagexml", page)
+    assert data.count(b"RegionRefIndexed") == len(_elements(SYRIAC, "RegionRefIndexed"))
