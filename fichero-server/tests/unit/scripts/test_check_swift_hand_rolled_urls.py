@@ -31,6 +31,25 @@ def test_flags_urlsession(tmp_path):
     assert scan(tmp_path)
 
 
+def test_a_nested_urlsession_type_is_not_a_session(tmp_path):
+    """Over-fire check. The WKNavigationDelegate trust-challenge signature names
+    `URLSession.AuthChallengeDisposition`, an enum; that alone put three web-view files in
+    the backlog, each with a paragraph explaining it was not a session."""
+    _write(
+        tmp_path, "Views/Web.swift",
+        "func webView(_ w: WKWebView, respondTo c: URLAuthenticationChallenge, "
+        "completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {}\n",
+    )
+    assert scan(tmp_path) == {}
+
+
+def test_a_session_by_constructor_or_type_is_still_flagged(tmp_path):
+    """Fires check: narrowing to nested types must not excuse a real session."""
+    _write(tmp_path, "Views/A.swift", "let s = URLSession(configuration: .default)\n")
+    _write(tmp_path, "Views/B.swift", "let s: URLSession = make()\n")
+    assert len(scan(tmp_path)) == 2
+
+
 def test_flags_urlrequest(tmp_path):
     _write(tmp_path, "Views/V.swift", "var request = URLRequest(url: someURL)\n")
     assert scan(tmp_path)
