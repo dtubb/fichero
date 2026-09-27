@@ -1046,7 +1046,7 @@
       "Models/Document.swift::CodingKeys",
       "Models/Document.swift::CodingKeys",
       "Models/Document.swift::CodingKeys",
-      "Models/Document.swift::DocumentStructureNode",
+      "Models/DocumentTypes.swift::DocumentStructureNode",
       "Models/Document.swift::EmbeddingStats",
       "Models/Document.swift::PageRange",
       "Models/Document.swift::SearchResponse",
