@@ -54,18 +54,6 @@ FLOORED_CHECKS: dict[str, dict] = {
         },
         "extra_scripts": ["check_undo_coverage_known_gaps.json", "matrix_guardrail_common.py"],
     },
-    "check_ui_wiring.py": {
-        "dirs": ["fichero/fichero", "fichero-cli/src"],
-        "files": {
-            "fichero-server/tests/contracts/openapi.json": json.dumps(
-                {"openapi": "3.1.0", "info": {"title": "t", "version": "0"}, "paths": {}}
-            ),
-            "docs/contributor_manual/api-reference/openapi.json": json.dumps(
-                {"openapi": "3.1.0", "info": {"title": "t", "version": "0"}, "paths": {}}
-            ),
-        },
-        "extra_scripts": [],
-    },
     "check_endpoint_coverage_matrix.py": {
         "dirs": [
             "fichero/fichero/Services",
@@ -301,17 +289,6 @@ FLOORED_CHECKS: dict[str, dict] = {
         },
         "extra_scripts": [],
     },
-    "check_endpoint_usage.py": {
-        "dirs": [
-            "fichero/fichero/Services",
-            "fichero/fichero/Models",
-            "fichero-cli/src/fichero_cli",
-        ],
-        "files": {
-            "fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json": _EMPTY_OPENAPI,
-        },
-        "extra_scripts": [],
-    },
     "check_locale_safe_binary_pipes.py": {
         # scripts/ exists (holds the copied check itself) but has no .sh —
         # zero file(1) pipe sites is BLIND ("the idiom moved"), never "all
@@ -342,8 +319,21 @@ def _materialize(tmp_path: Path, name: str, spec: dict) -> Path:
 
 
 def test_the_floored_inventory_is_not_empty():
-    """Guard the guard: this sweep is the proof the floors can fire."""
-    assert len(FLOORED_CHECKS) >= 45
+    """Guard the guard: this sweep is the proof the floors can fire.
+
+    44, not 45, since 2026-09-27: `check_ui_wiring` and `check_endpoint_usage` were
+    RETIRED, not lost. Both asked the same question as
+    `check_endpoint_coverage_matrix` — is this endpoint reached from the app — and all
+    three gave different wrong answers (#5105). The matrix's answer is the honest one,
+    and the 39 reasoned entries from `check_ui_wiring`'s swiftui allowlist were carried
+    into its baseline before either was deleted, so the wiring backlog survived the
+    guards that held it.
+
+    The floor is deliberately not lowered further than the retirement requires: it
+    exists so the inventory cannot shrink by accident, and a drop to 43 should mean
+    somebody decided to retire another one and said so here.
+    """
+    assert len(FLOORED_CHECKS) >= 44
 
 
 @pytest.mark.parametrize("name", sorted(FLOORED_CHECKS))

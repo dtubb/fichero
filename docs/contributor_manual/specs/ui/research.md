@@ -375,7 +375,7 @@ Inspector content, not as a rival top-level surface.
   larger ask: one server, tool list GENERATED, not three hand-maintained lists individually
   patched to be correct.
 - `research.mcp-knowledge-endpoints-unwired` — **[GAP]** (#1439) re-verified at HEAD via
-  `fichero-server/tests/contracts/ui_wiring_allowlist_swiftui.json`: all six
+  the swiftui wiring allowlist (retired 2026-09-27, its reasoned entries carried into `scripts/check_endpoint_coverage_matrix_known_gaps.json`, #5105): all six
   `/api/mcp/tools/knowledge/*` endpoints (claims list/create/get/delete, entities list/upsert/
   get/delete) remain allowlisted as "baseline: not yet wired" — this week's audit fix
   (`research.agent-audited-tools`) corrected what these tools call on the BACKEND; it did not

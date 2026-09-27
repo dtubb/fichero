@@ -31,7 +31,7 @@ archival format is IIIF + W3C + RDF, standards not custom — the RDF export and
 JSON-LD context are that standard, not a bespoke one. No local paths, since the server may be
 remote — this is WHY the JSONL and Parquet export routes are deliberately CLI/backend-only:
 their request shape takes an engine-local filesystem destination path, which no SwiftUI
-save/export workflow may legitimately supply (see `scripts/check_ui_wiring.py`'s own allowlist
+save/export workflow may legitimately supply (see the wiring backlog now carried by `scripts/check_endpoint_coverage_matrix.py`'s baseline, migrated when `check_ui_wiring` was retired, #5105 — its own allowlist
 reason for both routes). Docs describe what is built — every behavior below is read from the
 code, not from an issue's own framing of what it should do.
 
@@ -104,7 +104,7 @@ app's own Export menu), `Services/DocumentService.swift`.
   engine's seven export routes, the app's own Export menu
   (`App/Menus/ReaderExportCommands.swift`/`ReaderExportRunner.swift`) reaches exactly TWO: Word
   (`ReaderExportRunner.exportWord` → `POST /api/export/word`, confirmed CALLED by
-  `scripts/check_ui_wiring.py`'s live run — its own allowlist entry is stale and should be
+  `scripts/check_endpoint_coverage_matrix.py`'s live run (the reading was `check_ui_wiring`'s before it was retired, #5105) — its own allowlist entry is stale and should be
   dropped) and a per-document "Export as Markdown" — which is NOT the engine's
   `markdown-folder` route at all: `ReaderExportRunner.exportMarkdown` writes the Reader's
   ALREADY-LOADED text directly to a file client-side (`Data(item.text.utf8).write(to:)`), a
@@ -236,7 +236,7 @@ verify-close, and two distinct kinds of waiting.
   layer this issue asks for.
 - **#506** (the WORD half only — see `export.pdf-document-export` above for the PDF half,
   genuinely unbuilt) — Word export is built AND wired in the app, confirmed by
-  `scripts/check_ui_wiring.py`'s live run.
+  `scripts/check_endpoint_coverage_matrix.py`'s live run (read from `check_ui_wiring` before it was retired, #5105).
 
 ### G. Waiting on a spec that does not exist: "Export → GitHub" publish
 

@@ -297,7 +297,7 @@ milestone instead of being an arrow-pointer to elsewhere.
   with per-view sections (#3680). The specific "Models window" this issue names no longer
   exists in that shape.
 - **#1435** ("Wire 27 Providers & Models endpoints into SwiftUI") — re-ran
-  `scripts/check_ui_wiring.py` fresh: ZERO of the 27 endpoints this issue lists appear in the
+  `scripts/check_endpoint_coverage_matrix.py` fresh (the measurement was `check_ui_wiring`'s before it was retired into this one, #5105): ZERO of the 27 endpoints this issue lists appear in the
   current unwired/unallowlisted findings. All 27 are now either called or properly
   allowlisted.
 - **#2268** ("Providers/Models belong in the Settings window + defaults + model location") —
