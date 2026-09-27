@@ -557,6 +557,24 @@ def _as_http_error(exc: Exception) -> HTTPException:
 router = APIRouter()
 
 
+class ErrorDetail(BaseModel):
+    """The body this route's refusals actually send: `{"detail": "<a sentence>"}`.
+
+    **Declared because it was not, and the omission ate the sentence** (#5089). Without
+    a `responses=` entry FastAPI documents 422 as its own `HTTPValidationError`, whose
+    `detail` is an ARRAY of field errors — and the generated Swift client decodes the
+    body while producing the response, so a person picking the wrong file got a client
+    decoding error instead of *"nothing recognises 'x.xml'. This build reads: …"*.
+    **That sentence is the whole value of the refusal**: a scholar who chose the wrong
+    file needs to be told what this build can read.
+
+    The 409 is declared for the same reason even though it works today: it works only
+    because nothing declared it, which is the same accident facing the other way.
+    """
+
+    detail: str
+
+
 class ImportResponse(BaseModel):
     """What the app is told about an import.
 
@@ -582,6 +600,29 @@ class ImportResponse(BaseModel):
     "/documents/{doc_id}/import",
     response_model=ImportResponse,
     summary="Import a PAGE XML, ALTO, hOCR, TEI or YOLO file as a new pass",
+    responses={
+        404: {
+            "model": ErrorDetail,
+            "description": "No such document, or the uploaded file could not be read.",
+        },
+        409: {
+            "model": ErrorDetail,
+            "description": (
+                "This exact file is already a pass on this document "
+                "(`source.format.reimport-recognised`). Nothing was written, and the "
+                "sentence names the pass that already holds it."
+            ),
+        },
+        422: {
+            "model": ErrorDetail,
+            "description": (
+                "Nothing recognises the file, or its shapes lie outside the page it "
+                "declares. The sentence says which formats this build reads, or which "
+                "segments disagree with the page size — it is the refusal's whole "
+                "value and the app must show it rather than a decoding error."
+            ),
+        },
+    },
 )
 async def import_document_page(
     doc_id: str,

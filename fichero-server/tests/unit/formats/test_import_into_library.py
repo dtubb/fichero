@@ -512,3 +512,61 @@ class TestTheImportRoute:
 
         after = set(glob.glob(str(Path(tempfile.gettempdir()) / "fichero-import-*")))
         assert after == before
+
+
+class TestTheRefusalsSayWhatTheyActuallySay:
+    """#5089: the route's 422 was documented as FastAPI's `HTTPValidationError`, whose
+    `detail` is an ARRAY, while the code sends a STRING.
+
+    The generated Swift client decodes the body while producing the response, so a
+    person who picked the wrong file got a decoding error in place of *"nothing
+    recognises 'x.xml'. This build reads: …"*. **That sentence is the whole value of the
+    refusal**, so the contract has to describe the body the code sends.
+
+    These assert the SHAPE the app will decode, which a test of the message alone would
+    not catch.
+    """
+
+    def test_the_contract_declares_a_string_detail_for_every_refusal(self):
+        from fichero_server.api.main import app
+
+        responses = app.openapi()["paths"]["/api/documents/{doc_id}/import"]["post"]["responses"]
+
+        for code in ("404", "409", "422"):
+            schema = responses[code]["content"]["application/json"]["schema"]
+            assert schema.get("$ref", "").endswith("/ErrorDetail"), (
+                f"{code} is declared as {schema} — an app decoding that will not find "
+                "the sentence the code sends"
+            )
+
+    def test_the_declared_shape_is_a_plain_string(self):
+        from fichero_server.api.main import app
+
+        model = app.openapi()["components"]["schemas"]["ErrorDetail"]
+
+        assert model["properties"]["detail"]["type"] == "string"
+        assert model.get("required") == ["detail"]
+
+    def test_an_unrecognised_upload_really_sends_that_shape(self, db, client):
+        """The contract and the code agreeing is the point, so this asserts the WIRE."""
+        doc = _document(db)
+
+        response = client.post(
+            f"/api/documents/{doc.id}/import",
+            files={"file": ("notes.rtf", b"{\\rtf1 nope}", "text/rtf")},
+        )
+
+        assert response.status_code == 422
+        body = response.json()
+        assert isinstance(body["detail"], str), body
+        assert "This build reads" in body["detail"]
+
+    def test_a_reimport_sends_the_same_shape(self, db, client):
+        doc = _document(db)
+        payload = {"file": ("e.xml", OCRD.read_bytes(), "application/xml")}
+        client.post(f"/api/documents/{doc.id}/import", files=payload)
+
+        again = client.post(f"/api/documents/{doc.id}/import", files=payload)
+
+        assert again.status_code == 409
+        assert isinstance(again.json()["detail"], str)
