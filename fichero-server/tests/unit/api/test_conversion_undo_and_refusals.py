@@ -168,9 +168,16 @@ class TestUndoingAnOldArtifactActionAfterConversion:
     ):
         """Older data, an import, or a delete that predates the refusal:
         the rows outlive the artifact. The page must still read -- shapes
-        in the right order, no words, no raise -- and a restore must bring
-        it back MARKED, not as an unconverted twin of a page that already
-        has segments."""
+        in the right order, and the words the conversion moved onto the
+        segments as readings, no raise -- and a restore must bring it back
+        MARKED, not as an unconverted twin of a page that already has
+        segments.
+
+        The words survive because conversion puts them on the segments
+        (ruled 2026-09-20: readings come before conversion "so that a page's
+        words live on its segments"). This test once asserted text None here;
+        that was true only while a segment list read its words from the
+        artifact alone (before #5139)."""
         doc = _make_doc(db)
         artifact = _artifact(db, doc)
         registry.invoke(
@@ -183,7 +190,7 @@ class TestUndoingAnOldArtifactActionAfterConversion:
 
         between = _seam(client, doc.id)
         assert len(between["segments"]) == 3
-        assert all(s["text"] is None for s in between["segments"])
+        assert [s["text"] for s in between["segments"]] == ["w0", "w1", "w2"]
         assert len(between["passes"]) == 1
 
         registry.invoke(db, "artifact.restore", {"payload": snapshot}, _ctx())
