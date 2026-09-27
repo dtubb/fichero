@@ -1015,6 +1015,9 @@ function transcriptPages() {
                 markup_render: page.markup_render || null,
                 number: page.number == null ? index + 1 : page.number,
                 content: content,
+                // The line map (3c part c): offsets into `content`, one entry per line. A
+                // sidecar: the page body below is rendered from `content` alone, unchanged.
+                lines: Array.isArray(page.lines) ? page.lines : [],
                 hasContent: page.has_content == null
                     ? content.trim().length > 0
                     : Boolean(page.has_content),
@@ -1047,7 +1050,50 @@ function escapeHtml(text) {
         .replaceAll(">", "&gt;");
 }
 
+// <line-map> (3c part c). Which line the caret is on, resolved from the page's text offset
+// against the server's line map, so no line is wrapped in an element and the claim
+// highlighter's text-node walk sees the same DOM as before.
+const pageLineMaps = new Map();
+
+// The line holding `offset`. A caret on the boundary after a line's last character (the end
+// of the line, or the newline after it) is still on that line; before the first line, the
+// first. Null only for a page with no map.
+function segmentAtOffset(lines, offset) {
+    if (!Array.isArray(lines) || lines.length === 0) return null;
+    let found = lines[0];
+    for (const line of lines) {
+        if (line.char_start > offset) break;
+        found = line;
+    }
+    return found.segment_id;
+}
+
+// {pageId, segmentId} for the caret (the selection's focus), or null outside a page body.
+function lineAtCaret() {
+    const selection = window.getSelection();
+    const focus = selection && selection.focusNode;
+    if (!focus) return null;
+    const element = focus.nodeType === Node.TEXT_NODE ? focus.parentElement : focus;
+    const body = element && element.closest(".transcript-page-body");
+    const article = body && body.closest("article[data-page-id]");
+    if (!article) return null;
+    let offset = 0;
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+        if (node === focus) { offset += selection.focusOffset; break; }
+        if (focus.nodeType !== Node.TEXT_NODE && focus.contains(node)) break;
+        offset += node.nodeValue.length;
+    }
+    const pageId = article.dataset.pageId;
+    const segmentId = segmentAtOffset(pageLineMaps.get(pageId), offset);
+    return segmentId ? { pageId, segmentId } : null;
+}
+window.ficheroLineAtCaret = lineAtCaret;
+// </line-map>
+
 function transcriptPageMarkup(page) {
+    if (page.id) pageLineMaps.set(page.id, page.lines || []);
     const placeholder = page.hasContent
         ? ""
         : `<div class="page-placeholder">No transcription yet</div>`;

@@ -601,6 +601,41 @@ def transcript_pages(document: Document, child_pages: list[Document]) -> list[di
     return pages
 
 
+def page_line_map(db: Database, page_id: str, content: str) -> list[dict[str, object]]:
+    """Which LINE each stretch of a page's text came from, as offsets into `content`
+    (Q5, 3c part c: the Reader finds the line under its caret without wrapping any line in an
+    element, so the DOM the claim highlighter walks stays exactly as it was).
+
+    One entry per run of the page text that one line produced: a word's span is folded into
+    its line's, so a caret anywhere on the line names the segment an order MOVES. Empty when
+    the page has no pass, or when the text shown is not the text derived now (a stale cache):
+    offsets into a different string would name the wrong line, and no map is better than that.
+    """
+    from fichero_server.api.routes.document.segment_readings import document_text
+    from fichero_server.models import Segment
+
+    derived = document_text(db, page_id)
+    if not derived.spans or derived.text != content:
+        return []
+    ids = {span.segment_id for span in derived.spans}
+    segments = {row.id: row for row in db.query_in(Segment, "id", sorted(ids))}
+    parent_ids = {row.parent_segment_id for row in segments.values() if row.parent_segment_id}
+    parents = {row.id: row for row in db.query_in(Segment, "id", sorted(parent_ids))} if parent_ids else {}
+    lines: list[dict[str, object]] = []
+    for span in derived.spans:
+        segment = segments.get(span.segment_id)
+        line_id = span.segment_id
+        if segment is not None and segment.kind != "line":
+            parent = parents.get(segment.parent_segment_id or "")
+            if parent is not None and parent.kind == "line":
+                line_id = parent.id
+        if lines and lines[-1]["segment_id"] == line_id:
+            lines[-1]["char_end"] = span.end
+        else:
+            lines.append({"segment_id": line_id, "char_start": span.start, "char_end": span.end})
+    return lines
+
+
 #: How the reader should obtain the document's flat transcript. A closed set,
 #: named rather than implied by a null `page_content`.
 TRANSCRIPT_FROM_DOCUMENT = "document"  #: shipped verbatim — not derivable
@@ -808,6 +843,11 @@ async def document_view(
         # reading. Latest artifact of that type per section (2026-08-29).
         artifacts = db.query_in(Artifact, "document_id", [str(p["id"]) for p in pages])
         pages = represented_pages(pages, artifacts, representation)
+    if not artifact_id and representation in (None, "", "content"):
+        # The line map (3c part c): a sidecar, never a change to the text or its markup.
+        for page in pages:
+            if page.get("has_content") and page.get("id"):
+                page["lines"] = page_line_map(db, str(page["id"]), str(page["content"]))
     # Two sources, and which one applied decides whether the transcript has to
     # travel at all. When it comes from the page children it is `transcript_text`
     # — a PURE function of `pages` — so the client can rebuild it byte-for-byte.
