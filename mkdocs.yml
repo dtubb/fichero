@@ -412,6 +412,7 @@ nav:
               - Languages, Scripts & Signs: contributor_manual/specs/source/languages-scripts-signs.md
               - Segment Editor: contributor_manual/specs/source/segment-editor.md
               - Formats & Training: contributor_manual/specs/source/formats-and-training.md
+              - Maps & Georeference: contributor_manual/specs/source/maps-and-georeference.md
               - Models, Chains & Projects: contributor_manual/specs/source/models-chains-and-projects.md
               - Synced Folder: contributor_manual/specs/source/synced-folder.md
               - Rights, Consent & Access: contributor_manual/specs/source/rights-and-access.md

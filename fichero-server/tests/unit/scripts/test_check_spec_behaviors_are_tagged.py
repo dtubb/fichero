@@ -111,8 +111,8 @@ class TestTheBaselineShrinksOnly:
         """Editing prose ABOVE a known-untagged bullet moves its line and must not fail the
         build -- otherwise the baseline would have to be rewritten on every unrelated edit,
         and people would stop reading it."""
-        before = guard._key(("specs/x.md", 10, "a.b"))
-        after = guard._key(("specs/x.md", 99, "a.b"))
+        before = guard._key(("fixture/x.md", 10, "a.b"))
+        after = guard._key(("fixture/x.md", 99, "a.b"))
         assert before == after
 
     def test_a_baselined_entry_that_got_tagged_must_be_removed(self, tmp_path, monkeypatch, capsys):
