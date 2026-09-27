@@ -450,9 +450,20 @@ The editor
   word-aligned when word children exist, proportional-along-the-baseline and marked estimated
   otherwise. This is a design decision (what the estimate looks like, how it behaves for RTL and
   boustrophedon text) and is not implemented anywhere in the tree.
-- `source.textedit.backspace-joins-in-reading-order` — **[GAP]** (#5001) Backspace at a line's start joins it to the line
+- `source.textedit.backspace-joins-in-reading-order` — **[PARTIAL]** (#5001) Backspace at a line's start joins it to the line
   before it in the reading order, in one action, keeping the earlier line's id; refused with
-  the reason across regions or passes.
+  the reason across regions or passes. **`segment.merge` is the primitive, and as of 2026-09-27
+  both refusals are built:** it already refused across pass/document
+  (`SegmentPassMismatchError`); the across-REGION refusal did not exist until this session —
+  `_action_merge` never checked `parent_segment_id` at all, so two segments from different
+  regions merged silently. Added `SegmentRegionMismatchError`, checked right alongside the
+  pass/document check, with the ordinary same-region case proven unaffected
+  (`fichero-server/tests/unit/api/test_segments_write_actions.py::TestMergeRefusesAcrossRegions`,
+  3 tests: two different regions refused, one region + one no-region refused, same region still
+  merges). **Still not built:** "keeping the earlier line's id" is not automatic — `keep_id` is
+  caller-chosen (proven by `TestMergeKeepsTheKeptRowUntouchedForOrdering::test_merge_accepts_the_caller_chosen_keep_id_verbatim`),
+  so a Backspace handler choosing "the earlier line" is the caller's job, not this primitive's; no
+  Source-view surface exists to call it from either way.
 - `source.textedit.deleting-words-keeps-ink` — **[GAP]** (#5001) removing text is a new reading without those words;
   no segment is deleted by it; a word segment left without a reading, or an emptied line, is
   shown as such; deleting a segment is a separate, named command.
@@ -616,6 +627,7 @@ the click-around leg is still to be filled at approval):
 | `typing-is-a-new-reading` | `representation.create` + `provenance_kind_from_ctx` | `test_textedit_engine_primitives.py::TestTypingIsANewReadingSetsTheMakerFromContext` (4 tests: human, workflow, refused client-supplied maker, earlier reading unchanged) |
 | `return-splits-the-line` | `segment.split` | `test_textedit_engine_primitives.py::TestReturnSplitsTheLineSegmentSplitPrimitive` (2 tests: independent anchor + reading_span per part; no caret-to-geometry mapping exists) |
 | `stale-keeps-your-words` | none — confirmed absent | `test_textedit_engine_primitives.py::TestStaleKeepsYourWordsHasNoCompareAndSetOnAReadingWrite` (3 tests: two corrections of one target both silently succeed; params take no expected-version field; no conflict machinery in the file at all) |
+| `backspace-joins-in-reading-order` | `segment.merge` | `test_segments_write_actions.py::TestMergeRefusesAcrossRegions` (3 tests: two different regions refused, one region + one no-region refused, same region still merges) |
 
 ## Open questions
 

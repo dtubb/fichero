@@ -148,6 +148,15 @@ class SegmentParentMismatchError(ValueError):
     document."""
 
 
+class SegmentRegionMismatchError(ValueError):
+    """`segment.merge`'s participants do not all share one `parent_segment_id`
+    (`source.textedit.backspace-joins-in-reading-order`: "refused with the
+    reason across regions"). Two lines in different regions are not one
+    continuation of the same passage, so backspace's line-join must not
+    silently cross that boundary -- unlike the pass/document check above,
+    NOTHING enforced this before this class existed."""
+
+
 class SegmentAnchorMismatchError(ValueError):
     """An anchor's `document_id` does not match the segment's own."""
 
@@ -321,7 +330,7 @@ def _as_http_error(exc: Exception) -> HTTPException:
             "current_version": exc.current_version,
             "changed": exc.changed,
         })
-    if isinstance(exc, (SegmentPassMismatchError, SegmentParentMismatchError, SegmentForwardingWouldLoop, SegmentNotLive, SegmentDeleted, SegmentRestoreTargetGone, ArtifactNotInDocumentScope, SegmentMatchCrossDocument, SegmentPartGone, SegmentPassNotLive, SegmentPassIsConversionTarget)):
+    if isinstance(exc, (SegmentPassMismatchError, SegmentParentMismatchError, SegmentRegionMismatchError, SegmentForwardingWouldLoop, SegmentNotLive, SegmentDeleted, SegmentRestoreTargetGone, ArtifactNotInDocumentScope, SegmentMatchCrossDocument, SegmentPartGone, SegmentPassNotLive, SegmentPassIsConversionTarget)):
         return HTTPException(status_code=409, detail=str(exc))
     if isinstance(exc, (SegmentAnchorMismatchError, MatchNeedsAPerson, MatchNotAccepted, StatementsCarriedInStatementsStep, UnknownScript, BadDirection, UnknownCascadeFact)):
         # Slice 9 (#4938): a script this library cannot make sense of and a
@@ -2056,6 +2065,19 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
             raise _as_http_error(
                 SegmentPassMismatchError(
                     "segments being merged are not all in the same pass and document"
+                )
+            )
+
+    # `source.textedit.backspace-joins-in-reading-order`: "refused with the
+    # reason across regions" -- two segments can share a pass/document and
+    # still belong to different regions (different `parent_segment_id`,
+    # including one set and one unset), and merging across that boundary
+    # would silently splice two unrelated passages into one segment.
+    for row in rows.values():
+        if row.parent_segment_id != first.parent_segment_id:
+            raise _as_http_error(
+                SegmentRegionMismatchError(
+                    "segments being merged are not all in the same region"
                 )
             )
 
