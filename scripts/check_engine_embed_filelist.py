@@ -16,6 +16,7 @@ which is what this check enforces.
 from __future__ import annotations
 
 import pathlib
+import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -34,10 +35,28 @@ def listed_engine_sources() -> set[str]:
 
 
 def real_engine_sources() -> set[str]:
+    """Engine files git can see: tracked, plus new untracked ones that are not ignored.
+
+    NOT `ENGINE_SRC.rglob("*")`. That answered "what is on this disk", and 52908912d
+    regenerated the list in a checkout holding `.ruff_cache/` (three cache files) and a
+    locally built `resources/bin/fm-bridge` — all gitignored — so the committed list named
+    four files no fresh checkout has, and this check went red in every clean worktree.
+    `regen_engine_embed_filelist.py` imports this same function, so the two cannot drift.
+    Untracked-but-not-ignored is included so a source a lane has just added is listed
+    before it is committed.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", "-co", "--exclude-standard", "--",
+         str(ENGINE_SRC.relative_to(ROOT))],
+        capture_output=True, text=True, check=True,
+    )
     return {
-        str(path.relative_to(ROOT))
-        for path in ENGINE_SRC.rglob("*")
-        if path.is_file() and "__pycache__" not in path.parts and path.name != ".DS_Store"
+        line
+        for line in result.stdout.splitlines()
+        if line
+        and "__pycache__" not in line.split("/")
+        and not line.endswith(".DS_Store")
+        and (ROOT / line).is_file()
     }
 
 
