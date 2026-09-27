@@ -281,7 +281,9 @@ class Finding:
 
 
 def _is_scaffold(p: pathlib.Path) -> bool:
-    return p.name.startswith("_")
+    # Reads THIS module's SPECS_DIR, which the tests monkeypatch; the hidden-directory rule
+    # itself is shared (a nested agent worktree under specs/ doubled every count, 2026-09-27).
+    return p.name.startswith("_") or _broken.under_hidden_dir(p, SPECS_DIR)
 
 
 def _spec_files() -> list[pathlib.Path]:
@@ -806,7 +808,7 @@ def _collect_findings(offline: bool, strict: bool) -> tuple[list[Finding], list[
         infos.append(
             "OFFLINE: blind to rules (b) closed-issue-still-broken, (c) milestone mismatch, "
             "(e) OK-cites-open-issue, (f) orphan open issues, (g) GitHub milestone existence."
-        )
+        )  # keep in step with NETWORK_RULES
     else:
         idx = _issue_index(issues)
         for b in behaviors:
@@ -1004,12 +1006,39 @@ def _write_baseline(failures: list[Finding]) -> None:
     BASELINE_PATH.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
+# Rules that need `gh`. Offline they are not evaluated at all, so a baselined entry under one
+# of them cannot be judged fixed: its absence means "not looked at", not "gone". Until
+# 2026-09-27 `check --offline` reported all 32 baselined (c)/(g) entries as "fixed but not
+# removed" and FAILED, telling whoever ran it to delete real debt from the baseline.
+NETWORK_RULES = frozenset({"b", "c", "e", "f", "g"})
+
+
+def stale_baseline_entries(
+    baseline_set: set[tuple[str, str, str]],
+    current_set: set[tuple[str, str, str]],
+    offline: bool,
+) -> list[tuple[str, str, str]]:
+    """Baselined entries that no longer occur -- only among rules that were actually run."""
+    stale = baseline_set - current_set
+    if offline:
+        stale = {e for e in stale if e[0] not in NETWORK_RULES}
+    return sorted(stale)
+
+
 def cmd_check(offline: bool, strict: bool, update_baseline: bool) -> int:
     """The state machine: fails only on illegal states not yet in the baseline (today's
     known debt), and on a baselined entry that no longer occurs (fixed but not removed —
     the baseline can only shrink, same contract as check_spec_broken_has_issue.py's
     grandfather list)."""
     failures, infos, n_behaviors, n_specs = _collect_findings(offline, strict)
+
+    if update_baseline and offline:
+        print(
+            "FAIL spec_pipeline check --update-baseline --offline: refused. Offline, rules "
+            f"{sorted(NETWORK_RULES)} are not evaluated, so writing the baseline now would "
+            "silently delete every entry under them. Run it online."
+        )
+        return 2
 
     if update_baseline:
         _write_baseline(failures)
@@ -1026,7 +1055,7 @@ def cmd_check(offline: bool, strict: bool, update_baseline: bool) -> int:
     current_set = {(f.rule, f.spec, f.key) for f in failures}
 
     new_findings = [f for f in failures if (f.rule, f.spec, f.key) not in baseline_set]
-    fixed_but_listed = sorted(baseline_set - current_set)
+    fixed_but_listed = stale_baseline_entries(baseline_set, current_set, offline)
 
     for f in new_findings:
         print(f"FAIL NEW {f.message}")

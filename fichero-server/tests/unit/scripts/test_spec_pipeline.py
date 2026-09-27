@@ -1203,3 +1203,39 @@ def test_rule_i_reads_the_cli_test_root_too(tmp_path, monkeypatch):
     _seed(tmp_path, RULE_I_SPEC)
     _seed_test_file(tmp_path, "fichero-cli/tests/test_cli_thing.py", "# pins m2p.built-but-tagged-gap\n")
     assert any("m2p.built-but-tagged-gap" in i for i in _infos(tmp_path, monkeypatch) if "rule i" in i)
+
+
+class TestOfflineCannotJudgeWhatItDidNotRun:
+    """WHY: `check --offline` does not evaluate the rules that need `gh` -- (b), (c), (e), (f),
+    (g). Until 2026-09-27 it still compared the whole baseline against its partial findings,
+    so every baselined network-rule entry read as "fixed but not removed" and the check
+    FAILED, instructing whoever ran it to delete 32 entries of real debt. Online, all 36
+    were still present. Absence under a rule that was never run means "not looked at"."""
+
+    def test_offline_never_calls_a_network_rule_entry_stale(self):
+        baseline = {("g", "-", "Client - Web"), ("c", "x.md", "a.b:1"), ("h", "y.md", "c.d")}
+        assert _mod.stale_baseline_entries(baseline, set(), offline=True) == [("h", "y.md", "c.d")]
+
+    def test_online_still_reports_every_stale_entry(self):
+        """The fix must not blunt the shrink-only contract when the rules DID run."""
+        baseline = {("g", "-", "Client - Web"), ("h", "y.md", "c.d")}
+        assert _mod.stale_baseline_entries(baseline, set(), offline=False) == [
+            ("g", "-", "Client - Web"),
+            ("h", "y.md", "c.d"),
+        ]
+
+    def test_an_offline_rule_that_did_run_still_goes_stale(self):
+        """Rule (h) runs offline; a fixed (h) entry must still fail the check."""
+        baseline = {("h", "y.md", "c.d")}
+        assert _mod.stale_baseline_entries(baseline, set(), offline=True) == [("h", "y.md", "c.d")]
+
+    def test_the_network_rules_match_the_offline_notice(self):
+        """Two lists of the same fact drift. The notice names the blind rules; this pins that
+        the filter uses the same set."""
+        assert _mod.NETWORK_RULES == frozenset({"b", "c", "e", "f", "g"})
+
+    def test_updating_the_baseline_offline_is_refused(self, capsys):
+        """Writing the baseline offline would silently drop every network-rule entry --
+        the same deletion of real debt, made permanent in one command."""
+        assert _mod.cmd_check(offline=True, strict=False, update_baseline=True) == 2
+        assert "refused" in capsys.readouterr().out

@@ -47,7 +47,28 @@ CONTINUATION_RE = re.compile(r"^\s+\S")  # indented, non-blank line
 
 
 def _is_scaffold(p: pathlib.Path) -> bool:
-    return p.name.startswith("_")
+    """Scaffolding (`_TEMPLATE.md`), or anything under a hidden directory below the specs root.
+
+    The hidden-directory half matters: an agent's isolated worktree is created at
+    `<cwd>/.claude/worktrees/<id>/`, a full copy of the repo. On 2026-09-27 one landed inside
+    specs/source/ and every reader of this list saw 120 specs and 2,686 behaviours -- exactly
+    double. git ignores `.claude/`; rglob does not.
+    """
+    return p.name.startswith("_") or under_hidden_dir(p, SPECS_DIR)
+
+
+def under_hidden_dir(p: pathlib.Path, root: pathlib.Path) -> bool:
+    """True when any directory between `root` and `p` is hidden (`.claude`, `.git`, ...).
+
+    Takes the root explicitly: spec_pipeline's tests isolate themselves by monkeypatching
+    THAT module's SPECS_DIR, so a shared helper that read this module's global would walk
+    out of their fixture (37 tests did, the first time this was shared).
+    """
+    try:
+        parts = p.relative_to(root).parts[:-1]
+    except ValueError:
+        return False
+    return any(part.startswith(".") for part in parts)
 
 
 def _spec_files() -> list[pathlib.Path]:
