@@ -204,3 +204,4 @@ workflows/validation.py::workflow_input_kinds.visit 1
 workflows/validation.py::workflow_override_target_tools.descend 1
 workflows/validation.py::workflow_requires_vision.visit 1
 workflows/workflow_store.py::WorkflowStore.import_all 1
+actions/page_text_cache.py::_embed_now 1
