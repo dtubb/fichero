@@ -22,7 +22,7 @@ import re
 import uuid
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
@@ -392,6 +392,10 @@ class ScopedSegmentListResponse(BaseModel):
 
     items: list[SegmentRead]
     count: int
+    #: Documents in the scope this caller may not read, and whose segments are therefore
+    #: NOT in `items` or `total` (#5135). A count and never ids: naming a document the caller
+    #: may not see would tell them it exists. 0 when nothing was withheld.
+    withheld_documents: int = 0
     total: int
     #: The documents the scope resolved to, so a caller can tell an empty page
     #: ("nothing in these 40 documents") from an empty scope ("that folder has no
@@ -401,6 +405,7 @@ class ScopedSegmentListResponse(BaseModel):
 
 @router.get("", response_model=ScopedSegmentListResponse)
 async def list_segments_in_scope(
+    request: Request,
     document_ids: Optional[str] = Query(
         None,
         description=(
@@ -421,6 +426,7 @@ async def list_segments_in_scope(
     limit: int = Query(200, ge=1, le=1000, description="Page size; bounded on purpose"),
     offset: int = Query(0, ge=0),
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
 ) -> ScopedSegmentListResponse:
     """`GET /api/segments` — a bounded page of segments across a SCOPE.
 
@@ -471,6 +477,14 @@ async def list_segments_in_scope(
                 scope.append(child.id)
                 frontier.append(child.id)
 
+    # ACCESS CONTROL (#5135): the router's read check sees ONE id from the query at most
+    # (`parent_id`; `document_ids` is a list), so a scope is never trusted. Every document in
+    # it is checked the way a single-document read is, and the ones this caller may not read
+    # are withheld -- and COUNTED, so a shorter list is never a silent one.
+    readable = _readable_documents(request, x_fichero_library_path, scope)
+    withheld = len(scope) - len(readable)
+    scope = readable
+
     rows, total = db.segments_page(
         document_ids=scope,
         kind=kind,
@@ -481,8 +495,26 @@ async def list_segments_in_scope(
     )
     items = [segment_read_from_row(row) for row in rows]
     return ScopedSegmentListResponse(
-        items=items, count=len(items), total=total, document_ids=scope
+        items=items, count=len(items), total=total, document_ids=scope,
+        withheld_documents=withheld,
     )
+
+
+def _readable_documents(request: Request | None, library_path: str | None, scope: list[str]) -> list[str]:
+    """The documents in `scope` this caller may read, in order (#5135).
+
+    The same decision as the router's single-target read check
+    (`assert_library_read_authorized` -> `authz.assert_can_read`), taken per document: a
+    bootstrap (owner, loopback) caller reads everything, and so does every caller when the
+    library is not multi-user, where `authz` answers before touching any table.
+    """
+    from fichero_server.security import authz
+
+    state = getattr(request, "state", None)
+    if getattr(state, "bootstrap_auth", False):
+        return list(scope)
+    user = getattr(state, "user", None)
+    return [doc_id for doc_id in scope if authz.can_read(user, library_path, doc_id)]
 
 
 @router.get("/document/{doc_id}", response_model=SegmentListResponse)
