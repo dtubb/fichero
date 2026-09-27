@@ -376,7 +376,7 @@ final class SegmentStoreTests: XCTestCase {
     }
 
     func testPatchReplacesARowInPlaceWithoutMovingAnyOther() async throws {
-        let store = Self.makeStore()
+        let store = Self.storeWithMockTransport()
         Self.stubSuccess(
             documentId: "doc-1",
             passes: [Self.passJSON(id: "pass-1", documentId: "doc-1")],
@@ -401,7 +401,7 @@ final class SegmentStoreTests: XCTestCase {
     }
 
     func testPatchingWithNothingDropsTheRowRatherThanKeepingAStaleCopy() async throws {
-        let store = Self.makeStore()
+        let store = Self.storeWithMockTransport()
         Self.stubSuccess(
             documentId: "doc-1",
             passes: [Self.passJSON(id: "pass-1", documentId: "doc-1")],
@@ -418,7 +418,7 @@ final class SegmentStoreTests: XCTestCase {
     }
 
     func testPatchingAnIdThisStoreDoesNotHoldChangesNothing() async throws {
-        let store = Self.makeStore()
+        let store = Self.storeWithMockTransport()
         Self.stubSuccess(
             documentId: "doc-1",
             passes: [Self.passJSON(id: "pass-1", documentId: "doc-1")],
@@ -435,7 +435,7 @@ final class SegmentStoreTests: XCTestCase {
     }
 
     func testTheStoreConsumesSegmentAndPassEventsOnly() {
-        let store = Self.makeStore()
+        let store = Self.storeWithMockTransport()
 
         XCTAssertEqual(store.changeDomains, ["segment", "pass"])
     }
