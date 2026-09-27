@@ -71,8 +71,12 @@ class TestTheSixFalsePositives:
 
 class TestTheScanStillSeesTheWholeSurface:
     def test_the_mutating_population_is_unchanged_by_the_stricter_match(self):
-        """The fix tightened the witness, not the population — 393 operations either way."""
-        assert len(_rows()) == 393
+        """The fix tightened the witness, not the population: 393 mutating operations when it
+        landed. A FLOOR, not an equality -- pinned exactly, this failed the day PATCH
+        /api/segments was added (394), which is the surface growing, not the scan going blind.
+        What must never happen is the count FALLING, because that means the scan stopped
+        seeing routes it used to see and every "0 of N" figure quietly shrinks with it."""
+        assert len(_rows()) >= 393
 
     def test_undo_registering_files_are_still_found(self):
         """If this drops to zero the guard has gone blind, which is worse than red."""
