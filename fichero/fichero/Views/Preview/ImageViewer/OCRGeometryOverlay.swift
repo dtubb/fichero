@@ -253,7 +253,34 @@ extension ZoomableImagePreview {
         // Loads regardless of the boxes TOGGLE (2026-08-23): the reader's
         // word-selection linking needs the geometry even when the full box
         // layer is off — the toggle gates drawing that layer, not knowing.
-        guard let documentId, let artifactService else { return }
+        guard let documentId else { return }
+
+        // THE SEAM FIRST (#4954, `source.app.overlays-draw-from-the-seam`): one engine
+        // call returns the page's passes and segments, and `SegmentDisplay` maps the
+        // winning pass to the SAME `OCRGeometry` draw model the artifact path builds —
+        // same Canvas, same box shapes, no new overlay. Pinned equivalent field for
+        // field, including `isHandDrawn`, by
+        // `SegmentDisplayTests.seamMatchesTheArtifactPathForTheSamePage`.
+        //
+        // The artifact path stays as the fallback for a host with no library
+        // environment (previews), and for a page the seam has nothing for — not as a
+        // second source of truth: when the seam answers, it wins, and the inspector's
+        // focused-artifact override lives INSIDE it now rather than beside it.
+        if let segmentService {
+            let store = SegmentStore.shared(for: segmentService)
+            await store.load(documentId: documentId)
+            if let selected = SegmentDisplay.selected(for: documentId, store: store) {
+                ocrGeometry = selected.geometry
+                // The artifact the WINNING pass came from, so the curation verbs address
+                // the rows whose boxes are on screen (2026-08-29). Taken from the same
+                // answer as the geometry rather than looked up again, because a lookup
+                // could name a different pass.
+                ocrGeometryArtifactId = selected.artifactId
+                return
+            }
+        }
+
+        guard let artifactService else { return }
         do {
             // The probe itself lives on OCRGeometrySelection so the PDF surface
             // shares this exact decision rather than reimplementing it (#4418).

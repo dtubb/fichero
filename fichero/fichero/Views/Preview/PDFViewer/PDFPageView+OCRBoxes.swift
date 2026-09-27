@@ -126,7 +126,25 @@ extension PDFPageWithToolbar {
     /// `boxesForDisplayedPage`, which drops every box naming another page.
     func loadOCRGeometry() async {
         ocrGeometry = nil
-        guard ocrBoxesEnabled, let artifactService else { return }
+        guard ocrBoxesEnabled else { return }
+
+        // THE SEAM FIRST (#4954, `source.app.overlays-draw-from-the-seam`): the same
+        // shared function the image overlay now reads, so the two paths cannot diverge.
+        // `boxesForDisplayedPage` still drops every box naming another page, so a PDF
+        // pane shows its own page's boxes exactly as before — the seam changes where the
+        // boxes come from, never which page they belong to.
+        if let segmentService {
+            let store = SegmentStore.shared(for: segmentService)
+            await store.load(documentId: effectiveGeometryDocumentId)
+            if let selected = SegmentDisplay.selected(
+                for: effectiveGeometryDocumentId, store: store
+            ) {
+                ocrGeometry = selected.geometry
+                return
+            }
+        }
+
+        guard let artifactService else { return }
         do {
             ocrGeometry = try await OCRGeometrySelection.load(
                 documentId: effectiveGeometryDocumentId,

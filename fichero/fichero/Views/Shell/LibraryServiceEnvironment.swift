@@ -37,6 +37,11 @@ extension View {
             .environment(library.providerService)
             .environment(library.modelService)
             .environment(library.artifactService)
+            // The segments seam's service (#4954). The overlay loaders resolve
+            // `SegmentStore.shared(for:)` from it, which is the same instance
+            // `LibraryManager` registered with the change stream — so a patched
+            // segment redraws without a second store or a second fetch path.
+            .environment(library.segmentService)
             .environment(library.entityService)
             .environment(library.kgCurationService)
             .environment(library.researchService)

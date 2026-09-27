@@ -106,6 +106,10 @@ struct PDFPageWithToolbar: View {
     // after the #4418 split, and `private` in Swift is FILE-scoped, not
     // type-scoped — an extension in another file cannot see it.
     @Environment(ArtifactService.self) var artifactService: ArtifactService?
+    /// The segments seam (#4954). Optional for the same reason as `artifactService`
+    /// above: a host without the library environment draws from the artifact path
+    /// rather than trapping.
+    @Environment(SegmentService.self) var segmentService: SegmentService?
     /// The pane head's chrome seam (Daniel, 2026-08-29): this pane publishes
     /// its page nav so the head's ‹ › cluster drives PDF pages. Optional —
     /// hosts outside the preview pane publish nowhere.

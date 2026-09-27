@@ -135,7 +135,7 @@ extension ZoomableImagePreview {
     /// MOVE: committed on mouse-up. Indices are stable across a move, so the
     /// selection survives; the boxes re-render from the response geometry.
     func commitRegionMove(index: Int, bbox: [Double]) {
-        guard let artifactId = ocrGeometryArtifactId,
+        guard let artifactId = RegionEditTarget.forDirectEdit(shownArtifactId: ocrGeometryArtifactId),
               let documentId, let artifactService else { return }
         Task {
             do {
@@ -154,8 +154,12 @@ extension ZoomableImagePreview {
     /// indices are meaningless afterwards, so the selection clears.
     func deleteSelectedRegions() {
         let selection = RegionSelection.shared
-        guard let artifactId = ocrGeometryArtifactId,
-              selection.artifactId == artifactId, !selection.isEmpty,
+        guard let artifactId = RegionEditTarget.forSelectionEdit(
+                  shownArtifactId: ocrGeometryArtifactId,
+                  selectionArtifactId: selection.artifactId,
+                  selectionCount: selection.count,
+                  minimumCount: 1
+              ),
               let documentId, let artifactService else { return }
         let indices = selection.indices
         Task {
@@ -175,8 +179,12 @@ extension ZoomableImagePreview {
     /// server's call, so click order stays free.
     func combineSelectedRegions() {
         let selection = RegionSelection.shared
-        guard let artifactId = ocrGeometryArtifactId,
-              selection.artifactId == artifactId, selection.count >= 2,
+        guard let artifactId = RegionEditTarget.forSelectionEdit(
+                  shownArtifactId: ocrGeometryArtifactId,
+                  selectionArtifactId: selection.artifactId,
+                  selectionCount: selection.count,
+                  minimumCount: 2
+              ),
               let documentId, let artifactService else { return }
         let indices = selection.indices
         Task {

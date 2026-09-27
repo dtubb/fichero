@@ -261,4 +261,110 @@ struct SegmentDisplayTests {
         #expect(geometry.boxes[1].bbox == [0, 0, 0, 0])
         #expect(geometry.boxes[2].text == "mundo", "the box AFTER the placeholder keeps its index")
     }
+
+    // MARK: - The inspector's selection outranks the ladder (wired 2026-09-27)
+    //
+    // `loadSelected` applies this on the artifact path: "when I click on different
+    // regions in artifacts, should bounding boxes update?" (Daniel, 2026-08-27).
+    // Stage 1 left it out of the seam and SAID SO — "the acknowledged gap when this
+    // function is actually wired in". Wiring a view to a seam that lacked it would
+    // have dropped a ruled behaviour silently, which is the one thing the switch must
+    // not do, so it goes in with the wiring.
+
+    private func pass(
+        id: String, artifactId: String, type: String = "transcription",
+        createdAt: TimeInterval = 0
+    ) -> SegmentPassValue {
+        SegmentPassValue(
+            id: id, provisional: true, documentId: "doc-1", name: type,
+            provenanceKind: .workflow, provider: nil, model: nil, runId: nil,
+            createdAt: Date(timeIntervalSince1970: createdAt), text: nil,
+            sourceArtifactId: artifactId, artifactType: type
+        )
+    }
+
+    @Test("the focused artifact's pass is drawn even when the ladder ranks another first")
+    func focusedArtifactOutranksTheLadder() {
+        // `text_geometry` sits alone at rank 0, so the ladder prefers it. The
+        // inspector's selection must still win, or clicking an artifact stops
+        // changing the boxes.
+        let passes = [
+            pass(id: "ladder", artifactId: "art-ladder", type: "text_geometry", createdAt: 200),
+            pass(id: "clicked", artifactId: "art-clicked", type: "transcription", createdAt: 0),
+        ]
+        let segments = [
+            segment(id: "l-0", passId: "ladder", boxIndex: 0, rect: [0, 0, 1, 1], text: "ladder"),
+            segment(id: "c-0", passId: "clicked", boxIndex: 0, rect: [0, 0, 1, 1], text: "clicked"),
+        ]
+
+        let withoutFocus = SegmentDisplay.geometry(passes: passes, segments: segments)
+        let withFocus = SegmentDisplay.geometry(
+            passes: passes, segments: segments, preferringArtifactId: "art-clicked"
+        )
+
+        #expect(withoutFocus?.boxes.map(\.text) == ["ladder"])
+        #expect(withFocus?.boxes.map(\.text) == ["clicked"])
+    }
+
+    @Test("a focused artifact this page has no pass for leaves the ladder alone")
+    func focusOnAnotherPagesArtifactChangesNothing() {
+        let passes = [pass(id: "ladder", artifactId: "art-ladder")]
+        let segments = [
+            segment(id: "l-0", passId: "ladder", boxIndex: 0, rect: [0, 0, 1, 1], text: "ladder")
+        ]
+
+        let geometry = SegmentDisplay.geometry(
+            passes: passes, segments: segments, preferringArtifactId: "art-from-another-page"
+        )
+
+        #expect(geometry?.boxes.map(\.text) == ["ladder"], "a reorder, never a filter")
+    }
+
+    @Test("a focused artifact whose pass carries no usable boxes falls through to the ladder")
+    func focusedButUnusablePassFallsThrough() {
+        // The same rule the artifact path states: "anything else — no selection,
+        // another document's artifact, a boxless artifact — falls back to the
+        // authority ladder". Drawing nothing because the clicked artifact is empty
+        // would be a regression dressed as obedience.
+        let passes = [
+            pass(id: "clicked", artifactId: "art-clicked"),
+            pass(id: "ladder", artifactId: "art-ladder", type: "text_geometry"),
+        ]
+        let segments = [
+            // `clicked` has a duplicate boxIndex, so its whole pass is refused.
+            segment(id: "c-0", passId: "clicked", boxIndex: 0, rect: [0, 0, 1, 1], text: "dup-a"),
+            segment(id: "c-1", passId: "clicked", boxIndex: 0, rect: [0, 0, 1, 1], text: "dup-b"),
+            segment(id: "l-0", passId: "ladder", boxIndex: 0, rect: [0, 0, 1, 1], text: "ladder"),
+        ]
+
+        let geometry = SegmentDisplay.geometry(
+            passes: passes, segments: segments, preferringArtifactId: "art-clicked"
+        )
+
+        #expect(geometry?.boxes.map(\.text) == ["ladder"])
+    }
+
+    @Test("the winning pass carries the artifact id the curation verbs must address")
+    func winningPassNamesItsArtifact() {
+        // The loaders take geometry AND artifact id from this one answer. Reading the
+        // id separately could name a pass that did not win, pointing the curation
+        // verbs at rows whose boxes are not on screen (2026-08-29).
+        let passes = [
+            pass(id: "ladder", artifactId: "art-ladder", type: "text_geometry", createdAt: 200),
+            pass(id: "clicked", artifactId: "art-clicked", createdAt: 0),
+        ]
+        let segments = [
+            segment(id: "l-0", passId: "ladder", boxIndex: 0, rect: [0, 0, 1, 1], text: "ladder"),
+            segment(id: "c-0", passId: "clicked", boxIndex: 0, rect: [0, 0, 1, 1], text: "clicked"),
+        ]
+
+        let ladder = SegmentDisplay.winningPass(passes: passes, segments: segments)
+        #expect(ladder?.pass.sourceArtifactId == "art-ladder")
+        #expect(ladder?.geometry.boxes.map(\.text) == ["ladder"])
+
+        let focused = SegmentDisplay.winningPass(
+            passes: passes, segments: segments, preferringArtifactId: "art-clicked"
+        )
+        #expect(focused?.pass.sourceArtifactId == "art-clicked")
+    }
 }
