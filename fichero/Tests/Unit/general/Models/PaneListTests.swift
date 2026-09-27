@@ -226,6 +226,22 @@ struct PaneListTests {
         }
     }
 
+    /// The image layer is a workspace setting like the word boxes (ruled 2026-09-27, Q2), so a
+    /// saved workspace must keep it, and a pane with only it set is a configured pane.
+    @Test("a preview leaf's image layer survives a saved workspace")
+    func previewImageLayerRoundTrips() throws {
+        let list = PaneList([.leaf(.preview, config: PaneConfig(previewWordBoxes: true, previewImage: false))])
+        let decoded = try JSONDecoder().decode(PaneList.self, from: JSONEncoder().encode(list))
+        #expect(decoded == list)
+        if case let .leaf(_, _, _, config) = decoded.nodes[0] {
+            #expect(config.previewImage == false)
+            #expect(config.previewWordBoxes == true)
+        } else {
+            Issue.record("the node should be a preview leaf")
+        }
+        #expect(PaneConfig(previewImage: false).isConfigured)
+    }
+
     @Test("a configured leaf (claims-as-table, word-box preview) round-trips through JSON")
     func configuredLeavesRoundTrip() throws {
         let list = PaneList([
