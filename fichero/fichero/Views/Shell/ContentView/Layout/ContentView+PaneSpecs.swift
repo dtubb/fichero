@@ -1,0 +1,410 @@
+import SwiftUI
+
+//  Extracted for file_length (#5113). Behaviour unchanged: the declarations below are
+//  byte-for-byte what they were, moved so the file they came from stays readable.
+//  Imports are the SOURCE file's, not a guess — that is what broke the previous batch.
+
+extension ContentView {
+    /// `slotId` survives a kind override (2026-08-24): the split state is
+    /// keyed "<slot>-<kind>", so two slots hosting the SAME kind split
+    /// independently — the per-window "canvas" key made splitting one
+    /// preview split both.
+    private func kindContent(
+        kind: PaneSpec.Kind, slotId: String, fixedWidth: CGFloat?,
+        splitLeaf: ((SplitAxis) -> Void)? = nil
+    ) -> AnyView {
+        let spec = PaneSpec(kind: kind, fixedWidth: fixedWidth)
+        let splitKey = "\(slotId)-\(kind.rawValue)"
+        let modelSplit = splitLeaf.map { PaneModelSplitHook(split: $0) }
+        switch spec.kind {
+        case .library:
+            return AnyView(
+                // Splittable (h/v) Library list pane — #2276.
+                adaptiveSplittablePane(storageKey: splitKey, modelSplit: modelSplit) {
+                    contentWithOptionalModeRail
+                }
+                .frame(width: spec.fixedWidth)
+                .frame(maxWidth: spec.fixedWidth == nil ? .infinity : nil)
+                // The library pane must never paint past its own split
+                // column — otherwise list/grid rows can bleed under the
+                // shell sidebar or off the left window edge.
+                .clipped()
+                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
+            )
+        case .preview:
+            // Clicking a pane FOCUSES it — the same gesture .content and .chat
+            // already carried. Without it the focus hint never left .content,
+            // so ⌘A over a clicked preview still went to the library (Daniel,
+            // live 2026-08-23).
+            return AnyView(
+                widescreenCanvasPane(splitKey: splitKey, modelSplit: modelSplit)
+                    .simultaneousGesture(
+                        TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview }
+                    )
+            )
+        case .reading:
+            let reading = widescreenReadingPane(splitKey: splitKey, modelSplit: modelSplit)
+                .simultaneousGesture(
+                    TapGesture().onEnded { _ in focusedPane = .reading; paneFocusHint = .reading }
+                )
+            if let width = spec.fixedWidth {
+                return AnyView(reading.frame(width: width))
+            }
+            return AnyView(reading.frame(maxWidth: .infinity))
+        case .inspector:
+            // The document inspector as a CENTRE PANE (spec §"v2 workspaces": the inspector
+            // docks in the pane list, always on the right). Reserving the kind so workspaces can
+            // compose it and the model stays total; hosting the real InspectorView content here
+            // is the next increment (it needs the selected document + service environment, the
+            // same boundary the sidebar chat re-injects).
+            return AnyView(
+                PaneEmptyStateView(reason: "Inspector")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .inspector; paneFocusHint = .inspector })
+            )
+        case .chat:
+            // Chat is no longer a centre pane — it lives beneath the sidebar
+            // (spec panes.chat.below-sidebar). The kind stays in the enum so the
+            // slot switcher's `Kind` type stays total, but a slot manually
+            // switched to Chat now points the user to its real home instead of
+            // mounting a SECOND `ChatView` — a second one would carry its own
+            // @State conversation (double-send). The one mount is `chatSurface`
+            // in ContentView.sidebarContent.
+            return AnyView(
+                PaneEmptyStateView(reason: "Chat lives beneath the sidebar.")
+                    .frame(maxWidth: .infinity)
+                    .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .chat; paneFocusHint = .chat })
+            )
+        }
+    }
+
+    // MARK: - The ONE renderer (spec §F7: one rendering path)
+
+    /// Map the pure-model `PaneKind` to the view's `PaneSpec.Kind`. They carry the same four
+    /// cases today; this is the seam where the F2 vocabulary unification lands.
+    private func paneSpecKind(_ kind: PaneKind) -> PaneSpec.Kind {
+        switch kind {
+        case .library: .library
+        case .preview: .preview
+        case .reading: .reading
+        case .inspector: .inspector
+        case .chat: .chat
+        }
+    }
+
+    /// The inverse of `paneSpecKind` — the head's kind menu delivers a `PaneSpec.Kind`, which the
+    /// applied-path kind-switch turns back into a model `PaneKind` to mutate the leaf.
+    private func paneKind(_ specKind: PaneSpec.Kind) -> PaneKind {
+        switch specKind {
+        case .library: .library
+        case .preview: .preview
+        case .reading: .reading
+        case .inspector: .inspector
+        case .chat: .chat
+        }
+    }
+
+    /// Render an APPLIED workspace pane list — every level through the recursive node renderer
+    /// (top-level nodes lay out as a horizontal row; a split arranges its children along its
+    /// axis), so a STORED `PaneList` (`activePaneList`) is the source of truth. Unlike
+    /// `paneComposition`, this never delegates the multi-pane row to `widescreenPaneRow` (which
+    /// reads the legacy visibility plan) — the applied list is authoritative.
+    /// ponytail: equal-flex panes, no resizable dividers/fixed widths yet; porting
+    /// `widescreenPaneRow`'s width+divider logic here is the follow-up that retires the second
+    /// renderer. Each top-level node is keyed by its index so its split state stays per-instance.
+    @ViewBuilder
+    func paneListRow(_ list: PaneList) -> some View {
+        // A window-scoped focused value admits ONE publisher per key: a workspace with two
+        // same-kind panes (Compare) must flag every duplicate SECONDARY so it doesn't co-publish
+        // and loop the scene graph (spec panes.instance-safe). Computed once, from the list shape.
+        let secondaryIDs = list.secondaryLeafIDs()
+        // The top-level columns, as RESIZABLE widths (WorkspaceSplitStack) — the applied-workspace
+        // path is now fully resizable (CD 2026-09-16). Closing a pane removes THIS leaf from the
+        // stored list (spec panes.close.this-pane-only); @State's nonmutating setter makes capturing
+        // self safe.
+        let solePane = list.leafCount == 1
+        let extents = childExtents(list.nodes, axis: .horizontal)
+        let columns = list.nodes.enumerated().map { index, node in
+            WorkspaceSplitStack.Child(
+                paneNodeView(
+                    node, keyPath: "\(index)", secondaryIDs: secondaryIDs, isSole: solePane,
+                    closeLeaf: { id in
+                        activePaneList = activePaneList.removingLeaf(id)
+                        paneListDidChange()
+                    },
+                    changeKind: { id, kind in
+                        activePaneList = activePaneList.changingLeafKind(id, to: kind)
+                        paneListDidChange()
+                    },
+                    changeContentKind: { id, contentKind in
+                        activePaneList = activePaneList.changingLeafContentKind(id, to: contentKind?.rawValue)
+                        paneListDidChange()
+                    },
+                    // ONE CODE PATH (2026-09-20 ruling): the in-pane split control
+                    // (`SplittablePane`'s `\.splitAxisActions`, surfaced via
+                    // `PaneChromeMenu`'s "+") now calls THIS — the same
+                    // `PaneList.splittingLeaf` the Workspaces menu already uses —
+                    // instead of duplicating this leaf's own rendered content.
+                    splitLeaf: { id, axis in
+                        activePaneList = activePaneList.splittingLeaf(id, axis: axis)
+                        paneListDidChange()
+                    }
+                ),
+                // ONE CODE PATH (2026-09-20 ruling, slice B): the pane's OWN id — a leaf's or a
+                // split's, both cases of `PaneNode.id` — not this column's array offset. This is
+                // what lets `WorkspaceSplitStack` tell "pane X moved to a new position" apart
+                // from "pane X closed and a different pane Y is now here" (#4976).
+                id: node.id,
+                sizing: extents[index]
+            )
+        }
+        // The key is this row's tree POSITION alone (#4994): the row keeps its view identity
+        // across an applied workspace, so a key that changed with the workspace changed under a
+        // live `@SceneStorage`. Sizes stay per-workspace because the stored value is keyed by
+        // each child's own pane id (`id: node.id` above) — see `WorkspaceSplitStack.storageKey`.
+        let storageKey = WorkspaceSplitStack.storageKey(keyPath: "root")
+        WorkspaceSplitStack(axis: .horizontal, storageKey: storageKey, children: columns)
+    }
+
+    /// Render one node. AnyView because the recursion (node → split → node) can't ride an
+    /// opaque `some View` return, and erasing at the boundary is the #4331 crash guard anyway.
+    private func paneNodeView(
+        _ node: PaneNode, keyPath: String, secondaryIDs: Set<UUID> = [], isSole: Bool = false,
+        closeLeaf: ((UUID) -> Void)? = nil,
+        changeKind: ((UUID, PaneKind) -> Void)? = nil,
+        changeContentKind: ((UUID, LibraryContentKind?) -> Void)? = nil,
+        splitLeaf: ((UUID, SplitAxis) -> Void)? = nil
+    ) -> AnyView {
+        switch node {
+        case let .leaf(id, kind, _, config):
+            // kindContent already returns AnyView (head chrome + clip + focus gesture). A DUPLICATE
+            // same-kind leaf renders secondary so its subtree suppresses the window-scoped
+            // focused-value publishes the primary owns (spec panes.instance-safe); the flag is the
+            // SAME `\.isSecondarySplitPane` an in-pane split already uses. On the applied path
+            // `closeLeaf` also publishes this leaf's close action, so the head's X removes THIS pane
+            // (spec panes.close.this-pane-only), not the whole row.
+            var leaf = AnyView(
+                kindContent(
+                    kind: paneSpecKind(kind),
+                    slotId: "pane-\(keyPath)-\(kind.rawValue)",
+                    fixedWidth: nil,
+                    // THIS leaf's own id, closed over here — the same per-leaf
+                    // seam `changeKind`/`changeContentKind` already use, now
+                    // extended to split (ONE CODE PATH ruling, 2026-09-20).
+                    splitLeaf: splitLeaf.map { leafSplit in { axis in leafSplit(id, axis) } }
+                )
+                .environment(\.isSecondarySplitPane, secondaryIDs.contains(id))
+                // Sole pane → the head collapses its close affordance (spec panes.head.sole-collapse).
+                .environment(\.isSolePane, isSole)
+                // Per-kind accessibility identifier so design-lead tests can assert exactly which
+                // panes a workspace mounts (spec §Accessibility; WorkspaceAccessibilityUITests):
+                // "pane.library" / "pane.preview" / "pane.reading" / "pane.inspector" / "pane.chat".
+                .accessibilityIdentifier("pane.\(kind.rawValue)")
+                // NOT a hosting boundary — corrected 2026-09-17. AnyView does not re-root the
+                // environment, so this modifier is a no-op here (see
+                // ContentView+WindowEnvironment for the evidence and the real cause). Kept
+                // because re-injecting what is already in scope costs nothing.
+                // Historical note, left because it explains the comment below: the window/app
+                // objects injected upstream
+                // (ContentView+Navigation, ContentView+RootLayout) do not reliably cross it, so a
+                // pane's subtree can die on a non-optional @Environment read. Exactly the 2026-08-11
+                // failure — "the horizontal library split's second pane died on
+                // WorkflowExecutionObserver" — and the crash Daniel hit at launch once the Read
+                // workspace began mounting a reader on startup (2026-09-17).
+                // ALL of them, never a hand-picked list: re-injecting what is already in scope is a
+                // no-op; omitting one is a trap. Same set the other two boundaries re-inject.
+                //
+                // 2026-09-17, second pass: this said "ALL" while injecting SEVEN. A workflow pane
+                // reads WorkflowStore, which was not among them, so mounting one trapped in
+                // EnvironmentValues.subscript.getter (EXC_BREAKPOINT) with no app frame in the
+                // stack to name it. It now applies the ONE shared list
+                // (ContentView+WindowEnvironment) so all three boundaries cannot diverge again.
+                .modifier(windowEnvironment)
+            )
+            // The workspace's per-pane library layout (Read = table, Browse = icons, …): publish it
+            // so THIS library pane renders in the workspace's mode instead of the window's global one
+            // (spec §"v2 workspace design", per-pane config).
+            if kind == .library,
+               let raw = config.libraryLayout,
+               let mode = ViewDisplayMode(paneLibraryLayout: raw) {
+                leaf = AnyView(leaf.environment(\.paneLibraryLayout, mode))
+            }
+            // The workspace/chip-set EXPLICIT content kind for THIS library pane
+            // (#4884) — mirrors the libraryLayout block immediately above,
+            // same seam shape for the sibling PaneConfig field.
+            if kind == .library, let raw = config.libraryContentKind,
+               let contentKind = LibraryContentKind(rawValue: raw) {
+                leaf = AnyView(leaf.environment(\.paneContentKind, contentKind))
+            }
+            if let closeLeaf {
+                leaf = AnyView(leaf.environment(\.paneCloseAction, PaneCloseAction { closeLeaf(id) }))
+            }
+            // The head's far-left kind menu (`PaneKindSelector`) is inert until a `\.paneKindSwitcher`
+            // is present. Inject it on the applied path so switching a pane's kind mutates THIS leaf
+            // in the stored list (spec panes.head.kind-switch) — the same per-leaf seam as close.
+            if let changeKind {
+                let switcher = PaneKindSwitcher(slotId: "pane-\(keyPath)-\(kind.rawValue)") { specKind in
+                    changeKind(id, paneKind(specKind))
+                }
+                leaf = AnyView(leaf.environment(\.paneKindSwitcher, switcher))
+            }
+            // The pane-head content-kind chip (#4884) is inert until a
+            // `\.paneContentKindSwitcher` is present — same shape as the kind
+            // switcher above, scoped to `.library` leaves only.
+            if kind == .library, let changeContentKind {
+                let contentSwitcher = PaneContentKindSwitcher(
+                    slotId: "pane-\(keyPath)-\(kind.rawValue)"
+                ) { newContentKind in
+                    changeContentKind(id, newContentKind)
+                }
+                leaf = AnyView(leaf.environment(\.paneContentKindSwitcher, contentSwitcher))
+            }
+            return leaf
+        case let .split(_, axis, children):
+            return paneSplitView(
+                axis: axis, children: children, keyPath: keyPath,
+                secondaryIDs: secondaryIDs, closeLeaf: closeLeaf, changeKind: changeKind,
+                changeContentKind: changeContentKind, splitLeaf: splitLeaf
+            )
+        }
+    }
+
+    /// A split node: children laid out along the axis in a RESIZABLE `WorkspaceSplitStack`, so every
+    /// split in an applied workspace can be dragged (widths for a horizontal split, heights for a
+    /// vertical one). Extents persist per split position via the `keyPath` storage key.
+    private func paneSplitView(
+        axis: SplitAxis, children: [PaneNode], keyPath: String,
+        secondaryIDs: Set<UUID> = [], closeLeaf: ((UUID) -> Void)? = nil,
+        changeKind: ((UUID, PaneKind) -> Void)? = nil,
+        changeContentKind: ((UUID, LibraryContentKind?) -> Void)? = nil,
+        splitLeaf: ((UUID, SplitAxis) -> Void)? = nil
+    ) -> AnyView {
+        let extents = childExtents(children, axis: axis)
+        let views = children.enumerated().map { idx, child in
+            WorkspaceSplitStack.Child(
+                paneNodeView(
+                    child, keyPath: "\(keyPath).\(idx)",
+                    secondaryIDs: secondaryIDs, closeLeaf: closeLeaf, changeKind: changeKind,
+                    changeContentKind: changeContentKind, splitLeaf: splitLeaf
+                ),
+                // Same as `paneListRow`: the child's own `PaneNode.id`, not its array index.
+                id: child.id,
+                sizing: extents[idx]
+            )
+        }
+        // Same rule as `paneListRow` (#4994): the tree position alone; per-workspace sizes ride
+        // the pane-id keys inside the stored value.
+        let storageKey = WorkspaceSplitStack.storageKey(keyPath: keyPath)
+        return AnyView(WorkspaceSplitStack(axis: axis, storageKey: storageKey, children: views))
+    }
+
+    /// The whole-pane fixed extent for a `.library` leaf pinned via `paneExtent` (#4848,
+    /// `panes.strip.fixed-extent-is-content-not-whole-pane`): `paneExtent` names the VISIBLE ICON
+    /// STRIP height only (72pt, unchanged) — this adds the pane's OWN chrome (its head bar +
+    /// its bottom mini-toolbar), which used to have nowhere to render because `paneExtent` was
+    /// being treated as the extent of the WHOLE pane. Derived from the SAME metrics `PaneHead`
+    /// and the library bottom bar actually render at (`PaneHeadMetrics.barHeight`,
+    /// `MiniToolbar.standardHeight`) — not a second magic number.
+    static func libraryStripExtent(iconStrip: Double) -> Double {
+        iconStrip + PaneHeadMetrics.barHeight + MiniToolbar<EmptyView, EmptyView>.standardHeight
+    }
+
+    /// Per-child SIZING for a split's children: a DEFAULT extent (`PaneConfig.paneExtent` — the
+    /// film strip, absolute points; resizable and floored at this value since slice D, 2026-09-20,
+    /// #4876/#4848 — no longer a hard pin that ignores stored drag state), PROPORTIONAL
+    /// (`PaneConfig.paneFraction` — a resizable column seeded from a fraction of the stack's own
+    /// extent), or FLEX (fills whatever the sized/pinned siblings leave over). An extent always
+    /// wins over a fraction on the same leaf (`Sizing.preferred`, pure + unit-tested). A
+    /// `.library` leaf's `paneExtent` is widened to include its own chrome (`libraryStripExtent`,
+    /// #4848) before `Sizing.preferred` ever sees it.
+    private func childExtents(_ nodes: [PaneNode], axis: SplitAxis) -> [WorkspaceSplitStack.Sizing] {
+        let preferences: [WorkspaceSplitStack.Sizing?] = nodes.map { node in
+            guard case let .leaf(_, kind, _, config) = node else { return nil }
+            let extent = config.paneExtent.map { kind == .library ? Self.libraryStripExtent(iconStrip: $0) : $0 }
+            return WorkspaceSplitStack.Sizing.preferred(extent: extent, fraction: config.paneFraction)
+        }
+        return Self.childSizings(preferences, fallbackFraction: 0.4)
+    }
+
+    /// Pure (#4849, `panes.split.peers-open-even`): turn each child's own preference (an explicit
+    /// pin/fraction, or `nil`) into its final `Sizing`, given the whole sibling set.
+    ///
+    /// A PEER is a child with NO explicit `paneExtent`/`paneFraction` of its own (a `nil`
+    /// preference) — the definition team-lead proposed. Peers SHARE EVENLY whatever the explicit
+    /// siblings (fractions and — via the existing sum-clamp in `WorkspaceSplitStack.resolvedExtents`
+    /// — fixed pins) leave over: `(1 − sum of explicit fractions) / peer count`, not the old flat
+    /// `fallbackFraction` every non-explicit child got regardless of how many peers there were
+    /// (which made 2/3/4 peers come out unequal — two matched the flat fallback, only the LAST
+    /// child ever truly flexed to the real remainder).
+    ///
+    /// One peer still gets `.flex` rather than `.fraction(peerShare)` — the same value as every
+    /// other peer WHEN NO PIN IS PRESENT (the flex space left over is exactly `peerShare × total`,
+    /// once every other peer and every explicit fraction sibling has taken its share, since
+    /// `peerShare` is itself derived as a share of `total`) — but it keeps a genuine flex slot in
+    /// the mix so the pane list always has somewhere that absorbs a total that doesn't divide
+    /// evenly, and preserves which slot flexes today: the FIRST peer when a pin is present (the
+    /// rule that keeps the Transcribe/Compare film strip pinned while the content above it fills
+    /// the rest), the LAST peer when there is no pin (the rule for the un-pinned workspaces). With
+    /// NO peer at all, the last child that is not a pin flexes instead (every child a pin: the
+    /// last one), so a split can never be left with nothing to absorb the remainder.
+    ///
+    /// KNOWN LIMITATION, not exercised by any built-in and not part of #4849's reported shape
+    /// (every built-in pairs a pin with exactly ONE peer, which is always correct): with a pin
+    /// AND MORE THAN ONE peer in the same split, `peerShare` is computed as a fraction of the
+    /// whole `total` — this function has no `total` to subtract the pin's absolute points from
+    /// (that value is not known until `WorkspaceSplitStack`'s own `GeometryReader`, deliberately
+    /// later than this pure, position-only decision) — so the non-flexing peers divide `total`
+    /// evenly among themselves, but the ONE flexing peer additionally absorbs the pin's points and
+    /// ends up smaller than its siblings by roughly the pin's size. Fixing this precisely would
+    /// mean threading `total` all the way back to `childExtents`, called before it exists.
+    static func childSizings(
+        _ preferences: [WorkspaceSplitStack.Sizing?],
+        fallbackFraction: Double
+    ) -> [WorkspaceSplitStack.Sizing] {
+        guard !preferences.isEmpty else { return [] }
+        let isPinned: (WorkspaceSplitStack.Sizing?) -> Bool = { if case .fixed? = $0 { return true }; return false }
+        let explicitFractionSum: Double = preferences.compactMap { pref -> Double? in
+            if case let .fraction(fraction)? = pref { return fraction }
+            return nil
+        }.reduce(0, +)
+        let peerIndices = preferences.indices.filter { preferences[$0] == nil }
+        let peerShare = peerIndices.isEmpty
+            ? fallbackFraction
+            : max(0, 1 - explicitFractionSum) / Double(peerIndices.count)
+
+        let hasPin = preferences.contains(where: isPinned)
+        // A split ALWAYS has one flexing child (#5011, #5014). With no peer to flex, the explicit
+        // shares alone decide the layout: two halves that each copied a 0.4 share filled 0.8 of
+        // their split and left the rest empty, and closing the flexing pane of a row left its
+        // share as a gap. So when no peer exists, the LAST child that is not a pin gives up its
+        // explicit share and flexes; when every child is a pin, the last one does.
+        let lastUnpinned = preferences.indices.last { !isPinned(preferences[$0]) }
+        let flexIndex: Int = (hasPin ? peerIndices.first : peerIndices.last)
+            ?? lastUnpinned ?? (preferences.count - 1)
+
+        return preferences.indices.map { idx in
+            if idx == flexIndex { return .flex }
+            if isPinned(preferences[idx]) { return preferences[idx]! }
+            if let preference = preferences[idx] { return preference }
+            return .fraction(peerShare)
+        }
+    }
+
+    /// The assistant chat surface — the SAME `ChatView` the old centre pane
+    /// rendered, now mounted beneath the sidebar folder tree
+    /// (spec panes.chat.below-sidebar). ONE mount definition, called from
+    /// `ContentView.sidebarContent`. `internal` (not `private`) so that
+    /// cross-file caller can reach it; conversation history is unchanged because
+    /// it is backend-backed (ChatService/ConversationService), not view @State.
+    @ViewBuilder
+    var chatSurface: some View {
+        ChatView(
+            conversation: ChatMount.conversation(for: viewMode),
+            selectedDocuments: $chatSelectedDocuments,
+            attachContext: chatAttachContext,
+            onConversationUpdated: { refreshConversations() },
+            // X on the chat head hides the region — the toolbar toggle's seam.
+            onClosePane: { setChatPaneVisible(false) }
+        )
+    }
+}
