@@ -180,7 +180,7 @@ def _load_builtin_formats() -> None:
     known_formats` is enough -- a caller that had to import each format first would
     be a caller that can forget one, and `first-four` would stop being data.
     """
-    from fichero_server.formats import alto, pagexml, tei  # noqa: F401
+    from fichero_server.formats import alto, hocr, pagexml, tei, yolo  # noqa: F401
 
 
 _load_builtin_formats()

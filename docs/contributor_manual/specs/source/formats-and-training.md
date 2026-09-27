@@ -158,12 +158,11 @@ Rules for every format
   from disk and an unvendored one **raises** rather than being fetched or ignored. Pinned by
   `tests/unit/formats/test_pagexml_read.py::TestTheFileIsParsedSafely::test_an_external_entity_is_not_resolved`
   — an archival tool is exactly the program people aim at files they did not write.
-- `source.format.first-four` — **[PARTIAL]** (#4943) PageXML, ALTO, TEI and YOLO text labels are the first
-  formats built on it. **PAGE XML is complete both ways; ALTO reads and its writer is complete but
-  its export refuses** until the xlink schema ALTO imports is vendored (see
-  `formats/schemas/PROVENANCE.md`; W3C's modern `xlink.xsd` is not a substitute). TEI (#4945) and
-  YOLO are not started. `source.format.first-four` is data rather than a branch: the registry is
-  the only thing that knows the list.
+- `source.format.first-four` — **[PARTIAL]** (#4943) PageXML, ALTO, TEI and YOLO text labels are the
+  first formats built on it. **PAGE XML, hOCR and YOLO are complete both ways; ALTO reads and its
+  writer is complete but its export refuses** until the xlink schema ALTO imports is vendored (#5082);
+  TEI is the other lane's (#4945). `first-four` is data rather than a branch: the registry is the
+  only thing that knows the list, and it now holds five.
 - `source.format.import-is-pass` — **[GAP]** (#4943) an import arrives as a new pass with its provenance and
   overwrites nothing.
 - `source.format.reimport-recognised` — **[GAP]** (#4943) importing the same file again is recognised, not
@@ -204,8 +203,16 @@ what the loss report named), one for each format that goes both ways:
   exist and the writer's losses are asserted; the round trip cannot run until ALTO's imported xlink
   schema is vendored, because an export that cannot be validated is not written.
 - `source.format.round-trip-tei` — **[GAP]** (#4945) the TEI round trip holds.
-- `source.format.round-trip-hocr` — **[GAP]** (#4944) the HOCR round trip holds.
-- `source.format.round-trip-yolo` — **[GAP]** (#4944) the yolo round trip holds.
+- `source.format.round-trip-hocr` — **[OK]** (→ #4944) the HOCR round trip holds, to a pixel of the
+  page's own declared `bbox`, with hOCR's own properties written back rather than declared lost.
+  Pinned by `tests/unit/formats/test_hocr_and_yolo.py::TestHocrRoundTrip` (3 tests: the words and
+  their text, the boxes to a pixel, and hOCR's own baseline written back).
+- `source.format.round-trip-yolo` — **[OK]** (→ #4944) the yolo round trip holds **for the geometry**,
+  which is what the format carries; everything else is in the loss report and the round trip
+  subtracts exactly that. Identity cannot survive a format with no ids, so the comparison is by
+  sequence and position — the rule that already applies everywhere, made unavoidable here. Pinned by
+  `test_hocr_and_yolo.py::TestYoloIsHonestAboutLosingAlmostEverything::test_the_geometry_survives_and_that_is_what_round_trips`
+  and `::test_the_centre_first_conversion_is_not_off_by_half_a_box`.
 - `source.format.round-trip-columnar` — **[GAP]** (#4946) the columnar round trip holds.
 - `source.format.export-choices` — **[GAP]** (#4943) an export names the pass, reading order and reading kind
   it writes, with defaults.
@@ -229,10 +236,26 @@ Each format (one import and one export behaviour each)
 - `source.format.tei-in` · `source.format.tei-out` **[GAP]** (#4945)
 - `source.format.mei-in` · `source.format.mei-out` **[GAP]** (#4945)
 - `source.format.w3c-in` · `source.format.w3c-out` **[GAP]** (#4946)
-- `source.format.hocr-in` · `source.format.hocr-out` **[GAP]** (#4944)
+- `source.format.hocr-in` · `source.format.hocr-out` — **[OK]** (→ #4944), pinned by
+  `tests/unit/formats/test_hocr_and_yolo.py::TestReadingHocr` and `::TestHocrRoundTrip`.
+  **hOCR is the honest `schema=None` case**: HTML with an agreed microformat, so there is nothing to
+  validate against — a different fact from a schema missing off an install, which raises. It is read
+  with an **HTML** parser, not the XML one (real engine output has unclosed `<meta>` tags; our own
+  writer's output proved it). `x_wconf`, `x_size` and the baseline POLYNOMIAL are kept verbatim and
+  written back, rather than converted into points that would claim a precision the file lacks.
+  **Residue**: the fixture is ours, not a real engine's — `tesseract` is not installed here and the
+  Apache-2.0 third-party corpus has no bounding boxes (see `fixtures/PROVENANCE.md`).
 - `source.format.foreign-package-in` · `source.format.foreign-package-out` — **[GAP]** (#4946) a Transkribus or
   eScriptorium project as a whole.
-- `source.format.yolo-in` · `source.format.yolo-out` **[GAP]** (#4944)
+- `source.format.yolo-in` · `source.format.yolo-out` — **[OK]** (→ #4944), pinned by
+  `test_hocr_and_yolo.py::TestYoloIsHonestAboutLosingAlmostEverything`. Five numbers a line, so
+  **YOLO is the loss report's hardest case and its best evidence**: no text, no language, no order,
+  no nesting, no identity, and the writer names every one of those. A format that carries four
+  numbers per box SHOULD produce a long report, and a short one would mean the writer was not
+  looking. The centre-first conversion (YOLO stores a box's centre, the model its top-left corner)
+  is pinned on its own, because it is the half-a-box error a naive reader makes. A malformed line is
+  **refused, never skipped** — a training set with silently dropped boxes teaches a model to miss
+  exactly those.
 - `source.format.kraken-in` · `source.format.kraken-out` **[GAP]** (#4946)
 - `source.format.columnar-in` · `source.format.columnar-out` **[GAP]** (#4946)
 - `source.format.geo-in` · `source.format.geo-out` **[GAP]** (#4946)
