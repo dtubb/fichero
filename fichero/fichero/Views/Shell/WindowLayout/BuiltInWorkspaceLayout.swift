@@ -132,9 +132,13 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
             return PaneList([
                 .stableSplit(.vertical, named: "\(rawValue).outerSplit", [
                     .stableSplit(.horizontal, named: "\(rawValue).topSplit", [
-                        .stableLeaf(.preview, named: "\(rawValue).previewA", config: PaneConfig(paneFraction: 0.33)),
+                        // LAYERS split across the panes (ruled 2026-09-27): the left Preview is the
+                        // image with the overlays off, the middle one the overlays with the image
+                        // off, and the Reader on the right is the text editor.
+                        .stableLeaf(.preview, named: "\(rawValue).previewA",
+                                    config: PaneConfig(previewWordBoxes: false, previewImage: true, paneFraction: 0.33)),
                         .stableLeaf(.preview, named: "\(rawValue).previewB",
-                                    config: PaneConfig(previewWordBoxes: true, paneFraction: 0.33)),
+                                    config: PaneConfig(previewWordBoxes: true, previewImage: false, paneFraction: 0.33)),
                         .stableLeaf(.reading, named: "\(rawValue).reading")
                     ]),
                     .stableLeaf(.library, named: "\(rawValue).library",
