@@ -439,14 +439,21 @@ The editor
   selects it in the others.
 - `source.editor.edits-are-actions` — **[GAP]** (#4941) every edit is one audited, reversible engine action; the
   editor updates only the changed segments.
-- `source.editor.redo-works` — **[GAP]** (#4957) after undoing a segment edit, Redo (⇧⌘Z) does it again;
+- `source.editor.redo-works` — **[PARTIAL]** (#4957) after undoing a segment edit, Redo (⇧⌘Z) does it again;
   redo is worked out afresh as the undo of the undo, so it succeeds although the segment's
   version has moved on; it is refused only if something else has changed the segment since.
   Doing, undoing, redoing and undoing again, any number of times, ends where the first undo
   ended, and nothing is left over under a new id. A segment or pass that comes back on redo
-  comes back under its own id. (Reviewed twice, 2026-09-20. In the worktree, not yet committed:
-  the version number is refreshed on redo, and a redone step is undone through its own record
-  of what it made, which closes the leftover parts, copies and stranded rows. Still owed under
+  comes back under its own id.
+  **The version half is COMMITTED and pinned** (audited 2026-09-27; this entry said "in the
+  worktree, not yet committed", which was true when written): redo is worked out afresh so it
+  survives the row having bumped twice — `TestSegmentUpdateUndoRedo.test_redo_reapplies_update_without_a_stale_expected_version`
+  — do/undo/redo/undo round-trips to where the first undo ended
+  (`.test_undo_redo_undo_round_trips`), and a genuinely stale redo is still refused when a third
+  writer touched the row in between
+  (`.test_redo_still_refused_when_another_writer_bumped_the_version_since`). Before #4957 redo
+  replayed the original `expected_version` and always 409'd, because versions only go up.
+  (Reviewed twice, 2026-09-20. Still owed under
   #4957: merge, split and carry, and their inverses, take no version number, so a redo is not
   refused when someone else changed a member in between, and undoing a split deletes its parts
   outright even if someone else has worked on one; the parts of a split, the copies of a carry
