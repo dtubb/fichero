@@ -1686,3 +1686,22 @@ class SegmentPassChoice(BaseModel):
     chosen_at: datetime = Field(default_factory=utc_now)
     #: Set when a later choice replaces this one. Never deleted.
     superseded_at: datetime | None = None
+
+
+class PageLineMap(BaseModel):
+    """Which LINE each stretch of a page's cached text came from (Q5, 3c part c). Table
+    `pagelinemaps`, one row per page.
+
+    Written by the page-text cache refresh (`actions/page_text_cache.py`), from the SAME derivation
+    as `Document.page_content`, so the Reader reads both and derives nothing. `text_sha` is the text
+    it maps: a `page_content` another writer changed (a person's direct edit) no longer matches it
+    and gets no map rather than a wrong one. Derived, like `page_content`: losing it costs one
+    derivation, never data.
+    """
+
+    #: The page's document id.
+    id: str
+    text_sha: str
+    #: [{segment_id, char_start, char_end}], one run per line, offsets into the cached text.
+    lines: list[dict[str, Any]]
+

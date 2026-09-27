@@ -30,7 +30,6 @@ import hashlib
 import threading
 from typing import Any
 
-from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -141,19 +140,6 @@ def cache_text(derived: Any) -> str:
     return derived.text
 
 
-class PageLineMap(BaseModel):
-    """Which LINE each stretch of a page's cached text came from (Q5, 3c part c), written by the
-    same refresh, from the same derivation, as `page_content` -- so the Reader reads both and
-    derives nothing. `text_sha` is the text it maps: a `page_content` some other writer changed (a
-    person's direct edit) no longer matches, and gets no map rather than a wrong one."""
-
-    #: The page's document id.
-    id: str
-    text_sha: str
-    #: [{segment_id, char_start, char_end}], one run per line, offsets into the cached text.
-    lines: list[dict[str, Any]]
-
-
 def _sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
@@ -187,6 +173,8 @@ def line_map(db: Any, derived: Any) -> list[dict[str, Any]]:
 def cached_line_map(db: Any, document_id: str, text: str) -> list[dict[str, Any]] | None:
     """The stored map for this exact text; [] when the text is not the one it maps; None when the
     page has never been refreshed since maps were stored."""
+    from fichero_server.models import PageLineMap
+
     row = db.get(PageLineMap, document_id)
     if row is None:
         return None
@@ -197,7 +185,7 @@ def refresh_in_transaction(db: Any, spec: Any, action_name: str = "", params: An
     """Rewrite `page_content` for the pages this action changed the text of. Returns the ids whose
     stored text actually changed (the ones to re-embed)."""
     from fichero_server.api.routes.document.segment_readings import document_text
-    from fichero_server.models import Document
+    from fichero_server.models import Document, PageLineMap
     from fichero_server.core.timeutil import utc_now
     from fichero_server.workflows.curation_guard import page_content_is_user_edited
 
