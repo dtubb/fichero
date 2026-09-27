@@ -241,33 +241,42 @@ def target_ids_from_params(params: Any) -> list[str]:
     if not isinstance(data, dict):
         return []
     target_ids: list[str] = []
-    _collect_target_ids(data, target_ids, into_lists=True)
+    _collect_target_ids(data, target_ids, depth=0)
     return target_ids
 
 
-def _collect_target_ids(data: dict, target_ids: list[str], *, into_lists: bool) -> None:
-    """`*_id` / `*_ids` keys of `data`, and -- ONE level down -- of each item of a list of objects.
+#: How deep the write check looks. An anchor's `refines` chain is the deepest real nesting (five
+#: levels under `update.anchor` on `annotation.update`); past this a structure is not a target.
+_MAX_TARGET_DEPTH = 8
 
-    **Access control (#5135).** A BULK action carries its targets inside a list:
-    `segment.update_many`'s `updates[].segment_id`, `segment.restore_versions`'
-    `restores[].segment_id`, `artifact.bulk_create`'s `artifacts[].document_id`. Read at the
-    top level only, those ids were never resolved to their documents, so a person denied a
-    document could edit its segments through the bulk verb. Every id in such a list is now a
-    target, and `ActionRegistry.invoke` checks them all BEFORE the action runs -- one id the
-    caller may not write refuses the whole edit, and nothing is written.
 
-    Deliberately ONE level, into lists only: a nested single object (an anchor's
-    `document_id`) is a different question, left as it was and named on #5135.
+def _collect_target_ids(data: dict, target_ids: list[str], *, depth: int) -> None:
+    """Every `*_id` / `*_ids` in `data`, at ANY depth: nested objects and lists of objects alike.
+
+    **Access control (#5135).** A write's targets are not only its top-level ids. A BULK action
+    carries them in a list (`segment.update_many`'s `updates[].segment_id`); a shaped action
+    carries them in a nested OBJECT (`segment.create`'s `anchor.document_id`,
+    `representation.create`'s `source_anchor.refines.document_id`, `annotation.update`'s
+    `update.anchor.document_id`). Read at the top level only, those were never resolved to their
+    documents, so a person denied a document could write into it by naming it one level down.
+    Every id at every depth is now a target, and `ActionRegistry.invoke` checks them all BEFORE
+    the action runs: one id the caller may not write refuses the whole write, and nothing is
+    written. An id that names no document (a workflow node, a Wikidata property) matches no
+    override and costs one lookup, and only when the library is multi-user.
     """
+    if depth > _MAX_TARGET_DEPTH:
+        return
     for key, value in data.items():
         if key == "id" or key.endswith("_id"):
             _append_target_id(target_ids, value)
         elif key.endswith("_ids"):
             _append_target_ids(target_ids, value)
-        elif into_lists and isinstance(value, list):
+        elif isinstance(value, dict):
+            _collect_target_ids(value, target_ids, depth=depth + 1)
+        elif isinstance(value, list):
             for item in value:
                 if isinstance(item, dict):
-                    _collect_target_ids(item, target_ids, into_lists=False)
+                    _collect_target_ids(item, target_ids, depth=depth + 1)
 
 
 def target_id_from_request(request: Any) -> str | None:
