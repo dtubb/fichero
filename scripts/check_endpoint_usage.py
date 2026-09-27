@@ -37,6 +37,15 @@ HTTP_METHODS = {"get", "put", "post", "delete", "patch", "head", "options", "tra
 # Current baseline. The script exits 0 while every unused/asymmetric endpoint is
 # listed here and exits 1 when a new gap appears.
 KNOWN_GAPS: dict[str, str] = {
+    # RESTORED 2026-09-27, and the reason is a lesson about this guard: I removed this
+    # entry the day before because the guard reported it clean, and the guard reported
+    # it clean because `POST /api/segments/passes` appears in a DOC COMMENT in
+    # `Models/Segment.swift`. `_swift_uses` matches the path string anywhere in the app
+    # tree, comments included. `SegmentService` has only the read
+    # (`listDocumentSegments`); nothing in the app creates a pass. Verified by reading
+    # the service, after `check_endpoint_coverage_matrix` -- which scans only
+    # `*Service*.swift` and `*Store*.swift` -- disagreed.
+    'POST /api/segments/passes': "2026-09-20 source-model slice 3 (#4921) - engine first; the app writes passes with the segment editor (#4941), unbuilt. NOT adopted: SegmentService holds the read only",
     'DELETE /api/segments/passes/{pass_id}': "2026-09-20 source-model slice 3 (#4921) - engine first; the app deletes passes with the segment editor (#4941)",
     # ---- source-model slices 7 to 11, engine and CLI first (2026-09-27) ----------
     #

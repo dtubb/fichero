@@ -96,6 +96,19 @@ _ORPHAN_BASELINE: frozenset[str] = frozenset(
         # (sort/filter read those); the artifact rides the generic artifact
         # browser like catalogue.chunk. Generic read, not a dead feature.
         "dates",
+        # "entity_merge_proposals": a GENERIC read — the manifest importer writes
+        # one report per root document (`routes/ingest/core.py`) and it rides the
+        # artifact browser like the two above; the only by-name query is the
+        # importer's own upsert check, which is a write path.
+        #
+        # Baselined for THIS guard's question and not for the feature's: the report
+        # says "merging these needs a human choice" and no surface offers that
+        # choice, and its `data["applied"]` is hard-coded False with nothing in the
+        # tree able to set it True. That is a dead half of the shape this guard's
+        # own message names, and it is tracked rather than excused here — an entry
+        # in this list means "read generically", never "it is fine that nothing
+        # uses it".
+        "entity_merge_proposals",
         "analysis", "book_index_topics", "caption", "catalogue", "classification",
         "clean_text", "colors", "comparison", "description", "diagram", "entities",
         "extraction", "extraction_error", "faces", "geo", "handwriting",
