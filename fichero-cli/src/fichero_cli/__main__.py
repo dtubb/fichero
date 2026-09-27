@@ -177,6 +177,13 @@ def _import_page_lines(data: dict[str, Any], path: Path) -> list[str]:
             f"  REPAIRED {problems} shape(s) the file could not express properly "
             "— worth looking at the page"
         )
+    left_out = data.get("pages_left_out") or []
+    if left_out:
+        # A multi-page file became ONE page here (#5143): the rest are named, never dropped quietly.
+        lines.append(
+            f"  LEFT OUT {len(left_out)} of {data.get('pages_in_file', len(left_out) + 1)} pages "
+            "of the file (import the folder with their images to place them): " + ", ".join(left_out)
+        )
     return lines
 
 

@@ -541,7 +541,15 @@ def read_pages(data: bytes) -> list[SourcePage]:
                     break
         if surface is None and index < len(surfaces):
             surface = surfaces[index]
+        if pb is not None:
+            # What names this page, so a caller that takes some pages and not others can say
+            # WHICH it left out (#5143): `<pb n>` is the page's number, `facs`/`corresp` its image.
+            described = {k: pb.get(k) for k in ("n", "facs", "corresp") if pb.get(k)}
+            if described:
+                page.foreign.setdefault("tei", {})["pb"] = described
         if surface is not None:
+            if surface.element.get(_XML_ID):
+                page.foreign.setdefault("tei", {})["surface"] = surface.element.get(_XML_ID)
             page.image_name = surface.image_name
             if surface.size:
                 page.image_size = (int(round(surface.size[0])), int(round(surface.size[1])))
