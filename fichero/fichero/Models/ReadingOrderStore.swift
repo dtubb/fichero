@@ -28,7 +28,11 @@ final class ReadingOrderStore {
         self.documentId = documentId
         orders = try await transport.orders(documentId: documentId)
         orderId = (orders.first { $0.name == name } ?? orders.first)?.id
-        entries = try await orderId.map { try await transport.entries(orderId: $0) } ?? []
+        if let orderId {
+            entries = try await transport.entries(orderId: orderId)
+        } else {
+            entries = []
+        }
     }
 
     /// A DRAG: `segmentId` to occupy `index` in the final list. Answers the audit id for ⌘Z.
