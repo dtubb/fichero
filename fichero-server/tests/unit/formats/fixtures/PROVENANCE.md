@@ -73,3 +73,21 @@ the format, exactly the weakness that a real PAGE XML file exposed three times i
 
 **YOLO needs no fixture**: the format is five numbers a line, so a file that exercises it is a file
 anybody can read at a glance, and there is nothing a real one would contain that ours does not.
+
+## A real right-to-left page — the residue that mattered most, closed 2026-09-27
+
+Until this file, **every real fixture here was Latin-script European**, so "any language, any
+direction" — the north star — was proven only against pages we built ourselves. Five defects tonight
+came from somebody else's file; none could have come from ours.
+
+| File | Source | Licence | Fetched | What it exercises |
+|---|---|---|---|---|
+| `tarima_arabic_0498.page.xml` | `https://raw.githubusercontent.com/calfa-co/tarima/main/page/litho/BULAC_RES_MON_4_3416_0498.xml` | **Apache-2.0**, declared and LICENSE file read before fetching (Calfa, *Tarima* project — HTR of Maghrebi Arabic documents; page from BULAC, the Bibliothèque universitaire des langues et civilisations) | 2026-09-27 | 10,928 bytes, PAGE XML **2013** namespace, one `TextRegion`, **25 `TextLine`s each with a `Baseline`**, real Maghrebi Arabic text. **It declares NO `readingDirection`, `primaryLanguage` or `primaryScript`** — which is the finding: a real Arabic corpus states none of the three, so a reader that inferred `rtl` from the text would be inventing a fact the file does not state. |
+
+**Licence checked BEFORE fetching**, as the rule now says: the repository declares Apache-2.0 and
+its `LICENSE` file is the Apache 2.0 text. Nothing was downloaded from the candidates whose licence
+was absent or unstated, and the search itself only read GitHub's licence metadata.
+
+**What is still owed**: a right-to-left page that DOES state its direction, and one page of genuine
+engine hOCR. The first would exercise the writer's `rtl` path against somebody else's file rather
+than ours; this one exercises the reader's honesty about absence, which is the other half.
