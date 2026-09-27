@@ -145,18 +145,15 @@ class TestCreateLibraryLink:
         })
         assert r.status_code == 422
 
-    @pytest.mark.xfail(strict=True, reason=(
-        "#5099. TWO handlers own `POST /api/links`: slice 10's typed links "
-        "(`document/typed_links.py`, registered first, so it wins) and this route's "
-        "`create_library_link`, which is now unreachable. The typed body wants "
-        "from_id/to_id/link_type and forbids extras, so the legacy shape is a 422. "
-        "NOT DELETED: this test is the only record that this path ever accepted that shape, "
-        "and deleting it would remove the evidence that a capability regressed. When #5099 is "
-        "resolved this fails for passing and says to come back here"))
-    def test_legacy_alias_still_works(self, client, db):
+    def test_the_legacy_shape_still_creates_a_link_at_the_canonical_path(self, client, db):
+        """#5099, resolved: `POST /api/links` belongs to typed links (slice 10), so the hidden
+        library-links alias there was unreachable and is gone. What must NOT be lost is the
+        capability that alias carried -- creating a library link with source/target/relation
+        -- and it lives at `/api/library/links`, in exactly that shape. This test is the
+        evidence the old xfail was kept for."""
         doc = _make_document(db)
         entity = _make_entity(db)
-        r = client.post("/api/links", json={
+        r = client.post("/api/library/links", json={
             "source_id": doc.id,
             "source_type": "document",
             "target_id": entity.id,
@@ -164,6 +161,17 @@ class TestCreateLibraryLink:
             "relation_type": "related_to",
         })
         assert r.status_code == 200, r.text
+
+    def test_post_api_links_is_the_typed_link_route(self, client, db):
+        """The other half: one handler owns `POST /api/links`, and it is typed links, which
+        refuses the library-link shape (it wants from_id/to_id/link_type and forbids extras).
+        A 422 here is the ownership being enforced, not a regression."""
+        doc = _make_document(db)
+        entity = _make_entity(db)
+        r = client.post("/api/links", json={
+            "source_id": doc.id, "target_id": entity.id, "relation_type": "related_to",
+        })
+        assert r.status_code == 422, r.text
 
     def test_create_writes_audit_and_undo_deletes_link(self, client, db, monkeypatch):
         calls: list[tuple] = []

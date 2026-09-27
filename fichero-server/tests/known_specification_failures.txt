@@ -47,8 +47,3 @@ tests/unit/scripts/test_check_mac_app_store_target.py::test_embed_phase_asserts_
 tests/unit/scripts/test_check_mac_app_store_target.py::test_embed_phases_preflight_briefcase_bundle_before_copying
 tests/unit/scripts/test_check_mac_app_store_target.py::test_embed_phases_are_dependency_aware_not_always_out_of_date
 
-# ---- #5099 (1) ----
-# Two handlers own `POST /api/links`: slice 10's typed links (registered first,
-# so it wins) and library links' hidden legacy alias, which is now unreachable.
-# The guard is right; the per-concern node lets any NEW duplicate still fail.
-tests/unit/scripts/test_check_duplicate_paths.py::test_repo_concern_is_allowlisted[route:POST /api/links]

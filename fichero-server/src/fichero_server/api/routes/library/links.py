@@ -324,7 +324,9 @@ def _action_restore_library_link(
 # =============================================================================
 
 
-@router.post("/links", response_model=LibraryItemLink, include_in_schema=False)
+# No hidden `POST /links` alias here, unlike the other verbs below: typed links (slice 10)
+# own `POST /api/links` and are registered first, so an alias here was unreachable and
+# shadowed without anyone noticing (#5099). Library links are created at /library/links.
 @router.post("/library/links", response_model=LibraryItemLink)
 async def create_library_link(
     request: LibraryLinkCreateRequest,
