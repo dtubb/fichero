@@ -610,30 +610,20 @@ def page_line_map(db: Database, page_id: str, content: str) -> list[dict[str, ob
     its line's, so a caret anywhere on the line names the segment an order MOVES. Empty when
     the page has no pass, or when the text shown is not the text derived now (a stale cache):
     offsets into a different string would name the wrong line, and no map is better than that.
-    """
-    from fichero_server.api.routes.document.segment_readings import document_text
-    from fichero_server.models import Segment
 
+    Read from the page-text cache, which stores the map with the text from ONE derivation, so a
+    render derives nothing (a derivation of a dense page is 0.5-1 s).
+    """
+    from fichero_server.actions.page_text_cache import cached_line_map, line_map
+    from fichero_server.api.routes.document.segment_readings import document_text
+
+    cached = cached_line_map(db, page_id, content)
+    if cached is not None:
+        return cached
+    # ponytail: a page cached before maps were stored derives once per render until its next
+    # refresh; a one-time fill at library open is the upgrade if that is ever measured to matter.
     derived = document_text(db, page_id)
-    if not derived.spans or derived.text != content:
-        return []
-    ids = {span.segment_id for span in derived.spans}
-    segments = {row.id: row for row in db.query_in(Segment, "id", sorted(ids))}
-    parent_ids = {row.parent_segment_id for row in segments.values() if row.parent_segment_id}
-    parents = {row.id: row for row in db.query_in(Segment, "id", sorted(parent_ids))} if parent_ids else {}
-    lines: list[dict[str, object]] = []
-    for span in derived.spans:
-        segment = segments.get(span.segment_id)
-        line_id = span.segment_id
-        if segment is not None and segment.kind != "line":
-            parent = parents.get(segment.parent_segment_id or "")
-            if parent is not None and parent.kind == "line":
-                line_id = parent.id
-        if lines and lines[-1]["segment_id"] == line_id:
-            lines[-1]["char_end"] = span.end
-        else:
-            lines.append({"segment_id": line_id, "char_start": span.start, "char_end": span.end})
-    return lines
+    return line_map(db, derived) if derived.text == content else []
 
 
 #: How the reader should obtain the document's flat transcript. A closed set,

@@ -138,3 +138,41 @@ console.log(JSON.stringify({{
                             for step in ("up", "down", "toStart", "toEnd")]
     assert got["noMeta"] is None and got["withShift"] is None
     assert got["otherKey"] is None and got["offLine"] is None
+
+
+def _counting_derivations(monkeypatch) -> list[str]:
+    """Every `document_text` call from here on, by page id. Both the cache refresh and the render
+    import it at call time, so patching the module attribute counts both."""
+    from fichero_server.api.routes.document import segment_readings
+
+    calls: list[str] = []
+    real = segment_readings.document_text
+
+    def counting(db, document_id, *args, **kwargs):
+        calls.append(document_id)
+        return real(db, document_id, *args, **kwargs)
+
+    monkeypatch.setattr(segment_readings, "document_text", counting)
+    return calls
+
+
+def test_a_render_of_a_freshly_cached_page_derives_nothing(db, client, monkeypatch):
+    """The map is stored with `page_content` by the same refresh, from the same derivation. A render
+    that derived again doubled the Reader's open time on a dense page (0.5-1 s a derivation)."""
+    doc_id = _import(db, CLM)
+    calls = _counting_derivations(monkeypatch)
+    payload, _ = _view(client, doc_id)
+    assert payload["pages"][0]["lines"]
+    assert calls == []
+
+
+def test_a_move_derives_exactly_once_and_the_render_reads_its_map(db, client, monkeypatch):
+    from tests.unit.api.test_text_follows_the_order import _move_last_line_of_a_block_to_its_start
+
+    doc_id = _import(db, CLM)
+    calls = _counting_derivations(monkeypatch)
+    _audit, moved, first = _move_last_line_of_a_block_to_its_start(db, client, doc_id)
+    payload, _ = _view(client, doc_id)
+    assert calls == [doc_id]                                  # the refresh, and nothing at render
+    order = [line["segment_id"] for line in payload["pages"][0]["lines"]]
+    assert order.index(moved) < order.index(first)            # the map is the moved text's map

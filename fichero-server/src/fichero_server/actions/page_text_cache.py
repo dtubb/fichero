@@ -26,8 +26,11 @@ counts only when it sets `is_furniture`.
 from __future__ import annotations
 
 import logging
+import hashlib
 import threading
 from typing import Any
+
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +141,58 @@ def cache_text(derived: Any) -> str:
     return derived.text
 
 
+class PageLineMap(BaseModel):
+    """Which LINE each stretch of a page's cached text came from (Q5, 3c part c), written by the
+    same refresh, from the same derivation, as `page_content` -- so the Reader reads both and
+    derives nothing. `text_sha` is the text it maps: a `page_content` some other writer changed (a
+    person's direct edit) no longer matches, and gets no map rather than a wrong one."""
+
+    #: The page's document id.
+    id: str
+    text_sha: str
+    #: [{segment_id, char_start, char_end}], one run per line, offsets into the cached text.
+    lines: list[dict[str, Any]]
+
+
+def _sha(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def line_map(db: Any, derived: Any) -> list[dict[str, Any]]:
+    """The derived text's spans folded to LINES: a word's span joins its line's, because a line is
+    what an order moves and what a caret on it names."""
+    from fichero_server.models import Segment
+
+    if not derived.spans:
+        return []
+    ids = sorted({span.segment_id for span in derived.spans})
+    segments = {row.id: row for row in db.query_in(Segment, "id", ids)}
+    parent_ids = sorted({row.parent_segment_id for row in segments.values() if row.parent_segment_id})
+    parents = {row.id: row for row in db.query_in(Segment, "id", parent_ids)} if parent_ids else {}
+    lines: list[dict[str, Any]] = []
+    for span in derived.spans:
+        segment = segments.get(span.segment_id)
+        line_id = span.segment_id
+        if segment is not None and segment.kind != "line":
+            parent = parents.get(segment.parent_segment_id or "")
+            if parent is not None and parent.kind == "line":
+                line_id = parent.id
+        if lines and lines[-1]["segment_id"] == line_id:
+            lines[-1]["char_end"] = span.end
+        else:
+            lines.append({"segment_id": line_id, "char_start": span.start, "char_end": span.end})
+    return lines
+
+
+def cached_line_map(db: Any, document_id: str, text: str) -> list[dict[str, Any]] | None:
+    """The stored map for this exact text; [] when the text is not the one it maps; None when the
+    page has never been refreshed since maps were stored."""
+    row = db.get(PageLineMap, document_id)
+    if row is None:
+        return None
+    return row.lines if row.text_sha == _sha(text) else []
+
+
 def refresh_in_transaction(db: Any, spec: Any, action_name: str = "", params: Any = None) -> list[str]:
     """Rewrite `page_content` for the pages this action changed the text of. Returns the ids whose
     stored text actually changed (the ones to re-embed)."""
@@ -169,6 +224,8 @@ def refresh_in_transaction(db: Any, spec: Any, action_name: str = "", params: An
         if derived.pass_id is None:
             continue  # no working pass: nothing derives, so nothing is cached
         text = cache_text(derived)
+        # Stored even when the text is unchanged: two lines that read alike can swap places.
+        db.save(PageLineMap(id=document_id, text_sha=_sha(text), lines=line_map(db, derived)))
         if text == (doc.page_content or ""):
             continue
         doc.page_content = text
