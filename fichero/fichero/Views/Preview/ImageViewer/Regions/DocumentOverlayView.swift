@@ -19,27 +19,24 @@ final class DocumentOverlayView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         // The image's own rect in the image view (centred when zoomed out below fit): boxes are
         // fractions of the IMAGE, not of the view around it.
-        guard let imageRect = (superview as? TrackingImageView)?.imageRect,
-              imageRect.width > 0, imageRect.height > 0 else { return }
-        let size = imageRect.size
-        let shift = NSAffineTransform()
-        shift.translateX(by: imageRect.minX, yBy: imageRect.minY)
-        shift.concat()
-        let dirtyRect = dirtyRect.offsetBy(dx: -imageRect.minX, dy: -imageRect.minY)
+        // The ONE rule for where the image sits in its view, the same one the pointer path uses.
+        guard let host = superview else { return }
+        let imageRect = DrawnImageFrame.drawnRect(in: host)
+        guard imageRect.width > 0, imageRect.height > 0 else { return }
         // Strokes are drawn in document points and magnified with the page; divide by the
         // magnification so a line stays one screen point at any zoom.
         let scale = max(enclosingScrollView?.magnification ?? 1, 0.01)
         // Washes first, BEHIND the boxes, in the order the SwiftUI overlay drew them.
         NSColor.systemYellow.withAlphaComponent(0.22).setFill()
-        for rect in DocumentOverlay.rects(overlay.entryWashes, in: dirtyRect, documentSize: size) {
+        for rect in DocumentOverlay.rects(overlay.entryWashes, in: dirtyRect, imageRect: imageRect) {
             NSBezierPath(roundedRect: rect, xRadius: 3 / scale, yRadius: 3 / scale).fill()
         }
         NSColor(Color.accentColor).withAlphaComponent(0.28).setFill()
-        for rect in DocumentOverlay.rects(overlay.linkedWashes, in: dirtyRect, documentSize: size) {
+        for rect in DocumentOverlay.rects(overlay.linkedWashes, in: dirtyRect, imageRect: imageRect) {
             NSBezierPath(roundedRect: rect, xRadius: 2 / scale, yRadius: 2 / scale).fill()
         }
         let wash = NSColor(Color.accentColor).withAlphaComponent(0.08)
-        for (box, rect) in overlay.boxes(in: dirtyRect, documentSize: size) {
+        for (box, rect) in overlay.boxes(in: dirtyRect, imageRect: imageRect) {
             let path = NSBezierPath(roundedRect: rect, xRadius: 1.5 / scale, yRadius: 1.5 / scale)
             wash.setFill()
             path.fill()
@@ -53,7 +50,7 @@ final class DocumentOverlayView: NSView {
             path.stroke()
         }
         let accent = NSColor(Color.accentColor)
-        for rect in overlay.selected(in: dirtyRect, documentSize: size) {
+        for rect in overlay.selected(in: dirtyRect, imageRect: imageRect) {
             let path = NSBezierPath(roundedRect: rect, xRadius: 2 / scale, yRadius: 2 / scale)
             accent.withAlphaComponent(0.14).setFill()
             path.fill()

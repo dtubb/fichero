@@ -53,4 +53,49 @@ struct RegionSelectionPerPaneTests {
         state.releaseRegionSelection(focused)
         #expect(state.focusedRegionSelection == nil)
     }
+
+    // MARK: - Identity, not position (#5020, commit 2)
+
+    private func box(_ text: String, y: Double) -> OCRGeometryBox {
+        OCRGeometryBox(text: text, bbox: [0.1, y, 0.3, 0.05], level: "line", confidence: nil,
+                       pageIndex: nil, charStart: nil, charEnd: nil)
+    }
+
+    /// The artifact's order in one pane, the segment seam's in another -- or one list from before an
+    /// edit and one from after. The same box is found in each.
+    @Test("a box selected in one list is found again in the same list in another order")
+    func foundByIdentityInAReorderedList() {
+        let a = box("Dredge No. 1", y: 0.1), b = box("Dredge No. 3", y: 0.3), c = box("Dredge No. 2", y: 0.2)
+        let selection = RegionSelection()
+        selection.select(1, artifactId: "a1", documentId: "d1", in: [a, b, c])
+        #expect(selection.resolvedIndices(in: [a, b, c]) == [1])
+        #expect(selection.resolvedIndices(in: [b, a, c]) == [0])
+        #expect(selection.resolvedIndices(in: [c, a, b]) == [2])
+    }
+
+    /// The "below and right" of #5020: the old index now names the NEXT box. It must name nothing.
+    @Test("a box the list no longer holds is dropped, never replaced by whatever sits at its index")
+    func aGoneBoxIsDroppedNotReplaced() {
+        let a = box("one", y: 0.1), b = box("two", y: 0.2), c = box("three", y: 0.3)
+        let selection = RegionSelection()
+        selection.select(1, artifactId: "a1", documentId: "d1", in: [a, b, c])
+        #expect(selection.resolvedIndices(in: [a, c]) == [])
+    }
+
+    @Test("toggling off drops the box's identity with its index")
+    func toggleKeepsKeysInStep() {
+        let a = box("one", y: 0.1), b = box("two", y: 0.2), c = box("three", y: 0.3)
+        let selection = RegionSelection()
+        selection.selectAll([0, 2], artifactId: "a1", documentId: "d1", in: [a, b, c])
+        selection.toggle(0, artifactId: "a1", documentId: "d1", in: [a, b, c])
+        #expect(selection.resolvedIndices(in: [c, b, a]) == [0])
+    }
+
+    @Test("a writer that passed no list still selects by position")
+    func noListFallsBackToPosition() {
+        let selection = RegionSelection()
+        selection.select(1, artifactId: "a1", documentId: "d1")
+        #expect(selection.resolvedIndices(in: [box("x", y: 0.1), box("y", y: 0.2)]) == [1])
+        #expect(selection.resolvedIndices(in: [box("x", y: 0.1)]) == [])
+    }
 }

@@ -29,7 +29,7 @@ extension ZoomableImagePreview {
         let all = frameMatchedGeometryBoxes
         let selection = regionSelection
         let selected: [[Double]] = (ocrGeometryArtifactId != nil && selection.artifactId == ocrGeometryArtifactId)
-            ? selection.indices.filter { all.indices.contains($0) }.map { all[$0].bbox }
+            ? selection.resolvedIndices(in: all).map { all[$0].bbox }
             : []
         // The same frame gates the SwiftUI washes had: the entry wash is anchored on the page's
         // own image, the linked words on the geometry they were measured on.
@@ -67,7 +67,7 @@ extension ZoomableImagePreview {
             let shown = displayedGeometryBoxes.map(\.index)
             indices = shown.isEmpty ? Array(all.indices) : shown
         }
-        regionSelection.selectAll(indices, artifactId: artifactId, documentId: documentId)
+        regionSelection.selectAll(indices, artifactId: artifactId, documentId: documentId, in: all)
     }
 
     /// The interactive layer + its context menu. Mounted whenever an image is
@@ -210,7 +210,9 @@ extension ZoomableImagePreview {
                   minimumCount: 1
               ),
               let documentId, let artifactService else { return }
-        let indices = selection.indices
+        // The selected boxes' positions in THIS pane's list, found by identity (#5020).
+        let indices = selection.resolvedIndices(in: ocrGeometry?.boxes ?? [])
+        guard !indices.isEmpty else { return }
         Task {
             do {
                 let updated = try await artifactService.deleteRegions(
@@ -236,7 +238,8 @@ extension ZoomableImagePreview {
                   minimumCount: 2
               ),
               let documentId, let artifactService else { return }
-        let indices = selection.indices
+        let indices = selection.resolvedIndices(in: ocrGeometry?.boxes ?? [])
+        guard indices.count >= 2 else { return }
         Task {
             do {
                 let updated = try await artifactService.combineRegions(
@@ -339,7 +342,8 @@ extension ZoomableImagePreview {
         let selection = regionSelection
         guard let artifactId = ocrGeometryArtifactId, selection.artifactId == artifactId,
               !selection.isEmpty, let boxes = ocrGeometry?.boxes else { return false }
-        return selection.indices.allSatisfy { boxes.indices.contains($0) && boxes[$0].level == "word" }
+        let resolved = selection.resolvedIndices(in: boxes)
+        return !resolved.isEmpty && resolved.allSatisfy { boxes[$0].level == "word" }
     }
 
     /// PROMOTE the word selection to regions (ruling 2): the selected words
@@ -351,9 +355,7 @@ extension ZoomableImagePreview {
         guard let artifactId = ocrGeometryArtifactId, selection.artifactId == artifactId,
               !selection.isEmpty, let documentId, let artifactService,
               let geometry = ocrGeometry else { return }
-        let words = selection.indices
-            .filter { geometry.boxes.indices.contains($0) }
-            .map { geometry.boxes[$0] }
+        let words = selection.resolvedIndices(in: geometry.boxes).map { geometry.boxes[$0] }
         guard !words.isEmpty else { return }
         // The words' union as the "drag": snappedRects then yields one
         // strip per line of exactly these words. Bounded sub-expressions —

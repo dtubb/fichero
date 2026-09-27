@@ -24,23 +24,23 @@ struct DocumentOverlay: Equatable {
     /// The boxes a redraw of `dirty` (document coordinates) must paint, each with its document rect.
     /// AppKit asks for only the newly exposed strip when the page scrolls, and a box outside it is
     /// already on screen or not visible at all -- so a scroll of a 4,525-box page paints a handful.
-    func boxes(in dirty: CGRect, documentSize: CGSize) -> [(box: Box, rect: CGRect)] {
+    func boxes(in dirty: CGRect, imageRect: CGRect) -> [(box: Box, rect: CGRect)] {
         boxes.compactMap { box in
-            guard let rect = DocumentBoxMapping.rect(normalized: box.bbox, documentSize: documentSize),
+            guard let rect = DocumentBoxMapping.rect(normalized: box.bbox, imageRect: imageRect),
                   rect.intersects(dirty) else { return nil }
             return (box, rect)
         }
     }
 
     /// The selected rects a redraw of `dirty` must paint.
-    func selected(in dirty: CGRect, documentSize: CGSize) -> [CGRect] {
-        Self.rects(selected, in: dirty, documentSize: documentSize)
+    func selected(in dirty: CGRect, imageRect: CGRect) -> [CGRect] {
+        Self.rects(selected, in: dirty, imageRect: imageRect)
     }
 
     /// Any list of normalized rects, reduced to those a redraw of `dirty` must paint.
-    static func rects(_ list: [[Double]], in dirty: CGRect, documentSize: CGSize) -> [CGRect] {
+    static func rects(_ list: [[Double]], in dirty: CGRect, imageRect: CGRect) -> [CGRect] {
         list.compactMap { bbox in
-            guard let rect = DocumentBoxMapping.rect(normalized: bbox, documentSize: documentSize),
+            guard let rect = DocumentBoxMapping.rect(normalized: bbox, imageRect: imageRect),
                   rect.intersects(dirty) else { return nil }
             return rect
         }
