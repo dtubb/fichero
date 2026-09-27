@@ -246,6 +246,26 @@ measuring: frames during zoom and pan at 5,000 and 20,000 shapes; time to hit-te
 drag one point; peak memory on a very large scan; and one edit going through the engine and
 system undo in under a tenth of a second.
 
+### The plan for slices 13 and 13b: the existing Preview, and wireframes first
+
+**Ruled 2026-09-27.** The drawing editor (13) and editing a page by its text (13b) are **not a new
+surface**. They build on and upgrade the **existing Preview / Source view**: its selector toolbar,
+the markup row (select, wordSelect, drawRegion, line, highlight, note, star, check), the Edit
+Segments mode (#5114), the What-to-show menu, and the Inspector's region verbs. The goal is
+getting the Preview good, not adding a pane beside it.
+
+**Wireframes come before any slice-13 code.** The order is:
+
+1. **Inventory** what the Preview has today: the toolbar and selector, every markup-row tool,
+   the Edit Segments mode, every switch in the What-to-show menu, and the Inspector's region verbs.
+2. For each `source.editor.*` and `source.textedit.*` behaviour, say **where it would live in
+   that existing Preview**, and what gets merged, moved or removed. Whether the What-to-show menu
+   can come down to the ruled *two switches* (`source.editor.two-switches`) is decided here.
+3. The inventory and proposed layouts go to the manager, who turns them into wireframes the
+   maintainer clicks through. **The maintainer rules before anything is built.**
+
+Slice 12 (the speed trial) is a hard gate before any of this.
+
 ### Slice 12: the speed trial, and how it is measured
 
 The trial is a **hard gate**: the editor is not built on a drawing approach that failed it.
