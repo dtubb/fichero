@@ -82,6 +82,12 @@ class WindowState {
     /// first opening the markup bar.
     var activeMarkupTool: PreviewMarkupTool? = .select
 
+    /// Segment editing is a MODE of the Source view (`source.editor.segment-focus`, #5114,
+    /// ruled 2026-09-27). Off -- the default -- the page is for reading and nothing on it
+    /// changes; `SegmentEditingMode` holds the rule. Per-window, like the armed tool: two
+    /// Source views split in one window edit together.
+    var isEditingSegments = false
+
     /// Coding v1 (Daniel, 2026-08-30, ruling 4): comma-separated tags entered
     /// via the highlight menu's "Tag Next Highlight…" ride the NEXT saved
     /// highlight / underline / strikethrough / check, then clear — one-shot,

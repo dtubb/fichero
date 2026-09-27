@@ -44,10 +44,12 @@ XSI = "{http://www.w3.org/2001/XMLSchema-instance}schemaLocation"
 #: for every 4.x, so the namespace cannot tell 4.2 from 4.3 and the declared file can.
 #: Other versions we DO vendor a schema for, by what `other_version` returns. Exports
 #: are written in the newest; these are for reading what other tools wrote.
-#: Transkribus writes PAGE 2013; Kraken writes ALTO 4.3.
+#: Transkribus writes PAGE 2013; Kraken writes ALTO 4.3; 4.4 is current. ALTO 2.x is NOT here:
+#: its schema states no licence (schemas/PROVENANCE.md).
 OTHER_VERSION_SCHEMAS = {
     "http://schema.primaresearch.org/PAGE/gts/pagecontent/2013-07-15": "pagecontent-2013-07-15.xsd",
     "alto-4-3.xsd": "alto-4-3.xsd",
+    "alto-4-4.xsd": "alto-4-4.xsd",
 }
 VERSIONED_XSD = re.compile(r"^(?P<family>.+?)-(?P<version>\d+(?:-\d+)*)\.xsd$")
 

@@ -131,6 +131,9 @@ struct ReaderToolbar: View {
     var regionsEnabled: Binding<Bool>?
     /// Draw each recognised word's text INSIDE its box (2026-08-31).
     var inlineTextEnabled: Binding<Bool>?
+    /// The segment-editing MODE (#5114). Lives in this menu because the ruling put it
+    /// with the view's other options. nil where there are no segments to edit.
+    var segmentEditingEnabled: Binding<Bool>?
 
     // ─── Loupe (image + PDF; nil ⇒ greyed) ───
     var loupeEnabled: Binding<Bool>?
@@ -221,6 +224,12 @@ struct ReaderToolbar: View {
                 }
                 if let inlineTextEnabled {
                     Toggle("Show Text Inline", isOn: inlineTextEnabled)
+                }
+                if let segmentEditingEnabled {
+                    Divider()
+                    Toggle("Edit Segments", isOn: segmentEditingEnabled)
+                        .help("Draw, move, combine and delete segments on this page. Off, the page is for reading.")
+                        .accessibilityIdentifier("previewEditSegments")
                 }
             } label: {
                 Image(systemName: "switch.2")

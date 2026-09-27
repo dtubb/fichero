@@ -93,8 +93,15 @@ extension ZoomableImagePreview {
         Button(isAddingRegion ? "Stop Adding Regions" : "Add Region…") {
             isAddingRegion.toggle()
         }
+        // Clearing marquees is ephemeral and stays; naming one INTO a region writes a
+        // segment, so it waits for the mode (#5114).
         if let documentId, let marquees = windowState?.previewMarquees,
-           marquees.documentId == documentId, !marquees.isEmpty {
+           marquees.documentId == documentId, !marquees.isEmpty, !isEditingSegments {
+            Button("Clear Selections") { marquees.clear() }
+                .help("Discard the drawn selections without saving them")
+        }
+        if let documentId, let marquees = windowState?.previewMarquees,
+           marquees.documentId == documentId, !marquees.isEmpty, isEditingSegments {
             // Daniel, 2026-08-31: the right-click verb ASKS for a name now
             // (hence the ellipsis) — it arms the same naming request the
             // pencil badge does, anchored on the first marquee's badge, so
@@ -111,7 +118,7 @@ extension ZoomableImagePreview {
                 .help("Discard the drawn selections without saving them")
         }
         let selection = RegionSelection.shared
-        if let artifactId = ocrGeometryArtifactId, selection.artifactId == artifactId {
+        if isEditingSegments, let artifactId = ocrGeometryArtifactId, selection.artifactId == artifactId {
             if selection.count >= 2 {
                 Button("Combine \(selection.count) Regions") { combineSelectedRegions() }
             }
@@ -364,11 +371,32 @@ extension ZoomableImagePreview {
     /// Delete key: the picked marquee first (most ephemeral, most recently
     /// made), else the selected persisted regions.
     func handleRegionDeleteKey() {
-        if let marquees = windowState?.previewMarquees, marquees.selectedIndex != nil {
-            marquees.removeSelected()
-            return
+        let marquees = windowState?.previewMarquees
+        switch SegmentEditingMode.deleteKey(
+            marqueePicked: marquees?.selectedIndex != nil,
+            isEditing: isEditingSegments,
+            selectionCount: RegionSelection.shared.count
+        ) {
+        case .removeMarquee: marquees?.removeSelected()
+        case .deleteRegions: deleteSelectedRegions()
+        case .nothing: break
         }
-        deleteSelectedRegions()
+    }
+
+    /// The segment-editing mode for this pane's window (#5114). No window state, no mode:
+    /// a headless host reads, it does not edit.
+    var isEditingSegments: Bool { windowState?.isEditingSegments ?? false }
+
+    /// The head's markup-row verbs, gated by the mode.
+    func handleRegionVerb(_ note: Notification) {
+        guard let raw = note.object as? String, let verb = PreviewRegionVerb(rawValue: raw) else { return }
+        switch SegmentEditingMode.action(
+            for: verb, isEditing: isEditingSegments, selectionCount: RegionSelection.shared.count
+        ) {
+        case .delete: deleteSelectedRegions()
+        case .combine: combineSelectedRegions()
+        case nil: break
+        }
     }
 
     /// Esc: everything ephemeral goes — add mode, marquees, selection.

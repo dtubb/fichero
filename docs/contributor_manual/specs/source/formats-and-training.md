@@ -216,7 +216,8 @@ Rules for every format
   schema's messages), **other version**, no schema, and unrecognised. Two older versions are
   vendored for reading what other tools write, and a file declaring either is checked against its own
   version's schema. PAGE 2013 (what Transkribus writes) is told apart by namespace. ALTO 4.3 (what
-  Kraken writes) keeps 4.2's namespace and is told apart by the schema file it declares. Exports are
+  Kraken writes) and 4.4 (the current release) keep 4.2's namespace and are told apart by the
+  schema file they declare. ALTO 2.x is not vendored because its schema states no licence. Exports are
   still written as PAGE 2019 and ALTO 4.2. *Other version* is what remains, ALTO 2.0 for example, and
   it is the outcome that would be simplified away: checked against the wrong version's schema, such a
   file fails on every element. That result describes our install, not the file, so it is reported as
@@ -225,7 +226,7 @@ Rules for every format
   That is why readers never validate and writers always do. The command **exits 1 when nothing was validated**:
   an empty directory, or one full of files nothing could check, is not a passing export. Pinned by
   `tests/unit/formats/test_export_validation.py::TestTheScriptSaysWhatItDidNotCheck::test_a_version_we_vendor_no_schema_for_is_neither_valid_nor_invalid`,
-  `::test_pagexml_2013_is_checked_against_2013_not_2019`, `::test_alto_4_3_is_told_from_4_2_by_the_file_it_declares`,
+  `::test_pagexml_2013_is_checked_against_2013_not_2019`, `::test_alto_4_3_is_told_from_4_2_by_the_file_it_declares`, `::test_alto_4_4_is_its_own_schema_where_page_lang_is_allowed`,
   `::test_a_broken_export_is_invalid_with_the_schemas_own_words` and
   `::test_a_directory_where_nothing_was_validated_is_not_a_pass`.
 - `source.format.every-writer-is-validated` — **[OK]** (→ #4943) a format cannot ship a writer with
