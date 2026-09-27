@@ -1067,6 +1067,25 @@ def pytest_sessionfinish(session, exitstatus):
 _SPEC_FAILURES_PATH = _Path(__file__).resolve().parent / "known_specification_failures.txt"
 
 
+def spec_failure_issues(text: str) -> list[str]:
+    """The issue numbers named by the `# ---- #NNNN (n) ----` section headers.
+
+    Public (no underscore) so a test can reach it: this read `tok.startswith("#4")` until
+    2026-09-27 and so silently dropped every issue from #5000 on. #5121's four entries were
+    listed and xfailed correctly while the banner still said "Open: #4395, #4420" — a quiet
+    undercount in the one banner whose whole job is to stop known-red debt going unnoticed.
+    Sorted NUMERICALLY, so #5121 does not sort before #999.
+    """
+    numbers = {
+        int(tok[1:])
+        for line in text.splitlines()
+        if line.startswith("# ---- ")
+        for tok in line.split()
+        if len(tok) > 1 and tok[0] == "#" and tok[1:].isdigit()
+    }
+    return [f"#{n}" for n in sorted(numbers)]
+
+
 def _known_specification_failures() -> set[str]:
     if not _SPEC_FAILURES_PATH.exists():
         return set()
@@ -1137,12 +1156,7 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     known = _known_specification_failures()
     if not known:
         return
-    issues = sorted({
-        tok
-        for line in _SPEC_FAILURES_PATH.read_text(encoding="utf-8").splitlines()
-        if line.startswith("# ---- ")
-        for tok in line.split() if tok.startswith("#4")
-    })
+    issues = spec_failure_issues(_SPEC_FAILURES_PATH.read_text(encoding="utf-8"))
     terminalreporter.write_sep("=", "KNOWN BROKEN, SPECIFIED, NOT FIXED", red=True)
     terminalreporter.write_line(
         f"  {len(known)} tests describe behaviour the code does not have yet."

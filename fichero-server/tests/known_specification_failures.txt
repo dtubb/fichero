@@ -34,3 +34,15 @@ tests/unit/seams/test_discarded_result_seam.py::test_no_success_status_is_discar
 tests/unit/seams/test_optional_callback_seam.py::test_claim_source_navigation_is_supplied_everywhere
 tests/unit/seams/test_optional_callback_seam.py::test_every_control_gating_callback_is_supplied_by_every_host
 tests/unit/seams/test_state_channel_seam.py::test_every_key_read_from_graph_state_is_a_declared_channel
+
+# ---- #5121 (4) ----
+# The Mac App Store channel is UNWIRED: one `Fichero` target, no `App Store` build
+# configuration, `Fichero (App Store).xcscheme` builds plain `Release`,
+# `FICHERO_APP_STORE` defined nowhere, Sparkle linked unconditionally, and both
+# AppStore entitlements files referenced zero times. These four tests specify the
+# channel #3748/#3749 were closed against and that does not exist, so they cannot
+# pass until the maintainer rules on configuration-vs-target (#5121).
+tests/unit/scripts/test_check_mac_app_store_target.py::test_guardrail_passes_on_current_repo
+tests/unit/scripts/test_check_mac_app_store_target.py::test_embed_phase_asserts_no_get_task_allow
+tests/unit/scripts/test_check_mac_app_store_target.py::test_embed_phases_preflight_briefcase_bundle_before_copying
+tests/unit/scripts/test_check_mac_app_store_target.py::test_embed_phases_are_dependency_aware_not_always_out_of_date
