@@ -165,7 +165,12 @@ def page_from_library(
     for order in db.query(ReadingOrder, pass_id=derived.pass_id):
         if order.deleted_at is not None:
             continue
-        entries = sorted(db.query(ReadingOrderEntry, order_id=order.id), key=lambda e: e.position)
+        # The TOP level only: a format's reading order is of blocks (PAGE ReadingOrder, ALTO block
+        # order), and an order's lines and words are nested entries beneath them.
+        entries = sorted(
+            (e for e in db.query(ReadingOrderEntry, order_id=order.id) if e.parent_entry_id is None),
+            key=lambda e: e.position,
+        )
         orders.append(
             PageOrder(name=order.name, refs=[e.segment_id for e in entries if e.segment_id in ids], kind=order.kind)
         )

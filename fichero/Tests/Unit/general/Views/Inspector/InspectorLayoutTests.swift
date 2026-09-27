@@ -72,9 +72,11 @@ struct InspectorTabTests {
 
 struct SourceSectionFoldTests {
 
-    @Test("SourceSectionMode is the ONE Content/Info/Outline picker (#3876)")
+    /// Order joined on 2026-09-27 (Q5: the reading order is rearranged in the Inspector too), as
+    /// a fourth segment of the SAME picker -- still one picker, not a second one.
+    @Test("SourceSectionMode is the ONE Content/Info/Outline/Order picker (#3876, Q5)")
     func sourceSectionModeCases() {
-        #expect(SourceSectionMode.allCases == [.content, .info, .outline])
+        #expect(SourceSectionMode.allCases == [.content, .info, .outline, .order])
     }
 
     /// Source is single-facet now, so DocumentInspector's separate Content/Info

@@ -36,6 +36,10 @@ _TEXT_DOMAINS = frozenset({"representation"})
 #: `ChangeSpec.emit_type`s outside those domains that change which pass is the page's text.
 _TEXT_EMIT_TYPES = frozenset({"pass.working_chosen"})
 #: Segment actions that add, remove, merge, split, restore or re-parent the lines of a pass.
+#: Moves in a reading order: the page's text follows its `as-written` order (Q5), so a move there
+#: changes the text. A move in another named order derives the same text and writes nothing.
+_ORDER_ACTIONS = frozenset({"reading_order.place", "reading_order.restore_place", "reading_order.remove"})
+
 _MEMBERSHIP_ACTIONS = frozenset({
     "segment.create", "segment.create_many", "segment.delete", "segment.undelete",
     "segment.merge", "segment.unmerge", "segment.split", "segment.unsplit",
@@ -69,6 +73,7 @@ def _document_ids(spec: Any, action_name: str, params: Any) -> list[str]:
     triggered = (
         bool(_TEXT_DOMAINS & set(spec.domains))
         or spec.emit_type in _TEXT_EMIT_TYPES
+        or action_name in _ORDER_ACTIONS
         or (action_name in _MEMBERSHIP_ACTIONS and _restore_may_change_text(spec, action_name))
         or (action_name == "segment.update" and getattr(params, "is_furniture", None) is not None)
         # Every box move from the app is a `convert_and_edit`; only a delete or a combine changes

@@ -1375,6 +1375,24 @@ class AnnotationKind(str, Enum):
     strikethrough = "strikethrough"
 
 
+class MarkTarget(BaseModel):
+    """One segment a mark is attached to, and optionally the stretch of its reading it covers
+    (Q6, ruled 2026-09-27: a mark applies to the SELECTION). Character offsets are into the
+    segment's counting reading, end exclusive."""
+
+    segment_id: str
+    char_start: int | None = Field(default=None, ge=0)
+    char_end: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def _range_in_order(self) -> "MarkTarget":
+        if (self.char_start is None) != (self.char_end is None):
+            raise ValueError("a character range names both its start and its end")
+        if self.char_start is not None and self.char_end is not None and self.char_end < self.char_start:
+            raise ValueError("a character range ends after it starts")
+        return self
+
+
 class Annotation(BaseModel):
     """User-authored annotation on a document, text span, or image region (#914).
 
@@ -1434,6 +1452,11 @@ class Annotation(BaseModel):
     # than an enum so the additive UI vocabulary can grow without a model bump;
     # expected values today: "char_range", "bbox", "paragraph", "ink".
     anchor_kind: str | None = None
+    # WHAT the mark is attached to, when it was made on a SELECTION (Q6, ruled 2026-09-27): the
+    # selected segments, each with the stretch of its reading it covers. Empty for a mark attached
+    # to an area drawn over the page (its `anchor` alone). The segments are the mark's identity;
+    # the anchor is where it is drawn, and is derived from them when none is given.
+    targets: list[MarkTarget] = Field(default_factory=list)
     # 0-indexed paragraph within the page, set when anchor_kind == "paragraph"
     # (paragraph checkmarks). Resolved against page_content paragraph offsets.
     paragraph_index: int | None = None

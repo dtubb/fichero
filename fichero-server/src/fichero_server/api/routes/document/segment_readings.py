@@ -639,8 +639,10 @@ class DerivedText(BaseModel):
     pass_id: str | None = None
     pass_basis: str
     kind: str
-    #: The named reading order used. `None` means box order -- named orders
-    #: are slice 10, and saying `None` is honest about which is in force.
+    #: The named reading order the CALLER asked for, or `None`. With `None` the text follows the
+    #: pass's own `as-written` order when that order holds every line (so a line a person moved
+    #: reads where they put it, Q5), and the file's / box order otherwise -- which, for an import,
+    #: is the same sequence until something is moved.
     order: str | None = None
     #: Segments the named order names that this text does not contain, each with
     #: its reason (#5090). Always empty for box order, which names nothing it
@@ -687,6 +689,33 @@ def _pass_candidates(db: Database, document_id: str) -> list[PassCandidate]:
             )
         )
     return candidates
+
+
+def _as_written_sequence(db: Database, pass_id: str) -> dict[str, int] | None:
+    """Each segment's place when the pass's `as-written` order is walked depth first, each level
+    by position (a block, then its lines, then their words), or None when the pass has no such
+    order. One query for the order's entries, read as four columns, not hydrated rows."""
+    from fichero_server.api.routes.document.reading_orders import as_written_order
+    from fichero_server.models.reading_orders import ReadingOrderEntry
+
+    order = as_written_order(db, pass_id)
+    if order is None:
+        return None
+    table = db._sql_table_name(ReadingOrderEntry)
+    db._ensure_table(ReadingOrderEntry)
+    children: dict[str | None, list[tuple[float, str, str]]] = {}
+    for entry_id, segment_id, parent_id, position in db.execute_fetchall(
+        f"SELECT id, segment_id, parent_entry_id, position FROM {table} WHERE order_id = $order_id",
+        {"order_id": order.id},
+    ):
+        children.setdefault(parent_id, []).append((position, entry_id, segment_id))
+    sequence: dict[str, int] = {}
+    pending: list[tuple[float, str, str]] = sorted(children.get(None, []), reverse=True)
+    while pending:
+        _position, entry_id, segment_id = pending.pop()
+        sequence.setdefault(segment_id, len(sequence))
+        pending.extend(sorted(children.get(entry_id, []), reverse=True))
+    return sequence
 
 
 def _segment_order_key(row: Segment) -> tuple:
@@ -835,7 +864,17 @@ def document_text(
     ]
     omitted: list[OmittedSegment] = []
     if ordered_segment_ids is None:
-        rows.sort(key=_segment_order_key)
+        # The pass's `as-written` order decides, when it holds every line that carries text (Q5:
+        # a line moved in the order reads where it was moved to). It is built from the same file
+        # position as `_segment_order_key` (format.import, #5137), so until a person moves
+        # something the two are the same sequence and the text is byte-identical. A line the
+        # order does not hold means the order cannot speak for the page, and the old rule decides
+        # the WHOLE page -- never a mix of two orders.
+        sequence = _as_written_sequence(db, answer.pass_id)
+        if sequence is not None and rows and all(row.id in sequence for row in rows):
+            rows.sort(key=lambda row: (sequence[row.id], row.id))
+        else:
+            rows.sort(key=_segment_order_key)
     else:
         # The NAMED order's sequence. Segments the order does not mention are LEFT
         # OUT rather than appended: an order is a claim about what reads and in

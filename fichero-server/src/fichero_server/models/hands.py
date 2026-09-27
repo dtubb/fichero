@@ -65,5 +65,8 @@ class HandAttribution(BaseModel):
     #: or an import saying the FILE said so (an EpiDoc `<handShift>`).
     provenance_kind: ProvenanceKind = ProvenanceKind.unknown
     created_by: str | None = None
+    #: Where the judgement came from when it was not made here: "file: <name>" for an import whose
+    #: file said so (an EpiDoc `<handShift>`), None for one a person made in the app.
+    source: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
     withdrawn_at: datetime | None = None

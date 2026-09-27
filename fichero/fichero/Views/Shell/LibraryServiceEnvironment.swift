@@ -42,6 +42,7 @@ extension View {
             // `LibraryManager` registered with the change stream — so a patched
             // segment redraws without a second store or a second fetch path.
             .environment(library.segmentService)
+            .environment(library.readingOrderService)
             .environment(library.entityService)
             .environment(library.kgCurationService)
             .environment(library.researchService)

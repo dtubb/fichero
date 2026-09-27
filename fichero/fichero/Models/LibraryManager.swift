@@ -107,6 +107,8 @@ class LibraryManager {
         /// #4954). Declared here so `SegmentStore.shared(for:)` resolves the same
         /// instance for the change-stream registration and for the drawing paths.
         let segmentService: SegmentService
+        /// Reading orders (Q5): the one reorder call every list makes, through `ReadingOrderStore`.
+        let readingOrderService: ReadingOrderService
         let entityService: EntityService  // /api/entities + /api/claims (#728)
         let kgCurationService: KGCurationService
         let activityService: ActivityService
@@ -410,6 +412,7 @@ class LibraryManager {
             self.modelService = modelService ?? ModelService(ficheroClient: self.ficheroClient)
             self.artifactService = ArtifactService(ficheroClient: self.ficheroClient)
             self.segmentService = SegmentService(ficheroClient: self.ficheroClient)
+            self.readingOrderService = ReadingOrderService(ficheroClient: self.ficheroClient)
             self.entityService = EntityService(ficheroClient: self.ficheroClient)
             self.kgCurationService = KGCurationService(ficheroClient: self.ficheroClient)
             self.activityService = ActivityService(ficheroClient: self.ficheroClient)

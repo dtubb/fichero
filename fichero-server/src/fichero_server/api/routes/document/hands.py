@@ -284,3 +284,34 @@ async def everything_in_a_hand(
         (a for a in db.query(HandAttribution, hand_id=hand_id) if a.withdrawn_at is None),
         key=lambda a: a.created_at,
     ))
+
+
+def hands_from_file(
+    db: Database, hands_by_segment: dict[str, list[str]], *, edition: str, source: str, ctx: ActionContext,
+) -> int:
+    """The hands an imported file names, as project hands and attributions (approved 2026-09-27).
+
+    A file's "m1" is ITS first hand, not every file's: the hand is labelled with its edition --
+    "m2 (P.Cair.Zen. 4 59742)" -- so two papyri's "m1" stay two hands. The same label from another
+    page of the same edition is the same hand and is reused. Merging hands across sources is a
+    person's judgement, never the import's. Each attribution says the FILE said so (`source`).
+    Returns how many attributions were written.
+    """
+    if not hands_by_segment:
+        return 0
+    live = {h.label: h for h in db.all(Hand) if h.deleted_at is None}
+    written = 0
+    for segment_id, labels in hands_by_segment.items():
+        for label in labels:
+            full = f"{label} ({edition})"
+            hand = live.get(full)
+            if hand is None:
+                hand = Hand(label=full, provenance_kind=provenance_kind_from_ctx(ctx), created_by=ctx.actor or None)
+                db.save(hand)
+                live[full] = hand
+            db.save(HandAttribution(
+                hand_id=hand.id, segment_id=segment_id, source=source,
+                provenance_kind=provenance_kind_from_ctx(ctx), created_by=ctx.actor or None,
+            ))
+            written += 1
+    return written

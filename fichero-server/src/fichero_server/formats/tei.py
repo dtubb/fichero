@@ -66,6 +66,9 @@ REGION_TAGS = frozenset({"ab", "p", "head", "l"})
 #: Elements whose content is not the page's transcription.
 NON_TRANSCRIPTION = frozenset({"note", "teiHeader", "facsimile"})
 #: Inline elements the reader understands; anything else is recorded, not silently absorbed.
+#: `foreign` key: the hands (their TEI labels, "m1", "m2") that wrote a line, in order.
+TEI_HANDS = "tei:hands"
+
 #: The side of a `<choice>` that is what the page says, as against what an editor made of it.
 AS_WRITTEN = frozenset({"orig", "sic", "abbr"})
 
@@ -313,7 +316,10 @@ def read_pages(data: bytes) -> list[SourcePage]:
         pages.append(page)
         return page
 
-    state: dict[str, Any] = {"page": None, "region": None, "line": None, "buffer": [], "counter": 0, "line_page": None}
+    # `hand`: the hand in effect -- a `<handShift new="#m2"/>` is a milestone that holds until the
+    # next one, across lines and blocks, like `<lb>` (slice 14, `source.hand.attributed`).
+    state: dict[str, Any] = {"page": None, "region": None, "line": None, "buffer": [], "counter": 0,
+                             "line_page": None, "hand": None}
 
     def current_page() -> dict[str, Any]:
         return state["page"] or new_page(None)
@@ -419,6 +425,23 @@ def read_pages(data: bytes) -> list[SourcePage]:
             flush_line()
             line = add_segment("line", element, region, page)
             state["line"], state["buffer"], state["line_page"] = line, [], page
+            if state["hand"]:
+                line.foreign[TEI_HANDS] = [state["hand"]]
+            _tail(element)
+            return
+        if tag == "handShift":
+            # The hand that writes from here on. A line keeps every hand that wrote in it, in order:
+            # the one in effect when it began, and any that took over part-way along.
+            new = (element.get("new") or "").lstrip("#").strip()
+            if new:
+                state["hand"] = new
+                line = state["line"]
+                if line is not None:
+                    if not "".join(state["buffer"]).strip():
+                        # Before any of the line's text: the new hand wrote the whole line.
+                        line.foreign[TEI_HANDS] = [new]
+                    elif new not in line.foreign.setdefault(TEI_HANDS, []):
+                        line.foreign[TEI_HANDS].append(new)
             _tail(element)
             return
         if tag == "s" and element.get("facs"):
@@ -713,6 +736,13 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                     f"TEI has only a CSS style hint for direction (ltr, rtl, vertical); "
                     f"{segment.direction!r} has none",
                 )
+        if segment.foreign.get(TEI_HANDS):
+            report.note(
+                "hands",
+                1,
+                "the hands a line was written in (from <handShift>) are kept in the library as hands and "
+                "attributions, and are not yet written back as <handShift>",
+            )
         for variant in segment.foreign.get("tei-app", []):
             report.note(
                 "variant readings",
