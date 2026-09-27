@@ -534,6 +534,23 @@ SSE stream before that step starts. Poll
 `GET /api/chains/executions/{execution_id}` for per-step statuses. Unknown
 chain ids return `404`; a chain with no steps returns `400`.
 
+### Workflow runs
+
+`GET /api/workflow-execution/runs` lists workflow runs from the **runs table** — the same
+record the toolbar popover reads, and deliberately NOT the event log that `GET /api/activity`
+reads. Those two disagreed, and this is the store that settles it: a run with no `activities`
+rows at all still appears here, because a run that produced no events is still a run that
+happened. Optional `status` repeats to filter (`?status=failed`), with `limit` (1–500, default
+50) and `offset`. Paging, sorting and filtering are pushed to SQL, so the cost of listing does
+not grow with how many runs the library holds.
+
+`POST /api/workflow-execution/runs/delete` deletes runs in bulk, and "Clear Failed" is the
+same audited action with a status filter rather than a second path — one audited action, two
+ways of asking. **Checkpoints are left alone**: a deleted run hides the run without destroying
+what it produced, and a thread's checkpoint goes separately via
+`DELETE /api/workflow-execution/threads/{thread_id}`. That separation is the point, so
+clearing a list of failures cannot quietly discard work.
+
 ### Workflow run comparison
 
 `GET /api/workflow-execution/comparisons` diffs what two runs produced from
