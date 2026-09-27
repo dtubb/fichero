@@ -520,6 +520,44 @@ The editor
   selection is shared.
 - `source.editor.library-lists-segments` — **[GAP]** (#4941) the Library can list segments as rows, so
   project-wide questions about segments are ordinary Library searches.
+  **Genuinely absent on BOTH sides, and the engine side blocks the app side** (read on disk
+  2026-09-27).
+  *The app's axis exists and was designed for exactly this*: `LibraryContentKind` is
+  `documents | claims | entities`, and its own comment says "the north-star is that a claim and an
+  entity are NODES that flow through the same library views and the same sidebar as a document".
+  Adding `.segments` is the shape the file already anticipates — one case, plus the table's rows
+  and a data source.
+  *The engine has no read to back it.* Every segments route is per-document or per-segment:
+  `GET /api/segments/document/{doc_id}`, `/{segment_id}`, `/{segment_id}/versions`,
+  `/{segment_id}/reference`. There is **no scoped listing** (a folder's, a project's) and segments
+  are not in the search index, so "project-wide questions about segments are ordinary Library
+  searches" has nothing to ask. A Library that listed segments by fetching each document's
+  segments in turn would be the N+1 the one-store seam was built to avoid.
+  So the buildable order is: a scoped, paged segment read on the engine, then the search leg, then
+  the `LibraryContentKind` case. Naming it rather than starting at the app end, because starting at
+  the app end is what produces a view that fetches per document.
+  **The first step is built (2026-09-27): `GET /api/segments`.** A bounded page across a scope —
+  either explicit `document_ids` or a `parent_id` whose descendants are walked — with `kind`,
+  `pass_id` and `include_furniture` filters, answering `{items, count, total, document_ids}`.
+  Pinned by `test_scoped_segment_listing.py` (11 tests). The parts worth knowing:
+  * `Database.segments_page` does the WHERE, COUNT, ORDER, LIMIT and OFFSET in DuckDB, in the
+    persistence layer — the architecture rule that raw SQL lives behind a typed method — so a
+    project-wide list never hydrates a folder's rows to answer one page.
+  * the order is `document_id, bbox_y, bbox_x, id` — down and ACROSS each page, then the id as a
+    total tie-break. Stable, so a page break cannot show one row twice while never showing
+    another (`created_at` cannot do that: rows written in one transaction share a timestamp), and
+    it is the same order `_segment_order_key` uses, so a scoped list reads the way the page reads.
+    **Not `box_index`**, which is not a column at all: a real row's engine index lives in
+    `metadata["box_index"]` and is only meaningful within one pass.
+  * `limit` is capped at 1000 in the signature (`source.store.bounded-reads`), and `document_ids`
+    comes back so a caller can tell "these 40 documents have no segments" from "that folder has no
+    documents" — both of which otherwise arrive as no rows.
+  * REAL rows only. The per-document route also serves unconverted artifacts' boxes
+    (`source.seam.read-either-store`), and that resolution reads one artifact's block per
+    artifact; doing it across a scope would hydrate every geometry blob in the folder, which is
+    the cost this endpoint exists to avoid. The route's docstring says so rather than appearing to
+    list everything.
+  Still `[GAP]`: the search leg and the Library's own `.segments` case are owed.
 - `source.editor.one-overlay` — **[PARTIAL]** (#4941) one component draws and edits segments in the Source view; no
   second overlay renderer exists in the app.
   **One SOURCE of geometry as of 2026-09-27, and two RENDERERS — which the behaviour as written
@@ -529,11 +567,19 @@ The editor
   `PDFAnnotation` squares on a PDF page, and the reason is recorded where the second one lives:
   "AppKit's `PDFView` has no coordinate space a SwiftUI overlay can lay out in". A third renderer
   does not exist — the Inspector's regions panel lists rows and draws nothing.
-  So the sentence needs deciding rather than implementing: either it means one renderer per
-  surface kind with one geometry source behind them (true today), or it means one renderer
-  full stop, which PDFKit makes unreachable without abandoning `PDFView`. **Not filed as its own
-  issue**: it is the same question as #5114 about what a sentence in this spec is asking for, and
-  it should be answered in the same sitting.
+  So the sentence as written **cannot be satisfied while the app uses `PDFView`**, and leaving it
+  is leaving a behaviour that can never go `[OK]`. **Proposed wording, awaiting the maintainer**
+  (with #5114 and #5115, which are the same kind of question):
+  > `source.editor.one-overlay` — one component decides WHAT to draw and edit for segments, and
+  > each surface kind has exactly one renderer of it: the SwiftUI `Canvas` for images, `PDFKit`
+  > annotations for PDF pages. No second decider, and no second renderer per surface kind.
+  That is true today and it keeps what the original sentence was protecting — a page cannot be
+  drawn from two different ideas of what its segments are — while admitting the one thing the
+  platform imposes. The word doing the work is DECIDER: two renderers are a fact about coordinate
+  spaces; two deciders would be the defect.
+  If the maintainer would rather keep the sentence as written, the honest consequence is that the
+  behaviour is `[BROKEN]` rather than `[PARTIAL]`, and the work it implies is replacing `PDFView`
+  with a SwiftUI page renderer — which is a much larger decision than this spec carries.
 - `source.editor.shapes-in-source-view` — **[PARTIAL]** (#4941; the Inspector contradicts it, → #5115) a segment's
   shape is edited in the Source view; its readings are typed in the Reader; the Inspector shows
   and does not edit.
@@ -610,7 +656,9 @@ The editor
   (Today a redo of a segment edit is refused as stale: the shared undo route replays the
   original request. The editor cannot ship without this.)
 - `source.editor.system-undo` — **[GAP]** (#4941) ⌘Z and ⇧⌘Z undo and redo editor actions through the action
-  pass.
+  pass. (Rule (i) flags `test_artifact_regions_edit.py` as mentioning this id: that file pins the
+  ENGINE half added for it — the route now names its audit row — and asserts nothing about ⌘Z,
+  which is what keeps the tag `[GAP]`. The mention is the note above, not coverage.)
   **Genuinely absent, and the blocker is one missing value rather than the wiring** (read on disk
   2026-09-27). The engine half is complete: `POST /api/actions/audit/{audit_id}/undo` inverts any
   audited action, and redo is the undo of the undo (pinned in `test_action_undo.py`). The app
