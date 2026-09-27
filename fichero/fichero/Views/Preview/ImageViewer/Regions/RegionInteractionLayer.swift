@@ -92,7 +92,8 @@ struct RegionInteractionLayer: View {
     @Environment(WindowState.self) private var windowState: WindowState?
     @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore?
 
-    @State private var selection = RegionSelection.shared
+    /// THE PANE'S selection, handed in (#5020): the layer never reaches for another pane's.
+    let selection: RegionSelection
     /// The armed "name this region" request (shared with the context-menu
     /// verb, which arms it without a badge of its own).
     @State private var naming = RegionNamingRequest.shared

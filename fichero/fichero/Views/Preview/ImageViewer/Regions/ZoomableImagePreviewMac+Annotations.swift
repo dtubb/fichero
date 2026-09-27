@@ -135,7 +135,7 @@ extension ZoomableImagePreview {
     /// selection", which is the signal to fall back to the drag/click tools.
     var selectedMarkupBoxes: [OCRGeometryBox] {
         guard let geometry = ocrGeometry, geometryFrameMatchesDisplay(geometry) else { return [] }
-        let selection = RegionSelection.shared
+        let selection = regionSelection
         if let artifactId = ocrGeometryArtifactId, selection.artifactId == artifactId,
            !selection.isEmpty {
             let picked = selection.indices
