@@ -39,8 +39,8 @@ final class AboutSettingsSurfaceTests: XCTestCase {
 
     func testAppStateRoutesLegacyMCPAndIntegrationsTriggersIntoSettings() throws {
         let source = try [
-            Self.appSource("App/AppState.swift"),
-            Self.appSource("App/AppState+Settings.swift")
+            Self.appSource("App/AppState/AppState.swift"),
+            Self.appSource("App/AppState/AppState+Settings.swift")
         ].joined(separator: "\n")
         XCTAssertTrue(source.contains("var selectedSettingsTab: SettingsTab = .aiModels"))
         XCTAssertTrue(source.contains("openSettings(tab: .mcp)"))

@@ -636,7 +636,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         // #1500). The standalone library-wide browser sheet and its Data-menu entry
         // are retired.
         let menuSource = try Self.appSource("FicheroApp.swift")
-        let appStateSource = try Self.appSource("App/AppState.swift")
+        let appStateSource = try Self.appSource("App/AppState/AppState.swift")
         let windowSource = try Self.appSource("App/LibraryWindow.swift")
         // #4024: the Notes tab wiring (DocumentNotesTab(document: doc)) now lives in
         // DocumentInspector+Sections.swift, split out of DocumentInspector.swift.

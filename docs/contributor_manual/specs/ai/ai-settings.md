@@ -286,7 +286,7 @@ milestone instead of being an arrow-pointer to elsewhere.
 ### Verify-close — evidence posted, left OPEN, not closed here
 
 - **#284** ("Re-enable Settings tabs General/Backend/Models") — built: `SettingsTab`
-  (`App/AppState.swift:10-29`) has live `.general`, `.backend`, and `.aiModels` cases, each
+  (`App/AppState/AppState.swift:10-29`) has live `.general`, `.backend`, and `.aiModels` cases, each
   mounting a real view in `SettingsView.swift`.
 - **#485** ("Wire: Local Models") — built: `LocalModelsSettingsView.swift` exists and mounts.
 - **#752** ("Settings → Local Models tab: enable + download/manage") — built: same view,

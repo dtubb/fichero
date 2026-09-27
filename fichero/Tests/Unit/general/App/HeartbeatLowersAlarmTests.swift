@@ -76,7 +76,7 @@ struct HeartbeatLowersAlarmTests {
 
     @Test("the heartbeat's ready branch lowers the alarm from any phase")
     func heartbeatReadyBranchLowersAlarm() throws {
-        let source = try Self.appSource("App/AppState+Heartbeat.swift")
+        let source = try Self.appSource("App/AppState/AppState+Heartbeat.swift")
         // The success path must clear failure phases from every non-ready
         // phase. Since #4359 the recovery branches route through
         // warmContextThenMarkReady(), which resolves the session BEFORE

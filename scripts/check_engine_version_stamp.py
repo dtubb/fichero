@@ -41,7 +41,7 @@ ROOT = Path(__file__).resolve().parent.parent
 PBXPROJ = ROOT / "fichero" / "fichero.xcodeproj" / "project.pbxproj"
 STAMP_SCRIPT = ROOT / "scripts" / "stamp_engine_version_into_app.sh"
 SWIFT_CHECK = ROOT / "fichero" / "fichero" / "Services" / "EmbeddedEngineVersionCheck.swift"
-READINESS = ROOT / "fichero" / "fichero" / "App" / "AppState+Readiness.swift"
+READINESS = ROOT / "fichero" / "fichero" / "App" / "AppState" / "AppState+Readiness.swift"
 
 EMBEDDED_KEY = "FicheroEmbeddedEngineVersion"
 EXPECTED_KEY = "FicheroExpectedEngineVersion"
@@ -52,6 +52,23 @@ STAMP_INVOCATION = "stamp_engine_version_into_app.sh"
 #: Contents/Helpers, the other in Contents/Resources. Both must stamp, or the
 #: check is live in one distribution channel and dead in the other.
 EMBED_PHASE_MARKER = 'name = "Embed Fichero Server"'
+
+
+#: Every file this check reads. A guardrail must know when it has gone blind (#4382): on
+#: 2026-09-27 the seven AppState files moved into App/AppState/ and this script did not fail,
+#: it raised FileNotFoundError from inside `failures()` — a traceback, which reads as neither
+#: pass nor fail and tells the reader nothing about what to fix. Four guards and four tests
+#: were pinned to the old paths; this one was the only one that crashed.
+REQUIRED_INPUTS = ("PBXPROJ", "STAMP_SCRIPT", "SWIFT_CHECK", "READINESS")
+
+
+def blind_inputs() -> list[str]:
+    """The declared inputs that are not on disk, named as `NAME -> path`."""
+    return [
+        f"{name} -> {globals()[name].relative_to(ROOT)}"
+        for name in REQUIRED_INPUTS
+        if not globals()[name].exists()
+    ]
 
 
 def failures() -> list[str]:
@@ -128,6 +145,17 @@ def self_test() -> int:
 def main() -> int:
     if "--self-test" in sys.argv:
         return self_test()
+
+    missing = blind_inputs()
+    if missing:
+        print(
+            "check_engine_version_stamp.py: BLIND -- these inputs are not on disk, so the\n"
+            "check cannot answer. A file was moved or renamed; repoint the constant:\n  "
+            + "\n  ".join(missing),
+            file=sys.stderr,
+        )
+        return 2
+
     problems = failures()
     if problems:
         print("Embedded-engine version stamping is broken:\n", file=sys.stderr)
