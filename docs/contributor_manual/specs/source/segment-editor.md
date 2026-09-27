@@ -703,6 +703,19 @@ The editor
   parity is currently a claim about six verbs rather than about an editor.
 - `source.editor.two-switches` — **[GAP]** (#4941) the editor has two view switches only (show the order; show
   the links); everything else shown follows from zoom and selection.
+  **Neither of the two named switches exists, and eleven others do** (counted on disk 2026-09-27
+  in `ZoomableImagePreviewMac`): `magnifierEnabled`, `loupeEnabled`, `loupeMagnification`,
+  `loupeSize`, `panelMagnification`, `panelHeight`, `magnifierLocked`, `loupeLocked`,
+  `annotationsEnabled`, `regionsEnabled`, `inlineTextEnabled` — plus the markup tool bar. There
+  is no "show the order" and no "show the links", because named orders and typed links have no
+  drawing at all yet.
+  So this behaviour is not a switch to add: it is a **budget** on a surface that has already
+  spent eleven, and meeting it means deciding which of those eleven survive, which follow from
+  zoom and selection instead, and which belong to the image-viewing surface rather than the
+  editor. Three of them are plainly not editor switches (the loupe and magnifier sizing are
+  reading aids), which suggests the behaviour means "two switches BELONGING TO THE EDITOR" rather
+  than two in the pane — and that reading should be confirmed rather than assumed, with #5114 and
+  #5115, since all three are questions about what a sentence in this spec is asking for.
 - `source.editor.draw-shapes` — **[GAP]** (#4941) box, polygon, point, line and baseline can be drawn.
 - `source.editor.reshape` — **[GAP]** (#4941) points can be dragged, added and removed; shapes moved and nudged.
 - `source.editor.propose-shape` — **[GAP]** (#4941) a click asks the engine to propose a shape, which can then be
