@@ -180,6 +180,52 @@ class TestTheScanStillReportsAnUnpresentedView:
         })
         assert "Views/OrphanSheet.swift" in found
 
+    def test_a_type_used_only_by_its_own_file_mate_is_still_reported(self, tmp_path, monkeypatch):
+        """A file whose second type presents the first must not count itself as used.
+
+        Pinned because it was the suspected cause of `WikidataEnrichmentSheet` (zero outside
+        references at the time) never appearing in the backlog. It is NOT the cause — a
+        same-file mention adds to the file's own count, never to "elsewhere". The real one:
+        its file-mate `EnrichFromWikidataButton` was named by `EntityDetailView`, itself
+        unmounted (#4828). The rule is "named by ANY other file", so an island of orphans
+        naming each other is invisible; see `test_an_orphan_island_is_a_known_blind_spot`.
+        """
+        found = _scan_tree(tmp_path, monkeypatch, {
+            "Views/Sheet.swift": (
+                "struct EnrichButton: View {\n"
+                "    var body: some View { EnrichSheet() }\n"
+                "}\n"
+                "struct EnrichSheet: View {\n"
+                "    var body: some View { Text(\"x\") }\n"
+                "}\n"
+            ),
+        })
+        assert "Views/Sheet.swift" in found
+
+    def test_an_orphan_island_is_a_known_blind_spot(self, tmp_path, monkeypatch):
+        """Two unmounted files naming each other are both reported as live.
+
+        This PINS A LIMITATION so nobody reads the backlog as a ceiling: it is a floor. Real
+        reachability from the app entry point was prototyped on 2026-09-27 and does not work
+        by name — `Result`, `Line`, `UUID` and extension methods like `load()` connect every
+        file to every other within a few hops. It needs the compiler's index, not a regex.
+        When this test fails, the guard has learned reachability: flip the assertion.
+        """
+        found = _scan_tree(tmp_path, monkeypatch, {
+            "Views/DetailView.swift": (
+                "struct DetailView: View {\n"
+                "    var body: some View { EnrichButton() }\n"
+                "}\n"
+            ),
+            "Views/EnrichButton.swift": (
+                "struct EnrichButton: View {\n"
+                "    var body: some View { Text(\"x\") }\n"
+                "}\n"
+                "struct Unused { let d = DetailView() }\n"
+            ),
+        })
+        assert found == {}
+
     def test_the_same_view_once_presented_is_not_reported(self, tmp_path, monkeypatch):
         """Over-fire check: naming the type from another file is exactly what wiring looks
         like, and a guard that still reports it teaches people to allowlist live code."""
