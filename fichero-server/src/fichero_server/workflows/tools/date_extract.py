@@ -37,6 +37,7 @@ from fichero_server.llm import LLMConfig
 from fichero_server.models import Artifact, Document
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools._workflow_change_emit import (
+    emit_workflow_artifact_changes,
     emit_workflow_document_changes,
 )
 from fichero_server.workflows.types import DataType, PortDef, State
@@ -153,6 +154,13 @@ async def date_extract_tool(
     results: list[dict[str, Any]] = []
     dated = undated = none_found = 0
     changed_ids: list[str] = []
+    # #4890: this tool already announced the DOCUMENTS whose date columns moved and
+    # said nothing about the `dates` artifacts it writes beside them, so a view
+    # showing a page's artifacts stayed stale. The ids were never captured -- each
+    # artifact was constructed inside its own `db.save(...)` call -- which is why
+    # this needed more than a key on the return.
+    dated_artifact_ids: list[str] = []
+    dated_artifact_doc_ids: list[str] = []
 
     pinned = conflicts = 0
 
@@ -227,16 +235,17 @@ async def date_extract_tool(
                 "meta": doc.date_meta,
             }
             results.append(record)
-            db.save(
-                Artifact(
-                    document_id=doc.id,
-                    artifact_type="dates",
-                    content=doc.date_original or "",
-                    data=record,
-                    provider="rule",
-                    model="histdate",
-                )
+            pinned_artifact = Artifact(
+                document_id=doc.id,
+                artifact_type="dates",
+                content=doc.date_original or "",
+                data=record,
+                provider="rule",
+                model="histdate",
             )
+            db.save(pinned_artifact)
+            dated_artifact_ids.append(pinned_artifact.id)
+            dated_artifact_doc_ids.append(doc.id)
             changed_ids.append(doc.id)
             continue
         if parsed is not None:
@@ -276,19 +285,31 @@ async def date_extract_tool(
             "meta": doc.date_meta,
         }
         results.append(record)
-        db.save(
-            Artifact(
-                document_id=doc.id,
-                artifact_type="dates",
-                content=doc.date_original or "",
-                data=record,
-                provider="rule",
-                model="histdate",
-            )
+        dates_artifact = Artifact(
+            document_id=doc.id,
+            artifact_type="dates",
+            content=doc.date_original or "",
+            data=record,
+            provider="rule",
+            model="histdate",
         )
+        db.save(dates_artifact)
+        dated_artifact_ids.append(dates_artifact.id)
+        dated_artifact_doc_ids.append(doc.id)
 
     if changed_ids:
         emit_workflow_document_changes(str(library_path), document_ids=changed_ids)
+    if dated_artifact_ids:
+        # Separate from the document emit and not folded into it: a page whose date
+        # columns did not move still gets a new `dates` artifact recording WHICH kind
+        # of nothing was found, and that artifact is what an inspector shows. Folding
+        # the two would have tied the artifact event to a column change -- the exact
+        # mistake #4890 was.
+        emit_workflow_artifact_changes(
+            str(library_path),
+            artifact_ids=dated_artifact_ids,
+            document_ids=dated_artifact_doc_ids,
+        )
 
     summary = (
         f"{dated} dated, {undated} explicitly undated, {none_found} with no "
