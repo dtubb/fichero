@@ -594,4 +594,3 @@ enum SearchFieldMode: String, CaseIterable, Hashable {
 // the reader. The search field now lives in the library's own mini toolbar —
 // see `LibraryView+MiniToolbar`. Left as a comment rather than deleted
 // silently: this is where the next person will look for the window search.
-

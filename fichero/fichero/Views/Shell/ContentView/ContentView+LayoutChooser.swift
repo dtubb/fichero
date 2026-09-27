@@ -247,7 +247,10 @@ extension ContentView {
                 // the Read default (rather than leaving `activePaneList` untouched, which would
                 // silently keep showing whatever the window had) and saying so, per "prefer raise
                 // over silent fallback": this IS a fallback, but a logged, deliberate one.
-                workspaceSnapshotLogger.notice("Saved arrangement predates the pane-list model (#4686) — applying the Read default instead of its recorded composition.")
+                workspaceSnapshotLogger.notice("""
+                    Saved arrangement predates the pane-list model (#4686) — \
+                    applying the Read default instead of its recorded composition.
+                    """)
                 activePaneList = BuiltInWorkspaceLayout.read.panes
                 paneListDidChange()
             }

@@ -198,7 +198,9 @@ extension ContentView {
                               systemImage: ToolbarSymbols.readingPane)
                             .toolbarSurfaceLit(paneVisibility.reading)
                     }
-                    .help(paneVisibility.reading ? "Hide the Reader" : "Show the Reader — transcripts, translations, and the knowledge graph")
+                    .help(paneVisibility.reading
+                          ? "Hide the Reader"
+                          : "Show the Reader — transcripts, translations, and the knowledge graph")
 
                     // Chat is a ROW pane (Daniel 2026-08-12: "there is no button
                     // to turn it on and off") — fourth member of the pane group,

@@ -160,7 +160,10 @@ extension MainContentModifiers {
                 // have been a corrupting save (see `shouldAutoSaveWorkflow`'s
                 // doc comment).
                 logger.error(
-                    "Refusing autosave: editor holds workflow \(self.editingWorkflow.id), not the outgoing \(old.id) — a load for \(old.id) likely never completed"
+                    """
+                    Refusing autosave: editor holds workflow \(self.editingWorkflow.id), \
+                    not the outgoing \(old.id) — a load for \(old.id) likely never completed
+                    """
                 )
             } else if !hasBaseline, !editingWorkflow.nodes.isEmpty || !editingWorkflow.edges.isEmpty {
                 // HOLE 3, 2026-09-19: `old` never got a baseline (its own
@@ -171,7 +174,10 @@ extension MainContentModifiers {
                 // silently dropped by refusing the save. Loud on purpose —
                 // Daniel wants to SEE this.
                 logger.error(
-                    "Refusing autosave for \(old.id): never loaded, yet the editor holds \(self.editingWorkflow.nodes.count) nodes. UNSAVED WORK MAY BE DROPPED"
+                    """
+                    Refusing autosave for \(old.id): never loaded, yet the editor holds \
+                    \(self.editingWorkflow.nodes.count) nodes. UNSAVED WORK MAY BE DROPPED
+                    """
                 )
             }
         }

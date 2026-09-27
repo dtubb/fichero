@@ -145,7 +145,10 @@ extension ContentView {
             if request.destination == .reader {
                 await navigateToResolvedSource(target)
                 workflowLogger.info(
-                    "revealResolvedSource: claim \(claimId) resolved to document \(target.id) — navigated (reader destination), sourceRevealDocument not used"
+                    """
+                    revealResolvedSource: claim \(claimId) resolved to document \(target.id) \
+                    — navigated (reader destination), sourceRevealDocument not used
+                    """
                 )
             } else {
                 sourceRevealDocument = target
@@ -155,14 +158,20 @@ extension ContentView {
             }
         } catch {
             workflowLogger.warning(
-                "revealResolvedSource: claim \(claimId) engine resolve failed (\(error.localizedDescription)); falling back to client-side navigation"
+                """
+                revealResolvedSource: claim \(claimId) engine resolve failed \
+                (\(error.localizedDescription)); falling back to client-side navigation
+                """
             )
             if request.destination == .reader {
                 await navigateToSourcePage(request.documentId)
             } else {
                 await focusKGSourcePreview(request.documentId)
                 workflowLogger.info(
-                    "revealResolvedSource: claim \(claimId) client-side fallback — sourceRevealDocument is now \(self.sourceRevealDocument?.id ?? "nil")"
+                    """
+                    revealResolvedSource: claim \(claimId) client-side fallback — \
+                    sourceRevealDocument is now \(self.sourceRevealDocument?.id ?? "nil")
+                    """
                 )
             }
         }

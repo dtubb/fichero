@@ -154,7 +154,9 @@ enum PageImportRunner {
         #if !os(macOS)
         logger.info("Page import is macOS-only; a document picker is needed on iOS.")
         #else
-        guard let url = await chooseFile(message: "Choose a PAGE XML, ALTO, TEI, hOCR or YOLO file to add to “\(documentName)” as a new pass") else { return }
+        guard let url = await chooseFile(
+            message: "Choose a PAGE XML, ALTO, TEI, hOCR or YOLO file to add to “\(documentName)” as a new pass"
+        ) else { return }
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         do {

@@ -175,7 +175,10 @@ enum SegmentDisplay {
         renditionId: String?
     ) -> OCRGeometry? {
         guard Set(segments.compactMap(\.boxIndex)) == Set(0..<segments.count) else {
-            log.error("refusing pass \(segments.first?.passId ?? "?", privacy: .public): \(segments.count, privacy: .public) segments' boxIndex values are not exactly 0..<count")
+            log.error("""
+                refusing pass \(segments.first?.passId ?? "?", privacy: .public): \
+                \(segments.count, privacy: .public) segments' boxIndex values are not exactly 0..<count
+                """)
             return nil
         }
         let boxes: [OCRGeometryBox] = segments

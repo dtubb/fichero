@@ -49,14 +49,14 @@ struct ReadingPaneView: View {
     /// `viewMode`, as `readerCell`. `nil` for every other route, and for the
     /// nothing-selected sub-case of `.schedule`/`.trigger`/`.activity` (the
     /// dispatcher shows `readerRunHistoryEmptyReason` then, not a blank).
-    var readerSubject: PaneContentPlan.ReaderSubject? = nil
+    var readerSubject: PaneContentPlan.ReaderSubject?
     /// #4705 "4b-2": the kind-specific "nothing selected" sentence for the
     /// `.runHistory` route when `readerSubject` is nil — `AppViewMode.
     /// runHistoryEmptyReason`, computed by the host. Kept separate from
     /// `readerSubject` because collapsing `.schedule(nil)`/`.trigger(nil)`/
     /// `.activity(nil)` to one bare `nil` loses which kind it was, and the
     /// three kinds' empty sentences must stay distinct, not one generic one.
-    var readerRunHistoryEmptyReason: String? = nil
+    var readerRunHistoryEmptyReason: String?
 
     @Environment(APIClient.self) var apiClient
     /// #4860: this window's OWN library — for the pane head's breadcrumb,

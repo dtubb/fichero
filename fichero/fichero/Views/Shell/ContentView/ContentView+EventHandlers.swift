@@ -45,7 +45,10 @@ extension ContentView {
             guard lastSyncedWorkflow != nil else {
                 if !editingWorkflow.nodes.isEmpty || !editingWorkflow.edges.isEmpty {
                     eventHandlersLogger.error(
-                        "Refusing quit-time autosave for \(item.id): never loaded, yet the editor holds \(self.editingWorkflow.nodes.count) nodes. UNSAVED WORK MAY BE DROPPED"
+                        """
+                        Refusing quit-time autosave for \(item.id): never loaded, yet the editor \
+                        holds \(self.editingWorkflow.nodes.count) nodes. UNSAVED WORK MAY BE DROPPED
+                        """
                     )
                 }
                 return

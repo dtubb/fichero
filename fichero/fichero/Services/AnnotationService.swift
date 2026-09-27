@@ -106,7 +106,7 @@ struct ResolvedAnnotationAnchor: Codable, Hashable {
     /// can say "the line this was on is gone" without a second read; no
     /// drawing decision depends on it.
     var basis: String
-    var segmentId: String? = nil
+    var segmentId: String?
 
     enum CodingKeys: String, CodingKey {
         case anchor

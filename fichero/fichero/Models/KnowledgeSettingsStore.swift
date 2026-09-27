@@ -62,8 +62,8 @@ final class KnowledgeSettingsStore {
         do {
             let response = try await client.api.getSparqlEndpointsApiSettingsSparqlEndpointsGet(.init())
             switch response {
-            case .ok(let ok):
-                apply(try ok.body.json)
+            case .ok(let response):
+                apply(try response.body.json)
             case .undocumented(let status, _):
                 statusMessage = "Couldn't load endpoints (status \(status))."
             }
@@ -103,10 +103,10 @@ final class KnowledgeSettingsStore {
                 .init(body: .json(config))
             )
             switch response {
-            case .ok(let ok):
+            case .ok(let response):
                 // Reflect what the server actually persisted (it keeps the
                 // Wikidata default present and rejects an unknown selection).
-                apply(try ok.body.json)
+                apply(try response.body.json)
                 statusMessage = nil
             case .unprocessableContent:
                 statusMessage = "Couldn't save endpoints: the server rejected the request."

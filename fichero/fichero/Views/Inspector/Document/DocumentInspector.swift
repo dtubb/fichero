@@ -291,7 +291,10 @@ enum EntityArmLoad {
         } catch {
             guard !Task.isCancelled else { return .superseded }
             entityInspectorArmLogger.error(
-                "Failed to load entity \(entityId, privacy: .public) from library \(libraryPath, privacy: .public): \(String(describing: error), privacy: .public)"
+                """
+                Failed to load entity \(entityId, privacy: .public) from library \
+                \(libraryPath, privacy: .public): \(String(describing: error), privacy: .public)
+                """
             )
             return .failed("Couldn't load this entity from \(libraryPath) — \(error.localizedDescription)")
         }
