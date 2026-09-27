@@ -859,7 +859,8 @@ async def order_neighbours(
 
 class ReadingOrderWrite(BaseModel):
     """`POST /api/reading-orders` — make an order. The other writes are the
-    audited actions, reached through the action layer like every other write."""
+    audited actions; the ones the app needs get a typed route here, because the
+    generic action route is not in the contract the app is generated from."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -879,3 +880,37 @@ async def create_reading_order(
 ) -> dict:
     result = registry.invoke(db, "reading_order.create", body.model_dump(), ctx)
     return {"ok": result.ok, "result": result.result, "audit_id": result.audit_id}
+
+
+class ReadingOrderPlaceBody(BaseModel):
+    """`POST /api/reading-orders/{order_id}/place` -- move or insert one segment (slice 13, Q5).
+
+    The body of `reading_order.place` without the order id, which is in the path."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    segment_id: str
+    after_entry_id: Optional[str] = None
+    at_end: bool = False
+    parent_entry_id: Optional[str] = None
+    expected_version: Optional[int] = None
+
+
+class ReadingOrderActionAnswer(BaseModel):
+    ok: bool
+    result: dict
+    audit_id: Optional[str] = None
+
+
+@router.post("/{order_id}/place", response_model=ReadingOrderActionAnswer)
+async def place_in_reading_order(
+    order_id: str,
+    body: ReadingOrderPlaceBody,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ReadingOrderActionAnswer:
+    """The ONE reorder call the Reader, the Inspector and the Segments pane all make, by drag or
+    by key (ruled 2026-09-27, Q5). Thin: the audited `reading_order.place` does the work, so
+    it is undoable through the audit trail like every other edit."""
+    result = registry.invoke(db, "reading_order.place", {"order_id": order_id, **body.model_dump()}, ctx)
+    return ReadingOrderActionAnswer(ok=result.ok, result=result.result, audit_id=result.audit_id)

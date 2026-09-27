@@ -77,6 +77,38 @@ enum ReadingOrderMove {
         ))
     }
 
+    /// A KEYBOARD move: the same one call as a drag (ruled 2026-09-27, Q5: reordering by
+    /// drag-and-drop AND by keys, with one behaviour in the Reader, the Inspector and the
+    /// Segments pane -- one implementation, never three).
+    enum Step: Equatable {
+        /// One place earlier or later (⌥⌘↑ / ⌥⌘↓).
+        case up, down
+        /// To the start or the end of its level.
+        case toStart, toEnd
+    }
+
+    /// The call a key press makes. Pressing up on the first entry is `alreadyThere`, never a
+    /// wrap to the end: a key that sends the first line of a page to its last would be a
+    /// surprise nobody asked for.
+    static func place(
+        orderId: String,
+        entries: [Entry],
+        moving segmentId: String,
+        step: Step
+    ) -> Result<Place, Refusal> {
+        guard let from = entries.firstIndex(where: { $0.segmentId == segmentId }) else {
+            return .failure(.notInThisOrder)
+        }
+        let target: Int
+        switch step {
+        case .up: target = max(from - 1, 0)
+        case .down: target = min(from + 1, entries.count - 1)
+        case .toStart: target = 0
+        case .toEnd: target = entries.count - 1
+        }
+        return place(orderId: orderId, entries: entries, moving: segmentId, to: target)
+    }
+
     /// SwiftUI's `onMove(fromOffsets:toOffset:)` for a single row, converted to the
     /// final-list index `place` takes. `toOffset` is an insertion point in the list AS
     /// DRAWN, so moving down lands one earlier once the row has left.

@@ -799,3 +799,46 @@ class TestRestoringOntoATakenPosition:
             row.position for row in db.query(ReadingOrderEntry, order_id=made["order_id"])
         ]
         assert len(set(positions)) == len(positions), positions
+
+
+class TestThePlaceRoute:
+    """`POST /api/reading-orders/{order_id}/place` (slice 13, Q5): the ONE reorder call the app's
+    three lists make, by drag or by key. The app is generated from the contract, and the generic
+    action route is not in it, so without this route the reorder the maintainer ruled on could
+    not be sent at all."""
+
+    def test_a_move_through_the_route_is_the_audited_action_and_undoes(self, db, client):
+        doc, pass_row, rows = _page(db)
+        made = _create(db, doc, pass_row, seed_from_pass=True)
+        entries = {row.segment_id: row for row in db.query(ReadingOrderEntry, order_id=made["order_id"])}
+
+        response = client.post(f"/api/reading-orders/{made['order_id']}/place", json={
+            "segment_id": rows[0].id, "after_entry_id": entries[rows[2].id].id,
+        })
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["ok"] and body["audit_id"]
+        assert _sequence(db, made["order_id"]) == [rows[1].id, rows[2].id, rows[0].id]
+
+        undone = client.post(f"/api/actions/audit/{body['audit_id']}/undo")
+        assert undone.status_code == 200, undone.text
+        assert _sequence(db, made["order_id"]) == [rows[0].id, rows[1].id, rows[2].id]
+
+    def test_a_stale_move_through_the_route_is_a_409(self, db, client):
+        doc, pass_row, rows = _page(db)
+        made = _create(db, doc, pass_row, seed_from_pass=True)
+        entries = {row.segment_id: row for row in db.query(ReadingOrderEntry, order_id=made["order_id"])}
+        _place(db, order_id=made["order_id"], segment_id=rows[0].id, at_end=True)
+
+        response = client.post(f"/api/reading-orders/{made['order_id']}/place", json={
+            "segment_id": rows[0].id, "expected_version": entries[rows[0].id].version,
+        })
+        assert response.status_code == 409
+
+    def test_the_order_id_comes_from_the_path_only(self, db, client):
+        doc, pass_row, rows = _page(db)
+        made = _create(db, doc, pass_row, seed_from_pass=True)
+        response = client.post(f"/api/reading-orders/{made['order_id']}/place", json={
+            "segment_id": rows[0].id, "order_id": "another", "at_end": True,
+        })
+        assert response.status_code == 422
