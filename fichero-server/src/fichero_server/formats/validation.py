@@ -9,6 +9,8 @@ files they did not write.
 
 from __future__ import annotations
 
+import threading
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -50,12 +52,26 @@ def validate_xml(data: bytes, schema_path: Path) -> list[str]:
     """
     from lxml import etree
 
-    with schema_path.open("rb") as handle:
-        schema = etree.XMLSchema(etree.parse(handle, parser=safe_parser()))
+    schema = _compiled(str(schema_path))
     try:
         tree = etree.fromstring(data, parser=safe_parser())
     except etree.XMLSyntaxError as exc:
         return [f"not well-formed XML: {exc}"]
-    if schema.validate(tree):
-        return []
-    return [f"line {entry.line}: {entry.message}" for entry in schema.error_log]
+    with _VALIDATE_LOCK:  # a compiled schema keeps its error log; one validation at a time
+        if schema.validate(tree):
+            return []
+        return [f"line {entry.line}: {entry.message}" for entry in schema.error_log]
+
+
+_VALIDATE_LOCK = threading.Lock()
+
+
+@lru_cache(maxsize=8)
+def _compiled(path: str) -> Any:
+    """The schema, compiled ONCE per process. TEI's `tei_all.xsd` is 1 MB and compiling it took
+    seconds on every export; the file on disk never changes under a running engine, so the
+    compiled form is cached by path."""
+    from lxml import etree
+
+    with open(path, "rb") as handle:
+        return etree.XMLSchema(etree.parse(handle, parser=safe_parser()))

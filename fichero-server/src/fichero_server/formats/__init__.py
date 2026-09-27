@@ -181,6 +181,7 @@ def _load_builtin_formats() -> None:
     be a caller that can forget one, and `first-four` would stop being data.
     """
     from fichero_server.formats import pagexml  # noqa: F401
+    from fichero_server.formats import tei  # noqa: F401
 
 
 _load_builtin_formats()
