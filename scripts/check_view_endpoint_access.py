@@ -69,9 +69,20 @@ TRANSPORT_PATTERNS: dict[str, re.Pattern] = {
     "client.api.* (generated client called from a view)": re.compile(r"\bclient\.api\."),
     "raw URLSession (hand-built HTTP in a view)": re.compile(r"\bURLSession(?:\.shared|\s*\()"),
     "@StateObject = …Service() (transport built inside a view)": re.compile(
-        r"@StateObject[^\n=]*=\s*[A-Za-z_][A-Za-z0-9_]*Service(?:Generated)?\s*\("
+        r"@StateObject[^\n=]*=\s*([A-Za-z_][A-Za-z0-9_]*Service(?:Generated)?)\s*\("
     ),
 }
+
+# `@StateObject = …Service()` is a NAME heuristic ("ends in Service"), not a check
+# of what the class actually does — found 2026-09-27 checking the standing
+# `ConnectPairingIOS.swift` backlog entry: `BonjourDiscoveryService` browses the
+# LAN via `NetServiceBrowser`/`NetService` and calls no backend endpoint at
+# all, so it does not touch the transport this rule exists to gate. A rename
+# to *Store would only teach people to route real endpoint access around a
+# rule that reads the same suffix, so the class NAME is named here instead —
+# same shape as `APPKIT_BRIDGE_MARKERS`, a visible, reviewed decision rather
+# than a widened pattern.
+NON_TRANSPORT_STATEOBJECT_SERVICES = ("BonjourDiscoveryService",)
 
 # ── Migration backlog ────────────────────────────────────────────────────────
 # Views known to bypass a store TODAY (audit #1882–#1900 / #1862). The script
@@ -79,14 +90,12 @@ TRANSPORT_PATTERNS: dict[str, re.Pattern] = {
 # Drop an entry the moment its view binds a store (EntityStore is the template).
 # Keys are POSIX paths relative to fichero/fichero/Views/.
 KNOWN_VIOLATIONS: dict[str, str] = {
-    # @StateObject = …Service() constructed inside the view (#1882–#1900)
-    "Connect/ConnectPairingIOS.swift": "#3102 — @StateObject BonjourDiscoveryService() in the iOS pairing view (local LAN discovery for pairing; grandfathered from FicheroApp_iOS before the file_length split)",
-    # client.api.* called directly from the view (raw transport)
-    "Settings/AI/LocalModelsSettingsView.swift": "#1894 — client.api.* local-models calls in view",
-    "Chat/ModelComparison/ComparisonDetailView+Actions.swift": "#1900 — client.api.getComparison… in view",
     # Migrated to stores (de-baselined): WorkflowDiagramPreview + WorkflowExecutionView
     # → WorkflowStore (#1911); Notes/Annotation tabs + ImageEditor + EntityDetail+Notes
-    # → NoteStore/AnnotationStore (#1882/#1883/#1889).
+    # → NoteStore/AnnotationStore (#1882/#1883/#1889); LocalModelsSettingsView (#1894)
+    # and ComparisonDetailView+Actions (#1900) → LocalModelsStore/ModelComparisonStore
+    # (2026-09-27); ConnectPairingIOS (#3102) was never really a violation — see
+    # NON_TRANSPORT_STATEOBJECT_SERVICES above (2026-09-27).
 }
 
 # ── Comment / preview stripping ──────────────────────────────────────────────
@@ -143,13 +152,34 @@ def is_excluded(path: Path) -> bool:
     return False
 
 
+_STATE_OBJECT_REASON = "@StateObject = …Service() (transport built inside a view)"
+
+
+def _has_transport_state_object(src: str) -> bool:
+    """True when a `@StateObject …Service()` construction names a class OTHER
+    than one of `NON_TRANSPORT_STATEOBJECT_SERVICES` — per-match, so a real
+    transport service named ALONGSIDE an exempt one is still caught."""
+    pattern = TRANSPORT_PATTERNS[_STATE_OBJECT_REASON]
+    return any(
+        match.group(1) not in NON_TRANSPORT_STATEOBJECT_SERVICES
+        for match in pattern.finditer(src)
+    )
+
+
 def violations_for(path: Path) -> list[str]:
     """Transport-bypass reasons found in this view file (empty == clean)."""
     try:
         src = code_only(path.read_text(errors="ignore"))
     except OSError:
         return []
-    return [reason for reason, pat in TRANSPORT_PATTERNS.items() if pat.search(src)]
+    reasons = []
+    for reason, pat in TRANSPORT_PATTERNS.items():
+        if reason == _STATE_OBJECT_REASON:
+            if _has_transport_state_object(src):
+                reasons.append(reason)
+        elif pat.search(src):
+            reasons.append(reason)
+    return reasons
 
 
 def scan() -> dict[str, list[str]]:

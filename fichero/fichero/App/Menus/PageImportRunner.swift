@@ -98,7 +98,11 @@ enum PageImportRunner {
             geometryProblems: Int
         ) -> String {
             var lines: [String] = []
-            if let warning = geometryWarning(count: geometryProblems) { lines.append("⚠︎ " + warning) }
+            // No glyph here: the alert itself is presented at `.warning` style when
+            // geometryProblems > 0 (see `importPage` below), which already shows a
+            // warning icon — a second one in plain text beside it would be a
+            // duplicate, and a `String` can't hold an SF Symbol anyway.
+            if let warning = geometryWarning(count: geometryProblems) { lines.append(warning) }
             lines.append(recognisedLine(fileName: fileName, recognisedFormat: recognisedFormat))
             lines.append(summary(segments: segments, readings: readings, orderEntries: orderEntries) + ".")
             lines.append(notWorkingPass)

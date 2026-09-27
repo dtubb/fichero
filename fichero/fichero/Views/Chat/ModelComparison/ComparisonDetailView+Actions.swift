@@ -28,28 +28,11 @@ extension ComparisonDetailView {
         isLoading = true
         error = nil
 
-        // Route through the generated client (injects auth + library header)
-        // instead of a hand-written URLSession call. Model-comparison is a
-        // dev-tier, app-wide feature; the middleware still supplies the bearer
-        // token the backend requires.
-        let client = libraryManager.globalLibrary?.ficheroClient ?? FicheroClient(
-            baseURL: EngineConfig.host,
-            transportMode: EngineConfig.transportMode
-        )
-
         do {
-            let response = try await client.api.getComparisonApiModelComparisonComparisonComparisonIdGet(
-                path: .init(comparisonId: comparisonSummary.comparisonId)
-            )
-
-            switch response {
-            case .ok(let okResponse):
-                comparison = Self.mapComparison(try okResponse.body.json)
-            case .unprocessableContent:
-                self.error = "Comparison not found"
-            case .undocumented(let statusCode, _):
-                self.error = "Server error: \(statusCode)"
-            }
+            let response = try await store.getComparison(comparisonId: comparisonSummary.comparisonId)
+            comparison = Self.mapComparison(response)
+        } catch let fetchError as ModelComparisonService.ComparisonFetchError {
+            error = fetchError.errorDescription
         } catch {
             self.error = error.localizedDescription
         }
