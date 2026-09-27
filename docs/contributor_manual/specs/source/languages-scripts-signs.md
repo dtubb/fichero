@@ -247,17 +247,33 @@ Direction
   order the lines run in, which is the other half of the page.
 
 Signs
-- `source.sign.declared` — **[GAP]** (#4939) a sign with no character can be declared with a name and a picture
-  cut from a real page.
-- `source.sign.list-authority` — **[GAP]** (#4939) a sign can be identified by an authority and a number in its
-  list, with no code point.
-- `source.sign.project-list` — **[GAP]** (#4939) declared signs live in a project's sign list, which can be
-  exported and shared.
-- `source.sign.in-readings` — **[GAP]** (#4939) a reading's text can mix characters and declared signs.
-- `source.sign.variants` — **[GAP]** (#4939) a variant form of an encoded character is recorded as the character
-  plus the variant.
-- `source.sign.gather-instances` — **[GAP]** (#4939) every instance of one sign in a project can be listed, with
-  its picture, from one search.
+- `source.sign.declared` — **[PARTIAL]** (#4939) a sign with no character can be declared with a name and a picture
+  cut from a real page. **Built, engine side:** `DeclaredSign` (`models/signs.py`) and the audited, undoable
+  `sign.declare` action. The picture is the segment the sign was met on, and it must be a real one. The maker
+  is set by the engine. Pinned on the real MUFI page (Clm 13027 fol. 38r):
+  `fichero-server/tests/unit/api/test_declared_signs.py::TestDeclaringASign::test_a_sign_is_declared_from_the_segment_it_was_met_on`. **Not built:** any
+  surface to declare one from; that waits for its wireframes.
+- `source.sign.list-authority` — **[PARTIAL]** (#4939) a sign can be identified by an authority and a number in its
+  list, with no code point (`fichero-server/tests/unit/api/test_declared_signs.py::TestDeclaringASign::test_a_sign_known_only_by_its_list_number_needs_no_code_point`).
+  **Not built:** search by catalogue number.
+- `source.sign.project-list` — **[PARTIAL]** (#4939) declared signs live in a project's sign list, which can be
+  exported and shared. `GET /api/signs` returns the list as the record itself
+  (`fichero-server/tests/unit/api/test_declared_signs.py::TestTheSignListAndItsInstances::test_the_project_sign_list_is_the_exportable_record`). One live sign per
+  code point (`::TestDeclaringASign::test_a_code_point_names_one_sign`); withdrawal is soft and undoable.
+  **Not built:** importing someone else's list.
+- `source.sign.in-readings` — **[PARTIAL]** (#4939) a reading's text can mix characters and declared signs.
+  **Built as ruled:** the text keeps the private-use character, and the declared sign says what it means.
+  Real MUFI text reads and exports unchanged. **Not built:** the position-to-sign map the design names, for
+  a sign that has no code point.
+- `source.sign.variants` — **[PARTIAL]** (#4939) a variant form of an encoded character is recorded as the character
+  plus the variant. A half-stated variant is refused
+  (`fichero-server/tests/unit/api/test_declared_signs.py::TestDeclaringASign::test_a_variant_says_both_what_it_varies_and_which_variant`). **Not built:** marking a
+  segment's reading as that variant.
+- `source.sign.gather-instances` — **[PARTIAL]** (#4939) every instance of one sign in a project can be listed, with
+  its picture, from one search. **Built:** `GET /api/signs/{id}/instances` finds every live reading that
+  uses the sign's code point in ONE query. On the real MUFI page that is all of its occurrences
+  (`fichero-server/tests/unit/api/test_declared_signs.py::TestTheSignListAndItsInstances::test_every_instance_on_the_real_page_is_gathered_by_one_query`). **Not
+  built:** each instance's picture, and instances of a sign with no code point.
 - `source.sign.shown-as-picture` — **[GAP]** (#4939) where no font has a sign, its picture is shown in line.
 - `source.sign.export-honest` — **[GAP]** (#4939) exports carry declared signs where the format can (TEI) and
   report substitutions where it cannot.

@@ -75,6 +75,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/segment_conv
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/segment_pictures.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/segment_readings.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/segments.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/signs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/source_settings.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/sources.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/typed_links.py
@@ -349,6 +350,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/models/reading_orders.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/readings.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/research.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/segments.py
+$(SRCROOT)/../fichero-server/src/fichero_server/models/signs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/source_declarations.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/typed_links.py
 $(SRCROOT)/../fichero-server/src/fichero_server/observability/__init__.py
