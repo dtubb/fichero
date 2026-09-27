@@ -241,12 +241,33 @@ def target_ids_from_params(params: Any) -> list[str]:
     if not isinstance(data, dict):
         return []
     target_ids: list[str] = []
+    _collect_target_ids(data, target_ids, into_lists=True)
+    return target_ids
+
+
+def _collect_target_ids(data: dict, target_ids: list[str], *, into_lists: bool) -> None:
+    """`*_id` / `*_ids` keys of `data`, and -- ONE level down -- of each item of a list of objects.
+
+    **Access control (#5135).** A BULK action carries its targets inside a list:
+    `segment.update_many`'s `updates[].segment_id`, `segment.restore_versions`'
+    `restores[].segment_id`, `artifact.bulk_create`'s `artifacts[].document_id`. Read at the
+    top level only, those ids were never resolved to their documents, so a person denied a
+    document could edit its segments through the bulk verb. Every id in such a list is now a
+    target, and `ActionRegistry.invoke` checks them all BEFORE the action runs -- one id the
+    caller may not write refuses the whole edit, and nothing is written.
+
+    Deliberately ONE level, into lists only: a nested single object (an anchor's
+    `document_id`) is a different question, left as it was and named on #5135.
+    """
     for key, value in data.items():
         if key == "id" or key.endswith("_id"):
             _append_target_id(target_ids, value)
         elif key.endswith("_ids"):
             _append_target_ids(target_ids, value)
-    return target_ids
+        elif into_lists and isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    _collect_target_ids(item, target_ids, into_lists=False)
 
 
 def target_id_from_request(request: Any) -> str | None:

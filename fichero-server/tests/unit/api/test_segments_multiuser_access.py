@@ -254,6 +254,12 @@ def _build_update(db, doc_id):
     }
 
 
+def _build_update_many(db, doc_id):
+    pass_row = _make_pass(db, doc_id)
+    seg = _make_segment(db, document_id=doc_id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
+    return "PATCH", "/api/segments", {"updates": [{"segment_id": seg.id, "expected_version": 1, "kind": "line"}]}
+
+
 def _build_delete(db, doc_id):
     pass_row = _make_pass(db, doc_id)
     seg = _make_segment(db, document_id=doc_id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
@@ -298,6 +304,7 @@ _WRITE_ROUTE_CHECKS: dict[tuple[str, str], object] = {
     ("POST", "/segments/split"): _build_split,
     ("POST", "/segments/carry"): _build_carry,
     ("PUT", "/segments/{segment_id}"): _build_update,
+    ("PATCH", "/segments"): _build_update_many,
     ("POST", "/segments/delete"): _build_delete,
     ("POST", "/segments/undelete"): _build_undelete,
     ("POST", "/segments/{segment_id}/restore-version"): _build_restore_version,
@@ -339,6 +346,10 @@ _READ_ROUTE_CHECKS: dict[tuple[str, str], object] = {
 #: from "forgotten".
 _READ_ONLY_ROUTES = {
     ("GET", "/segments/document/{doc_id}"),
+    # The scoped listing takes MANY documents, so it does not refuse -- it withholds the ones
+    # the caller may not read and counts them (#5135). Its checks are
+    # `TestTheScopedListingWithholdsWhatTheCallerMayNotRead` below, not the 403 table.
+    ("GET", "/segments"),
 }
 
 
@@ -808,3 +819,60 @@ class TestArtifactAndMatchCrossDocumentRefusal:
         )
         assert response.status_code == 409, response.text
         assert db.query(SegmentPass, document_id=doc_a.id) == []
+
+
+
+class TestABulkEditIsAllOrNothingOnAccess:
+    """#5135: `PATCH /api/segments` carried its ids in the body, where the per-target check
+    never looked. One id the caller may not write now refuses the WHOLE edit, before anything
+    is written -- the same all-or-nothing rule the edit already applies to stale versions."""
+
+    def test_one_denied_document_in_a_mixed_edit_changes_nothing(self, multiuser_client, app_db, users, db):
+        client, login, library_path = multiuser_client
+        _grant_role(app_db, users.editor, library_path, "editor")
+        allowed_doc = _make_doc(db, "mixed-allowed.jpg")
+        denied_doc = _make_doc(db, "mixed-denied.jpg")
+        _override(app_db, users.editor, library_path, denied_doc.id, "deny")
+        allowed = _make_segment(db, document_id=allowed_doc.id, pass_id=_make_pass(db, allowed_doc.id).id, rect=[0.1, 0.1, 0.1, 0.1])
+        denied = _make_segment(db, document_id=denied_doc.id, pass_id=_make_pass(db, denied_doc.id).id, rect=[0.1, 0.1, 0.1, 0.1])
+
+        response = client.request("PATCH", "/api/segments", json={"updates": [
+            {"segment_id": allowed.id, "expected_version": 1, "kind": "line"},
+            {"segment_id": denied.id, "expected_version": 1, "kind": "line"},
+        ]}, headers=login("editor"))
+
+        assert response.status_code == 403, response.text
+        for seg in (allowed, denied):
+            row = db.get(Segment, seg.id)
+            assert (row.version, row.kind) == (1, seg.kind), "a refused bulk edit must write NOTHING"
+
+
+class TestTheScopedListingWithholdsWhatTheCallerMayNotRead:
+    """#5135: `GET /api/segments` trusted its scope. A viewer denied one document now gets the
+    rest, and the response COUNTS what it withheld -- never names it."""
+
+    def _setup(self, app_db, db, library_path):
+        viewer = app_db.create_user(
+            username="lister", display_name="Lister", password_hash=accounts.hash_password("password"),
+        )
+        _grant_role(app_db, viewer, library_path, "viewer")
+        allowed_doc = _make_doc(db, "list-allowed.jpg")
+        denied_doc = _make_doc(db, "list-denied.jpg")
+        _override(app_db, viewer, library_path, denied_doc.id, "deny")
+        for doc in (allowed_doc, denied_doc):
+            _make_segment(db, document_id=doc.id, pass_id=_make_pass(db, doc.id).id, rect=[0.1, 0.1, 0.1, 0.1])
+        return allowed_doc, denied_doc
+
+    def test_a_denied_document_named_in_the_scope_is_withheld_and_counted(self, multiuser_client, app_db, db):
+        client, login, library_path = multiuser_client
+        allowed_doc, denied_doc = self._setup(app_db, db, library_path)
+
+        response = client.get(
+            "/api/segments", params={"document_ids": f"{allowed_doc.id},{denied_doc.id}"}, headers=login("lister"),
+        )
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert {item["document_id"] for item in body["items"]} == {allowed_doc.id}
+        assert body["withheld_documents"] == 1
+        assert denied_doc.id not in body["document_ids"], "withheld means not even named"
