@@ -106,6 +106,7 @@
   "Library/EntityThumbnailView.swift": "declares a View, no #Preview",
   "Library/LibraryActivityIndicator.swift": "declares a View, no #Preview",
   "Library/LibraryRowAttributes.swift": "declares a View, no #Preview",
+  "Library/LibraryThumbnailComponents.swift": "declares a View, no #Preview \u2014 RELOCATED from LibraryViewComponents.swift for file_length (#5113), which carries the same entry above. DocumentThumbnail and ProgressCell never had previews; the split did not create the debt, it moved it, and the preview is still owed for both.",
   "Library/LibraryThumbnailViews.swift": "declares a View, no #Preview",
   "Library/LibraryView+InlineEditing.swift": "declares a View, no #Preview",
   "Library/LibraryView.swift": "declares a View, no #Preview",

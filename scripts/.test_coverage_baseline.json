@@ -2085,7 +2085,7 @@
       "Views/Library/LibraryViewComponents.swift::EntityThumbnailKindStyle",
       "Views/Library/LibraryViewComponents.swift::EntityThumbnailView",
       "Views/Library/LibraryViewComponents.swift::MailStyleRow",
-      "Views/Library/LibraryViewComponents.swift::ProgressCell",
+      "Views/Library/LibraryThumbnailComponents.swift::ProgressCell",
       "Views/Library/LibraryViewComponents.swift::TextPreviewThumbnail",
       "Views/Components/NodeClassPicker.swift::NodeClassPicker",
       "Views/Components/NodeClassPicker.swift::WorkspaceCuratedItemsSection",
