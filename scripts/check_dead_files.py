@@ -38,9 +38,40 @@ TYPE_DECL = re.compile(
 BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 LINE_COMMENT = re.compile(r"(?<!:)//.*")
 IDENTIFIER = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
+#: A file can be reached through an EXTENSION on somebody else's type, and then it declares no
+#: type anybody names — only methods. That is the single blind spot behind 24 of this guard's 50
+#: allowlist entries, every one of them reading "extension file; scanner misses same-file
+#: extension wiring". Two live files were still being reported on 2026-09-27:
+#: ReaderFolderProxy.swift (folderProxy/folderProxyContent, called from ReadingPaneView+Tabs)
+#: and ContentView+SelectionAndDetailEvents.swift (handleBrowserSelectionChange and
+#: handleDetailDocumentChange, called from ContentView+RootLayout).
+EXTENSION_BLOCK = re.compile(r"^\s*extension\s+[A-Za-z_]", re.M)
+FUNC_DECL = re.compile(r"\bfunc\s+([A-Za-z_][A-Za-z0-9_]*)\s*[(<]")
+#: Protocol requirements every conforming file declares, so a match on one says nothing about
+#: whether THIS file is reached. `body` alone would make every SwiftUI view file look alive.
+PROTOCOL_REQUIREMENTS = frozenset({
+    "body", "makeBody", "makeNSView", "updateNSView", "makeUIView", "updateUIView",
+    "makeCoordinator", "hash", "encode", "validate", "update", "reset", "callAsFunction",
+})
 
 # Current candidate-dead backlog. Drop entries as files are removed or wired.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    # #5110 — BUILT AND UNREACHABLE, which is not the same as dead. Each is one SwiftUI view,
+    # no extension on another type, and no presentation site anywhere: no `.sheet(item:)`, no
+    # menu command, no context action. Entity merge and split are real ontology operations and
+    # the engine side exists, so deleting them throws away built work while wiring them is a
+    # product decision about where the door goes. Verified 2026-09-27 by classifying every
+    # reference as code or prose first — each type name appears exactly once, at its own
+    # declaration. Do not let these entries outlive the ruling on #5110.
+    "Views/Library/ViewModes/Graph/Ontology/Entity/EntityMergeSheet.swift": (
+        "#5110 — built, compiles, no door: merging two knowledge-graph entities"
+    ),
+    "Views/Library/ViewModes/Graph/Ontology/Entity/EntitySplitSheet.swift": (
+        "#5110 — built, compiles, no door: splitting one entity into two"
+    ),
+    "Views/Onboarding/FirstRunWindow+Library.swift": (
+        "#5110 — built, compiles, no door: the first-run library setup actions row"
+    ),
     "Views/Shell/ContentView/Layout/ContentView+WindowEnvironment.swift": (
         "#4902 — false positive, NOT dead: WindowEnvironmentModifier IS used, but only "
         "indirectly — three boundaries (ContentView+Navigation.swift:154, PaneSpec.swift:313, "
@@ -49,64 +80,30 @@ KNOWN_VIOLATIONS: dict[str, str] = {
         "`WindowEnvironmentModifier` again outside its own declaration. The scanner's "
         "type-name-reference heuristic can't see through that indirection."
     ),
-    "Views/Inspector/Knowledge/EntityDigestContent+Provenance.swift": (
-        "#4896/#4902 — extension file (the #4896 EntityDigestView split); its only NEW "
-        "declared type is the private `StatementsState` enum (used only by this file's own "
-        "`statementsState`/`provenanceSection`), so the scanner credits it as the 'primary "
-        "type' and finds it unreferenced by name elsewhere — the file's real content is "
-        "`EntityDigestContent` extension members (`provenanceSection`, `loadClaims`, etc.), "
-        "all live and called from EntityDigestView.swift's `body`."
-    ),
-    "Services/AnnotationService+Create.swift": "#4235-class — extension file; ScopeIds is the private scope-unpacking carrier for the same-file create path (2026-08-23 large_tuple fix)",
     "Views/Preview/EntrySourcePreview.swift": "#4235-class — extension-heavy view file; LadderLevel is the private containment-ladder rung enum used only by this view's own step logic (2026-08-23)",
-    "Views/Sidebar/ItemRow/SidebarItemRow+Presentation+Body.swift": "#4235-class — extension file; SidebarRowDropGate is the private drop-gate helper used by the same-file SidebarItemRow body (surfaced when the 2026-08-10 dead-code sweep removed the sibling files the scanner had credited)",
     "Views/Workflow/Library/WorkflowChainListView.swift": "2026-08-10 — candidate dead file: orphaned when the legacy WorkflowLibraryView list was removed (workflow clicks route straight to the node editor). Daniel is leaning 'chains fold into workflows'; delete this (and its Parts/) or rewire once he rules. Do not let this entry outlive the decision.",
-    "Models/DocumentStore+ChangeStream.swift": "#4235 — extension file; SpliceChanges is the private changed-flags carrier for spliceDocuments",
-    "Views/Library/LibraryView+FilterAndBatch.swift": "#4235 — extension file; LibraryEmptyPlaceholder classifies empty/loading/importing for LibraryView",
-    "Services/EmbeddedBackendService+Readiness.swift": "#1943 — extension file; SpawnWaitStep used by EmbeddedBackendService readiness methods (service split)",
-    "Services/EmbeddedBackendService+TLS.swift": "#1943 — extension file; DataBox/CachedTLSPaths used by EmbeddedBackendService TLS methods (service split)",
     "Models/CacheModel.swift": "#1945 — candidate dead file: CacheModel, CacheWrapper",
     "Models/DocumentStoreTypes.swift": "#3961 — candidate dead file: DocumentHierarchy. Never used in production (git log -S proves it); only its own 3 tests reference it. Surfaced when #3919 removed the file's other types. Delete or wire it — do not let this entry outlive the decision.",
     "Models/DragDropModel.swift": "#1945 — candidate dead file: DragDropModel",
-    "Views/Library/Actions/ActionPickerView.swift": "#1945 — candidate dead file: action picker helper types",
     "Views/Library/Automation/ScheduleCreationSheet.swift": "#1945 — candidate dead file: ScheduleCreationSheet",
-    "Views/Library/Automation/ScheduleEditorView+Category.swift": "#2955 — helper enum used only by same-file ScheduleEditorView extension; scanner misses local view/helper wiring",
     "Views/Library/Automation/TriggerCreationSheet.swift": "#1945 — candidate dead file: TriggerCreationSheet",
     "Views/Chat/Inspector/ChatInspector+ScopedDocuments.swift": "#2955 — helper row used only by same-file ChatInspector scoped-documents view builder",
-    "Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCard+Provenance.swift": "#1945 — candidate dead file: ProvenanceBadge",
     "Views/Library/ViewModes/Graph/Ontology/Entity/EntityDetailView+Biography.swift": "#1945 — candidate dead file: MentionSummary",
     "Intents/FicheroShortcuts.swift": "#2017 — App Intents/Shortcuts entry point helper",
-    "Views/Library/ViewModes/LibraryView+ColumnConfig.swift": "#1945 — candidate dead file: ColumnDefinition",
     "Views/Library/ViewModes/LibraryView+EntityFiltering.swift": "#1945 — candidate dead file: KgKindMapping (moved here from LibraryView+DisplayModes when that file was split by file_length; used only by the same-file entity-filter extension)",
     "Views/Preview/ImageViewer/ScrollWheelZoom.swift": "#1945 — candidate dead file: scroll-wheel zoom bridge types",
     "Views/Preview/PDFViewer/PageImageGrid.swift": "#1945 — candidate dead file: page image grid helper types",
-    "Services/ImportService+Ingest.swift": "#4235-class — extension file; IngestStallWatchdog is the private stall-not-wall-clock import timeout used by the same-file ImportService ingest loop (2026-08-10)",
-    "Views/Workflow/Canvas/WorkflowCanvasView+EdgeConnection.swift": "#4477 — live but scanner-blind: PortConnectionRules is the pure edge-legality function, consumed IN THIS FILE by the view's canConnect (lines 118, 168) and by PortConnectionRulesTests. Internal rather than private because the tests must reach it; the scanner's 'declared only here' heuristic does not model same-file use.",
-    "Views/Workflow/Editor/WorkflowEditor+Actions.swift": "#1945 — candidate dead file: workflow completion helper",
     "Views/Settings/MCP/MCPToolsCatalogView.swift": "#1945 — candidate dead file: MCP tools catalog helper types",
     "Views/Settings/MCP/MCPServersSheet.swift": "#3366 — settings routing keeps legacy sheet compiled for transition/back-compat",
     "Views/Library/Notes/NotesBrowserView.swift": "#2955 — live but scanner-blind: source read by NoteServiceTests",
     "Views/Sidebar/State/ActivityDataProcessing.swift": "#1945 — candidate dead file: ActivityWorkflowGroup",
-    "Views/Sidebar/ItemRow/SidebarItemRow+DropHandlers.swift": "#2955 — live but scanner-blind: FolderDropItemOutcome is a local result bundle; the extension's handleProvidersDrop/handleDropIntoFolder are called from SidebarItemRow+Drop.swift",
-    "Views/Sidebar/ItemRow/SidebarItemRow+Workflow.swift": "live but scanner-blind: SidebarWorkflowRequest is a private same-file parameter bundle used by runWorkflowOnDocuments/executeSidebarWorkflow; the extension is called from SidebarItemRow+Presentation.swift",
     "Views/Components/MiniToolbarComponents.swift": "#2955 — live but scanner-blind: WorkflowMiniToolbarButton exercised by #2415 tests",
-    "Views/Workflow/Nodes/DynamicConfigView+FieldRendering.swift": "#1945 — candidate dead file: DynamicFolderPickerOption",
     "Views/Workflow/Editor/SimpleWorkflowView.swift": "#1945 — candidate dead file: SimpleWorkflowView, SimpleWorkflow",
     "Views/Workflow/Execution/WorkflowExecutionView.swift": "#1945 — candidate dead file: workflow execution helper types",
-    "Services/WorkflowService+Conversions.swift": "#2955 — split from WorkflowService by file_length (2026-08-30); DerivedFlags is a private mapper helper used by the same-file conversion extension; scanner misses same-file wiring",
     # (WorkflowSuggestionPolicy now referenced directly — entry dropped 2026-08-31)
     # "Models/WorkflowSuggestionPolicy.swift": "2026-08-30 — suggestion glyphs left the toolbar (Daniel's ruling) so the policy is momentarily unreferenced; the suggestions-row-INSIDE-the-bar lane is APPROVED and rewires it. Do not let this entry outlive that lane.",
-    "Services/ChainService+StepExecution.swift": "2026-08-30 chains lane — extension file; WireRequest is its private request carrier; scanner misses same-file extension wiring",
-    "Views/Shell/ContentView/Layout/ContentView+WorkflowChainEngine.swift": "2026-08-30 chains lane — extension file driving engine-run chains from ContentView; EngineChainLaunch is its private launch carrier; scanner misses same-file extension wiring",
     "Views/Library/ViewModes/List/LibraryView+ListView.swift": "2026-09-01 — ListRowChrome is the per-pass row-settings carrier threaded into the same-file documentRow/mailRow builders (list-scroll perf); scanner misses same-file wiring",
-    "Views/Inspector/Document/DocumentInspector+Sections.swift": "#2955 — DocumentInspectorImageEditsTab is used only by the same-file editsTab() section builder (split from DocumentInspector); scanner misses same-file extension wiring",
-    "Services/ResearchService+Search.swift": "#2955 — WebSearchResultItem is the return type of the same-file webSearch() extension method (split from ResearchService by file_length); scanner misses same-file extension wiring",
     "Views/Workflow/Canvas/WorkflowEdgeView+Edges.swift": "#2955 — EdgesView/PortPositionCalculator split out of WorkflowEdgeView.swift by file_length; were ALREADY unreferenced pre-split (co-located, so unflagged). Appears to be superseded dead code (edges now render via WorkflowCanvasView+EdgesLayer) — FLAG FOR DANIEL to delete/wire; grandfathered so the split lands.",
-    "Views/Reader/Page/Immersive/PageTurnModifier.swift": "#2955 — PageTurnModifier + its AnyTransition extension are applied only within the same-cluster ImmersiveReaderView+Navigation (split from ImmersiveReaderView by file_length); scanner misses the ViewModifier-via-extension wiring",
-    "Views/Reader/Knowledge/DocumentKGWebPane+Theme.swift": "#2955 — ReaderTheme value type used only by the same-file theme-resolution funcs (split from DocumentKGWebPane by file_length); scanner misses same-file wiring",
-    "Services/WorkflowExecutionObserver+Events.swift": "hygiene — FileProgressCounters bundles fileIndex/fileTotal/progress for the same-file WorkflowExecution reducer helpers (extracted to clear function_body_length/parameter_count); file stays live via the WorkflowExecution.apply extension; helper type is local-only",
-    "Services/WorkflowStreamService+Parsing.swift": "hygiene — FileEventMeta bundles file-event fields for the same-file parseEvent helpers (extracted to clear function_body_length/cyclomatic_complexity); file stays live via the WorkflowStreamService parsing extension; helper type is local-only",
-    "Views/Library/LibraryView+BatchWorkflow.swift": "hygiene — BatchWorkflowThreadId (reference box for a mutable id shared across escaping closures) + BatchWorkflowRequest (param bundle) support the same-file runBatchWorkflow helpers (extracted to clear function_body_length/cyclomatic_complexity/parameter_count); file stays live via the LibraryView batch-workflow extension; helper types are local-only",
 }
 
 
@@ -143,6 +140,24 @@ def is_entry_or_generated(path: Path, source: str, names: list[str]) -> bool:
     return False
 
 
+def _reached_by_extension(source: str, own_counts: Counter, total_counts: Counter) -> bool:
+    """Whether this file adds a method to another type that somebody else calls.
+
+    Narrow on purpose. It applies only to files containing an `extension` block, and only to
+    `func` names — not stored or computed properties, and never a protocol requirement. A file
+    holding a single self-contained `struct SomeSheet: View` has no extension block, so an
+    unreferenced view is still reported, which is the case this guard exists for.
+    """
+    if not EXTENSION_BLOCK.search(source):
+        return False
+    for name in FUNC_DECL.findall(code_only(source)):
+        if name in PROTOCOL_REQUIREMENTS:
+            continue
+        if total_counts[name] > own_counts[name]:
+            return True
+    return False
+
+
 def scan() -> dict[str, list[str]]:
     files = swift_files()
     sources = {path: path.read_text(errors="ignore") for path in files}
@@ -161,6 +176,11 @@ def scan() -> dict[str, list[str]]:
         for name in names:
             if total_counts[name] == file_counts[path][name]:
                 unreferenced.append(name)
+
+        if unreferenced and len(unreferenced) == len(names) and _reached_by_extension(
+            sources[path], file_counts[path], total_counts
+        ):
+            continue
 
         if unreferenced and len(unreferenced) == len(names):
             rel = path.relative_to(SWIFT_ROOT).as_posix()
