@@ -266,12 +266,19 @@ Readings
   line's reading without character segments existing.
 
 Hands and ink
-- `source.hand.record` — **[GAP]** (#4935) a hand is a project record (name or label, date, place, style, notes)
-  shared across sources.
-- `source.hand.attributed` — **[GAP]** (#4935) a segment or campaign names its hand, with certainty and the
-  author of the judgement; rival attributions coexist.
-- `source.hand.not-provenance` — **[GAP]** (#4935) the Inspector shows who wrote the ink and who made the record
-  as two separate facts.
+- `source.hand.record` — **[OK]** (→ #4935) a hand is a project record (name or label, date, place, style, notes)
+  shared across sources. Engine side: `models/hands.py`, the audited `hand.create` / `hand.withdraw`, and
+  `GET /api/hands/{id}/attributions` for everything in one hand across sources. Tested by
+  `fichero-server/tests/unit/api/test_hands.py::test_a_hand_is_a_project_record_shared_across_sources`.
+- `source.hand.attributed` — **[PARTIAL]** (#4935) a segment or campaign names its hand, with certainty and the
+  author of the judgement; rival attributions coexist. **Segments: built** (`hand.attribute`, certainty 0–1,
+  the judge as `created_by`; a second judgement never replaces the first --
+  `test_hands.py::test_rival_attributions_stand_side_by_side`). **Campaigns: owed**, with campaigns.
+  Not yet: reading EpiDoc's `<handShift new>` into attributions on import.
+- `source.hand.not-provenance` — **[PARTIAL]** (#4935) the Inspector shows who wrote the ink and who made the record
+  as two separate facts. **The engine keeps them apart** (the attribution names the hand; its `created_by` and
+  `provenance_kind` name who judged -- `test_hands.py::test_the_hand_is_not_who_made_the_record`); the Inspector
+  does not show either yet.
 - `source.campaign.ordered` — **[GAP]** (#4935) a source has ordered campaigns; segments belong to one; campaigns can
   share characters.
 - `source.campaign.reading-says-which` — **[GAP]** (#4935) a reading can say which campaigns it takes in.

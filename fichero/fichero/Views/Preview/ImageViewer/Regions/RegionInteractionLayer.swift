@@ -54,6 +54,10 @@ struct RegionInteractionLayer: View {
     var renditionId: String?
     /// True while rubber-band add mode is armed.
     let isAddingRegion: Bool
+    /// Whether this layer draws the static selection highlight. False on the Mac image canvas,
+    /// where the document overlay draws it in the same view and pass as its box (#5020). The live
+    /// move-drag preview is still drawn here, because it follows the pointer.
+    var drawsSelection: Bool = true
     /// The Shape tool in the Edit Segments mode: a drawn box becomes a segment at once
     /// (`SegmentEditingMode.shapeDrawsSegment`), not a marquee waiting to be named.
     var drawsSegments: Bool = false
@@ -139,7 +143,9 @@ struct RegionInteractionLayer: View {
     @ViewBuilder
     private func selectedRegionRects(in size: CGSize) -> some View {
         if artifactId != nil, selection.artifactId == artifactId {
-            ForEach(selection.indices.filter { allBoxes.indices.contains($0) }, id: \.self) { index in
+            ForEach(selection.indices.filter {
+                allBoxes.indices.contains($0) && (drawsSelection || moveDrag?.index == $0)
+            }, id: \.self) { index in
                 let box = allBoxes[index]
                 if let rect = BoundingBoxGeometry.viewRect(
                     normalized: box.bbox, in: size, visible: visible

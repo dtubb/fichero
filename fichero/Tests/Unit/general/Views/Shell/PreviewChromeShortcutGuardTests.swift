@@ -344,3 +344,25 @@ struct JoinIsTheOneNameGuardTests {
         #expect(canvas.contains("actionName: \"Join Regions\""))
     }
 }
+
+/// The WIRING, which no unit test can render: the Mac image canvas draws its boxes and its selection
+/// through the document overlay and has the SwiftUI layers stop drawing them. A source guard, and
+/// named as one -- the behaviour is pinned by the pure tests above; this stops a later edit quietly
+/// putting the boxes back on the SwiftUI path, which is where the lag (#5142) and the second
+/// transform (#5020) came from.
+struct DocumentOverlayWiringGuardTests {
+    private func source(_ path: String) throws -> String {
+        try String(contentsOf: AppSource.root().appendingPathComponent(path), encoding: .utf8)
+    }
+
+    @Test("the Mac canvas feeds the document overlay and turns the SwiftUI box drawing off")
+    func boxesAreDrawnInsideTheScrollView() throws {
+        let overlays = try source("Views/Preview/ImageViewer/ZoomableImagePreviewMac+Overlays.swift")
+        #expect(overlays.contains("documentOverlay: documentOverlay"))
+        #expect(overlays.contains("drawsBoxes: false"))
+        let regions = try source("Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Regions.swift")
+        #expect(regions.contains("drawsSelection: false"))
+        let tracking = try source("Views/Preview/ImageViewer/CursorTracking/ImageWithCursorTrackingMac.swift")
+        #expect(tracking.contains("syncDocumentOverlay(documentOverlay, in: trackingView)"))
+    }
+}

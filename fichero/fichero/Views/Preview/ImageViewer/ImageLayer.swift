@@ -5,15 +5,13 @@ import SwiftUI
 /// display switches are LAYERS -- the image on or off, the overlays on or off -- and overlays
 /// without the image is a view the maintainer wants).
 ///
-/// Off means the pixels are not DRAWN, not that the image view goes away: its frame, zoom and
-/// scroll position are what every overlay is laid out against, so hiding the view would move or
-/// drop every box. Alpha, not `isHidden`: a hidden AppKit view stops receiving the clicks and
-/// drags the region layer is fed from, and an alpha-0 one does not.
+/// Off means the pixels are not DRAWN (`TrackingImageView.drawsImagePixels`), not that the image
+/// view goes away or fades: its frame, zoom and scroll are what the boxes are drawn in, and the
+/// document overlay lives INSIDE it (#5020, #5142), so hiding or fading the view would take the
+/// boxes with it. It keeps receiving clicks as before.
 enum ImageLayer {
     /// Shared by every image canvas; the What-to-show menu's "Show Image" writes it.
     static let defaultsKey = "imagePreview.imageVisible"
-
-    static func alpha(visible: Bool) -> CGFloat { visible ? 1 : 0 }
 }
 
 /// What a WORKSPACE says a preview pane's layers start as (ruled 2026-09-27, Q2: each layer has good

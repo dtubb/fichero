@@ -107,7 +107,8 @@ extension ZoomableImagePreview {
                    geometryFrameMatchesDisplay(ocrGeometry) {
                     OCRGeometryOverlay(
                         geometry: ocrGeometry,
-                        visible: geometry.visible
+                        visible: geometry.visible,
+                        drawsBoxes: false  // drawn inside the scroll view now (#5020, #5142)
                     )
                 }
                 // Regions as first-class (2026-08-29): the INTERACTIVE layer
@@ -250,7 +251,8 @@ extension ZoomableImagePreview {
                         ),
                         coordinator: $imageCoordinator,
                         onPointer: { pointerFeed.publish($0) },
-                        imageVisible: imageVisible
+                        imageVisible: imageVisible,
+                        documentOverlay: documentOverlay
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .overlay(alignment: .topLeading) {
