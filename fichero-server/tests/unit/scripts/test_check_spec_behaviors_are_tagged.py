@@ -88,6 +88,24 @@ class TestItDoesNotFlagWhatIsNotABehavior:
         assert guard.untagged_behaviors(specs) == []
 
 
+class TestANestedWorktreeIsNotPartOfTheSpecs:
+    def test_a_worktree_inside_the_specs_dir_is_not_scanned(self, tmp_path):
+        """The real incident: an agent's isolated worktree is created at
+        `<cwd>/.claude/worktrees/<id>/` -- a whole second repo. Spawned from inside
+        specs/source/, it made this guard report 128 bullets from RELEASE_NOTES.md,
+        agent-work notes and sandbox research as untagged behaviours."""
+        nested = tmp_path / ".claude" / "worktrees" / "agent-x" / "docs"
+        nested.mkdir(parents=True)
+        (nested / "notes.md").write_text("- `engine.log` — not a spec behaviour.\n")
+        assert guard.untagged_behaviors(tmp_path) == []
+
+    def test_a_real_spec_beside_it_is_still_scanned(self, tmp_path):
+        """The skip must not swallow the specs it sits next to."""
+        (tmp_path / ".claude").mkdir()
+        write_spec(tmp_path, "- `source.table.cells` — untagged.\n")
+        assert [e[2] for e in guard.untagged_behaviors(tmp_path)] == ["source.table.cells"]
+
+
 class TestTheBaselineShrinksOnly:
     def test_identity_ignores_the_line_number(self, tmp_path):
         """Editing prose ABOVE a known-untagged bullet moves its line and must not fail the

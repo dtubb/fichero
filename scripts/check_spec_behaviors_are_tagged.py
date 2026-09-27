@@ -73,6 +73,13 @@ def untagged_behaviors(specs_dir: pathlib.Path) -> list[tuple[str, int, str]]:
     for path in sorted(specs_dir.rglob("*.md")):
         if path.name.startswith("_"):  # _TEMPLATE.md and friends are scaffolding
             continue
+        # Hidden directories are never specs, and one of them is dangerous: an agent's
+        # isolated worktree lands at `<its cwd>/.claude/worktrees/<id>/`, a FULL second copy
+        # of the repo. On 2026-09-27 one was spawned from inside specs/source/, and this scan
+        # walked into it and reported every bullet of every markdown file in the repo. git
+        # ignores `.claude/`; a filesystem walk does not, so the walk has to.
+        if any(part.startswith(".") for part in path.relative_to(specs_dir).parts[:-1]):
+            continue
         # Repo-relative for a real spec so the message is a path you can click; relative to
         # the scanned root otherwise, so a fixture directory outside the repo still works
         # (the tests found this by raising ValueError here on their first run).
