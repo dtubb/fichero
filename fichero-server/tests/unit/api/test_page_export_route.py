@@ -115,3 +115,51 @@ class TestTheFormatList:
         # outputs was checked against somebody else's rules and which was not.
         assert all(items[n]["validated"] for n in ("tei", "pagexml", "alto"))
         assert not any(items[n]["validated"] for n in ("hocr", "yolo"))
+
+
+class TestTheDocumentsLanguageReachesTheFile:
+    """`source.lang.says-where-from` meeting `source.format.everywhere`: a page whose language is
+    recorded on the DOCUMENT, which is where a library normally records it.
+
+    The three writers handle language well -- PAGE XML maps it to its closed 188-name enumeration,
+    ALTO refuses a NAME where it wants a BCP 47 tag and says so, TEI builds an `xml:lang`. None of
+    that runs, because `page_export` reads `row.language` off each segment row and a segment that
+    states nothing stays None. The cascade (slice 9) is never consulted, so the document's language
+    reaches no format, and nothing reports it as lost either. Silence, in all three.
+
+    The assertion is deliberately NOT "the file says Spanish": ALTO honestly cannot carry a language
+    NAME, and demanding it could would be demanding a lie. It is the weaker, true rule -- **state it
+    or declare it lost, never neither** -- so any of the honest fixes satisfies it.
+    """
+
+    @pytest.mark.xfail(strict=True, reason=(
+        "#5085. page_export.py maps `language=row.language`, the segment's own column, and never resolves "
+        "the cascade, so a document-level language is silently absent from every export. The fix is "
+        "page-level, not per-segment: promoting the document's answer onto each line would store a "
+        "derived fact as a stated one, and a re-import would read it back as 188 lines each "
+        "independently declaring Spanish. PAGE XML's PageType carries primaryLanguage, "
+        "readingDirection and textLineOrder for exactly this, so `SourcePage` needs the three fields "
+        "PageSegment already has"))
+    @pytest.mark.parametrize("fmt", ["tei", "pagexml", "alto"])
+    def test_it_is_stated_in_the_file_or_declared_lost(self, db, client, fmt):
+        from fichero_server.models import Document
+
+        page, _ = _converted(db, client)
+        doc = db.get(Document, page.id)
+        doc.language = "Spanish"
+        db.save(doc)
+
+        body = client.get(f"/api/documents/{page.id}/export/{fmt}").json()
+        stated = "Spanish" in body["content"] or "es" in _lang_attributes(body["content"])
+        declared = any(l["what"] == "language" for l in body["losses"])
+        assert stated or declared, (
+            f"{fmt} export of a Spanish document neither states the language nor reports losing it"
+        )
+
+
+def _lang_attributes(content: str) -> set[str]:
+    """Every language-ish attribute value in the file, so the check does not depend on which
+    attribute a given format chose."""
+    import re
+
+    return set(re.findall(r'(?:xml:lang|LANG|primaryLanguage)="([^"]+)"', content))
