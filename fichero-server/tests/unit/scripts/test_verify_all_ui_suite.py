@@ -42,8 +42,15 @@ def test_full_ios_gate_is_generic_simulator_compile_only() -> None:
 
 
 def test_selfcheck_returns_failure_status_after_running_later_checks() -> None:
+    """The probe tests failure RECORDING — that a failed check is counted and later
+    checks still run. It does not need the gate harness around it, and inheriting it
+    made this unit test a test of the machine: under 20 GB free the harness's disk
+    preflight (#4434) refused before the probe ran (red on 2026-09-27 at 13 GB), and
+    outside a gate run it queued on the one global lock behind any live gate.
+    """
     env = os.environ.copy()
     env["PYTHON_BIN"] = sys.executable
+    env["VERIFY_ALL_NO_GATE"] = "1"
 
     result = subprocess.run(
         ["bash", "scripts/verify_all.sh", "--self-check"],
