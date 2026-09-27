@@ -1,39 +1,38 @@
-"""Every file in `fixtures/corpus/` through the one harness (#5130, #4944).
+"""Every file in `fixtures/corpus/` through OUR export (#5130, #4944).
 
 **Every format defect found so far came from somebody else's file**, and none from a
 round trip through our own writer — a round trip only proves we can read what we
 wrote. So this module takes a corpus of pages written by OTHER people's software, in
-many scripts and directions, and runs each one through exactly the entry points the
-importer and exporter use (`format_for`, `read_page`, `validate`, `write_page`). There
-is no second path here: a file that passes here passes because the harness handles it.
+many scripts and directions and in whatever version of the format they arrived in, and
+runs each one through exactly the entry points the importer and exporter use
+(`format_for`, `read_page`, `write_page`, `validate`). No second path.
+
+**What is under test is OUR export.** Every real file, whatever version it arrives
+in, must import, go out through our writer, and come out valid against the schema we
+export (the latest we vendor) — with nothing lost that the loss report does not name.
+An old-version file is MORE valuable here, not less: a PAGE 2013 Transkribus page going
+out as valid PAGE 2019 is exactly the path a real user walks.
+
+A third-party file that is invalid by its OWN schema, or in an old version, is
+information about that file. It is recorded in `fixtures/corpus/CORPUS.md` and is never
+a failing test here. Only three outcomes fail:
+
+1. an import that raises (or reads nothing);
+2. an export of ours that does not validate (`write_page` refuses to write it);
+3. a loss the report does not name — every segment kind, language, direction, script
+   and reading text that went in either comes back out or is NAMED.
 
 The corpus directory is GLOBBED, so a file dropped into it is covered with no edit to
-this module. Where each file came from, its licence and the one shape only it covers
-are in `fixtures/corpus/CORPUS.md`. **Never edit a corpus file**: a file we edited to
-make it pass tests our idea of the file, and our idea is the thing under test.
+this module. **Never edit a corpus file**: a file we edited to make it pass tests our
+idea of the file, and our idea is the thing under test.
 
-For each file, four claims:
-
-1. it imports — the reader does not raise, and something arrives;
-2. the SOURCE validates against its format's vendored schema, when there is one for
-   that file's namespace. A real file failing its own schema is a FINDING ABOUT THE
-   FILE, not a defect of ours — so those are pinned in `SOURCE_SCHEMA_FINDINGS` with
-   the problem they have, which makes a change in either direction loud;
-3. what we write back validates (`write_page` refuses an invalid export — an invalid
-   file is never written);
-4. the loss report is honest: every segment kind, language, direction and reading
-   text that went in either comes back out or is NAMED by the report. A silent drop
-   is the one outcome this fails on.
-
-Failures here are the point of the corpus. A real file we cannot handle is listed in
-`tests/known_specification_failures.txt` under #5130 (strict xfail), with a line
-saying what the file does that we do not — so a fix fails the test and says "delete
-this line". Do NOT fix a reader from this module; the readers belong to the formats.
+A real file we cannot handle is listed in `tests/known_specification_failures.txt`
+under #5130 (strict xfail), with a line saying what the file does that we do not — so a
+fix fails the test and says "delete this line". Do NOT fix a reader from this module.
 """
 
 from __future__ import annotations
 
-import importlib.util
 from collections import Counter
 from pathlib import Path
 
@@ -67,30 +66,6 @@ SUFFIX_FORMAT = {
     ".tei.xml": "tei",
     ".hocr.xml": "hocr",
     ".hocr": "hocr",
-}
-
-#: The source check uses `scripts/validate_exports.py`'s own classification rather
-#: than a second one: `valid`, `INVALID`, `other version`, `no schema`. A PAGE 2013 or
-#: ALTO 4.3 file is `other version` — NOT CHECKED YET, neither pass nor failure — and
-#: is skipped with that reason so the count of unjudged files stays visible.
-_VALIDATE_EXPORTS = Path(__file__).resolve().parents[4] / "scripts" / "validate_exports.py"
-_spec = importlib.util.spec_from_file_location("validate_exports", _VALIDATE_EXPORTS)
-validate_exports = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(validate_exports)
-
-#: Real files that fail their OWN schema, with a fragment of the problem. This is a
-#: record of what other people's software writes, pinned so it cannot drift silently:
-#: a file listed here that starts validating fails (the entry is stale), and a file not
-#: listed that stops validating fails (a new finding to record in CORPUS.md).
-SOURCE_SCHEMA_FINDINGS: dict[str, str] = {
-    # eScriptorium mints UUIDs for line ids, and a UUID may start with a digit --
-    # which `xsd:ID` (an NCName) forbids. Our reader keeps the id; our writer
-    # re-mints one, so the export validates while the source does not.
-    "escriptorium_occitan_flamenca-0001.alto.xml": "is not a valid value of the atomic type",
-    # Transkribus's TEI export uses each image's FILE NAME as `<pb xml:id>`
-    # ("0001_100_003_011_445.png"), and `xml:id` must be an NCName. The file is
-    # not well-formed in the strict sense, so no schema can judge it at all.
-    "transkribus_tibetan-layout_pagantibet-corr1.tei.xml": "is not an NCName",
 }
 
 
@@ -162,27 +137,10 @@ class TestEachRealFile:
         assert isinstance(page, SourcePage)
         assert page.segments, f"{path.name}: read without error and produced NOTHING"
 
-    def test_the_source_validates_against_its_own_schema(self, corpus_file):
-        path, claimed, data = corpus_file
-        outcome, _name, problems = validate_exports.check_bytes(path.name, data)
-        if outcome in ("no schema", "other version"):
-            pytest.skip(f"{outcome}: NOT CHECKED YET, neither pass nor failure -- {problems[:1]}")
-        assert outcome in ("valid", "INVALID"), f"{path.name}: {outcome}"
-
-        expected = SOURCE_SCHEMA_FINDINGS.get(path.name)
-        if expected is None:
-            assert problems == [], (
-                f"{path.name} does not validate against its own schema -- a FINDING "
-                f"about the file; record it in SOURCE_SCHEMA_FINDINGS and CORPUS.md: "
-                f"{problems[:3]}"
-            )
-        else:
-            assert problems, f"{path.name} now validates; delete its SOURCE_SCHEMA_FINDINGS entry"
-            assert any(expected in problem for problem in problems), problems[:3]
-
-    def test_what_we_write_back_validates(self, corpus_file):
-        """`write_page` raises `InvalidExport` rather than return an invalid file;
-        the explicit `validate` is the claim stated where it can be read."""
+    def test_our_export_validates_against_the_schema_we_export(self, corpus_file):
+        """Whatever version the file arrived in. `write_page` raises `InvalidExport`
+        rather than return an invalid file; the explicit `validate` states the claim
+        where it can be read."""
         path, claimed, data = corpus_file
         page = read_page(claimed, data)
 
@@ -226,7 +184,7 @@ class TestEachRealFile:
 
 def _stated(page: SourcePage, fact: str) -> set[str]:
     """Every value of `language` / `direction` / `script` the page states, page-level
-    and per segment. A `readingDirection` the model has no value for (`ttb`) rides in
+    and per segment. A `readingDirection` the model has no value for rides in
     `foreign`, and is counted: it is still a fact the file stated."""
     values = {getattr(page, fact)} | {getattr(segment, fact) for segment in page.segments}
     if fact == "direction":

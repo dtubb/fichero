@@ -5,10 +5,12 @@ precedent this follows: each file is here because another program wrote it, and 
 we edited to make a test pass would test our idea of that program instead.
 
 `tests/unit/formats/test_real_corpus.py` globs this directory, so a file added here is
-tested with no code change: it must be recognised from its bytes, import, (where a
-schema for its version is vendored) validate as a source, write back valid, and lose
-nothing the loss report does not name. **Add a row here in the same commit**; the test
-fails on a file with no row.
+tested with no code change. **What is tested is OUR export**: whatever version a file
+arrives in, it must be recognised from its bytes, import, go out through our writer
+valid against the schema we export, and lose nothing the loss report does not name. A
+source that is invalid by its own schema, or in an old version, is recorded below as
+information about that file — never a failing test. **Add a row here in the same
+commit**; the test fails on a file with no row.
 
 **Naming:** `<producer>_<language-or-script>_<short-id>.<page|alto|tei>.xml`, or `.hocr`.
 
@@ -59,19 +61,27 @@ checked against what was vendored.
   parse raises. The file is non-conformant; the question for the formats lane is whether
   the reader should recover (the data is otherwise ordinary).
 
-**Real files failing their own schema (findings about the FILE, pinned in
-`SOURCE_SCHEMA_FINDINGS`):**
+**The same defect classes at scale.** Run over the larger sets below (1,327 files from
+CHI-KNOW-PO, RASAM, both Syriac deposits, the Greek set and PaganTibet's `Manual1`),
+**1,264 import and export valid, 62 exports are refused — every one a segment with no
+shape** (58 lines with `points=""`, 3 `eSc_dummyblock_` regions, 1 self-closing
+`<TextLine/>`) — and 1 import fails (`Manual1`, the NCName defect). No other defect
+appeared.
 
-- `escriptorium_occitan_flamenca-0001.alto.xml`: eScriptorium line ids are UUIDs; one
-  that starts with a digit is not an `xsd:ID`. Import is fine and our export validates
-  (the writer re-mints ids).
-- `transkribus_tibetan-layout_pagantibet-corr1.tei.xml`: the NCName problem above.
+**The sources as they arrived — information about the FILES, never a test failure.**
+`scripts/validate_exports.py` on this directory (2026-09-27): 7 valid, 2 INVALID, 7
+other version, 1 no schema.
 
-**Source validation, in `scripts/validate_exports.py`'s own terms** (run it on this
-directory): **7 valid, 2 INVALID, 7 other version, 1 no schema.** The 7 `other version`
-are the PAGE **2013** files (7 of the 8 PAGE files here) — NOT CHECKED YET, neither pass
-nor failure, until the formats lane vendors the 2013 schema; judging them by the 2019
-schema would be a statement about the version. hOCR has no schema by nature.
+- 7 are **PAGE 2013** (7 of the 8 PAGE files here) — an older version, which is the
+  point: each goes out as PAGE 2019 and must validate as that.
+- `escriptorium_occitan_flamenca-0001.alto.xml` is INVALID by its own schema:
+  eScriptorium line ids are UUIDs, and one starting with a digit is not an `xsd:ID`.
+  Import is fine and our export validates (the writer mints its own ids).
+- `transkribus_tibetan-layout_pagantibet-corr1.tei.xml` is not even well-formed under
+  `xml:id` rules (the NCName problem above).
+- `transkribus_multidirection_cpas2000.page.xml` declares its namespace with `https://`,
+  so strictly it is not PAGE at all; we read it anyway.
+- hOCR has no schema by nature.
 
 **Silence, recorded honestly:** only one file here states a direction (`cpas2000`), and
 only the hOCR and `cpas2000` state a language in a field the model reads. The Chinese,
