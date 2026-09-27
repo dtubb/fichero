@@ -258,6 +258,34 @@ extension DocumentService {
     ///   - overwrite: Replace an existing file. Callers that already showed a
     ///     save panel pass `true` — the panel asked, and a 409 here would ask
     ///     the same question again and lose the answer.
+    /// One page as an interchange format -- PAGE XML, ALTO or TEI.
+    ///
+    /// The response carries the file's text AND the choices the engine made
+    /// (which pass, which reading order, which reading kind) AND what the
+    /// format could not carry. All three matter: "export this page" is
+    /// ambiguous the moment a page has two passes, and a loss nobody is told
+    /// about is a loss that looks like a clean export.
+    func exportPage(
+        documentId: String,
+        format: String
+    ) async throws -> Components.Schemas.PageExportResponse {
+        logger.info("Exporting page \(documentId) as \(format)")
+
+        let response = try await client.api.exportDocumentPageApiDocumentsDocIdExportFormatNameGet(
+            .init(path: .init(docId: documentId, formatName: format))
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+
     func exportWord(
         outputPath: String,
         targetId: String? = nil,

@@ -98,6 +98,28 @@ struct ReaderExportMenuItems: View {
                 Label("Export as Word...", systemImage: "doc.richtext")
             }
             .disabled(currentLibrary == nil || targets?.isEmpty != false)
+
+            // One page, as a format another scholarly tool reads. Separate
+            // from the two above because it exports what the page IS -- its
+            // segments, shapes, language, script, direction and reading order
+            // -- rather than what you are reading. Enabled for a SINGLE
+            // document only: an interchange file describes one page, and
+            // offering it for a multi-selection would promise something the
+            // format cannot express.
+            Menu("Export Page As") {
+                ForEach(PageExportRunner.Format.allCases, id: \.rawValue) { format in
+                    Button(format.menuTitle) {
+                        guard let item = targets?.items.first, let library = currentLibrary else { return }
+                        Task {
+                            await PageExportRunner.exportPage(
+                                documentId: item.id, documentName: item.name,
+                                format: format, library: library
+                            )
+                        }
+                    }
+                }
+            }
+            .disabled(currentLibrary == nil || targets?.items.count != 1)
         }
         #else
         EmptyView()
