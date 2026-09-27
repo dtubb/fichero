@@ -94,7 +94,8 @@ exportable = not done. Every behavior below names which spine segment it lands o
   screen until he clicked the item — the overlay does not refresh on its own when segmentation
   finishes. **Cause, VERIFIED at the tree (not a hypothesis):** saving an artifact emitted NO
   change event; the run's only event fired on a document STATUS transition and never named an
-  artifact; the app has no subscriber for artifact updates. **The engine half is committed,
+  artifact. **THE THIRD CLAUSE OF THAT CAUSE WAS WRONG** — see the correction below; the app's
+  subscriber existed the whole time. **The engine half is committed,
   193ce62ef**: one `artifact.updated` event per finished run, naming `artifact_ids` and
   `document_ids`, fired whether or not a document's status changed — covers every
   `process_vision` tool. **`align_transcript` is now covered too (2026-09-27), both ways it can
@@ -106,9 +107,27 @@ exportable = not done. Every behavior below names which spine segment it lands o
   `test_align_transcript_announces_itself.py` (both ids, fires with no status change, the
   broadcast comes AFTER the save, and a declined alignment broadcasts nothing) and
   `test_align_transcript_reports_its_artifacts.py`.
-  Not yet proven against a real run's final state, and the app has no subscriber yet — the event
-  existing is not the same claim as the overlay redrawing. **Tag stays BROKEN**: this was seen
-  fail on a screen, and it is not claimed until the maintainer runs Kraken again and the boxes
+  **THE APP'S SUBSCRIBER EXISTS AND ALWAYS DID, audited 2026-09-27.** This entry said twice that
+  it did not, and that sent every reader looking on the wrong side of the wire.
+  `ArtifactEntityStore` conforms to `ChangeEventConsumer` with `changeDomains = ["artifact"]`,
+  is registered at `LibraryManager.swift:263`, and bumps a per-document revision for every id in
+  `event.documentIds` — deliberately NOT gated on whether it holds a bundle for that document
+  (ruling of 2026-09-19, quoted in its own comment: a Preview pane showing document X with no
+  Inspector bundle for X would otherwise never refresh). Both overlays observe it through an
+  `artifactEntityRevision` folded into their geometry `.task(id:)` — `ZoomableImagePreviewMac`
+  for images, `PDFPageWithToolbar` for PDF pages — alongside `FocusedArtifact.shared.id`, so
+  either signal re-fires the load.
+
+  **Why the wrong clause looked true for eight days.** The revision path could not fire for
+  Kraken, because `align_transcript` reported its ids under a key the collector never read, so
+  the event carried none. The CLICK path (`FocusedArtifact`) was the only one that could ever
+  work — which is precisely the reported symptom. From outside, "the only thing that refreshes
+  the overlay is clicking the item" is indistinguishable from "there is no subscriber". The
+  diagnosis was right about the symptom and wrong about which side of the wire held the cause,
+  and being wrong in that direction cost more than being vague would have.
+
+  **Tag stays BROKEN**: this was seen fail on a screen, and it is not claimed until the
+  maintainer runs Kraken again and the boxes
   appear on their own.
 - `segment.kraken.segments-a-pdf-page` — **[PARTIAL]** (#4892) seen live 2026-09-19: the
   maintainer ran Kraken segmentation on one page of a PDF and it failed, while Apple Vision on
