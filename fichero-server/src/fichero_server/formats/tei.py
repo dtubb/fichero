@@ -66,6 +66,51 @@ REGION_TAGS = frozenset({"ab", "p", "head", "l"})
 #: Elements whose content is not the page's transcription.
 NON_TRANSCRIPTION = frozenset({"note", "teiHeader", "facsimile"})
 #: Inline elements the reader understands; anything else is recorded, not silently absorbed.
+#: The side of a `<choice>` that is what the page says, as against what an editor made of it.
+AS_WRITTEN = frozenset({"orig", "sic", "abbr"})
+
+def _written_text(element: Any, kept: list | None = None, start: int = 0) -> str:
+    """`itertext()`, but a `<choice>` gives its as-written side only (never both, run together).
+
+    With `kept`, each choice's OTHER side is appended to it as `_choice_record` makes it, `start`
+    being where this element's text begins in its reading."""
+    parts = [element.text or ""]
+    for child in element:
+        if not isinstance(child.tag, str):
+            pass
+        elif _tag(child) == "choice":
+            written, others = _choice_sides(child)
+            if written is not None:
+                if kept is not None:
+                    at = start + len(_norm("".join(parts)))
+                    kept.extend(_choice_record(at, written, other) for other in others)
+                parts.append(_written_text(written))
+        elif _tag(child) == "lb" and child.get("break") == "no":
+            # A word that runs on across the line break: no space where the line broke.
+            parts[-1] = parts[-1].rstrip()
+            parts.append((child.tail or "").lstrip())
+            continue
+        else:
+            parts.append(_written_text(child, kept, start + len(_norm("".join(parts)))))
+        parts.append(child.tail or "")
+    return "".join(parts)
+
+
+def _choice_sides(choice: Any) -> tuple[Any, list]:
+    """The as-written side of a `<choice>` (orig/sic/abbr; the first child if none is marked), and the rest."""
+    sides = [c for c in choice if isinstance(c.tag, str)]
+    written = next((c for c in sides if _tag(c) in AS_WRITTEN), sides[0] if sides else None)
+    return written, [c for c in sides if c is not written]
+
+
+def _choice_record(at: int, written: Any, other: Any) -> dict:
+    return {
+        "at": at,
+        _tag(written): _norm(_written_text(written)).strip(),
+        _tag(other): _norm(_written_text(other)).strip(),
+    }
+
+
 KNOWN_INLINE = frozenset({"lb", "pb", "w", "seg", "app", "lem", "rdg", "ab", "p", "head", "l",
                           "div", "text", "body", "TEI"})
 
@@ -307,7 +352,7 @@ def read_pages(data: bytes) -> list[SourcePage]:
             # A word the line's own text does not contain (PAGE XML lets a `Word` carry text its
             # `TextLine` does not). It is a word segment of the line and NOT part of the line's text.
             word = add_segment("word", element, state["line"], page)
-            text = _norm("".join(element.itertext())).strip()
+            text = _norm(_written_text(element)).strip()
             if text:
                 word.readings.append(("transcription", text))
             _tail(element)
@@ -360,7 +405,7 @@ def read_pages(data: bytes) -> list[SourcePage]:
             flush_line()
             line = add_segment("line", element, region, page)
             state["line"], state["buffer"], state["line_page"] = line, [], page
-            state["buffer"].append(_norm("".join(element.itertext())))
+            state["buffer"].append(_norm(_written_text(element)))
             flush_line()
             _tail(element)
             return
@@ -374,7 +419,7 @@ def read_pages(data: bytes) -> list[SourcePage]:
             _tail(element)
             return
         if tag == "w":
-            text = _norm("".join(element.itertext()))
+            text = _norm(_written_text(element))
             line = state["line"]
             word = add_segment("word", element, line, page)
             if text.strip():
@@ -382,13 +427,36 @@ def read_pages(data: bytes) -> list[SourcePage]:
             state["buffer"].append(text)
             _tail(element)
             return
+        if tag == "choice":
+            # ONE stretch, two readings an encoder paired: as written, and regularised /
+            # corrected / expanded (`readings-and-apparatus.md`, the `<choice>` note). Reading
+            # both sides into the text invents a word on neither the page nor in the edition
+            # ("κεχωνευμένακεχωνημένα", #5130). Until word-level segments can carry the pair as
+            # two readings, the line's text takes the AS-WRITTEN side and the other side is kept
+            # verbatim, with its position, and named by the export's loss report.
+            written, others = _choice_sides(element)
+            holder = state["line"] if state["line"] is not None else state["region"]
+            at = len(_norm("".join(state["buffer"])).lstrip())
+            if written is not None:
+                _children(written, region, page)
+            if holder is not None and written is not None:
+                holder.foreign.setdefault("tei-choice", []).extend(
+                    _choice_record(at, written, other) for other in others
+                )
+            _tail(element)
+            return
         if tag == "app":
             lem = next((c for c in element if _tag(c) == "lem"), None)
             if lem is not None:
-                state["buffer"].append("".join(lem.itertext()))
+                holder = state["line"] if state["line"] is not None else state["region"]
+                kept: list = []
+                at = len(_norm("".join(state["buffer"])).lstrip())
+                state["buffer"].append(_written_text(lem, kept, at))
+                if holder is not None and kept:
+                    holder.foreign.setdefault("tei-choice", []).extend(kept)
             line = state["line"]
             for rdg in (c for c in element if _tag(c) == "rdg"):
-                alt = _norm("".join(rdg.itertext())).strip()
+                alt = _norm(_written_text(rdg)).strip()
                 if line is not None and alt:
                     line.foreign.setdefault("_alts", []).append((rdg.get("type") or "transcription", alt))
             if lem is not None and lem.get("type") and state["line"] is not None:
@@ -591,6 +659,16 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                     f"TEI has only a CSS style hint for direction (ltr, rtl, vertical); "
                     f"{segment.direction!r} has none",
                 )
+        for choice in segment.foreign.get("tei-choice", []):
+            (w_tag, w_text), (o_tag, o_text) = [(k, v) for k, v in choice.items() if k != "at"][:2]
+            # One line per choice: which side was dropped, and where, so nothing goes silently.
+            report.note(
+                "choice",
+                1,
+                f"{segment.ref or segment.kind}, character {choice['at']}: <{w_tag}>{w_text}</{w_tag}> kept, "
+                f"<{o_tag}>{o_text}</{o_tag}> not written back -- a <choice>'s two sides are two readings, "
+                "which need word-level segments to carry",
+            )
         if segment.foreign.get("tei-inline"):
             report.note(
                 "inline markup",

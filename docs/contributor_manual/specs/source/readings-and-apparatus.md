@@ -52,6 +52,13 @@ A segment has any number of **readings**. A reading has:
   > `source.reading.kinds` and the TEI round trip (`source.format.round-trip-tei`, #4945), not with
   > `historical-text-normalization.md`'s rules, which are about DERIVING a normalised reading, not
   > about carrying one an encoder already made.
+  >
+  > **Built so far (2026-09-27), and what is owed.** The TEI reader takes a `<choice>`'s AS-WRITTEN
+  > side (`orig` / `sic` / `abbr`) for the line's text, keeps the other side verbatim with its
+  > character position (the segment's `tei-choice`), and the export's loss report names each one on
+  > its own line. It no longer joins both sides into one word (#5130; four DDbDP papyri,
+  > `test_tei.py::TestAChoiceIsNotTwoWordsRunTogether`). **Owed:** the pair as TWO readings of one
+  > word segment, written back out as a `<choice>`. That waits for word-level segments from TEI.
 - its **language and script**;
 - **what it was read from**: which image of the page, and, for a reading made from another
   reading (a translation, a normalisation), which one;
@@ -307,7 +314,19 @@ Marks and descriptions
 
 ## Test matrix
 
-To be filled at approval.
+To be filled at approval. Until then, the real files that hands, campaigns and editorial facts are
+tested on:
+
+- **Until the EpiDoc editions are wired in, the TEI Consortium's transcription test file
+  (`fichero-server/tests/unit/formats/fixtures/tei_consortium_testtranscr.xml`) is the only real `@hand`
+  in the fixtures.** One file, one project's idea of hands.
+- **Four DDbDP papyri** (EpiDoc, CC BY 3.0, vendored 2026-09-27; rows in
+  `fichero-server/tests/unit/formats/fixtures/corpus/CORPUS.md`, files `ddbdp_greek-papyrus_*.tei.xml`):
+  `<handShift new>` (up to three hands a papyrus), `<unclear>`, `<supplied reason="lost">`, `<gap>`,
+  `<del>`, `<add>` and `<choice><reg>/<orig>`. They are what `source.hand.*`, `source.campaign.*` and
+  `source.sure.editorial-facts` are to be built against. They already found one defect: the TEI reader
+  joins both sides of a `<choice>` into one word (`test_tei.py::TestAChoiceIsNotTwoWordsRunTogether`,
+  strict xfail, #5130).
 
 ## Open questions
 

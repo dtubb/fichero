@@ -347,3 +347,69 @@ class TestThroughTheOneModelFromAnotherFormat:
         assert got == was and len(was) > 10
         assert len([s for s in back.segments if s.kind == "line"]) == len([s for s in page.segments if s.kind == "line"])
         assert "graphic segments" in report.lost, "the file's graphic region has no TEI element and says so"
+
+
+EPIDOC = sorted((Path(__file__).parent / "fixtures" / "corpus").glob("ddbdp_*.tei.xml"))
+
+
+def _choice_pairs(data: bytes, *, outside_del: bool = False) -> list[tuple[str, str]]:
+    """Each `<choice>`'s two sides, as the encoder wrote them, from the file itself (plain lxml,
+    not our reader). `outside_del` leaves out choices inside a `<del>`: deleted text is not
+    part of a reading, so there is nothing of theirs to keep."""
+    from lxml import etree
+
+    ns = {"t": "http://www.tei-c.org/ns/1.0"}
+    pairs = []
+    for choice in etree.fromstring(data).iterfind(".//t:choice", ns):
+        if outside_del and any(a.tag == "{http://www.tei-c.org/ns/1.0}del" for a in choice.iterancestors()):
+            continue
+        # `<lb break="no"/>` inside a side: the word runs on, so the line break adds no space.
+        sides = ["".join("".join(child.itertext()).split()) if child.find("t:lb[@break='no']", ns) is not None
+                 else "".join(child.itertext()).strip() for child in choice if isinstance(child.tag, str)]
+        if len(sides) == 2 and all(sides):
+            pairs.append((sides[0], sides[1]))
+    return pairs
+
+
+class TestAChoiceIsNotTwoWordsRunTogether:
+    """Four DDbDP papyri (EpiDoc, CC BY 3.0, `fixtures/corpus/CORPUS.md`). A `<choice>` is two
+    readings of one stretch -- as written and regularised -- that an encoder paired
+    (`readings-and-apparatus.md`, the `<choice>` note). Our reader used to join the two sides,
+    so `<reg>κεχωνευμένα</reg><orig>κεχωνημένα</orig>` imported as ONE word,
+    "κεχωνευμένακεχωνημένα", on neither the papyrus nor in the edition (#5130). Found on real
+    files; a round trip of our own writer never makes a `<choice>`, so it could not see this.
+
+    The quick fix: the line's text takes the AS-WRITTEN side; the other side is kept with its
+    position and named, one line each, by the export's loss report. Carrying both as two
+    readings waits for word-level segments (the owed part, in the spec). The choices in these
+    files sit in plain text, inside `<lem>`, inside `<add>`, around a `<lb/>`, and inside
+    `<del>` -- each path is covered, which is why the count below is per file, not a sample."""
+
+    @pytest.mark.parametrize("path", EPIDOC, ids=lambda p: p.name)
+    def test_no_reading_holds_both_sides_joined(self, path):
+        data = path.read_bytes()
+        pairs = _choice_pairs(data)
+        assert pairs, f"{path.name} has no <choice> -- this test tests nothing on it"
+        texts = [text for s in read_page("tei", data).segments for _kind, text in s.readings]
+        joined = [a + b for a, b in pairs] + [b + a for a, b in pairs]
+        glued = [j for j in joined if any(j in text for text in texts)]
+        assert glued == [], f"{path.name}: both sides of a <choice> read as one word: {glued[:3]}"
+
+    @pytest.mark.parametrize("path", EPIDOC, ids=lambda p: p.name)
+    def test_every_other_side_is_kept_and_named_by_the_loss_report(self, path):
+        data = path.read_bytes()
+        expected = _choice_pairs(data, outside_del=True)
+        page = read_page("tei", data)
+        kept = [c for s in page.segments for c in s.foreign.get("tei-choice", [])]
+        assert len(kept) == len(expected), f"{path.name}: {len(kept)} kept of {len(expected)} choices"
+        assert {c.get("reg") for c in kept} == {reg for reg, _orig in expected}, "a regularised side went missing"
+        _written, report = write_page("tei", page)
+        named = [loss for loss in report.losses if loss.what == "choice"]
+        assert len(named) == len(expected)
+        assert all("not written back" in loss.why and "character" in loss.why for loss in named)
+
+    def test_the_as_written_side_is_the_text(self):
+        page = read_page("tei", EPIDOC[1].read_bytes())  # P.Cair.Zen. 4 59742
+        texts = [text for s in page.segments for _kind, text in s.readings]
+        assert any("ληνοῦ κεχωνημένα" in t for t in texts), texts
+        assert not any("κεχωνευμένα" in t for t in texts)
