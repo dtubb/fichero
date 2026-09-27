@@ -34,6 +34,7 @@ import re
 from pathlib import Path
 
 import pytest
+from _scan_files import scan_rglob
 
 # fichero-server/src/fichero_server
 SRC_ROOT = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
@@ -159,7 +160,7 @@ def _is_allowlisted(rel: str) -> bool:
 def _scan_source_tree() -> dict[str, list[tuple[str, int]]]:
     """Return {relpath: [(kind, lineno), ...]} for every flagged non-allowlist file."""
     flagged: dict[str, list[tuple[str, int]]] = {}
-    for path in sorted(SRC_ROOT.rglob("*.py")):
+    for path in sorted(scan_rglob(SRC_ROOT, "*.py")):
         rel = _rel(path)
         # Generated code (e.g. the OpenAPI CLI client under cli/generated/) is
         # not hand-written business logic — SQL-looking strings there are field

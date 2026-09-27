@@ -43,6 +43,7 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from pathlib import Path
+from _scan_files import scan_rglob
 
 APP_ROOT = Path(__file__).resolve().parents[4] / "fichero" / "fichero"
 
@@ -90,7 +91,7 @@ def _strip_noise(text: str) -> str:
 def _sources() -> dict[Path, str]:
     return {
         path: _strip_noise(path.read_text(errors="ignore"))
-        for path in sorted(APP_ROOT.rglob("*.swift"))
+        for path in sorted(scan_rglob(APP_ROOT, "*.swift"))
     }
 
 

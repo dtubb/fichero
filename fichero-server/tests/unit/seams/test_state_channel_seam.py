@@ -42,6 +42,7 @@ from __future__ import annotations
 import ast
 from collections import defaultdict
 from pathlib import Path
+from _scan_files import scan_rglob
 
 SRC = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
 TYPES_MODULE = SRC / "workflows" / "types.py"
@@ -77,7 +78,7 @@ def _annotation_is_state(annotation: ast.expr | None) -> bool:
 def _scanned_files() -> list[Path]:
     files: list[Path] = []
     for package in SCANNED_PACKAGES:
-        files.extend(sorted((SRC / package).rglob("*.py")))
+        files.extend(sorted(scan_rglob((SRC / package), "*.py")))
     return files
 
 

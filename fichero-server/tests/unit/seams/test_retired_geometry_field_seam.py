@@ -56,6 +56,7 @@ import ast
 from pathlib import Path
 
 import pytest
+from _scan_files import scan_rglob
 
 #: Models that retired `bbox`. A keyword `bbox=` aimed at one of these is a
 #: stale caller; aimed at anything else it is very likely still correct.
@@ -108,7 +109,7 @@ def _scan(paths) -> list[str]:
     for root in paths:
         if not root.exists():
             continue
-        for path in sorted(root.rglob("*.py")):
+        for path in sorted(scan_rglob(root, "*.py")):
             if "__pycache__" in path.parts:
                 continue
             try:

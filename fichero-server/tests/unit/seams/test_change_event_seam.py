@@ -49,6 +49,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from _scan_files import scan_rglob
 
 SRC = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
 
@@ -65,7 +66,7 @@ ALLOWED_SILENT_WRITERS: dict[str, str] = {}
 
 def _modules() -> dict[str, ast.Module]:
     out: dict[str, ast.Module] = {}
-    for path in sorted(SRC.rglob("*.py")):
+    for path in sorted(scan_rglob(SRC, "*.py")):
         try:
             out[str(path.relative_to(SRC))] = ast.parse(path.read_text(encoding="utf-8"))
         except SyntaxError:

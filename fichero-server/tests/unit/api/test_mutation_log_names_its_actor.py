@@ -24,6 +24,7 @@ from __future__ import annotations
 import ast
 import inspect
 from pathlib import Path
+from _scan_files import scan_rglob
 
 
 SRC = Path(__file__).parents[3] / "src" / "fichero_server"
@@ -44,7 +45,7 @@ class TestEveryCallSiteNamesItsActor:
 
     def test_no_mutation_log_is_written_without_created_by(self):
         offenders: list[str] = []
-        for path in sorted(SRC.rglob("*.py")):
+        for path in sorted(scan_rglob(SRC, "*.py")):
             try:
                 tree = ast.parse(path.read_text(encoding="utf-8"))
             except SyntaxError:  # pragma: no cover - defensive

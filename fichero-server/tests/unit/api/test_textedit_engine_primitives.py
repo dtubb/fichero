@@ -39,6 +39,7 @@ from fichero_server.models import Artifact
 from fichero_server.models.anchors import SourceAnchor
 
 from .seeded_converted_page import seed_page
+from _scan_files import scan_rglob
 
 pytestmark = pytest.mark.source_model
 
@@ -165,7 +166,7 @@ class TestReturnSplitsTheLineSegmentSplitPrimitive:
         server_src = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
         assert server_src.is_dir(), f"search root does not exist, would search nothing: {server_src}"
         hits = []
-        for path in server_src.rglob("*.py"):
+        for path in scan_rglob(server_src, "*.py"):
             text = path.read_text(errors="ignore")
             if re.search(r"proportion.*baseline|baseline.*proportion|caret.*offset|offset.*caret", text, re.I):
                 hits.append(str(path))

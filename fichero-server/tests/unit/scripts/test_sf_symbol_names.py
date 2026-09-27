@@ -17,6 +17,7 @@ import re
 from pathlib import Path
 
 import pytest
+from _scan_files import scan_rglob
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _SWIFT_ROOT = _REPO_ROOT / "fichero" / "fichero"
@@ -53,7 +54,7 @@ def _load_catalog() -> set[str] | None:
 def _swift_files() -> list[Path]:
     return [
         path
-        for path in _SWIFT_ROOT.rglob("*.swift")
+        for path in scan_rglob(_SWIFT_ROOT, "*.swift")
         if _EXCLUDED_PARTS.isdisjoint(path.parts)
     ]
 

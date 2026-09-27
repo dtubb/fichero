@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from fichero_server.llm import lang_detect
+from _scan_files import scan_rglob
 
 ENGINE_SRC = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
 
@@ -36,7 +37,7 @@ def _resolve_calls(path: Path) -> list[ast.Call]:
 def test_every_resolve_output_language_call_passes_primary_language():
     """A call site that omits it silently reverts to per-chunk auto-detect."""
     offenders: list[str] = []
-    for path in sorted(ENGINE_SRC.rglob("*.py")):
+    for path in sorted(scan_rglob(ENGINE_SRC, "*.py")):
         for call in _resolve_calls(path):
             if not any(kw.arg == "primary_language" for kw in call.keywords):
                 offenders.append(f"{path.relative_to(ENGINE_SRC)}:{call.lineno}")
@@ -51,7 +52,7 @@ def test_all_three_known_tools_are_covered():
     """Guards the AST test itself: if the calls moved, this notices."""
     covered = {
         path.relative_to(ENGINE_SRC).as_posix()
-        for path in sorted(ENGINE_SRC.rglob("*.py"))
+        for path in sorted(scan_rglob(ENGINE_SRC, "*.py"))
         if _resolve_calls(path)
     }
 

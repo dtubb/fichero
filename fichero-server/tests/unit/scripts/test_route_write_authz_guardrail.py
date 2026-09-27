@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROUTES_ROOT = (
     Path(__file__).resolve().parents[3]
@@ -46,7 +47,7 @@ def _decorated_methods(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]
 
 def _mutating_handlers_with_read_dependency() -> list[tuple[str, str]]:
     offenders: list[tuple[str, str]] = []
-    for path in sorted(ROUTES_ROOT.rglob("*.py")):
+    for path in sorted(scan_rglob(ROUTES_ROOT, "*.py")):
         source = path.read_text(encoding="utf-8")
         tree = ast.parse(source)
         rel = path.relative_to(ROUTES_ROOT).as_posix()

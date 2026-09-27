@@ -34,6 +34,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
+from _scan_files import scan_rglob
 
 # fichero-server/src/fichero_server
 SRC_ROOT = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
@@ -204,7 +205,7 @@ def _conn_attr_execute_hits(tree: ast.AST) -> list[int]:
 
 def _scan_for_conn_attr_execute() -> dict[str, list[int]]:
     flagged: dict[str, list[int]] = {}
-    for path in sorted(SRC_ROOT.rglob("*.py")):
+    for path in sorted(scan_rglob(SRC_ROOT, "*.py")):
         rel = path.relative_to(SRC_ROOT).as_posix()
         if "generated" in path.parts:
             continue

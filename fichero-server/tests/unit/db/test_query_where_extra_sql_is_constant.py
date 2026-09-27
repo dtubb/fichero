@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from _scan_files import scan_rglob
 
 SRC_ROOT = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
 
@@ -47,7 +48,7 @@ def _is_allowed_constant(node: ast.expr) -> bool:
 
 def test_every_query_where_call_passes_a_constant_extra_sql():
     violations: list[str] = []
-    for path in sorted(SRC_ROOT.rglob("*.py")):
+    for path in sorted(scan_rglob(SRC_ROOT, "*.py")):
         tree = ast.parse(path.read_text(), filename=str(path))
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):

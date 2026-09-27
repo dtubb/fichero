@@ -13,6 +13,7 @@ import re
 from pathlib import Path
 
 from fichero_server.models import DocType
+from _scan_files import scan_rglob
 
 _SRC = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
 # `DocType.<name>` where <name> is a plain identifier (skip method-y calls).
@@ -25,7 +26,7 @@ def test_all_doctype_attribute_refs_are_valid_members():
     valid = {m.name for m in DocType} | _ALLOWED_NON_MEMBERS
     offenders: list[str] = []
 
-    for path in _SRC.rglob("*.py"):
+    for path in scan_rglob(_SRC, "*.py"):
         for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             for member in _REF.findall(line):
                 if member not in valid:

@@ -19,6 +19,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from _scan_files import scan_rglob
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
@@ -103,7 +104,7 @@ def test_prompts_survive_backticks(modules) -> None:
 def test_committed_pages_exist_and_carry_the_generated_banner(modules) -> None:
     """The reference is committed output, not a build artefact people forget."""
     gen, _ = modules
-    pages = sorted(gen.OUT_DIR.rglob("*.md"))
+    pages = sorted(scan_rglob(gen.OUT_DIR, "*.md"))
     assert len(pages) > 90, f"only {len(pages)} reference pages committed"
     for page in pages:
         assert page.read_text().startswith(gen.BANNER), page
