@@ -163,12 +163,33 @@ Rules for every format
   writer is complete but its export refuses** until the xlink schema ALTO imports is vendored (#5082);
   TEI is the other lane's (#4945). `first-four` is data rather than a branch: the registry is the
   only thing that knows the list, and it now holds five.
-- `source.format.import-is-pass` — **[GAP]** (#4943) an import arrives as a new pass with its provenance and
-  overwrites nothing.
-- `source.format.reimport-recognised` — **[GAP]** (#4943) importing the same file again is recognised, not
-  duplicated silently (the importer's content-hash skip, → #739, is the mechanism).
-- `source.format.keeps-unrecognised` — **[GAP]** (#4943) content the model has no field for is kept, labelled,
-  and written back on export to that format.
+- `source.format.import-is-pass` — **[OK]** (→ #4943) an import arrives as a new pass with its provenance and
+  overwrites nothing. `format.import` writes a pass, its segments, their readings and the file's
+  order in four batches; the pass records `import_file` and `import_checksum` (fields slice 1 had
+  already put there). Pinned by
+  `tests/unit/formats/test_import_into_library.py::TestAnImportArrivesAsAPass`, including that **it
+  does NOT become the working pass** (arriving is not winning — promoting it would answer a
+  scholarly question with a file operation) and that a pre-existing pass's segments are identical
+  afterwards.
+- `source.format.reimport-recognised` — **[OK]** (→ #4943) importing the same file again is recognised, not
+  duplicated silently — by the mechanism the spec names, the content hash on
+  `SegmentPass.import_checksum`, and **no second dedupe table**. Pinned by
+  `test_import_into_library.py::TestReimportIsRecognised`: the same bytes are a 409 naming the pass
+  that already holds them, a **renamed** copy is still recognised (the hash is of content), a
+  different file is accepted, and the same file on another document is accepted because the hash is
+  scoped to the document.
+- `source.format.keeps-unrecognised` — **[PARTIAL]** (#4943) content the model has no field for is kept,
+  labelled, and written back on export to that format. **Both halves hold within a format's own
+  round trip**: PAGE XML's `custom` and hOCR's `x_wconf` / baseline polynomial are read into
+  `foreign` and written back, pinned by
+  `test_escriptorium.py::TestTheRoundTripAUserActuallyWalks::test_escriptoriums_custom_is_written_BACK_not_merely_kept`
+  and `test_hocr_and_yolo.py::TestHocrRoundTrip::test_hocrs_own_baseline_is_written_back_not_declared_lost`.
+  The import keeps it too, on the segment's `metadata["foreign"]`
+  (`::test_unrecognised_content_rides_along_on_the_segment`).
+  **What is NOT done: `page_export` never reads it back out.** A file imported into a library and
+  then exported loses what the import kept, because the library-page builder maps columns and not
+  `metadata["foreign"]` — so the write-back half is true format-to-format and false
+  library-to-format. `[PARTIAL]` rather than `[OK]` for exactly that gap.
 - `source.format.export-validated` — **[OK]** (→ #4943) an export is validated against its schema; an invalid
   one is a reported failure — **and no file**, because a file that exists and does not validate is
   one somebody sends to a colleague. Validation lives in the harness, so no format implements it and
@@ -216,10 +237,19 @@ what the loss report named), one for each format that goes both ways:
   `test_hocr_and_yolo.py::TestYoloIsHonestAboutLosingAlmostEverything::test_the_geometry_survives_and_that_is_what_round_trips`
   and `::test_the_centre_first_conversion_is_not_off_by_half_a_box`.
 - `source.format.round-trip-columnar` — **[GAP]** (#4946) the columnar round trip holds.
-- `source.format.export-choices` — **[GAP]** (#4943) an export names the pass, reading order and reading kind
-  it writes, with defaults.
-- `source.format.everywhere` — **[GAP]** (#4943) import and export work from the app, MCP and the command line,
-  with a remote engine.
+- `source.format.export-choices` — **[OK]** (→ #4943) an export names the pass, reading order and reading kind
+  it writes, with defaults. Pinned by
+  `fichero-cli/tests/test_export_page_command.py::test_export_page_calls_the_one_route_with_the_choices`
+  and by the route's own `test_page_export_route.py`. (The CLI test root was outside `TEST_ROOTS`
+  until 2026-09-27, so this behaviour's only evidence was in the one place the pipeline could not
+  read — which is why it still read `[GAP]`.)
+- `source.format.everywhere` — **[PARTIAL]** (#4943) import and export work from the app, MCP and the command line,
+  with a remote engine. **Export: app and CLI** (`GET /api/documents/{id}/export/{format}`, and
+  `fichero export page`, pinned by `fichero-cli/tests/test_export_page_command.py`). **Import: app
+  only** (`POST /api/documents/{doc_id}/import`, pinned by
+  `test_import_into_library.py::TestTheImportRoute`). **Neither on MCP, and no CLI import** — so the
+  surfaces are two of three for export and one of three for import. Named rather than averaged: a
+  scholar working from the command line can get a file out and not in.
 
 Each format (one import and one export behaviour each)
 - `source.format.pagexml-in` · `source.format.pagexml-out` — **[OK]** (→ #4944). `pagexml-in` is pinned by
@@ -237,7 +267,13 @@ Each format (one import and one export behaviour each)
   and re-imports gets their word back rather than a block nobody drew. Pinned by
   `test_alto.py::TestTheImplicitParentIsWrittenAndMarked` (5 tests, including that a real page with
   proper parents invents nothing).
-- `source.format.tei-in` · `source.format.tei-out` **[GAP]** (#4945)
+- `source.format.tei-in` · `source.format.tei-out` — **[OK]** (→ #4945), pinned by
+  `tests/unit/formats/test_tei.py::TestTheRoundTripHolds` — granularity and nesting, language,
+  script and direction both ways, right-to-left text byte for byte, shapes and baselines to the
+  pixel, the reading order as a sequence, and words as segments inside their line. **Residue:** no
+  real third-party TEI file is vendored (the one found was CC BY-NC-SA, which cannot go into this
+  repository's history), so TEI is the one format whose reader is tested only against our own
+  output — the weakness a real file exposed three times in PAGE XML.
 - `source.format.mei-in` · `source.format.mei-out` **[GAP]** (#4945)
 - `source.format.w3c-in` · `source.format.w3c-out` **[GAP]** (#4946)
 - `source.format.hocr-in` · `source.format.hocr-out` — **[OK]** (→ #4944), pinned by

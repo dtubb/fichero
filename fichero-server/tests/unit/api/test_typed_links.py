@@ -1,6 +1,12 @@
 """One typed link record, one vocabulary (#4931, slice 10).
 
-`source.link.typed`, `source.link.any-depth`, `source.link.both-ways`.
+`source.link.typed`, `source.link.both-ways`.
+
+**NOT `source.link.any-depth`**, which this file cited by mistake until 2026-09-27. That behaviour
+says links *chain* (a comment on a comment) and *cross sources*; what is tested below is that a link
+joins segments of any GRANULARITY, which is a different claim and belongs to `source.link.typed`.
+Chaining needs `LinkEndKind.link`, which does not exist. Rule (i) flagged the citation and the tag
+turned out to be right.
 
 The vocabulary is the interesting half. Four records already hold "this relates to
 that", each with its own word list, and the record built to remove four
@@ -231,7 +237,8 @@ class TestLinkingSegments:
         assert "same_as" in SYMMETRIC_LINK_TYPES
 
     def test_links_join_segments_of_any_granularity(self, db):
-        """`source.link.any-depth`. Nothing reads the granularity, which is what
+        """Any GRANULARITY — part of `source.link.typed`, not `any-depth` (which is
+        about chaining and crossing sources). Nothing reads the granularity, which is what
         makes this true rather than intended: a link between two characters is the
         same row as one between two regions."""
         words = _two_segments(db, kind="word")

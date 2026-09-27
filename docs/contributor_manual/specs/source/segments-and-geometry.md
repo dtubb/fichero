@@ -552,6 +552,14 @@ Passes, orders, links
   types come from an extendable list; it is the one typed-link record that the existing note,
   canvas and prediction links converge on, not a further kind.
 - `source.link.any-depth` — **[GAP]** (#4931) links chain (a comment on a comment), and can cross sources.
+  **The tag is right, and checked 2026-09-27 rather than assumed**: rule (i) flagged it because
+  `test_typed_links.py` mentioned the id, and reading the test showed the citation was wrong, not the
+  tag. What is built is that a link joins segments of any GRANULARITY (a word to a word, a region to
+  a region) — `source.link.typed`'s business. **Chaining is genuinely absent**: an end's kind is one
+  of `segment`, `note`, `document`, `claim`, `canvas_item`, and there is no `link`, so nothing can
+  comment on a comment. Crossing sources is untested, which is not the same as absent — the create
+  action checks each end exists and never checks they share a document, so it may already work and
+  nobody has said so.
 - `source.link.both-ways` — **[GAP]** (#4931) from either end of a link you can reach the other.
 
 Maps
