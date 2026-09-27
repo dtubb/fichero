@@ -96,3 +96,16 @@ def test_appkit_known_violations_are_not_stale():
         f"Stale KNOWN_VIOLATIONS entries (file no longer imports AppKit/UIKit — "
         f"remove them): {stale}"
     )
+
+
+def test_no_reason_is_pasted_across_the_allowlist():
+    """24 of 80 entries once read "PDFKit page bridge", including SparkleUpdater and
+    FicheroApp, which touch no PDFKit. A reason copied onto files it does not describe is
+    a permission, not a reason, and it hid five files whose UIKit import names no UIKit
+    symbol at all. The one shared reason allowed is that "import looks removable" finding,
+    which is the same observation about each file."""
+    from collections import Counter
+
+    counts = Counter(_mod.KNOWN_VIOLATIONS.values())
+    pasted = {reason: n for reason, n in counts.items() if n > 1 and "looks removable" not in reason}
+    assert pasted == {}, pasted
