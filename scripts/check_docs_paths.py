@@ -111,13 +111,41 @@ def excused(path: str, legacy: set[str], reasoned: dict[str, str]) -> bool:
     )
 
 
+def is_untracked(path: str) -> bool:
+    """On disk here, and in NOBODY ELSE'S checkout.
+
+    `Path.exists()` answers "is it on this machine", and a doc is read by people who cloned
+    the repository. A path that exists untracked passes on the one laptop that has it and
+    fails everywhere else — which is worse than failing here, because the guard reports
+    green while a fresh clone's documentation points at nothing.
+
+    Found 2026-09-27: `docs/user_manual` is named by `AGENTS.md` and five specs, holds real
+    documents on this machine, and has ZERO tracked files (#5101). The guard passed on it.
+    Gitignored paths are handled separately by the allowlist, which is the right place for a
+    deliberate absence — this is for a path somebody simply has not committed.
+    """
+    result = subprocess.run(
+        ["git", "ls-files", "--", path],
+        cwd=ROOT, capture_output=True, text=True, check=False,
+    )
+    if result.returncode != 0:
+        return False  # git unavailable: fall back to existence rather than invent a failure
+    return not result.stdout.strip()
+
+
 def missing() -> dict[str, list[str]]:
-    """path -> the docs that name it, for paths that do not exist."""
+    """path -> the docs that name it, for paths a READER OF THE REPOSITORY does not have.
+
+    Not simply "does not exist": a path present but untracked is absent for everyone except
+    this checkout, and treating it as present is how a guard reads green while the thing it
+    guards is broken for every clone.
+    """
     tops = top_level()
     out: dict[str, list[str]] = {}
     for f in doc_files():
         for tok in candidates(strip_fences(f.read_text(errors="ignore")), tops):
-            if not (ROOT / tok).exists():
+            here = (ROOT / tok).exists()
+            if not here or (not is_git_ignored(tok) and is_untracked(tok)):
                 out.setdefault(tok, []).append(str(f.relative_to(ROOT)))
     return out
 
