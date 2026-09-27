@@ -3,7 +3,8 @@ import SwiftUI
 /// Reconciliation scope (#3318): the USER explicitly chooses where to look for
 /// duplicate entities. Within-folder and within-library ship now; cross-library
 /// (#3527) and external-authority / Wikidata (#3528) are deferred and shown
-/// disabled ("coming soon") so the full scope ladder is visible.
+/// disabled so the full scope ladder is visible — each with an honest reason
+/// rather than a blanket "coming soon" (#4828).
 enum EntityReconciliationScope: String, CaseIterable, Identifiable {
     case folder
     case library
@@ -30,7 +31,21 @@ enum EntityReconciliationScope: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Folder + Library are implemented; the wider scopes are deferred.
+    /// Folder + Library are the scopes THIS pair-based sheet can both find and act
+    /// on. The other two are not "unbuilt" — that claim was wrong (#4828):
+    ///
+    /// - `.external` is fully built and now reachable, per ENTITY, from the entity
+    ///   table's "Enrich from Wikidata…" (#3528 — `WikidataEnrichmentSheet`). The
+    ///   engine requires an `entity_id` for this scope and 422s without one, and
+    ///   this sheet is document-scoped, so it is the wrong host — not a missing
+    ///   feature.
+    /// - `.crossLibrary` is HALF built. The engine finds the pairs
+    ///   (`entity_curation.py:_cross_library_candidate_pairs`, and they even carry
+    ///   `entity_a_library_path`/`entity_b_library_path`), but `merge_entities_impl`
+    ///   takes ONE `Database`, so a pair spanning two libraries cannot be merged —
+    ///   and `parseReconciliationCandidates` drops the library paths, so this sheet
+    ///   could not even say which library each side is in. Enabling it here would
+    ///   list pairs whose merge cannot succeed (#3527).
     var isAvailable: Bool { self == .folder || self == .library }
 
     /// Tooltip for the disabled scopes so the deferral is discoverable.
@@ -38,8 +53,13 @@ enum EntityReconciliationScope: String, CaseIterable, Identifiable {
         switch self {
         case .folder: return "Find duplicate entities within this document / folder"
         case .library: return "Find duplicate entities across the whole library"
-        case .crossLibrary: return "Cross-library reconciliation — coming soon (#3527)"
-        case .external: return "External authority (Wikidata / Wikipedia) — coming soon (#3528)"
+        case .crossLibrary:
+            return "Cross-library reconciliation — Fichero can find matches across "
+                + "libraries but cannot merge across them yet (#3527)"
+        case .external:
+            return "Wikidata and Wikipedia enrichment works one entity at a time — "
+                + "right-click an entity in the Entities table and choose "
+                + "\u{201C}Enrich from Wikidata\u{201D}"
         }
     }
 }
@@ -87,7 +107,7 @@ struct EntityReconciliationSheet: View {
     }
 
     /// The scope ladder as a row of selectable chips; cross-library / external
-    /// render disabled ("coming soon") but visible (#3318).
+    /// render disabled but visible, each with its own honest reason (#3318/#4828).
     private var scopeBar: some View {
         HStack(spacing: 8) {
             ForEach(EntityReconciliationScope.allCases) { option in
