@@ -356,7 +356,7 @@ Reading before editing (the app's first step: it draws from the seam, and edits 
   `rankCandidates` the artifact path uses, which is what makes it literally "as today" rather
   than a second ranking. Pinned by
   `OCRGeometrySelectionTests.rankedPassesAuthorityBeatsRecency`.
-- `source.app.overlays-draw-from-the-seam` — **[PARTIAL]** (#4954) the boxes drawn over an image and
+- `source.app.overlays-draw-from-the-seam` — **[OK]** (→ #4954) the boxes drawn over an image and
   over a PDF page both come from that store through one shared function, with the same
   drawing code as today and no new overlay; a page looks the same before and after the switch.
   **The shared function exists and is tested and no view calls it** — nothing under
@@ -368,14 +368,28 @@ Reading before editing (the app's first step: it draws from the seam, and edits 
   (`SegmentDisplayTests.seamMatchesTheArtifactPathForTheSamePage`); the one intended divergence
   is an undrawable segment's zero-size placeholder, which keeps every later box's index and
   paints nothing (`SegmentDisplayTests.theOneDifferenceIsThePlaceholderAndItIsInvisible`).
-  **What blocks the wiring is not two call sites.** Neither `SegmentService` nor `SegmentStore`
-  was constructed anywhere in the app, so the seam had no instance to read: `SegmentStore` now
-  has `shared(for:)` on `ArtifactEntityStore`'s keyed-singleton idiom, `LibraryManager` builds
-  the service beside the others, and the store is registered with the change stream — **without
-  that registration `apply`/`resync` were dead code** (found while wiring, 2026-09-27). What is
-  still owed is an environment injection: both preview views hold `ArtifactService` and neither
-  holds a `SegmentService`, so the loaders cannot resolve the store the way the artifact-entity
-  loaders resolve theirs. That is a decision about view composition, not a call site.
+  **Wired 2026-09-27, both paths.** Neither `SegmentService` nor `SegmentStore` was constructed
+  anywhere in the app, so the seam had no instance to read: `SegmentStore` gained `shared(for:)`
+  on `ArtifactEntityStore`'s keyed-singleton idiom, `LibraryManager` builds the service beside
+  the others and registers the store with the change stream — **without that registration
+  `apply`/`resync` were dead code** — and `LibraryServiceEnvironment` injects the service at the
+  one boundary list whose own comment says "add new library services HERE and every boundary gets
+  them". The image overlay (`OCRGeometryOverlay.loadOCRGeometry`) and the PDF page
+  (`PDFPageView+OCRBoxes.loadOCRGeometry`) now read the seam first and keep the artifact path
+  only for a host with no library environment, which is the existing optional-service idiom in
+  both files rather than a second source of truth.
+  **The seam had to grow one thing before it could replace the views, and stage 1 had named it**:
+  the inspector's selection outranks the ladder (Daniel, 2026-08-27, "when I click on different
+  regions in artifacts, should bounding boxes update?"), and `SegmentDisplay`'s own docstring
+  called that "the acknowledged gap when this function is actually wired in". It is now
+  `preferringArtifactId`, a REORDER and never a filter — a focused artifact with no usable boxes
+  falls through to the ladder, as the artifact path does. Pinned by
+  `SegmentDisplayTests.focusedArtifactOutranksTheLadder`,
+  `.focusOnAnotherPagesArtifactChangesNothing` and `.focusedButUnusablePassFallsThrough`.
+  `SegmentDisplay.selected(for:store:)` returns the geometry **and** the winning pass's artifact
+  id from one answer, because the curation verbs address the artifact whose boxes are on screen
+  and a separate lookup could name a pass that did not win
+  (`SegmentDisplayTests.winningPassNamesItsArtifact`).
 - `source.app.segment-events-patch-in-place` — **[PARTIAL]** (#4954) when the engine says which
   segments changed, the store replaces those items and no others; when it says only that a
   document's results changed, the store re-reads that one document.

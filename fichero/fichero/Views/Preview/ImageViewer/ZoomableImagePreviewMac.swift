@@ -109,6 +109,10 @@ struct ZoomableImagePreview: View {
     /// Optional so previews / hosts without the service stay safe; the text-box
     /// toggle simply loads nothing without it.
     @Environment(ArtifactService.self) var artifactService: ArtifactService?
+    /// The segments seam (#4954, `source.app.overlays-draw-from-the-seam`). Optional
+    /// for the same reason as `artifactService`: a preview or a host without the
+    /// library environment must not trap, it simply draws from the artifact path.
+    @Environment(SegmentService.self) var segmentService: SegmentService?
     /// Optional so previews / hosts without the service stay safe; the
     /// rendition control simply stays hidden without it.
     @Environment(RenditionService.self) var renditionService: RenditionService?

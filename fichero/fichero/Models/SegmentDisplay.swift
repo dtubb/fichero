@@ -17,9 +17,41 @@ enum SegmentDisplay {
     /// for the stage-1 build failure: a `nonisolated` function cannot call
     /// `store.passes(documentId:)`/`store.segments(documentId:)` from a
     /// synchronous context — they are main-actor-isolated methods.
+    /// The winning pass's boxes AND the artifact they came from — the seam's answer to
+    /// the same question `OCRGeometrySelection.SelectedGeometry` answers on the artifact
+    /// path. The id is load-bearing, not decoration: the curation verbs address the
+    /// artifact whose boxes are on screen (2026-08-29), so a loader that took the
+    /// geometry from one pass and the id from another would point them at the wrong
+    /// rows.
+    @MainActor
+    static func selected(
+        for documentId: String, store: SegmentStore
+    ) -> (geometry: OCRGeometry, artifactId: String?)? {
+        let passes = store.passes(documentId: documentId)
+        let segments = store.segments(documentId: documentId)
+        let focus = FocusedArtifact.shared
+        let focused = focus.documentId == documentId ? focus.id : nil
+        guard let winner = winningPass(
+            passes: passes, segments: segments, preferringArtifactId: focused
+        ) else { return nil }
+        return (winner.geometry, winner.pass.sourceArtifactId)
+    }
+
     @MainActor
     static func geometry(for documentId: String, store: SegmentStore) -> OCRGeometry? {
-        geometry(passes: store.passes(documentId: documentId), segments: store.segments(documentId: documentId))
+        // The inspector's selection outranks the ladder (Daniel, 2026-08-27: "when I
+        // click on different regions in artifacts, should bounding boxes update?").
+        // `loadSelected` applies that rule on the artifact path; this applies the SAME
+        // rule over the passes already in hand, so switching a view to the seam cannot
+        // silently drop it. Stage 1's docstring named this as "the acknowledged gap
+        // when this function is actually wired in" — this is that wiring.
+        let focus = FocusedArtifact.shared
+        let focused = focus.documentId == documentId ? focus.id : nil
+        return geometry(
+            passes: store.passes(documentId: documentId),
+            segments: store.segments(documentId: documentId),
+            preferringArtifactId: focused
+        )
     }
 
     /// Picks the winning pass (via `OCRGeometrySelection.rankedPasses`,
@@ -35,14 +67,47 @@ enum SegmentDisplay {
     /// Pure and `nonisolated`: takes plain values, no store, no actor — the
     /// half a test can call directly.
     ///
-    /// Deliberately narrower than `OCRGeometrySelection.loadSelected` for
-    /// stage 1: no per-window "inspector selection outranks the ladder"
-    /// override (`FocusedArtifact`) yet — nothing calls this from a real
-    /// overlay until stage 2, so adding that override now would be
-    /// untestable and untested. It is the acknowledged gap when this
-    /// function is actually wired in.
-    nonisolated static func geometry(passes: [SegmentPassValue], segments: [Segment]) -> OCRGeometry? {
-        let ranked = OCRGeometrySelection.rankedPasses(passes, segments: segments)
+    /// `preferringArtifactId` is the inspector's selection, and it outranks the
+    /// ladder exactly as it does on the artifact path: a pass whose
+    /// `sourceArtifactId` is that artifact goes first, and everything else keeps
+    /// its ranked order behind it. Passing `nil` is the plain ladder.
+    ///
+    /// It is a REORDER, not a filter: a focused artifact whose pass carries no
+    /// usable boxes falls through to the ladder rather than drawing nothing,
+    /// which is what `loadSelected` does today when the focused artifact is
+    /// empty ("anything else — no selection, another document's artifact, a
+    /// boxless artifact — falls back to the authority ladder").
+    ///
+    /// Stage 1 left this out and said so: "no per-window 'inspector selection
+    /// outranks the ladder' override (`FocusedArtifact`) yet … the acknowledged
+    /// gap when this function is actually wired in". Wiring it without this
+    /// would have dropped a ruled behaviour silently, which is the one thing
+    /// switching a view to the seam must not do.
+    nonisolated static func geometry(
+        passes: [SegmentPassValue],
+        segments: [Segment],
+        preferringArtifactId: String? = nil
+    ) -> OCRGeometry? {
+        winningPass(
+            passes: passes, segments: segments, preferringArtifactId: preferringArtifactId
+        )?.geometry
+    }
+
+    /// The pass that wins AND its mapped boxes, so a caller needing the artifact id does
+    /// not have to guess which pass answered. `geometry(passes:segments:)` is this with
+    /// the pass dropped.
+    nonisolated static func winningPass(
+        passes: [SegmentPassValue],
+        segments: [Segment],
+        preferringArtifactId: String? = nil
+    ) -> (pass: SegmentPassValue, geometry: OCRGeometry)? {
+        var ranked = OCRGeometrySelection.rankedPasses(passes, segments: segments)
+        if let preferringArtifactId {
+            let focusedFirst = ranked.filter { $0.sourceArtifactId == preferringArtifactId }
+            if !focusedFirst.isEmpty {
+                ranked = focusedFirst + ranked.filter { $0.sourceArtifactId != preferringArtifactId }
+            }
+        }
         let segmentsByPass = Dictionary(grouping: segments, by: \.passId)
         for pass in ranked {
             guard let passSegments = segmentsByPass[pass.id], !passSegments.isEmpty else { continue }
@@ -59,7 +124,7 @@ enum SegmentDisplay {
                 model: pass.model,
                 renditionId: passSegments.first?.anchor.renditionId
             ) else { continue }
-            return geometry
+            return (pass, geometry)
         }
         return nil
     }
