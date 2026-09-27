@@ -42015,6 +42015,13 @@
             "contentMediaType": "application/octet-stream",
             "title": "File",
             "description": "The interchange file"
+          },
+          "dataset": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "nullable": true,
+            "title": "Dataset",
+            "description": "YOLO only: the dataset's `classes.txt` or `data.yaml`, which says what each class number means. Placed beside the labels, where the import looks for it."
           }
         },
         "type": "object",
@@ -68425,6 +68432,11 @@
             "nullable": true,
             "title": "Kind Raw"
           },
+          "parent_segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Segment Id"
+          },
           "provenance_kind": {
             "$ref": "#/components/schemas/ProvenanceKind"
           },
@@ -74763,6 +74775,14 @@
           "checksum": {
             "type": "string",
             "title": "Checksum"
+          },
+          "unknown_classes": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Unknown Classes",
+            "default": []
           },
           "geometry_problems": {
             "type": "integer",

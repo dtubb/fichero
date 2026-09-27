@@ -937,7 +937,9 @@ def fichero_page_import(
 
     Args:
         doc_id: The page's document id.
-        path: Path to the interchange file, on the machine the ENGINE runs on.
+        path: Path to the interchange file on the machine THIS MCP server runs on. Its
+            bytes are uploaded (for YOLO, with the classes.txt or data.yaml found beside
+            it), so the engine may be remote.
         format: Force a format instead of recognising one from the bytes.
         name: What to call the new pass.
     """
