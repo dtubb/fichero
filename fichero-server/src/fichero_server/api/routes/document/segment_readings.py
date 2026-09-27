@@ -920,13 +920,23 @@ def document_text(
     page_readings = _readings_for_live_rows(
         db, rows, document_id, artifact_memo, readings=document_readings
     )
+    # EACH CHARACTER ONCE (#5148). PAGE XML carries text at every level: a region's own
+    # TextEquiv is usually its lines joined. Reading both put the page's text on the page twice
+    # -- line by line, then again as one paragraph (the Chinese table of contents). A row whose
+    # children carry text of this kind is a rival reading of those children, not more of the
+    # page: the finest level that has text is the page's text, and the coarser reading stays a
+    # reading of its own segment (readings route, export), just not a second copy here.
+    carrying = {row.id for row in rows if any(item.kind == kind for item in page_readings[row.id])}
+    read_through_children = {
+        row.parent_segment_id for row in rows if row.id in carrying and row.parent_segment_id
+    }
     record_rule = project_record_rule(db)
     choices_by_segment: dict[str, list[ReadingChoice]] = {}
     for choice in db.query_in(ReadingChoice, "segment_id", [row.id for row in rows]):
         choices_by_segment.setdefault(choice.segment_id, []).append(choice)
     for row in rows:
         items = [item for item in page_readings[row.id] if item.kind == kind]
-        if not items:
+        if not items or row.id in read_through_children:
             continue
         counted = counting_by_kind(
             db, row.id, items, rule=record_rule, choices=choices_by_segment.get(row.id, []),
