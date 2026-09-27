@@ -23,11 +23,11 @@ from fichero_server.page_export import page_from_library
 from tests.unit.api.test_page_text_follows_the_file import _import
 
 CORPUS = Path(__file__).parents[1] / "formats" / "fixtures" / "corpus"
-TEXT_ONLY = [CORPUS / "digitalgenji_japanese-vertical_kouigenji-01.tei.xml",
-             *sorted(CORPUS.glob("ddbdp_*.tei.xml"))]
+#: The Digital Genji left this list with #5141: its lines name no zone, but its `<pb>` does, so
+#: they are placed in that zone (`test_tei_lines_placed_by_their_page_zone.py`), not text-only.
+TEXT_ONLY = sorted(CORPUS.glob("ddbdp_*.tei.xml"))
 #: A phrase from each file, read by eye from the file itself.
 PHRASES = {
-    "digitalgenji_japanese-vertical_kouigenji-01.tei.xml": "いつれの御時にか",
     "ddbdp_greek-papyrus_p.cair.zen.4.59742.tei.xml": "ληνοῦ κεχωνημένα",
 }
 
