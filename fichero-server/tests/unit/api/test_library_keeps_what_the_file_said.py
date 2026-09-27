@@ -15,13 +15,14 @@ from __future__ import annotations
 from collections import Counter
 from pathlib import Path
 
+import pytest
 from lxml import etree
 
 import fichero_server.api.main  # noqa: F401  (registers every action)
 from fichero_server.formats import read_page, write_page
 from fichero_server.models import DocType, Document, FileType, Segment, Status
 from fichero_server.page_export import page_from_library
-from tests.unit.api.test_page_text_follows_the_file import CLM, SYRIAC, _import
+from tests.unit.api.test_page_text_follows_the_file import CHINESE, CLM, SYRIAC, _import
 
 CORPUS = Path(__file__).parents[1] / "formats" / "fixtures" / "corpus"
 BENEDICT = CORPUS / "escriptorium_latin-oldenglish_benedict-ctaiv-028.alto.xml"
@@ -187,6 +188,40 @@ def test_the_imported_order_lists_every_line_under_its_block_in_file_order(db):
     assert [rows[e.segment_id].metadata["file_position"] for e in lines] == sorted(
         rows[e.segment_id].metadata["file_position"] for e in lines
     )
+
+
+CHEROKEE = Path(
+    "/Users/danieltubb/Fichero Test Corpus/Cherokee and English - Cherokee Phoenix newspaper, 1828 "
+    "(ALTO 2, inch1200)/cherokee-phoenix_1828030601_0002.xml"
+)
+
+
+@pytest.mark.parametrize("path", [CLM, CHINESE, CHEROKEE], ids=["clm-38r", "chinese-vertical", "cherokee-p2"])
+def test_the_as_written_order_walks_the_page_exactly_as_file_position_does(db, path):
+    """The order and the text must be one sequence: walking the as-written order (depth first, each
+    level by position) visits the segments in exactly `file_position` order, on a two-column page, a
+    vertical page and the densest real page. The Cherokee Phoenix p. 2 is the local corpus's (public
+    domain, not vendored), so it runs where that folder exists."""
+    if not path.exists():
+        pytest.skip(f"{path.name} is in the local corpus only")
+    from fichero_server.models.reading_orders import ReadingOrder, ReadingOrderEntry
+
+    doc_id = _import(db, path)
+    rows = {s.id: s for s in _rows(db, doc_id)}
+    [order] = [o for o in db.all(ReadingOrder) if o.document_id == doc_id]
+    children: dict[str | None, list] = {}
+    for entry in (e for e in db.all(ReadingOrderEntry) if e.order_id == order.id):
+        children.setdefault(entry.parent_entry_id, []).append(entry)
+    walked: list[str] = []
+
+    def walk(parent_id):
+        for entry in sorted(children.get(parent_id, []), key=lambda e: e.position):
+            walked.append(entry.segment_id)
+            walk(entry.id)
+
+    walk(None)
+    assert len(walked) == len(rows)
+    assert walked == sorted(rows, key=lambda sid: rows[sid].metadata["file_position"])
 
 
 def test_a_page_export_s_reading_order_still_names_only_its_regions(db):
