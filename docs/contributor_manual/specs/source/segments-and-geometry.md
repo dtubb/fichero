@@ -670,24 +670,45 @@ The read seam and events
   window updates those and nothing else.
 
 Storage
-- `source.store.one-page-per-conversion` — **[GAP]** (#4924) no action converts more than one document's boxes;
-  a whole project is converted by running that action once for each page.
-- `source.store.undo-first-edit-keeps-conversion` — **[GAP]** (#4924) undoing the first edit undoes the edit
+- `source.store.one-page-per-conversion` — **[OK]** (→ #4924) no action converts more than one
+  document's boxes; a whole project is converted by running that action once for each page.
+  Tested by `fichero-server/tests/unit/api/test_segment_conversion_action.py::TestOnePagePerConversion`. The
+  restraint is the point: one page per action is what makes the whole-project runner resumable and
+  its half-done state readable, rather than one enormous transaction.
+- `source.store.undo-first-edit-keeps-conversion` — **[OK]** (→ #4924; tested by
+  `fichero-server/tests/unit/api/test_first_edit_conversion.py::TestUndoOfAFirstEditKeepsTheConversion`)
+  undoing the first edit undoes the edit
   and keeps the page's segment records; the old block is never restored over them, and the old
   region action is unreachable on a converted result. (Replaces
   `source.store.conversion-undo-leaves-nothing`, 2026-09-20; default taken, in the morning file.)
-- `source.store.conversion-changes-nothing-seen` — **[GAP]** (#4924) a page read just before and just after
-  conversion is the same in every field but the ids: kinds, shapes, order, words, page numbers
-  and who made each box.
-- `source.store.conversion-ids-repeatable` — **[GAP]** (#4924) a converted box's id follows from its result and
-  its position, so converting the same page again, eagerly or on first edit, gives the same
-  ids; a provisional id resolves to the real one on reads and is still refused on writes.
-- `source.store.converted-boxes-keep-their-maker` — **[GAP]** (#4924) converted boxes are stored as their
-  maker's (machine, the person who drew them, or unknown), never as the person whose edit
-  caused the conversion; only the edited segment becomes that person's.
-- `source.store.old-app-still-works` — **[GAP]** (#4924) until the app draws from segments, a converted result
-  is served with its boxes filled from the segment records in one order, and an edit by
-  position lands on the box shown at that position.
+- `source.store.conversion-changes-nothing-seen` — **[OK]** (→ #4924) a page read just before and
+  just after conversion is the same in every field but the ids: kinds, shapes, order, words, page
+  numbers and who made each box. Pinned TWICE, deliberately: in its pure form over the rows
+  (`fichero-server/tests/unit/models/test_segment_conversion_rows.py::TestConversionChangesNothingYouCanSee`)
+  and through the real seam the app reads
+  (`fichero-server/tests/unit/api/test_segments_seam_after_conversion.py`). A row-level equality can hold
+  while the seam that assembles them reorders or drops one, which is why one test was not enough.
+- `source.store.conversion-ids-repeatable` — **[OK]** (→ #4924) a converted box's id follows from its
+  result and its position, so converting the same page again, eagerly or on first edit, gives the
+  same ids; a provisional id resolves to the real one on reads and is still refused on writes.
+  Tested by
+  `fichero-server/tests/unit/models/test_segment_conversion_rows.py::TestTheNamespaceAndTheIds::test_the_same_box_gets_the_same_id_every_time`.
+  This is what lets the eager runner and a first edit race without either undoing the other:
+  they arrive at the same ids, so the second is a no-op rather than a duplicate.
+- `source.store.converted-boxes-keep-their-maker` — **[OK]** (→ #4924) converted boxes are stored as
+  their maker's (machine, the person who drew them, or unknown), never as the person whose edit
+  caused the conversion; only the edited segment becomes that person's. Tested by
+  `fichero-server/tests/unit/models/test_segment_conversion_rows.py::TestConvertedBoxesKeepTheirMaker` and,
+  through the real edit, `fichero-server/tests/unit/api/test_first_edit_conversion.py`. The defect it
+  prevents is the one that matters most in this programme: an edit that makes a machine's 200 boxes
+  look like a historian's work, which would be the engine inventing provenance (the shape of → #4869).
+- `source.store.old-app-still-works` — **[OK]** (→ #4924) until the app draws from segments, a
+  converted result is served with its boxes filled from the segment records in one order, and an
+  edit by position lands on the box shown at that position. Tested by
+  `fichero-server/tests/unit/api/test_first_edit_conversion.py::TestTheAppsPositionsKeepMeaningWhatItWasGiven`
+  and `fichero-server/tests/unit/api/test_live_geometry_projection.py`. "One order" is load-bearing and is
+  not the same order as the derived text's — see the three orderings named in
+  `segment_readings.py::_segment_order_key`; a fourth would break exactly this behaviour.
 - `source.store.conversion-reports-exact-matches` — **[GAP]** (#4924) the converting action lists each reading,
   mark, support and claim whose rectangle matches a converted box exactly, with the segment id
   it would take, and changes none of them. (Replaces `…conversion-repoints-exact-matches`,
@@ -709,24 +730,59 @@ Storage
   only by the running app's engine, a page at a time.)
 
 Converting a whole project (ruled 2026-09-20; built after readings are on segments)
-- `source.convert.starts-when-a-project-opens` — **[GAP]** (#4998) conversion starts by itself after a project
-  opens and never delays the opening; the project is fully usable while it runs.
-- `source.convert.only-the-running-engine` — **[GAP]** (#4998) the only thing that converts a project is the
-  engine of the running app that has it open.
-- `source.convert.snapshot-first-and-proved` — **[GAP]** (#4998) no page converts until a snapshot of the project
-  exists and has been read back and checked; that snapshot is kept out of the ordinary
-  tidy-up until the conversion is finished and its report has been seen.
-- `source.convert.refused-when-disk-is-short` — **[GAP]** (#4998) with too little free disk nothing starts and
-  nothing is half done; the report says how much is needed; it tries again at the next open.
-- `source.convert.the-machine-stays-usable` — **[GAP]** (#4998) it runs at background priority, a page at a time,
-  and gives way to a person's work; measured, not assumed.
+
+> **BUILT AND NOT YET REACHABLE (#5088, found 2026-09-27).** Every property below is
+> implemented and pinned — the preflight, the snapshot gate, the lock, resume, the courtesy
+> to the person's work, the invisibility of a half-done run. **Nothing calls
+> `convert_project` outside the tests**, so no user can reach any of it. The `[OK]` tags
+> below are claims about the code, not about what a person can do today; read them with this
+> note or they will read as "this works". The one line that would start it is a maintainer
+> decision (#5088), because a first open of a large library would take a full snapshot before
+> converting anything, and whether that happens unannounced is a product question.
+- `source.convert.starts-when-a-project-opens` — **[GAP]** (#4998, #5088) conversion starts by
+  itself after a project opens and never delays the opening; the project is fully usable while it
+  runs. **The second half is built and the first is not.** Opening converts nothing and is no
+  slower with work waiting than without
+  (`fichero-server/tests/unit/maintenance/test_project_conversion_measured.py::TestOpeningIsNotHeldUp`) —
+  and it is pinned TRIVIALLY, because nothing starts at all (#5088). This is the behaviour that
+  owns the group's reachability, which is why it alone stays [GAP].
+- `source.convert.only-the-running-engine` — **[OK]** (→ #4998) the only thing that converts a
+  project is the engine of the running app that has it open. A lock, and a lock that can be
+  RECOVERED: a second opening is refused while one runs, being refused is not mistaken for
+  nothing-to-do, a finished run and a refusal verdict are not locks, and an abandoned run is taken
+  over rather than obeyed forever
+  (`fichero-server/tests/unit/maintenance/test_project_conversion_resume.py::TestTheLock`, six tests).
+- `source.convert.snapshot-first-and-proved` — **[OK]** (→ #4998) no page converts until a snapshot
+  of the project exists and has been read back and checked; that snapshot is kept out of the
+  ordinary tidy-up until the conversion is finished and its report has been seen. Proved against
+  the RESTORE SOURCE rather than a derivative, so a proof cannot pass on a copy a restore would
+  not use; a project reporting no tables is treated as blindness and not as cleanliness
+  (`fichero-server/tests/unit/maintenance/test_project_conversion_preflight.py::TestIsThereAWayBack`, and
+  `::TestTheReport::test_the_snapshot_stays_pinned_until_the_run_is_finished_and_seen`).
+- `source.convert.refused-when-disk-is-short` — **[OK]** (→ #4998) with too little free disk nothing
+  starts and nothing is half done; the report says how much is needed; it tries again at the next
+  open. The margin is applied, the estimate grows with the work, and an unreadable disk RAISES
+  rather than assuming room
+  (`fichero-server/tests/unit/maintenance/test_project_conversion_preflight.py::TestWillItFit`) — that last
+  one is the difference between a gate and a gate that opens when it cannot see.
+- `source.convert.the-machine-stays-usable` — **[OK]** (→ #4998) it runs at background priority, a
+  page at a time, and gives way to a person's work; measured, not assumed — and the test MEASURES
+  it: a person's read AND edit both finish while a conversion runs, and the runner yields between
+  every page
+  (`fichero-server/tests/unit/maintenance/test_project_conversion_measured.py::TestTheMachineStaysUsable`).
 - `source.convert.a-page-is-all-or-nothing` — **[GAP]** (#4998) each page converts in one transaction or not at
   all; a page that cannot convert is recorded with its reason, skipped, and still reads from
   its block as before; the rest carry on.
-- `source.convert.stops-starts-and-repeats-safely` — **[GAP]** (#4998) quitting part-way loses nothing; the next
-  open carries on; running it again over a converted project writes nothing.
-- `source.convert.half-done-reads-the-same` — **[GAP]** (#4998) at every moment of a conversion, every reader gets
-  the same answer for every page as before it started, but for the ids.
+- `source.convert.stops-starts-and-repeats-safely` — **[OK]** (→ #4998) quitting part-way loses
+  nothing; the next open carries on; running it again over a converted project writes nothing. A
+  resumed run ends EXACTLY where an uninterrupted one would, a third run writes nothing and files
+  no report, and progress survives a close and reopen
+  (`fichero-server/tests/unit/maintenance/test_project_conversion_resume.py::TestStoppingAndResuming`).
+- `source.convert.half-done-reads-the-same` — **[OK]** (→ #4998) at every moment of a conversion,
+  every reader gets the same answer for every page as before it started, but for the ids. Pinned
+  across surfaces rather than one: the page text at every point, a claim anchored by rectangle
+  still revealing after its page converts, and the artifact still reporting its own boxes
+  (`fichero-server/tests/unit/maintenance/test_project_conversion_invisible.py::TestAHalfConvertedProjectReadsTheSame`).
 - `source.convert.report` — **[GAP]** (#4998) each project has a kept report: what converted, what could not and
   why, where the snapshot is, how long it took.
 - `source.convert.words-move-with-the-boxes` — **[GAP]** (#4998) once readings are on segments, converting a page
