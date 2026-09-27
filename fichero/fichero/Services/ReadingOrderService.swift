@@ -1,9 +1,11 @@
 import FicheroAPIClient
 import Foundation
+import Observation
 
 /// Reading orders through the generated client (`source.editor.reorder`, ruled 2026-09-27, Q5).
 /// A plain transport wrapper, like `SegmentService`: no cache -- `ReadingOrderStore` owns the state.
 @MainActor
+@Observable
 final class ReadingOrderService: ReadingOrderTransport {
     let client: FicheroClient
 

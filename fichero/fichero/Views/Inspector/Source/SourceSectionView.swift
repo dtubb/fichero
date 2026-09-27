@@ -15,6 +15,8 @@ struct SourceSectionView: View {
                 Text("Content").tag(SourceSectionMode.content)
                 Text("Info").tag(SourceSectionMode.info)
                 Text("Outline").tag(SourceSectionMode.outline)
+                // The page's reading order, rearrangeable (ruled 2026-09-27, Q5).
+                Text("Order").tag(SourceSectionMode.order)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -33,6 +35,9 @@ struct SourceSectionView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .outline:
                 SourceOutlineView(documentId: document.id)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .order:
+                ReadingOrderList(documentId: document.id)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
@@ -63,4 +68,5 @@ enum SourceSectionMode: String, CaseIterable {
     case content
     case info
     case outline
+    case order
 }
