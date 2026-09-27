@@ -443,3 +443,143 @@ class TestWordsOnOneLineReadLeftToRight:
         assert derived.text == "en nombre dios", (
             "words of one line were not joined left to right: " + derived.text
         )
+
+
+class TestWhatAnOrderNamesAndTheTextDoesNotHold:
+    """#5090's first step: stop dropping silently.
+
+    `document_text` draws its rows from ONE pass and then keeps only the ordered
+    ids it holds. For a deleted line, or furniture the caller excluded, dropping
+    is right. For a **cross-pass flow** — a `source.segment.flow` whose entries
+    name segments on the next folio's pass, which slice 10 deliberately allows —
+    dropping is the transcription coming back short with nothing to show it.
+
+    Nothing distinguished the two. Now every omission is named with a reason, so
+    `deleted` (the text is complete) and `other_pass` (a continuation is missing)
+    are different answers. Reading the other pass needs a decision about what
+    `pass_id` and the `page_content` cache mean and is NOT done here.
+    """
+
+    def _person(self):
+        from fichero_server.actions.registry import ActionContext
+
+        return ActionContext(actor="historian", is_bootstrap=True)
+
+    def _flow_onto_a_second_pass(self, db, client):
+        from fichero_server.actions.registry import registry
+        from fichero_server.models.anchors import SourceAnchor
+        from fichero_server.models.knowledge import ProvenanceKind
+        from fichero_server.models.segments import SegmentPass
+
+        doc = _make_doc(db)
+        artifact = _artifact(db, doc)
+        _convert(client, artifact.id)
+        pass_id = converted_pass_id(artifact.id)
+        rows = live_rows_in_order(db, pass_id)
+        person = self._person()
+
+        second_folio = SegmentPass(
+            document_id=doc.id, name="folio 2v", provenance_kind=ProvenanceKind.human
+        )
+        db.save(second_folio)
+        continuation = Segment(
+            document_id=doc.id, pass_id=second_folio.id, kind="line",
+            doc_kind=f"{doc.id}:line",
+            anchor=SourceAnchor(document_id=doc.id, rect=[0.1, 0.1, 0.5, 0.04]),
+            bbox_x=0.1, bbox_y=0.1, bbox_w=0.5, bbox_h=0.04, tile="",
+            provenance_kind=ProvenanceKind.human,
+        )
+        db.save(continuation)
+
+        flow = registry.invoke(
+            db, "reading_order.create",
+            {"document_id": doc.id, "pass_id": pass_id,
+             "name": "reads straight through", "kind": "flow"},
+            person,
+        ).result
+        registry.invoke(
+            db, "reading_order.place",
+            {"order_id": flow["order_id"], "segment_id": rows[0].id}, person,
+        )
+        registry.invoke(
+            db, "reading_order.place",
+            {"order_id": flow["order_id"], "segment_id": continuation.id, "at_end": True},
+            person,
+        )
+        return doc, pass_id, rows, flow, continuation, second_folio
+
+    def test_a_cross_pass_continuation_is_reported_not_silently_dropped(self, db, client):
+        doc, _, rows, flow, continuation, second_folio = self._flow_onto_a_second_pass(
+            db, client
+        )
+
+        derived = document_text(db, doc.id, order=flow["order_id"])
+
+        # Still left out of the text — that part needs the decision the issue names.
+        assert continuation.id not in [span.segment_id for span in derived.spans]
+        # But no longer invisible.
+        assert [(o.segment_id, o.reason) for o in derived.omitted] == [
+            (continuation.id, "other_pass")
+        ]
+        # And it says WHERE, so a caller can go and read it.
+        assert derived.omitted[0].pass_id == second_folio.id
+
+    def test_a_deleted_line_and_a_missing_continuation_no_longer_look_the_same(
+        self, db, client
+    ):
+        """The point of the whole change: two omissions, two reasons."""
+        from fichero_server.actions.registry import registry
+
+        doc, _, rows, flow, continuation, _ = self._flow_onto_a_second_pass(db, client)
+        registry.invoke(
+            db, "reading_order.place",
+            {"order_id": flow["order_id"], "segment_id": rows[1].id, "at_end": True},
+            self._person(),
+        )
+        registry.invoke(
+            db, "segment.delete",
+            {"segment_ids": [rows[1].id], "expected_versions": {rows[1].id: rows[1].version}},
+            self._person(),
+        )
+
+        derived = document_text(db, doc.id, order=flow["order_id"])
+
+        reasons = {o.segment_id: o.reason for o in derived.omitted}
+        assert reasons == {continuation.id: "other_pass", rows[1].id: "deleted"}
+
+    def test_box_order_omits_nothing_because_it_names_nothing(self, db, client):
+        doc = _make_doc(db)
+        artifact = _artifact(db, doc)
+        _convert(client, artifact.id)
+
+        assert document_text(db, doc.id).omitted == []
+
+    def test_furniture_the_caller_excluded_says_so(self, db, client):
+        from fichero_server.actions.registry import registry
+
+        doc = _make_doc(db)
+        artifact = _artifact(db, doc)
+        _convert(client, artifact.id)
+        pass_id = converted_pass_id(artifact.id)
+        rows = live_rows_in_order(db, pass_id)
+        person = self._person()
+
+        head = db.get(Segment, rows[0].id)
+        head.is_furniture = True
+        db.save(head)
+
+        made = registry.invoke(
+            db, "reading_order.create",
+            {"document_id": doc.id, "pass_id": pass_id, "name": "as written",
+             "kind": "as-written", "seed_from_pass": True},
+            person,
+        ).result
+
+        derived = document_text(db, doc.id, order=made["order_id"])
+        assert [(o.segment_id, o.reason) for o in derived.omitted] == [
+            (rows[0].id, "furniture")
+        ]
+        # With the furniture asked for, nothing is omitted at all.
+        assert document_text(
+            db, doc.id, order=made["order_id"], include_furniture=True
+        ).omitted == []

@@ -178,18 +178,20 @@ Rules for every format
   that already holds them, a **renamed** copy is still recognised (the hash is of content), a
   different file is accepted, and the same file on another document is accepted because the hash is
   scoped to the document.
-- `source.format.keeps-unrecognised` — **[PARTIAL]** (#4943) content the model has no field for is kept,
-  labelled, and written back on export to that format. **Both halves hold within a format's own
-  round trip**: PAGE XML's `custom` and hOCR's `x_wconf` / baseline polynomial are read into
-  `foreign` and written back, pinned by
+- `source.format.keeps-unrecognised` — **[OK]** (→ #4943) content the model has no field for is kept,
+  labelled, and written back on export to that format — **in a format's own round trip and through a
+  library**. PAGE XML's `custom` and hOCR's `x_wconf` / baseline polynomial are read into `foreign`
+  and written back, pinned by
   `test_escriptorium.py::TestTheRoundTripAUserActuallyWalks::test_escriptoriums_custom_is_written_BACK_not_merely_kept`
   and `test_hocr_and_yolo.py::TestHocrRoundTrip::test_hocrs_own_baseline_is_written_back_not_declared_lost`.
-  The import keeps it too, on the segment's `metadata["foreign"]`
-  (`::test_unrecognised_content_rides_along_on_the_segment`).
-  **What is NOT done: `page_export` never reads it back out.** A file imported into a library and
-  then exported loses what the import kept, because the library-page builder maps columns and not
-  `metadata["foreign"]` — so the write-back half is true format-to-format and false
-  library-to-format. `[PARTIAL]` rather than `[OK]` for exactly that gap.
+  The import keeps it on the segment's `metadata["foreign"]`
+  (`::test_unrecognised_content_rides_along_on_the_segment`), and `page_export` reads it back out, so
+  file → library → file loses no more than file → file does, pinned by
+  `test_import_into_library.py::TestWhatTheImportKeptSurvivesTheExport::test_the_library_round_trip_keeps_it_the_way_a_format_round_trip_does`.
+  It was `[PARTIAL]` until 2026-09-27 because the library-page builder mapped columns and not
+  `metadata["foreign"]`: the write-back half was true format-to-format and **false
+  library-to-format**, which is how it passed every round trip — a round trip never puts a library in
+  the middle.
 - `source.format.export-validated` — **[OK]** (→ #4943) an export is validated against its schema; an invalid
   one is a reported failure — **and no file**, because a file that exists and does not validate is
   one somebody sends to a colleague. Validation lives in the harness, so no format implements it and

@@ -433,6 +433,30 @@ class DerivedTextSpan(BaseModel):
     end: int
 
 
+class OmittedSegment(BaseModel):
+    """A segment a named order names and the text does not contain, and WHY.
+
+    Before this existed (#5090) every such segment was dropped by one
+    `if sid in by_id`, and four different things looked identical: a line
+    somebody deleted, furniture the caller asked to leave out, a segment of
+    ANOTHER pass -- which is how a cross-pass flow reads, and is the bug -- and
+    an id naming nothing at all. The first two are correct and expected; the
+    third silently shortens a transcription, which is the worst failure this
+    programme has, because nothing looks wrong.
+
+    So the reason is reported rather than the omission being hidden. A caller
+    that sees `other_pass` knows a continuation is missing; one that sees
+    `deleted` knows the text is complete.
+    """
+
+    segment_id: str
+    #: `deleted`, `furniture`, `other_pass` or `unknown`.
+    reason: str
+    #: For `other_pass`, the pass that actually holds the segment, so a caller
+    #: can go and read it. `None` for every other reason.
+    pass_id: str | None = None
+
+
 class DerivedText(BaseModel):
     text: str
     spans: list[DerivedTextSpan]
@@ -443,6 +467,10 @@ class DerivedText(BaseModel):
     #: The named reading order used. `None` means box order -- named orders
     #: are slice 10, and saying `None` is honest about which is in force.
     order: str | None = None
+    #: Segments the named order names that this text does not contain, each with
+    #: its reason (#5090). Always empty for box order, which names nothing it
+    #: cannot read.
+    omitted: list[OmittedSegment] = []
 
 
 def _pass_candidates(db: Database, document_id: str) -> list[PassCandidate]:
@@ -508,6 +536,37 @@ def _segment_order_key(row: Segment) -> tuple:
     return (1, 0, row.bbox_y, row.bbox_x, row.id)
 
 
+def _why_omitted(
+    db: Database, segment_id: str, pass_id: str, *, include_furniture: bool
+) -> OmittedSegment:
+    """Why a segment a named order names is not in the derived text.
+
+    Four answers, and telling them apart is the whole point (#5090): `deleted`
+    and `furniture` are the text being correct, `other_pass` is a cross-pass
+    flow's continuation going missing, and `unknown` is an order naming an id
+    that never existed -- which would be a bug in whatever wrote the entry.
+
+    One indexed lookup per omitted segment, and the list is normally empty; this
+    costs nothing on the ordinary path.
+    """
+    row = db.get(Segment, segment_id)
+    if row is None:
+        return OmittedSegment(segment_id=segment_id, reason="unknown")
+    if row.pass_id != pass_id:
+        # The cross-pass flow. Reported WITH the pass that holds it, because a
+        # caller that wants the continuation needs somewhere to go.
+        return OmittedSegment(
+            segment_id=segment_id, reason="other_pass", pass_id=row.pass_id
+        )
+    if row.deleted_at is not None:
+        return OmittedSegment(segment_id=segment_id, reason="deleted")
+    if row.is_furniture and not include_furniture:
+        return OmittedSegment(segment_id=segment_id, reason="furniture")
+    # On the pass, live, not furniture, and still not in the rows: that should be
+    # impossible, and guessing a reason would be worse than admitting it.
+    return OmittedSegment(segment_id=segment_id, reason="unknown")
+
+
 def document_text(
     db: Database,
     document_id: str,
@@ -562,15 +621,27 @@ def document_text(
         for row in db.query(Segment, pass_id=answer.pass_id)
         if row.deleted_at is None and (include_furniture or not row.is_furniture)
     ]
+    omitted: list[OmittedSegment] = []
     if ordered_segment_ids is None:
         rows.sort(key=_segment_order_key)
     else:
         # The NAMED order's sequence. Segments the order does not mention are LEFT
         # OUT rather than appended: an order is a claim about what reads and in
         # what sequence, and appending the rest would silently add text the order
-        # does not claim. A row the order names but the pass no longer has (a
-        # deleted line, or furniture the caller excluded) simply does not appear.
+        # does not claim.
+        #
+        # A segment the order NAMES and the pass does not hold is a different
+        # matter, and it used to fall through the same `if sid in by_id` with no
+        # trace (#5090). It is still left out -- reading another pass's readings
+        # needs a decision about what `pass_id` and the `page_content` cache then
+        # mean -- but it is now named and explained, so a deleted line and a
+        # missing cross-pass continuation stop looking the same.
         by_id = {row.id: row for row in rows}
+        omitted = [
+            _why_omitted(db, sid, answer.pass_id, include_furniture=include_furniture)
+            for sid in ordered_segment_ids
+            if sid not in by_id
+        ]
         rows = [by_id[sid] for sid in ordered_segment_ids if sid in by_id]
 
     # ponytail: one readings read per line, each an indexed lookup
@@ -626,6 +697,7 @@ def document_text(
         pass_id=answer.pass_id,
         pass_basis=answer.basis.value,
         kind=kind,
+        omitted=omitted,
         # Which order produced this text: the named one when asked for, `None` for
         # box order. Never a name the caller did not ask for -- a reader told an
         # order was used when it was not cannot check anything.

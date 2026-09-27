@@ -87,10 +87,17 @@ design: honesty is the acceptance criterion, not completeness.**
 An invalid export is a reported failure, never a written file: a file that exists and does not
 validate is worse than no file, because somebody will send it to a colleague.
 
-**Unrecognised content** (`source.format.keeps-unrecognised`) is kept on the pass, in
+**Unrecognised content** (`source.format.keeps-unrecognised`) is kept in
 `metadata["foreign"][<format>]`, labelled with the format it came from, and written back by that
-format's writer. On the PASS and not on segments, because the rule says a format adds no field to
-segments — and because unrecognised content is usually about the file, not about one line.
+format's writer.
+
+This note planned it on the PASS, reasoning that a format adds no field to segments and that
+unrecognised content is usually about the file. The real files disagreed: eScriptorium's
+`custom="structure {type:title;}"` and hOCR's `x_wconf` are **per line**, and a pass-level bag
+cannot say which line each belonged to. So it went on the SEGMENT's `metadata["foreign"]`, which
+adds no field either — metadata is where a segment already keeps what the model does not name. Read
+back out by `page_export` (resolved 2026-09-27), or an import into a library and an export out of it
+lose what the import kept.
 
 ## Round trips are the acceptance test
 
