@@ -738,9 +738,45 @@ The editor
 - `source.editor.cut` — **[GAP]** (#4941) a scissors stroke splits one or many lines at once.
 - `source.editor.join-group` — **[GAP]** (#4941) selected segments can be merged; lines grouped into a region
   and ungrouped.
-- `source.editor.set-kind` — **[GAP]** (#4941) the selection's kind (and furniture or text) can be set.
-- `source.editor.set-direction` — **[GAP]** (#4941) the selection's direction can be set, and a line reversed.
-- `source.editor.set-language-script` — **[GAP]** (#4941) the selection's language and script can be set.
+- `source.editor.set-kind` — **[PARTIAL]** (#4941) the selection's kind (and furniture or text) can be set.
+  **The plan is built (2026-09-27), the verb is not.** `SegmentEditCommand.plan` turns an
+  attribute and a `SegmentSelection` into the `segment.update` requests to send, and refuses
+  three ways — nothing selected, a selection left over from another page, a selected segment
+  with no known version — each tested in `SegmentEditCommandTests` (e.g.
+  `SegmentEditCommandTests.selectionOnAnotherPageIsRefused`). Values pass through unchecked on
+  purpose: the engine owns the vocabulary and refuses what it does not know, and a second copy on
+  the client is the one that drifts. No menu item or key calls it yet.
+  **And a finding about the engine that the plan exposes:** `segment.update` takes ONE segment,
+  and the only bulk route creates. So a selection-wide edit is one audited action PER LINE — and
+  one undo step per line, so ⌘Z after "set these five to heading" reverts one line at a time. The
+  fix is an engine action taking a version per id with one audit row and one inverse, not
+  client-side grouping, which would make the undo story lie.
+- `source.editor.set-direction` — **[PARTIAL]** (#4941) the selection's direction can be set, and a line reversed.
+  **The plan is built (2026-09-27), the verb is not.** `SegmentEditCommand.plan` turns an
+  attribute and a `SegmentSelection` into the `segment.update` requests to send, and refuses
+  three ways — nothing selected, a selection left over from another page, a selected segment
+  with no known version — each tested in `SegmentEditCommandTests` (e.g.
+  `SegmentEditCommandTests.selectionOnAnotherPageIsRefused`). Values pass through unchecked on
+  purpose: the engine owns the vocabulary and refuses what it does not know, and a second copy on
+  the client is the one that drifts. No menu item or key calls it yet.
+  **And a finding about the engine that the plan exposes:** `segment.update` takes ONE segment,
+  and the only bulk route creates. So a selection-wide edit is one audited action PER LINE — and
+  one undo step per line, so ⌘Z after "set these five to heading" reverts one line at a time. The
+  fix is an engine action taking a version per id with one audit row and one inverse, not
+  client-side grouping, which would make the undo story lie.
+- `source.editor.set-language-script` — **[PARTIAL]** (#4941) the selection's language and script can be set.
+  **The plan is built (2026-09-27), the verb is not.** `SegmentEditCommand.plan` turns an
+  attribute and a `SegmentSelection` into the `segment.update` requests to send, and refuses
+  three ways — nothing selected, a selection left over from another page, a selected segment
+  with no known version — each tested in `SegmentEditCommandTests` (e.g.
+  `SegmentEditCommandTests.selectionOnAnotherPageIsRefused`). Values pass through unchecked on
+  purpose: the engine owns the vocabulary and refuses what it does not know, and a second copy on
+  the client is the one that drifts. No menu item or key calls it yet.
+  **And a finding about the engine that the plan exposes:** `segment.update` takes ONE segment,
+  and the only bulk route creates. So a selection-wide edit is one audited action PER LINE — and
+  one undo step per line, so ⌘Z after "set these five to heading" reverts one line at a time. The
+  fix is an engine action taking a version per id with one audit row and one inverse, not
+  client-side grouping, which would make the undo story lie.
 - `source.editor.set-hand-campaign` — **[GAP]** (#4941) the selection's hand and campaign can be set.
 - `source.editor.reorder` — **[GAP]** (#4941) a named reading order can be edited by dragging in a list or
   clicking segments in turn.
