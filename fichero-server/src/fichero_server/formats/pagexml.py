@@ -19,6 +19,8 @@ float equality would be asserting PAGE XML is lossless when it is not.
 
 from __future__ import annotations
 
+import re
+from functools import lru_cache
 from typing import Any
 
 from fichero_server.formats import register
@@ -74,6 +76,118 @@ DIRECTIONS_OUT = {
     "btt": "bottom-to-top",
 }
 DIRECTIONS_IN = {value: key for key, value in DIRECTIONS_OUT.items()}
+
+
+# ---------------------------------------------------------------------------
+# PAGE XML's own closed vocabularies, READ FROM THE VENDORED SCHEMA
+# ---------------------------------------------------------------------------
+#
+# FOUND 2026-09-26 by the export refusing to validate, which is the whole reason
+# validation happens before the bytes are handed over:
+#
+# * `primaryLanguage` is an enumeration of 188 language **NAMES** ("Arabic",
+#   "Spanish"), not BCP 47 tags. Writing `ar` is invalid PAGE XML.
+# * `script` is 181 values of the form `"Arab - Arabic"` -- the ISO 15924 code, a
+#   dash, and the English name. Writing the bare code is invalid too.
+# * `readingDirection` has exactly the four straight directions and no more, which
+#   is why `alternating` and `follows-baseline` are declared losses.
+#
+# The tables are PARSED FROM THE SCHEMA rather than transcribed. A hand-copied list
+# of 188 names would be a second copy of a vocabulary we already ship on disk, and
+# it would drift the first time the schema is updated -- the same duplication this
+# programme has removed six times. Lazy and cached, so the 86 KB parse happens only
+# if PAGE XML is actually used.
+
+
+@lru_cache(maxsize=1)
+def _schema_vocabularies() -> tuple[dict[str, str], dict[str, str]]:
+    """`({language_name_lower: name}, {script_code: "Code - Name"})` from the XSD."""
+    from fichero_server.formats.harness import SCHEMA_DIR
+
+    path = SCHEMA_DIR / "pagecontent-2019-07-15.xsd"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"the PAGE XML schema is not installed at {path}; its own enumerations "
+            "are what a writer needs, so this is a broken build rather than a "
+            "format that cannot be validated"
+        )
+    text = path.read_text(encoding="utf-8")
+
+    def values(type_name: str) -> list[str]:
+        block = re.search(
+            rf'<simpleType name="{type_name}".*?</simpleType>', text, re.S
+        )
+        return re.findall(r'value="([^"]+)"', block.group(0)) if block else []
+
+    languages = {name.lower(): name for name in values("LanguageSimpleType")}
+    scripts: dict[str, str] = {}
+    for value in values("ScriptSimpleType"):
+        code = value.split(" - ", 1)[0].strip()
+        scripts[code] = value
+    return languages, scripts
+
+
+def _language_out(value: str | None, report: LossReport) -> str | None:
+    """The model's language as PAGE XML's enumerated NAME, or None plus a loss.
+
+    **The engine stores a language NAME (#2092), which is closer to PAGE XML than a
+    tag would be** -- the enumeration is names, so `Spanish` passes straight through
+    where `es` would be invalid. A tag is mapped when it is one of the handful the
+    enumeration happens to spell, and otherwise reported: PAGE XML's list has 188
+    languages and no way to say one it does not know, so a project working in a
+    language outside it cannot state that language in PAGE XML at all. That is the
+    colonial-archive case, and it is a loss of the FORMAT, reported rather than
+    silently blanked.
+    """
+    if not value:
+        return None
+    languages, _scripts = _schema_vocabularies()
+    matched = languages.get(value.strip().lower())
+    if matched:
+        return matched
+    report.note(
+        "language",
+        1,
+        f"PAGE XML's primaryLanguage is a closed list of 188 language NAMES and "
+        f"{value!r} is not one of them, so this segment's language is not written",
+    )
+    return None
+
+
+def _script_out(value: str | None, report: LossReport) -> str | None:
+    """The model's ISO 15924 code as PAGE XML's `"Code - Name"` value, or a loss.
+
+    A project-declared script (`Qaaa`-`Qabx`, `source.lang.project-declared`) is NOT
+    in the enumeration -- PAGE XML ships `Zxxx`, `Zyyy` and `Zzzz` but no private-use
+    range -- so a project's own script cannot be written as a script. It goes in the
+    loss report, and `keeps-unrecognised` is where it survives.
+    """
+    if not value:
+        return None
+    _languages, scripts = _schema_vocabularies()
+    matched = scripts.get(value.strip())
+    if matched:
+        return matched
+    report.note(
+        "script",
+        1,
+        f"PAGE XML's script list is ISO 15924 by name and has no entry for "
+        f"{value!r} (its private-use range Qaaa-Qabx is absent), so a "
+        "project-declared script cannot be written as a script",
+    )
+    return None
+
+
+def _language_in(value: str | None) -> str | None:
+    """PAGE XML's name as the model's language. A NAME stays a name (#2092)."""
+    return value.strip() or None if value else None
+
+
+def _script_in(value: str | None) -> str | None:
+    """`"Arab - Arabic"` as `Arab`. The code is the part the model stores."""
+    if not value:
+        return None
+    return value.split(" - ", 1)[0].strip() or None
 
 
 def _tag(element: Any) -> str:
@@ -165,8 +279,14 @@ def read(data: bytes) -> SourcePage:
             ys = [point[1] for point in segment.polygon]
             segment.rect = [min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)]
 
-        segment.language = element.get("primaryLanguage")
-        segment.script = element.get("script")
+        segment.language = _language_in(element.get("primaryLanguage"))
+        # `primaryScript` on a region, line or word; `script` only on a Glyph.
+        # Found by the export refusing to validate: the ScriptSimpleType exists on
+        # several elements under different attribute names, and guessing one
+        # produced invalid PAGE XML rather than a wrong-but-accepted file.
+        segment.script = _script_in(
+            element.get("primaryScript") or element.get("script")
+        )
         direction = element.get("readingDirection")
         if direction:
             segment.direction = DIRECTIONS_IN.get(direction)
@@ -278,10 +398,12 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                 f"{{{PAGE_NS_2019}}}Baseline",
                 points=_points_out(segment.baseline, width, height),
             )
-        if segment.language:
-            element.set("primaryLanguage", segment.language)
-        if segment.script:
-            element.set("script", segment.script)
+        language = _language_out(segment.language, report)
+        if language:
+            element.set("primaryLanguage", language)
+        script = _script_out(segment.script, report)
+        if script:
+            element.set("script" if element_name == "Glyph" else "primaryScript", script)
         if segment.direction:
             mapped = DIRECTIONS_OUT.get(segment.direction)
             if mapped:
@@ -305,6 +427,22 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                 "PAGE XML's TextEquiv has an index but no way to say WHICH reading "
                 "a project counts, so the choice is not carried",
             )
+
+    # PAGE XML's content model is a SEQUENCE: Coords, then child TextLines, then
+    # TextEquiv and TextStyle. Segments are written parent-before-child, so a
+    # region's TextEquiv is created before its lines exist and ends up in front of
+    # them -- valid-looking XML that the schema refuses.
+    #
+    # Found by writing a REAL file back (OCR-D's ground truth has text on regions
+    # AND lines); the round trip of our own output never hit it, because our own
+    # test page had no text on a region that also had lines. That is the round-trip
+    # trap exactly: our reader accepted what our writer produced.
+    #
+    # `append` MOVES an existing child in lxml, so this puts each element's
+    # TextEquiv back at the end where the schema expects it.
+    for element in root.iter():
+        for child in [c for c in element if _tag(c) in ("TextEquiv", "TextStyle")]:
+            element.append(child)
 
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8", pretty_print=True)
 

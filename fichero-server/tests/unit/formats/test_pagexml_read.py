@@ -36,7 +36,7 @@ ESCRIPTORIUM_SHAPED = f"""<?xml version="1.0" encoding="UTF-8"?>
         <RegionRefIndexed index="1" regionRef="r2"/>
       </OrderedGroup>
     </ReadingOrder>
-    <TextRegion id="r1" primaryLanguage="ar" script="Arab" readingDirection="right-to-left">
+    <TextRegion id="r1" primaryLanguage="Arabic" primaryScript="Arab - Arabic" readingDirection="right-to-left">
       <Coords points="100,200 900,200 900,400 100,400"/>
       <TextLine id="l1">
         <Coords points="100,200 900,200 900,300 100,300"/>
@@ -44,7 +44,7 @@ ESCRIPTORIUM_SHAPED = f"""<?xml version="1.0" encoding="UTF-8"?>
         <TextEquiv index="0"><Unicode>بسم الله الرحمن الرحيم</Unicode></TextEquiv>
       </TextLine>
     </TextRegion>
-    <TextRegion id="r2" primaryLanguage="ar" script="Arab" readingDirection="right-to-left">
+    <TextRegion id="r2" primaryLanguage="Arabic" primaryScript="Arab - Arabic" readingDirection="right-to-left">
       <Coords points="100,500 900,500 900,700 100,700"/>
       <TextLine id="l2">
         <Coords points="100,500 900,500 900,600 100,600"/>
@@ -93,7 +93,7 @@ class TestReadingAnotherToolsFile:
         page = read_page("pagexml", ESCRIPTORIUM_SHAPED)
         region = next(s for s in page.segments if s.ref == "r1")
 
-        assert region.language == "ar"
+        assert region.language == "Arabic"
         assert region.script == "Arab"
         assert region.direction == "rtl"
 
