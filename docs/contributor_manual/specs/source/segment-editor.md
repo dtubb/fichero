@@ -896,26 +896,46 @@ The editor
   settles how to draw, and may come back and say the target is wrong).
 - `source.editor.level-of-detail` — **[GAP]** (#4940) finer levels appear as you zoom in.
 
-The trial that settles it, and what makes its numbers checkable (slice 12; all **[GAP]**, #4940)
-- `source.perf.worst-frame-not-mean` — **[GAP]** (#4940) the frame gate is on the worst frame in a
+The trial that settles it, and what makes its numbers checkable (slice 12, #4940)
+
+**The method is built; the measurements are not.** `scripts/perf_trial.py` is the verdict the
+section above writes down. It takes one recorded run and a committed baseline
+(`scripts/perf_trial_baseline.json`) and says PASS, FAIL, INCONCLUSIVE, VOID or REFUSED, with exit
+codes 0, 1 or 2. It takes no measurements itself. The app's frame harness (Release build, on the
+oldest supported iPhone and the Mac) and the engine latency test produce results in its format.
+Two choices it makes that the spec left open are named in its code so they can be ruled. The edit
+gate, like the frame gate, is on the worst value. Memory "grows with the count" means the peak at
+20,000 shapes is at least halfway from flat to proportional (at least 2.5 times the peak at
+5,000). Until a run on each machine is recorded, these behaviours are PARTIAL.
+- `source.perf.worst-frame-not-mean` — **[PARTIAL]** (#4940; the verdict is built and pinned by `fichero-server/tests/unit/scripts/test_perf_trial.py::TestWorstFrameNotMean::test_one_dropped_frame_fails_a_run_whose_mean_is_fine`. No measurement has been recorded yet) the frame gate is on the worst frame in a
   run against a 16.7 ms budget, never the mean, because a mean hides the dropped frame a person
   feels.
-- `source.perf.five-runs-median` — **[GAP]** (#4940) a measurement is the median of five runs after a
+- `source.perf.five-runs-median` — **[PARTIAL]** (#4940; the verdict is built and pinned by `fichero-server/tests/unit/scripts/test_perf_trial.py::TestFiveRunsMedian::test_runs_that_disagree_are_inconclusive_not_the_best_of_five`, `::TestFiveRunsMedian::test_the_cold_run_is_discarded`. No measurement has been recorded yet) a measurement is the median of five runs after a
   discarded cold one, reported with the worst frame; runs that disagree by more than a tenth of
   their median are inconclusive, and the best of the five is never the answer.
-- `source.perf.names-its-machine` — **[GAP]** (#4940) every recorded number carries the device model,
+- `source.perf.names-its-machine` — **[PARTIAL]** (#4940; the verdict is built and pinned by `fichero-server/tests/unit/scripts/test_perf_trial.py::TestNamesItsMachine::test_a_debug_build_is_refused`, `::TestNamesItsMachine::test_a_result_with_no_machine_is_refused`. No measurement has been recorded yet) every recorded number carries the device model,
   the OS version, the build configuration and the fixture it was measured on; a Release build,
   never Debug.
-- `source.perf.declared-fixture` — **[GAP]** (#4940) the trial's page is one committed fixture whose
+- `source.perf.declared-fixture` — **[OK]** (→ #4940) the trial's page is one committed fixture whose
   shape count, nesting and size distribution come from a named real page, and whose own file
-  says it is generated.
-- `source.perf.void-when-throttled` — **[GAP]** (#4940) a run taken on a thermally throttled or busy
+  says it is generated. `scripts/perf_fixture.py` generates it deterministically from
+  `scripts/perf_trial_fixture.json`, which holds the SAMPLES measured on two named real pages
+  (OCR-D's Aepinus page and the ALTO project's page): lines per region, words per line,
+  characters per word from each word's real text, and word width over line height. It is
+  generated because the densest real page here is 576 shapes and none has character-level
+  shapes. What is chosen (equal character widths, columns proportioned to the page, one uniform
+  scale) is declared as chosen. 20,000 requested gives 20,076 shapes on four levels of nesting, and
+  it exports as valid PAGE. Pinned by
+  `fichero-server/tests/unit/scripts/test_perf_fixture.py::test_the_committed_samples_are_what_the_named_real_pages_measure` (the declaration is
+  re-measured, not asserted), `::test_relative_sizes_are_the_real_ones` and
+  `::test_two_runs_measure_one_page`.
+- `source.perf.void-when-throttled` — **[PARTIAL]** (#4940; the verdict is built and pinned by `fichero-server/tests/unit/scripts/test_perf_trial.py::TestVoidWhenThrottled::test_a_throttled_run_is_void_not_failing`, `::TestVoidWhenThrottled::test_an_unreadable_thermal_state_is_refused_not_passed`. No measurement has been recorded yet) a run taken on a thermally throttled or busy
   machine is void rather than failing, and a run that cannot read the thermal state records
   nothing at all rather than recording a pass.
-- `source.perf.baseline-or-fail` — **[GAP]** (#4940) results are compared with a committed baseline
+- `source.perf.baseline-or-fail` — **[PARTIAL]** (#4940; the verdict is built and pinned by `fichero-server/tests/unit/scripts/test_perf_trial.py::TestBaselineOrFail::test_a_regression_past_the_noise_band_fails_even_under_the_gate`, `::TestBaselineOrFail::test_update_writes_only_a_pass_and_records_the_machine`. No measurement has been recorded yet) results are compared with a committed baseline
   that states its machine, OS, fixture and date; a regression beyond the noise band fails, and
   an improvement updates the baseline in the commit that earned it.
-- `source.perf.memory-growth` — **[GAP]** (#4940) peak memory is recorded rather than gated on an
+- `source.perf.memory-growth` — **[PARTIAL]** (#4940; the verdict is built and pinned by `fichero-server/tests/unit/scripts/test_perf_trial.py::TestMemoryGrowth::test_memory_that_grows_with_the_shape_count_fails_whatever_the_figure`. No measurement has been recorded yet) peak memory is recorded rather than gated on an
   invented ceiling, and the trial fails when peak memory scales with a page's shape count
   instead of with what is visible.
 - `source.perf.may-say-the-target-is-wrong` — **[GAP]** (#4940) the trial may conclude that the ruled
