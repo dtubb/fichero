@@ -83,7 +83,14 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     # (WorkflowSuggestionPolicy now referenced directly — entry dropped 2026-08-31)
     # "Models/WorkflowSuggestionPolicy.swift": "2026-08-30 — suggestion glyphs left the toolbar (Daniel's ruling) so the policy is momentarily unreferenced; the suggestions-row-INSIDE-the-bar lane is APPROVED and rewires it. Do not let this entry outlive that lane.",
     "Views/Library/ViewModes/List/LibraryView+ListView.swift": "2026-09-01 — ListRowChrome is the per-pass row-settings carrier threaded into the same-file documentRow/mailRow builders (list-scroll perf); scanner misses same-file wiring",
-    "Views/Workflow/Canvas/WorkflowEdgeView+Edges.swift": "#2955 — EdgesView/PortPositionCalculator split out of WorkflowEdgeView.swift by file_length; were ALREADY unreferenced pre-split (co-located, so unflagged). Appears to be superseded dead code (edges now render via WorkflowCanvasView+EdgesLayer) — FLAG FOR DANIEL to delete/wire; grandfathered so the split lands.",
+    "Models/SegmentSelection.swift": (
+        "#4941 — built AHEAD of its consumers, not debris: source-model slice 13 (cd321f9a1) "
+        "added the segment-id selection that the segment editor, Reader and Inspector are "
+        "specified to share (`source.editor.selection-shared`); only its own tests name it "
+        "until the editor verbs of #4941 land. If #4941 is closed or re-scoped without "
+        "wiring it, delete the file instead of keeping this entry."
+    ),
+    "Views/Workflow/Canvas/WorkflowEdgeView+Edges.swift":"#2955 — EdgesView/PortPositionCalculator split out of WorkflowEdgeView.swift by file_length; were ALREADY unreferenced pre-split (co-located, so unflagged). Appears to be superseded dead code (edges now render via WorkflowCanvasView+EdgesLayer) — FLAG FOR DANIEL to delete/wire; grandfathered so the split lands.",
 }
 
 

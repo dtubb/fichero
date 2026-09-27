@@ -14,7 +14,8 @@ Two live files were still being reported on 2026-09-27:
 
 The escape hatch is deliberately narrow, and the second half of these tests is what keeps it
 narrow: a self-contained `struct SomeSheet: View` that nothing presents must still be reported,
-because that is the case the guard exists for (#5110 has three of them).
+because that is the case the guard exists for (#5110 named three; all have since been wired
+or deleted, so that proof now runs on a synthetic tree).
 """
 from __future__ import annotations
 
@@ -102,25 +103,27 @@ class TestTheTwoLiveFilesAreNoLongerReported:
         ):
             assert rel not in found, f"{rel} is live; its methods are called from another file"
 
-    #: The two that are genuinely built-and-unreachable. It was THREE when this file was
-    #: written: `FirstRunWindow+Library.swift` was deleted hours later, because it was not
-    #: unreachable at all — `FirstRunWindow.swift` already renders both halves of that row
-    #: inline off a `config` object (the button at :332, the green selected label at :145),
-    #: with the same field names the component took as parameters. It was an earlier iteration
-    #: that got inlined and never removed. Absence of a caller is the same signal for debris
-    #: and for something nobody has wired; only reading the SIBLING file to ask what renders
-    #: it now tells them apart, and this test failing is how that correction surfaced.
-    UNREACHABLE = (
+    #: Built-but-unreachable when this file was written (#5110). `FirstRunWindow+Library.swift`
+    #: turned out to be debris and was deleted; the two sheets were given a door from the
+    #: entity table's context menu by 1174ea412 (EntitiesLibraryContent.swift). The guard moved
+    #: on its own — both stopped being reported — and the old assertion here, that they were
+    #: STILL reported, went red because the code got wired. A test pinning a real file as
+    #: dead fails every time somebody fixes what the guard complains about, so the "hatch is
+    #: not too wide" proof now runs on a synthetic tree nobody can wire
+    #: (`TestTheScanStillReportsAnUnpresentedView`).
+    NOW_WIRED = (
         "Views/Library/ViewModes/Graph/Ontology/Entity/EntityMergeSheet.swift",
         "Views/Library/ViewModes/Graph/Ontology/Entity/EntitySplitSheet.swift",
     )
 
-    def test_the_built_but_unreachable_views_are_still_reported(self):
-        """If these stop being reported the hatch has gone too wide, not the code got wired —
-        a wiring would show up as the KNOWN_VIOLATIONS entry going stale instead (#5110)."""
+    def test_the_sheets_given_a_door_are_neither_reported_nor_backlogged(self):
+        """A wired file left in KNOWN_VIOLATIONS makes the backlog a list of excuses that
+        outlive their reason; a wired file still reported means the scan stopped seeing
+        presentation sites."""
         found = dead.scan()
-        for rel in self.UNREACHABLE:
-            assert rel in found, rel
+        for rel in self.NOW_WIRED:
+            assert rel not in found, rel
+            assert rel not in dead.KNOWN_VIOLATIONS, rel
 
     def test_the_deleted_row_is_gone_from_the_tree_and_the_backlog(self):
         """A deleted file must leave no seeded entry behind, or the backlog outlives the file."""
@@ -128,11 +131,60 @@ class TestTheTwoLiveFilesAreNoLongerReported:
         assert not (dead.SWIFT_ROOT / rel).exists()
         assert rel not in dead.KNOWN_VIOLATIONS
 
-    def test_each_of_those_is_seeded_with_its_issue(self):
-        for rel in self.UNREACHABLE:
-            assert "#5110" in dead.KNOWN_VIOLATIONS[rel], rel
-
     def test_the_allowlist_shrank_past_the_blind_spot(self):
         """50 entries, 27 of them one missing rule. A guard whose allowlist is half
         workaround is measuring its own blind spot, not the codebase."""
         assert len(dead.KNOWN_VIOLATIONS) < 30
+
+
+def _scan_tree(tmp_path, monkeypatch, files: dict[str, str]) -> dict[str, list[str]]:
+    for rel, text in files.items():
+        path = tmp_path / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+    monkeypatch.setattr(dead, "SWIFT_ROOT", tmp_path)
+    return dead.scan()
+
+
+class TestTheScanStillReportsAnUnpresentedView:
+    """Whole-scan proof that the extension hatch did not go too wide.
+
+    It used to lean on two real sheets staying unreachable; they were wired the same day and
+    the test went red for doing its job. A synthetic tree cannot be wired by another lane.
+    """
+
+    def test_a_self_contained_view_nobody_presents_is_reported(self, tmp_path, monkeypatch):
+        """`merge()` is called elsewhere, but the orphan has no extension block, so the hatch
+        must not excuse it. If this fails, every unpresented sheet in the app goes silent."""
+        found = _scan_tree(tmp_path, monkeypatch, {
+            "Views/OrphanSheet.swift": (
+                "struct OrphanSheet: View {\n"
+                "    var body: some View { Text(\"x\") }\n"
+                "    func merge() {}\n"
+                "}\n"
+            ),
+            "Views/Host.swift": (
+                "struct Host: View {\n"
+                "    var body: some View { Button(\"m\") { merge() } }\n"
+                "}\n"
+            ),
+        })
+        assert "Views/OrphanSheet.swift" in found
+
+    def test_the_same_view_once_presented_is_not_reported(self, tmp_path, monkeypatch):
+        """Over-fire check: naming the type from another file is exactly what wiring looks
+        like, and a guard that still reports it teaches people to allowlist live code."""
+        found = _scan_tree(tmp_path, monkeypatch, {
+            "Views/OrphanSheet.swift": (
+                "struct OrphanSheet: View {\n"
+                "    var body: some View { Text(\"x\") }\n"
+                "}\n"
+            ),
+            "Views/Host.swift": (
+                "struct Host: View {\n"
+                "    var body: some View { Color.clear.sheet(isPresented: .constant(true)) "
+                "{ OrphanSheet() } }\n"
+                "}\n"
+            ),
+        })
+        assert "Views/OrphanSheet.swift" not in found
