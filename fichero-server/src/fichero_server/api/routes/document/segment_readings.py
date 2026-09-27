@@ -202,8 +202,12 @@ def provisional_readings(
     *,
     allowed_kinds: list[str] | None = None,
     artifact_memo: dict[str, Artifact | None] | None = None,
+    located: tuple[Artifact | None, int | None] | None = None,
 ) -> list[ReadingRead]:
     """This segment's readings that still live in an artifact.
+
+    `located` is the `(artifact, box_index)` a caller that already holds the row has worked out
+    (`_readings_for_live_rows`), so a whole page does not look every row up again.
 
     Offered ONLY when the artifact's own type is a reading kind this library
     knows: ``entities``, ``grouping`` and ``segmentation`` artifacts are
@@ -218,7 +222,7 @@ def provisional_readings(
     text. raw-geometry-ok — this is the record of what the machine produced,
     which is exactly what a provisional reading reports.
     """
-    artifact, box_index = _artifact_and_box(db, segment_id, artifact_memo)
+    artifact, box_index = located if located is not None else _artifact_and_box(db, segment_id, artifact_memo)
     if artifact is None or box_index is None:
         return []
     kinds = allowed_kinds if allowed_kinds is not None else reading_kinds(db)
@@ -321,6 +325,48 @@ def readings_of_segment(
         items.append(_reading_read_from_row(row))
     items.extend(provisional_readings(db, live_id, artifact_memo=artifact_memo))
     return items
+
+
+def _readings_for_live_rows(
+    db: Database, rows: list[Segment], document_id: str, artifact_memo: dict[str, Artifact | None]
+) -> dict[str, list[ReadingRead]]:
+    """`readings_of_segment` for every row of a page at once -- the SAME items, in the same order.
+
+    Slice 12 (#4940): deriving a 20,000-segment page took ~14.5 s, and every text-changing undo
+    pays it. `readings_of_segment` is the right call for ONE id that may have moved; for a page's
+    LIVE rows already in hand it re-walked forwarding for ids that are by definition themselves,
+    ran one representation query and one `reading_kinds` query per row, and fetched each row and
+    its pass again for the provisional half. Here: one representation query for the document,
+    the kinds once, each pass once, no forwarding walk.
+    """
+    by_segment: dict[str, list[ReadingRead]] = {row.id: [] for row in rows}
+    for rep_row in db.query(ContentRepresentation, document_id=document_id):
+        if rep_row.segment_id in by_segment:
+            by_segment[rep_row.segment_id].append(_reading_read_from_row(rep_row))
+    kinds = reading_kinds(db)
+    passes: dict[str, SegmentPass | None] = {}
+
+    def artifact(artifact_id: str) -> Artifact | None:
+        if artifact_id not in artifact_memo:
+            artifact_memo[artifact_id] = db.get(Artifact, artifact_id)
+        return artifact_memo[artifact_id]
+
+    for row in rows:
+        box_index = row.metadata.get("box_index")
+        if not isinstance(box_index, int) or isinstance(box_index, bool):
+            continue
+        if row.pass_id not in passes:
+            passes[row.pass_id] = db.get(SegmentPass, row.pass_id)
+        pass_row = passes[row.pass_id]
+        if pass_row is None or not pass_row.source_artifact_id:
+            continue
+        by_segment[row.id].extend(
+            provisional_readings(
+                db, row.id, allowed_kinds=kinds, artifact_memo=artifact_memo,
+                located=(artifact(pass_row.source_artifact_id), box_index),
+            )
+        )
+    return by_segment
 
 
 def _candidate(item: ReadingRead) -> ReadingCandidate:
@@ -715,11 +761,9 @@ def document_text(
     # rather than re-walked from them, so the two can never read the page differently.
     span_directions: list[tuple[str | None, str | None, str | None, DerivedTextSpan]] = []
     cursor = 0
+    page_readings = _readings_for_live_rows(db, rows, document_id, artifact_memo)
     for row in rows:
-        items = [
-            item for item in readings_of_segment(db, row.id, artifact_memo=artifact_memo)
-            if item.kind == kind
-        ]
+        items = [item for item in page_readings[row.id] if item.kind == kind]
         if not items:
             continue
         resolved = resolve_direction(segment=row, document=document)
