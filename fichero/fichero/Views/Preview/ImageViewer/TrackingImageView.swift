@@ -102,17 +102,13 @@ class TrackingImageView: NSImageView {
         let location = convert(event.locationInWindow, from: nil)
         guard bounds.width > 0, bounds.height > 0 else { return }
 
-        // The loupe STAYS where you leave it and follows the cursor only
-        // while ⌥ is held (Daniel, 2026-09-01: "it should live where you
-        // leave it; it should move when option is pressed"). ⌥ is the one
-        // leash: it also summons the transient loupe (ZoomableImagePreview).
-        // Option must be the SOLE modifier so a ⌘⌥ chord doesn't drag the loupe.
-        let followChord = event.modifierFlags.intersection([.command, .option, .control, .shift])
-        if loupeEnabled, !loupeLocked, followChord == .option {
-            loupePosition = location
-            loupeViewPosition = location
-            needsDisplay = true
-        }
+        // The loupe STAYS where you leave it: reposition it by dragging it
+        // directly (see mouseDown/mouseDragged below), not by holding a
+        // modifier over the page. A bare hover-and-hold used to make the
+        // loupe jump to the cursor while ⌥ was down, which reads as the app
+        // hijacking Option (a maintainer-reported regression) — removed.
+        // The loupe is still fully reachable: the Loupe menu/shortcut opens
+        // it at center, and it can be dragged and resized without Option.
 
         // Update cursor for loupe edge resize
         if loupeEnabled, let viewPos = loupeViewPosition {
