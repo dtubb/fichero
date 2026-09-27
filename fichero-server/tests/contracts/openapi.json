@@ -5072,6 +5072,183 @@
         }
       }
     },
+    "/api/rights": {
+      "post": {
+        "tags": [
+          "rights"
+        ],
+        "summary": "Set Rights",
+        "operationId": "set_rights_api_rights_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RightsSetParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RightsAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rights/{record_id}/withdraw": {
+      "post": {
+        "tags": [
+          "rights"
+        ],
+        "summary": "Withdraw Rights",
+        "operationId": "withdraw_rights_api_rights__record_id__withdraw_post",
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Record Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RightsAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rights/effective": {
+      "get": {
+        "tags": [
+          "rights"
+        ],
+        "summary": "Get Effective Rights",
+        "description": "What applies to a target: every record above it, combined tighten-only.",
+        "operationId": "get_effective_rights_api_rights_effective_get",
+        "parameters": [
+          {
+            "name": "target_kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RightsTarget"
+            }
+          },
+          {
+            "name": "target_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "library",
+              "title": "Target Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EffectiveRightsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{doc_id}/import": {
       "post": {
         "tags": [
@@ -49308,6 +49485,58 @@
         "title": "EffectiveAttributesResponse",
         "description": "A node's structured data, resolved (datasets Stage 1).\n\n``declarations`` come from the prototype chain (typed, with renderer\nroles); ``values`` are the declarations' defaults overlaid with the\nnode's OWN ``attributes`` \u2014 what a grid cell or inspector row shows."
       },
+      "EffectiveRightsResponse": {
+        "properties": {
+          "target_kind": {
+            "type": "string",
+            "title": "Target Kind"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "restricted": {
+            "type": "boolean",
+            "title": "Restricted"
+          },
+          "readers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Readers"
+          },
+          "model_use": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model Use"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Labels"
+          },
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/RightsRecord"
+            },
+            "type": "array",
+            "title": "Records"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target_kind",
+          "target_id",
+          "restricted",
+          "labels",
+          "records"
+        ],
+        "title": "EffectiveRightsResponse"
+      },
       "EleventySiteExportRequest": {
         "properties": {
           "output_path": {
@@ -59153,6 +59382,16 @@
         "title": "ModelSpec",
         "description": "Specification for a model to compare."
       },
+      "ModelUse": {
+        "type": "string",
+        "enum": [
+          "none",
+          "local",
+          "cloud"
+        ],
+        "title": "ModelUse",
+        "description": "Where a segment may be sent (`source.rights.model-use`), strictest first."
+      },
       "ModelsByTierResponse": {
         "properties": {
           "frontier": {
@@ -65392,6 +65631,183 @@
         ],
         "title": "ReviewSummaryResponse",
         "description": "Compact queue status for badge/UI polling."
+      },
+      "RightsAnswer": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "result": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Result"
+          },
+          "audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "result"
+        ],
+        "title": "RightsAnswer"
+      },
+      "RightsRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "target_kind": {
+            "type": "string",
+            "title": "Target Kind"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "holders": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Holders"
+          },
+          "consent": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Consent"
+          },
+          "conditions": {
+            "type": "string",
+            "nullable": true,
+            "title": "Conditions"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Labels"
+          },
+          "restricted": {
+            "type": "boolean",
+            "title": "Restricted",
+            "default": false
+          },
+          "readers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Readers"
+          },
+          "model_use": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model Use"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind",
+            "default": "unknown"
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "withdrawn_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Withdrawn At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target_kind",
+          "target_id"
+        ],
+        "title": "RightsRecord"
+      },
+      "RightsSetParams": {
+        "properties": {
+          "target_kind": {
+            "$ref": "#/components/schemas/RightsTarget"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id",
+            "default": "library"
+          },
+          "holders": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Holders"
+          },
+          "consent": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Consent"
+          },
+          "conditions": {
+            "type": "string",
+            "maxLength": 500,
+            "nullable": true,
+            "title": "Conditions"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Labels"
+          },
+          "restricted": {
+            "type": "boolean",
+            "title": "Restricted",
+            "default": false
+          },
+          "readers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Readers"
+          },
+          "model_use": {
+            "$ref": "#/components/schemas/ModelUse",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "target_kind"
+        ],
+        "title": "RightsSetParams"
+      },
+      "RightsTarget": {
+        "type": "string",
+        "enum": [
+          "library",
+          "document",
+          "segment"
+        ],
+        "title": "RightsTarget"
       },
       "RollbackRequest": {
         "properties": {

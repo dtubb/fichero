@@ -12258,6 +12258,81 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('rights')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for rights endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='rights')
+        existing_apps['rights'] = target_app
+
+    @target_app.command("set")
+    def rights_set_post(
+        ctx: typer.Context,
+        conditions: Optional[str] = typer.Option(None, "--conditions", help="Request field: conditions."),
+        consent: Optional[str] = typer.Option(None, "--consent", help="Request field: consent."),
+        holders: Optional[str] = typer.Option(None, "--holders", help="Request field: holders."),
+        labels: Optional[str] = typer.Option(None, "--labels", help="Request field: labels."),
+        model_use: Optional[str] = typer.Option(None, "--model-use", help="Request field: model_use."),
+        readers: Optional[str] = typer.Option(None, "--readers", help="Request field: readers."),
+        restricted: Optional[bool] = typer.Option(None, "--restricted/--no-restricted", help="Request field: restricted."),
+        target_id: Optional[str] = typer.Option(None, "--target-id", help="Request field: target_id."),
+        target_kind: str = typer.Option(..., "--target-kind", help="Request field: target_kind."),
+    ) -> None:
+        """Set Rights (POST /api/rights)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/rights"
+            params = None
+            payload = _build_json_payload({
+                "conditions": conditions,
+                "consent": consent,
+                "holders": holders,
+                "labels": labels,
+                "model_use": model_use,
+                "readers": readers,
+                "restricted": restricted,
+                "target_id": target_id,
+                "target_kind": target_kind,
+            }, {
+                "conditions": {'type': 'string', 'maxLength': 500, 'nullable': True, 'title': 'Conditions', 'x-cli-required': False},
+                "consent": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Consent', 'x-cli-required': False},
+                "holders": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Holders', 'x-cli-required': False},
+                "labels": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Labels', 'x-cli-required': False},
+                "model_use": {'type': 'string', 'enum': ['none', 'local', 'cloud'], 'title': 'ModelUse', 'description': 'Where a segment may be sent (`source.rights.model-use`), strictest first.', 'x-cli-required': False},
+                "readers": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Readers', 'x-cli-required': False},
+                "restricted": {'type': 'boolean', 'title': 'Restricted', 'default': False, 'x-cli-required': False},
+                "target_id": {'type': 'string', 'title': 'Target Id', 'default': 'library', 'x-cli-required': False},
+                "target_kind": {'type': 'string', 'enum': ['library', 'document', 'segment'], 'title': 'RightsTarget', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-effective")
+    def rights_get_effective_get(
+        ctx: typer.Context,
+        target_id: Optional[str] = typer.Option(None, "--target-id", help="Query parameter: target_id."),
+        target_kind: str = typer.Option(..., "--target-kind", help="Query parameter: target_kind."),
+    ) -> None:
+        """Get Effective Rights (GET /api/rights/effective)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/rights/effective"
+            params = {
+                "target_id": target_id,
+                "target_kind": target_kind,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("withdraw")
+    def rights_withdraw_post(
+        ctx: typer.Context,
+        record_id: str = typer.Argument(..., help="Path parameter: record_id."),
+    ) -> None:
+        """Withdraw Rights (POST /api/rights/{record_id}/withdraw)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/rights/{record_id}/withdraw"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('sandbox')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for sandbox endpoints.', no_args_is_help=True)

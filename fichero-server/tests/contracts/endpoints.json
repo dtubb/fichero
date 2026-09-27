@@ -8393,6 +8393,51 @@
         "response_model": "WebSearchResponse"
       }
     ],
+    "rights": [
+      {
+        "method": "POST",
+        "path": "/rights",
+        "operation_id": "set_rights_api_rights_post",
+        "summary": "Set Rights",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "RightsSetParams",
+        "response_model": "RightsAnswer"
+      },
+      {
+        "method": "GET",
+        "path": "/rights/effective",
+        "operation_id": "get_effective_rights_api_rights_effective_get",
+        "summary": "Get Effective Rights",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "target_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "target_kind",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "EffectiveRightsResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/rights/{record_id}/withdraw",
+        "operation_id": "withdraw_rights_api_rights__record_id__withdraw_post",
+        "summary": "Withdraw Rights",
+        "path_params": [
+          "record_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "RightsAnswer"
+      }
+    ],
     "sandbox": [
       {
         "method": "POST",

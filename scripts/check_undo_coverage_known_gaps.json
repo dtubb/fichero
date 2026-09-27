@@ -394,5 +394,7 @@
   "PUT /api/triggers/{trigger_id}": "no undo registration in current tree",
   "PUT /api/workflows/{workflow_id}": "no undo registration in current tree",
   "POST /api/signs": "slice 14 declared signs (#4939): the ENGINE undo exists (audited, undoable declare/withdraw/restore); no Swift caller registers it yet because the sign-list UI waits for its wireframes",
-  "POST /api/signs/{sign_id}/withdraw": "slice 14 declared signs (#4939): the ENGINE undo exists (audited, undoable declare/withdraw/restore); no Swift caller registers it yet because the sign-list UI waits for its wireframes"
+  "POST /api/signs/{sign_id}/withdraw": "slice 14 declared signs (#4939): the ENGINE undo exists (audited, undoable declare/withdraw/restore); no Swift caller registers it yet because the sign-list UI waits for its wireframes",
+  "POST /api/rights": "slice 14 rights records (#4953): the ENGINE undo exists (audited, undoable set/withdraw); no Swift caller registers it yet because the rights UI waits for its wireframes",
+  "POST /api/rights/{record_id}/withdraw": "slice 14 rights records (#4953): the ENGINE undo exists (audited, undoable set/withdraw); no Swift caller registers it yet because the rights UI waits for its wireframes"
 }
