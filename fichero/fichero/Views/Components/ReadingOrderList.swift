@@ -10,6 +10,8 @@ struct ReadingOrderList: View {
     /// List this segment's children (a block's lines, a line's words) instead of the page's top level
     /// -- the Inspector's Order section at the inspected level.
     var parentSegmentId: String?
+    /// Show nothing at all for an empty level (ruled: a section with nothing to say is hidden).
+    var hidesWhenEmpty = false
 
     @Environment(ReadingOrderService.self) private var service: ReadingOrderService?
     @Environment(SegmentService.self) private var segmentService: SegmentService?
@@ -17,6 +19,18 @@ struct ReadingOrderList: View {
     @Environment(\.undoManager) private var undoManager
 
     @State private var store: ReadingOrderStore?
+
+    init(
+        documentId: String, parentSegmentId: String? = nil, hidesWhenEmpty: Bool = false,
+        store: ReadingOrderStore? = nil
+    ) {
+        self.documentId = documentId
+        self.parentSegmentId = parentSegmentId
+        self.hidesWhenEmpty = hidesWhenEmpty
+        // A store handed in (a preview's, over a fixture transport) is used as is; otherwise the
+        // library's service makes one.
+        _store = State(initialValue: store)
+    }
     /// The selected line, by segment id.
     @State private var selection: String?
 
@@ -41,7 +55,7 @@ struct ReadingOrderList: View {
                 if let refusal = store.lastRefusal {
                     Text(refusal).font(.caption).foregroundStyle(.secondary).padding(4)
                 }
-            } else {
+            } else if !hidesWhenEmpty {
                 ContentUnavailableView(
                     "No Reading Order", systemImage: "list.number",
                     description: Text("This page has no named order yet.")
@@ -108,3 +122,33 @@ struct ReadingOrderList: View {
         }
     }
 }
+
+#if DEBUG
+/// A page of three regions, the middle one holding three lines, as the engine would list them.
+@MainActor
+private final class PreviewOrderTransport: ReadingOrderTransport {
+    func orders(documentId: String) async throws -> [ReadingOrderSummary] {
+        [.init(id: "o1", name: "as-written", kind: "as-written")]
+    }
+    func entries(orderId: String, parentEntryId: String?) async throws -> [ReadingOrderMove.Entry] {
+        parentEntryId == nil
+            ? ["heading", "body", "marginal note"].map { .init(entryId: "e-\($0)", segmentId: $0, version: 1) }
+            : ["line 1", "line 2", "line 3"].map {
+                .init(entryId: "e-\($0)", segmentId: $0, version: 1, parentEntryId: parentEntryId)
+            }
+    }
+    func place(_ place: ReadingOrderMove.Place) async throws -> String? { "preview-audit" }
+}
+
+#Preview("A page's order") {
+    ReadingOrderList(documentId: "page-1", store: ReadingOrderStore(transport: PreviewOrderTransport()))
+        .frame(width: 320, height: 260)
+}
+
+#Preview("A block's lines") {
+    ReadingOrderList(
+        documentId: "page-1", parentSegmentId: "body", store: ReadingOrderStore(transport: PreviewOrderTransport())
+    )
+    .frame(width: 320, height: 260)
+}
+#endif
