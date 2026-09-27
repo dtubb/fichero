@@ -159,11 +159,11 @@ struct PreviewMarkupRowOrderGuardTests {
         #expect(source.contains("WORD boxes"))
     }
 
-    @Test("Delete and Combine appear only while regions are selected")
+    @Test("Delete and Join appear only while regions are selected")
     func editVerbsFollowTheSelection() throws {
         let source = try headSource()
         // The verbs act on the selection, so the bar must not offer them
-        // against nothing (ruling 2). Combine additionally needs two.
+        // against nothing (ruling 2). Join additionally needs two.
         #expect(source.contains("let selection = RegionSelection.shared"))
         #expect(source.contains("if !selection.isEmpty {"))
         #expect(source.contains("if selection.count >= 2 {"))
@@ -306,5 +306,41 @@ struct PreviewWhatToShowMenuGuardTests {
             Set(imageOwners).isDisjoint(with: Set(pdfOwners)),
             "one file drives both canvases' word boxes — that is the desync bug"
         )
+    }
+}
+
+/// JOIN, not Combine (ruled 2026-09-27, the wireframes' Q4): the verb that merges selected regions
+/// is called one thing on the page, in the Inspector, in the context menu and in the Undo menu.
+/// Three names for one verb is how a person comes to think they are three different things.
+/// A source guard because the four strings live in four views no unit test renders together.
+struct JoinIsTheOneNameGuardTests {
+    private static let files = [
+        "Views/Shell/PaneHead/PreviewMarkupToolsRow.swift",
+        "Views/Inspector/Artifacts/ArtifactPanel+Regions.swift",
+        "Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Regions.swift",
+        "Views/Reader/ReaderToolbar.swift",
+    ]
+
+    @Test("no visible string still says Combine")
+    func noVisibleCombine() throws {
+        for file in Self.files {
+            let source = try String(
+                contentsOf: AppSource.root().appendingPathComponent(file), encoding: .utf8
+            )
+            #expect(!source.contains("\"Combine"), "a label still says Combine in \(file)")
+            #expect(!source.contains("actionName: \"Combine"), "an Undo name still says Combine in \(file)")
+        }
+    }
+
+    @Test("the markup row, the Inspector, the context menu and Undo all say Join")
+    func everyPlaceSaysJoin() throws {
+        let row = try String(contentsOf: AppSource.root().appendingPathComponent(Self.files[0]), encoding: .utf8)
+        let inspector = try String(contentsOf: AppSource.root().appendingPathComponent(Self.files[1]), encoding: .utf8)
+        let canvas = try String(contentsOf: AppSource.root().appendingPathComponent(Self.files[2]), encoding: .utf8)
+        #expect(row.contains("label: \"Join \\(selection.count)\""))
+        #expect(inspector.contains("Button(\"Join\")"))
+        #expect(inspector.contains("actionName: \"Join Regions\""))
+        #expect(canvas.contains("Button(\"Join \\(selection.count) Regions\")"))
+        #expect(canvas.contains("actionName: \"Join Regions\""))
     }
 }

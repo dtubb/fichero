@@ -127,11 +127,14 @@ def page_from_library(
         counting_id = counted.representation_id if counted else None
         items.sort(key=lambda i: (i.id != counting_id, i.created_at))
         anchor = row.anchor
+        # A segment its file placed nowhere is written with no shape: its whole-page anchor is
+        # where the library keeps it, not a place anybody drew (`format_import.SHAPE_UNSTATED`).
+        unstated = row.metadata.get("shape") == "unstated"
         segments.append(
             PageSegment(
                 kind=row.kind,
-                rect=list(anchor.rect) if anchor.rect else None,
-                polygon=[list(p) for p in anchor.polygon] if anchor.polygon else None,
+                rect=list(anchor.rect) if anchor.rect and not unstated else None,
+                polygon=[list(p) for p in anchor.polygon] if anchor.polygon and not unstated else None,
                 baseline=[list(p) for p in row.baseline] if row.baseline else None,
                 language=row.language,
                 script=row.script,

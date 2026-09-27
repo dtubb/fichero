@@ -20,6 +20,7 @@ final class PreviewPaneChromeTests: XCTestCase {
         chrome.renditionNames = ["Original", "Enhanced"]
         chrome.renditionIndex = 1
         chrome.selectRendition = { _ in }
+        chrome.canEditSegments = true
 
         chrome.reset()
 
@@ -27,6 +28,15 @@ final class PreviewPaneChromeTests: XCTestCase {
         XCTAssertTrue(chrome.renditionNames.isEmpty)
         XCTAssertEqual(chrome.renditionIndex, 0)
         XCTAssertNil(chrome.selectRendition)
+        // A PDF replacing an image must not keep the image's Edit Segments switch in the head.
+        XCTAssertFalse(chrome.canEditSegments)
+    }
+
+    /// The head shows Edit Segments only once a canvas with segments says so (ruled 2026-09-27,
+    /// Q3). A fresh chrome -- no canvas yet, or a PDF / workflow canvas -- offers no switch that
+    /// would toggle a mode nothing on screen honours.
+    func testNoCanvasMeansNoEditSegmentsSwitch() {
+        XCTAssertFalse(PreviewPaneChrome().canEditSegments)
     }
 
     // MARK: - Markup tool routing

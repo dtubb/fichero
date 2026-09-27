@@ -13,7 +13,11 @@ on disk 2026-09-27 on `spec/page-model`.
 - Up to the parent image (↰), previous / next page ‹ › with *n/N*.
 - Renditions: previous / next rendition, and a menu naming which rendition is showing.
 - Zoom-controls toggle (⌘⌥E).
-- **Pencil toggle**: slides the markup row out under the head.
+- ~~**Pencil toggle**: slides the markup row out under the head.~~ **Corrected 2026-09-27:** wrong
+  when written. The markup row left the pane head on 2026-08-30 for the WINDOW's annotation bar,
+  and its pencil is the window toolbar's split button (`ContentView+Toolbar.annotationBarToggle`),
+  not a head control. So Q3's "in the head beside the pencil" was built as a switch in the head's
+  controls (`PreviewHeadLensControls`), first in the row; the pencil is in the toolbar above it.
 
 **The markup row** (`PaneHead/PreviewMarkupToolsRow.swift`), in its ruled order:
 - Selecting: **Select Text** (⌘⌥U), **Select** (⌘⌥V, the default), **Select Words** (⌘⌥W).

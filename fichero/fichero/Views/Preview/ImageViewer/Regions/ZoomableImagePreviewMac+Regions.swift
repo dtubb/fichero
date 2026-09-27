@@ -120,7 +120,7 @@ extension ZoomableImagePreview {
         let selection = RegionSelection.shared
         if isEditingSegments, let artifactId = ocrGeometryArtifactId, selection.artifactId == artifactId {
             if selection.count >= 2 {
-                Button("Combine \(selection.count) Regions") { combineSelectedRegions() }
+                Button("Join \(selection.count) Regions") { combineSelectedRegions() }
             }
             if selectionIsWordLevel {
                 // Word-boundary marquee (Daniel, 2026-08-30, ruling 2): the
@@ -217,7 +217,7 @@ extension ZoomableImagePreview {
                     artifactId: artifactId, documentId: documentId, indices: indices
                 )
                 ocrGeometry = updated.artifact.ocrGeometry
-                registerRegionUndo(updated, actionName: "Combine Regions")
+                registerRegionUndo(updated, actionName: "Join Regions")
                 selection.invalidate(artifactId: artifactId)
             } catch {
                 Self.logger.error("Region combine failed: \(String(describing: error))")

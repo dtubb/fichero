@@ -488,6 +488,7 @@ extension ZoomableImagePreview {
         paneChrome.renditionNames = uniqueRenditionLabels(renditions)
         paneChrome.renditionIndex = renditionIndex
         paneChrome.selectRendition = { index in self.flipRendition(to: index) }
+        paneChrome.canEditSegments = true
     }
 }
 

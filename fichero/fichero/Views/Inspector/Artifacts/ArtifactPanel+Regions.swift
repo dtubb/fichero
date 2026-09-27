@@ -70,7 +70,7 @@ struct ArtifactRegionsSection: View {
                         }
                         Spacer(minLength: 0)
                         if selection.artifactId == artifactId, selection.count >= 2 {
-                            Button("Combine") { combineSelected() }
+                            Button("Join") { combineSelected() }
                                 .buttonStyle(.plain)
                                 .font(.caption)
                                 .foregroundStyle(Color.accentColor)
@@ -160,7 +160,7 @@ struct ArtifactRegionsSection: View {
                     artifactId: artifactId, documentId: documentId, indices: indices
                 )
                 combined.registerUndo(
-                    actionName: "Combine Regions", undoManager: undoManager,
+                    actionName: "Join Regions", undoManager: undoManager,
                     actionsService: actionStore?.actionsService
                 )
                 selection.invalidate(artifactId: artifactId)

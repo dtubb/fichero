@@ -291,6 +291,14 @@ def _anchor_for(
     """
     problems: list[str] = []
 
+    if segment.rect is None and segment.polygon is None:
+        # A TEXT-ONLY segment: the file states no place for it at all (an EpiDoc edition, a TEI
+        # line whose `<lb>` names no zone). It is not a shape outside the page -- there is no
+        # shape -- so it is never refused. It is somewhere on THIS page, which is all the file
+        # says, so it is anchored to the page and marked `shape: unstated`, and the export writes
+        # no shape for it. Refusing it lost the transcription (acceptance defect 3).
+        return SourceAnchor(document_id=document_id, rect=[0.0, 0.0, 1.0, 1.0], granularity=segment.kind), None
+
     rect = segment.rect
     if rect is not None:
         clamped = _clamped_rect(rect)
@@ -396,6 +404,11 @@ def _clamped_rect(rect: list[float]) -> list[float]:
 #: and its export follow. `segment_readings._segment_order_key` reads it.
 FILE_POSITION = "file_position"
 
+
+#: A segment whose file stated no place for it (`_anchor_for`): its anchor is the whole page,
+#: and nothing may draw it or export it as a shape.
+SHAPE = "shape"
+SHAPE_UNSTATED = "unstated"
 
 #: The id the element had in its file (PAGE `@id`, ALTO `@ID`, TEI `@xml:id`).
 SOURCE_ID = "source_id"
@@ -547,6 +560,8 @@ def write_page_into_library(
         if segment.foreign:
             row.metadata = {**row.metadata, "foreign": dict(segment.foreign)}
         row.metadata = {**row.metadata, FILE_POSITION: positions[ref]}
+        if segment.rect is None and segment.polygon is None:
+            row.metadata = {**row.metadata, SHAPE: SHAPE_UNSTATED}
         if segment.ref:
             # The file's own id for this element (#5138): how a segment is traced back to the
             # element it came from. Never used as OUR id -- a re-import mints new ones.

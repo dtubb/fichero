@@ -228,7 +228,7 @@ struct ReaderToolbar: View {
                 if let segmentEditingEnabled {
                     Divider()
                     Toggle("Edit Segments", isOn: segmentEditingEnabled)
-                        .help("Draw, move, combine and delete segments on this page. Off, the page is for reading.")
+                        .help("Draw, move, join and delete segments on this page. Off, the page is for reading.")
                         .accessibilityIdentifier("previewEditSegments")
                 }
             } label: {

@@ -59,6 +59,10 @@ A segment has any number of **readings**. A reading has:
   > its own line. It no longer joins both sides into one word (#5130; four DDbDP papyri,
   > `test_tei.py::TestAChoiceIsNotTwoWordsRunTogether`). **Owed:** the pair as TWO readings of one
   > word segment, written back out as a `<choice>`. That waits for word-level segments from TEI.
+  > The same holds for an `<app>` that varies PART of a line (a papyrus's one-word `<rdg>`): the
+  > `<lem>` is the line's text, the `<rdg>` is kept with its position (`tei-app`) and named by the
+  > loss report, and carrying it as a reading of the word is owed with the rest. An `<app>` whose
+  > `<lem>` is the whole line still gives the line whole-line readings.
 - its **language and script**;
 - **what it was read from**: which image of the page, and, for a reading made from another
   reading (a translation, a normalisation), which one;
