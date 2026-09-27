@@ -179,6 +179,9 @@ class FormatImportParams(BaseModel):
     #: What to call the pass. Defaults to the file's own name, which is what a
     #: person recognises in a list of passes.
     name: Optional[str] = None
+    #: The file was UPLOADED into a temp folder the engine made: a YOLO dataset's class names
+    #: are looked for in that folder only, never in the engine's folders above it.
+    uploaded: bool = False
 
 
 def _invert_format_import(before, after, ctx: ActionContext):
@@ -230,7 +233,8 @@ def _action_format_import(db: Database, params: FormatImportParams, ctx: ActionC
         # `data.yaml` beside it, so YALTAi's 4 arrives as `MainZone`, not as our "region".
         from fichero_server.formats.yolo import class_names_beside, read as read_yolo
 
-        page = read_yolo(data, class_names_beside(path))
+        names = class_names_beside(path, walk_up=not params.uploaded)
+        page = read_yolo(data, names)
     else:
         page = read_page(spec.name, data)
 
@@ -245,6 +249,12 @@ def _action_format_import(db: Database, params: FormatImportParams, ctx: ActionC
         ctx=ctx,
     )
 
+    if spec.name == "yolo":
+        # Class numbers nobody named: said out loud, not guessed quietly (#5138). Their boxes were
+        # read by Fichero's own convention, which is right only for a file Fichero wrote.
+        result["unknown_classes"] = sorted({
+            s.foreign["yolo:class"] for s in page.segments if "yolo:class_name" not in s.foreign
+        })
     spec_change = ChangeSpec(
         domains=["segment", "representation"],
         target_ids=[result["pass_id"]],
@@ -691,6 +701,9 @@ class ImportResponse(BaseModel):
     readings: int
     order_entries: int
     checksum: str
+    #: YOLO: class numbers the file used that no dataset file named. Their boxes were read by
+    #: Fichero's own convention; send the dataset's `classes.txt` or `data.yaml` to name them.
+    unknown_classes: list[int] = []
     #: How many segments had a shape the file could not express properly. Surfaced
     #: rather than buried in rows: a page where forty boxes were repaired is a page
     #: somebody should look at.
@@ -783,6 +796,7 @@ async def import_document_page(
                 "path": str(label_path),
                 **({"format": format_name} if format_name else {}),
                 "name": name or file.filename or label_path.name,
+                "uploaded": True,
             },
             ctx,
         ).result

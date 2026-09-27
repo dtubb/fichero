@@ -60,12 +60,17 @@ def kind_for_class_name(name: str) -> str:
     return "region"
 
 
-def class_names_beside(label_path) -> list[str] | None:
+def class_names_beside(label_path, *, walk_up: bool = True) -> list[str] | None:
     """A YOLO dataset's class names, from where datasets keep them, or None.
 
-    `classes.txt` beside the labels (one name a line), else a `data.yaml` in this folder or one of
-    the two above it (`names:` as a list or an index-keyed map). Parsed with `yaml.safe_load`
-    (the engine's own dependency), so a dataset file cannot run code.
+    `classes.txt` beside the labels (one name a line), else a `data.yaml` in this folder or --
+    with `walk_up` -- one of the two above it (`names:` as a list or an index-keyed map). Parsed
+    with `yaml.safe_load` (the engine's own dependency), so a dataset file cannot run code.
+
+    `walk_up=False` for an UPLOAD: its folder is a temp folder the engine made, and the folders
+    above it are the engine's, not the uploader's. Names found there would come from a file the
+    uploader never sent -- a stray one, or one somebody else planted, which on a shared engine
+    crosses users. Walking up is only for a folder import, where the folders ARE the input.
     """
     from pathlib import Path
 
@@ -76,7 +81,7 @@ def class_names_beside(label_path) -> list[str] | None:
         return names or None
     import yaml
 
-    for folder in (here, here.parent, here.parent.parent):
+    for folder in (here, here.parent, here.parent.parent) if walk_up else (here,):
         data_yaml = folder / "data.yaml"
         if not data_yaml.is_file():
             continue

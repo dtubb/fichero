@@ -124,3 +124,44 @@ def test_a_dataset_file_by_any_other_name_is_refused(db, client):
     )
     assert response.status_code == 422
     assert "classes.txt" in response.json()["detail"]
+
+
+def test_an_upload_never_takes_class_names_from_a_file_it_did_not_send(db, client, tmp_path, monkeypatch):
+    """SECURITY. An upload is spooled into a temp folder the ENGINE made; the folders above it are
+    the engine's. The lookup used to walk two folders up, so a `data.yaml` somebody left or
+    planted in the engine's temp directory named the classes of another person's upload -- on a
+    shared engine, across users. Here one is planted one level above the upload's folder."""
+    import tempfile
+
+    engine_tmp = tmp_path / "engine-tmp"
+    engine_tmp.mkdir()
+    (engine_tmp / "data.yaml").write_text("names: [Planted0, Planted1, Planted2]\n", encoding="utf-8")
+    monkeypatch.setattr(tempfile, "tempdir", str(engine_tmp))
+    doc = Document(name="002.jpg", doc_type=DocType.file, file_type=FileType.image,
+                   path="/p/002.jpg", status=Status.completed)
+    db.save(doc)
+    response = client.post(
+        f"/api/documents/{doc.id}/import",
+        params={"format": "yolo"},
+        files={"file": ("000.txt", YOLO_LABELS, "text/plain")},
+    )
+    assert response.status_code == 200, response.text
+    assert not any((s.kind_raw or "").startswith("Planted") for s in _rows(db, doc.id))
+    assert response.json()["unknown_classes"] == [0, 1, 2]
+
+
+def test_a_folder_import_still_finds_a_data_yaml_above_its_labels(db, tmp_path):
+    """The other half: a FOLDER import's folders are the person's input, so walking up stays."""
+    from fichero_server.actions.registry import ActionContext, registry
+
+    (tmp_path / "data.yaml").write_text("names: [MainZone, DefaultLine, DropCapitalZone]\n", encoding="utf-8")
+    labels = tmp_path / "labels" / "train" / "000.txt"
+    labels.parent.mkdir(parents=True)
+    labels.write_bytes(YOLO_LABELS)
+    doc = Document(name="003.jpg", doc_type=DocType.file, file_type=FileType.image,
+                   path="/p/003.jpg", status=Status.completed)
+    db.save(doc)
+    result = registry.invoke(db, "format.import", {"document_id": doc.id, "path": str(labels), "format": "yolo"},
+                             ActionContext(actor="historian", is_bootstrap=True)).result
+    assert result["unknown_classes"] == []
+    assert "DropCapitalZone" in {s.kind_raw for s in _rows(db, doc.id)}
