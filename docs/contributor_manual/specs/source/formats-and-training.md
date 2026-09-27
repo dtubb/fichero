@@ -209,6 +209,30 @@ Rules for every format
   language NAMES, that `script` is `"Arab - Arabic"`, that the attribute is `primaryScript`, and
   that a region's `TextEquiv` must follow its lines — four defects an unvalidated writer would have
   shipped.
+- `source.format.validate-a-directory` — **[OK]** (→ #4943) one command checks every interchange file in a
+  directory against its format's own schema, offline:
+  `PYTHONPATH=fichero-server/src .venv/bin/python scripts/validate_exports.py <dir> [-r]`. Each file is
+  identified by its bytes, not its name, and gets one of **five** outcomes: valid, INVALID (with the
+  schema's messages), **other version**, no schema, and unrecognised. *Other version* is the one that
+  would be simplified away. It covers a PAGE 2013 file, an ALTO 2.0 file or Kraken's ALTO 4.3 (which
+  keeps 4.2's namespace and declares `alto-4-3.xsd`). Checked against the one schema we vendor for
+  that format, such a file fails on every element. That result describes our install, not the file,
+  so it is reported as neither valid nor invalid. The command **exits 1 when nothing was validated**:
+  an empty directory, or one full of files nothing could check, is not a passing export. Pinned by
+  `tests/unit/formats/test_export_validation.py::TestTheScriptSaysWhatItDidNotCheck::test_an_older_version_is_neither_valid_nor_invalid`,
+  `::test_alto_4_3_is_told_from_4_2_by_the_file_it_declares`,
+  `::test_a_broken_export_is_invalid_with_the_schemas_own_words` and
+  `::test_a_directory_where_nothing_was_validated_is_not_a_pass`.
+- `source.format.every-writer-is-validated` — **[OK]** (→ #4943) a format cannot ship a writer with
+  nothing checking its output. The guard is parametrised over the registry, so registering a format
+  adds a case, and the case fails until the format has **either** a schema **and** a third-party file
+  that validates against it, **or** an entry in a reviewed list of formats with no schema by nature
+  (hOCR is HTML, YOLO is numbers), each with its reason. Every real fixture must also re-export valid,
+  and that is the check that caught the TableCell defect. Pinned by
+  `tests/unit/formats/test_export_validation.py::test_a_format_that_writes_has_a_schema_or_says_why_not`,
+  `::test_a_format_with_a_schema_validates_a_file_somebody_else_wrote` and
+  `::test_every_real_file_re_exports_valid`. To show the guard is not vacuous, both cases were
+  shown firing against a throwaway format with no schema and one with a schema but no real file.
 - `source.format.loss-report` — **[OK]** (→ #4943; pinned by `tests/unit/formats/test_pagexml_round_trip.py::TestTheLossesAreDeclaredNotDiscovered::test_several_readings_survive_but_WHICH_ONE_COUNTS_is_reported_lost`) every export states what it could not carry.
   **The round trip subtracts exactly what the loss report names** (ruled 2026-09-26). That makes
   honesty the acceptance criterion rather than completeness, which is the only way this work is ever
