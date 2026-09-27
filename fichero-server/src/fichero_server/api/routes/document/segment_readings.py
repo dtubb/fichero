@@ -356,6 +356,37 @@ def _text_bearing_rows(db: Database, document_id: str, pass_id: str) -> list[Seg
     return [row for row in db.query_in(Segment, "id", sorted(ids)) if row.pass_id == pass_id]
 
 
+def counting_texts(db: Database, rows: list[Segment], kind: str = "transcription") -> dict[str, str]:
+    """Each row's COUNTING reading of `kind`, by segment id, for a list of rows at once (#5139).
+
+    What a segment list hands back as `text`: the same answer the page's text uses for that
+    segment (`counting_by_kind`, the project's rule, a person's choice), so a list row and the
+    page can never disagree. ONE readings query and one choices query for the whole list, by
+    segment id (indexed) -- not a request per segment, which is what a caller had to do before,
+    and not a whole document's readings for one page of a library listing. A row with no
+    reading of `kind`, or none that counts, is absent.
+    """
+    ids = [row.id for row in rows]
+    if not ids:
+        return {}
+    by_segment: dict[str, list[ReadingRead]] = {}
+    for rep_row in db.query_in(ContentRepresentation, "segment_id", ids):
+        if rep_row.kind == kind:
+            by_segment.setdefault(rep_row.segment_id, []).append(_reading_read_from_row(rep_row))
+    if not by_segment:
+        return {}
+    rule = project_record_rule(db)
+    choices: dict[str, list[ReadingChoice]] = {}
+    for choice in db.query_in(ReadingChoice, "segment_id", list(by_segment)):
+        choices.setdefault(choice.segment_id, []).append(choice)
+    texts: dict[str, str] = {}
+    for segment_id, items in by_segment.items():
+        counted = counting_by_kind(db, segment_id, items, rule=rule, choices=choices.get(segment_id, [])).get(kind)
+        if counted is not None and counted.representation_id is not None:
+            texts[segment_id] = next(i.content for i in items if i.id == counted.representation_id)
+    return texts
+
+
 def _readings_for_live_rows(
     db: Database, rows: list[Segment], document_id: str, artifact_memo: dict[str, Artifact | None]
 ) -> dict[str, list[ReadingRead]]:

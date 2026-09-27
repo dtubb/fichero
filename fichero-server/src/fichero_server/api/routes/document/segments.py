@@ -403,6 +403,22 @@ class ScopedSegmentListResponse(BaseModel):
     document_ids: list[str]
 
 
+def _with_texts(db: Database, rows: list[Segment], reads: list[SegmentRead]) -> list[SegmentRead]:
+    """Each read's `text`: its counting transcription, for the whole list in one batch (#5139).
+
+    Every real segment used to read `text: null` -- a caller could list 4,525 shapes and read
+    none of them without one readings request each. A converted row whose words still come from
+    its artifact keeps them; a stored reading is the answer otherwise.
+    """
+    from fichero_server.api.routes.document.segment_readings import counting_texts
+
+    texts = counting_texts(db, rows)
+    for read in reads:
+        if read.text is None:
+            read.text = texts.get(read.id)
+    return reads
+
+
 @router.get("", response_model=ScopedSegmentListResponse)
 async def list_segments_in_scope(
     request: Request,
@@ -493,7 +509,7 @@ async def list_segments_in_scope(
         limit=limit,
         offset=offset,
     )
-    items = [segment_read_from_row(row) for row in rows]
+    items = _with_texts(db, rows, [segment_read_from_row(row) for row in rows])
     return ScopedSegmentListResponse(
         items=items, count=len(items), total=total, document_ids=scope,
         withheld_documents=withheld,
@@ -662,7 +678,7 @@ async def list_document_segments(
                     "than another document's words (#4958)",
                     pass_row.id, doc_id, pass_row.source_artifact_id,
                 )
-        pass_segments = [
+        pass_segments = _with_texts(db, rows, [
             segment_read_from_row(
                 row,
                 box_index=index,
@@ -670,7 +686,7 @@ async def list_document_segments(
                 source_artifact_id=pass_row.source_artifact_id,
             )
             for index, row in enumerate(rows)
-        ]
+        ])
         by_pass.append((
             pass_read_from_row(
                 pass_row, artifact_type=pass_artifact_type, source_block=source_block
@@ -3862,7 +3878,8 @@ async def get_segment(
     if not row:
         raise HTTPException(status_code=404, detail=f"Segment not found: {segment_id}")
     if row.deleted_at is None:
-        return SegmentDetailResponse(segment=segment_read_from_row(row), resolved_from_forwarding=False)
+        [read] = _with_texts(db, [row], [segment_read_from_row(row)])
+        return SegmentDetailResponse(segment=read, resolved_from_forwarding=False)
 
     resolved = resolve_segment(db, segment_id)
     live_id = primary_live_segment_id(resolved)
@@ -3874,8 +3891,9 @@ async def get_segment(
     live_row = db.get(Segment, live_id)
     if not live_row:
         raise HTTPException(status_code=404, detail=f"Segment not found: {live_id}")
+    [read] = _with_texts(db, [live_row], [segment_read_from_row(live_row)])
     return SegmentDetailResponse(
-        segment=segment_read_from_row(live_row),
+        segment=read,
         resolved_from_forwarding=(live_id != segment_id),
         trail=resolved.trail,
     )
