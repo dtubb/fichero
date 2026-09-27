@@ -80,7 +80,18 @@ def plan_pairs(files: list[Path]) -> PairingPlan:
             continue
         spec = format_for(path.name, data)
         if spec is None or spec.name not in PAGED_FORMATS:
-            continue  # not layout: ingested as an ordinary file, as before
+            # NEVER SILENTLY TEXT when it looks like interchange (#5132): a file whose root is
+            # ALTO, PAGE or TEI but which is not paged layout -- or which no format claims --
+            # is still imported as an ordinary file, and NAMED, so a person knows its layout
+            # did not reach any image. An XML that is not interchange at all stays unnamed.
+            looks = _looks_like_interchange(data)
+            if looks:
+                plan.unpaired[path] = (
+                    f"{looks}, but TEI is an edition, not one file per image: imported as an ordinary file"
+                    if spec is not None and spec.name == "tei"
+                    else f"{looks}, but no reader here classifies it: imported as an ordinary file"
+                )
+            continue
         plan.formats[path] = spec.name
         try:
             stated = read_page(spec.name, data).image_name
@@ -94,6 +105,24 @@ def plan_pairs(files: list[Path]) -> PairingPlan:
         else:
             plan.unpaired[path] = match
     return plan
+
+
+#: Root namespaces and names that mark a file as interchange, whatever else it is.
+_INTERCHANGE_NAMESPACE_HINTS = ("loc.gov/standards/alto", "primaresearch.org/page", "tei-c.org")
+_INTERCHANGE_ROOTS = {"alto", "pcgts", "tei", "teicorpus"}
+
+
+def _looks_like_interchange(data: bytes) -> str | None:
+    """`"its root is <alto> (namespace ...)"` when the ROOT marks it as interchange, else None."""
+    from fichero_server.formats.validation import root_element
+
+    root = root_element(data)
+    if root is None:
+        return None
+    namespace, local = root
+    if local.lower() in _INTERCHANGE_ROOTS or any(h in namespace.lower() for h in _INTERCHANGE_NAMESPACE_HINTS):
+        return f"its root is <{local}>" + (f" in {namespace}" if namespace else "")
+    return None
 
 
 def _match(layout: Path, stated: str | None, by_dir: dict[Path, list[Path]]) -> Path | str:

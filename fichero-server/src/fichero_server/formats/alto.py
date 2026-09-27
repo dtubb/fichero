@@ -129,9 +129,12 @@ def _tag(element: Any) -> str:
 
 
 def _sniff(data: bytes) -> bool:
-    """ALTO by its root element and namespace, never by `.xml`."""
-    head = data[:2048].lower()
-    return b"<alto" in head or any(ns.encode().lower() in head for ns in KNOWN_NAMESPACES)
+    """ALTO by its ROOT element and namespace, never by `.xml` -- and never by a byte window,
+    which a long leading comment defeats (#5132; `validation.root_element`)."""
+    from fichero_server.formats.validation import root_element
+
+    root = root_element(data)
+    return root is not None and (root[0] in KNOWN_NAMESPACES or root[1].lower() == "alto")
 
 
 def _float(value: str | None) -> float | None:

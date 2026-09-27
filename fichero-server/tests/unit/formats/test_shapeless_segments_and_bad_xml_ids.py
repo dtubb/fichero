@@ -92,3 +92,20 @@ class TestAnXmlIdThatIsNotAnNcname:
 
         pages = read_pages((CORPUS / "transkribus_tibetan-layout_pagantibet-corr1.tei.xml").read_bytes())
         assert len(pages) == 26
+
+
+class TestTheRootDecidesTheFormat:
+    """#5132: a byte window missed the root behind a long comment. The root is read however
+    much precedes it -- comments, processing instructions, a doctype."""
+
+    def test_a_long_comment_and_a_pi_before_the_root_are_skipped(self):
+        from fichero_server.formats.validation import root_element
+
+        data = b'<?xml version="1.0"?>\n<?xml-stylesheet href="x"?>\n<!--' + b"x" * 100_000 + b'-->\n<a:alto xmlns:a="urn:n"/>'
+        assert root_element(data) == ("urn:n", "alto")
+
+    def test_no_root_is_none_not_a_guess(self):
+        from fichero_server.formats.validation import root_element
+
+        assert root_element(b"<!-- only a comment -->") is None
+        assert root_element(b"not xml at all") is None

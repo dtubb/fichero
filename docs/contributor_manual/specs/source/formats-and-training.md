@@ -182,7 +182,14 @@ Rules for every format
   as an ordinary file, so nothing is lost
   (`::TestThePairing::test_a_layout_file_with_no_image_is_unpaired_BY_NAME_and_never_guessed`,
   `::TestThePairing::test_two_images_sharing_a_stem_is_a_refusal_not_a_pick`). An XML that is not a
-  layout format is still a text document. Dropping the folder again duplicates no pass
+  layout format is still a text document. **Nothing that looks like interchange is silently text:** a
+  format is decided by the ROOT element and its namespace, however long a comment comes before it.
+  Three real Aljamiado ALTO files open with a CHOCOMUFIN report and were recognised as nothing by
+  the old 2 KB window. A file whose root is ALTO, PAGE or TEI that pairs with nothing (a TEI
+  edition, or a namespace no reader claims) is named with the reason
+  (`fichero-server/tests/unit/importers/test_folder_of_images_and_layout.py::TestNothingThatLooksLikeInterchangeIsSilentlyText::test_an_alto_file_with_a_long_leading_comment_pairs_with_its_image`,
+  `::TestNothingThatLooksLikeInterchangeIsSilentlyText::test_an_interchange_root_no_reader_claims_is_named`).
+  Dropping the folder again duplicates no pass
   (`::TestDroppingTheFolder::test_dropping_it_again_duplicates_no_pass`).
   **Not built, and why PARTIAL:** a **zip** of the same (the folder ingest does not unpack
   archives); a **METS** file's page order and grouping; and showing the unpaired names in the app,

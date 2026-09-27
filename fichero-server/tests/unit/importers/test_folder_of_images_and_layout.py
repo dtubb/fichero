@@ -116,3 +116,43 @@ class TestDroppingTheFolder:
         passes_before = len(db.all(SegmentPass))
         registry.invoke(db, "import.folder", {"path": str(export_folder)}, ctx)
         assert len(db.all(SegmentPass)) == passes_before
+
+
+class TestNothingThatLooksLikeInterchangeIsSilentlyText:
+    """The maintainer's Aljamiado folder: 3 of 13 real ALTO files open with a long CHOCOMUFIN
+    report comment before the root element. The sniffs looked at the first 2 KB, found
+    nothing, and those files were neither paired nor named -- they would have imported as
+    plain text with nobody told. Classification is by the ROOT now, however much precedes it,
+    and anything whose root marks it as interchange is named if it does not pair."""
+
+    def test_an_alto_file_with_a_long_leading_comment_pairs_with_its_image(self, tmp_path):
+        alto = (FORMATS / "escriptorium_export.alto.xml").read_bytes()
+        report = b"<!-- CHOCOMUFIN conversion report: " + b"line of report text. " * 2000 + b"-->\n"
+        head, sep, rest = alto.partition(b"?>")
+        (tmp_path / "page_1.xml").write_bytes(head + sep + b"\n" + report + rest.lstrip())
+        assert len(report) > 40_000
+        _image(tmp_path / "default.png")
+        plan = plan_pairs([p.resolve() for p in tmp_path.iterdir()])
+        assert {layout.name: image.name for layout, image in plan.pairs.items()} == {"page_1.xml": "default.png"}
+
+    def test_a_tei_file_in_the_folder_is_named_not_silently_text(self, tmp_path):
+        (tmp_path / "edition.xml").write_bytes((FORMATS / "tei_consortium_testtranscr.xml").read_bytes())
+        plan = plan_pairs([p.resolve() for p in tmp_path.iterdir()])
+        [(layout, why)] = plan.unpaired.items()
+        assert layout.name == "edition.xml" and "TEI is an edition" in why
+
+    def test_an_interchange_root_no_reader_claims_is_named(self, tmp_path):
+        """A PAGE root in a namespace from a future release: nothing reads it, and a person
+        must be told rather than find a text document where their layout should be."""
+        (tmp_path / "future.xml").write_text(
+            '<PcGtsNext xmlns="http://schema.primaresearch.org/PAGE/gts/pagecontent/2099-01-01"/>',
+            encoding="utf-8",
+        )
+        plan = plan_pairs([p.resolve() for p in tmp_path.iterdir()])
+        [(layout, why)] = plan.unpaired.items()
+        assert "no reader here classifies it" in why and "PcGtsNext" in why
+
+    def test_an_ordinary_xml_is_still_not_named(self, tmp_path):
+        (tmp_path / "notes.xml").write_text("<!-- x -->\n<notes/>", encoding="utf-8")
+        plan = plan_pairs([p.resolve() for p in tmp_path.iterdir()])
+        assert not plan.pairs and not plan.unpaired

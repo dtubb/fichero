@@ -157,8 +157,10 @@ def _direction_in(style: str | None) -> str | None:
 
 def _sniff(data: bytes) -> bool:
     """TEI by its root element: `<TEI>` in the TEI namespace (or an unnamespaced `<TEI>`)."""
-    head = data[:4096]
-    return b"www.tei-c.org/ns/1.0" in head or b"<TEI" in head
+    from fichero_server.formats.validation import root_element
+
+    root = root_element(data)
+    return root is not None and (root[0] == TEI_NS or root[1] == "TEI")
 
 
 # ---------------------------------------------------------------------------
