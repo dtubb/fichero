@@ -844,7 +844,27 @@ class TestDocumentRestoreAction:
 
 
 class TestDocumentPurgeAndTrashActions:
-    def test_purge_hard_deletes_document(self, db, spy_emit):
+    def test_purge_hard_deletes_document(self, db, spy_emit, monkeypatch):
+        # Purge is destructive, so since #5070 it snapshots first and REFUSES when it cannot
+        # ("rather than done without a way back"). This module's `_ctx()` carries a FAKE library
+        # path, nothing can snapshot a library that does not exist, and so this test had been
+        # failing with a 503 since that landed — the fake path was fine for every other action
+        # here and stopped being fine for the one that destroys data.
+        #
+        # The snapshot is PATCHED OUT rather than made real, which is how #5070's own tests do it
+        # (`test_project_conversion_preflight.py` builds a `LibrarySnapshot` and patches
+        # `snapshot_library`). Pointing this test at a real library was tried first and made a unit
+        # test copy a whole library: it exhausted DuckDB's memory limit and took a neighbouring
+        # test down with it. A unit test for "purge hard-deletes" should not be doing file IO
+        # proportional to the library.
+        #
+        # And the refusal is NOT re-tested here: it is #5070's behaviour and is pinned where it
+        # belongs, in `tests/unit/db/test_snapshot_while_library_is_open.py`. A version of this
+        # test that settled for asserting the 503 would pass while proving nothing about purging.
+        monkeypatch.setattr(
+            "fichero_server.api.routes.document.documents.auto_snapshot_before_risky_operation",
+            lambda *_a, **_k: None,
+        )
         doc = _save_doc(db, name="purge-me")
         registry.invoke(db, "document.delete", {"doc_id": doc.id}, _ctx())
 

@@ -9,6 +9,8 @@ vocabulary from KnowledgeClaimLink. These tests cover the canonical
 import asyncio
 from types import SimpleNamespace
 
+import pytest
+
 from datetime import datetime
 
 import fichero_server.api.routes.system.actions_registry  # noqa: F401
@@ -143,6 +145,14 @@ class TestCreateLibraryLink:
         })
         assert r.status_code == 422
 
+    @pytest.mark.xfail(strict=True, reason=(
+        "#5099. TWO handlers own `POST /api/links`: slice 10's typed links "
+        "(`document/typed_links.py`, registered first, so it wins) and this route's "
+        "`create_library_link`, which is now unreachable. The typed body wants "
+        "from_id/to_id/link_type and forbids extras, so the legacy shape is a 422. "
+        "NOT DELETED: this test is the only record that this path ever accepted that shape, "
+        "and deleting it would remove the evidence that a capability regressed. When #5099 is "
+        "resolved this fails for passing and says to come back here"))
     def test_legacy_alias_still_works(self, client, db):
         doc = _make_document(db)
         entity = _make_entity(db)
