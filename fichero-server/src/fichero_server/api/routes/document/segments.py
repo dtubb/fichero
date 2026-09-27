@@ -1790,6 +1790,35 @@ class SegmentRestoreVersionParams(BaseModel):
 _invert_segment_restore_version = _invert_via_previous_version
 
 
+def _copy_version_onto_row(row: Segment, target: "SegmentVersion") -> None:
+    """Every field a `SegmentVersion` records, copied back onto the live row.
+
+    ONE place for this, used by `segment.restore_version` and
+    `segment.restore_versions` alike, because a field one of them restores and the
+    other forgets makes undo quietly partial for exactly one of the two paths — the
+    kind of divergence no test catches until somebody undoes a bulk edit and finds a
+    line's script still changed.
+    """
+    row.anchor = target.anchor
+    row.baseline = target.baseline
+    row.kind = target.kind
+    row.kind_raw = target.kind_raw
+    row.parent_segment_id = target.parent_segment_id
+    row.is_furniture = target.is_furniture
+    # Slice 9 (#4938): restored with everything else. A fact the update can set
+    # and the restore leaves behind would make undo quietly partial.
+    row.language = target.language
+    row.script = target.script
+    row.direction = target.direction
+    row.language_meta = target.language_meta
+    row.script_meta = target.script_meta
+    row.direction_meta = target.direction_meta
+    row.line_progression = target.line_progression
+    row.doc_kind = f"{row.document_id}:{row.kind}"
+    bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
+    row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
+
+
 @action(
     "segment.restore_version",
     SegmentRestoreVersionParams,
@@ -1825,25 +1854,7 @@ def _action_segment_restore_version(db: Database, params: SegmentRestoreVersionP
     audit_id = uuid.uuid4().hex
     before_version = row.version
     snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
-
-    row.anchor = target.anchor
-    row.baseline = target.baseline
-    row.kind = target.kind
-    row.kind_raw = target.kind_raw
-    row.parent_segment_id = target.parent_segment_id
-    row.is_furniture = target.is_furniture
-    # Slice 9 (#4938): restored with everything else. A fact the update can set
-    # and the restore leaves behind would make undo quietly partial.
-    row.language = target.language
-    row.script = target.script
-    row.direction = target.direction
-    row.language_meta = target.language_meta
-    row.script_meta = target.script_meta
-    row.direction_meta = target.direction_meta
-    row.line_progression = target.line_progression
-    row.doc_kind = f"{row.document_id}:{row.kind}"
-    bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
-    row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
+    _copy_version_onto_row(row, target)
     db.save(row)
 
     spec = ChangeSpec(
@@ -1858,6 +1869,256 @@ def _action_segment_restore_version(db: Database, params: SegmentRestoreVersionP
         document_ids=[row.document_id],
     )
     return {"segment_id": row.id, "version": row.version}, spec
+
+
+# ---------------------------------------------------------------------------
+# Slice 13 (#4941) -- one edit across a selection is ONE action and ONE undo
+# ---------------------------------------------------------------------------
+#
+# `segment.update` takes one segment. The editor's attribute verbs act on a SELECTION
+# (`source.editor.set-kind`, `set-direction`, `set-language-script`), so before this a
+# selection-wide edit was one audited action per line — and one undo step per line:
+# ⌘Z after "set these five lines to heading" reverted one line at a time. Grouping the
+# requests on the client would have made the undo story lie, so the fix is here.
+#
+# Two actions, each the other's inverse, mirroring `segment.update` /
+# `segment.restore_version` exactly: an inverse reads ONLY `after` (#4923's rule), and
+# every row restores to `after.version - 1` because `snapshot_segment_version` writes
+# exactly one preimage and bumps exactly once.
+
+
+class SegmentAttributeUpdate(BaseModel):
+    """One row's part of a selection-wide edit.
+
+    ATTRIBUTES ONLY — kind, furniture and the cascade's facts. Not a shape and not a
+    parent: moving five lines' boxes at once is not a selection verb anyone has
+    specified, and a bulk path for shapes would be a second place to get anchors,
+    bboxes and tiles right.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    segment_id: str
+    expected_version: int
+    kind: Optional[str] = None
+    is_furniture: Optional[bool] = None
+    language: Optional[str] = None
+    script: Optional[str] = None
+    direction: Optional[str] = None
+
+
+class SegmentUpdateManyParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    updates: list[SegmentAttributeUpdate] = Field(min_length=1)
+
+
+class SegmentVersionRestore(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    segment_id: str
+    version: int
+    expected_version: int
+
+
+class SegmentRestoreVersionsParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    restores: list[SegmentVersionRestore] = Field(min_length=1)
+
+
+def _live_current_row(db: Database, segment_id: str, expected_version: int) -> Segment:
+    """The row, refused unless it is real, live and at the version the caller saw.
+
+    The same four refusals as the single-row actions, in the same order, so a bulk
+    edit cannot be a way around any of them.
+    """
+    _assert_not_provisional_http(segment_id, what="segment_id")
+    row = db.get(Segment, segment_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Segment not found: {segment_id}")
+    if row.deleted_at is not None:
+        raise _as_http_error(SegmentDeleted(segment_id))
+    if row.version != expected_version:
+        raise _as_http_error(SegmentStale(
+            segment_id, expected_version, row.version,
+            _stale_changed_fields(db, segment_id, expected_version, row),
+        ))
+    return row
+
+
+def _refuse_repeated_ids(ids: list[str]) -> None:
+    """One row named twice would be snapshotted twice under one audit id, and the
+    second compare-and-set would fail against the first's bump — a refusal of the
+    caller's own request that reads like somebody else edited the line."""
+    seen: set[str] = set()
+    for segment_id in ids:
+        if segment_id in seen:
+            raise HTTPException(
+                status_code=422,
+                detail=f"segment {segment_id!r} is named twice in one bulk edit",
+            )
+        seen.add(segment_id)
+
+
+def _invert_many_via_previous_version(before, after, ctx: ActionContext):
+    """The shared inverse of both bulk actions, reading ONLY `after`.
+
+    Every row restores to `after.version - 1`, for the reason the single-row inverse
+    gives: one snapshot, one bump, always."""
+    if not after:
+        return None
+    versions = after.get("versions") or []
+    restores = [
+        {"segment_id": item["segment_id"], "version": item["version"] - 1,
+         "expected_version": item["version"]}
+        for item in versions
+        if item.get("segment_id") and item.get("version")
+    ]
+    if not restores:
+        return None
+    return ("segment.restore_versions", {"restores": restores})
+
+
+@action(
+    "segment.update_many",
+    SegmentUpdateManyParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_many_via_previous_version,
+)
+def _action_segment_update_many(db: Database, params: SegmentUpdateManyParams, ctx: ActionContext):
+    """One attribute edit across a selection: ONE audit row, ONE undo step.
+
+    ALL OR NOTHING. Every row is checked — real, live, at the caller's version — before
+    any is written, so a stale line refuses the whole edit instead of leaving half the
+    selection changed. That is the same rule `segment.delete` applies to its own list,
+    and the same reason: half an edit is worse than none, because nothing on screen
+    tells the person which half happened.
+    """
+    _refuse_repeated_ids([item.segment_id for item in params.updates])
+    rows = [
+        (_live_current_row(db, item.segment_id, item.expected_version), item)
+        for item in params.updates
+    ]
+
+    audit_id = uuid.uuid4().hex
+    before_versions: list[dict[str, Any]] = []
+    after_versions: list[dict[str, Any]] = []
+    for row, item in rows:
+        before_versions.append({"segment_id": row.id, "version": row.version})
+        snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        if item.kind is not None:
+            row.kind = item.kind
+            row.doc_kind = f"{row.document_id}:{row.kind}"
+        if item.is_furniture is not None:
+            row.is_furniture = item.is_furniture
+        # The cascade's facts through the SAME writer `segment.update` uses, so a
+        # script is validated and a fact's provenance is recorded identically on both
+        # paths — two writers for one fact would be two answers about who set it.
+        _apply_cascade_facts(db, row, item, ctx)
+        db.save(row)
+        after_versions.append({"segment_id": row.id, "version": row.version})
+
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[row.id for row, _item in rows],
+        before={"versions": before_versions},
+        after={"versions": after_versions},
+        emit_type="segment.updated",
+        segment_ids=[row.id for row, _item in rows],
+        pass_ids=sorted({row.pass_id for row, _item in rows}),
+        document_ids=sorted({row.document_id for row, _item in rows}),
+    )
+    return {"versions": after_versions}, spec
+
+
+@action(
+    "segment.restore_versions",
+    SegmentRestoreVersionsParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_many_via_previous_version,
+    # REDO GOES THROUGH THIS ROW'S OWN INVERSE, and the reason is structural rather than
+    # a preference. The generic redo replays the original forward action with its
+    # `expected_version`s freshened by `_refresh_replay_expected_versions` — which is
+    # convention-keyed on a TOP-LEVEL `expected_version` or an `expected_versions` map.
+    # A bulk edit's versions live one level down, inside `updates[]`, so the freshener
+    # cannot see them and a replay compares against versions the undo already bumped:
+    # refused as stale with no other writer in sight (found by
+    # `test_redo_reapplies_every_line`, which failed before this line). The own-invert
+    # path reads only this row's `after`, which is always current, so it cannot go stale.
+    redo_via_own_invert=True,
+)
+def _action_segment_restore_versions(
+    db: Database, params: SegmentRestoreVersionsParams, ctx: ActionContext
+):
+    """The inverse of `segment.update_many`, and its own inverse's target: restore many
+    rows to named versions in ONE audited step. All or nothing, like the edit it undoes.
+    """
+    _refuse_repeated_ids([item.segment_id for item in params.restores])
+    pairs = []
+    for item in params.restores:
+        row = _live_current_row(db, item.segment_id, item.expected_version)
+        candidates = db.query(SegmentVersion, segment_id=item.segment_id, version=item.version)
+        if not candidates:
+            raise HTTPException(
+                status_code=404,
+                detail=f"segment {item.segment_id!r} has no version {item.version}",
+            )
+        pairs.append((row, candidates[0]))
+
+    audit_id = uuid.uuid4().hex
+    before_versions: list[dict[str, Any]] = []
+    after_versions: list[dict[str, Any]] = []
+    for row, target in pairs:
+        before_versions.append({"segment_id": row.id, "version": row.version})
+        snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        _copy_version_onto_row(row, target)
+        db.save(row)
+        after_versions.append({"segment_id": row.id, "version": row.version})
+
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[row.id for row, _target in pairs],
+        before={"versions": before_versions},
+        after={"versions": after_versions},
+        emit_type="segment.updated",
+        segment_ids=[row.id for row, _target in pairs],
+        pass_ids=sorted({row.pass_id for row, _target in pairs}),
+        document_ids=sorted({row.document_id for row, _target in pairs}),
+    )
+    return {"versions": after_versions}, spec
+
+
+@router.patch("")
+async def update_segments_many(
+    params: SegmentUpdateManyParams,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(default=None, alias="X-Fichero-Origin-Window"),
+    actor: str = Depends(request_actor),
+) -> dict[str, Any]:
+    """`PATCH /api/segments` — one attribute edit across a selection, as one audited
+    action and one undo step. Answers the new versions AND the audit id, so the app can
+    offer ⌘Z for the whole edit without guessing which row to invert.
+
+    PATCH on the collection, not `POST /update-many`: a partial modification of some of
+    the collection's members is what PATCH means, and `check_rest_conventions` requires
+    an `update_*` operation to be PUT or PATCH. The body carries `expected_version`s, and
+    PATCH — unlike DELETE — carries a body reliably, which is the invariant that matters.
+    """
+    ctx = _resolve_action_ctx(
+        actor=actor, library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window, db=db,
+    )
+    try:
+        result = registry.invoke(db, "segment.update_many", params.model_dump(mode="json"), ctx)
+    except Exception as exc:
+        raise _as_http_error(exc) from exc
+    return {**result.result, "audit_id": result.audit_id}
 
 
 # ---------------------------------------------------------------------------

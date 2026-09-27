@@ -39,7 +39,7 @@ _TEXT_EMIT_TYPES = frozenset({"pass.working_chosen"})
 _MEMBERSHIP_ACTIONS = frozenset({
     "segment.create", "segment.create_many", "segment.delete", "segment.undelete",
     "segment.merge", "segment.unmerge", "segment.split", "segment.unsplit",
-    "segment.uncombine", "segment.restore_version",
+    "segment.uncombine", "segment.restore_version", "segment.restore_versions",
     "segment.pass_create", "segment.pass_delete", "segment.pass_restore",
 })
 
