@@ -38,6 +38,20 @@ A segment has any number of **readings**. A reading has:
   *expanded*, *normalised*) and the list is open: a project can define its own as part of its
   guideline. Levels cannot be reliably converted into each other, so the level is recorded,
   never assumed;
+
+  > **TEI's `<choice>` is two readings, not normalisation prose** (noted 2026-09-27, for whoever
+  > builds TEI import or the reading editor next). `<choice><orig>vnto</orig><reg>unto</reg></choice>`
+  > and its siblings (`<sic>`/`<corr>`, `<abbr>`/`<expan>`) are ONE segment carrying TWO readings of
+  > different kinds — *as written* and *normalised*, or *as written* and *expanded* — whose
+  > relationship is stated by the encoder. The model already has both halves: reading kinds, and a
+  > reading's normalisation level. So a `<choice>` maps onto two readings of the same segment, and
+  > the pair must be written back as a `<choice>` rather than as two unrelated readings. The trap
+  > is treating normalisation as a property of THE text: then `<choice>` has nowhere to go but a
+  > second field, which is exactly what this spec rules out above, and it gets built twice — once
+  > as prose-level normalisation, once as a special case in the TEI reader. Belongs with
+  > `source.reading.kinds` and the TEI round trip (`source.format.round-trip-tei`, #4945), not with
+  > `historical-text-normalization.md`'s rules, which are about DERIVING a normalised reading, not
+  > about carrying one an encoder already made.
 - its **language and script**;
 - **what it was read from**: which image of the page, and, for a reading made from another
   reading (a translation, a normalisation), which one;
