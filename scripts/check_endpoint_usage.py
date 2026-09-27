@@ -37,8 +37,33 @@ HTTP_METHODS = {"get", "put", "post", "delete", "patch", "head", "options", "tra
 # Current baseline. The script exits 0 while every unused/asymmetric endpoint is
 # listed here and exits 1 when a new gap appears.
 KNOWN_GAPS: dict[str, str] = {
-    'POST /api/segments/passes': "2026-09-20 source-model slice 3 (#4921) - engine first; the app writes passes with the segment editor (#4941)",
     'DELETE /api/segments/passes/{pass_id}': "2026-09-20 source-model slice 3 (#4921) - engine first; the app deletes passes with the segment editor (#4941)",
+    # ---- source-model slices 7 to 11, engine and CLI first (2026-09-27) ----------
+    #
+    # Each of these is reachable TODAY over its route and through the CLI, and each is
+    # unadopted by the app for one stated reason: `source-model.md` rules that nothing
+    # of slices 6 to 8b reaches the app until the whole programme is done, and the app
+    # surfaces that would call them are the segment editor (slice 13, #4941) and the
+    # Reader. Not "no client caller yet" in the sense the older entries mean -- there is
+    # nothing to wire them to yet, by decision.
+    #
+    # NOTE ON THIS GUARD'S AXES, found writing these entries: the CLI half cannot be the
+    # missing one. `fichero-cli`'s `openapi_surface_generated.py` generates a command for
+    # every endpoint in the same contract this script reads, so `cli-only` means "the app
+    # has not adopted it" and `swift-only=0` is structural rather than a fact about the
+    # app. Read these entries as answering that question and no other.
+    'GET /api/formats': "source-model slice 11 (#4943) - which interchange formats this build reads and writes; the app's import/export UI asks the engine rather than hard-coding a list, and that UI is not built",
+    'GET /api/links/of/{end_id}': "source-model slice 10 (#4930) - every typed link touching one end, both directions; the app surface is the Inspector's relations list, unbuilt",
+    'GET /api/links/types': "source-model slice 10 (#4930) - this library's link vocabulary with its aliases; read by a link editor the app does not have yet",
+    'GET /api/reading-orders/document/{document_id}': "source-model slice 10 (#4930) - a source's named orders; the app surface is the order picker in the segment editor (#4941)",
+    'GET /api/reading-orders/{order_id}/entries': "source-model slice 10 (#4930) - ONE level of one order, bounded on purpose; read by the same unbuilt order picker",
+    'GET /api/reading-orders/{order_id}/neighbours': "source-model slice 10 (#4930) - what reads before and after a segment IN a named order; the app surface is Return-to-next-line in the editor (#4941)",
+    'POST /api/reading-orders': "source-model slice 10 (#4930) - create a named order over a pass; the app writes orders from the segment editor (#4941), unbuilt",
+    'GET /api/segments/document/{document_id}/text': "source-model slice 8 (#4934) - the page's DERIVED text with spans back to each reading; the app still shows `page_content` and moves to this call consumer by consumer, deliberately one commit at a time",
+    'GET /api/segments/{segment_id}/picture': "source-model slice 7 (#4925) - a segment's picture cut to its shape; the app surfaces are the Inspector strip and the transcription line view, unbuilt",
+    'GET /api/segments/{segment_id}/readings': "source-model slice 8 (#4934) - a segment's readings with the counting answer per kind; read by the reading editor (#4941), unbuilt",
+    'POST /api/segments/{segment_id}/readings/choice': "source-model slice 8 (#4934) - record WHICH reading counts, person-only; the app surface is the reading picker in the editor (#4941), unbuilt",
+    'POST /api/artifacts/{artifact_id}/align-transcript': "#4890/#4924 - hang a known transcript on Kraken baselines on demand; the app calls it from an overlay action that does not exist yet, and the engine half was only finished on 2026-09-27",
     'POST /api/segments/bulk': "2026-09-20 source-model slice 3 (#4921) - engine first; used by first-edit conversion (#4924) and the segment editor (#4941)",
     'POST /api/segments/matches': "2026-09-20 source-model slice 4 (#4922) - engine first; the app proposes matches with the segment editor (#4941)",
     'POST /api/segments/matches/{match_id}/accept': "2026-09-20 source-model slice 4 (#4922) - engine first; the app accepts matches with the segment editor (#4941)",
