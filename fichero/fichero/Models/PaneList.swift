@@ -81,8 +81,12 @@ struct PaneConfig: Codable, Sendable, Hashable {
     var libraryLayout: String?
     /// Preview pane — "preview" | "edit" (`PreviewLens`).
     var previewLens: String?
-    /// Preview pane — draw the OCR word-box overlay (today a global `imagePreview.inlineTextEnabled`).
+    /// Preview pane — the word-box overlay layer. Applied to the pane's image canvas as its default
+    /// (`PreviewLayerDefaults`); until 2026-09-27 it was stored and never read.
     var previewWordBoxes: Bool?
+    /// Preview pane — the IMAGE layer on or off (ruled 2026-09-27, Q2: display switches are layers
+    /// with good defaults tied to the workspace; overlays without the image is a view wanted).
+    var previewImage: Bool?
     /// Preferred FIXED extent (pt) along the parent split's axis — width in a horizontal split,
     /// height in a vertical one. Set on a film-strip pane (the narrow library-icons strip at the
     /// bottom of Transcribe/Compare, ~72pt) so it stays narrow while the content flexes (CD
@@ -109,6 +113,7 @@ struct PaneConfig: Codable, Sendable, Hashable {
         libraryLayout: String? = nil,
         previewLens: String? = nil,
         previewWordBoxes: Bool? = nil,
+        previewImage: Bool? = nil,
         paneExtent: Double? = nil,
         paneFraction: Double? = nil
     ) {
@@ -116,6 +121,7 @@ struct PaneConfig: Codable, Sendable, Hashable {
         self.libraryLayout = libraryLayout
         self.previewLens = previewLens
         self.previewWordBoxes = previewWordBoxes
+        self.previewImage = previewImage
         self.paneExtent = paneExtent
         self.paneFraction = paneFraction
     }
@@ -126,7 +132,7 @@ struct PaneConfig: Codable, Sendable, Hashable {
     /// Whether this pane overrides any presentation default.
     var isConfigured: Bool {
         libraryContentKind != nil || libraryLayout != nil || previewLens != nil
-            || previewWordBoxes != nil || paneExtent != nil || paneFraction != nil
+            || previewWordBoxes != nil || previewImage != nil || paneExtent != nil || paneFraction != nil
     }
 }
 

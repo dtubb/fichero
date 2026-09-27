@@ -236,6 +236,14 @@ extension ContentView {
                let contentKind = LibraryContentKind(rawValue: raw) {
                 leaf = AnyView(leaf.environment(\.paneContentKind, contentKind))
             }
+            // The workspace's LAYER defaults for this preview pane (ruled 2026-09-27, Q2): the image
+            // and the word boxes start where the workspace says, per pane.
+            if kind == .preview, config.previewImage != nil || config.previewWordBoxes != nil {
+                leaf = AnyView(leaf.environment(
+                    \.panePreviewLayers,
+                    PreviewLayerDefaults(image: config.previewImage, wordBoxes: config.previewWordBoxes)
+                ))
+            }
             if let closeLeaf {
                 leaf = AnyView(leaf.environment(\.paneCloseAction, PaneCloseAction { closeLeaf(id) }))
             }

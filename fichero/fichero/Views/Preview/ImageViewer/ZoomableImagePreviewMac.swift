@@ -191,7 +191,10 @@ struct ZoomableImagePreview: View {
     @AppStorage("imagePreview.inlineTextEnabled") var inlineTextEnabled = false
     /// The image layer (ruled 2026-09-27, Q2). On by default: a page with its picture hidden
     /// is a deliberate view, never where a person should land by accident.
-    @AppStorage(ImageLayer.defaultsKey) var imageVisible = true
+    /// PER-PANE, like the word boxes: seeded from the remembered default, then from the pane's
+    /// workspace (`panePreviewLayers`) when it states one.
+    @State var imageVisible = UserDefaults.standard.object(forKey: ImageLayer.defaultsKey) as? Bool ?? true
+    @Environment(\.panePreviewLayers) var panePreviewLayers
     @State var ocrGeometry: OCRGeometry?
     /// WHICH artifact the displayed geometry came from (2026-08-29, regions
     /// as first-class): the curation verbs — move / delete / add / combine —
@@ -348,6 +351,11 @@ struct ZoomableImagePreview: View {
         .onAppear {
             handleViewAppeared()
             publishHeadChrome()
+            // The workspace's layer defaults, per pane (Q2). Nil fields leave the remembered value.
+            imageVisible = PreviewLayerDefaults.start(workspace: panePreviewLayers?.image, remembered: imageVisible)
+            ocrBoxesEnabled = PreviewLayerDefaults.start(
+                workspace: panePreviewLayers?.wordBoxes, remembered: ocrBoxesEnabled
+            )
         }
         .onChange(of: renditionIndex) { _, _ in publishHeadChrome() }
     }
@@ -397,7 +405,14 @@ struct ZoomableImagePreview: View {
             // Per-pane boxes: the toggle changes THIS pane; the default is
             // remembered for the next pane that mounts.
             .onChange(of: ocrBoxesEnabled) { _, enabled in
-                UserDefaults.standard.set(enabled, forKey: "imagePreview.ocrBoxesEnabled")
+                if PreviewLayerDefaults.shouldRemember(enabled, workspace: panePreviewLayers?.wordBoxes) {
+                    UserDefaults.standard.set(enabled, forKey: "imagePreview.ocrBoxesEnabled")
+                }
+            }
+            .onChange(of: imageVisible) { _, visible in
+                if PreviewLayerDefaults.shouldRemember(visible, workspace: panePreviewLayers?.image) {
+                    UserDefaults.standard.set(visible, forKey: ImageLayer.defaultsKey)
+                }
             }
             // Sticky markup tool (Daniel, 2026-08-30): arming highlight/note
             // in the bar arms the draw layer; disarming (or switching to a
