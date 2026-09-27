@@ -43,6 +43,54 @@ CLASS_KINDS: dict[int, str] = {0: "region", 1: "line", 2: "word", 3: "character"
 KIND_CLASSES: dict[str, int] = {kind: number for number, kind in CLASS_KINDS.items()}
 
 
+def kind_for_class_name(name: str) -> str:
+    """The granularity a DATASET's class name means (#5130).
+
+    A YOLO file's numbers mean whatever its dataset's `classes.txt` / `data.yaml` says, NOT
+    Fichero's export convention above: YALTAi's class 4 is SegmOnto's `MainZone`. SegmOnto names
+    its zones `...Zone` and its lines `...Line`; a name that is one of ours is ours; anything else
+    is a region -- and the NAME itself is always kept (`foreign["yolo:class_name"]`), so nothing
+    the dataset said is replaced by a guess.
+    """
+    lowered = name.strip().lower()
+    if lowered in KIND_CLASSES:
+        return lowered
+    if lowered.endswith("line"):
+        return "line"
+    return "region"
+
+
+def class_names_beside(label_path) -> list[str] | None:
+    """A YOLO dataset's class names, from where datasets keep them, or None.
+
+    `classes.txt` beside the labels (one name a line), else a `data.yaml` in this folder or one of
+    the two above it (`names:` as a list or an index-keyed map). Parsed with `yaml.safe_load`
+    (the engine's own dependency), so a dataset file cannot run code.
+    """
+    from pathlib import Path
+
+    here = Path(label_path).parent
+    classes = here / "classes.txt"
+    if classes.is_file():
+        names = [line.strip() for line in classes.read_text(encoding="utf-8").splitlines() if line.strip()]
+        return names or None
+    import yaml
+
+    for folder in (here, here.parent, here.parent.parent):
+        data_yaml = folder / "data.yaml"
+        if not data_yaml.is_file():
+            continue
+        try:
+            names = (yaml.safe_load(data_yaml.read_text(encoding="utf-8")) or {}).get("names")
+        except (yaml.YAMLError, AttributeError):
+            return None
+        if isinstance(names, dict):
+            return [str(names[k]) for k in sorted(names, key=int)]
+        if isinstance(names, list):
+            return [str(n) for n in names]
+    return None
+
+
 class MalformedYoloLine(ValueError):
     """Raised for a line that is not `class cx cy w h`.
 
@@ -85,9 +133,15 @@ def _sniff(data: bytes) -> bool:
     return True
 
 
-def read(data: bytes) -> SourcePage:
-    """One YOLO label file as the model would have stored it: shapes, and nothing else."""
+def read(data: bytes, class_names: list[str] | None = None) -> SourcePage:
+    """One YOLO label file as the model would have stored it: shapes, and nothing else.
+
+    `class_names` is the dataset's own list (`class_names_beside`). Without it the file is read
+    by Fichero's export convention (`CLASS_KINDS`), which is only right for a file we wrote.
+    """
     page = SourcePage(producer="yolo")
+    if class_names:
+        page.foreign["yolo:classes"] = list(class_names)
     for number, line in enumerate(data.decode("utf-8").splitlines(), start=1):
         if not line.strip():
             continue
@@ -99,9 +153,13 @@ def read(data: bytes) -> SourcePage:
             cx, cy, w, h = (float(value) for value in parts[1:])
         except ValueError as exc:
             raise MalformedYoloLine(number, line) from exc
+        name = class_names[class_number] if class_names and 0 <= class_number < len(class_names) else None
+        foreign: dict = {"yolo:class": class_number}
+        if name is not None:
+            foreign["yolo:class_name"] = name
         page.segments.append(
             PageSegment(
-                kind=CLASS_KINDS.get(class_number, "region"),
+                kind=kind_for_class_name(name) if name is not None else CLASS_KINDS.get(class_number, "region"),
                 # Centre-first to top-left: the one conversion this format needs, and
                 # the one a naive reader gets wrong by half a box.
                 rect=[cx - w / 2, cy - h / 2, w, h],
@@ -109,7 +167,7 @@ def read(data: bytes) -> SourcePage:
                     [cx - w / 2, cy - h / 2], [cx + w / 2, cy - h / 2],
                     [cx + w / 2, cy + h / 2], [cx - w / 2, cy + h / 2],
                 ],
-                foreign={"yolo:class": class_number},
+                foreign=foreign,
             )
         )
     return page
@@ -137,7 +195,10 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                 "to write",
             )
             continue
-        class_number = KIND_CLASSES.get(segment.kind)
+        # A segment that came from a dataset keeps ITS class number (#5130): writing YALTAi's
+        # MainZone (4) back as our "region" (0) would renumber somebody else's training data.
+        original = segment.foreign.get("yolo:class")
+        class_number = original if isinstance(original, int) and original >= 0 else KIND_CLASSES.get(segment.kind)
         if class_number is None:
             report.note(
                 f"{segment.kind} segments",

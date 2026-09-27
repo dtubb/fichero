@@ -243,3 +243,64 @@ class TestYoloIsHonestAboutLosingAlmostEverything:
         deliberately strictly: guessing would turn a text file into boxes."""
         assert format_named("yolo").sniff(b"This is a transcription, not a label file.\n") is False
         assert format_named("yolo").sniff(b"0 0.5 0.5 0.2 0.2\n") is True
+
+
+class TestAYoloDatasetsOwnClassNames:
+    """#5130: a YOLO file's numbers mean what its DATASET says. YALTAi's `4` is SegmOnto's
+    `MainZone`, with a `classes.txt` beside the labels; the reader turned it into our "character"
+    (0 region, 1 line, 2 word, 3 character is only Fichero's own export convention)."""
+
+    LABELS = b"4 0.5 0.5 0.4 0.6\n9 0.5 0.05 0.3 0.04\n0 0.9 0.9 0.05 0.05\n"
+    SEGMONTO = ["DamageZone", "DigitizationArtefactZone", "DropCapitalZone", "GraphicZone", "MainZone",
+                "MarginTextZone", "MusicZone", "NumberingZone", "QuireMarksZone", "RunningTitleZone"]
+
+    def test_classes_txt_beside_the_labels_names_the_classes(self, tmp_path):
+        from fichero_server.formats.yolo import class_names_beside, read
+
+        (tmp_path / "classes.txt").write_text("\n".join(self.SEGMONTO) + "\n", encoding="utf-8")
+        (tmp_path / "003.txt").write_bytes(self.LABELS)
+        page = read(self.LABELS, class_names_beside(tmp_path / "003.txt"))
+        names = [s.foreign["yolo:class_name"] for s in page.segments]
+        assert names == ["MainZone", "RunningTitleZone", "DamageZone"]
+        assert {s.kind for s in page.segments} == {"region"}, "SegmOnto zones are regions, never words"
+
+    def test_data_yaml_two_folders_up_names_them_too(self, tmp_path):
+        from fichero_server.formats.yolo import class_names_beside
+
+        (tmp_path / "data.yaml").write_text("names:\n  0: DefaultLine\n  1: MainZone\n", encoding="utf-8")
+        labels = tmp_path / "labels" / "train" / "p.txt"
+        labels.parent.mkdir(parents=True)
+        labels.write_bytes(b"0 0.5 0.5 0.1 0.1\n")
+        assert class_names_beside(labels) == ["DefaultLine", "MainZone"]
+
+    def test_the_class_numbers_and_names_round_trip(self):
+        from fichero_server.formats import LossReport
+        from fichero_server.formats.yolo import read, write
+
+        page = read(self.LABELS, self.SEGMONTO)
+        back = read(write(page, LossReport(format="yolo")), self.SEGMONTO)
+        assert [s.foreign["yolo:class_name"] for s in back.segments] == ["MainZone", "RunningTitleZone", "DamageZone"]
+        assert [s.foreign["yolo:class"] for s in back.segments] == [4, 9, 0]
+
+    def test_a_line_class_is_a_line(self):
+        from fichero_server.formats.yolo import read
+
+        page = read(b"0 0.5 0.5 0.4 0.02\n", ["DefaultLine"])
+        assert page.segments[0].kind == "line"
+
+    def test_the_library_import_reads_classes_txt_beside_the_file(self, db, tmp_path):
+        import fichero_server.api.routes.document.format_import  # noqa: F401
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.models import DocType, Document, FileType, Status
+        from fichero_server.models.segments import Segment, SegmentPass
+
+        (tmp_path / "classes.txt").write_text("\n".join(self.SEGMONTO) + "\n", encoding="utf-8")
+        (tmp_path / "003.txt").write_bytes(self.LABELS)
+        doc = Document(name="003.jpg", doc_type=DocType.file, file_type=FileType.image,
+                       path="/p/003.jpg", status=Status.completed)
+        db.save(doc)
+        registry.invoke(db, "format.import", {"document_id": doc.id, "path": str(tmp_path / "003.txt")},
+                        ActionContext(actor="h", library_path=None, is_bootstrap=True))
+        [pass_row] = [p for p in db.all(SegmentPass) if p.document_id == doc.id]
+        rows = [s for s in db.all(Segment) if s.pass_id == pass_row.id]
+        assert sorted(r.metadata["foreign"]["yolo:class_name"] for r in rows) == ["DamageZone", "MainZone", "RunningTitleZone"]
