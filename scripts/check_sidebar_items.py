@@ -6,7 +6,8 @@ that the main content router handles. This detector scans:
   - `Models/SidebarItem*.swift` and `Models/SidebarItemBuilder.swift` for
     `itemType: .foo` factories/builders.
   - `Models/SidebarViewTypes.swift` for `AppViewMode` cases.
-  - `Views/Shell/ContentView/ContentView+Navigation.swift` for the routed destination switch.
+  - `Views/Shell/ContentView/ContentView+Navigation.swift` and `Views/Shell/PaneContentPlan.swift`
+    for the routed destination switches.
 
 Limits: this is not a full Swift compiler or runtime navigation proof. It checks
 that each sidebar leaf item type has a corresponding `AppViewMode` destination
@@ -37,7 +38,14 @@ SIDEBAR_SOURCES = [
     SWIFT_ROOT / "Models" / "SidebarItemBuilder.swift",
 ]
 VIEW_MODE_FILE = SWIFT_ROOT / "Models" / "SidebarViewTypes.swift"
-ROUTER_FILE = SWIFT_ROOT / "Views" / "Shell" / "ContentView" / "ContentView+Navigation.swift"
+#: Where a view mode is turned into a destination. It was ONE file; the panes work moved part
+#: of it into `PaneContentPlan`, and the guard kept reading only the old home — so `.schedule`
+#: and `.trigger`, which `PaneContentPlan.swift:103,105` route by name, read as unrouted
+#: (2026-09-27). Same shape as the AppState move: a file moved and the pin stayed behind.
+ROUTER_FILES = [
+    SWIFT_ROOT / "Views" / "Shell" / "ContentView" / "ContentView+Navigation.swift",
+    SWIFT_ROOT / "Views" / "Shell" / "PaneContentPlan.swift",
+]
 
 STRUCTURAL_ITEM_TYPES = {"folder", "libraryHeader"}
 # Item types that intentionally have NO AppViewMode destination: selecting
@@ -55,7 +63,9 @@ ITEM_TO_VIEW_MODE: dict[str, str] = {
     "comparison": "comparison",
     "schedule": "schedule",
     "trigger": "trigger",
-    "batch": "batch",
+    # `batches`, plural — the AppViewMode case has always been `.batches`, and the detector
+    # asked for `.batch`, so it reported "that case is missing" about a case that exists.
+    "batch": "batches",
     "activityRun": "activity",
 }
 
@@ -95,8 +105,14 @@ def app_view_modes() -> set[str]:
 
 
 def routed_view_modes() -> set[str]:
-    text = read(ROUTER_FILE)
-    return set(re.findall(r"^\s*case\s+\.([A-Za-z_][A-Za-z0-9_]*)\b", text, re.MULTILINE))
+    """Every view-mode case any router names. Each file is still NON-optional: a renamed
+    router must be BLIND and loud, not quietly contribute nothing."""
+    routed: set[str] = set()
+    for path in ROUTER_FILES:
+        routed |= set(
+            re.findall(r"^\s*case\s+\.([A-Za-z_][A-Za-z0-9_]*)\b", read(path), re.MULTILINE)
+        )
+    return routed
 
 
 def scan() -> dict[str, list[str]]:
@@ -114,7 +130,7 @@ def scan() -> dict[str, list[str]]:
         elif expected not in modes:
             reasons.append(f"expected AppViewMode.{expected}, but that case is missing")
         elif expected not in routes:
-            reasons.append(f"AppViewMode.{expected} exists, but ContentView router has no case")
+            reasons.append(f"AppViewMode.{expected} exists, but no router names it")
         if reasons:
             found[item_type] = reasons
 
@@ -141,7 +157,7 @@ def main() -> int:
     new = sorted(set(found) - known)
     stale = sorted(known - set(found))
 
-    print("Sidebar item wiring guardrail: scanned SidebarItem factories/builders and ContentView router")
+    print("Sidebar item wiring guardrail: scanned SidebarItem factories/builders and the routers")
     # #4487: the factories/router are COMMITTED files — the masked-blind
     # shape. Floor the item-type population parsed from them; unwired at
     # zero is the goal, item types at zero is a dead parser.
