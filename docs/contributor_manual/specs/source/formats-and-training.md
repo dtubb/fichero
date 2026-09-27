@@ -137,7 +137,7 @@ What the survey established, and the design follows:
 ## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
 
 Rules for every format
-- `source.format.one-model-one-harness` — **[OK]** (#4943) every format reads into and writes out of the one
+- `source.format.one-model-one-harness` — **[OK]** (→ #4943) every format reads into and writes out of the one
   source model, and shares one harness for validation, the loss report and the round-trip
   test; adding a format adds a reader and a writer, and no field to segments. `formats/` holds the
   registry and `SourcePage`; **readers and writers touch no database**, which is what makes every
@@ -152,7 +152,7 @@ Rules for every format
   is built.
 - `source.format.rights-filtered-once` — **[GAP]** (#4943) restricted material is filtered in that one stream,
   not in each writer.
-- `source.format.schemas-on-disk` — **[OK]** (#4943) schemas are kept with Fichero and validation never goes to
+- `source.format.schemas-on-disk` — **[OK]** (→ #4943) schemas are kept with Fichero and validation never goes to
   the network; outside files are parsed with entities and network access off.
   `formats/schemas/` with a `PROVENANCE.md` recording every file's origin; imports are resolved
   from disk and an unvendored one **raises** rather than being fetched or ignored. Pinned by
@@ -170,7 +170,7 @@ Rules for every format
   duplicated silently (the importer's content-hash skip, → #739, is the mechanism).
 - `source.format.keeps-unrecognised` — **[GAP]** (#4943) content the model has no field for is kept, labelled,
   and written back on export to that format.
-- `source.format.export-validated` — **[OK]** (#4943) an export is validated against its schema; an invalid
+- `source.format.export-validated` — **[OK]** (→ #4943) an export is validated against its schema; an invalid
   one is a reported failure — **and no file**, because a file that exists and does not validate is
   one somebody sends to a colleague. Validation lives in the harness, so no format implements it and
   the fifth cannot forget it.
@@ -184,7 +184,7 @@ Rules for every format
   language NAMES, that `script` is `"Arab - Arabic"`, that the attribute is `primaryScript`, and
   that a region's `TextEquiv` must follow its lines — four defects an unvalidated writer would have
   shipped.
-- `source.format.loss-report` — **[OK]** (#4943) every export states what it could not carry.
+- `source.format.loss-report` — **[OK]** (→ #4943; pinned by `tests/unit/formats/test_pagexml_round_trip.py::TestTheLossesAreDeclaredNotDiscovered::test_several_readings_survive_but_WHICH_ONE_COUNTS_is_reported_lost`) every export states what it could not carry.
   **The round trip subtracts exactly what the loss report names** (ruled 2026-09-26). That makes
   honesty the acceptance criterion rather than completeness, which is the only way this work is ever
   finishable — no format carries everything. A writer that drops something silently fails its round
@@ -193,7 +193,7 @@ Rules for every format
   loss declared in advance is a specification.**
 Round trips (export then import returns the same segments, shapes, orders and readings, less
 what the loss report named), one for each format that goes both ways:
-- `source.format.round-trip-pagexml` — **[OK]** (#4944) the PAGEXML round trip holds — **and it holds
+- `source.format.round-trip-pagexml` — **[OK]** (→ #4944) the PAGEXML round trip holds — **and it holds
   BECAUSE the losses are declared, which is the behaviour being met rather than a caveat on it.**
   PAGE XML cannot carry which reading counts, provenance, the cascade's `level`, or a
   project-declared script; each is named by the writer, and the round trip subtracts exactly those.
@@ -213,16 +213,19 @@ what the loss report named), one for each format that goes both ways:
   with a remote engine.
 
 Each format (one import and one export behaviour each)
-- `source.format.pagexml-in` · `source.format.pagexml-out` — **[OK]** (#4944). `pagexml-in` is pinned by
+- `source.format.pagexml-in` · `source.format.pagexml-out` — **[OK]** (→ #4944). `pagexml-in` is pinned by
   `test_pagexml_real_file.py::TestReadingARealFile` (13 tests) against **OCR-D ground truth**, not a
   file we wrote: a lookalike would test our idea of the format. Reading 2013 and 2019 namespaces,
   writing 2019 (the choice is empirical — see the note at the writer).
-- `source.format.alto-in` — **[OK]** (#4944), pinned by `test_alto.py::TestReadingARealAltoFile` against a
+- `source.format.alto-in` — **[OK]** (→ #4944), pinned by `test_alto.py::TestReadingARealAltoFile` against a
   real file from the ALTO project's own corpus, in the **v2** namespace with `MeasurementUnit`
   `mm10`. Normalised coordinates are unit-free (the page declares its size in the same unit); a
   non-pixel page reports **no** pixel grid rather than a wrong one, and an unknown unit is refused
-  rather than assumed. · `source.format.alto-out` — **[PARTIAL]** (#4944): the writer is complete and
-  its losses are asserted, but every export refuses until the xlink schema is vendored.
+  rather than assumed.
+- `source.format.alto-out` — **[PARTIAL]** (#4944): the writer is complete and its losses are
+  asserted, but every export refuses until the xlink schema is vendored (#5082 — `loc.gov` returns
+  403 to every automated fetch, and W3C's modern xlink defines `simpleAttrs` where ALTO references
+  `simpleLink`, so it is not a substitute).
 - `source.format.tei-in` · `source.format.tei-out` **[GAP]** (#4945)
 - `source.format.mei-in` · `source.format.mei-out` **[GAP]** (#4945)
 - `source.format.w3c-in` · `source.format.w3c-out` **[GAP]** (#4946)
