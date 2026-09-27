@@ -359,11 +359,23 @@ Reading before editing (the app's first step: it draws from the seam, and edits 
 - `source.app.overlays-draw-from-the-seam` — **[PARTIAL]** (#4954) the boxes drawn over an image and
   over a PDF page both come from that store through one shared function, with the same
   drawing code as today and no new overlay; a page looks the same before and after the switch.
-  **The shared function exists and is tested** (`SegmentDisplay.geometry(for:store:)`, 8 tests)
-  **and no view calls it**: nothing under `fichero/fichero/Views` references `SegmentDisplay`,
-  so both drawing paths still take their geometry from the artifact. The seam is built and
-  unwired, which is a different state from unbuilt and worth naming: what remains is two call
-  sites, not a design.
+  **The shared function exists and is tested and no view calls it** — nothing under
+  `fichero/fichero/Views` references `SegmentDisplay`, so both drawing paths still take their
+  geometry from the artifact.
+  **Equivalence is pinned, which is the half a unit test can make** (2026-09-27): for one page's
+  boxes, the seam and today's artifact path agree field for field including `isHandDrawn`, so
+  curation styling does not change the day it is wired
+  (`SegmentDisplayTests.seamMatchesTheArtifactPathForTheSamePage`); the one intended divergence
+  is an undrawable segment's zero-size placeholder, which keeps every later box's index and
+  paints nothing (`SegmentDisplayTests.theOneDifferenceIsThePlaceholderAndItIsInvisible`).
+  **What blocks the wiring is not two call sites.** Neither `SegmentService` nor `SegmentStore`
+  was constructed anywhere in the app, so the seam had no instance to read: `SegmentStore` now
+  has `shared(for:)` on `ArtifactEntityStore`'s keyed-singleton idiom, `LibraryManager` builds
+  the service beside the others, and the store is registered with the change stream — **without
+  that registration `apply`/`resync` were dead code** (found while wiring, 2026-09-27). What is
+  still owed is an environment injection: both preview views hold `ArtifactService` and neither
+  holds a `SegmentService`, so the loaders cannot resolve the store the way the artifact-entity
+  loaders resolve theirs. That is a decision about view composition, not a call site.
 - `source.app.segment-events-patch-in-place` — **[PARTIAL]** (#4954) when the engine says which
   segments changed, the store replaces those items and no others; when it says only that a
   document's results changed, the store re-reads that one document.

@@ -171,4 +171,94 @@ struct SegmentDisplayTests {
         #expect(geometry?.model == "sonnet-5.1")
         #expect(geometry?.renditionId == "r7")
     }
+
+    // MARK: - Before/after equivalence (source.app.overlays-draw-from-the-seam)
+    //
+    // The behaviour's acceptance is "the same drawing code as today and no new
+    // overlay; a page looks the same before and after the switch". The screen half
+    // is a click-around leg no unit test can make. The half a unit test CAN make is
+    // the one that would break it: for the same page, the boxes the artifact path
+    // yields today and the boxes the seam yields must be the same set, field by
+    // field — because both are handed to the same `Canvas` draw closure.
+    //
+    // Built by taking one page's boxes as today's path yields them, turning the same
+    // boxes into segments, and mapping those through `SegmentDisplay`. If they
+    // diverge, the seam is the specified one and the views are what move — but nobody
+    // should discover that on a screen.
+
+    /// One box as TODAY's path yields it. `OCRGeometry(generated:)` passes the
+    /// artifact's own `provider`/`source` straight through, so building the app model
+    /// directly is the same value by a shorter route — and avoids asserting against a
+    /// generated initialiser this test would otherwise have to guess at.
+    private func todaysBox(
+        text: String, bbox: [Double], level: String = "word",
+        confidence: Double? = nil, provider: String? = nil, source: String? = nil
+    ) -> OCRGeometryBox {
+        OCRGeometryBox(
+            text: text, bbox: bbox, level: level, confidence: confidence,
+            pageIndex: nil, charStart: nil, charEnd: nil,
+            provider: provider, source: source
+        )
+    }
+
+    @Test("the seam yields the same boxes as today's artifact path, field for field")
+    func seamMatchesTheArtifactPathForTheSamePage() throws {
+        let today = [
+            todaysBox(text: "hola", bbox: [0.1, 0.1, 0.2, 0.05], confidence: 0.9),
+            todaysBox(text: "mundo", bbox: [0.4, 0.1, 0.25, 0.05], confidence: 0.8),
+            // A hand-corrected box: today's path carries provider/source through and
+            // the seam RE-DERIVES them from provenanceKind. `isHandDrawn` must agree
+            // either way, or curation styling changes the day the seam is wired.
+            todaysBox(text: "tercero", bbox: [0.1, 0.3, 0.3, 0.05],
+                      provider: "user", source: "manual"),
+        ]
+
+        let asSegments = today.enumerated().map { index, box in
+            segment(
+                id: "seg-\(index)", boxIndex: index, rect: box.bbox, text: box.text,
+                humanCurated: box.isHandDrawn
+            )
+        }
+        let throughTheSeam = try #require(
+            SegmentDisplay.geometry(
+                from: asSegments, provider: "kraken", model: "mccatmus", renditionId: nil
+            )
+        )
+
+        #expect(throughTheSeam.boxes.count == today.count)
+        for (seam, artifact) in zip(throughTheSeam.boxes, today) {
+            #expect(seam.text == artifact.text)
+            #expect(seam.bbox == artifact.bbox)
+            #expect(seam.level == artifact.level)
+            // The one that matters for appearance: the same boxes are styled as
+            // hand-drawn on both paths.
+            #expect(seam.isHandDrawn == artifact.isHandDrawn)
+        }
+        #expect(throughTheSeam.provider == "kraken")
+        #expect(throughTheSeam.model == "mccatmus")
+    }
+
+    @Test("an undrawable segment adds a box today's path would not have, and it draws nothing")
+    func theOneDifferenceIsThePlaceholderAndItIsInvisible() throws {
+        // The known, intended divergence, stated rather than discovered: a segment
+        // with no rect has no counterpart in an artifact's boxes, and the seam keeps
+        // it as a zero-size placeholder so no later box's INDEX shifts
+        // (`source.app.index-is-the-engines`). A zero-area box paints nothing —
+        // `OCRGeometryOverlay` fills a `Path(roundedRect:)` of zero area — so the
+        // page still looks the same, which is what the behaviour asks.
+        let geometry = try #require(
+            SegmentDisplay.geometry(
+                from: [
+                    segment(id: "seg-0", boxIndex: 0, rect: [0.1, 0.1, 0.2, 0.05], text: "hola"),
+                    segment(id: "seg-1", boxIndex: 1, rect: nil, text: "shapeless"),
+                    segment(id: "seg-2", boxIndex: 2, rect: [0.4, 0.1, 0.2, 0.05], text: "mundo"),
+                ],
+                provider: "kraken", model: nil, renditionId: nil
+            )
+        )
+
+        #expect(geometry.boxes.count == 3, "the placeholder stays, or seg-2 moves to index 1")
+        #expect(geometry.boxes[1].bbox == [0, 0, 0, 0])
+        #expect(geometry.boxes[2].text == "mundo", "the box AFTER the placeholder keeps its index")
+    }
 }

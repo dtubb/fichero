@@ -30,6 +30,25 @@ final class SegmentStore {
         self.service = service
     }
 
+    /// One store per `SegmentService`, the same keyed-singleton idiom
+    /// `ArtifactEntityStore.shared(for:)` uses — and for the same reason: the
+    /// drawing paths resolve the store from the service they already hold, so the
+    /// instance `LibraryManager` registers with the change stream IS the instance a
+    /// loader reads, with no new plumbing between them.
+    ///
+    /// `source.app.one-segment-store` is the whole point: a second instance would be
+    /// a second store, so construction is funnelled through here rather than left to
+    /// each caller.
+    @MainActor private static var registry: [ObjectIdentifier: SegmentStore] = [:]
+
+    static func shared(for service: SegmentService) -> SegmentStore {
+        let key = ObjectIdentifier(service)
+        if let existing = registry[key] { return existing }
+        let store = SegmentStore(service: service)
+        registry[key] = store
+        return store
+    }
+
     /// Load one document's segments and passes. Idempotent against an
     /// already-loaded document unless `force` — the same shape
     /// `EntityStore.loadEntities(forDocument:)` uses. Replaces ONLY this
