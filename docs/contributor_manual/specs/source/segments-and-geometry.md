@@ -639,9 +639,20 @@ Pointing and statements
   be found after the box has moved. The read carries the resolved shape beside the stored
   one, and the app's one accessor for a mark's rectangle uses it (today every mark is drawn
   from its stored rectangle and stays behind when its box moves, before or after conversion).
-- `source.statement.old-segment-field-left-alone` — **[GAP]** (#4932) the claim field `source_segment_id`, which
-  predates this model and names an entry in a segmentation artifact, keeps its meaning and
-  its data, is described as such in the contract, and is never given a segment record's id.
+- `source.statement.old-segment-field-left-alone` — **[OK]** (→ #4932) the claim field
+  `source_segment_id`, which predates this model and names an entry in a segmentation artifact,
+  keeps its meaning and its data, is described as such in the contract, and is never given a
+  segment record's id. Two of the three clauses were already pinned
+  (`tests/unit/api/test_segment_conversion_action.py::TestSliceSixRepointsNothing::test_the_legacy_claim_column_is_left_exactly_as_it_was`
+  and `::test_a_pre_existing_legacy_value_is_not_overwritten`). **The contract clause was not,
+  and was not true** until 2026-09-27: the reasoning lived in a thirteen-line comment in
+  `segment_conversion.py` while every published model carried the field bare. A client author —
+  the app, the CLI, a researcher's script — reads the contract, not our comments, and
+  `source_segment_id` on a claim reads as "the segment this claim is about", which is exactly the
+  meaning-merge the comment exists to prevent. All three publishing models now describe it, and
+  the description says what it is, what it is NOT, and what to use instead
+  (`::TestTheLegacyClaimFieldSaysWhatItIsInTheContract`, four tests, one of them asserting it
+  reaches `app.openapi()` rather than only the Python model).
 
 > **"No new column on any of them" — what it does and does not forbid (clarified
 > 2026-09-26).** `source.point.anchor-names-its-segment` above says the lasting id

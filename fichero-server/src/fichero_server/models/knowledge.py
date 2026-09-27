@@ -1586,7 +1586,13 @@ class KnowledgeClaim(BaseModel):
     # Optional: manually-asserted claims have no source document (create_claim_impl
     # already handles source_document_id=None). #2019.
     source_document_id: str | None = None
-    source_segment_id: str | None = None
+    #: Described in the contract on purpose (#4932): the older meaning is an entry in a
+    #: segmentation artifact, and a client author reading the API had no warning against
+    #: writing a Segment id here — which would merge two meanings in one published column
+    #: in real research libraries.
+    source_segment_id: str | None = Field(default=None, description=(
+        "A client-supplied reference to an entry in a segmentation artifact's `data['segments']` list. NOT a `Segment` record id: this field predates the source model, has no engine producer, and conversion never writes to it (#4932). To point a claim at a segment, use the anchor's lasting segment id."
+    ))
     source_page_label: str | None = None
     source_excerpt: str | None = None
     source_ref: str | None = None

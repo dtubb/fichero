@@ -154,7 +154,9 @@ class ClaimCreateRequest(BaseModel):
 
     text: str = Field(min_length=1)
     source_document_id: str | None = None  # None for manually-asserted claims
-    source_segment_id: str | None = None
+    source_segment_id: str | None = Field(default=None, description=(
+        "A client-supplied reference to an entry in a segmentation artifact's `data['segments']` list. NOT a `Segment` record id: this field predates the source model, has no engine producer, and conversion never writes to it (#4932). To point a claim at a segment, use the anchor's lasting segment id."
+    ))
     source_page_label: str | None = None
     source_excerpt: str | None = None
     source_ref: str | None = None
@@ -219,7 +221,9 @@ class ClaimPatchRequest(BaseModel):
 
     text: str | None = None
     source_document_id: str | None = None
-    source_segment_id: str | None = None
+    source_segment_id: str | None = Field(default=None, description=(
+        "A client-supplied reference to an entry in a segmentation artifact's `data['segments']` list. NOT a `Segment` record id: this field predates the source model, has no engine producer, and conversion never writes to it (#4932). To point a claim at a segment, use the anchor's lasting segment id."
+    ))
     source_page_label: str | None = None
     source_excerpt: str | None = None
     source_ref: str | None = None

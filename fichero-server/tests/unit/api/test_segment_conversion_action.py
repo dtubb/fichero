@@ -977,3 +977,78 @@ class TestWhatDeferringRepointingActuallyCosts:
         db.save(moved)
 
         assert db.get(Annotation, mark.id).anchor.rect == original_rect
+
+
+class TestTheLegacyClaimFieldSaysWhatItIsInTheContract:
+    """`source.statement.old-segment-field-left-alone` (#4932), third clause.
+
+    The behaviour has three parts: the field keeps its meaning and data, is never
+    given a `Segment` record's id, and **is described as such in the contract**.
+    The first two were pinned by `TestSliceSixRepointsNothing` above. The third
+    was not, and was not true: the reasoning lived in a 13-line comment in
+    `segment_conversion.py` while every published model carried the field bare.
+
+    That asymmetry is the whole risk. A client author — the Swift app, the CLI, a
+    researcher's script, a future model writing code — reads the CONTRACT, not our
+    comments. `source_segment_id` on a claim reads as "the segment this claim is
+    about", which is exactly the meaning-merge the comment exists to prevent, in
+    somebody's real research library. A warning nobody reading the API can see is
+    not a warning.
+
+    So: every model that publishes the field describes it, and the description says
+    the three things a caller needs — what it IS (an entry in a segmentation
+    artifact), what it is NOT (a Segment id), and what to use instead (the anchor's
+    lasting segment id).
+    """
+
+    #: Every published model carrying the field. Collected from the module rather
+    #: than listed, so a fourth request model cannot arrive undescribed.
+    @staticmethod
+    def _models_publishing_the_field() -> list:
+        import fichero_server.api.routes.claim.claims as claims_module
+        from fichero_server.models.knowledge import KnowledgeClaim
+
+        found = [KnowledgeClaim]
+        for value in vars(claims_module).values():
+            fields = getattr(value, "model_fields", None)
+            if isinstance(fields, dict) and "source_segment_id" in fields and value not in found:
+                found.append(value)
+        return found
+
+    def test_every_published_model_describes_the_field(self):
+        models = self._models_publishing_the_field()
+        assert len(models) >= 3, f"expected the stored model and its requests, got {models}"
+        undescribed = [
+            m.__name__ for m in models
+            if not (m.model_fields["source_segment_id"].description or "").strip()
+        ]
+        assert undescribed == [], undescribed
+
+    def test_the_description_says_what_it_is_not(self):
+        """"NOT a Segment record id" is the load-bearing sentence. Without it the
+        description would read as documentation of the very mistake."""
+        for model in self._models_publishing_the_field():
+            text = model.model_fields["source_segment_id"].description or ""
+            assert "NOT a `Segment` record id" in text, model.__name__
+
+    def test_the_description_points_at_the_right_field_instead(self):
+        """A refusal that does not say what to do instead gets worked around."""
+        for model in self._models_publishing_the_field():
+            text = model.model_fields["source_segment_id"].description or ""
+            assert "anchor" in text and "lasting segment id" in text, model.__name__
+
+    def test_it_reaches_the_openapi_schema_a_client_actually_reads(self):
+        """The contract, not the Python docstring: this is what codegen emits and
+        what anyone reading /openapi.json sees."""
+        from fichero_server.api.main import app
+
+        schema = app.openapi()
+        described = 0
+        for name, definition in schema.get("components", {}).get("schemas", {}).items():
+            field = (definition.get("properties") or {}).get("source_segment_id")
+            if field is None:
+                continue
+            text = json.dumps(field)
+            assert "NOT a `Segment` record id" in text, f"{name} publishes it undescribed"
+            described += 1
+        assert described >= 1, "no published schema carries source_segment_id at all"
