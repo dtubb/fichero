@@ -29,10 +29,8 @@ extension ZoomableImagePreview {
                 // region boxes — the `default:` branch of the mark layer's
                 // per-kind switch. Filtering HERE keeps AnnotationMarkRendering
                 // a pure renderer with no display policy in it.
-                let shownMarks = regionsEnabled
-                    ? annotationMarks
-                    : annotationMarks.filter { $0.kind != .unknown && $0.kind != .comment }
-                if annotationsEnabled && !shownMarks.isEmpty {
+                let shownMarks = shownAnnotationMarks
+                if !shownMarks.isEmpty {
                     AnnotationMarkLayer(
                         marks: shownMarks,
                         visible: geometry.visible,
@@ -41,7 +39,8 @@ extension ZoomableImagePreview {
                         // `RegionSelection` driving the region overlay.
                         selectedId: FocusedAnnotation.shared.id,
                         // Tap a note to edit it IN PLACE (Daniel, 2026-09-04).
-                        onNoteTap: { inlineNoteEditingId = $0 }
+                        onNoteTap: { inlineNoteEditingId = $0 },
+                        drawsGeometricMarks: false  // inside the scroll view now (#5142)
                     )
                 }
                 // The region-DRAW plumbing moved to the pointer feed

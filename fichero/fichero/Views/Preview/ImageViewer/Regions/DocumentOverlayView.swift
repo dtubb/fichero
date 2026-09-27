@@ -88,6 +88,47 @@ final class DocumentOverlayView: NSView {
 
     // MARK: - Drawing
 
+    /// Saved annotation marks, by kind: a highlight is a wash, an underline and a strike are bars, a
+    /// line is a line, a legacy region is a box. The person's colour when they chose one.
+    private func drawMarks(in dirtyRect: CGRect, imageRect: CGRect, scale: CGFloat) {
+        let bar: CGFloat = 2 / scale
+        for mark in overlay.marks {
+            guard let rect = DocumentBoxMapping.rect(normalized: mark.bbox, imageRect: imageRect),
+                  rect.insetBy(dx: -bar, dy: -bar).intersects(dirtyRect) else { continue }
+            let chosen = mark.color.map {
+                NSColor(srgbRed: $0.red, green: $0.green, blue: $0.blue, alpha: $0.alpha)
+            }
+            switch mark.shape {
+            case .wash:
+                let alpha = (mark.color?.alpha ?? 1) < 1 ? (mark.color?.alpha ?? 0.3) : 0.3
+                (chosen ?? .systemYellow).withAlphaComponent(alpha).setFill()
+                NSBezierPath(rect: rect).fill()
+            case .underline:
+                // The page's BOTTOM is low y in this unflipped space.
+                (chosen ?? .controlAccentColor).setFill()
+                NSBezierPath(rect: CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: bar)).fill()
+            case .strike:
+                (chosen ?? .controlAccentColor).setFill()
+                NSBezierPath(rect: CGRect(x: rect.minX, y: rect.midY - bar / 2, width: rect.width, height: bar)).fill()
+            case .line:
+                // Top-left to bottom-right on the PAGE: high y to low y here.
+                let path = NSBezierPath()
+                path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+                path.line(to: CGPoint(x: rect.maxX, y: rect.minY))
+                path.lineWidth = bar
+                (chosen ?? .controlAccentColor).setStroke()
+                path.stroke()
+            case .box:
+                let path = NSBezierPath(rect: rect)
+                NSColor.controlAccentColor.withAlphaComponent(0.12).setFill()
+                path.fill()
+                NSColor.controlAccentColor.setStroke()
+                path.lineWidth = 1.5 / scale
+                path.stroke()
+            }
+        }
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         guard let imageRect else { return }
         // Drawn in document points and magnified with the page: divide by the magnification so a
@@ -106,6 +147,8 @@ final class DocumentOverlayView: NSView {
         for rect in DocumentOverlay.rects(overlay.linkedWashes, in: dirtyRect, imageRect: imageRect) {
             NSBezierPath(roundedRect: rect, xRadius: 2 / scale, yRadius: 2 / scale).fill()
         }
+
+        drawMarks(in: dirtyRect, imageRect: imageRect, scale: scale)
 
         for (box, rect) in overlay.boxes(in: dirtyRect, imageRect: imageRect) {
             let path = NSBezierPath(rect: rect)
@@ -130,6 +173,16 @@ final class DocumentOverlayView: NSView {
         let stroke = SelectionStyle.stroke(emphasized: emphasized)
         let wash = SelectionStyle.washBase(emphasized: emphasized)
             .withAlphaComponent(SelectionStyle.washAlpha(emphasized: emphasized))
+        // The Inspector's selected annotation: the same selection look as a selected box.
+        if let bbox = overlay.selectedMark,
+           let rect = DocumentBoxMapping.rect(normalized: bbox, imageRect: imageRect), rect.intersects(dirtyRect) {
+            let path = NSBezierPath(rect: rect)
+            wash.setFill()
+            path.fill()
+            stroke.setStroke()
+            path.lineWidth = line
+            path.stroke()
+        }
         for rect in selected {
             let path = NSBezierPath(rect: rect)
             wash.setFill()

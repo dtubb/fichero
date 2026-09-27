@@ -52,4 +52,29 @@ struct DocumentOverlayTests {
         lit.linkedWashes = [[0.1, 0.8, 0.2, 0.05]]
         #expect(lit != overlay())
     }
+
+    /// #5142: saved marks move with the page too. Geometry kinds draw inside the scroll view; the
+    /// glyph and tappable kinds stay in SwiftUI. What breaks without it: a highlight drawn twice (both
+    /// layers) or not at all (neither), or a note that can no longer be tapped.
+    @Test("the geometry kinds draw here, the glyph and tappable kinds stay in SwiftUI")
+    func markKinds() {
+        #expect(DocumentOverlay.Mark.shape(for: .highlight) == .wash)
+        #expect(DocumentOverlay.Mark.shape(for: .underline) == .underline)
+        #expect(DocumentOverlay.Mark.shape(for: .strikethrough) == .strike)
+        #expect(DocumentOverlay.Mark.shape(for: .line) == .line)
+        #expect(DocumentOverlay.Mark.shape(for: .unknown) == .box)
+        for kind in [AnnotationKind.rating, .note, .bookmark] {
+            #expect(DocumentOverlay.Mark.shape(for: kind) == nil, "\(kind) must stay in SwiftUI")
+        }
+    }
+
+    @Test("a new mark or a newly selected mark redraws")
+    func marksRedraw() {
+        var marked = DocumentOverlay()
+        marked.marks = [.init(shape: .wash, bbox: [0.1, 0.1, 0.2, 0.05], color: nil)]
+        #expect(marked != DocumentOverlay())
+        var chosen = DocumentOverlay()
+        chosen.selectedMark = [0.1, 0.1, 0.2, 0.05]
+        #expect(chosen != DocumentOverlay())
+    }
 }

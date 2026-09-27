@@ -39,6 +39,11 @@ extension ZoomableImagePreview {
             selected: selected,
             entryWashes: annotationFrameMatchesDisplay(nil) ? highlightBoxes : [],
             linkedWashes: linkedFrameMatches ? linkedSelectionBoxes : [],
+            marks: shownAnnotationMarks.compactMap { mark in
+                guard let bbox = mark.rect, let shape = DocumentOverlay.Mark.shape(for: mark.kind) else { return nil }
+                return .init(shape: shape, bbox: bbox, color: AnnotationMarkGeometry.rgba(hex: mark.color))
+            },
+            selectedMark: shownAnnotationMarks.first { $0.id == FocusedAnnotation.shared.id }?.rect,
             isEditing: windowState?.isEditingSegments == true,
             isFocusedPane: windowState?.focusedRegionSelection === regionSelection
         )
