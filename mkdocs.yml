@@ -420,6 +420,7 @@ nav:
               - Build Notes (shapes & the anchor): contributor_manual/specs/source/build-notes-shapes-and-anchor.md
               - Build Notes (readings, cascade, orders): contributor_manual/specs/source/build-notes-readings-cascade-orders.md
               - Build Notes (interchange harness, PAGE XML): contributor_manual/specs/source/build-notes-formats-harness.md
+              - Build Notes (the Preview, for slice 13's wireframes): contributor_manual/specs/source/build-notes-preview-inventory.md
               - Segment Representations (earlier; first slice): contributor_manual/specs/source/segment-representations.md
               - Historical Text Normalization (earlier; the text side): contributor_manual/specs/source/historical-text-normalization.md
               - Archival Data Model (earlier; staged plan): contributor_manual/specs/source/archival-data-model-plan.md
