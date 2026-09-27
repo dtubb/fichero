@@ -67,7 +67,7 @@ class TestExportingAPage:
         page, _ = _converted(db, client)
         body = client.get(f"/api/documents/{page.id}/export/tei").json()
         assert isinstance(body["losses"], list)
-        assert "page size" in {l["what"] for l in body["losses"]}, "the seeded page records no pixel size"
+        assert "page size" in {loss["what"] for loss in body["losses"]}, "the seeded page records no pixel size"
 
     def test_a_corrected_reading_is_what_is_exported(self, db, client):
         from fichero_server.actions.registry import ActionContext, registry

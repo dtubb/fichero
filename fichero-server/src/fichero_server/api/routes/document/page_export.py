@@ -156,5 +156,5 @@ async def export_document_page(
         filename=result.filename,
         content=result.data.decode("utf-8"),
         choices=ExportChoicesOut(**result.choices.as_dict()),
-        losses=[LossOut(what=l.what, count=l.count, why=l.why) for l in result.report.losses],
+        losses=[LossOut(what=loss.what, count=loss.count, why=loss.why) for loss in result.report.losses],
     )
