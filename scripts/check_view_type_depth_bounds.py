@@ -71,6 +71,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 APP_DIR = ROOT / "fichero" / "fichero"
@@ -106,7 +107,7 @@ def scan(app_dir: Path) -> tuple[list[dict], list[dict]]:
     intact: list[dict] = []
     broken: list[dict] = []
 
-    for path in sorted(app_dir.rglob("*.swift")):
+    for path in sorted(scan_rglob(app_dir, "*.swift")):
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
         except (OSError, UnicodeDecodeError):

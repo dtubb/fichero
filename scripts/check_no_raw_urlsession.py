@@ -37,6 +37,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_DIR = ROOT / "fichero" / "fichero-api-client" / "Sources"
@@ -63,7 +64,7 @@ def _code(text: str) -> str:
 
 def scan(package_dir: Path = PACKAGE_DIR) -> dict[str, str]:
     found: dict[str, str] = {}
-    for path in sorted(package_dir.rglob("*.swift")):
+    for path in sorted(scan_rglob(package_dir, "*.swift")):
         if path.name in ALLOWLIST:
             continue
         try:
@@ -103,7 +104,7 @@ def main() -> int:
 
     # #4487 scan floor: 20 package Swift files on 2026-08-02.
     require_scan_floor(
-        sum(1 for _ in PACKAGE_DIR.rglob("*.swift")), 10,
+        sum(1 for _ in scan_rglob(PACKAGE_DIR, "*.swift")), 10,
         "api-client Swift files (20 on 2026-08-02)",
     )
     print("Raw-URLSession ban — OpenAPI client package (#2393):")

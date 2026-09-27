@@ -42,6 +42,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_DIR = ROOT / "fichero" / "fichero"
@@ -152,7 +153,7 @@ def _strip_comments(text: str) -> str:
 def scan(swift_dir: Path = SWIFT_DIR, contract: Path = CONTRACT_OPENAPI) -> dict[str, str]:
     names = schema_names(contract)
     found: dict[str, str] = {}
-    for path in sorted(swift_dir.rglob("*.swift")):
+    for path in sorted(scan_rglob(swift_dir, "*.swift")):
         if "Tests" in path.parts:
             continue
         try:
@@ -188,7 +189,7 @@ def main() -> int:
 
     # #4487 scan floor: 884 app Swift files on 2026-08-02.
     require_scan_floor(
-        sum(1 for _ in SWIFT_DIR.rglob("*.swift")), 400, "app Swift files (884 on 2026-08-02)"
+        sum(1 for _ in scan_rglob(SWIFT_DIR, "*.swift")), 400, "app Swift files (884 on 2026-08-02)"
     )
     print(f"OpenAPI shadow-type guardrail: scanned {SWIFT_DIR.relative_to(ROOT)}")
     print(f"  {len(found)} manual type(s) shadow a Components.Schemas.* name; {len(known)} known.")

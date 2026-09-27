@@ -51,6 +51,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 ENGINE_SRC = ROOT / "fichero-server" / "src" / "fichero_server"
@@ -110,7 +111,7 @@ def _models_base_window(source: str, start: int) -> str:
 
 def scan(engine_src: Path = ENGINE_SRC) -> dict[str, str]:
     found: dict[str, str] = {}
-    for path in sorted(engine_src.rglob("*.py")):
+    for path in sorted(scan_rglob(engine_src, "*.py")):
         if "tests" in path.parts or "generated" in path.parts:
             continue
         try:
@@ -167,7 +168,7 @@ def main() -> int:
 
     # #4487 scan floor: 423 engine .py files on 2026-08-02.
     require_scan_floor(
-        sum(1 for _ in ENGINE_SRC.rglob("*.py")), 211, "engine Python files (423 on 2026-08-02)"
+        sum(1 for _ in scan_rglob(ENGINE_SRC, "*.py")), 211, "engine Python files (423 on 2026-08-02)"
     )
     print(f"Model-download location guardrail: scanned {ENGINE_SRC.relative_to(ROOT)}")
     print(f"  canonical shared folder: {CANONICAL_MODELS_DIR_EXPR}")

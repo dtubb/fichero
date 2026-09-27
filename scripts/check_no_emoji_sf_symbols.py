@@ -22,6 +22,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_DIR = ROOT / "fichero" / "fichero"
@@ -99,7 +100,7 @@ def code_lines(text: str) -> list[str]:
 
 def scan() -> dict[str, str]:
     found: dict[str, str] = {}
-    for path in sorted(SWIFT_DIR.rglob("*.swift")):
+    for path in sorted(scan_rglob(SWIFT_DIR, "*.swift")):
         try:
             lines = code_lines(path.read_text(errors="ignore"))
         except OSError:
@@ -133,7 +134,7 @@ def main() -> int:
 
     # #4487 scan floor: 884 app Swift files on 2026-08-02.
     require_scan_floor(
-        sum(1 for _ in SWIFT_DIR.rglob("*.swift")), 400, "app Swift files (884 on 2026-08-02)"
+        sum(1 for _ in scan_rglob(SWIFT_DIR, "*.swift")), 400, "app Swift files (884 on 2026-08-02)"
     )
     print(f"No-emoji/SF-Symbols guardrail: scanned {SWIFT_DIR.relative_to(ROOT)}")
     print(f"  {len(found)} offender location(s); {len(known)} known.")

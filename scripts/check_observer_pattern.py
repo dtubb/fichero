@@ -29,6 +29,7 @@ import sys
 from _check_floor import require_scan_floor
 from collections import Counter
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 VIEWS_DIR = ROOT / "fichero" / "fichero" / "Views"
@@ -177,7 +178,7 @@ def _detect_patterns(src: str) -> list[str]:
 def scan() -> dict[str, list[str]]:
     """Repo-relative file path -> list of observer-pattern violations."""
     found: dict[str, list[str]] = {}
-    for path in sorted(VIEWS_DIR.rglob("*.swift")):
+    for path in sorted(scan_rglob(VIEWS_DIR, "*.swift")):
         try:
             src = code_only(path.read_text(errors="ignore"))
         except OSError:
@@ -222,7 +223,7 @@ def main() -> int:
 
     # #4487 scan floor: 582 view files on 2026-08-02.
     require_scan_floor(
-        sum(1 for _ in VIEWS_DIR.rglob("*.swift")), 291, "view files (582 on 2026-08-02)"
+        sum(1 for _ in scan_rglob(VIEWS_DIR, "*.swift")), 291, "view files (582 on 2026-08-02)"
     )
     print(f"Observer-pattern guardrail: scanned {VIEWS_DIR.relative_to(ROOT)}")
     print(f"  {len(found)} file(s) with observer-pattern violations; {len(known)} known backlog entries.")

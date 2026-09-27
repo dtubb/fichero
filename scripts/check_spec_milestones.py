@@ -21,6 +21,7 @@ import pathlib
 import re
 import shutil
 import subprocess
+from _scan_files import scan_rglob
 
 SPECS_DIR = pathlib.Path("docs/contributor_manual/specs")
 MILESTONE_RE = re.compile(r"Milestone:\s*(\S+)")
@@ -39,7 +40,7 @@ def _is_scaffold(p: pathlib.Path) -> bool:
 
 def _approved_specs() -> list[pathlib.Path]:
     out = []
-    for p in SPECS_DIR.rglob("*.md"):
+    for p in scan_rglob(SPECS_DIR, "*.md"):
         if _is_scaffold(p):
             continue
         head = p.read_text(encoding="utf-8")[:800]

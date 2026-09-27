@@ -37,7 +37,7 @@ def listed_engine_sources() -> set[str]:
 def real_engine_sources() -> set[str]:
     """Engine files git can see: tracked, plus new untracked ones that are not ignored.
 
-    NOT `ENGINE_SRC.rglob("*")`. That answered "what is on this disk", and 52908912d
+    NOT a recursive glob of ENGINE_SRC. That answered "what is on this disk", and 52908912d
     regenerated the list in a checkout holding `.ruff_cache/` (three cache files) and a
     locally built `resources/bin/fm-bridge` — all gitignored — so the committed list named
     four files no fresh checkout has, and this check went red in every clean worktree.

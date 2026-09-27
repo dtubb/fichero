@@ -21,6 +21,7 @@ import pathlib
 import re
 import shutil
 import subprocess
+from _scan_files import scan_rglob
 
 SPECS_DIR = pathlib.Path("docs/contributor_manual/specs")
 MILESTONE_RE = re.compile(r"Milestone:\s*(\S+)")
@@ -28,7 +29,7 @@ MANUAL_RE = re.compile(r"Manual:\s*(.+)")
 
 
 def _specs() -> list[pathlib.Path]:
-    return [p for p in SPECS_DIR.rglob("*.md") if not p.name.startswith("_")]
+    return [p for p in scan_rglob(SPECS_DIR, "*.md") if not p.name.startswith("_")]
 
 
 def _head(p: pathlib.Path) -> str:

@@ -19,6 +19,7 @@ import re
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_ROOT = ROOT / "fichero" / "fichero"           # appSource() resolves here
@@ -32,7 +33,7 @@ def _count_sites() -> int:
     for test_dir in TEST_DIRS:
         if not test_dir.exists():
             continue
-        for tf in sorted(test_dir.rglob("*.swift")):
+        for tf in sorted(scan_rglob(test_dir, "*.swift")):
             count += len(_APPSOURCE.findall(tf.read_text(errors="ignore")))
     return count
 
@@ -42,7 +43,7 @@ def stale_paths() -> list[tuple[str, str]]:
     for test_dir in TEST_DIRS:
         if not test_dir.exists():
             continue
-        for tf in sorted(test_dir.rglob("*.swift")):
+        for tf in sorted(scan_rglob(test_dir, "*.swift")):
             for m in _APPSOURCE.finditer(tf.read_text(errors="ignore")):
                 rel = m.group(1)
                 if rel and not (SWIFT_ROOT / rel).exists():

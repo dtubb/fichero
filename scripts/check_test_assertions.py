@@ -24,6 +24,7 @@ import sys
 from _check_floor import require_scan_floor
 from dataclasses import dataclass
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 PY_TEST_ROOT = ROOT / "fichero-server" / "tests"
@@ -138,15 +139,15 @@ def _python_test_files(
     base_root = root or ROOT
     tests_root = py_test_root or base_root / "fichero-server" / "tests"
     cli_tests_root = cli_root or base_root / "fichero" / "fichero-cli"
-    tests = sorted(tests_root.rglob("*.py"))
+    tests = sorted(scan_rglob(tests_root, "*.py"))
     if not cli_tests_root.exists():
         return tests
     cli_tests = []
-    for path in cli_tests_root.rglob("*"):
+    for path in scan_rglob(cli_tests_root, "*"):
         if not path.is_dir():
             continue
         if path.name == "tests":
-            cli_tests.extend(sorted(path.rglob("*.py")))
+            cli_tests.extend(sorted(scan_rglob(path, "*.py")))
     for path in cli_tests:
         if path not in tests:
             tests.append(path)

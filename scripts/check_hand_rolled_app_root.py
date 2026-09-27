@@ -41,6 +41,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 SCAN_ROOTS = [ROOT / "fichero"]
@@ -203,7 +204,7 @@ VENDORED = (".build", "DerivedData", "Pods", ".swiftpm", "SourcePackages", "chec
 def _swift_files() -> list[Path]:
     files: list[Path] = []
     for root in SCAN_ROOTS:
-        for path in sorted(root.rglob("*.swift")):
+        for path in sorted(scan_rglob(root, "*.swift")):
             if any(part in VENDORED for part in path.parts):
                 continue
             files.append(path)

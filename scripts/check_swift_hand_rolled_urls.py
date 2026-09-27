@@ -49,6 +49,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_DIR = ROOT / "fichero" / "fichero"
@@ -163,7 +164,7 @@ def _key(rel: str, line: str) -> str:
 
 def scan(swift_dir: Path = SWIFT_DIR) -> dict[str, str]:
     found: dict[str, str] = {}
-    for path in sorted(swift_dir.rglob("*.swift")):
+    for path in sorted(scan_rglob(swift_dir, "*.swift")):
         if "Tests" in path.parts:
             continue
         if any(part in path.parts for part in SANCTIONED_DIR_PARTS):
@@ -201,7 +202,7 @@ def main() -> int:
 
     # #4487 scan floor: 884 app Swift files on 2026-08-02.
     require_scan_floor(
-        sum(1 for _ in SWIFT_DIR.rglob("*.swift")), 400, "app Swift files (884 on 2026-08-02)"
+        sum(1 for _ in scan_rglob(SWIFT_DIR, "*.swift")), 400, "app Swift files (884 on 2026-08-02)"
     )
     print(f"Hand-rolled engine URL guardrail: scanned {SWIFT_DIR.relative_to(ROOT)} (excl. Services/)")
     print(f"  {len(found)} hand-rolled-transport site(s); {len(known)} known.")

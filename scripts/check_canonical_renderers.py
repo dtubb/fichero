@@ -48,6 +48,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 VIEWS_DIR = ROOT / "fichero" / "fichero" / "Views"
@@ -205,7 +206,7 @@ def entry_matches() -> list[list[str]]:
 def scan() -> list[dict]:
     findings: list[dict] = []
 
-    for swift_file in sorted(VIEWS_DIR.rglob("*.swift")):
+    for swift_file in sorted(scan_rglob(VIEWS_DIR, "*.swift")):
         if swift_file.name in CANONICAL_FILES:
             continue
         if "Tests" in swift_file.parts or "Preview" in swift_file.name:
@@ -245,7 +246,7 @@ def main(argv: list[str]) -> int:
 
     # #4487 scan floor: 582 view files on 2026-08-02.
     require_scan_floor(
-        sum(1 for _ in VIEWS_DIR.rglob("*.swift")), 291, "view files (582 on 2026-08-02)"
+        sum(1 for _ in scan_rglob(VIEWS_DIR, "*.swift")), 291, "view files (582 on 2026-08-02)"
     )
     print(f"Canonical-renderer guardrail: scanned {VIEWS_DIR.relative_to(ROOT)}")
     print(

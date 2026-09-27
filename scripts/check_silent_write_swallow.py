@@ -41,6 +41,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "fichero-server" / "src" / "fichero_server"
@@ -94,7 +95,7 @@ def _is_pure_silent(handler: ast.ExceptHandler) -> bool:
 
 def scan(src: Path = SRC) -> dict[str, str]:
     found: dict[str, str] = {}
-    for path in sorted(src.rglob("*.py")):
+    for path in sorted(scan_rglob(src, "*.py")):
         if "generated" in path.parts:
             continue
         try:
@@ -121,7 +122,7 @@ def scan(src: Path = SRC) -> dict[str, str]:
 def _floor_scan(src) -> None:
     # #4487 scan floor: 423 server .py files on 2026-08-02.
     require_scan_floor(
-        sum(1 for _ in src.rglob("*.py")), 211, "server Python files (423 on 2026-08-02)"
+        sum(1 for _ in scan_rglob(src, "*.py")), 211, "server Python files (423 on 2026-08-02)"
     )
 
 

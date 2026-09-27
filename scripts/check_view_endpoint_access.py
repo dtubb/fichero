@@ -46,6 +46,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 VIEWS_DIR = ROOT / "fichero" / "fichero" / "Views"
@@ -185,7 +186,7 @@ def violations_for(path: Path) -> list[str]:
 def scan() -> dict[str, list[str]]:
     """rel-path -> list of violation reasons, for every offending view file."""
     found: dict[str, list[str]] = {}
-    for f in sorted(VIEWS_DIR.rglob("*.swift")):
+    for f in sorted(scan_rglob(VIEWS_DIR, "*.swift")):
         if is_excluded(f):
             continue
         reasons = violations_for(f)
@@ -217,7 +218,7 @@ def main() -> int:
     print(f"Observable-data-layer guardrail: scanned {VIEWS_DIR.relative_to(ROOT)}")
     # #4487 scan floor: on view files ENUMERATED (582 on 2026-08-02).
     require_scan_floor(
-        sum(1 for _ in VIEWS_DIR.rglob("*.swift")), 291,
+        sum(1 for _ in scan_rglob(VIEWS_DIR, "*.swift")), 291,
         "view files (582 on 2026-08-02)",
     )
     print(f"  {len(found)} view file(s) bypass a store; {len(known)} known (migration backlog).")

@@ -32,6 +32,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 APP_DIR = ROOT / "fichero" / "fichero"
@@ -78,7 +79,7 @@ def _code(text: str) -> str:
 def raw_transport_files(app_dir: Path = APP_DIR) -> dict[str, list[int]]:
     """Rel path -> line numbers of raw-transport hits (comment-stripped)."""
     found: dict[str, list[int]] = {}
-    for path in sorted(app_dir.rglob("*.swift")):
+    for path in sorted(scan_rglob(app_dir, "*.swift")):
         s = str(path)
         if "/Tests/Unit/" in s or "/Tests/UI/" in s:
             continue
@@ -105,7 +106,7 @@ def _assert_logic() -> None:
 def _floor(app_dir) -> None:
     # #4487 scan floor: 884 app Swift files on 2026-08-02.
     require_scan_floor(
-        sum(1 for _ in app_dir.rglob("*.swift")), 400, "app Swift files (884 on 2026-08-02)"
+        sum(1 for _ in scan_rglob(app_dir, "*.swift")), 400, "app Swift files (884 on 2026-08-02)"
     )
 
 

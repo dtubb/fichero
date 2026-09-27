@@ -18,6 +18,7 @@ import hashlib
 import re
 import sys
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 VIEWS_DIR = ROOT / "fichero" / "fichero" / "Views"
@@ -196,7 +197,7 @@ def violations_for(path: Path) -> list[tuple[int, str]]:
 
 def scan() -> dict[str, str]:
     found: dict[str, str] = {}
-    for path in sorted(VIEWS_DIR.rglob("*.swift")):
+    for path in sorted(scan_rglob(VIEWS_DIR, "*.swift")):
         if is_excluded(path):
             continue
         try:

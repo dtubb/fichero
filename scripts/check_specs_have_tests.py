@@ -28,6 +28,7 @@ from __future__ import annotations
 import pathlib
 import re
 import sys
+from _scan_files import scan_rglob
 
 SPECS_DIR = pathlib.Path("docs/contributor_manual/specs")
 TEST_ROOTS = [
@@ -63,7 +64,7 @@ MATRIX_GRANDFATHERED = {"kg-entity-inspector", "sidebar-crud", "workflow-node-co
 
 
 def _canonical_specs() -> list[pathlib.Path]:
-    return [p for p in SPECS_DIR.rglob("*.md") if not _is_scaffold(p)]
+    return [p for p in scan_rglob(SPECS_DIR, "*.md") if not _is_scaffold(p)]
 
 
 def _spec_stems() -> set[str]:
@@ -71,7 +72,7 @@ def _spec_stems() -> set[str]:
     # breaking stem-based citations (the "split by area" ruling, 2026-09-09).
     canonical = {p.stem for p in _canonical_specs()}
     legacy = (
-        {p.stem for p in LEGACY_SPECS_DIR.rglob("*.md") if not _is_scaffold(p)}
+        {p.stem for p in scan_rglob(LEGACY_SPECS_DIR, "*.md") if not _is_scaffold(p)}
         if LEGACY_SPECS_DIR.exists() else set()
     )
     return canonical | legacy
@@ -96,7 +97,7 @@ def _test_files() -> list[pathlib.Path]:
         if not root.exists():
             continue
         for glob in TEST_GLOBS:
-            files.extend(root.rglob(glob))
+            files.extend(scan_rglob(root, glob))
     return files
 
 

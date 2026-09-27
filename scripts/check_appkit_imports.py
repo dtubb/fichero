@@ -34,6 +34,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_DIR = ROOT / "fichero" / "fichero"
@@ -164,7 +165,7 @@ def _strip_comments(text: str) -> str:
 def scan(swift_dir: Path = SWIFT_DIR) -> dict[str, str]:
     """Return {relpath: 'imports AppKit/UIKit'} for every importer file."""
     found: dict[str, str] = {}
-    for path in sorted(swift_dir.rglob("*.swift")):
+    for path in sorted(scan_rglob(swift_dir, "*.swift")):
         if "Tests" in path.parts:
             continue
         try:
@@ -201,7 +202,7 @@ def main() -> int:
     print(f"AppKit/UIKit import guardrail: scanned {SWIFT_DIR.relative_to(ROOT)}")
     # #4487 scan floor: on files ENUMERATED, not importers found — the
     # importer count legitimately shrinks as AppKit is removed.
-    scanned_files = sum(1 for p in SWIFT_DIR.rglob("*.swift") if "Tests" not in p.parts)
+    scanned_files = sum(1 for p in scan_rglob(SWIFT_DIR, "*.swift") if "Tests" not in p.parts)
     require_scan_floor(scanned_files, 400, "app Swift files (884 on 2026-08-02)")
     print(f"  {len(found)} file(s) import AppKit/UIKit; {len(known)} known.")
 

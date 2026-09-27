@@ -36,6 +36,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 ALLOWLIST = Path(__file__).resolve().parent / "check_docs_paths_allowlist.json"
@@ -113,7 +114,7 @@ def is_hand_written(path: Path, docs_root: Path) -> bool:
 
 def doc_files() -> list[Path]:
     docs = ROOT / "docs"
-    files = [p for p in sorted(docs.rglob("*.md")) if not is_hand_written(p, docs)]
+    files = [p for p in sorted(scan_rglob(docs, "*.md")) if not is_hand_written(p, docs)]
     files += [ROOT / f for f in ROOT_DOCS if (ROOT / f).exists()]
     return files
 

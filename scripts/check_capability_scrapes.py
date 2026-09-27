@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 TESTS_DIR = ROOT / "fichero" / "Tests"
@@ -72,7 +73,7 @@ def scan(tests_dir: Path | None = None, root: Path | None = None) -> set[str]:
     tests_dir = tests_dir if tests_dir is not None else TESTS_DIR
     root = root if root is not None else ROOT
     found: set[str] = set()
-    for path in tests_dir.rglob("*.swift"):
+    for path in scan_rglob(tests_dir, "*.swift"):
         try:
             source = path.read_text(errors="ignore")
         except OSError:

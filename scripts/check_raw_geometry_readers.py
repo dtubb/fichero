@@ -46,6 +46,7 @@ from __future__ import annotations
 import ast
 import sys
 from pathlib import Path
+from _scan_files import scan_rglob
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -110,7 +111,7 @@ def main() -> int:
         if not base.exists():
             print(f"FAIL: scanned root missing, the check would pass vacuously: {root}")
             return 1
-        for path in sorted(base.rglob("*.py")):
+        for path in sorted(scan_rglob(base, "*.py")):
             rel = path.relative_to(REPO).as_posix()
             scanned += 1
             try:

@@ -54,6 +54,7 @@ from matrix_guardrail_common import (
     source_identifiers,
     swift_operation_name,
 )
+from _scan_files import scan_rglob
 
 # The whole app target. This check asks whether an endpoint is REACHED, not where the call
 # lives — the "wiring belongs in a store" rule is a different guardrail's business, which the
@@ -61,8 +62,8 @@ from matrix_guardrail_common import (
 # `Services/*Service*.swift` and `Models/*Store*.swift`, and once comments stopped standing in
 # for calls that scope reported `GET /api/health` as unreached while three files call
 # `healthCheckApiHealthGet` — from App/AppState and RemoteClientPairing (2026-09-27).
-SWIFT_SOURCES = sorted((ROOT / "fichero" / "fichero").rglob("*.swift"))
-CLI_SOURCES = sorted((ROOT / "fichero-cli" / "src" / "fichero_cli").rglob("*.py"))
+SWIFT_SOURCES = sorted(scan_rglob((ROOT / "fichero" / "fichero"), "*.swift"))
+CLI_SOURCES = sorted(scan_rglob((ROOT / "fichero-cli" / "src" / "fichero_cli"), "*.py"))
 KNOWN_GAPS = load_known_gaps(
     Path(__file__).with_name("check_endpoint_coverage_matrix_known_gaps.json")
 )

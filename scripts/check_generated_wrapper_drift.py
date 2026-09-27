@@ -41,6 +41,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 WRAPPERS_DIR = ROOT / "fichero" / "fichero" / "Services"
@@ -88,7 +89,7 @@ def scan_references(wrappers_dir: Path = WRAPPERS_DIR) -> dict[str, str]:
     # repointed — the check scanned ZERO files and certified "every wrapper
     # schema reference resolves" from that commit until 2026-08-02. The
     # references live in plain Services/*.swift now; scan them all.
-    for path in sorted(wrappers_dir.rglob("*.swift")):
+    for path in sorted(scan_rglob(wrappers_dir, "*.swift")):
         try:
             source = path.read_text(errors="ignore")
         except OSError:

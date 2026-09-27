@@ -43,10 +43,11 @@ from matrix_guardrail_common import (
     normalize_path,
     read_swift_code_blob,
 )
+from _scan_files import scan_rglob
 
 UNDO_SOURCES = sorted(
     path
-    for path in ROOT.joinpath("fichero", "fichero").rglob("*.swift")
+    for path in scan_rglob(ROOT.joinpath("fichero", "fichero"), "*.swift")
     if any(
         token in path.read_text(encoding="utf-8", errors="ignore")
         for token in ("UndoManager", "registerUndo", "undoAction", "canUndo")

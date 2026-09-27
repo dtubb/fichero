@@ -41,6 +41,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+from _scan_files import scan_rglob
 
 REPO = Path(__file__).resolve().parent.parent
 APP = REPO / "fichero" / "fichero"
@@ -129,7 +130,7 @@ def non_optional_env_reads() -> dict[str, set[str]]:
     the forwarding chain.
     """
     found: dict[str, set[str]] = {}
-    for path in APP.rglob("*.swift"):
+    for path in scan_rglob(APP, "*.swift"):
         text = _read(path)
         if not is_hosted_outside_the_view_tree(path, text):
             continue

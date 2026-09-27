@@ -26,6 +26,7 @@ import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 ENGINE_SRC = ROOT / "fichero-server" / "src" / "fichero_server"
@@ -51,7 +52,7 @@ class Occurrence:
 
 def _py_files(root: Path) -> list[Path]:
     out: list[Path] = []
-    for path in root.rglob("*.py"):
+    for path in scan_rglob(root, "*.py"):
         if any(part in {"tests", "__pycache__", "generated", ".venv"} for part in path.parts):
             continue
         out.append(path)

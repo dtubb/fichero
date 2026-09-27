@@ -34,6 +34,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+from _scan_files import scan_rglob
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -71,7 +72,7 @@ def swift_sources(root: Path) -> list[Path]:
     """
     return [
         p
-        for p in sorted(root.rglob("*.swift"))
+        for p in sorted(scan_rglob(root, "*.swift"))
         if ".build" not in p.parts and "DerivedData" not in p.parts
     ]
 

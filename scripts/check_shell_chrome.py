@@ -36,6 +36,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 VIEWS_DIR = ROOT / "fichero" / "fichero" / "Views"
@@ -76,7 +77,7 @@ def _hash(rule: str, rel: str, snippet: str) -> str:
 def violations() -> dict[str, str]:
     """hash -> "[rule] rel:line: snippet" for every rule-1/2 offender."""
     found: dict[str, str] = {}
-    for path in sorted(VIEWS_DIR.rglob("*.swift")):
+    for path in sorted(scan_rglob(VIEWS_DIR, "*.swift")):
         s = str(path)
         if "/Tests/Unit/" in s or "/Tests/UI/" in s:
             continue
@@ -90,7 +91,7 @@ def violations() -> dict[str, str]:
 
 def oversize_shell_files() -> list[tuple[str, int]]:
     bad: list[tuple[str, int]] = []
-    for path in sorted(VIEWS_DIR.rglob("*.swift")):
+    for path in sorted(scan_rglob(VIEWS_DIR, "*.swift")):
         if path.name.startswith(("ContentView", "Sidebar")):
             n = len(path.read_text(errors="ignore").splitlines())
             if n > SHELL_LINE_LIMIT:
@@ -129,7 +130,7 @@ def main(argv: list[str]) -> int:
     found = violations()
     # #4487 scan floor: 582 view files on 2026-08-02.
     require_scan_floor(
-        sum(1 for _ in VIEWS_DIR.rglob("*.swift")), 291, "view files (582 on 2026-08-02)"
+        sum(1 for _ in scan_rglob(VIEWS_DIR, "*.swift")), 291, "view files (582 on 2026-08-02)"
     )
     oversize = oversize_shell_files()
 

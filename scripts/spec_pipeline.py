@@ -48,6 +48,7 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass, field
+from _scan_files import scan_rglob
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 SPECS_DIR = pathlib.Path("docs/contributor_manual/specs")
@@ -289,7 +290,7 @@ def _is_scaffold(p: pathlib.Path) -> bool:
 def _spec_files() -> list[pathlib.Path]:
     if not SPECS_DIR.exists():
         return []
-    return [p for p in sorted(SPECS_DIR.rglob("*.md")) if not _is_scaffold(p)]
+    return [p for p in sorted(scan_rglob(SPECS_DIR, "*.md")) if not _is_scaffold(p)]
 
 
 def _spec_header(spec: pathlib.Path) -> tuple[str | None, str | None]:
@@ -598,7 +599,7 @@ def _build_test_index() -> TestIndex:
     for root in TEST_ROOTS:
         if not root.exists():
             continue
-        for f in root.rglob("*"):
+        for f in scan_rglob(root, "*"):
             if f.suffix not in (".swift", ".py"):
                 continue
             idx.file_basenames.add(f.name)
@@ -957,7 +958,7 @@ def _stale_gap_infos(behaviors: list[Behavior]) -> list[str]:
     for root in TEST_ROOTS:
         if not root.is_dir():
             continue
-        for path in list(root.rglob("*.py")) + list(root.rglob("*.swift")):
+        for path in list(scan_rglob(root, "*.py")) + list(scan_rglob(root, "*.swift")):
             try:
                 text = path.read_text(errors="ignore")
             except OSError:
@@ -1301,7 +1302,7 @@ def cmd_agent_work() -> int:
     if not AGENT_WORK_DIR.exists():
         print(f"INFO spec_pipeline agent-work: no {AGENT_WORK_DIR} directory found.")
         return 0
-    files = sorted(AGENT_WORK_DIR.rglob("*.md"))
+    files = sorted(scan_rglob(AGENT_WORK_DIR, "*.md"))
     spec_text = "\n".join(
         spec.read_text(encoding="utf-8", errors="ignore") for spec in _spec_files()
     )

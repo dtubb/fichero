@@ -31,6 +31,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 VIEWS_DIR = ROOT / "fichero" / "fichero" / "Views"
@@ -61,7 +62,7 @@ def scan(views_dir: Path = VIEWS_DIR) -> dict[str, str]:
     global VIEWS_SEEN
     VIEWS_SEEN = 0
     missing: dict[str, str] = {}
-    for path in sorted(views_dir.rglob("*.swift")):
+    for path in sorted(scan_rglob(views_dir, "*.swift")):
         try:
             source = path.read_text(errors="ignore")
         except OSError:

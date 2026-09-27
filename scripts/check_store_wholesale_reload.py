@@ -57,6 +57,7 @@ import json
 import pathlib
 import re
 import sys
+from _scan_files import scan_rglob
 
 ROOT = pathlib.Path("fichero/fichero")
 ALLOWLIST_PATH = pathlib.Path("scripts/store_wholesale_reload_allowlist.json")
@@ -269,7 +270,7 @@ def scan_file(path: pathlib.Path) -> tuple[int, list[dict]]:
 def scan_tree() -> tuple[int, list[dict]]:
     total_classes = 0
     all_findings: list[dict] = []
-    for path in sorted(ROOT.rglob("*.swift")):
+    for path in sorted(scan_rglob(ROOT, "*.swift")):
         if "@Observable" not in path.read_text(encoding="utf-8", errors="ignore"):
             continue
         n, findings = scan_file(path)

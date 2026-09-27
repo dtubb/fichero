@@ -32,6 +32,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 BARE_APP = "fichero_server.api.main:app"
@@ -91,7 +92,7 @@ def _searched_files() -> list[Path]:
         if not root.exists():
             continue
         for suffix in SEARCHED_SUFFIXES:
-            files.extend(p for p in root.rglob(f"*{suffix}") if "__pycache__" not in p.parts)
+            files.extend(p for p in scan_rglob(root, f"*{suffix}") if "__pycache__" not in p.parts)
     return sorted(set(files))
 
 

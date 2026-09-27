@@ -19,6 +19,7 @@ import hashlib
 import re
 import sys
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_DIR = ROOT / "fichero" / "fichero"
@@ -123,7 +124,7 @@ def _flush_block(
 
 def scan() -> dict[str, str]:
     found: dict[str, str] = {}
-    for path in sorted(SWIFT_DIR.rglob("*.swift")):
+    for path in sorted(scan_rglob(SWIFT_DIR, "*.swift")):
         try:
             lines = path.read_text(errors="ignore").splitlines()
         except OSError:

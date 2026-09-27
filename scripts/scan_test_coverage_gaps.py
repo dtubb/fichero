@@ -26,6 +26,7 @@ import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 PY_ROOT = ROOT / "fichero-server" / "src" / "fichero_server"
@@ -73,9 +74,9 @@ def _python_tests(
     base_root = root or ROOT
     tests_root = py_test_root or base_root / "fichero-server" / "tests"
     cli_tests_root = cli_root or base_root / "fichero" / "fichero-cli"
-    tests = sorted(tests_root.rglob("*.py"))
+    tests = sorted(scan_rglob(tests_root, "*.py"))
     cli_tests = (
-        sorted((cli_tests_root / "tests").rglob("*.py"))
+        sorted(scan_rglob((cli_tests_root / "tests"), "*.py"))
         if (cli_tests_root / "tests").exists()
         else []
     )
@@ -129,7 +130,7 @@ def _scan_python_symbols(
     base_root = root or ROOT
     source_root = py_root or base_root / "fichero-server" / "src" / "fichero_server"
     entries: list[SymbolEntry] = []
-    for path in paths if paths is not None else sorted(source_root.rglob("*.py")):
+    for path in paths if paths is not None else sorted(scan_rglob(source_root, "*.py")):
         if path.name.startswith("_"):
             continue
         try:
@@ -168,7 +169,7 @@ def _scan_swift_symbols(
     if paths is None and not source_root.exists():
         return entries
 
-    for path in paths if paths is not None else sorted(source_root.rglob("*.swift")):
+    for path in paths if paths is not None else sorted(scan_rglob(source_root, "*.swift")):
         try:
             rel = path.relative_to(source_root).as_posix()
         except ValueError:

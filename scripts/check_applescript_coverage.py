@@ -33,6 +33,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 APP_DIR = ROOT / "fichero" / "fichero"
@@ -53,7 +54,7 @@ def sdef_cocoa_classes(sdef: Path = SDEF) -> set[str]:
 
 def _swift_sources(app_dir: Path) -> str:
     return "\n".join(
-        p.read_text(errors="ignore") for p in sorted(app_dir.rglob("*.swift"))
+        p.read_text(errors="ignore") for p in sorted(scan_rglob(app_dir, "*.swift"))
     )
 
 

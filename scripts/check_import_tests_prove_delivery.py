@@ -36,6 +36,7 @@ from __future__ import annotations
 import ast
 import pathlib
 import sys
+from _scan_files import scan_rglob
 
 TESTS_ROOT = pathlib.Path("fichero-server/tests")
 
@@ -97,7 +98,7 @@ def _int_constants(node: ast.AST) -> set[int]:
 
 def find_unproven(root: pathlib.Path) -> list[str]:
     offenders: list[str] = []
-    for path in sorted(root.rglob("test_*.py")):
+    for path in sorted(scan_rglob(root, "test_*.py")):
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))
         except (SyntaxError, UnicodeDecodeError):

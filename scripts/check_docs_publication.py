@@ -32,6 +32,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 MKDOCS = ROOT / "mkdocs.yml"
@@ -85,7 +86,7 @@ def built_pages(text: str) -> set[str]:
     root = docs_dir(text)
     skip = excluded(text)
     pages = set()
-    for p in root.rglob("*.md"):
+    for p in scan_rglob(root, "*.md"):
         rel = p.relative_to(root).as_posix()
         if rel in skip or any(rel.startswith(s.rstrip("/") + "/") for s in skip):
             continue

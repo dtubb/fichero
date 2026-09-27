@@ -30,6 +30,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+from _scan_files import scan_rglob
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SWIFT_ROOT = REPO_ROOT / "fichero" / "fichero"
@@ -59,7 +60,7 @@ def scan(sources: dict[str, str]) -> tuple[list[str], int]:
 def load_sources() -> dict[str, str]:
     return {
         str(path.relative_to(SWIFT_ROOT)): path.read_text(encoding="utf-8", errors="replace")
-        for path in SWIFT_ROOT.rglob("*.swift")
+        for path in scan_rglob(SWIFT_ROOT, "*.swift")
     }
 
 

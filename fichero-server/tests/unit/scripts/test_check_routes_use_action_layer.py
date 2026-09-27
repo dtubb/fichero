@@ -127,14 +127,15 @@ def _write(tmp_path: Path, source: str, subdir: str = "kg", name: str = "thing.p
 
 @pytest.fixture(autouse=True)
 def _isolate(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        _mod,
-        "ROOTS",
-        [
-            tmp_path / "fichero-server" / "src" / "fichero_server" / "api" / "routes" / "kg",
-            tmp_path / "fichero-server" / "src" / "fichero_server" / "api" / "routes" / "entity",
-        ],
-    )
+    roots = [
+        tmp_path / "fichero-server" / "src" / "fichero_server" / "api" / "routes" / "kg",
+        tmp_path / "fichero-server" / "src" / "fichero_server" / "api" / "routes" / "entity",
+    ]
+    # Both exist, as in the repo: the tree walk refuses a missing root rather than
+    # reading it as an empty, clean one (_scan_files.scan_rglob).
+    for root in roots:
+        root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(_mod, "ROOTS", roots)
     monkeypatch.setattr(_mod, "ALLOWLIST_PATH", tmp_path / "allowlist.json")
     return tmp_path
 
@@ -191,12 +192,7 @@ def test_does_not_trace_through_helper_indirection(tmp_path):
 
 
 def test_zero_routes_found_fails(tmp_path):
-    (tmp_path / "fichero-server" / "src" / "fichero_server" / "api" / "routes" / "kg").mkdir(
-        parents=True
-    )
-    (tmp_path / "fichero-server" / "src" / "fichero_server" / "api" / "routes" / "entity").mkdir(
-        parents=True
-    )
+    # Both roots exist and are empty (the autouse fixture creates them).
     rc = _mod.check()
     assert rc == 2
 

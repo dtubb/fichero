@@ -40,6 +40,7 @@ import sys
 
 from _check_floor import require_scan_floor
 from pathlib import Path
+from _scan_files import scan_rglob
 
 ROOT = Path(__file__).resolve().parent.parent
 APP_DIR = ROOT / "fichero" / "fichero"
@@ -61,7 +62,7 @@ def _is_prose(literal: str) -> bool:
 
 def scan(app_dir: Path = APP_DIR) -> dict[str, str]:
     found: dict[str, str] = {}
-    for path in sorted(app_dir.rglob("*.swift")):
+    for path in sorted(scan_rglob(app_dir, "*.swift")):
         try:
             source = path.read_text(errors="ignore")
         except OSError:
@@ -101,7 +102,7 @@ def main() -> int:
     print("Localization guardrail (#2287):")
     # #4487 scan floor: 884 app Swift files on 2026-08-02.
     require_scan_floor(
-        sum(1 for _ in APP_DIR.rglob("*.swift")), 400, "app Swift files (884 on 2026-08-02)"
+        sum(1 for _ in scan_rglob(APP_DIR, "*.swift")), 400, "app Swift files (884 on 2026-08-02)"
     )
     print(f"  scanned {APP_DIR.relative_to(ROOT)} for Text(verbatim:) prose")
     print(f"  {len(found)} verbatim prose string(s); {len(known)} known.")
