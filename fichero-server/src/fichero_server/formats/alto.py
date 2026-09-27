@@ -38,6 +38,7 @@ from typing import Any
 
 from fichero_server.formats import register
 from fichero_server.formats.harness import (
+    pixel_grid,
     FormatSpec,
     LossReport,
     PageOrder,
@@ -173,6 +174,10 @@ def read(data: bytes) -> SourcePage:
     if page_el.get("LANG"):
         page.language = page_el.get("LANG")
     page.foreign["alto:MeasurementUnit"] = unit
+    if width and height:
+        # The page's size in ITS OWN unit, for every unit: the only record of its proportions
+        # when the unit is not pixels, and what lets ALTO write it back as it came (#5130).
+        page.page_extent = (float(width), float(height), unit)
     if unit == "pixel" and width and height:
         page.image_size = (int(width), int(height))
 
@@ -212,6 +217,12 @@ def read(data: bytes) -> SourcePage:
                         owner.readings.append(("transcription", element.get("CONTENT")))
             continue
         segment = PageSegment(kind=kind, ref=element.get("ID"))
+        if _tag(element) == "ComposedBlock":
+            # A region that HOLDS other blocks (an illustration's frame, a table): kept as what it
+            # was, so the writer puts it back as a ComposedBlock and not a TextBlock (#5130).
+            segment.foreign["alto:element"] = "ComposedBlock"
+            if element.get("TYPE"):
+                segment.foreign["alto:TYPE"] = element.get("TYPE")
         parent = element.getparent()
         while parent is not None and _tag(parent) not in ELEMENT_KINDS:
             parent = parent.getparent()
@@ -278,14 +289,14 @@ def write(page: SourcePage, report: LossReport) -> bytes:
     """One page as ALTO 4.4, with everything it cannot carry reported."""
     from lxml import etree
 
-    width, height = page.image_size or (1000, 1000)
-    if page.image_size is None:
-        report.note(
-            "page size",
-            1,
-            "no pixel grid was recorded for this page, so 1000x1000 was written "
-            "and ALTO's coordinates are against an invented page",
-        )
+    # A page with no pixel grid but a STATED size in another unit is written back in that unit
+    # and at that size (#5130): ALTO can say `mm10`, so nothing needs inventing. Before this a
+    # `mm10` page came back as a square 1000x1000 `pixel` page and every shape was stretched.
+    unit_out = "pixel"
+    if page.image_size is None and page.page_extent is not None and page.page_extent[2] != "pixel":
+        width, height, unit_out = page.page_extent
+    else:
+        width, height = pixel_grid(page, report, "ALTO")
 
     root = etree.Element(f"{{{ALTO_NS_V4}}}alto", nsmap={None: ALTO_NS_V4, "xsi": XSI_NS})
     # The release is DECLARED, not left to the reader: ALTO keeps one namespace for all of
@@ -296,7 +307,7 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         f"{ALTO_NS_V4} http://www.loc.gov/standards/alto/v4/{ALTO_WRITTEN_SCHEMA}",
     )
     description = etree.SubElement(root, f"{{{ALTO_NS_V4}}}Description")
-    etree.SubElement(description, f"{{{ALTO_NS_V4}}}MeasurementUnit").text = "pixel"
+    etree.SubElement(description, f"{{{ALTO_NS_V4}}}MeasurementUnit").text = unit_out
     source = etree.SubElement(
         description, f"{{{ALTO_NS_V4}}}sourceImageInformation"
     )
@@ -367,9 +378,19 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         for segment in page.segments
         if segment.kind == "word" and segment.parent_ref
     }
+    # A region that holds anything but lines -- a graphic, a picture, another block -- is a
+    # ComposedBlock: a TextBlock may hold only TextLines (#5130: the Cherokee Phoenix's
+    # `ComposedBlock TYPE="Illustration"` came back as a TextBlock around its GraphicalElement,
+    # and the export was refused).
+    composed = {
+        segment.parent_ref for segment in page.segments
+        if segment.parent_ref and segment.kind not in ("line", "word", "character")
+    } | {segment.ref for segment in page.segments if segment.foreign.get("alto:element") == "ComposedBlock"}
     by_ref: dict[str, Any] = {}
     for index, segment in enumerate(ordered):
         element_name = KIND_ELEMENTS.get(segment.kind)
+        if element_name == "TextBlock" and segment.ref in composed:
+            element_name = "ComposedBlock"
         if element_name is None:
             report.note(
                 f"{segment.kind} segments", 1, "ALTO has no element for this granularity"
@@ -402,6 +423,8 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             # which `xsd:string` allows, and the reader takes an empty CONTENT as no
             # reading. Omitting the attribute failed 15 of 239 real pages.
             attrs["CONTENT"] = segment.readings[0][1] if segment.readings else ""
+        if element_name == "ComposedBlock" and segment.foreign.get("alto:TYPE"):
+            attrs["TYPE"] = str(segment.foreign["alto:TYPE"])
         element = etree.SubElement(
             parent_el, f"{{{ALTO_NS_V4}}}{element_name}", **attrs
         )

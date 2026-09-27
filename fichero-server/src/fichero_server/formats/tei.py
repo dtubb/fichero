@@ -47,6 +47,7 @@ from typing import Any
 
 from fichero_server.formats import register
 from fichero_server.formats.harness import (
+    pixel_grid,
     FormatSpec,
     LossReport,
     PageOrder,
@@ -436,15 +437,31 @@ def read_pages(data: bytes) -> list[SourcePage]:
         page = SourcePage()
         pb = raw_page["pb"]
         surface: _Surface | None = None
-        if pb is not None and pb.get("facs"):
-            target = pb.get("facs").lstrip("#")
-            surface = surface_by_id.get(target) or zone_owner.get(target)
+        if pb is not None:
+            # `facs` is the usual pointer, but it may be an IMAGE URL (the Digital Genji's is a
+            # IIIF crop); then `corresp="#zone_..."` is what names the zone (#5130). Only a
+            # local `#id` is a pointer into this file's facsimile.
+            for attr in ("facs", "corresp"):
+                value = pb.get(attr) or ""
+                target = value[1:] if value.startswith("#") else (value if attr == "facs" else "")
+                surface = surface_by_id.get(target) or zone_owner.get(target) if target else None
+                if surface is not None:
+                    if target in zones:
+                        page.foreign.setdefault("tei", {})["zone"] = target
+                    break
         if surface is None and index < len(surfaces):
             surface = surfaces[index]
         if surface is not None:
             page.image_name = surface.image_name
             if surface.size:
                 page.image_size = (int(round(surface.size[0])), int(round(surface.size[1])))
+        # A region OPENED before a page break owns lines on the NEXT page too (the Genji's one
+        # `<p>` holds every page). A parent that is not on this page is no parent here: the
+        # line stands alone, and a writer whose format needs a parent invents a marked one.
+        on_page = {s.ref for s in raw_page["segments"]}
+        for s in raw_page["segments"]:
+            if s.parent_ref and s.parent_ref not in on_page:
+                s.parent_ref = None
         parents_with_children = {s.parent_ref for s in raw_page["segments"] if s.parent_ref}
         kept_segments = [
             s for s in raw_page["segments"]
@@ -476,8 +493,17 @@ def read_pages(data: bytes) -> list[SourcePage]:
         if len(pages) > 1:
             tei_foreign["page"] = f"{index + 1} of {len(pages)}"
         if tei_foreign:
-            page.foreign["tei"] = tei_foreign
+            # MERGED, not assigned: the page's zone is already recorded under "tei".
+            page.foreign.setdefault("tei", {}).update(tei_foreign)
         out.append(page)
+    # A "page" before the first `<pb>` that holds nothing once wrappers are dropped was never a
+    # page (#5130): the Genji opens its `<p>` and an `<lb/>` before the first `<pb>`, and
+    # `read()` returned that empty stub -- 25 real pages read as ZERO segments.
+    if len(out) > 1 and pages[0]["pb"] is None and not out[0].segments:
+        out = out[1:]
+        for index, page in enumerate(out):
+            if "page" in page.foreign.get("tei", {}):
+                page.foreign["tei"]["page"] = f"{index + 1} of {len(out)}"
     return out
 
 
@@ -509,14 +535,7 @@ def write(page: SourcePage, report: LossReport) -> bytes:
     def q(name: str) -> str:
         return f"{{{TEI_NS}}}{name}"
 
-    width, height = page.image_size or (1000, 1000)
-    if page.image_size is None:
-        report.note(
-            "page size",
-            1,
-            "the model stores normalised coordinates and this page had no pixel size recorded, "
-            "so a 1000x1000 surface was written and the original pixel grid cannot be recovered",
-        )
+    width, height = pixel_grid(page, report, "TEI")
 
     root = etree.Element(q("TEI"), nsmap={None: TEI_NS})
     header = _header(page, report, root)

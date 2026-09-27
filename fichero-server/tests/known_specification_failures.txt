@@ -59,19 +59,8 @@ tests/unit/scripts/test_every_guard_passes_on_the_real_tree.py::test_every_guard
 # The coverage ratchet's committed baseline has been 0.0 for both stacks since
 # 2026-07-29 and nothing produces its input, so it has never been able to fire.
 tests/unit/scripts/test_coverage_ratchet_guardrail.py::TestTheCommittedBaselineIsSeeded::test_both_stacks_have_a_recorded_baseline
+
 # ---- #5100 (1) ----
 # Duplicating a 1,050-deep tree exhausts the per-connection DuckDB cap (1.5 GB; the recursive
 # walk cannot spill). Both the depth and the cap are intentional; which gives is open on #5100.
 tests/unit/api/test_document_actions.py::TestDocumentDuplicateAction::test_duplicate_survives_trees_deeper_than_the_recursion_limit
-
-# ---- #5130 (3) ----
-# A coordinate off the top edge of the image (Transkribus wrote `165,-1` on a papyrus
-# whose region was drawn above the scan) is written back as-is; PAGE's `points` pattern
-# admits only non-negative integers: export refused. Clamping to 0 is the writer's call.
-tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_our_export_validates_against_the_schema_we_export[transkribus_greek-papyrus_zenon-59434.page.xml]
-tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_the_loss_report_accounts_for_everything_that_did_not_come_back[transkribus_greek-papyrus_zenon-59434.page.xml]
-# A TEI whose <facsimile> zones carry no text lines (the Digital Genji's zones are
-# half-spreads that the <pb facs> pointers reference; the text sits in <body>, not in
-# the zones) reads without error and produces NO segments: the page-level zones and the
-# 25 pages are dropped on the floor.
-tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_it_imports[digitalgenji_japanese-vertical_kouigenji-01.tei.xml]

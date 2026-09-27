@@ -26,6 +26,7 @@ from typing import Any
 
 from fichero_server.formats import register
 from fichero_server.formats.harness import (
+    pixel_grid,
     FormatSpec,
     LossReport,
     PageOrder,
@@ -186,14 +187,7 @@ def write(page: SourcePage, report: LossReport) -> bytes:
     """One page as hOCR, with everything it cannot carry reported."""
     from lxml import etree
 
-    width, height = page.image_size or (1000, 1000)
-    if page.image_size is None:
-        report.note(
-            "page size",
-            1,
-            "no pixel grid was recorded, so hOCR's bbox values are against an "
-            "invented 1000x1000 page",
-        )
+    width, height = pixel_grid(page, report, "hOCR")
 
     html = etree.Element("html")
     head = etree.SubElement(html, "head")

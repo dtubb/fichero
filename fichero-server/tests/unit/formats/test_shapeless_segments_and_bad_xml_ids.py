@@ -109,3 +109,77 @@ class TestTheRootDecidesTheFormat:
 
         assert root_element(b"<!-- only a comment -->") is None
         assert root_element(b"not xml at all") is None
+
+
+class TestAPageInAnotherUnitKeepsItsShape:
+    """#5130: a `mm10` / `inch1200` ALTO page was re-exported as a square 1000x1000 `pixel`
+    page -- valid, and every shape stretched. The stated extent is kept, ALTO writes it back in
+    its own unit, and a pixel-only format invents a grid with the SAME proportions."""
+
+    ALTO = Path(__file__).parent / "fixtures" / "altoxml_glyph_00001.alto.xml"  # mm10, 1003 x 1469
+
+    def test_alto_is_written_back_in_its_own_unit_and_size(self):
+        page = read_page("alto", self.ALTO.read_bytes())
+        data, report = write_page("alto", page)
+        assert b"<MeasurementUnit>mm10</MeasurementUnit>" in data
+        assert read_page("alto", data).page_extent == (1003.0, 1469.0, "mm10")
+        assert "page size" not in report.lost, "nothing was invented, so nothing is lost"
+
+    def test_a_pixel_format_invents_a_grid_with_the_same_proportions_and_says_so(self):
+        page = read_page("alto", self.ALTO.read_bytes())
+        data, report = write_page("pagexml", page)
+        width, height = read_page("pagexml", data).image_size
+        assert width / height == pytest.approx(1003 / 1469, rel=0.01)
+        assert "page size" in report.lost
+
+
+class TestPointsOffThePageAreClampedAndReported:
+    """#5130: a Transkribus papyrus has `points="165,-1 ..."`; PAGE's points are non-negative,
+    so writing it back made the whole export invalid."""
+
+    def test_a_line_above_the_image_exports_valid_clamped_to_the_edge(self):
+        page = SourcePage(image_size=(1000, 1000), segments=[
+            PageSegment(kind="region", ref="r"),
+            PageSegment(kind="line", ref="l", parent_ref="r",
+                        polygon=[[0.165, -0.001], [0.25, -0.001], [0.25, 0.05], [0.165, 0.05]]),
+        ])
+        data, report = write_page("pagexml", page)  # validated, or raises InvalidExport
+        assert b"165,0 250,0" in data
+        assert "points outside the page" in report.lost
+
+
+class TestATeiEditionWhoseTextOpensBeforeItsFirstPageBreak:
+    """#5130: the Digital Genji opens its `<p>` and an `<lb/>` BEFORE the first `<pb>`, and each
+    `<pb>` names its zone by `corresp` (its `facs` is an image URL). The reader returned the empty
+    stub before the first `<pb>` as the page -- 25 real pages read as ZERO segments -- and paired
+    pages with surfaces by position."""
+
+    TEI = b"""<TEI xmlns="http://www.tei-c.org/ns/1.0">
+      <teiHeader><fileDesc><titleStmt><title>t</title></titleStmt><publicationStmt><p>p</p></publicationStmt>
+        <sourceDesc><p>s</p></sourceDesc></fileDesc></teiHeader>
+      <facsimile>
+        <surface xml:id="f1" ulx="0" uly="0" lrx="2000" lry="1000"><graphic url="https://example.org/1.jpg"/>
+          <zone xml:id="z_a" ulx="1000" uly="0" lrx="2000" lry="1000"/><zone xml:id="z_b" ulx="0" uly="0" lrx="1000" lry="1000"/>
+        </surface>
+      </facsimile>
+      <text><body><p><lb/>
+        <pb n="1" corresp="#z_a" facs="https://example.org/1.jpg/crop-right"/><lb/><seg>first line</seg><lb/><seg>second line</seg>
+        <pb n="2" corresp="#z_b" facs="https://example.org/1.jpg/crop-left"/><lb/><seg>third line</seg>
+      </p></body></text>
+    </TEI>"""
+
+    def test_the_first_page_is_the_first_pb_and_it_has_its_lines(self):
+        from fichero_server.formats.tei import read_pages
+
+        pages = read_pages(self.TEI)
+        assert len(pages) == 2
+        texts = [[r[1] for s in page.segments for r in s.readings] for page in pages]
+        assert texts == [["first line", "second line"], ["third line"]]
+        assert read_page("tei", self.TEI).segments, "read() must not return the empty stub"
+
+    def test_each_page_finds_its_zone_by_corresp(self):
+        from fichero_server.formats.tei import read_pages
+
+        pages = read_pages(self.TEI)
+        assert [page.foreign["tei"]["zone"] for page in pages] == ["z_a", "z_b"]
+        assert all(page.image_name == "https://example.org/1.jpg" for page in pages)
