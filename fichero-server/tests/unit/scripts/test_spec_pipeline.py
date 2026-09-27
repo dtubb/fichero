@@ -1075,3 +1075,94 @@ def test_get_issues_fails_when_gh_is_missing(monkeypatch):
 def test_script_name_does_not_match_verify_all_check_glob():
     import fnmatch
     assert not fnmatch.fnmatch(_SCRIPT.name, "check_*.py")
+
+
+# Rule (i): tagged GAP/BROKEN while the tests already mention the node id. An INFO, never a
+# failure — see `_stale_gap_infos` for why, and `test_rule_i_is_never_a_failure` for the proof.
+RULE_I_SPEC = """# Spec
+
+> Milestone: modes-to-panes
+> Manual: TBD — n/a for this fixture
+
+## Behaviors
+
+- `m2p.built-but-tagged-gap` — **[GAP]** somebody built this and never moved the tag. (#101)
+- `m2p.genuinely-absent` — **[GAP]** nothing anywhere mentions this one. (#101)
+"""
+
+
+def _infos(tmp_path, monkeypatch) -> list[str]:
+    _fake_issues(monkeypatch, ISSUES_CLEAN)
+    _failures, infos, _n, _s = _mod._collect_findings(offline=False, strict=False)
+    return infos
+
+
+def test_rule_i_names_a_gap_the_tests_already_mention(tmp_path, monkeypatch):
+    """The stale tag `languages-scripts-signs.md` carried for weeks, made detectable.
+
+    Six behaviours there had been built by slice 9 and pinned end to end, and stayed [GAP]
+    because nothing looked in the other direction: rule (d) catches an [OK] with no test, and
+    until 2026-09-26 nothing caught a [GAP] with one.
+    """
+    _seed(tmp_path, RULE_I_SPEC)
+    _seed_test_file(
+        tmp_path,
+        "fichero-server/tests/test_it_is_built.py",
+        "def test_it_works():\n    '''Pins `m2p.built-but-tagged-gap`.'''\n",
+    )
+    lines = [i for i in _infos(tmp_path, monkeypatch) if "rule i" in i]
+    assert len(lines) == 1, lines
+    assert "m2p.built-but-tagged-gap" in lines[0]
+    assert "test_it_is_built.py" in lines[0], "it must say WHERE to look, not only that it should"
+
+
+def test_rule_i_says_nothing_about_a_gap_nothing_mentions(tmp_path, monkeypatch):
+    """The negative case, which is the one that decides whether the rule is usable.
+
+    A rule that fired on every [GAP] would be 300 info lines nobody reads, and `m2p.genuinely-
+    absent` in the fixture above is there to prove the rule distinguishes the two. This is the
+    same shape as the other lane's implicit-parent fix: the test that matters is the one
+    asserting nothing happened.
+    """
+    _seed(tmp_path, RULE_I_SPEC)
+    _seed_test_file(tmp_path, "fichero-server/tests/test_unrelated.py", "def test_other():\n    pass\n")
+    lines = [i for i in _infos(tmp_path, monkeypatch) if "rule i" in i]
+    assert lines == []
+
+
+def test_rule_i_is_never_a_failure(tmp_path, monkeypatch):
+    """A strict-xfail sensor cites the node id it is WAITING for, so "the tests mention it"
+    cannot mean "it is built". If rule (i) failed the check, every such sensor would have to be
+    deleted to get the suite green — which would remove the one thing that announces the fix
+    when it lands. So the check must still exit 0 with a rule (i) line outstanding."""
+    _seed(tmp_path, RULE_I_SPEC)
+    _seed_test_file(
+        tmp_path,
+        "fichero-server/tests/test_sensor.py",
+        "import pytest\n\n@pytest.mark.xfail(strict=True, reason='m2p.built-but-tagged-gap is not built')\ndef test_sensor():\n    assert False\n",
+    )
+    _fake_issues(monkeypatch, ISSUES_CLEAN)
+    assert _check() == 0
+
+
+def test_rule_i_applies_to_every_spec_family_not_only_source(tmp_path, monkeypatch):
+    """It is written against the node id's SHAPE, not against a `source.` prefix.
+
+    A rule that read as general and quietly covered one family would skip precisely the specs
+    nobody thought to check. The fixture ids here are `m2p.*`, so this test failing means the
+    rule narrowed.
+    """
+    _seed(tmp_path, RULE_I_SPEC)
+    _seed_test_file(tmp_path, "fichero-server/tests/test_it_is_built.py", "# m2p.built-but-tagged-gap\n")
+    assert any("m2p.built-but-tagged-gap" in i for i in _infos(tmp_path, monkeypatch) if "rule i" in i)
+
+
+def test_rule_i_reads_the_cli_test_root_too(tmp_path, monkeypatch):
+    """`fichero-cli/tests` was not in TEST_ROOTS until 2026-09-27, so a spec pinned only by a
+    CLI test could not resolve its citation and rule (i) could not see it either. Found because
+    `source.format.export-choices` is pinned by a CLI test and by nothing else — the one root
+    left out was the one holding the evidence."""
+    monkeypatch.setattr(_mod, "TEST_ROOTS", [*_mod.TEST_ROOTS, tmp_path / "fichero-cli" / "tests"])
+    _seed(tmp_path, RULE_I_SPEC)
+    _seed_test_file(tmp_path, "fichero-cli/tests/test_cli_thing.py", "# pins m2p.built-but-tagged-gap\n")
+    assert any("m2p.built-but-tagged-gap" in i for i in _infos(tmp_path, monkeypatch) if "rule i" in i)

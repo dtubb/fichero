@@ -51,7 +51,14 @@ from dataclasses import dataclass, field
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 SPECS_DIR = pathlib.Path("docs/contributor_manual/specs")
-TEST_ROOTS = [pathlib.Path("fichero/Tests"), pathlib.Path("fichero-server/tests")]
+TEST_ROOTS = [
+    pathlib.Path("fichero/Tests"),
+    pathlib.Path("fichero-server/tests"),
+    # The CLI has tests too, and a spec citing one could not resolve it until 2026-09-26.
+    # Found by rule (i): `source.format.export-choices` is pinned by a CLI test and by nothing
+    # else, so the one root left out was the one holding the evidence.
+    pathlib.Path("fichero-cli/tests"),
+]
 AGENT_WORK_DIR = pathlib.Path("agent-work")
 BASELINE_PATH = pathlib.Path("scripts/spec_pipeline_baseline.json")
 # Legacy milestones that are real non-spec program/workstream buckets (release, hygiene,
@@ -912,7 +919,68 @@ def _collect_findings(offline: bool, strict: bool) -> tuple[list[Finding], list[
                     f"— fix the citation or ship the test (rule d)."
                 ))
 
+    infos.extend(_stale_gap_infos(behaviors))
+
     return failures, infos, len(behaviors), len({b.spec_path for b in behaviors})
+
+
+def _stale_gap_infos(behaviors: list[Behavior]) -> list[str]:
+    """Behaviours tagged GAP/BROKEN whose node id the TESTS ALREADY MENTION (rule i).
+
+    **Why this is an INFO and never a failure.** A test may cite a node id in order to assert
+    the behaviour is ABSENT — a strict-xfail sensor is the house style for a filed, unfixed
+    defect, and it names the node id it is waiting for. So "the tests mention it" cannot mean
+    "it is built", and a rule that failed on it would force the removal of exactly the
+    sensors this codebase relies on.
+
+    What it CAN say is: somebody wrote a test about this and the tag never moved, so look.
+    That is worth saying, because the opposite direction is already guarded and this one was
+    not: rule (d) catches an [OK] with no test, and nothing caught a [GAP] with one. Six
+    behaviours in `languages-scripts-signs.md` had been built by slice 9, pinned end to end
+    through the real routes, and left tagged [GAP] for weeks (2026-09-26). A stale [GAP]
+    hides finished work, makes the remaining count look worse than it is, and invites a
+    second implementation of what already exists.
+    """
+    # TEST_ROOTS, not a second list of the same directories: the module already says where
+    # tests live, rule (d) resolves citations against it, and a private copy here would be two
+    # places holding one fact — and the one this rule reads would be the one nobody updated.
+    mentions: dict[str, set[str]] = {}
+    for root in TEST_ROOTS:
+        if not root.is_dir():
+            continue
+        for path in list(root.rglob("*.py")) + list(root.rglob("*.swift")):
+            try:
+                text = path.read_text(errors="ignore")
+            except OSError:
+                continue
+            # ANY node id shape, and no fixed number of dots: real ids come in both
+            # (`m2p.thing-works`, `source.lang.cascade`). A rule written against `source.*`
+            # would read as general and cover one family, skipping exactly the specs nobody
+            # would think to check — and the first draft of this one did, silently.
+            #
+            # A dotted lowercase token in a test is not necessarily a node id (`row.language`
+            # matches too), so this over-collects and then keeps only the tokens that EQUAL a
+            # behaviour id. A collision is possible and costs one INFO line saying "go look",
+            # which is the right price for a rule that must not miss.
+            for m in re.finditer(r"\b[a-z][a-z0-9]*(?:\.[a-z0-9-]+){1,}\b", text):
+                mentions.setdefault(m.group(0), set()).add(str(path))
+
+    infos: list[str] = []
+    for b in sorted(behaviors, key=lambda x: (x.spec_path, x.line)):
+        if b.tag not in BROKEN_LIKE_TAGS or b.tag == "PARTIAL":
+            continue
+        where = mentions.get(b.id)
+        if not where:
+            continue
+        shown = ", ".join(sorted(where)[:2])
+        more = f" (+{len(where) - 2} more)" if len(where) > 2 else ""
+        infos.append(
+            f"{b.spec_path}:{b.line}: `{b.id}` is [{b.tag}] but the tests already mention it "
+            f"— {shown}{more}. Read those tests: if they PIN the behaviour it is built and the "
+            f"tag is stale; if they assert its ABSENCE the tag is right and this line is noise "
+            f"(rule i)."
+        )
+    return infos
 
 
 def _load_baseline() -> list[dict]:
