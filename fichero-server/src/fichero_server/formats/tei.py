@@ -334,6 +334,19 @@ def read_pages(data: bytes) -> list[SourcePage]:
         if line is None:
             return
         text = _norm("".join(state["buffer"])).strip()
+        # An `<app>` whose `<lem>` IS the whole line offers whole-line alternatives: those are
+        # readings of the line (our own writer's shape). A variant of PART of a line -- one word
+        # of a papyrus -- is not a reading of the line: stored as one, it competed with the line
+        # and, in a strict project, left the line with no counting text at all. It is kept with
+        # its position, like a `<choice>`'s other side, until word-level segments can carry it.
+        whole = []
+        for kind, alt, lem_text, at in line.foreign.pop("_alts", []):
+            if not text or lem_text == text:
+                whole.append((kind, alt))
+            else:
+                line.foreign.setdefault("tei-app", []).append({"at": at, "lem": lem_text, "rdg": alt, "type": kind})
+        if whole:
+            line.foreign["_alts"] = whole
         if text:
             line.readings.insert(0, (line.foreign.pop("_kind", "transcription"), text))
         elif not line.foreign.get("_alts") and not page_facs_of(line):
@@ -447,18 +460,22 @@ def read_pages(data: bytes) -> list[SourcePage]:
             return
         if tag == "app":
             lem = next((c for c in element if _tag(c) == "lem"), None)
+            at = len(_norm("".join(state["buffer"])).lstrip())
+            lem_text = ""
             if lem is not None:
                 holder = state["line"] if state["line"] is not None else state["region"]
                 kept: list = []
-                at = len(_norm("".join(state["buffer"])).lstrip())
-                state["buffer"].append(_written_text(lem, kept, at))
+                lem_text = _written_text(lem, kept, at)
+                state["buffer"].append(lem_text)
                 if holder is not None and kept:
                     holder.foreign.setdefault("tei-choice", []).extend(kept)
             line = state["line"]
             for rdg in (c for c in element if _tag(c) == "rdg"):
                 alt = _norm(_written_text(rdg)).strip()
                 if line is not None and alt:
-                    line.foreign.setdefault("_alts", []).append((rdg.get("type") or "transcription", alt))
+                    line.foreign.setdefault("_alts", []).append(
+                        (rdg.get("type") or "transcription", alt, _norm(lem_text).strip(), at)
+                    )
             if lem is not None and lem.get("type") and state["line"] is not None:
                 state["line"].foreign["_kind"] = lem.get("type")
             _tail(element)
@@ -659,6 +676,14 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                     f"TEI has only a CSS style hint for direction (ltr, rtl, vertical); "
                     f"{segment.direction!r} has none",
                 )
+        for variant in segment.foreign.get("tei-app", []):
+            report.note(
+                "variant readings",
+                1,
+                f"{segment.ref or segment.kind}, character {variant['at']}: <lem>{variant['lem']}</lem> kept, "
+                f"<rdg>{variant['rdg']}</rdg> not written back -- a variant of part of a line needs "
+                "word-level segments to carry",
+            )
         for choice in segment.foreign.get("tei-choice", []):
             (w_tag, w_text), (o_tag, o_text) = [(k, v) for k, v in choice.items() if k != "at"][:2]
             # One line per choice: which side was dropped, and where, so nothing goes silently.
