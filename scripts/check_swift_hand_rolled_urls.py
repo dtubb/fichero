@@ -66,7 +66,11 @@ _BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 _LINE_COMMENT = re.compile(r"(?<!:)//.*")
 
 # Detectors, each (label, predicate over a single code line).
-_URLSESSION_RE = re.compile(r"\bURLSession\b")
+#: `URLSession` as a SESSION, not as the namespace of a nested type. The WKNavigationDelegate
+#: server-trust signature names `URLSession.AuthChallengeDisposition` — an enum — and that
+#: alone put three web-view files in the backlog, each with a paragraph explaining it was
+#: not a session (2026-09-27). `URLSession.shared`, `URLSession(`, `: URLSession` still match.
+_URLSESSION_RE = re.compile(r"\bURLSession\b(?!\s*\.\s*[A-Z])")
 _URLREQUEST_RE = re.compile(r"\bURLRequest\s*\(\s*url\s*:")
 _URLSTRING_RE = re.compile(r"\bURL\s*\(\s*string\s*:\s*([^)]*)")
 _APIPATH_RE = re.compile(r'"/api/')
@@ -76,33 +80,12 @@ _APIPATH_RE = re.compile(r'"/api/')
 # identical line (and thus hash) within a file — that is expected.
 KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Components/FicheroWebView.swift#72bc3c3d1f": "§6b baseline — hand-built URLRequest(url:)",
-    "Views/Components/FicheroWebView.swift#b0f6d9c546": (
-        "WKNavigationDelegate server-trust challenge signature names "
-        "URLSession.AuthChallengeDisposition (an enum type, not a raw session); "
-        "the handler forwards to RemoteCertificatePinning.resolveServerTrustChallenge — "
-        "the shared pinned transport — so the generic web view validates the "
-        "engine's pinned HTTPS cert like every other call site (#2601)."
-    ),
     "Views/Reader/Knowledge/DocumentKGWebPane+Route.swift#94530504ad": (
         "NOT a transport bypass: this URLRequest loads a `fichero-server://` "
         "custom-scheme URL into WKWebView, which `EngineWebViewSchemeHandler` "
         "intercepts and re-issues through `FicheroClient.requestData` (the shared "
         "transport + auth/library middleware). WKWebView needs a URL/URLRequest to "
         "load; the network hop happens through the transport, not this request (#4048 KG bridge)."
-    ),
-    "Views/Reader/Knowledge/DocumentKGWebPaneCoordinatorMacOS.swift#b0f6d9c546": (
-        "WKNavigationDelegate server-trust challenge signature names "
-        "URLSession.AuthChallengeDisposition (an enum type, not a raw session); "
-        "the handler forwards to RemoteCertificatePinning.resolveServerTrustChallenge — "
-        "the shared pinned transport — so the KG/reader WKWebView validates the "
-        "engine's pinned HTTPS cert like every other call site (#2538). Split from DocumentKGWebPane by file_length."
-    ),
-    "Views/Reader/Knowledge/DocumentKGWebPaneCoordinatoriOS.swift#b0f6d9c546": (
-        "WKNavigationDelegate server-trust challenge signature names "
-        "URLSession.AuthChallengeDisposition (an enum type, not a raw session); "
-        "the handler forwards to RemoteCertificatePinning.resolveServerTrustChallenge — "
-        "the shared pinned transport — so the KG/reader WKWebView validates the "
-        "engine's pinned HTTPS cert like every other call site (#2538). Split from DocumentKGWebPane by file_length."
     ),
 }
 
