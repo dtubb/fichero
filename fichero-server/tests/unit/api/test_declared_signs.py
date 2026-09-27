@@ -125,3 +125,42 @@ class TestTheSignListAndItsInstances:
         assert db.get(ActionAudit, declared.audit_id).action_name == "sign.declare"
         assert client.post(f"/api/actions/audit/{declared.audit_id}/undo").status_code == 200
         assert client.get("/api/signs").json()["items"] == []
+
+
+class TestExportIsHonestAboutSigns:
+    """`source.sign.export-honest`: TEI carries a declared sign (`<g ref>` + `<charDecl>`);
+    a format that cannot says so in the loss report. Through the library, as the app exports."""
+
+
+    def test_tei_wraps_every_use_and_declares_the_sign(self, db, client, mufi_page):
+        doc, segment_id = mufi_page
+        sign_id = _declare(db, segment_id, list_references=[{"authority": "MUFI", "number": "F1AC"}]).result["sign_id"]
+        response = client.get(f"/api/documents/{doc.id}/export/tei")
+        assert response.status_code == 200, response.text
+        content = response.json()["content"]
+        uses = content.count(f'<g ref="#sign-{sign_id}">{SIGN}</g>')
+        assert uses > 0
+        assert uses == content.count(SIGN) - 1, "every use is wrapped; the one bare one is the <mapping>"
+        assert f'<glyph xml:id="sign-{sign_id}"><localProp name="name" value="MUFI abbreviation sign"/>' in content
+        assert '<note type="sign-list" subtype="MUFI">F1AC</note>' in content
+        assert "declared signs" not in {loss["what"] for loss in response.json()["losses"]}
+
+    def test_alto_keeps_the_character_and_reports_the_meaning_lost(self, db, client, mufi_page):
+        doc, segment_id = mufi_page
+        _declare(db, segment_id)
+        body = client.get(f"/api/documents/{doc.id}/export/alto").json()
+        assert SIGN in body["content"]
+        assert "declared signs" in {loss["what"] for loss in body["losses"]}
+
+    def test_a_tei_round_trip_keeps_the_declaration(self):
+        from fichero_server.formats import PageSegment, SourcePage, read_page, write_page
+
+        page = SourcePage(image_size=(1000, 1000), segments=[
+            PageSegment(kind="region", ref="r", rect=[0.1, 0.1, 0.8, 0.3]),
+            PageSegment(kind="line", ref="l", parent_ref="r", rect=[0.1, 0.1, 0.8, 0.05],
+                        readings=[("transcription", f"d{SIGN} bono")])])
+        page.signs = [{"id": "s1", "name": "MUFI abbreviation sign", "code_point": "U+F1AC",
+                       "list_references": [{"authority": "MUFI", "number": "F1AC"}]}]
+        back = read_page("tei", write_page("tei", page)[0])
+        assert back.signs == page.signs
+        assert [s.readings for s in back.segments if s.kind == "line"] == [[("transcription", f"d{SIGN} bono")]]
