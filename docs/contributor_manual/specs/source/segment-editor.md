@@ -427,18 +427,35 @@ Reading before editing (the app's first step: it draws from the seam, and edits 
   reason was true when written and went stale with last week's work.
 
 The editor
-- `source.editor.segment-focus` — **[GAP]** (#4941; the sentence needs a ruling, → #5114) the Source view has a
-  segment focus in which the editing tools appear; it can sit beside a Reader, an Inspector, the
-  Library or another Source view.
-  **Two readings, and they are different pieces of work** (asked 2026-09-27, #5114). The Source
-  view's chrome ALREADY carries the tools (`PreviewMarkupTool`: select, wordSelect, drawRegion,
-  line, highlight, note, star, check) and `RegionInteractionLayer` is mounted whenever an image
-  is measured, so editing is always live with no mode to enter; panes already sit beside each
-  other. So either (a) a focus is a new mode the person enters, which adds a toggle of the shape
-  a standing ruling forbids unless it is doing real scoping work — ⌘Z's meaning, which surface's
-  selection the Inspector follows — or (b) this behaviour is already satisfied and wants a test
-  and a tag. Tagging the wrong reading `[OK]` is the mirror of the built-and-unwired defect:
-  crediting a bar of tools for an editing mode nobody built.
+- `source.editor.segment-focus` — **[PARTIAL]** (#4941; ruled on #5114) the Source view has a
+  segment-editing mode in which the editing tools appear. It can sit beside a Reader, an Inspector,
+  the Library or another Source view.
+  **Ruled 2026-09-27 (#5114):** segment editing is a *mode of the Source view*. It is switched on from
+  the view's what-to-show menu (**Edit Segments**) like the view's other options, and it is not a
+  window or a pane of its own. Off, which is the default, the page is for reading.
+  **The rule, in one sentence: with the mode off, nothing on the page changes.** Selecting stays
+  available, and so do the ephemeral marquees, which are run scopes and not segments, because
+  choosing what to read or what a workflow runs on is reading. Every verb that writes a segment needs
+  the mode: move, delete, combine, and naming a marquee or words into a region. The mode is per
+  window, like the armed markup tool, so two Source views split in one window edit together.
+  **Built:** `WindowState.isEditingSegments`; the menu toggle; the decisions in `SegmentEditingMode`
+  (⌫ removes a picked marquee in either mode and deletes regions only in the mode; a press on a
+  selected box moves it only in the mode; the markup row's Delete and Combine act only in the mode),
+  applied at the drag, the context menu, the marquee's naming badge and double-click, ⌫, and the
+  markup row.
+  **A defect found on the way:** before this, the markup row's Delete and Combine buttons, and
+  Combine's ⌘⌥C, posted `.previewRegionVerb`, and nothing in the app observed it, so both buttons did
+  nothing. The Source view now observes it through the mode.
+  Pinned by `SegmentEditingModeTests.deleteAndCombineActInTheMode`,
+  `SegmentEditingModeTests.outOfTheModeNoVerbEdits`,
+  `SegmentEditingModeTests.deleteKeyNeverDeletesARegionWhileReading`,
+  `SegmentEditingModeTests.aPressOnASelectedBoxMovesItOnlyInTheMode` and
+  `SegmentEditingModeTests.aNewWindowOpensForReading`.
+  **Still owed (why PARTIAL):** the mode's scoping beyond the verbs. That covers which surface's
+  selection the Inspector follows in the mode, and a menu-bar command with a shortcut ("every command
+  is in the menu bar"). The drawing verbs that do not exist yet (polygon, baseline, scissors) will
+  live inside the mode when they are built. The tests pin decisions; nothing yet drives the view
+  itself.
 - `source.textedit.reader-shows-segments` — **[PARTIAL]** (#5001) for a source whose segments have readings, the text
   surface shows the lines of the working pass in the named reading order, one block for each
   region and direction, and is editable; with no Source view in sight each line shows its

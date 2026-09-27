@@ -371,6 +371,12 @@ struct ZoomableImagePreview: View {
                     break  // preview-regions interactions / reader-only
                 }
             }
+            // The head's Delete and Combine (and ⌘⌥C) posted this and NOTHING observed it
+            // until #5114: two buttons that did nothing. The mode decides; see
+            // `SegmentEditingMode`.
+            .onReceive(NotificationCenter.default.publisher(for: .previewRegionVerb)) { note in
+                handleRegionVerb(note)
+            }
             .onChange(of: documentId) { _, _ in handleDocumentIDChanged() }
             .onReceive(NotificationCenter.default.publisher(for: .readerTextSelection)) { note in
                 handleReaderTextSelection(note)

@@ -162,7 +162,9 @@ struct PreviewMarkupToolsRow: View {
     @ViewBuilder
     private var editVerbs: some View {
         let selection = RegionSelection.shared
-        if !selection.isEmpty {
+        // Delete and Combine write segments, so they appear only in the segment-editing
+        // mode (#5114); reading a page, a selection is for reading.
+        if !selection.isEmpty, windowState?.isEditingSegments == true {
             Divider().frame(height: PaneHeadMetrics.dividerHeight)
 
             // No ⌘⌥ binding: Delete already answers to the ⌫ key path the

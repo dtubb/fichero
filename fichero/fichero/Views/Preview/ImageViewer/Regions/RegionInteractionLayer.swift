@@ -185,7 +185,9 @@ struct RegionInteractionLayer: View {
     /// display layer (see `body`).
     @ViewBuilder
     private func marqueeBadges(in size: CGSize) -> some View {
-        if let marquees, marquees.documentId == documentId {
+        // Naming a marquee saves it as a region -- a write -- so the badge is part of the
+        // segment-editing mode (#5114). Reading, a marquee is only a run scope.
+        if isEditing, let marquees, marquees.documentId == documentId {
             ForEach(Array(marquees.rects.enumerated()), id: \.offset) { index, box in
                 if let rect = BoundingBoxGeometry.viewRect(
                     normalized: box, in: size, visible: visible
@@ -290,7 +292,7 @@ struct RegionInteractionLayer: View {
             // Double-click a MARQUEE names it (Daniel, 2026-09-02: the
             // pointer feed "feels off" — the pencil badge was the only way
             // in). Saved regions keep their select-then-enter double-click.
-            if let marquees, marquees.documentId == documentId,
+            if isEditing, let marquees, marquees.documentId == documentId,
                let picked = RegionHitTesting.pick(
                    at: point, boxes: marquees.rects, in: size, visible: visible
                ) {
@@ -312,7 +314,8 @@ struct RegionInteractionLayer: View {
             bandCurrent = point
             return
         }
-        if let hit = selectedBoxIndex(at: point, in: size) {
+        if let hit = selectedBoxIndex(at: point, in: size),
+           SegmentEditingMode.pressStartsMove(isEditing: isEditing, onSelectedBox: true) {
             moveDrag = (hit, .zero)
             moveStart = point
             return
@@ -327,6 +330,9 @@ struct RegionInteractionLayer: View {
         }
         handleTap(at: point, in: size)
     }
+
+    /// The window's segment-editing mode (#5114). No window state reads as off.
+    private var isEditing: Bool { windowState?.isEditingSegments ?? false }
 
     /// The select tool armed (the DEFAULT since 2026-09-02)?
     private var isBandSelecting: Bool {
