@@ -58,11 +58,25 @@ ELEMENT_KINDS: dict[str, str] = {
     "SeparatorRegion": "separator",
     "GraphicRegion": "graphic",
 }
+#: The reverse of `ELEMENT_KINDS`, and it must stay the reverse. Found 2026-09-26
+#: by a real file: the reader understood `GraphicRegion` and the writer did not, so a
+#: page's graphic was read, then DECLARED LOST -- a loss report for something the
+#: format can express perfectly well.
+#:
+#: **That is worse than a silent drop with a clean conscience**: it is honest data
+#: destruction, and the loss report is for what a format CANNOT carry, never for what
+#: a writer did not get round to. Every kind the reader can produce has an element
+#: here, and the test below asserts the two maps are inverses so the next added kind
+#: cannot drift.
 KIND_ELEMENTS: dict[str, str] = {
     "region": "TextRegion",
     "line": "TextLine",
     "word": "Word",
     "character": "Glyph",
+    "table": "TableRegion",
+    "picture": "ImageRegion",
+    "separator": "SeparatorRegion",
+    "graphic": "GraphicRegion",
 }
 
 #: PAGE XML's `readingDirection` values against the model's directions. `ttb` has no
@@ -415,6 +429,18 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                     f"PAGE XML has no readingDirection for {segment.direction!r} "
                     "(alternating and follows-baseline are Fichero's own)",
                 )
+        # `source.format.keeps-unrecognised` has TWO halves, and this is the second:
+        # content the model has no field for is kept on read AND WRITTEN BACK on
+        # export to that format. Found by eScriptorium's own file: its
+        # `custom="structure {type:title;}"` was being read into `foreign` and
+        # dropped on the way out -- a silent loss, which is the one thing the loss
+        # report exists to make impossible. Writing it back is the fix; declaring it
+        # as a loss would have been settling for honest data destruction.
+        if segment.foreign.get("custom"):
+            element.set("custom", str(segment.foreign["custom"]))
+        if segment.foreign.get("readingDirection") and not segment.direction:
+            element.set("readingDirection", str(segment.foreign["readingDirection"]))
+
         for reading_index, (_kind, text) in enumerate(segment.readings):
             equiv = etree.SubElement(
                 element, f"{{{PAGE_NS_2019}}}TextEquiv", index=str(reading_index)

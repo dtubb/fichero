@@ -157,3 +157,38 @@ class TestWritersCannotReachTheDatabase:
         assert not hasattr(segment, "id")
         # `ref` is the FILE's own id, used to resolve the file's reading order.
         assert segment.ref is None
+
+
+class TestAReaderAndItsWriterAgreeOnTheKinds:
+    """A kind a reader can produce must have an element its writer can emit.
+
+    Found 2026-09-26 by a real file: PAGE XML's reader understood `GraphicRegion`
+    and its writer did not, so the region was read and then **declared lost** —
+    a loss report for something the format expresses perfectly well. That is worse
+    than a plain bug: it is honest data destruction, dressed as transparency. The
+    loss report is for what a FORMAT cannot carry, never for what a writer has not
+    got round to.
+    """
+
+    def test_pagexml_can_write_every_kind_it_can_read(self):
+        from fichero_server.formats.pagexml import ELEMENT_KINDS, KIND_ELEMENTS
+
+        readable = set(ELEMENT_KINDS.values())
+        writable = set(KIND_ELEMENTS)
+
+        assert readable <= writable, (
+            "these kinds can be read and not written, so they would be reported as "
+            f"losses the format could actually carry: {sorted(readable - writable)}"
+        )
+
+    def test_alto_can_write_every_kind_it_can_read_or_says_why_not(self):
+        """ALTO genuinely has fewer granularities than the model — there is no glyph
+        element in the shape we use — so this asserts the honest version: any kind
+        ALTO can read is writable, and a kind it cannot write is one it also cannot
+        read."""
+        from fichero_server.formats.alto import ELEMENT_KINDS, KIND_ELEMENTS
+
+        readable = set(ELEMENT_KINDS.values())
+        writable = set(KIND_ELEMENTS)
+
+        assert readable <= writable, sorted(readable - writable)

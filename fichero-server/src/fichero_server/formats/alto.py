@@ -68,10 +68,17 @@ ELEMENT_KINDS: dict[str, str] = {
     "GraphicalElement": "graphic",
     "ComposedBlock": "region",
 }
+#: The reverse of `ELEMENT_KINDS`, and it must STAY the reverse: a kind the reader
+#: can produce and the writer cannot emit would be reported as a loss the format can
+#: actually carry -- honest data destruction, which is worse than a plain bug because
+#: it looks like transparency. `Illustration` and `GraphicalElement` are ALTO's own
+#: elements, so a picture and a graphic read from ALTO go back out as ALTO.
 KIND_ELEMENTS: dict[str, str] = {
     "region": "TextBlock",
     "line": "TextLine",
     "word": "String",
+    "picture": "Illustration",
+    "graphic": "GraphicalElement",
 }
 
 

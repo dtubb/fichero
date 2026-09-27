@@ -22,7 +22,7 @@ from fichero_server.formats.alto import UnknownMeasurementUnit, _sniff
 pytestmark = pytest.mark.source_model
 
 FIXTURE = Path(__file__).parent / "fixtures" / "altoxml_glyph_00001.alto.xml"
-PAGEXML_FIXTURE = Path(__file__).parent / "fixtures" / "ocrd_kant_0017.page.xml"
+PAGEXML_FIXTURE = Path(__file__).parent / "fixtures" / "ocrd_gt_aepinus_0020.page.xml"
 
 
 @pytest.fixture(scope="module")

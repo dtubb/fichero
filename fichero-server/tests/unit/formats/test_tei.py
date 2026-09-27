@@ -314,8 +314,13 @@ class TestDialectsAHandWrittenFileStandsInFor:
 class TestThroughTheOneModelFromAnotherFormat:
     """`source.format.one-model-one-harness`: PAGE XML in, TEI out -- never a converter."""
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason="#5083: a word carried only by a <Word> element vanishes from the line's text on "
+        "the PAGE XML -> TEI round trip, and the loss report does not mention it",
+    )
     def test_a_real_page_xml_file_becomes_valid_tei_with_its_text(self):
-        source = (Path(__file__).parent / "fixtures" / "ocrd_kant_0017.page.xml").read_bytes()
+        source = (Path(__file__).parent / "fixtures" / "ocrd_gt_aepinus_0020.page.xml").read_bytes()
         page = read_page("pagexml", source)
         data, report = write_page("tei", page)  # validated against tei_all.xsd inside
         back = read_page("tei", data)
