@@ -122,6 +122,8 @@ class SegmentRead(BaseModel):
     #: until a tool records its own label -- slice 3 stores this as a
     #: column; nothing writes it yet, so it always reads ``None`` today.
     kind_raw: str | None = None
+    #: The segment this one sits inside (a line's region, a word's line), or None (#5139).
+    parent_segment_id: str | None = None
     #: Who made THIS segment -- set by the engine, never client-supplied,
     #: never defaulting to human. `human` when the BOX ITSELF proves a
     #: person drew it (see `_box_is_hand_drawn`); otherwise the owning
@@ -831,6 +833,7 @@ def segment_read_from_row(
         pass_id=row.pass_id,
         kind=row.kind,
         kind_raw=row.kind_raw,
+        parent_segment_id=row.parent_segment_id,
         provenance_kind=row.provenance_kind,
         anchor=row.anchor,
         baseline=row.baseline,

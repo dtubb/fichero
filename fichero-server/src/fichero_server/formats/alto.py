@@ -195,6 +195,14 @@ def read(data: bytes) -> SourcePage:
             name = (child.text or "").strip() if child is not None else ""
         page.producer = name or None
 
+    # The file's tag declarations (ALTO 4.1+ `<Tags>`), by ID: what a `TAGREFS` means. A block or
+    # line type -- SegmOnto's `MainZone`, the Rule of St Benedict's `LatinLine` -- lives here (#5138).
+    tags = {
+        el.get("ID"): {"element": _tag(el), **{a: el.get(a) for a in TAG_ATTRIBUTES if el.get(a)}}
+        for el in root.iter()
+        if isinstance(el.tag, str) and _tag(el).endswith("Tag") and el.get("ID")
+    }
+
     block_refs: list[str] = []
     for element in page_el.iter():
         kind = ELEMENT_KINDS.get(_tag(element))
@@ -266,6 +274,19 @@ def read(data: bytes) -> SourcePage:
             rx, ry, rw, rh = segment.rect
             segment.polygon = [[rx, ry], [rx + rw, ry], [rx + rw, ry + rh], [rx, ry + rh]]
 
+        if element.get("TAGREFS"):
+            # Kept raw (a reference can name a tag the file never declares -- Benedict's
+            # `BT25436` does) and resolved where it can be, so the label survives the library.
+            segment.foreign["alto:TAGREFS"] = element.get("TAGREFS")
+            declared = [{"ID": ref, **tags[ref]} for ref in element.get("TAGREFS").split() if ref in tags]
+            if declared:
+                segment.foreign["alto:tags"] = declared
+        if kind == "line" and element.get("BASELINE") and width and height:
+            baseline = _baseline(element.get("BASELINE"), x, w)
+            if baseline:
+                segment.baseline = [[bx / width, by / height] for bx, by in baseline]
+            else:
+                segment.foreign["alto:BASELINE"] = element.get("BASELINE")
         if element.get("CONTENT"):
             segment.readings.append(("transcription", element.get("CONTENT")))
         # ALTO's LANG is `xsd:language` -- a BCP 47 TAG, where PAGE XML's
@@ -283,6 +304,28 @@ def read(data: bytes) -> SourcePage:
         # the file has no way to say anything else.
         page.orders.append(PageOrder(name="as-written", refs=block_refs))
     return page
+
+
+#: A tag declaration's attributes besides ID (`TagType`).
+TAG_ATTRIBUTES = ("TYPE", "LABEL", "DESCRIPTION", "URI")
+
+
+def _baseline(value: str, hpos: float | None, width: float | None) -> list[tuple[float, float]] | None:
+    """`TextLine@BASELINE` as points in the file's unit, or None when it cannot be read.
+
+    ALTO 4.2+ writes a polyline, "x1,y1 x2,y2" (recommended) or "x1 y1 x2 y2" (kept for
+    compatibility) -- real files use both. Before 4.2 it was ONE number, the y the line sits on,
+    which is the line's width at that height.
+    """
+    try:
+        numbers = [float(n) for n in value.replace(",", " ").split()]
+    except ValueError:
+        return None
+    if len(numbers) == 1 and hpos is not None and width is not None:
+        return [(hpos, numbers[0]), (hpos + width, numbers[0])]
+    if len(numbers) >= 4 and len(numbers) % 2 == 0:
+        return list(zip(numbers[0::2], numbers[1::2]))
+    return None
 
 
 def write(page: SourcePage, report: LossReport) -> bytes:
@@ -314,6 +357,19 @@ def write(page: SourcePage, report: LossReport) -> bytes:
     etree.SubElement(source, f"{{{ALTO_NS_V4}}}fileName").text = (
         page.image_name or "unknown.tif"
     )
+
+    # The tag declarations the segments carry, once each, in the order first met (#5138).
+    declared_tags: dict[str, dict] = {}
+    for segment in page.segments:
+        for tag in segment.foreign.get("alto:tags", []):
+            declared_tags.setdefault(tag["ID"], tag)
+    if declared_tags:
+        tags_el = etree.SubElement(root, f"{{{ALTO_NS_V4}}}Tags")
+        for tag_id, tag in declared_tags.items():
+            etree.SubElement(
+                tags_el, f"{{{ALTO_NS_V4}}}{tag['element']}", ID=xml_id(tag_id),
+                **{a: str(tag[a]) for a in TAG_ATTRIBUTES if tag.get(a)},
+            )
 
     layout = etree.SubElement(root, f"{{{ALTO_NS_V4}}}Layout")
     page_el = etree.SubElement(
@@ -425,6 +481,21 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             attrs["CONTENT"] = segment.readings[0][1] if segment.readings else ""
         if element_name == "ComposedBlock" and segment.foreign.get("alto:TYPE"):
             attrs["TYPE"] = str(segment.foreign["alto:TYPE"])
+        refs = [tag["ID"] for tag in segment.foreign.get("alto:tags", [])]
+        if refs:
+            attrs["TAGREFS"] = " ".join(xml_id(ref) for ref in refs)
+        undeclared = len(str(segment.foreign.get("alto:TAGREFS", "")).split()) - len(refs)
+        if undeclared > 0:
+            report.note(
+                "tag references",
+                undeclared,
+                "the file referred to tags it never declared; TAGREFS must name a declared tag, "
+                "so those references are not written back",
+            )
+        if segment.kind == "line" and segment.baseline:
+            attrs["BASELINE"] = " ".join(
+                f"{int(round(bx * width))},{int(round(by * height))}" for bx, by in segment.baseline
+            )
         element = etree.SubElement(
             parent_el, f"{{{ALTO_NS_V4}}}{element_name}", **attrs
         )
@@ -497,13 +568,12 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                 "ALTO's CONTENT is one string per String element: alternatives and "
                 "the choice between them are not expressible",
             )
-        if segment.baseline:
+        if segment.baseline and segment.kind != "line":
             report.note(
                 "baseline",
                 1,
-                "ALTO 4 has BASELINE on TextLine as a single y or a polyline "
-                "depending on version; it is not written here rather than written "
-                "in a shape a reader may misread",
+                "ALTO has BASELINE on TextLine only; a baseline on any other element has "
+                "nowhere to go",
             )
 
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8", pretty_print=True)
