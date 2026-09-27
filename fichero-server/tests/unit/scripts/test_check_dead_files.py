@@ -102,23 +102,34 @@ class TestTheTwoLiveFilesAreNoLongerReported:
         ):
             assert rel not in found, f"{rel} is live; its methods are called from another file"
 
-    def test_the_three_built_but_unreachable_views_are_still_reported(self):
+    #: The two that are genuinely built-and-unreachable. It was THREE when this file was
+    #: written: `FirstRunWindow+Library.swift` was deleted hours later, because it was not
+    #: unreachable at all — `FirstRunWindow.swift` already renders both halves of that row
+    #: inline off a `config` object (the button at :332, the green selected label at :145),
+    #: with the same field names the component took as parameters. It was an earlier iteration
+    #: that got inlined and never removed. Absence of a caller is the same signal for debris
+    #: and for something nobody has wired; only reading the SIBLING file to ask what renders
+    #: it now tells them apart, and this test failing is how that correction surfaced.
+    UNREACHABLE = (
+        "Views/Library/ViewModes/Graph/Ontology/Entity/EntityMergeSheet.swift",
+        "Views/Library/ViewModes/Graph/Ontology/Entity/EntitySplitSheet.swift",
+    )
+
+    def test_the_built_but_unreachable_views_are_still_reported(self):
         """If these stop being reported the hatch has gone too wide, not the code got wired —
         a wiring would show up as the KNOWN_VIOLATIONS entry going stale instead (#5110)."""
         found = dead.scan()
-        for rel in (
-            "Views/Library/ViewModes/Graph/Ontology/Entity/EntityMergeSheet.swift",
-            "Views/Library/ViewModes/Graph/Ontology/Entity/EntitySplitSheet.swift",
-            "Views/Onboarding/FirstRunWindow+Library.swift",
-        ):
+        for rel in self.UNREACHABLE:
             assert rel in found, rel
 
-    def test_each_of_those_three_is_seeded_with_its_issue(self):
-        for rel in (
-            "Views/Library/ViewModes/Graph/Ontology/Entity/EntityMergeSheet.swift",
-            "Views/Library/ViewModes/Graph/Ontology/Entity/EntitySplitSheet.swift",
-            "Views/Onboarding/FirstRunWindow+Library.swift",
-        ):
+    def test_the_deleted_row_is_gone_from_the_tree_and_the_backlog(self):
+        """A deleted file must leave no seeded entry behind, or the backlog outlives the file."""
+        rel = "Views/Onboarding/FirstRunWindow+Library.swift"
+        assert not (dead.SWIFT_ROOT / rel).exists()
+        assert rel not in dead.KNOWN_VIOLATIONS
+
+    def test_each_of_those_is_seeded_with_its_issue(self):
+        for rel in self.UNREACHABLE:
             assert "#5110" in dead.KNOWN_VIOLATIONS[rel], rel
 
     def test_the_allowlist_shrank_past_the_blind_spot(self):
