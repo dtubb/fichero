@@ -58,4 +58,18 @@ struct SegmentEditingModeTests {
     @Test func aNewWindowOpensForReading() {
         #expect(WindowState(libraryId: LibraryManager.globalLibraryId).isEditingSegments == false)
     }
+
+    /// The one Shape tool (ruled 2026-09-27, Q1). While editing, a drawn box is a segment; while
+    /// reading it stays a marquee -- a run scope that writes nothing. Getting this backwards would
+    /// write a region every time somebody drew a box to choose what to read.
+    @Test func theShapeToolDrawsASegmentOnlyWhileEditing() {
+        #expect(SegmentEditingMode.shapeDrawsSegment(isEditing: true))
+        #expect(!SegmentEditingMode.shapeDrawsSegment(isEditing: false))
+    }
+
+    /// Merged, not added: the tool keeps its place, its ⌘⌥R and its identifier; only its name
+    /// and what it makes in the mode change.
+    @Test func drawRegionIsNowCalledShape() {
+        #expect(PreviewMarkupTool.drawRegion.label == "Shape")
+    }
 }

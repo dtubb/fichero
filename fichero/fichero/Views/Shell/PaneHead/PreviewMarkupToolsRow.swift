@@ -91,7 +91,7 @@ struct PreviewMarkupToolsRow: View {
             label: PreviewMarkupTool.drawRegion.label,
             identifier: "previewMarkupDrawRegion",
             key: "r",
-            help: "Draw Region — drag a box to make a new region on this page (⌘⌥R)",
+            help: "Shape — drag a box: a new segment while editing segments, a selection to read or run on otherwise (⌘⌥R)",
             mode: .drawRegion
         ) {
             NotificationCenter.default.post(
