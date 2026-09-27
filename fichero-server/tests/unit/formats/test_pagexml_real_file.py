@@ -1,10 +1,16 @@
 """A PAGE XML file ANOTHER TOOL wrote, read and written back (#4944).
 
-`fixtures/ocrd_kant_0017.page.xml` is real ground truth from the OCR-D corpus — 11
-regions, 24 lines, words, baselines, a genuine `ReadingOrder`, `TextStyle`, and the
-`custom` attribute PAGE XML uses for what it has no element for. **It is not ours
-and is never edited**: a file we wrote to look like another tool's output tests our
-idea of that tool, and our idea is the thing under test.
+`fixtures/ocrd_gt_aepinus_0020.page.xml` is real ground truth from OCR-D's
+`gt_structure_text` corpus (**CC-BY-SA-4.0**, attributed in `fixtures/PROVENANCE.md`)
+— 4 regions, 21 lines, 108 words, a graphic region, baselines, a genuine `ReadingOrder`, and the
+`custom` attribute PAGE XML uses for what it has no element for. **It is not ours and
+is never edited**: a file we wrote to look like another tool's output tests our idea
+of that tool, and our idea is the thing under test.
+
+It replaced an earlier OCR-D file whose repository declared **no licence at all** —
+which is worse than a restrictive one, because a restrictive licence at least tells
+you where you stand. This one also exercises something the earlier file did not:
+`catch-word` and `footer` regions, which are FURNITURE in the model's sense.
 
 The second class here is the test the lead asked for and it is the sharper one:
 read a real file, write it back, and check **the losses are the ones we declared** —
@@ -24,7 +30,7 @@ from fichero_server.formats.pagexml import _sniff
 
 pytestmark = pytest.mark.source_model
 
-FIXTURE = Path(__file__).parent / "fixtures" / "ocrd_kant_0017.page.xml"
+FIXTURE = Path(__file__).parent / "fixtures" / "ocrd_gt_aepinus_0020.page.xml"
 
 
 @pytest.fixture(scope="module")
@@ -44,12 +50,14 @@ class TestReadingARealFile:
         page = read_page("pagexml", real_bytes)
 
         kinds = [segment.kind for segment in page.segments]
-        # The file's own counts: 11 TextRegions, 2 SeparatorRegions, 24 TextLines.
-        # Corrected after reading them from the file rather than from my own grep,
-        # which had counted `<TextRegion` and missed that separators are regions too.
-        assert kinds.count("line") == 24
-        assert kinds.count("region") == 11
-        assert kinds.count("separator") == 2
+        # The file's own counts, READ FROM THE PARSED PAGE rather than from a grep:
+        # 4 TextRegions, 21 TextLines, 108 Words and one GraphicRegion. My grep said
+        # 14 and 42 because it counted opening AND closing tags -- the second time
+        # tonight a count from `grep` was wrong about a file I had in my hands.
+        assert kinds.count("region") == 4
+        assert kinds.count("line") == 21
+        assert kinds.count("word") == 108
+        assert kinds.count("graphic") == 1
 
     def test_words_arrive_as_their_own_segments(self, real_bytes):
         """`source.link.any-depth`'s foundation: a word is a segment like any
@@ -62,8 +70,8 @@ class TestReadingARealFile:
     def test_the_page_size_and_image_are_the_files_own(self, real_bytes):
         page = read_page("pagexml", real_bytes)
 
-        assert page.image_size == (1457, 2083)
-        assert page.image_name == "OCR-D-IMG/INPUT_0017.tif"
+        assert page.image_size == (1706, 2355)
+        assert page.image_name == "GT-PAGE/aepinus_bekentnis_1548_0020.tif"
         assert page.producer == "OCR-D"
 
     def test_coordinates_are_normalised_and_inside_the_page(self, real_bytes):
