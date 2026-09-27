@@ -815,6 +815,19 @@ def assert_known_direction(direction: str | None) -> None:
         raise BadDirection(direction)
 
 
+def first_strong_direction(text: str | None) -> str | None:
+    """`rtl` or `ltr` from the first strongly directional character (UBA rule P2), or None."""
+    import unicodedata
+
+    for ch in text or "":
+        kind = unicodedata.bidirectional(ch)
+        if kind in ("R", "AL"):
+            return DIRECTION_RTL
+        if kind == "L":
+            return DIRECTION_LTR
+    return None
+
+
 def resolve_direction(
     *,
     requested: str | None = None,
@@ -823,8 +836,14 @@ def resolve_direction(
     document: Any = None,
     project: Any = None,
     script: str | None = None,
+    text: str | None = None,
 ) -> LanguageResolution:
     """Which direction a thing is written in, and which rung said so (#4938).
+
+    With no script recorded either, `text` -- the reading itself -- decides, by the Unicode
+    Bidirectional Algorithm's own paragraph rule (P2: the first strongly directional character).
+    An unmarked Syriac or Hebrew line is right-to-left by its letters (#5137); without this it
+    was `ltr` because nothing had SAID otherwise.
 
     The SAME walk as `resolve_script`, through the same `_stated_fact` reader,
     and then one thing neither of the other two facts has: a **derivation**. A
@@ -873,15 +892,21 @@ def resolve_direction(
         )
         script = resolved_script.language
 
-    derived = DIRECTION_RTL if script in _RTL_SCRIPTS else DIRECTION_LTR
+    from_text = None if script else first_strong_direction(text)
+    if from_text is not None:
+        derived = from_text
+        basis = "no script is recorded, so the text's first strongly directional character decides (Unicode bidi P2)"
+    else:
+        derived = DIRECTION_RTL if script in _RTL_SCRIPTS else DIRECTION_LTR
+        basis = (
+            f"worked out from the script ({script})" if script
+            else "no script is recorded either, so the reading order of the text is assumed"
+        )
     return LanguageResolution(
         language=derived,
         status=RESOLVED,
         source=SOURCE_DERIVED_FROM_SCRIPT,
-        basis=(
-            f"worked out from the script ({script})" if script
-            else "no script is recorded either, so the reading order of the text is assumed"
-        ),
+        basis=basis,
         # No rung stated this. The distinction a reader needs -- a direction
         # worked out versus one a person chose -- is carried by `source`, which
         # is the field a caller already inspects to decide whether to trust a

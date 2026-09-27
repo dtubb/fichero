@@ -654,9 +654,13 @@ def _segment_order_key(row: Segment) -> tuple:
     `row.id` stays as the LAST resort so the sort is total and stable, never as
     a meaningful position (#4921: a random uuid is not an order).
     """
-    recorded = row.metadata.get("box_index")
-    if isinstance(recorded, int) and not isinstance(recorded, bool):
-        return (0, recorded, 0.0, 0.0, row.id)
+    for key in ("box_index", "file_position"):
+        # `box_index`: a converted row's box. `file_position`: an imported row's place in its
+        # file (#5137) -- the FILE's order wins over geometry, which interleaves columns and
+        # scrambles vertical text. A pass has one or the other, never both.
+        recorded = row.metadata.get(key)
+        if isinstance(recorded, int) and not isinstance(recorded, bool):
+            return (0, recorded, 0.0, 0.0, row.id)
     return (1, 0, row.bbox_y, row.bbox_x, row.id)
 
 
@@ -689,6 +693,13 @@ def _why_omitted(
     # On the pass, live, not furniture, and still not in the rows: that should be
     # impossible, and guessing a reason would be worse than admitting it.
     return OmittedSegment(segment_id=segment_id, reason="unknown")
+
+
+def _direction_of(row: Segment, document: Any, text: str | None) -> tuple[str | None, str | None]:
+    """A span's direction and the rung that said so. With nothing stated anywhere, the text's own
+    characters decide (#5137: Syriac and Hebrew lines came out `ltr`)."""
+    resolved = resolve_direction(segment=row, document=document, text=text)
+    return (resolved.language if resolved.status != STATUS_UNKNOWN else None), resolved.level
 
 
 def document_text(
@@ -818,9 +829,6 @@ def document_text(
         items = [item for item in page_readings[row.id] if item.kind == kind]
         if not items:
             continue
-        resolved = resolve_direction(segment=row, document=document)
-        direction = resolved.language if resolved.status != STATUS_UNKNOWN else None
-        direction_level = resolved.level
         counted = counting_by_kind(
             db, row.id, items, rule=record_rule, choices=choices_by_segment.get(row.id, []),
         ).get(kind)
@@ -831,12 +839,14 @@ def document_text(
             span = DerivedTextSpan(
                 segment_id=row.id, representation_id=None, start=cursor, end=cursor
             )
+            direction, direction_level = _direction_of(row, document, None)
             spans.append(span)
             span_directions.append((row.parent_segment_id, direction, direction_level, span))
             continue
         text = next(
             item.content for item in items if item.id == counted.representation_id
         )
+        direction, direction_level = _direction_of(row, document, text)
         start = cursor
         pieces.append(text)
         cursor += len(text)

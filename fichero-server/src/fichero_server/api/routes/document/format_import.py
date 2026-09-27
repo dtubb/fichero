@@ -380,6 +380,41 @@ def _clamped_rect(rect: list[float]) -> list[float]:
     return [x, y, w, h]
 
 
+#: Where a segment stands in the file it was imported from (#5137): the order the page's text
+#: and its export follow. `segment_readings._segment_order_key` reads it.
+FILE_POSITION = "file_position"
+
+
+def file_positions(order: list[tuple[str, Any]], reading_order: list[str]) -> dict[str, int]:
+    """Each segment's place in the FILE's order: its top-level blocks in the file's own reading
+    order (PAGE `ReadingOrder`, ALTO block order), blocks the reading order does not name after
+    them in file order, and inside each block its lines and words in the order the file wrote them.
+
+    The file's order, not the page's geometry (#5137): top-then-left interleaves two columns line by
+    line and scrambles vertical right-to-left columns, and only the file knows which it meant.
+    """
+    known = {ref for ref, _segment in order}
+    children: dict[str | None, list[str]] = {}
+    for ref, segment in order:
+        parent = segment.parent_ref if segment.parent_ref in known else None
+        children.setdefault(parent, []).append(ref)
+    roots = children.get(None, [])
+    root_set = set(roots)
+    named = [ref for ref in dict.fromkeys(reading_order) if ref in root_set]
+    ordered_roots = named + [ref for ref in roots if ref not in set(named)]
+    positions: dict[str, int] = {}
+    stack = list(reversed(ordered_roots))
+    while stack:
+        ref = stack.pop()
+        if ref in positions:
+            continue
+        positions[ref] = len(positions)
+        stack.extend(reversed(children.get(ref, [])))
+    for ref, _segment in order:  # a cycle of parents is unreachable from a root: file order
+        positions.setdefault(ref, len(positions))
+    return positions
+
+
 def write_page_into_library(
     db: Database,
     *,
@@ -422,6 +457,7 @@ def write_page_into_library(
         ref = segment.ref or f"{format_name}:{index}"
         ids_by_ref[ref] = uuid.uuid4().hex
         order.append((ref, segment))
+    positions = file_positions(order, page.orders[0].refs if page.orders else [])
 
     # Anchors are built ONCE and the placeability check reads the same objects, rather
     # than constructing each anchor twice. **Not a measured speed-up**: building them
@@ -474,6 +510,7 @@ def write_page_into_library(
             row.direction_meta = dict(meta)
         if segment.foreign:
             row.metadata = {**row.metadata, "foreign": dict(segment.foreign)}
+        row.metadata = {**row.metadata, FILE_POSITION: positions[ref]}
         if geometry_problem:
             # The same key the conversion path uses for the same situation: the
             # anchor could not hold what the file said, and the row records it rather

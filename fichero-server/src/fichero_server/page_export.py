@@ -109,7 +109,13 @@ def page_from_library(
         reading_kind=reading_kind,
     )
 
-    rows = [r for r in db.query(Segment, pass_id=derived.pass_id) if r.deleted_at is None]
+    from fichero_server.api.routes.document.segment_readings import _segment_order_key
+
+    # The page's order, the same key as its text (#5137): the database's row order is none.
+    rows = sorted(
+        (r for r in db.query(Segment, pass_id=derived.pass_id) if r.deleted_at is None),
+        key=_segment_order_key,
+    )
     ids = {r.id for r in rows}
     segments: list[PageSegment] = []
     for row in rows:
@@ -164,8 +170,6 @@ def page_from_library(
     if not orders:
         # No named order was recorded: the order is box order, and it is written as one so the
         # format's reading order is never silently absent.
-        from fichero_server.api.routes.document.segment_readings import _segment_order_key
-
         ordered = sorted(rows, key=_segment_order_key)
         orders.append(PageOrder(name=AS_WRITTEN, refs=[r.id for r in ordered if r.kind == "region"] or [r.id for r in ordered]))
         choices.notes.append("no named reading order is recorded for this pass; box order was written")
