@@ -873,6 +873,30 @@ class FicheroClient:
             json={"output_path": output_path},
         )
 
+    def list_formats(self) -> Any:
+        """The interchange formats this build reads and writes (`GET /api/formats`)."""
+        return self.request("GET", "/api/formats")
+
+    def export_page(
+        self,
+        doc_id: str,
+        export_format: str,
+        *,
+        pass_id: str | None = None,
+        order_id: str | None = None,
+        reading_kind: str | None = None,
+    ) -> Any:
+        """One page as PAGE XML, ALTO or TEI, with its choices and loss report
+        (`GET /api/documents/{id}/export/{format}`, `source.format.everywhere`).
+
+        Thin: the server validates the file and states the pass, order and reading kind
+        it used; this adds no second export path."""
+        return self.request(
+            "GET",
+            f"/api/documents/{doc_id}/export/{export_format}",
+            params={"pass_id": pass_id, "order_id": order_id, "reading_kind": reading_kind},
+        )
+
     def import_file(self, path: str | Path, parent_id: str | None = None) -> Document:
         """Upload a single file to the library (multipart/form-data)."""
         file_path = Path(path).expanduser()

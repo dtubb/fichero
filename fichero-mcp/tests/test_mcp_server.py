@@ -40,6 +40,8 @@ EXPECTED_TOOLS = {
     "fichero_document_inspector",
     "fichero_document_kg",
     "fichero_artifact_get",
+    "fichero_page_export",
+    "fichero_formats_list",
     "fichero_search",
     "fichero_activity",
     # Source-model slice 1/4/5 read-only segments seam (#4919/#4922/#4923;
@@ -499,6 +501,22 @@ def test_artifact_get_builds_path(monkeypatch):
     with _mock_client(monkeypatch, body=body) as seen:
         mcp_server.fichero_artifact_get("art-9")
     assert seen[0].url.path == "/api/artifacts/art-9"
+
+
+def test_page_export_builds_the_route_and_returns_the_choices_and_losses(monkeypatch):
+    body = {"format": "tei", "filename": "p.tei.xml", "content": "<TEI/>",
+            "choices": {"order_name": "as-written"}, "losses": [{"what": "x", "count": 1, "why": "y"}]}
+    with _mock_client(monkeypatch, body=body) as seen:
+        out = mcp_server.fichero_page_export("d1", "tei", pass_id="p1", reading_kind="normalised")
+    assert seen[0].url.path == "/api/documents/d1/export/tei"
+    assert dict(seen[0].url.params) == {"pass_id": "p1", "reading_kind": "normalised"}
+    assert out["losses"] and out["choices"], "the agent must be handed the losses, not just the file"
+
+
+def test_formats_list_calls_the_route(monkeypatch):
+    with _mock_client(monkeypatch, body={"items": []}) as seen:
+        mcp_server.fichero_formats_list()
+    assert seen[0].url.path == "/api/formats"
 
 
 # -- error propagation -----------------------------------------------------

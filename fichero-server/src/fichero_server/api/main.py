@@ -1908,6 +1908,7 @@ from fichero_server.api.routes.document import (  # noqa: E402
     notes,
     segment_pictures as document_segment_pictures,
     segment_readings as document_segment_readings,
+    page_export as document_page_export,
     reading_orders as document_reading_orders,
     segments as document_segments,
     source_settings as document_source_settings,
@@ -2014,6 +2015,9 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # page holds several orders and answering from a default would be the engine
     # choosing a reading without saying so.
     (document_reading_orders.router, "/api", ["reading-orders"]),
+    # `source.format.everywhere` (#4943): one page out as PAGE XML, ALTO or TEI, with the loss
+    # report and the choices (pass, order, reading kind) that were made.
+    (document_page_export.router, "/api", ["formats"]),
     # Source-model slice 10 (#4931): the ONE typed link. Segments are on it now;
     # the four existing link records converge one per later slice, and this
     # vocabulary is seeded from all of them so no word is lost when they do.

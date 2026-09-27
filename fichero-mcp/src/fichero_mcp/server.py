@@ -685,6 +685,41 @@ def fichero_artifact_get(artifact_id: str) -> Any:
         return client.get_artifact(artifact_id)
 
 
+@mcp.tool()
+def fichero_page_export(
+    doc_id: str,
+    format: str,
+    pass_id: str | None = None,
+    order_id: str | None = None,
+    reading_kind: str | None = None,
+) -> Any:
+    """Export ONE page as PAGE XML, ALTO or TEI, validated against the format's schema.
+
+    Returns the file's text (`content`), the CHOICES that were made (`choices`: the pass and why
+    it was chosen, the reading order, the kind of reading, the segment count) and the LOSS REPORT
+    (`losses`: what this format could not carry, e.g. extra reading orders). Report the losses to
+    the person; a file without them looks complete when it is not.
+
+    Args:
+        doc_id: The page's document id.
+        format: `pagexml`, `alto` or `tei` (see `fichero_formats_list`).
+        pass_id: A specific pass; default is the working pass.
+        order_id: A named reading order's id; default is the order as written.
+        reading_kind: Which kind of reading to write; default `transcription`.
+    """
+    with _client() as client:
+        return client.export_page(
+            doc_id, format, pass_id=pass_id, order_id=order_id, reading_kind=reading_kind
+        )
+
+
+@mcp.tool()
+def fichero_formats_list() -> Any:
+    """List the interchange formats this build reads and writes, and whether each is validated."""
+    with _client() as client:
+        return client.list_formats()
+
+
 # -- AI providers & local model runtimes -----------------------------------
 #
 # These give an agent the same reach the app's AI settings have: see which
