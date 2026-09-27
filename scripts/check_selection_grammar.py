@@ -218,22 +218,66 @@ SHELL_VIEWS = ROOT / "fichero" / "fichero" / "Views" / "Shell"
 MODELS = ROOT / "fichero" / "fichero" / "Models"
 
 _PRIMARY_DRAW = re.compile(
-    r"\b(?:browserSelection|newSelection|selection|selectedDocumentIds|selectedIds)\.first\b"
+    r"\b(browserSelection|newSelection|selection|selectedDocumentIds|selectedIds)\.first\b"
 )
 # EMPTY as of 2026-08-09 (F3 complete): every known draw is converted to
 # shellPrimarySelectionId. This set exists so a future exception is a named,
 # reviewed decision — not a pattern hole.
 _PRIMARY_DRAW_GRANDFATHERED: set[str] = set()
 
+# A `.first` immediately behind a `<same var>.count == 1` check is NOT the
+# arbitrary-element hazard rule 2 exists for: with exactly one element, `.first`
+# IS that element, deterministically — there is no "which one" for the set/array
+# to answer arbitrarily. Found 2026-09-27: three sites all read this way
+# (`guard newSelection.count == 1, let id = newSelection.first else …` and the
+# two-statement `if selection.count == 1 { candidateId = selection.first }`
+# shape), and the guard was flagging correct code, which is how a suite nobody
+# trusts stops getting read (#5098's own point, one instance smaller).
+#
+# Deliberately NARROW — same variable NAME, literal `count == 1`, on the SAME
+# line or within `_COUNT_GUARD_WINDOW` lines above. This is a textual proximity
+# check, not a parser: it will not follow the check through an intermediate
+# variable, a helper function, or a count compared any other way (`< 2`,
+# `<= 1`, a `switch`) — those still fire, which is the point. A real
+# aliasing defect (the count checked on ONE array, `.first` read off ANOTHER)
+# is exactly what this cannot see and exactly what rule 2 still should catch;
+# see the self-test below for a case shaped like that.
+_COUNT_GUARD_WINDOW = 3
+
+
+def _count_one_guarded(lines: list[str], index: int, var: str) -> bool:
+    """True when `lines[index]` reads `{var}.first` behind a `{var}.count == 1`
+    check on the same line or within `_COUNT_GUARD_WINDOW` non-comment lines
+    above it."""
+    count_check = re.compile(rf"\b{re.escape(var)}\.count\s*==\s*1\b")
+    if count_check.search(lines[index]):
+        return True
+    checked = 0
+    for back in range(index - 1, -1, -1):
+        line = lines[back]
+        if _COMMENT.match(line) or not line.strip():
+            continue
+        if count_check.search(line):
+            return True
+        checked += 1
+        if checked >= _COUNT_GUARD_WINDOW:
+            break
+    return False
+
 
 def _primary_draws_in(text: str) -> list[tuple[int, str]]:
     """Pure per-file half of rule 2 — self-testable without touching disk."""
+    lines = text.splitlines()
     hits: list[tuple[int, str]] = []
-    for lineno, line in enumerate(text.splitlines(), 1):
+    for index, line in enumerate(lines):
         if _COMMENT.match(line):
             continue
-        if _PRIMARY_DRAW.search(line):
-            hits.append((lineno, line.strip()))
+        match = _PRIMARY_DRAW.search(line)
+        if not match:
+            continue
+        if _count_one_guarded(lines, index, match.group(1)):
+            continue
+        hits.append((index + 1, line.strip()))
     return hits
 
 
@@ -261,7 +305,48 @@ def _self_test_rule2() -> None:
             "let id = shellPrimarySelectionId(in: browserSelection, orderedBy: docs)\n" \
             "let doc = documents.first(where: { selection.contains($0.id) })"
     assert not _primary_draws_in(clean), "rule 2 fired on sanctioned forms"
-    print("self-test passed: rule 2 fires on violations, passes sanctioned forms")
+
+    # 2026-09-27: a `.first` behind a `count == 1` check on the SAME variable is
+    # not the arbitrary-element hazard — found real (three sites) rather than
+    # hypothesised, so this is the shape those sites actually take.
+    same_line_guard = "guard newSelection.count == 1, let id = newSelection.first else {\n" \
+                       "    return\n" \
+                       "}"
+    assert not _primary_draws_in(same_line_guard), \
+        "rule 2 fired on a same-line count==1 guard"
+    two_statement_guard = "if selection.count == 1 {\n" \
+                          "    candidateId = selection.first\n" \
+                          "} else if selection.isEmpty {\n" \
+                          "    candidateId = detailDocument?.id\n" \
+                          "}"
+    assert not _primary_draws_in(two_statement_guard), \
+        "rule 2 fired on a two-statement count==1 guard"
+
+    # What the narrow, same-variable-name proximity check must still catch: a
+    # count checked on ONE identifier and `.first` read off a DIFFERENT one —
+    # the exact aliasing shape the guard's own docstring says a delegation
+    # check cannot see, and this narrowing must not learn to un-see it either.
+    aliasing_defect = "if otherSelection.count == 1 {\n" \
+                       "    candidateId = selection.first\n" \
+                       "}"
+    assert _primary_draws_in(aliasing_defect), \
+        "rule 2 stopped firing on a count check for a DIFFERENT variable"
+
+    # And a count==1 check too far above the read (past the proximity window)
+    # must not suppress it either — this is a textual-proximity check, not a
+    # data-flow one, and it should stay conservative outside its narrow shape.
+    far_guard = "if selection.count == 1 {\n" \
+                "    doSomethingUnrelated()\n" \
+                "    logSomething()\n" \
+                "    logMore()\n" \
+                "    candidateId = selection.first\n" \
+                "}"
+    assert _primary_draws_in(far_guard), \
+        "rule 2 stopped firing on a count==1 check outside the proximity window"
+
+    print("self-test passed: rule 2 fires on violations, passes sanctioned forms "
+          "(including the count==1-guarded shape), and still catches aliasing "
+          "and out-of-window cases")
 
 
 def main() -> int:
