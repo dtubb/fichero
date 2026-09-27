@@ -74,28 +74,43 @@ NON_TRANSPORT_STATEOBJECT_SERVICES = ("BonjourDiscoveryService",)
 # `@Environment(...)` today, with none of the four anti-patterns in their text —
 # genuinely migrated, presumably in the #2960/#1863 flip this block's own
 # comment already names, just never pruned once it landed.
-KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
-    [
-        # #4123: Transferable export closures run OUTSIDE the SwiftUI
-        # environment — the drag-out file promise must resolve the library
-        # via LibraryManager.shared at export time. (The c7f5cb00e lint sweep
-        # moved the export into SidebarDragID.swift; same code, new path.)
-        "fichero/fichero/Views/Sidebar/ItemRow/SidebarDragID.swift",
-        # #4106: transient search resolves the ACTIVE library per window at
-        # call time (per-library stores live in LibraryManager containers);
-        # a single @Environment store cannot express that.
-        "fichero/fichero/Views/Shell/ContentView/ContentView+SearchResults.swift",
-        "fichero/fichero/Views/Shell/ContentView/Actions/ContentView+ActionsImport.swift",
-        "fichero/fichero/Views/Library/ViewModes/Graph/KGMapView.swift",
-        "fichero/fichero/Views/Library/ViewModes/Graph/KGTimelineView.swift",
-        "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/ForceDirectedGraphView.swift",
-        "fichero/fichero/Views/Components/NodeClassPicker.swift",
-        "fichero/fichero/Views/Library/ViewModes/Canvas/3D/SpaceSceneView.swift",
-        "fichero/fichero/Views/Library/ViewModes/Canvas/2D/Legacy/SpatialNodeThumbnail.swift",
-        "fichero/fichero/Views/Workflow/Nodes/NodeConfigs/ExtractEntitiesNodeConfig.swift",
-    ],
-    "post-#2960 residual (globalLibrary / client.api. / FeatureManager)",
-)
+# Every entry is the same anti-pattern, `LibraryManager.shared.globalLibrary`, and until
+# 2026-09-27 all ten shared one pasted reason naming three patterns ("globalLibrary /
+# client.api. / FeatureManager") that nine of them do not have. Read per file, they split
+# into three kinds — sanctioned, a fallback, and two that use the global library as their
+# ONLY source (#5133, one of which WRITES to it).
+KNOWN_VIOLATIONS: dict[str, str] = {
+    "fichero/fichero/Views/Sidebar/ItemRow/SidebarDragID.swift": (
+        "SANCTIONED (#4123): a Transferable export closure runs outside the SwiftUI "
+        "environment, so the drag-out file promise can only resolve the library through "
+        "LibraryManager at export time (fallback after the row's own library)"
+    ),
+    "fichero/fichero/Views/Shell/ContentView/ContentView+SearchResults.swift": (
+        "#4106: resolves the window's ACTIVE library at call time, `?? globalLibrary` as the "
+        "fallback — " + 'FALLBACK only: reads the injected @Environment service first and falls back to `globalLibrary` for hosts that inject none — which silently reads the wrong library (#4461 shape). Drop when every host injects and the fallback becomes a refusal'
+    ),
+    "fichero/fichero/Views/Shell/ContentView/Actions/ContentView+ActionsImport.swift": (
+        "import target: active library first, `?? globalLibrary` fallback — " + 'FALLBACK only: reads the injected @Environment service first and falls back to `globalLibrary` for hosts that inject none — which silently reads the wrong library (#4461 shape). Drop when every host injects and the fallback becomes a refusal'
+    ),
+    "fichero/fichero/Views/Library/ViewModes/Graph/KGMapView.swift": 'FALLBACK only: reads the injected @Environment service first and falls back to `globalLibrary` for hosts that inject none — which silently reads the wrong library (#4461 shape). Drop when every host injects and the fallback becomes a refusal',
+    "fichero/fichero/Views/Library/ViewModes/Graph/KGTimelineView.swift": 'FALLBACK only: reads the injected @Environment service first and falls back to `globalLibrary` for hosts that inject none — which silently reads the wrong library (#4461 shape). Drop when every host injects and the fallback becomes a refusal',
+    "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/ForceDirectedGraphView.swift": 'FALLBACK only: reads the injected @Environment service first and falls back to `globalLibrary` for hosts that inject none — which silently reads the wrong library (#4461 shape). Drop when every host injects and the fallback becomes a refusal',
+    "fichero/fichero/Views/Library/ViewModes/Canvas/3D/SpaceSceneView.swift": (
+        "thumbnail storage: the injected StorageService first, `globalLibrary` fallback kept "
+        "for the Spatial-room path — " + 'FALLBACK only: reads the injected @Environment service first and falls back to `globalLibrary` for hosts that inject none — which silently reads the wrong library (#4461 shape). Drop when every host injects and the fallback becomes a refusal'
+    ),
+    "fichero/fichero/Views/Library/ViewModes/Canvas/2D/Legacy/SpatialNodeThumbnail.swift": (
+        "`storageService ?? globalLibrary` in a legacy 2D thumbnail — " + 'FALLBACK only: reads the injected @Environment service first and falls back to `globalLibrary` for hosts that inject none — which silently reads the wrong library (#4461 shape). Drop when every host injects and the fallback becomes a refusal'
+    ),
+    "fichero/fichero/Views/Components/NodeClassPicker.swift": (
+        "#5133 DEFECT: lists node classes from `globalLibrary` as its ONLY source, so a "
+        "workflow in any other library shows the global library's classes"
+    ),
+    "fichero/fichero/Views/Workflow/Nodes/NodeConfigs/ExtractEntitiesNodeConfig.swift": (
+        "#5133 DEFECT: loads, ADDS and REMOVES custom entity types on `globalLibrary` as its "
+        "ONLY source, so editing a workflow in another library writes the global library"
+    ),
+}
 
 
 
