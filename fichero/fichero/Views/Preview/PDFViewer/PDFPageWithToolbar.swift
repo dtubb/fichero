@@ -184,6 +184,13 @@ struct PDFPageWithToolbar: View {
         return ArtifactEntityStore.shared(for: artifactService).revision(for: effectiveGeometryDocumentId)
     }
 
+    /// The segment store's generation for the same document: a segment edit or its ⌘Z
+    /// arrives as a SEGMENT event, which the artifact revision above never sees.
+    private var segmentRevision: Int {
+        guard let segmentService else { return 0 }
+        return SegmentStore.shared(for: segmentService).revision(for: effectiveGeometryDocumentId)
+    }
+
     /// Which page to display: parent-driven for the primary unpinned pane,
     /// locally tracked for every secondary pane or any pinned pane.
     private var effectivePageIndex: Int {
@@ -443,7 +450,7 @@ struct PDFPageWithToolbar: View {
         // client-tracked execution counter sees. A bump re-fires this task for
         // exactly this document, the same idiom the image preview already uses
         // for `WorkflowExecutionObserver`'s counters.
-        .task(id: "\(effectiveGeometryDocumentId)|\(effectivePageIndex)|\(ocrBoxesEnabled)|\(artifactEntityRevision)") {
+        .task(id: "\(effectiveGeometryDocumentId)|\(effectivePageIndex)|\(ocrBoxesEnabled)|\(artifactEntityRevision)|\(segmentRevision)") {
             // AppKit only: the PDF box renderer draws PDFAnnotations through
             // PDFPageView+OCRBoxes, which is itself #if canImport(AppKit). iOS
             // has no PDF overlay yet (#4418 shipped the Mac half), so there is

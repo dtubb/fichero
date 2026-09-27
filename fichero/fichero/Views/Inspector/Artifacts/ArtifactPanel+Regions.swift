@@ -23,6 +23,18 @@ struct ArtifactRegionsSection: View {
     let documentId: String
 
     @Environment(ArtifactService.self) private var artifactService: ArtifactService?
+    /// ⌘Z for the Inspector's Combine (#5115): the same registration the Source view uses.
+    @Environment(\.undoManager) private var undoManager
+    @Environment(ActionStore.self) private var actionStore: ActionStore?
+    @Environment(SegmentService.self) private var segmentService: SegmentService?
+
+    /// Reload when this page's segments change under the list -- a ⌘Z, or an edit made in
+    /// the Source view. Keyed on the artifact alone, the list kept rows the engine no
+    /// longer had.
+    private var segmentRevision: Int {
+        guard let segmentService else { return 0 }
+        return SegmentStore.shared(for: segmentService).revision(for: documentId)
+    }
     /// (full-list index, box) pairs — the index is how the engine addresses a
     /// region for curation, so filtering must not renumber.
     @State private var rows: [(index: Int, box: OCRGeometryBox)] = []
@@ -72,7 +84,7 @@ struct ArtifactRegionsSection: View {
                 }
             }
         }
-        .task(id: artifactId) {
+        .task(id: "\(artifactId)|\(segmentRevision)") {
             await loadBoxes()
         }
     }
@@ -144,8 +156,12 @@ struct ArtifactRegionsSection: View {
         let indices = selection.indices
         Task {
             do {
-                _ = try await artifactService.combineRegions(
+                let combined = try await artifactService.combineRegions(
                     artifactId: artifactId, documentId: documentId, indices: indices
+                )
+                combined.registerUndo(
+                    actionName: "Combine Regions", undoManager: undoManager,
+                    actionsService: actionStore?.actionsService
                 )
                 selection.invalidate(artifactId: artifactId)
                 await loadBoxes()

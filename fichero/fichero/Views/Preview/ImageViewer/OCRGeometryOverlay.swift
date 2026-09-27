@@ -233,6 +233,14 @@ extension ZoomableImagePreview {
         return ArtifactEntityStore.shared(for: artifactService).revision(for: documentId)
     }
 
+    /// The segment store's generation for this document, for the same `.task(id:)` key:
+    /// a region edit's ⌘Z arrives as a SEGMENT event, which moves this and not the
+    /// artifact revision above.
+    var segmentRevision: Int {
+        guard let documentId, let segmentService else { return 0 }
+        return SegmentStore.shared(for: segmentService).revision(for: documentId)
+    }
+
     /// Fetch this page's typed geometry (#4309, repaired by #4418).
     ///
     /// List first (lean payload), then the single GET which carries geometry.

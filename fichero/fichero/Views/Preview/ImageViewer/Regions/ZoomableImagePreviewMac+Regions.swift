@@ -146,14 +146,9 @@ extension ZoomableImagePreview {
     /// or no action store: nothing is registered, because every alternative is
     /// inverting a guessed row — on a shared library, one person undoing another's edit.
     func registerRegionUndo(_ result: RegionEditResult, actionName: String) {
-        guard let actionsService = actionStore?.actionsService else { return }
-        ActionUndo.register(
-            auditId: result.auditId,
-            actionName: actionName,
-            undoManager: undoManager,
-            performUndo: { auditId in
-                try await actionsService.undoAction(auditId: auditId).auditId
-            }
+        result.registerUndo(
+            actionName: actionName, undoManager: undoManager,
+            actionsService: actionStore?.actionsService
         )
     }
 

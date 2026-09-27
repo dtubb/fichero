@@ -13,6 +13,26 @@ struct RegionEditResult {
     let auditId: String?
 }
 
+extension RegionEditResult {
+    /// Register ⌘Z for this edit, by the audit row the edit itself wrote. ONE place for
+    /// every surface that offers a region verb -- the Source view and the Inspector (#5115:
+    /// the Inspector may offer the same audited verbs, never a second implementation, and
+    /// that includes the undo). No audit id, undo manager or actions service: nothing is
+    /// registered, because the alternative is inverting a guessed row.
+    @MainActor
+    func registerUndo(actionName: String, undoManager: UndoManager?, actionsService: ActionsService?) {
+        guard let actionsService else { return }
+        ActionUndo.register(
+            auditId: auditId,
+            actionName: actionName,
+            undoManager: undoManager,
+            performUndo: { auditId in
+                try await actionsService.undoAction(auditId: auditId).auditId
+            }
+        )
+    }
+}
+
 extension ArtifactService {
     /// One region-curation edit against an artifact's `ocr_geometry.boxes`,
     /// addressed the way the engine addresses boxes: by FULL-list index.
