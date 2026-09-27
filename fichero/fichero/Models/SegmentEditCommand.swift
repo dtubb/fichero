@@ -7,14 +7,13 @@ import Foundation
 /// the rules live where a test can reach them instead of inside a view method, and
 /// the view's only job is to send what the plan says.
 ///
-/// ONE ENGINE ACTION PER SEGMENT, AND THAT IS A FINDING RATHER THAN A CHOICE. The
-/// engine's `segment.update` takes ONE `segment_id` and one `expected_version`, and the
-/// only bulk segment route (`POST /api/segments/bulk`) CREATES. So "set these five lines
-/// to `heading`" is five audited actions today — and five undo steps, which means ⌘Z
-/// after a selection-wide edit reverts one line at a time. That is wrong for the person
-/// and the fix is on the engine (a `segment.update_many` taking a version per id, one
-/// audit row, one inverse), not here. Recorded in the spec rather than papered over by
-/// grouping the requests client-side, which would make the undo story lie.
+/// THE PLAN IS SENT AS ONE REQUEST. Each `Update` is one item of `updates[]` in
+/// `PATCH /api/segments` (`segment.update_many`, added 2026-09-27): one audited action
+/// and ONE undo step for the whole selection. Before that action existed the engine's
+/// only per-attribute write took one segment, so "set these five lines to `heading`"
+/// was five actions and five undo steps — ⌘Z reverting one line at a time. It was fixed
+/// on the engine rather than by grouping requests here, because client-side grouping
+/// would have made the undo story lie.
 enum SegmentEditCommand {
     /// The attribute a verb changes. Values are sent as given: the ENGINE owns the
     /// vocabulary (`assert_known_direction`, `assert_known_script`, BCP 47 for

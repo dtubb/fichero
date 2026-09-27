@@ -768,11 +768,17 @@ The editor
   `SegmentEditCommandTests.selectionOnAnotherPageIsRefused`). Values pass through unchecked on
   purpose: the engine owns the vocabulary and refuses what it does not know, and a second copy on
   the client is the one that drifts. No menu item or key calls it yet.
-  **And a finding about the engine that the plan exposes:** `segment.update` takes ONE segment,
-  and the only bulk route creates. So a selection-wide edit is one audited action PER LINE — and
-  one undo step per line, so ⌘Z after "set these five to heading" reverts one line at a time. The
-  fix is an engine action taking a version per id with one audit row and one inverse, not
-  client-side grouping, which would make the undo story lie.
+  **And the engine gap the plan exposed is fixed (2026-09-27).** `segment.update` takes ONE
+  segment and the only bulk route created, so a selection-wide edit was one audited action PER
+  LINE — and one undo step per line. Now `PATCH /api/segments` → `segment.update_many`: one audit
+  row for N rows, all or nothing (a stale line refuses the whole edit, as `segment.delete` refuses
+  its list), the cascade's facts through the same writer `segment.update` uses so a bulk edit is
+  no way around `assert_known_script`, and one undo restoring every line through its inverse
+  `segment.restore_versions`. Pinned by `test_segment_update_many.py` (10 tests, including
+  `TestOneEditIsOneAction.test_one_undo_restores_every_line` and
+  `TestAllOrNothing.test_one_stale_line_refuses_the_whole_edit`). Redo goes through the inverse
+  row's OWN invert, because the generic replay freshens only a top-level `expected_version` and a
+  bulk edit's versions live inside `updates[]` — the redo test failed until that was set.
 - `source.editor.set-direction` — **[PARTIAL]** (#4941) the selection's direction can be set, and a line reversed.
   **The plan is built (2026-09-27), the verb is not.** `SegmentEditCommand.plan` turns an
   attribute and a `SegmentSelection` into the `segment.update` requests to send, and refuses
@@ -781,11 +787,17 @@ The editor
   `SegmentEditCommandTests.selectionOnAnotherPageIsRefused`). Values pass through unchecked on
   purpose: the engine owns the vocabulary and refuses what it does not know, and a second copy on
   the client is the one that drifts. No menu item or key calls it yet.
-  **And a finding about the engine that the plan exposes:** `segment.update` takes ONE segment,
-  and the only bulk route creates. So a selection-wide edit is one audited action PER LINE — and
-  one undo step per line, so ⌘Z after "set these five to heading" reverts one line at a time. The
-  fix is an engine action taking a version per id with one audit row and one inverse, not
-  client-side grouping, which would make the undo story lie.
+  **And the engine gap the plan exposed is fixed (2026-09-27).** `segment.update` takes ONE
+  segment and the only bulk route created, so a selection-wide edit was one audited action PER
+  LINE — and one undo step per line. Now `PATCH /api/segments` → `segment.update_many`: one audit
+  row for N rows, all or nothing (a stale line refuses the whole edit, as `segment.delete` refuses
+  its list), the cascade's facts through the same writer `segment.update` uses so a bulk edit is
+  no way around `assert_known_script`, and one undo restoring every line through its inverse
+  `segment.restore_versions`. Pinned by `test_segment_update_many.py` (10 tests, including
+  `TestOneEditIsOneAction.test_one_undo_restores_every_line` and
+  `TestAllOrNothing.test_one_stale_line_refuses_the_whole_edit`). Redo goes through the inverse
+  row's OWN invert, because the generic replay freshens only a top-level `expected_version` and a
+  bulk edit's versions live inside `updates[]` — the redo test failed until that was set.
 - `source.editor.set-language-script` — **[PARTIAL]** (#4941) the selection's language and script can be set.
   **The plan is built (2026-09-27), the verb is not.** `SegmentEditCommand.plan` turns an
   attribute and a `SegmentSelection` into the `segment.update` requests to send, and refuses
@@ -794,11 +806,17 @@ The editor
   `SegmentEditCommandTests.selectionOnAnotherPageIsRefused`). Values pass through unchecked on
   purpose: the engine owns the vocabulary and refuses what it does not know, and a second copy on
   the client is the one that drifts. No menu item or key calls it yet.
-  **And a finding about the engine that the plan exposes:** `segment.update` takes ONE segment,
-  and the only bulk route creates. So a selection-wide edit is one audited action PER LINE — and
-  one undo step per line, so ⌘Z after "set these five to heading" reverts one line at a time. The
-  fix is an engine action taking a version per id with one audit row and one inverse, not
-  client-side grouping, which would make the undo story lie.
+  **And the engine gap the plan exposed is fixed (2026-09-27).** `segment.update` takes ONE
+  segment and the only bulk route created, so a selection-wide edit was one audited action PER
+  LINE — and one undo step per line. Now `PATCH /api/segments` → `segment.update_many`: one audit
+  row for N rows, all or nothing (a stale line refuses the whole edit, as `segment.delete` refuses
+  its list), the cascade's facts through the same writer `segment.update` uses so a bulk edit is
+  no way around `assert_known_script`, and one undo restoring every line through its inverse
+  `segment.restore_versions`. Pinned by `test_segment_update_many.py` (10 tests, including
+  `TestOneEditIsOneAction.test_one_undo_restores_every_line` and
+  `TestAllOrNothing.test_one_stale_line_refuses_the_whole_edit`). Redo goes through the inverse
+  row's OWN invert, because the generic replay freshens only a top-level `expected_version` and a
+  bulk edit's versions live inside `updates[]` — the redo test failed until that was set.
 - `source.editor.set-hand-campaign` — **[GAP]** (#4941) the selection's hand and campaign can be set.
 - `source.editor.reorder` — **[GAP]** (#4941) a named reading order can be edited by dragging in a list or
   clicking segments in turn.
