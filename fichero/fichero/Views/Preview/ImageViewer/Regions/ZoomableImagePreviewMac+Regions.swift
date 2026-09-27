@@ -24,6 +24,12 @@ extension ZoomableImagePreview {
     /// What the document overlay draws INSIDE the image view (#5020, #5142): the boxes the canvas
     /// shows and the selected ones, from the SAME two lists the hit-test and the region layer use,
     /// so a click, its box and its highlight cannot disagree about which box it is.
+    /// This page's ephemeral marquees -- a marquee drawn on another document is not this page's.
+    var currentMarquees: [[Double]] {
+        guard let marquees = windowState?.previewMarquees, marquees.documentId == documentId else { return [] }
+        return marquees.rects
+    }
+
     var documentOverlay: DocumentOverlay {
         let shown = displayedGeometryBoxes
         let all = frameMatchedGeometryBoxes
@@ -35,7 +41,10 @@ extension ZoomableImagePreview {
         // own image, the linked words on the geometry they were measured on.
         let linkedFrameMatches = ocrGeometry.map { geometryFrameMatchesDisplay($0) } ?? false
         return DocumentOverlay(
-            boxes: shown.map { .init(bbox: $0.box.bbox, confidence: $0.box.confidence) },
+            boxes: shown.map {
+                .init(bbox: $0.box.bbox, confidence: $0.box.confidence, text: $0.box.text,
+                      showsText: inlineTextEnabled && OCRBoxConfidence.drawsInlineText($0.box.confidence))
+            },
             selected: selected,
             entryWashes: annotationFrameMatchesDisplay(nil) ? highlightBoxes : [],
             linkedWashes: linkedFrameMatches ? linkedSelectionBoxes : [],
@@ -44,6 +53,8 @@ extension ZoomableImagePreview {
                 return .init(shape: shape, bbox: bbox, color: AnnotationMarkGeometry.rgba(hex: mark.color))
             },
             selectedMark: shownAnnotationMarks.first { $0.id == FocusedAnnotation.shared.id }?.rect,
+            marquees: currentMarquees,
+            pickedMarquee: windowState?.previewMarquees.selectedIndex,
             isEditing: windowState?.isEditingSegments == true,
             isFocusedPane: windowState?.focusedRegionSelection === regionSelection
         )

@@ -88,6 +88,22 @@ final class DocumentOverlayView: NSView {
 
     // MARK: - Drawing
 
+    /// Ephemeral marquees: dashed accent, visually distinct from a saved region; the picked one solid.
+    private func drawMarquees(in dirtyRect: CGRect, imageRect: CGRect, scale: CGFloat) {
+        for (index, bbox) in overlay.marquees.enumerated() {
+            guard let rect = DocumentBoxMapping.rect(normalized: bbox, imageRect: imageRect),
+                  rect.insetBy(dx: -2 / scale, dy: -2 / scale).intersects(dirtyRect) else { continue }
+            let picked = overlay.pickedMarquee == index
+            let path = NSBezierPath(rect: rect)
+            SelectionStyle.boxBase.withAlphaComponent(picked ? 0.18 : 0.08).setFill()
+            path.fill()
+            SelectionStyle.boxBase.setStroke()
+            path.lineWidth = (picked ? 2 : 1.5) / scale
+            if !picked { path.setLineDash([5 / scale, 5 / scale], count: 2, phase: 0) }
+            path.stroke()
+        }
+    }
+
     /// Saved annotation marks, by kind: a highlight is a wash, an underline and a strike are bars, a
     /// line is a line, a legacy region is a box. The person's colour when they chose one.
     private func drawMarks(in dirtyRect: CGRect, imageRect: CGRect, scale: CGFloat) {
@@ -152,8 +168,15 @@ final class DocumentOverlayView: NSView {
 
         for (box, rect) in overlay.boxes(in: dirtyRect, imageRect: imageRect) {
             let path = NSBezierPath(rect: rect)
-            SelectionStyle.boxBase.withAlphaComponent(SelectionStyle.boxWashAlpha).setFill()
-            path.fill()
+            if box.showsText, !box.text.isEmpty {
+                // A theme-matched plate so the word reads, translucent so the scan stays checkable.
+                NSColor.textBackgroundColor.withAlphaComponent(InlineWords.plateAlpha).setFill()
+                path.fill()
+                InlineWords.draw(box.text, in: rect)
+            } else {
+                SelectionStyle.boxBase.withAlphaComponent(SelectionStyle.boxWashAlpha).setFill()
+                path.fill()
+            }
             SelectionStyle.boxBase.withAlphaComponent(OCRBoxConfidence.strokeOpacity(box.confidence)).setStroke()
             path.lineWidth = line
             if OCRBoxConfidence.isUncertain(box.confidence) {
@@ -161,6 +184,8 @@ final class DocumentOverlayView: NSView {
             }
             path.stroke()
         }
+
+        drawMarquees(in: dirtyRect, imageRect: imageRect, scale: scale)
 
         let selected = overlay.selected(in: dirtyRect, imageRect: imageRect)
         if let hovered, hovered.intersects(dirtyRect), !selected.contains(hovered) {
@@ -200,6 +225,41 @@ final class DocumentOverlayView: NSView {
                 square.stroke()
             }
         }
+    }
+}
+
+/// A recognised word drawn IN its box, the size of the word it stands for (2026-09-01): the largest
+/// size that fits the box in BOTH axes, never truncated. In DOCUMENT space, so it is page ink and
+/// scales with the page like the pixels under it.
+enum InlineWords {
+    static let plateAlpha: CGFloat = 0.6
+    /// Leaves a hairline of plate above and below the cap height.
+    static let heightFill: CGFloat = 0.82
+
+    /// The font size `text` is drawn at in `rect`: from the box's height, then shrunk (up to three
+    /// passes, biased under the box) while it is wider than the box.
+    static func fittedSize(_ text: String, in rect: CGRect, measure: (String, CGFloat) -> CGFloat) -> CGFloat {
+        var size = max(rect.height * heightFill, 0.5)
+        var width = measure(text, size)
+        var passes = 0
+        while width > rect.width, width > 0, passes < 3 {
+            size *= (rect.width / width) * 0.98
+            width = measure(text, size)
+            passes += 1
+        }
+        return size
+    }
+
+    static func draw(_ text: String, in rect: CGRect) {
+        let size = fittedSize(text, in: rect) { string, points in
+            (string as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: points)]).width
+        }
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: size), .foregroundColor: NSColor.labelColor,
+        ]
+        let measured = (text as NSString).size(withAttributes: attributes)
+        let origin = CGPoint(x: rect.minX, y: rect.midY - measured.height / 2)
+        (text as NSString).draw(at: origin, withAttributes: attributes)
     }
 }
 #endif

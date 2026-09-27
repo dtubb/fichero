@@ -63,7 +63,8 @@ extension ZoomableImagePreview {
                     OCRGeometryOverlay(
                         geometry: ocrGeometry,
                         visible: geometry.visible,
-                        drawsBoxes: false  // drawn inside the scroll view now (#5020, #5142)
+                        drawsBoxes: false,  // drawn inside the scroll view now (#5020, #5142)
+                        drawsInlineText: false
                     )
                 }
                 // Regions as first-class (2026-08-29): the INTERACTIVE layer

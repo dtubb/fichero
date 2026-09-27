@@ -7,6 +7,10 @@ struct DocumentOverlay: Equatable {
         /// `[x, y, w, h]`, normalized, top-left origin.
         let bbox: [Double]
         let confidence: Double?
+        /// The recognised words, drawn IN the box when `showsText` (the inline-text switch, and a
+        /// machine sure enough of where the word is).
+        var text: String = ""
+        var showsText = false
     }
 
     var boxes: [Box] = []
@@ -46,6 +50,10 @@ struct DocumentOverlay: Equatable {
     var marks: [Mark] = []
     /// The annotation the Inspector has selected, drawn in the selection's own style.
     var selectedMark: [Double]?
+    /// Ephemeral marquees (run scopes, not segments): dashed; the picked one solid. Their name
+    /// badges are buttons and stay in SwiftUI.
+    var marquees: [[Double]] = []
+    var pickedMarquee: Int?
     /// Edit Segments is on: a selection shows its resize handles (never while reading).
     var isEditing = false
     /// This pane's selection is the window's focused one (`WindowState.focusedRegionSelection`):
