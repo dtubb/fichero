@@ -419,7 +419,7 @@ Formats
 
 ## Changes this spec asks of other specs
 
-For the archive lane to apply; this file edits none of them.
+For the archive lane to apply; this file edits none of them. **Applied 2026-09-27**, all seven. The link-end request became a new behaviour, `source.link.end-is-entity` [GAP]. The point shape was already built (#4925), so it became a pointer.
 
 - **`segments-and-geometry.md`, "Maps and plans" and the three `source.geo.*` bullets**
   (`control-points`, `segment-to-world`, `names-a-place`): point each at this file, where it is
