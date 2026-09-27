@@ -105,3 +105,66 @@ struct SegmentEditCommandTests {
         #expect(updates.first?.attribute == .direction("not-a-direction"))
     }
 }
+
+/// `source.editor.join-group` (#4941): the merge plan and its refusals.
+@MainActor
+struct SegmentMergePlanTests {
+
+    private func selected(
+        _ ids: [String], on documentId: String = "doc-1", versions: [String: Int]? = nil
+    ) -> SegmentSelection {
+        let selection = SegmentSelection()
+        selection.select(
+            ids, documentId: documentId,
+            versions: versions ?? Dictionary(uniqueKeysWithValues: ids.map { ($0, 1) })
+        )
+        return selection
+    }
+
+    @Test("the first segment picked survives, and every participant sends its version")
+    func firstPickedSurvives() throws {
+        // The survivor's id is the one new citations use, and "the line I clicked first"
+        // is the only choice the person visibly made. The merged-away ids keep forwarding
+        // to it, so older citations still resolve.
+        let selection = selected(["seg-2", "seg-1", "seg-3"],
+                                 versions: ["seg-1": 4, "seg-2": 2, "seg-3": 9])
+
+        let merge = try SegmentEditCommand.mergePlan(
+            for: selection, shownDocumentId: "doc-1"
+        ).get()
+
+        #expect(merge.keepId == "seg-2")
+        #expect(merge.segmentIds == ["seg-2", "seg-1", "seg-3"])
+        #expect(merge.expectedVersions == ["seg-1": 4, "seg-2": 2, "seg-3": 9],
+                "the kept segment's version is sent too")
+    }
+
+    @Test("one segment is not a join")
+    func oneSegmentIsRefused() {
+        // Joining a line to itself changes nothing, and sending it would put an audited
+        // action that did nothing into the record a scholar reads.
+        #expect(SegmentEditCommand.mergePlan(for: selected(["seg-1"]), shownDocumentId: "doc-1")
+                == .failure(.needsTwoOrMore))
+        #expect(SegmentEditCommand.mergePlan(for: SegmentSelection(), shownDocumentId: "doc-1")
+                == .failure(.needsTwoOrMore))
+    }
+
+    @Test("a selection left over from another page is not joined")
+    func anotherPageIsRefused() {
+        let result = SegmentEditCommand.mergePlan(
+            for: selected(["seg-1", "seg-2"], on: "doc-1"), shownDocumentId: "doc-2"
+        )
+
+        #expect(result == .failure(.selectionIsOnAnotherPage))
+    }
+
+    @Test("a participant with no known version refuses the join")
+    func unknownVersionIsRefused() {
+        // Merge takes a version for EVERY id, the kept one included: a concurrent edit to
+        // the survivor is still something that changed since the caller last read it.
+        let selection = selected(["seg-1", "seg-2"], versions: ["seg-1": 1])
+
+        #expect(SegmentEditCommand.mergePlan(for: selection, shownDocumentId: "doc-1")
+                == .failure(.versionsUnknown))
+    }
+}
