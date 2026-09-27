@@ -222,7 +222,9 @@ $(SRCROOT)/../fichero-server/src/fichero_server/formats/hocr.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/pagexml.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/PROVENANCE.md
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/alto-4-2.xsd
+$(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/alto-4-3.xsd
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/catalog.xml
+$(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/pagecontent-2013-07-15.xsd
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/pagecontent-2019-07-15.xsd
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/tei_all.xsd
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/tei_all_teix.xsd

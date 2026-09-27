@@ -132,6 +132,10 @@ networkx
 # an older comment.
 rdflib
 
+# lxml: imported by name by every PAGE / ALTO / TEI reader and writer (formats/).
+# Until 2026-09-27 it reached the bundle only as a kraken dependency.
+lxml
+
 # --- spaCy grammar gate (SVO) + bundled small models ---
 spacy
 es_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/es_core_news_sm-3.8.0/es_core_news_sm-3.8.0-py3-none-any.whl

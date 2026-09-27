@@ -172,6 +172,13 @@ requires = [
     # it exits 250 on launch ("can't reach server"). 4.8 MB, pure Python, one
     # dependency (pyparsing). It was commented out only by sitting beside pykeen.
     "rdflib",
+    # lxml is imported BY NAME by the interchange harness (formats/alto, pagexml, tei,
+    # hocr, validation): every PAGE / ALTO / TEI import and export. Until 2026-09-27 it
+    # reached the bundle only as one of kraken's transitive dependencies (the separate
+    # kraken step, [tool.fichero.kraken_bundle]), so dropping or reworking that step would
+    # have silently taken the whole interchange feature with it. Listed by name, like
+    # networkx above. Binary wheel, installed at build time -- never at runtime.
+    "lxml",
     "opencv-python-headless",
     # Document Processing
     "PyMuPDF",
@@ -255,7 +262,8 @@ missing_packages = [
     "safetensors~=0.7.0",
     "htrmopo~=0.6",
     "iso639-lang",
-    "lxml",
+    # lxml moved to the briefcase `requires` (2026-09-27): the engine imports it by name,
+    # so it cannot depend on this step. It still satisfies kraken, already installed.
     "platformdirs",
 ]
 # Packages that need --no-deps AND a hand pin because their OWN dependency
