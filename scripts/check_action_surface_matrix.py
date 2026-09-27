@@ -31,7 +31,6 @@ from pathlib import Path
 from matrix_guardrail_common import ROOT, load_known_gaps
 
 APP_SOURCE = ROOT / "fichero" / "fichero" / "FicheroApp.swift"
-WRAPPER_SOURCE = ROOT / "fichero" / "fichero" / "App" / "Menus" / "FocusedCommandButtons.swift"
 KNOWN_GAPS = load_known_gaps(Path(__file__).with_name("check_action_surface_matrix_known_gaps.json"))
 
 # Menu Commands live in App/Menus (moved out of the Views/Shell catch-all).
@@ -40,10 +39,26 @@ MENU_FILES = {
     MENUS_DIR / "FileMenuCommands.swift",
     MENUS_DIR / "ViewMenuCommands.swift",
     MENUS_DIR / "ViewMenuLayoutSections.swift",
+    MENUS_DIR / "ViewMenuSortAndModeSections.swift",
     MENUS_DIR / "ViewMenuPaneSections.swift",
     MENUS_DIR / "ImagePreviewMenuCommands.swift",
     MENUS_DIR / "AddItemMenu.swift",
+    # `CommandMenu("Read")`/`CommandMenu("Knowledge")`, inserted at
+    # FicheroApp.swift:524 — genuinely a menu file, just never added here
+    # (found 2026-09-27: it holds six of the "New …" creation buttons this
+    # matrix already names, and every one of them was reporting a false
+    # "missing menu").
+    MENUS_DIR / "ReadKnowledgeMenuCommands.swift",
 }
+
+# The `Focused*Button` wrapper structs (menu_refs' targets) used to live in one
+# file; a later file-length split moved them into this subfolder, one topic
+# per file, and left `WRAPPER_SOURCE` pointing at a path that no longer exists
+# (found 2026-09-27 alongside the MENU_FILES gap above — the same class of
+# defect, a split silently narrowing what a guard reads). Scanned as a whole
+# directory rather than re-pinning one filename, so the NEXT split inside it
+# does not repeat this.
+WRAPPER_DIR = MENUS_DIR / "FocusedCommands"
 
 # Toolbar/context evidence lives across Views/ AND App/Menus/ (AddItemMenu carries
 # the only toolbar evidence for some Link/Copy/Add-Files actions after the reorg).
@@ -78,7 +93,9 @@ def _read_text(path: Path) -> str:
 
 
 APP_TEXT = _read_text(APP_SOURCE)
-WRAPPER_TEXT = _read_text(WRAPPER_SOURCE)
+WRAPPER_TEXT = "\n".join(
+    _read_text(path) for path in sorted(WRAPPER_DIR.glob("*.swift"))
+) if WRAPPER_DIR.is_dir() else ""
 MENU_TEXT = "\n".join(_read_text(path) for path in sorted(MENU_FILES))
 CONTEXT_TEXT = "\n".join(_read_text(path) for path in sorted(CONTEXT_FILES))
 TOOLBAR_TEXT = "\n".join(_read_text(path) for path in sorted(TOOLBAR_FILES))
@@ -263,11 +280,14 @@ ACTION_SPECS: tuple[ActionSpec, ...] = (
         menu_patterns=("Show Ruler",),
         keyboard_patterns=("Show Ruler",),
     ),
+    # Renamed from "Find in Artifact" (found 2026-09-27: the action was never
+    # missing, its own name had moved on — `ShowFindBarButton` in
+    # ViewMenuPaneSections.swift, already `⌘⌥F`).
     ActionSpec(
-        action="Find in Artifact",
+        action="Find in Page",
         expected=("menu", "keyboard"),
-        menu_patterns=("Find in Artifact",),
-        keyboard_patterns=("Find in Artifact",),
+        menu_patterns=("Find in Page",),
+        keyboard_patterns=("Find in Page",),
     ),
     ActionSpec(
         action="Actual Size",
@@ -363,9 +383,16 @@ def scan() -> list[Row]:
         evidence: list[str] = []
 
         if spec.menu_refs:
-            menu = all(ref in APP_TEXT for ref in spec.menu_refs)
+            # A `menu_refs` button is placed EITHER directly in FicheroApp.swift
+            # (Rename/Delete's own wiring) OR by being rendered from inside one
+            # of the named menu files (New Folder/New Chat/etc., via
+            # FileMenuCommands()/ReadKnowledgeMenuCommands() — both real
+            # CommandGroup/CommandMenu content, just one file removed from
+            # FicheroApp.swift's own text). Checking APP_TEXT alone reported
+            # six real menu items as missing (found 2026-09-27).
+            menu = all(ref in APP_TEXT or ref in MENU_TEXT for ref in spec.menu_refs)
             if menu:
-                evidence.append("menu:FicheroApp.swift")
+                evidence.append("menu:FicheroApp.swift+App/Menus")
         elif spec.menu_patterns:
             menu = _match(MENU_TEXT, spec.menu_patterns)
             if menu:
