@@ -585,6 +585,7 @@ def document_text(
     would put the page number in the middle of a sentence.
     """
     ordered_segment_ids: list[str] | None = None
+    named_order = None
     if order is not None:
         # Slice 10 (#4930): the page's text follows a NAMED order. `order` is an
         # order's id, and it must belong to the pass being read -- a text
@@ -595,9 +596,9 @@ def document_text(
             order_for_text,
         )
 
-        named = order_for_text(db, order)
+        named_order = order_for_text(db, order)
         ordered_segment_ids = [
-            row.segment_id for row in entries_in_sequence(db, named.id)
+            row.segment_id for row in entries_in_sequence(db, named_order.id)
         ]
     candidates = _pass_candidates(db, document_id)
     if pass_id is not None:
@@ -615,6 +616,16 @@ def document_text(
             text="", spans=[], pass_id=None, pass_basis=answer.basis.value, kind=kind,
             order=order,
         )
+
+    if named_order is not None and named_order.pass_id != answer.pass_id:
+        from fichero_server.models.reading_orders import OrderIsOfAnotherPass
+
+        # This comment used to CLAIM the invariant and nothing enforced it: an
+        # order of another pass produced an empty text, and (before #5090) an
+        # empty text with no explanation. Writing the refusals down for the api
+        # reference is what found it. A flow is no exception here -- a flow
+        # belongs to the pass it was made on and continues onto others.
+        raise OrderIsOfAnotherPass(named_order.id, named_order.pass_id, answer.pass_id)
 
     rows = [
         row

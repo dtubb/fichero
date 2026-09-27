@@ -575,3 +575,212 @@ output. Optional `use_case` filters to one workflow step's calls;
 `gold_only` keeps only corrected pairs. Engine-local destination path — a
 CLI/backend surface like the record-bundle exports, with the same
 conflict rule (`409` unless `overwrite`).
+
+## The source model
+
+These are the routes of the source model — the layer that holds what is on a
+page (segments, their shapes, their readings), the facts that describe it
+(language, script, direction), the orders a scholar reads it in, the links
+between its parts, and the interchange formats it reads and writes. Every write
+below goes through the one audited action layer, so each answer carries an
+`audit_id` and each change has an inverse.
+
+### A segment's readings
+
+`GET /api/segments/{segment_id}/readings`
+
+- One line can have several readings — a recogniser's, a scholar's correction, a
+  normalisation, a translation — and exactly one of each kind COUNTS. The answer
+  lists them and names the counting one per kind, so a caller never has to
+  decide which is authoritative.
+- Optional `kind` narrows to one kind. A provisional segment id is accepted,
+  because asking what a line says has to work before anybody has edited the
+  page.
+- Refuses with `404` when there is no such segment. A **provisional** id is
+  accepted here on purpose, unlike on the write routes: a reader asking what a
+  line says must work before anybody has edited the page.
+
+`POST /api/segments/{segment_id}/readings/choice`
+
+- Records which reading counts. **Only a person may**: a machine choosing which
+  of its own outputs is the true one is exactly the judgement this layer exists
+  to keep human, so a run's context is refused with `403`.
+- Also `422` for a reading kind this library does not have, and for a reading
+  whose anchor does not match the segment it is being chosen for: choosing a
+  reading of somewhere else is a mistake worth a sentence rather than a silent
+  write.
+
+### A page's derived text
+
+`GET /api/segments/document/{document_id}/text`
+
+- The page's text is WORKED OUT, never stored: it is the working pass's
+  segments, each contributing its counting reading. The answer carries `spans`
+  pointing back at the segment and representation each stretch came from —
+  text with no way back to the reading it came from is a wall of words.
+- `pass_id` reads a named pass instead of the working one, and the answer always
+  says which pass it used and why (`pass_basis`).
+- `order` follows a named reading order; omitting it means box order, which the
+  answer reports honestly as `order: null` rather than claiming a name.
+- Furniture — running heads, folio numbers, catchwords — is left out unless
+  `include_furniture` is set, because a page number in the middle of a sentence
+  is worse than a missing one.
+- `omitted` names every segment the order names that the text does not contain,
+  each with a reason: `deleted`, `furniture`, `other_pass` (with the pass that
+  holds it) or `unknown`. A cross-pass continuation and a deleted line must not
+  look the same, because a silently shortened transcription looks like a correct
+  one.
+- Refuses with `404` for no such pass or an `order` id that names nothing, `409`
+  for an order that was withdrawn, and `422` when the named order is an order of
+  a **different pass** from the one being read — the sentence names both passes
+  and says which `pass_id` to ask for, because a text assembled from one pass's
+  readings in another pass's order is a sentence nobody wrote.
+
+### A segment's picture
+
+`GET /api/segments/{segment_id}/picture`
+
+- PNG bytes of the segment's own area, cut to its shape: cropped to its box plus
+  `margin`, masked outside its polygon with `mask`, levelled along its baseline
+  with `straighten`, and bounded by `size` (the default is bounded, not
+  unlimited).
+- Bytes rather than a storage reference, because the storage routes address a
+  document and not one of its derived crops — and a local path would break the
+  rule that the engine may be remote.
+- It refuses rather than answering when the segment was measured against a
+  different image from the one on the document: a picture of the wrong place is
+  worse than an error.
+- That refusal is a `422` whose sentence names the image it was measured on and
+  the one that is there now. The same `422` covers every other reason a picture
+  cannot be made honestly.
+
+### Source settings: language, script and direction
+
+`GET /api/source-settings/resolve`
+
+- The three facts and the text encoding for ONE selection (`segment_id`, or
+  `document_id` for the page), each with the rung that answered it: the segment,
+  the document, the project, or a default. A fact that does not say where it came
+  from cannot be argued with.
+- For one selection and not a list, deliberately: resolving every segment of a
+  page here would be one cascade walk per row.
+- Refuses with `404` when the node it is asked about does not exist.
+
+`PUT /api/source-settings`
+
+- States a fact, or stops stating it — an empty value clears rather than writing
+  a blank, so "nobody has said" and "somebody said nothing" stay different.
+- A level it does not own is refused by name. Segment-level facts belong to
+  `segment.update`, which owns a segment's own fields; this route owns the
+  project and the document.
+- Every refusal is a `422` that names what was wrong: a level this route does not
+  own, a level that is not a level, a project fact outside the known keys, a
+  script code that is not ISO 15924, a direction outside the known set, a node
+  reference with no target, or an empty value sent to the setter instead of the
+  clearer.
+
+### Reading orders
+
+`POST /api/reading-orders`
+
+- Creates a named order over a pass. A page holds several: the order as written,
+  a commentary order, an imposed order, and a **flow**, which is the one kind
+  whose entries may name segments of another pass because text continues onto
+  the next folio.
+- `seed_from_pass` fills the new order from the pass's own box order, which is
+  what makes an as-written order agree with what a recogniser produced.
+- Refuses with `409` when a segment is already in the order, or when a segment
+  belongs to a different pass and the order is not a flow — that distinction is
+  the flow's whole point — and `422` when an order's positions have run out of
+  room and need renumbering first, which is a request to renumber rather than a
+  failure.
+
+`GET /api/reading-orders/document/{document_id}`
+
+- A source's orders, the as-written one first. `include_deleted` shows withdrawn
+  ones, since an order is soft-deleted and restorable like everything else here.
+- The entry and neighbour reads refuse with `404` for no such order and `409` for
+  a deleted one, rather than answering emptily: an order that was withdrawn and
+  an order with nothing in it are different facts.
+
+`GET /api/reading-orders/{order_id}/entries`
+
+- ONE LEVEL of one order — the top level, or the children of `parent_entry_id`.
+  Orders nest (regions in order, lines in order within each), and returning a
+  whole tree would make a bounded read depend on how deeply somebody nested
+  their reading.
+
+`GET /api/reading-orders/{order_id}/neighbours`
+
+- What reads before and after one segment **in this order**. Always of a named
+  order: there is no "next segment" call without one, because a page holds
+  several orders and answering from a default would be the engine picking a
+  scholarly reading without saying so.
+- Two bounded lookups, not a walk of the order.
+- `422` when no order is named, because there is no default order to fall back
+  to.
+
+### Typed links
+
+`GET /api/links/types`
+
+- This library's link vocabulary: each type's key, its label, its inverse label,
+  and whether it is built in. Aliases are reported alongside, so a client that
+  knows a display name can find the one key it maps to.
+
+`GET /api/links/of/{end_id}`
+
+- Every link touching one thing, **from either side**. "What relates to this
+  line" is one question a reader asks, not two, so it is one call and two
+  indexed reads. `include_deleted` shows withdrawn links.
+
+`POST /api/links`
+
+- Relates two ends by a typed link, with an optional `certainty` and `note`. An
+  unknown link type is refused by name rather than being created on the fly: a
+  vocabulary that grows by typo is not a vocabulary.
+- Both refusals are `422`: an unknown link type (the sentence names the
+  vocabulary), and a link missing one of its two ends. A display alias is
+  resolved to its one key first, so `references` and `cites` are the same link
+  rather than two.
+
+### Interchange formats
+
+`GET /api/formats`
+
+- Which interchange formats this build reads and writes, with each one's
+  extensions and whether it is schema-validated. A client asks rather than
+  hard-coding a list that will be wrong the next release.
+
+`POST /api/documents/{doc_id}/import`
+
+- A PAGE XML, ALTO, hOCR, TEI or YOLO file becomes a **new pass** on the
+  document. `format` forces a format instead of recognising one from the bytes;
+  `name` says what to call the pass.
+- An import does NOT become the working pass. Somebody else's file arriving is
+  not a decision about which reading of the page is authoritative.
+- Content the model has no field for is kept and labelled, so exporting back to
+  that format writes it out again rather than quietly dropping it.
+- The refusals are the point and carry a sentence the app is expected to show:
+  `409` when this exact file is already a pass (the sentence names which),
+  `422` when nothing recognises the file or its shapes lie outside the page it
+  declares (the sentence names the formats this build reads, or the segments that
+  disagree), `404` for no such document or an unreadable upload.
+
+`GET /api/documents/{doc_id}/export/{format_name}`
+
+- Writes one page out as PAGE XML, ALTO or TEI, returning the file as text with
+  the filename to save it under, plus a **loss report**: what the format cannot
+  carry, named rather than dropped silently.
+- `pass_id` picks the pass (the working pass by default), `order_id` the reading
+  order (as written by default), `reading_kind` which kind of reading to write.
+- An export that does not validate against its schema is a reported failure and
+  **no file**, because a file that exists and does not validate is one somebody
+  sends to a colleague.
+- Refuses with `404` for a format nothing here knows, for a document with no pass
+  to export, and for an order that names nothing; `409` for a format this build
+  reads but cannot write; `500` for an export that failed validation, which is
+  our bug and not the caller's.
+- The loss report is not a warning to be skipped. A format that cannot carry fine
+  geometry, or direction, or a rival reading says so by name, and the round trip
+  subtracts exactly what the report names.

@@ -246,6 +246,70 @@ measuring: frames during zoom and pan at 5,000 and 20,000 shapes; time to hit-te
 drag one point; peak memory on a very large scan; and one edit going through the engine and
 system undo in under a tenth of a second.
 
+### Slice 12: the speed trial, and how it is measured
+
+The trial is a **hard gate**: the editor is not built on a drawing approach that failed it.
+A gate needs a number that can be failed and a method that two people follow to the same
+answer, and this section is the method. It is written because the numbers were ruled and the
+method was not, and a threshold without a method is two people disagreeing politely. Three
+measurement mistakes in one week of this programme — a cause named from a single run, a 13%
+difference that was noise, and a figure quoted from a comment as though it had been measured —
+are what this is guarding against, and every rule below has one of them behind it.
+
+**What the numbers are.** Ruled already, and not reopened here: sixty frames a second during
+zoom and pan, twenty thousand shapes, the oldest supported iPhone, and one edit through the
+engine and system undo in under a tenth of a second. Sixty frames a second is a budget of
+**16.7 ms per frame**, and the gate is on the **worst frame in the run, not the mean** —
+a mean hides exactly the dropped frame a person feels. Hit-testing and dragging one point are
+each inside one frame's budget, because they happen during a gesture.
+
+**Peak memory has no ruled ceiling and this spec does not invent one.** The trial measures and
+records it on a very large scan, and the ceiling is set from that first measurement and ruled
+before the gate can fail anything on memory. What the trial can already fail on is **growth**:
+memory must not scale with the page's shape count once only the visible shapes are drawn, and
+a run whose peak grows between 5,000 and 20,000 shapes in proportion to the count has failed
+regardless of the absolute figure.
+
+**Which page.** One committed fixture, named in the test, and **declared for what it is**. Its
+shape count, its nesting (regions, lines, words, characters) and the distribution of shape
+sizes are taken from a real dense import measured for the purpose; the shapes themselves are
+generated, so that the fixture can live in the repository and so that the trial is repeatable.
+A generated fixture described as a real page would be the same lie as a number quoted from a
+comment, so the fixture's own file records which real page its distribution came from.
+
+**Which machine.** Two, and both are named in the result: the oldest supported iPhone (the
+ruled target) and the Mac the work is done on. A number with no machine beside it cannot be
+compared with next month's number, so the record carries the device model, the OS version and
+the build configuration. **Release, not Debug** — measuring a Debug build and calling it the
+product's speed is measuring the wrong thing.
+
+**How many runs, and which number counts.** The first run is discarded as cold, then **five
+runs**, and the recorded result is the median of the five together with the worst frame seen
+in any of them. One run is not a measurement: a single figure cannot be told apart from
+noise, and this programme has already mistaken noise for a 13% regression. If the five runs
+disagree by more than a tenth of their median, the run is **inconclusive rather than passing**,
+and the answer is more runs or a quieter machine, never the best of the five.
+
+**What counts as the machine being idle.** No build running, no background embedding,
+processing or conversion, no other lane's test suite, mains power, and the thermal state
+recorded with the result. A run taken while the machine was thermally throttled is **void, not
+failing** — the two are different facts and recording a throttled run as a failure would send
+somebody to optimise code that was never slow. The trial refuses to record a result when it
+cannot read the thermal state, because a gate that cannot read its input must fail rather than
+pass quietly.
+
+**What the number is measured against.** A committed baseline file, one line per measurement,
+the way the spec pipeline and the swallowed-exception seam keep theirs. A run is compared with
+the baseline and a regression beyond the noise band is a failure; a clear improvement updates
+the baseline in the same commit as the change that earned it, never in a commit of its own.
+The baseline records the machine, the OS, the fixture and the date, because a baseline that
+does not say what it was measured on is a number somebody will argue with.
+
+**What the trial may conclude.** That a drawing approach holds, or that it does not, or **that
+the target itself is wrong** — the ruled sixty frames at twenty thousand shapes on the oldest
+iPhone may turn out to be the wrong gate, and the trial is allowed to come back and say so
+with its measurements. What it may not do is pass by lowering the target quietly.
+
 ### Accessibility
 
 Drawn shapes are invisible to VoiceOver unless the editor describes them. Each visible
@@ -390,6 +454,32 @@ The editor
   with twenty thousand shapes on the oldest supported iPhone (the ruled target; the trial
   settles how to draw, and may come back and say the target is wrong).
 - `source.editor.level-of-detail` — **[GAP]** (#4940) finer levels appear as you zoom in.
+
+The trial that settles it, and what makes its numbers checkable (slice 12; all **[GAP]**, #4940)
+- `source.perf.worst-frame-not-mean` — **[GAP]** (#4940) the frame gate is on the worst frame in a
+  run against a 16.7 ms budget, never the mean, because a mean hides the dropped frame a person
+  feels.
+- `source.perf.five-runs-median` — **[GAP]** (#4940) a measurement is the median of five runs after a
+  discarded cold one, reported with the worst frame; runs that disagree by more than a tenth of
+  their median are inconclusive, and the best of the five is never the answer.
+- `source.perf.names-its-machine` — **[GAP]** (#4940) every recorded number carries the device model,
+  the OS version, the build configuration and the fixture it was measured on; a Release build,
+  never Debug.
+- `source.perf.declared-fixture` — **[GAP]** (#4940) the trial's page is one committed fixture whose
+  shape count, nesting and size distribution come from a named real page, and whose own file
+  says it is generated.
+- `source.perf.void-when-throttled` — **[GAP]** (#4940) a run taken on a thermally throttled or busy
+  machine is void rather than failing, and a run that cannot read the thermal state records
+  nothing at all rather than recording a pass.
+- `source.perf.baseline-or-fail` — **[GAP]** (#4940) results are compared with a committed baseline
+  that states its machine, OS, fixture and date; a regression beyond the noise band fails, and
+  an improvement updates the baseline in the commit that earned it.
+- `source.perf.memory-growth` — **[GAP]** (#4940) peak memory is recorded rather than gated on an
+  invented ceiling, and the trial fails when peak memory scales with a page's shape count
+  instead of with what is visible.
+- `source.perf.may-say-the-target-is-wrong` — **[GAP]** (#4940) the trial may conclude that the ruled
+  target is the wrong gate and say so with its measurements; it may not pass by lowering the
+  target.
 - `source.editor.voiceover` — **[GAP]** (#4941) each visible segment is an accessibility element with kind,
   reading and order.
 - `source.editor.one-input-seam` — **[GAP]** (#4941) pointer, touch and Pencil feed one input path; the same

@@ -174,6 +174,31 @@ def renumbered(positions: int) -> list[float]:
 # ---------------------------------------------------------------------------
 
 
+class OrderIsOfAnotherPass(ValueError):
+    """A named order asked to produce the text of a pass it is not an order of.
+
+    `document_text` reads one pass's segments and follows the order's sequence.
+    An order of another pass names ids that pass does not hold, so the text came
+    back EMPTY, and before omissions were reported (#5090) it came back empty
+    with nothing to say why. Refusing names both passes and tells the caller
+    which `pass_id` to ask for.
+
+    Not the same refusal as `OrderPassMismatch`, which is about placing one
+    foreign SEGMENT in an order -- allowed in a flow. This is about the pairing
+    of an order and a pass at read time, where a flow is no exception: a flow
+    belongs to the pass it was made on and continues onto others.
+    """
+
+    def __init__(self, order_id: str, order_pass: str, reading_pass: str) -> None:
+        self.order_id = order_id
+        self.order_pass = order_pass
+        self.reading_pass = reading_pass
+        super().__init__(
+            f"reading order {order_id} is an order of pass {order_pass}, not of "
+            f"pass {reading_pass}: read it with pass_id={order_pass}"
+        )
+
+
 class OrderPassMismatch(ValueError):
     """A segment of another pass placed in this order.
 
