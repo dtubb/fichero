@@ -120,6 +120,22 @@ struct ReaderExportMenuItems: View {
                 }
             }
             .disabled(currentLibrary == nil || targets?.items.count != 1)
+
+            // The other direction: a PAGE XML, ALTO, TEI, hOCR or YOLO file becomes a
+            // NEW PASS on this page. Beside the existing passes, never the working
+            // pass, and nothing already there is changed. Single document only, for
+            // the same reason the export is.
+            Button {
+                guard let item = targets?.items.first, let library = currentLibrary else { return }
+                Task {
+                    await PageImportRunner.importPage(
+                        documentId: item.id, documentName: item.name, library: library
+                    )
+                }
+            } label: {
+                Label("Import Page From...", systemImage: "square.and.arrow.down")
+            }
+            .disabled(currentLibrary == nil || targets?.items.count != 1)
         }
         #else
         EmptyView()
