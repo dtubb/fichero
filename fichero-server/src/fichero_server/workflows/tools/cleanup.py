@@ -879,18 +879,34 @@ def _replace_artifact(
         )
 
     try:
-        db.save(
-            Artifact(
-                document_id=container_id,
-                artifact_type=artifact_type,
-                content=content,
-                data={"groups": groups},
-                provider=provider,
-                model=model,
-            )
+        replacement = Artifact(
+            document_id=container_id,
+            artifact_type=artifact_type,
+            content=content,
+            data={"groups": groups},
+            provider=provider,
+            model=model,
         )
+        db.save(replacement)
     except Exception as exc:
         logger.warning(f"could not save {artifact_type} artifact: {exc}")
+        return
+
+    # #4890: the fresh artifact must announce itself, or a view showing the
+    # container's `<key>_clean` artifacts keeps the swept version until somebody
+    # reselects. Emitted HERE rather than at the two call sites, because both go
+    # through this function and a rule applied in one place cannot be applied in
+    # one place only.
+    #
+    # `_for_db` because this helper is given a db and never a library path, and
+    # deriving one at each call site would be two chances to derive it differently.
+    from fichero_server.workflows.tools._workflow_change_emit import (
+        emit_workflow_artifact_changes_for_db,
+    )
+
+    emit_workflow_artifact_changes_for_db(
+        db, artifact_ids=[replacement.id], document_ids=[container_id]
+    )
 
 
 # =============================================================================
