@@ -344,10 +344,25 @@ Reading before editing (the app's first step: it draws from the seam, and edits 
   An earlier draft gave boxes their own `engineIndex` field and a review reverted it: a dozen
   existing readers send an array offset straight to `PUT …/regions`, so a second index space
   would have desynced exactly the readers it was meant to protect.
-- `source.app.edits-name-the-chosen-pass` — **[GAP]** (#4954) an edit made on the page is sent to the
+- `source.app.edits-name-the-chosen-pass` — **[OK]** (→ #4954) an edit made on the page is sent to the
   result the shown pass came from, and to no other; when what is shown changes (another pass
   wins; an artifact is chosen in the Inspector), the next edit follows it; with nothing shown,
   no edit is sent.
+  **All three clauses were already implemented and none was tested** (audited 2026-09-27): every
+  verb in `ZoomableImagePreviewMac+Regions` guarded on `ocrGeometryArtifactId`, the id of the
+  artifact whose boxes are on screen — which since the seam wiring comes from the winning PASS —
+  and clause 2 falls out of `FocusedArtifact.shared.id` being part of the preview's `.task(id:)`
+  identity, so choosing another artifact reloads the geometry and reassigns the id.
+  The refusal is the clause that was untestable, because it lived inside view methods. It is now
+  `RegionEditTarget`, extracted with the verbs' behaviour unchanged, and pinned by
+  `RegionEditTargetTests.directEditWithNothingShownIsRefused`,
+  `.selectionEditWithNothingShownIsRefused` and — the one that stops the worst version —
+  `.aStaleSelectionIsRefused`: a selection made against the PREVIOUS artifact is refused rather
+  than retargeted, because indices are positions in one artifact's box list and replaying them
+  against another deletes different boxes. 9 tests.
+  The stated exception is the marquee promotion: drawing a new region on a page with no geometry
+  artifact creates a bare `regions` artifact first (2026-08-29), which is a creation rather than
+  an edit sent to the wrong result.
 - `source.app.curated-pass-stays-on-top` — **[OK]** (→ #4954) a pass that a person made, or that
   carries any segment a person made, is shown ahead of every machine pass, as today; a newer
   machine run never covers a person's region. `OCRGeometrySelection.rankedPasses` ranks a pass
