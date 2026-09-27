@@ -49,6 +49,9 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     /// the image is a case wanted). Off, the pixels are not drawn, but the image view keeps its
     /// frame, zoom and scroll position, so every overlay stays exactly where it was.
     var imageVisible: Bool = true
+    /// The boxes and selection, drawn INSIDE the image view so AppKit's one transform moves them
+    /// with the pixels (#5020, #5142). Empty draws nothing.
+    var documentOverlay: DocumentOverlay = .empty
 
     /// The scroll view's own configuration — zoom limits, Preview.app-style
     /// overlay scrollers, and the initial hidden state that prevents a flash
@@ -202,7 +205,10 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        context.coordinator.imageView?.alphaValue = ImageLayer.alpha(visible: imageVisible)
+        if let trackingView = context.coordinator.imageView as? TrackingImageView {
+            trackingView.drawsImagePixels = imageVisible
+            context.coordinator.syncDocumentOverlay(documentOverlay, in: trackingView)
+        }
         // Entry ladder: the region rung owns the vertical swipe axis even
         // though the page around the crop could pan (2026-08-23).
         (scrollView as? SiblingSwipeScrollView)?.verticalSwipeAlwaysNavigates =

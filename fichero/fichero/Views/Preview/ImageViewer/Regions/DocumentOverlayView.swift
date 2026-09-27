@@ -17,7 +17,15 @@ final class DocumentOverlayView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     override func draw(_ dirtyRect: NSRect) {
-        let size = bounds.size
+        // The image's own rect in the image view (centred when zoomed out below fit): boxes are
+        // fractions of the IMAGE, not of the view around it.
+        guard let imageRect = (superview as? TrackingImageView)?.imageRect,
+              imageRect.width > 0, imageRect.height > 0 else { return }
+        let size = imageRect.size
+        let shift = NSAffineTransform()
+        shift.translateX(by: imageRect.minX, yBy: imageRect.minY)
+        shift.concat()
+        let dirtyRect = dirtyRect.offsetBy(dx: -imageRect.minX, dy: -imageRect.minY)
         // Strokes are drawn in document points and magnified with the page; divide by the
         // magnification so a line stays one screen point at any zoom.
         let scale = max(enclosingScrollView?.magnification ?? 1, 0.01)

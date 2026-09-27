@@ -21,6 +21,22 @@ extension ZoomableImagePreview {
         return ocrGeometry.displayIndexedBoxes
     }
 
+    /// What the document overlay draws INSIDE the image view (#5020, #5142): the boxes the canvas
+    /// shows and the selected ones, from the SAME two lists the hit-test and the region layer use,
+    /// so a click, its box and its highlight cannot disagree about which box it is.
+    var documentOverlay: DocumentOverlay {
+        let shown = displayedGeometryBoxes
+        let all = frameMatchedGeometryBoxes
+        let selection = RegionSelection.shared
+        let selected: [[Double]] = (ocrGeometryArtifactId != nil && selection.artifactId == ocrGeometryArtifactId)
+            ? selection.indices.filter { all.indices.contains($0) }.map { all[$0].bbox }
+            : []
+        return DocumentOverlay(
+            boxes: shown.map { .init(bbox: $0.box.bbox, confidence: $0.box.confidence) },
+            selected: selected
+        )
+    }
+
     /// The full box list, or nothing when the geometry names a frame other
     /// than the pixels on screen — never draw or select against a frame that
     /// is not the one shown.
@@ -70,6 +86,7 @@ extension ZoomableImagePreview {
                 imagePixelSize: imageSize == .zero ? nil : imageSize,
                 renditionId: displayedRenditionId,
                 isAddingRegion: isAddingRegion,
+                drawsSelection: false,
                 drawsSegments: SegmentEditingMode.shapeDrawsSegment(
                     isEditing: windowState?.isEditingSegments == true
                 ),

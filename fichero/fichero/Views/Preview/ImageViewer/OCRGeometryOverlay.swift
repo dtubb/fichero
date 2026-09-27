@@ -11,6 +11,10 @@ struct OCRGeometryOverlay: View {
     let geometry: OCRGeometry
     /// Normalized sub-rect of the image currently visible (zoom/pan window).
     let visible: CGRect
+    /// Whether this SwiftUI layer draws the boxes' washes and strokes. False on the Mac image
+    /// canvas since the document overlay draws them inside the scroll view (#5020, #5142); this
+    /// layer then keeps only what has not moved yet -- inline words and the hover readout.
+    var drawsBoxes: Bool = true
 
     /// Draw each word's recognised text INSIDE its box (Daniel, 2026-08-31).
     /// The hover readout answers "what does this ONE box say"; this answers
@@ -57,6 +61,8 @@ struct OCRGeometryOverlay: View {
                     // the whole point of drawing the transcription in place.
                     let plate = (colorScheme == .dark ? Color.black : Color.white)
                         .opacity(InlineWordText.plateOpacity)
+                    // Nothing to draw at all: no per-tick mapping of every box for nothing.
+                    guard drawsBoxes || inlineTextEnabled else { return }
                     for box in boxes {
                         guard let rect = BoundingBoxGeometry.viewRect(
                             normalized: box.bbox, in: size, visible: visible
@@ -78,16 +84,18 @@ struct OCRGeometryOverlay: View {
                             && OCRBoxConfidence.drawsInlineText(box.confidence)
                         if drawsText {
                             context.fill(path, with: .color(plate))
-                        } else {
+                        } else if drawsBoxes {
                             context.fill(path, with: .color(wash))
                         }
-                        context.stroke(
-                            path,
-                            with: .color(stroke),
-                            style: StrokeStyle(
-                                lineWidth: 1, dash: uncertain ? [3, 2] : []
+                        if drawsBoxes {
+                            context.stroke(
+                                path,
+                                with: .color(stroke),
+                                style: StrokeStyle(
+                                    lineWidth: 1, dash: uncertain ? [3, 2] : []
+                                )
                             )
-                        )
+                        }
                         // Inline text rides the SAME Canvas pass — the whole
                         // point of the 2026-08-28 one-Canvas fix was that a
                         // dense page must not become hundreds of laid-out
