@@ -274,7 +274,10 @@ Hands and ink
   author of the judgement; rival attributions coexist. **Segments: built** (`hand.attribute`, certainty 0–1,
   the judge as `created_by`; a second judgement never replaces the first --
   `test_hands.py::test_rival_attributions_stand_side_by_side`). **Campaigns: owed**, with campaigns.
-  Not yet: reading EpiDoc's `<handShift new>` into attributions on import.
+  **From the file too (approved 2026-09-27):** an EpiDoc `<handShift new>` becomes, on import, a hand
+  labelled with its edition ("m2 (p.cair.zen.4.59742)") and an attribution of each line it wrote,
+  whose `source` says the file said so. A file's "m1" is its own first hand, so two papyri's "m1" stay
+  two hands; merging them is a person's judgement (`test_hands.py::test_two_papyri_s_m1_are_two_hands`).
 - `source.hand.not-provenance` — **[PARTIAL]** (#4935) the Inspector shows who wrote the ink and who made the record
   as two separate facts. **The engine keeps them apart** (the attribution names the hand; its `created_by` and
   `provenance_kind` name who judged -- `test_hands.py::test_the_hand_is_not_who_made_the_record`); the Inspector

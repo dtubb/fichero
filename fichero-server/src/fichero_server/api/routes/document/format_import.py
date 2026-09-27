@@ -597,6 +597,21 @@ def write_page_into_library(
     if readings:
         db.save_many(readings)
 
+    # The hands the file names (an EpiDoc `<handShift>`), as project hands attributed to these
+    # segments with the file as their source (slice 14, #4935).
+    hands_by_segment = {
+        ids_by_ref[ref]: list(segment.foreign.get("tei:hands") or [])
+        for ref, segment in order if segment.foreign.get("tei:hands")
+    }
+    hand_attributions = 0
+    if hands_by_segment:
+        from fichero_server.api.routes.document.hands import hands_from_file
+
+        hand_attributions = hands_from_file(
+            db, hands_by_segment, edition=_edition_title(page) or source_name,
+            source=f"file: {source_name}", ctx=ctx,
+        )
+
     # The file's own reading order, as a named order. Written directly in the file's
     # sequence: placing each entry against its siblings would be quadratic, and the
     # file has already told us the order.
@@ -629,7 +644,15 @@ def write_page_into_library(
         "readings": len(readings),
         "order_entries": len(entries),
         "checksum": checksum,
+        "hand_attributions": hand_attributions,
     }
+
+
+def _edition_title(page: SourcePage) -> str | None:
+    """A TEI file's own title (the first `<title>` in its header), to name the hands it declares."""
+    header = str((page.foreign.get("tei") or {}).get("teiHeader") or "")
+    match = re.search(r"<title[^>]*>([^<]+)</title>", header)
+    return match.group(1).strip() if match else None
 
 
 def _from_the_file(format_name: str) -> dict[str, Any]:
