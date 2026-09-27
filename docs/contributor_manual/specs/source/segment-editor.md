@@ -299,6 +299,15 @@ the overlays with the image OFF; **right**, the Reader, as the text editor. The 
 workspaces keep the image on. Built as `PaneConfig` layer values on those two Preview leaves
 (`previewImage`, and the overlay layer), pinned by a `PaneListTests` test of all three panes.
 
+**Which pass the image draws (#5146, applied 2026-09-27 from the programme's rules).** When a page
+has several passes, the Source view draws the first that has boxes in this order: **hand-curated**
+(a person's pass, or any pass holding a box a person drew; the 2026-09-03 rule) → **imported from a
+file** (a PAGE, ALTO or folder import) → **machine** → **legacy artifact geometry** (boxes still read
+from an artifact, ranked among themselves by the 2026-08-25 type tiers). Newest first inside each.
+A pass with no artifact behind it is ranked, never dropped: an imported page's only pass has none,
+and dropping it is why an imported page showed its text and no boxes. The inspector's focused
+artifact still goes first when it has boxes (2026-08-27). Code: `OCRGeometrySelection.rankedPasses`.
+
 **Ruling, the Inspector rethought from the archive model (2026-09-27)**, on the four questions of
 `build-notes-inspector.md`:
 1. **Verbs, not typing.** The Inspector never types a reading or draws a shape. It offers verbs on
@@ -436,12 +445,17 @@ Reading before editing (the app's first step: it draws from the seam, and edits 
   `rankCandidates` the artifact path uses, which is what makes it literally "as today" rather
   than a second ranking. Pinned by
   `OCRGeometrySelectionTests.rankedPassesAuthorityBeatsRecency`.
-- `source.app.overlays-draw-from-the-seam` — **[OK]** (→ #4954) the boxes drawn over an image and
+- `source.app.overlays-draw-from-the-seam` — **[PARTIAL]** (→ #4954; an imported page's boxes → #5146) the boxes drawn over an image and
   over a PDF page both come from that store through one shared function, with the same
   drawing code as today and no new overlay; a page looks the same before and after the switch.
-  **The shared function exists and is tested and no view calls it** — nothing under
-  `fichero/fichero/Views` references `SegmentDisplay`, so both drawing paths still take their
-  geometry from the artifact.
+  ~~**The shared function exists and is tested and no view calls it**~~ **Corrected 2026-09-27
+  (#5146), read on disk:** both drawing paths call it first -- the image canvas in
+  `OCRGeometryOverlay.swift` (`loadOCRGeometry` → `SegmentDisplay.selected(for:store:)`) and the PDF
+  page in `PDFPageView+OCRBoxes.swift` -- with the artifact path as the fallback. What kept an
+  imported page's boxes off the image was the ranking inside it: `rankedPasses` dropped any pass with
+  no artifact type, which is every imported pass. Fixed by ranking such passes (the ladder above), and
+  pinned end to end by `ImportedPageDrawsItsBoxesTests` over the engine answer that
+  `test_imported_page_draws_its_boxes.py` records from a real PAGE import.
   **Equivalence is pinned, which is the half a unit test can make** (2026-09-27): for one page's
   boxes, the seam and today's artifact path agree field for field including `isHandDrawn`, so
   curation styling does not change the day it is wired
