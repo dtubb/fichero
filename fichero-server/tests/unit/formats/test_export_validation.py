@@ -81,19 +81,28 @@ def test_every_real_file_re_exports_valid(path):
 
 
 class TestTheScriptSaysWhatItDidNotCheck:
-    def test_an_older_version_is_neither_valid_nor_invalid(self):
-        """PAGE 2013 against the 2019 schema fails every element; that is a fact
-        about the schemas we ship, and calling it INVALID would blame the file."""
-        outcome, name, problems = script.check(_FIXTURES / "tarima_arabic_0498.page.xml")
-        assert (outcome, name) == ("other version", "pagexml")
-        assert "2013-07-15" in problems[0]
+    def test_a_version_we_vendor_no_schema_for_is_neither_valid_nor_invalid(self):
+        """ALTO 2.0 against the 4.2 schema fails every element; that is a fact about
+        the schemas we ship, and calling it INVALID would blame the file."""
+        outcome, name, problems = script.check(_FIXTURES / "altoxml_glyph_00001.alto.xml")
+        assert (outcome, name) == ("other version", "alto")
+        assert "ns-v2#" in problems[0]
+
+    def test_pagexml_2013_is_checked_against_2013_not_2019(self):
+        """Transkribus writes 2013. Before its schema was vendored every such file read
+        as 'other version'; now it is checked, and this one passes."""
+        outcome, name, _ = script.check(_FIXTURES / "tarima_arabic_0498.page.xml")
+        assert (outcome, name) == ("valid", "pagexml (pagecontent-2013-07-15.xsd)")
 
     def test_alto_4_3_is_told_from_4_2_by_the_file_it_declares(self):
-        """ALTO keeps one namespace for all of 4.x; only the declared schema file
-        says which. Kraken writes 4.3 (ReadingOrder), which 4.2 rejects."""
-        outcome, _, problems = script.check(_FIXTURES / "kraken_alto_multilingual_bsb00084914.alto.xml")
-        assert outcome == "other version"
-        assert "alto-4-3.xsd" in problems[0]
+        """ALTO keeps one namespace for all of 4.x; only the declared schema file says
+        which. Kraken declares 4.3 -- and against 4.3 its file is genuinely invalid:
+        `OtherTag` without the required LABEL, and `Page@LANG`, which no 4.x allows.
+        That is why our READER never validates: real files are not all valid."""
+        outcome, name, problems = script.check(_FIXTURES / "kraken_alto_multilingual_bsb00084914.alto.xml")
+        assert (outcome, name) == ("INVALID", "alto (alto-4-3.xsd)")
+        assert any("LABEL" in p for p in problems)
+        assert any("'LANG'" in p for p in problems)
 
     def test_a_broken_export_is_invalid_with_the_schemas_own_words(self, tmp_path):
         data = (_FIXTURES / "ocrd_gt_aepinus_0020.page.xml").read_text(encoding="utf-8")
@@ -111,6 +120,10 @@ class TestTheScriptSaysWhatItDidNotCheck:
         (tmp_path / "notes.txt").write_text("not an export\n", encoding="utf-8")
         assert script.main([str(tmp_path)]) == 1
 
-    def test_the_real_fixtures_pass_as_a_directory(self, capsys):
-        assert script.main([str(_FIXTURES)]) == 0
-        assert "0 INVALID" in capsys.readouterr().out
+    def test_the_real_fixtures_as_a_directory_report_every_outcome_honestly(self, capsys):
+        """Two third-party files are invalid by their own schemas (Kraken's ALTO, a
+        Transkribus table with `DU_*` attributes). The directory FAILS for them, which
+        is right: the script reports files, it does not forgive other tools."""
+        assert script.main([str(_FIXTURES)]) == 1
+        out = capsys.readouterr().out
+        assert "6 valid, 2 INVALID, 1 other version, 0 no schema, 1 unrecognised" in out
