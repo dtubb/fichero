@@ -6003,6 +6003,46 @@
         "response_model": "LibraryItemLinkListResponse"
       }
     ],
+    "links": [
+      {
+        "method": "POST",
+        "path": "/links",
+        "operation_id": "create_link_api_links_post",
+        "summary": "Create Link",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "TypedLinkWrite",
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/links/of/{end_id}",
+        "operation_id": "links_of_api_links_of__end_id__get",
+        "summary": "Links Of",
+        "path_params": [
+          "end_id"
+        ],
+        "query_params": [
+          {
+            "name": "include_deleted",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": "LinkListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/links/types",
+        "operation_id": "list_link_types_api_links_types_get",
+        "summary": "List Link Types",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LinkTypeListResponse"
+      }
+    ],
     "local-inference": [
       {
         "method": "GET",
@@ -7597,6 +7637,72 @@
         "response_model": "ConnectionTestResponse"
       }
     ],
+    "reading-orders": [
+      {
+        "method": "POST",
+        "path": "/reading-orders",
+        "operation_id": "create_reading_order_api_reading_orders_post",
+        "summary": "Create Reading Order",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ReadingOrderWrite",
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/reading-orders/document/{document_id}",
+        "operation_id": "list_document_orders_api_reading_orders_document__document_id__get",
+        "summary": "List Document Orders",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [
+          {
+            "name": "include_deleted",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ReadingOrderListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/reading-orders/{order_id}/entries",
+        "operation_id": "list_order_entries_api_reading_orders__order_id__entries_get",
+        "summary": "List Order Entries",
+        "path_params": [
+          "order_id"
+        ],
+        "query_params": [
+          {
+            "name": "parent_entry_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ReadingOrderEntryListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/reading-orders/{order_id}/neighbours",
+        "operation_id": "order_neighbours_api_reading_orders__order_id__neighbours_get",
+        "summary": "Order Neighbours",
+        "path_params": [
+          "order_id"
+        ],
+        "query_params": [
+          {
+            "name": "segment_id",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "NeighboursResponse"
+      }
+    ],
     "references": [
       {
         "method": "GET",
@@ -8658,6 +8764,11 @@
           },
           {
             "name": "kind",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "order",
             "required": false,
             "type": "string"
           },

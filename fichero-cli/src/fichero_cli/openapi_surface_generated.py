@@ -8534,6 +8534,73 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('links')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for links endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='links')
+        existing_apps['links'] = target_app
+
+    @target_app.command("create")
+    def links_create_post(
+        ctx: typer.Context,
+        certainty: Optional[float] = typer.Option(None, "--certainty", help="Request field: certainty."),
+        from_id: str = typer.Option(..., "--from-id", help="Request field: from_id."),
+        from_kind: Optional[str] = typer.Option(None, "--from-kind", help="Request field: from_kind."),
+        link_type: str = typer.Option(..., "--link-type", help="Request field: link_type."),
+        note: Optional[str] = typer.Option(None, "--note", help="Request field: note."),
+        to_id: str = typer.Option(..., "--to-id", help="Request field: to_id."),
+        to_kind: Optional[str] = typer.Option(None, "--to-kind", help="Request field: to_kind."),
+    ) -> None:
+        """Create Link (POST /api/links)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/links"
+            params = None
+            payload = _build_json_payload({
+                "certainty": certainty,
+                "from_id": from_id,
+                "from_kind": from_kind,
+                "link_type": link_type,
+                "note": note,
+                "to_id": to_id,
+                "to_kind": to_kind,
+            }, {
+                "certainty": {'type': 'number', 'nullable': True, 'title': 'Certainty', 'x-cli-required': False},
+                "from_id": {'type': 'string', 'title': 'From Id', 'x-cli-required': True},
+                "from_kind": {'type': 'string', 'title': 'From Kind', 'default': 'segment', 'x-cli-required': False},
+                "link_type": {'type': 'string', 'title': 'Link Type', 'x-cli-required': True},
+                "note": {'type': 'string', 'nullable': True, 'title': 'Note', 'x-cli-required': False},
+                "to_id": {'type': 'string', 'title': 'To Id', 'x-cli-required': True},
+                "to_kind": {'type': 'string', 'title': 'To Kind', 'default': 'segment', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("of")
+    def links_of_get(
+        ctx: typer.Context,
+        end_id: str = typer.Argument(..., help="Path parameter: end_id."),
+        include_deleted: Optional[bool] = typer.Option(None, "--include-deleted/--no-include-deleted", help="Query parameter: include_deleted."),
+    ) -> None:
+        """Links Of (GET /api/links/of/{end_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/links/of/{end_id}"
+            params = {
+                "include_deleted": include_deleted,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-types")
+    def links_list_types_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Link Types (GET /api/links/types)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/links/types"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('local-inference')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for local-inference endpoints.', no_args_is_help=True)
@@ -10916,6 +10983,89 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('reading-orders')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for reading-orders endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='reading-orders')
+        existing_apps['reading-orders'] = target_app
+
+    @target_app.command("create")
+    def reading_orders_create_post(
+        ctx: typer.Context,
+        certainty: Optional[float] = typer.Option(None, "--certainty", help="Request field: certainty."),
+        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
+        kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        pass_id: str = typer.Option(..., "--pass-id", help="Request field: pass_id."),
+        seed_from_pass: Optional[bool] = typer.Option(None, "--seed-from-pass/--no-seed-from-pass", help="Request field: seed_from_pass."),
+    ) -> None:
+        """Create Reading Order (POST /api/reading-orders)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/reading-orders"
+            params = None
+            payload = _build_json_payload({
+                "certainty": certainty,
+                "document_id": document_id,
+                "kind": kind,
+                "name": name,
+                "pass_id": pass_id,
+                "seed_from_pass": seed_from_pass,
+            }, {
+                "certainty": {'type': 'number', 'nullable': True, 'title': 'Certainty', 'x-cli-required': False},
+                "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
+                "kind": {'type': 'string', 'title': 'Kind', 'default': 'as-written', 'x-cli-required': False},
+                "name": {'type': 'string', 'title': 'Name', 'default': 'as-written', 'x-cli-required': False},
+                "pass_id": {'type': 'string', 'title': 'Pass Id', 'x-cli-required': True},
+                "seed_from_pass": {'type': 'boolean', 'title': 'Seed From Pass', 'default': False, 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-document")
+    def reading_orders_list_document_get(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        include_deleted: Optional[bool] = typer.Option(None, "--include-deleted/--no-include-deleted", help="Query parameter: include_deleted."),
+    ) -> None:
+        """List Document Orders (GET /api/reading-orders/document/{document_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/reading-orders/document/{document_id}"
+            params = {
+                "include_deleted": include_deleted,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-entries")
+    def reading_orders_list_entries_get(
+        ctx: typer.Context,
+        order_id: str = typer.Argument(..., help="Path parameter: order_id."),
+        parent_entry_id: Optional[str] = typer.Option(None, "--parent-entry-id", help="Query parameter: parent_entry_id."),
+    ) -> None:
+        """List Order Entries (GET /api/reading-orders/{order_id}/entries)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/reading-orders/{order_id}/entries"
+            params = {
+                "parent_entry_id": parent_entry_id,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("neighbours")
+    def reading_orders_neighbours_get(
+        ctx: typer.Context,
+        order_id: str = typer.Argument(..., help="Path parameter: order_id."),
+        segment_id: str = typer.Option(..., "--segment-id", help="Query parameter: segment_id."),
+    ) -> None:
+        """Order Neighbours (GET /api/reading-orders/{order_id}/neighbours)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/reading-orders/{order_id}/neighbours"
+            params = {
+                "segment_id": segment_id,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('references')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for references endpoints.', no_args_is_help=True)
@@ -12740,6 +12890,7 @@ def register_generated_openapi_commands(
         document_id: str = typer.Argument(..., help="Path parameter: document_id."),
         include_furniture: Optional[bool] = typer.Option(None, "--include-furniture/--no-include-furniture", help="Query parameter: include_furniture."),
         kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
+        order: Optional[str] = typer.Option(None, "--order", help="Query parameter: order."),
         pass_id: Optional[str] = typer.Option(None, "--pass-id", help="Query parameter: pass_id."),
     ) -> None:
         """Get Document Text (GET /api/segments/document/{document_id}/text)."""
@@ -12748,6 +12899,7 @@ def register_generated_openapi_commands(
             params = {
                 "include_furniture": include_furniture,
                 "kind": kind,
+                "order": order,
                 "pass_id": pass_id,
             }
             return client.request("GET", endpoint_path, params=params)

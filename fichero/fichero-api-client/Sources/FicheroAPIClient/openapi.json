@@ -4007,7 +4007,7 @@
           "segments"
         ],
         "summary": "Get Document Text",
-        "description": "`GET /api/segments/document/{document_id}/text` \u2014 the page's derived\ntext and the spans that point back at the readings it came from.",
+        "description": "`GET /api/segments/document/{document_id}/text` \u2014 the page's derived\ntext and the spans that point back at the readings it came from.\n\nWith `order`, the text follows that named order (`source.order.named-multiple`\nreaching the text, slice 10): a commentary order and an as-written order over\nthe same page give different texts, which is the whole point of naming them.",
         "operationId": "get_document_text_api_segments_document__document_id__text_get",
         "parameters": [
           {
@@ -4030,6 +4030,18 @@
               "title": "Pass Id"
             },
             "description": "Read a named pass instead of the working one"
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Follow a named reading order (its id). Omit for box order, which is what the answer's `order: null` reports.",
+              "title": "Order"
+            },
+            "description": "Follow a named reading order (its id). Omit for box order, which is what the answer's `order: null` reports."
           },
           {
             "name": "kind",
@@ -4187,6 +4199,377 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Put Source Setting Api Source Settings Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reading-orders/document/{document_id}": {
+      "get": {
+        "tags": [
+          "reading-orders"
+        ],
+        "summary": "List Document Orders",
+        "description": "`GET /api/reading-orders/document/{document_id}` \u2014 a source's orders.",
+        "operationId": "list_document_orders_api_reading_orders_document__document_id__get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "include_deleted",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include soft-deleted orders",
+              "default": false,
+              "title": "Include Deleted"
+            },
+            "description": "Include soft-deleted orders"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingOrderListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reading-orders/{order_id}/entries": {
+      "get": {
+        "tags": [
+          "reading-orders"
+        ],
+        "summary": "List Order Entries",
+        "description": "`GET /api/reading-orders/{order_id}/entries` \u2014 one LEVEL of one order.\n\nOne level at a time on purpose: orders nest (regions in order, lines in order\ninside each), and returning a whole tree would make a bounded read depend on\nhow deeply a scholar nested their reading.",
+        "operationId": "list_order_entries_api_reading_orders__order_id__entries_get",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Order Id"
+            }
+          },
+          {
+            "name": "parent_entry_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "One level at a time; omit for the top level",
+              "title": "Parent Entry Id"
+            },
+            "description": "One level at a time; omit for the top level"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingOrderEntryListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reading-orders/{order_id}/neighbours": {
+      "get": {
+        "tags": [
+          "reading-orders"
+        ],
+        "summary": "Order Neighbours",
+        "description": "`GET /api/reading-orders/{order_id}/neighbours` \u2014 what reads before and\nafter one segment IN THIS ORDER (`source.order.next-previous`).\n\nAlways of a NAMED order. There is no \"next segment\" call without one: a page\nholds several orders, so answering from a default would be the engine picking\na scholarly reading without saying so. FastAPI refuses a missing `order_id`\nat the path; `OrderNotNamed` covers a caller that reaches the function some\nother way.",
+        "operationId": "order_neighbours_api_reading_orders__order_id__neighbours_get",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Order Id"
+            }
+          },
+          {
+            "name": "segment_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The segment to find the neighbours of",
+              "title": "Segment Id"
+            },
+            "description": "The segment to find the neighbours of"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NeighboursResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reading-orders": {
+      "post": {
+        "tags": [
+          "reading-orders"
+        ],
+        "summary": "Create Reading Order",
+        "operationId": "create_reading_order_api_reading_orders_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadingOrderWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Create Reading Order Api Reading Orders Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/links/of/{end_id}": {
+      "get": {
+        "tags": [
+          "links"
+        ],
+        "summary": "Links Of",
+        "description": "`GET /api/links/of/{end_id}` \u2014 every link touching one thing, from either\nside (`source.link.both-ways`).\n\nONE call for both directions, because \"what relates to this line\" is one\nquestion a reader asks, not two. Two indexed reads answer it\n(`idx_typedlinks_from_id`, `idx_typedlinks_to_id`).",
+        "operationId": "links_of_api_links_of__end_id__get",
+        "parameters": [
+          {
+            "name": "end_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "End Id"
+            }
+          },
+          {
+            "name": "include_deleted",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include withdrawn links",
+              "default": false,
+              "title": "Include Deleted"
+            },
+            "description": "Include withdrawn links"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/links/types": {
+      "get": {
+        "tags": [
+          "links"
+        ],
+        "summary": "List Link Types",
+        "description": "`GET /api/links/types` \u2014 this library's link vocabulary, with its aliases.",
+        "operationId": "list_link_types_api_links_types_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkTypeListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/links": {
+      "post": {
+        "tags": [
+          "links"
+        ],
+        "summary": "Create Link",
+        "operationId": "create_link_api_links_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TypedLinkWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Create Link Api Links Post"
                 }
               }
             }
@@ -55099,6 +55482,133 @@
         "title": "LibraryStatsResponse",
         "description": "Response from ``GET /api/stats`` for the active library."
       },
+      "LinkListResponse": {
+        "properties": {
+          "end_id": {
+            "type": "string",
+            "title": "End Id"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/LinkRead"
+            },
+            "type": "array",
+            "title": "Links"
+          }
+        },
+        "type": "object",
+        "required": [
+          "end_id",
+          "links"
+        ],
+        "title": "LinkListResponse"
+      },
+      "LinkRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "link_type": {
+            "type": "string",
+            "title": "Link Type"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "directed": {
+            "type": "boolean",
+            "title": "Directed"
+          },
+          "other_kind": {
+            "type": "string",
+            "title": "Other Kind"
+          },
+          "other_id": {
+            "type": "string",
+            "title": "Other Id"
+          },
+          "inbound": {
+            "type": "boolean",
+            "title": "Inbound"
+          },
+          "certainty": {
+            "type": "number",
+            "nullable": true,
+            "title": "Certainty"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "link_type",
+          "label",
+          "directed",
+          "other_kind",
+          "other_id",
+          "inbound"
+        ],
+        "title": "LinkRead",
+        "description": "One link as seen FROM ONE END, which is why `label` is not `link_type`.\n\nThe same row read from the other end reads differently: A *glosses* B, B *is\nglossed by* A. A surface that showed `link_type` from both ends would tell a\nreader the wrong sentence half the time."
+      },
+      "LinkTypeListResponse": {
+        "properties": {
+          "types": {
+            "items": {
+              "$ref": "#/components/schemas/LinkTypeRead"
+            },
+            "type": "array",
+            "title": "Types"
+          },
+          "aliases": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Aliases"
+          }
+        },
+        "type": "object",
+        "required": [
+          "types",
+          "aliases"
+        ],
+        "title": "LinkTypeListResponse"
+      },
+      "LinkTypeRead": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "inverse_label": {
+            "type": "string",
+            "title": "Inverse Label"
+          },
+          "builtin": {
+            "type": "boolean",
+            "title": "Builtin"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "inverse_label",
+          "builtin"
+        ],
+        "title": "LinkTypeRead"
+      },
       "LocalInferenceCapabilitiesResponse": {
         "properties": {
           "system": {
@@ -57916,6 +58426,34 @@
         ],
         "title": "NeighborhoodResponse",
         "description": "Focus entity + neighbors + SVO edges. Bounded by `hops` + `limit`.\n\nNeighbors are ranked-then-truncated when more than ``limit`` are\nreachable \u2014 see the ``rank`` query param. (#993)"
+      },
+      "NeighboursResponse": {
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "title": "Order Id"
+          },
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "previous_segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Previous Segment Id"
+          },
+          "next_segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Next Segment Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "order_id",
+          "segment_id"
+        ],
+        "title": "NeighboursResponse"
       },
       "NodeCompareRequest": {
         "properties": {
@@ -61588,6 +62126,185 @@
         ],
         "title": "ReadingListResponse",
         "description": "A segment's readings AND which one counts, in one answer.\n\nThe counting answer rides on the list DELIBERATELY: a client that had to\nmake a second call for it would render the list first, and the first frame\na person sees would show a machine's guess with no label on it."
+      },
+      "ReadingOrderEntryListResponse": {
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "title": "Order Id"
+          },
+          "parent_entry_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Entry Id"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingOrderEntryRead"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "order_id",
+          "entries"
+        ],
+        "title": "ReadingOrderEntryListResponse"
+      },
+      "ReadingOrderEntryRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "order_id": {
+            "type": "string",
+            "title": "Order Id"
+          },
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "position": {
+            "type": "number",
+            "title": "Position"
+          },
+          "parent_entry_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Entry Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "order_id",
+          "segment_id",
+          "position",
+          "version"
+        ],
+        "title": "ReadingOrderEntryRead"
+      },
+      "ReadingOrderListResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "orders": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingOrderRead"
+            },
+            "type": "array",
+            "title": "Orders"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "orders"
+        ],
+        "title": "ReadingOrderListResponse"
+      },
+      "ReadingOrderRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "pass_id": {
+            "type": "string",
+            "title": "Pass Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "provenance_kind": {
+            "type": "string",
+            "title": "Provenance Kind"
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Created By"
+          },
+          "certainty": {
+            "type": "number",
+            "nullable": true,
+            "title": "Certainty"
+          },
+          "entry_count": {
+            "type": "integer",
+            "title": "Entry Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "document_id",
+          "pass_id",
+          "name",
+          "kind",
+          "provenance_kind",
+          "entry_count"
+        ],
+        "title": "ReadingOrderRead",
+        "description": "One order, without its entries: a list of orders must not pull every\nentry of every order (`source.store.bounded-reads`)."
+      },
+      "ReadingOrderWrite": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "pass_id": {
+            "type": "string",
+            "title": "Pass Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": "as-written"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": "as-written"
+          },
+          "certainty": {
+            "type": "number",
+            "nullable": true,
+            "title": "Certainty"
+          },
+          "seed_from_pass": {
+            "type": "boolean",
+            "title": "Seed From Pass",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "document_id",
+          "pass_id"
+        ],
+        "title": "ReadingOrderWrite",
+        "description": "`POST /api/reading-orders` \u2014 make an order. The other writes are the\naudited actions, reached through the action layer like every other write."
       },
       "ReadingRead": {
         "properties": {
@@ -69612,6 +70329,50 @@
           "count"
         ],
         "title": "TriggerResponseList"
+      },
+      "TypedLinkWrite": {
+        "properties": {
+          "from_id": {
+            "type": "string",
+            "title": "From Id"
+          },
+          "to_id": {
+            "type": "string",
+            "title": "To Id"
+          },
+          "link_type": {
+            "type": "string",
+            "title": "Link Type"
+          },
+          "from_kind": {
+            "type": "string",
+            "title": "From Kind",
+            "default": "segment"
+          },
+          "to_kind": {
+            "type": "string",
+            "title": "To Kind",
+            "default": "segment"
+          },
+          "certainty": {
+            "type": "number",
+            "nullable": true,
+            "title": "Certainty"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "from_id",
+          "to_id",
+          "link_type"
+        ],
+        "title": "TypedLinkWrite"
       },
       "UndoResponse": {
         "properties": {
