@@ -71,6 +71,23 @@ def test_missing_library_path_omits_header():
     assert "x-fichero-library-path" not in seen[0].headers
 
 
+def test_empty_library_path_is_not_replaced_by_environment(monkeypatch):
+    """``library_path=""`` means "no library", even with FICHERO_LIBRARY_PATH set.
+
+    WHY (#5136, acceptance defect 15): ``library_path or os.environ[...]``
+    turned the documented "explicit no library" back into the environment's
+    library, so a caller that deliberately spoke library-free (health, the
+    registry) sent a library header anyway -- and the engine used to create
+    whatever package that header named. If this regresses the header returns.
+    """
+    monkeypatch.setenv("FICHERO_LIBRARY_PATH", "/tmp/FromEnv.fichero")
+    handler, seen = _capture()
+    client = _client(handler, library_path="")
+    assert client.library_path == ""
+    client.health()
+    assert "x-fichero-library-path" not in seen[0].headers
+
+
 # -- request construction --------------------------------------------------
 def test_none_query_params_are_dropped():
     handler, seen = _capture(response=[])

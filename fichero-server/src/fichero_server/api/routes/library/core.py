@@ -53,7 +53,7 @@ def _register_known_library(stored_path: str, package: Path) -> None:
     the create."""
     try:
         # Write to the global registry DB (where GET /api/registry reads from)
-        registry_db = db_manager.get_database(str(settings.global_library_path))
+        registry_db = db_manager.get_database(str(settings.global_library_path), create=True)
         existing = registry_db.query(KnownLibrary, path=stored_path)
         if not existing:
             # New library — register it with basename as name
@@ -136,7 +136,7 @@ def create_library(
     try:
         # Idempotent — if the DB already exists it just re-opens it.
         # Triggers all migrations + workflow seeding on first creation.
-        db_manager.get_database(stored_path)
+        db_manager.get_database(stored_path, create=True)
     except Exception as exc:  # pragma: no cover - exercised live, not in unit
         logger.error("Failed to initialize library DB at %s: %s", package, exc)
         raise HTTPException(

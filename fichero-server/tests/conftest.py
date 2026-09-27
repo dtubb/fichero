@@ -746,7 +746,9 @@ def mock_db(monkeypatch):
     resolves to a controllable MagicMock instance.
     """
     mock = MagicMock()
-    monkeypatch.setattr(db_manager, "get_database", lambda _path: mock)
+    # `**_kw`: the global-library and New Library callers pass `create=True`
+    # (#5136); the mock must accept it like the real method.
+    monkeypatch.setattr(db_manager, "get_database", lambda _path, **_kw: mock)
     return mock
 
 
