@@ -122,8 +122,10 @@ def expand_swift_path_components(text: str) -> str:
     Appended rather than substituted: the array may be any list of strings, and the reassembled
     path is an extra thing to match against, never a claim about what the array meant.
     """
+    # Emitted QUOTED, because `dialled_paths` reads whole string literals: an unquoted
+    # reassembled path would be invisible to it and the SSE streams would read as unreached.
     extras = [
-        "/" + "/".join(_QUOTED_RE.findall(match.group(1)))
+        '"/' + "/".join(_QUOTED_RE.findall(match.group(1))) + '"'
         for match in _SWIFT_STRING_ARRAY_RE.finditer(text)
     ]
     return text + "\n" + "\n".join(extras) if extras else text
@@ -179,6 +181,35 @@ def path_is_dialled(normalized_path: str, blob: str) -> bool:
         rf"(?:^|(?<=[\s\"'`(,=:\[])){re.escape(normalized_path)}(?![A-Za-z0-9_/-])",
         blob,
     ) is not None
+
+
+_PATH_LITERAL_RE = re.compile(r'"(/[^"\s]*)"')
+_IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def dialled_paths(blob: str) -> frozenset[str]:
+    """Every path the source actually dials, as a set of whole tokens.
+
+    This replaces asking `is this path a substring of the file` 742 times over a 10 MB blob —
+    which was both slow (the check became the guardrail suite's bottleneck) and the source of
+    the boundary problems: `/links` is a substring of `/links/types`, of `/claims/{}/links`,
+    and of the prose "inline code/links". Extracting whole string literals removes the question
+    instead of answering it more carefully, and turns 742 scans into one.
+
+    A query string is dropped and a trailing slash is normalised away, so `"/search?q={}"` and
+    `"/search/"` both answer for `/search`.
+    """
+    found: set[str] = set()
+    for literal in _PATH_LITERAL_RE.findall(blob):
+        token = literal.split("?", 1)[0]
+        found.add(token)
+        found.add(token.rstrip("/") or "/")
+    return frozenset(found)
+
+
+def source_identifiers(blob: str) -> frozenset[str]:
+    """Every identifier in the source, so an operation-name lookup is a set membership test."""
+    return frozenset(_IDENTIFIER_RE.findall(blob))
 
 
 def endpoint_key(method: str, path: str) -> str:

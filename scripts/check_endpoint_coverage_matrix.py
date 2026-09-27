@@ -35,7 +35,6 @@ Usage:
 """
 from __future__ import annotations
 
-import re
 import sys
 
 from _check_floor import require_scan_floor
@@ -48,10 +47,11 @@ from matrix_guardrail_common import (
     endpoint_key,
     load_known_gaps,
     load_openapi,
+    dialled_paths,
     normalize_path,
-    path_is_dialled,
     read_normalized_blob,
     read_swift_code_blob,
+    source_identifiers,
     swift_operation_name,
 )
 
@@ -94,9 +94,13 @@ class Row:
 def scan() -> list[Row]:
     openapi_path, spec = load_openapi()
     del openapi_path
+    # Tokenised once, not searched 742 times: the per-endpoint regex scans over a 10 MB blob
+    # made this the guardrail suite's slowest script by minutes (2026-09-27).
     swift_blob = read_swift_code_blob(SWIFT_SOURCES)
-    cli_blob = read_normalized_blob(CLI_SOURCES)
-    handwritten_cli_blob = read_normalized_blob(HANDWRITTEN_CLI_SOURCES)
+    swift_names = source_identifiers(swift_blob)
+    swift_paths = dialled_paths(swift_blob)
+    cli_paths = dialled_paths(read_normalized_blob(CLI_SOURCES))
+    handwritten_cli_paths = dialled_paths(read_normalized_blob(HANDWRITTEN_CLI_SOURCES))
     rows: list[Row] = []
     for path, path_item in sorted(spec.get("paths", {}).items()):
         if not isinstance(path_item, dict):
@@ -107,17 +111,15 @@ def scan() -> list[Row]:
             endpoint = endpoint_key(method, path)
             normalized = normalize_path(path)
             operation_name = swift_operation_name(operation.get("operationId", ""))
-            reached_by_name = bool(operation_name) and re.search(
-                rf"\b{re.escape(operation_name)}\b", swift_blob
-            ) is not None
             rows.append(
                 Row(
                     endpoint=endpoint,
-                    # The generated client first, a hand-dialled path second — a word boundary
-                    # on the operation name so `listClaims` cannot answer for `listClaimsFor`.
-                    store=reached_by_name or path_is_dialled(normalized, swift_blob),
-                    cli=path_is_dialled(normalized, cli_blob),
-                    handwritten_cli=path_is_dialled(normalized, handwritten_cli_blob),
+                    # The generated client first, a hand-dialled path second. Both are whole-token
+                    # lookups, so `listClaims` cannot answer for `listClaimsFor` and `/links`
+                    # cannot answer for `/links/types`.
+                    store=operation_name in swift_names or normalized in swift_paths,
+                    cli=normalized in cli_paths,
+                    handwritten_cli=normalized in handwritten_cli_paths,
                 )
             )
     return rows

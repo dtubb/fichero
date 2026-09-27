@@ -39,8 +39,8 @@ from matrix_guardrail_common import (
     endpoint_key,
     load_known_gaps,
     load_openapi,
+    dialled_paths,
     normalize_path,
-    path_is_dialled,
     read_swift_code_blob,
 )
 
@@ -77,7 +77,12 @@ def _is_candidate(path: str) -> bool:
 
 def scan() -> list[Row]:
     _, spec = load_openapi()
-    undo_blob = read_swift_code_blob(UNDO_SOURCES)
+    # One read per undo file, not one per file per endpoint: the old evidence loop read all
+    # 17 sources twice for each of 393 operations (2026-09-27).
+    per_source = {
+        str(source.relative_to(ROOT)): dialled_paths(read_swift_code_blob([source]))
+        for source in UNDO_SOURCES
+    }
     rows: list[Row] = []
     for path, path_item in sorted(spec.get("paths", {}).items()):
         if not _is_candidate(path) or not isinstance(path_item, dict):
@@ -95,9 +100,7 @@ def scan() -> list[Row]:
             # of `normalize_path(file_text)`, which collapsed Swift braces as if the file
             # were an OpenAPI path and let a comment stand in for a registration (#5108).
             evidence: tuple[str, ...] = tuple(
-                str(source.relative_to(ROOT))
-                for source in UNDO_SOURCES
-                if path_is_dialled(normalized, read_swift_code_blob([source]))
+                name for name, paths in per_source.items() if normalized in paths
             )
             rows.append(
                 Row(

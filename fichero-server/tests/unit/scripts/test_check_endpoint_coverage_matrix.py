@@ -38,7 +38,9 @@ from matrix_guardrail_common import (  # noqa: E402
     normalize_path,
     normalize_source,
     normalize_text,
+    dialled_paths,
     path_is_dialled,
+    source_identifiers,
     strip_swift_comments,
     swift_operation_name,
 )
@@ -128,7 +130,43 @@ class TestSourceNormalisationKeepsTheCode:
         assert rows["POST /api/kg/pykeen/reviews"].store is True
 
 
+class TestTheLookupIsWholeTokens:
+    """How the two witnesses are tested, and why it is a set and not 742 regex scans.
+
+    Per-endpoint regex over a 10 MB blob made this the guardrail suite's slowest script — it
+    ran for over ten minutes without finishing while the backend suite was also running, and
+    `verify_all.sh` globs every `scripts/check_*.py`. Extracting whole tokens once gives the
+    identical verdict (236 gaps) in under a second, and removes the boundary question rather
+    than answering it more carefully.
+    """
+
+    def test_paths_are_extracted_as_whole_string_literals(self):
+        blob = 'get("/links") get("/links/types") get("/search?q={}")'
+        paths = dialled_paths(blob)
+        assert "/links" in paths
+        assert "/links/types" in paths
+        assert "/search" in paths, "a query string must not hide the path"
+
+    def test_prose_contributes_no_paths(self):
+        """"inline code/links" used to answer for POST /api/links."""
+        assert dialled_paths("bold/italic/inline code/links)") == frozenset()
+
+    def test_a_reassembled_component_array_is_emitted_quoted(self):
+        """Unquoted it would be invisible to the literal reader, and the SSE streams would
+        read as unreached — which is exactly what happened on the first attempt."""
+        expanded = expand_swift_path_components('streamLines(pathComponents: ["activity", "stream"])')
+        assert '"/activity/stream"' in expanded
+        assert "/activity/stream" in dialled_paths(expanded)
+
+    def test_an_operation_name_lookup_is_exact(self):
+        names = source_identifiers("client.api.listClaimsForDocument(x)")
+        assert "listClaimsForDocument" in names
+        assert "listClaims" not in names, "a prefix must not answer for a longer method"
+
+
 class TestAPathMatchHasBothEnds:
+    """The boundary rule `path_is_dialled` still backs guards that scan text directly."""
+
     """Defect 4. `normalize_text` strips `/api/`, which makes short paths match everything."""
 
     def test_an_exact_dial_matches(self):
