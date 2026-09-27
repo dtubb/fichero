@@ -347,3 +347,40 @@ class TestThroughTheOneModelFromAnotherFormat:
         assert got == was and len(was) > 10
         assert len([s for s in back.segments if s.kind == "line"]) == len([s for s in page.segments if s.kind == "line"])
         assert "graphic segments" in report.lost, "the file's graphic region has no TEI element and says so"
+
+
+EPIDOC = sorted((Path(__file__).parent / "fixtures" / "corpus").glob("ddbdp_*.tei.xml"))
+
+
+def _choice_pairs(data: bytes) -> list[tuple[str, str]]:
+    """Each `<choice>`'s two sides, as the encoder wrote them, from the file itself."""
+    from lxml import etree
+
+    ns = {"t": "http://www.tei-c.org/ns/1.0"}
+    pairs = []
+    for choice in etree.fromstring(data).iterfind(".//t:choice", ns):
+        sides = ["".join(child.itertext()).strip() for child in choice if isinstance(child.tag, str)]
+        if len(sides) == 2 and all(sides):
+            pairs.append((sides[0], sides[1]))
+    return pairs
+
+
+class TestAChoiceIsNotTwoWordsRunTogether:
+    """Four DDbDP papyri (EpiDoc, CC BY 3.0, `fixtures/corpus/CORPUS.md`). A `<choice>` is two
+    readings of one stretch -- as written and regularised -- that an encoder paired
+    (`readings-and-apparatus.md`, the `<choice>` note). Our reader concatenates the two sides,
+    so `<reg>κεχωνευμένα</reg><orig>κεχωνημένα</orig>` imports as ONE word,
+    "κεχωνευμένακεχωνημένα", that is on neither the papyrus nor in the edition: search, the
+    reading, and every export then carry a word nobody wrote. Found on real files; a round trip
+    of our own writer never makes a `<choice>`, so it could not see this."""
+
+    @pytest.mark.xfail(strict=True, reason="#5130: TEI reader concatenates both sides of <choice>")
+    @pytest.mark.parametrize("path", EPIDOC, ids=lambda p: p.name)
+    def test_no_reading_holds_both_sides_joined(self, path):
+        data = path.read_bytes()
+        pairs = _choice_pairs(data)
+        assert pairs, f"{path.name} has no <choice> -- this test tests nothing on it"
+        texts = [text for s in read_page("tei", data).segments for _kind, text in s.readings]
+        joined = [a + b for a, b in pairs] + [b + a for a, b in pairs]
+        glued = [j for j in joined if any(j in text for text in texts)]
+        assert glued == [], f"{path.name}: both sides of a <choice> read as one word: {glued[:3]}"

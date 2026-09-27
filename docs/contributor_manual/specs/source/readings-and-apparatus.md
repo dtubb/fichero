@@ -307,7 +307,19 @@ Marks and descriptions
 
 ## Test matrix
 
-To be filled at approval.
+To be filled at approval. Until then, the real files that hands, campaigns and editorial facts are
+tested on:
+
+- **Until the EpiDoc editions are wired in, the TEI Consortium's transcription test file
+  (`fichero-server/tests/unit/formats/fixtures/tei_consortium_testtranscr.xml`) is the only real `@hand`
+  in the fixtures.** One file, one project's idea of hands.
+- **Four DDbDP papyri** (EpiDoc, CC BY 3.0, vendored 2026-09-27; rows in
+  `fichero-server/tests/unit/formats/fixtures/corpus/CORPUS.md`, files `ddbdp_greek-papyrus_*.tei.xml`):
+  `<handShift new>` (up to three hands a papyrus), `<unclear>`, `<supplied reason="lost">`, `<gap>`,
+  `<del>`, `<add>` and `<choice><reg>/<orig>`. They are what `source.hand.*`, `source.campaign.*` and
+  `source.sure.editorial-facts` are to be built against. They already found one defect: the TEI reader
+  joins both sides of a `<choice>` into one word (`test_tei.py::TestAChoiceIsNotTwoWordsRunTogether`,
+  strict xfail, #5130).
 
 ## Open questions
 
