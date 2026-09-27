@@ -780,6 +780,32 @@ def _why_omitted(
     return OmittedSegment(segment_id=segment_id, reason="unknown")
 
 
+#: WHICH DERIVATION wrote a cached page text (`page_text_cache.DERIVATION_STAMP`). Bump it in the
+#: same commit as any change to what `document_text` produces, and re-pin the digest below.
+#:
+#: Why a number and not "the cache is refreshed when something changes": #5148 changed the
+#: derivation (a region's own text stopped doubling its lines), and every page cached before the
+#: fix kept the doubled text, because nothing on those pages changed. A changed derivation under
+#: an unchanged stamp is exactly that bug; a bumped stamp makes the next read re-derive the page,
+#: once. 1: before stamping. 2: text once (#5148) and direction from line shapes (#5147).
+DERIVATION_VERSION = 2
+#: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
+#: change to the code without a bump fails `test_derivation_version.py`.
+DERIVATION_SOURCE_SHA256 = "044b0bc0843899e31a49c6f24a833b8450a4ba2109535164743abf6a80df5d0d"
+
+
+def derivation_source_digest() -> str:
+    """sha256 over the source of the functions that decide a page's derived text."""
+    import hashlib
+    import inspect
+
+    functions = (
+        document_text, _text_bearing_rows, _readings_for_live_rows, _document_readings,
+        _segment_order_key, _direction_of, _lines_are_vertical,
+    )
+    return hashlib.sha256("\n".join(inspect.getsource(f) for f in functions).encode()).hexdigest()
+
+
 def _direction_of(
     row: Segment, document: Any, text: str | None, lines_are_vertical: bool | None = None
 ) -> tuple[str | None, str | None]:

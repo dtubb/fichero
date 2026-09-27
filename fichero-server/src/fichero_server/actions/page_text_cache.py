@@ -138,6 +138,58 @@ def cache_text(derived: Any) -> str:
     return derived.text
 
 
+#: `Document.metadata` key holding the `DERIVATION_VERSION` the stored `page_content` was derived
+#: under. Absent means "before stamping existed": as stale as any older number.
+DERIVATION_STAMP = "page_text_derivation"
+
+
+def _store(db: Any, doc: Any, text: str, now: Any) -> bool:
+    """Write the cache and stamp it with the derivation that produced it. True when the TEXT
+    changed (a page to re-embed); a stamp-only update is saved but is not a text change."""
+    from fichero_server.api.routes.document.segment_readings import DERIVATION_VERSION
+
+    metadata = dict(doc.metadata or {})
+    text_changed = text != (doc.page_content or "")
+    if not text_changed and metadata.get(DERIVATION_STAMP) == DERIVATION_VERSION:
+        return False
+    metadata[DERIVATION_STAMP] = DERIVATION_VERSION
+    doc.metadata = metadata
+    if text_changed:
+        doc.page_content = text
+        doc.updated_at = now
+    db.save(doc)
+    return text_changed
+
+
+def ensure_current(db: Any, document_ids: list[str]) -> list[str]:
+    """Re-derive, ONCE, any of these pages whose cached text predates the current derivation.
+
+    Called on read (the Reader's page, #5148 follow-up). A changed derivation used to leave every
+    page cached under the old one wrong until something else happened to touch it: the doubled
+    Chinese text stayed doubled in libraries imported before the fix. The stamp makes a cache say
+    which derivation wrote it; a read that finds an older one refreshes it, stamps it, and the
+    next read costs one dict lookup. Pages that are not a derived cache -- no working pass, or a
+    person's own edit of `page_content` -- are left alone. Returns the ids whose text changed."""
+    from fichero_server.api.routes.document.segment_readings import DERIVATION_VERSION, document_text
+    from fichero_server.core.timeutil import utc_now
+    from fichero_server.models import Document
+    from fichero_server.workflows.curation_guard import page_content_is_user_edited
+
+    changed: list[str] = []
+    for document_id in document_ids:
+        doc = db.get(Document, document_id)
+        if doc is None or (doc.metadata or {}).get(DERIVATION_STAMP) == DERIVATION_VERSION:
+            continue
+        if page_content_is_user_edited(doc) or _working_pass_id(db, document_id) is None:
+            continue
+        derived = document_text(db, document_id)
+        if derived.pass_id is None:
+            continue
+        if _store(db, doc, cache_text(derived), utc_now()):
+            changed.append(document_id)
+    return changed
+
+
 def refresh_in_transaction(db: Any, spec: Any, action_name: str = "", params: Any = None) -> list[str]:
     """Rewrite `page_content` for the pages this action changed the text of. Returns the ids whose
     stored text actually changed (the ones to re-embed)."""
@@ -168,13 +220,8 @@ def refresh_in_transaction(db: Any, spec: Any, action_name: str = "", params: An
         derived = document_text(db, document_id)
         if derived.pass_id is None:
             continue  # no working pass: nothing derives, so nothing is cached
-        text = cache_text(derived)
-        if text == (doc.page_content or ""):
-            continue
-        doc.page_content = text
-        doc.updated_at = utc_now()
-        db.save(doc)
-        changed.append(document_id)
+        if _store(db, doc, cache_text(derived), utc_now()):
+            changed.append(document_id)
     return changed
 
 

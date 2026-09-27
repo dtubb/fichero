@@ -769,6 +769,15 @@ async def document_view(
     if selected_page_ids is not None:
         child_pages = [p for p in child_pages if p.id in selected_page_ids]
     region_scoped = any(p.region_in_parent is not None for p in child_pages)
+    # A page cached under an older derivation is re-derived once, here, before it is shown
+    # (`page_text_cache.ensure_current`): the Reader is where a stale text is seen.
+    from fichero_server.actions.page_text_cache import ensure_current
+
+    refreshed = set(ensure_current(db, [document.id, *(p.id for p in child_pages)]))
+    if refreshed:
+        if document.id in refreshed:
+            document = db.get(Document, document.id) or document
+        child_pages = [db.get(Document, p.id) or p if p.id in refreshed else p for p in child_pages]
     pages = transcript_pages(document, child_pages)
     annotations_payload: list[dict[str, object]] | None = None
     compare_payload: dict[str, object] | None = None
