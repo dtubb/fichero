@@ -78,9 +78,8 @@ NOISE = 0.10
 THROTTLED = {"serious", "critical"}
 READABLE_THERMAL = {"nominal", "fair", *THROTTLED}
 #: Memory "grows in proportion to the count" when the peak at 20,000 shapes is at least this
-#: fraction of the way from flat (x1) to proportional (x4). The spec rules the principle
-#: (growth with the count fails regardless of the absolute figure) and not the line; this is
-#: the line, named so it can be ruled rather than argued.
+#: fraction of the way from flat (x1) to proportional (x4): x2.5 or more FAILS. Ruled by the
+#: maintainer 2026-09-27, as is the edit gate deciding on the WORST run.
 PROPORTIONAL_FRACTION = 0.5
 DEFAULT_BASELINE = Path(__file__).with_name("perf_trial_baseline.json")
 
