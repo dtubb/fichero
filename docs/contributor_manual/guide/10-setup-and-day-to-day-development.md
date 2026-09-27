@@ -13,7 +13,7 @@ Building the app needs a Mac on **macOS 26** with **Xcode 26** (deployment targe
     pip install -e 'fichero-server[dev]'
     pip install pytest ruff
 
-The last line is not optional: `pytest` and `ruff` are neither runtime dependencies nor part of the `[dev]` extra, but the lint and test commands assume both are on your `PATH`. There is **no** `requirements.txt` — `fichero-server/pyproject.toml` is the dependency manifest (runtime deps plus the `[dev]`, `[kg]`, `[image]` extras). Briefcase is a build tool, not a runtime dependency.
+The last line is not optional: `pytest` and `ruff` are neither runtime dependencies nor part of the `[dev]` extra, but the lint and test commands assume both are on your `PATH`. `fichero-server/pyproject.toml` is the dependency manifest (runtime deps plus the `[dev]`, `[kg]`, `[image]` extras); the `fichero-server/requirements.txt` beside it is a **generated mirror** of what the app bundle ships, for matching a dev venv to it, and never a source to edit. Briefcase is a build tool, not a runtime dependency.
 
 ### Running the app
 

@@ -101,10 +101,14 @@ The last line is not optional. `pytest` and `ruff` are neither runtime dependenc
 part of the `[dev]` extra, but the lint and test commands in `AGENTS.md` assume both are
 on your `PATH`.
 
-**3. There is no `requirements.txt`.** `fichero-server/pyproject.toml` is the
-dependency manifest: the runtime dependencies plus the optional extras `[dev]`,
-`[kg]` and `[image]`. The only `requirements-*.txt` in the repo is
-`requirements-docs.txt`, which builds this documentation site and nothing else.
+**3. Do not install from a requirements file.** `fichero-server/pyproject.toml` is
+the dependency manifest: the runtime dependencies plus the optional extras `[dev]`,
+`[kg]` and `[image]`. Two `requirements-*.txt`-shaped files exist and neither is a
+manifest: `requirements-docs.txt` builds this documentation site and nothing else,
+and `fichero-server/requirements.txt` is a GENERATED mirror of pyproject's shipped
+union (`scripts/check_requirements_matches_pyproject.py` fails when the two drift),
+kept so the dev venv can be matched to what the app bundle actually ships. Change a
+dependency in pyproject and regenerate; never the other way round.
 **Briefcase is a build tool**
 (`fichero-server/scripts/build_backend_bundle.sh` uses it to package the engine into
 the shipped app).
