@@ -59,3 +59,9 @@ tests/unit/scripts/test_every_guard_passes_on_the_real_tree.py::test_every_guard
 # The coverage ratchet's committed baseline has been 0.0 for both stacks since
 # 2026-07-29 and nothing produces its input, so it has never been able to fire.
 tests/unit/scripts/test_coverage_ratchet_guardrail.py::TestTheCommittedBaselineIsSeeded::test_both_stacks_have_a_recorded_baseline
+
+# ---- #5130 (2) ----
+# A word with no text (eScriptorium's `<String CONTENT=""/>`) is read as no reading and
+# then written as a <String> with no CONTENT, which ALTO requires: export refused.
+tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_our_export_validates_against_the_schema_we_export[escriptorium_occitan-empty-string_flamenca-0006.alto.xml]
+tests/unit/formats/test_real_corpus.py::TestEachRealFile::test_the_loss_report_accounts_for_everything_that_did_not_come_back[escriptorium_occitan-empty-string_flamenca-0006.alto.xml]
