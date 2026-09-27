@@ -916,9 +916,19 @@ gate, like the frame gate, is on the worst value. Memory "grows with the count" 
 - `source.perf.names-its-machine` — **[PARTIAL]** (#4940; the verdict is built and pinned by `fichero-server/tests/unit/scripts/test_perf_trial.py::TestNamesItsMachine::test_a_debug_build_is_refused`, `::TestNamesItsMachine::test_a_result_with_no_machine_is_refused`. No measurement has been recorded yet) every recorded number carries the device model,
   the OS version, the build configuration and the fixture it was measured on; a Release build,
   never Debug.
-- `source.perf.declared-fixture` — **[GAP]** (#4940) the trial's page is one committed fixture whose
+- `source.perf.declared-fixture` — **[OK]** (→ #4940) the trial's page is one committed fixture whose
   shape count, nesting and size distribution come from a named real page, and whose own file
-  says it is generated.
+  says it is generated. `scripts/perf_fixture.py` generates it deterministically from
+  `scripts/perf_trial_fixture.json`, which holds the SAMPLES measured on two named real pages
+  (OCR-D's Aepinus page and the ALTO project's page): lines per region, words per line,
+  characters per word from each word's real text, and word width over line height. It is
+  generated because the densest real page here is 576 shapes and none has character-level
+  shapes. What is chosen (equal character widths, columns proportioned to the page, one uniform
+  scale) is declared as chosen. 20,000 requested gives 20,076 shapes on four levels of nesting, and
+  it exports as valid PAGE. Pinned by
+  `fichero-server/tests/unit/scripts/test_perf_fixture.py::test_the_committed_samples_are_what_the_named_real_pages_measure` (the declaration is
+  re-measured, not asserted), `::test_relative_sizes_are_the_real_ones` and
+  `::test_two_runs_measure_one_page`.
 - `source.perf.void-when-throttled` — **[PARTIAL]** (#4940; the verdict is built and pinned by `fichero-server/tests/unit/scripts/test_perf_trial.py::TestVoidWhenThrottled::test_a_throttled_run_is_void_not_failing`, `::TestVoidWhenThrottled::test_an_unreadable_thermal_state_is_refused_not_passed`. No measurement has been recorded yet) a run taken on a thermally throttled or busy
   machine is void rather than failing, and a run that cannot read the thermal state records
   nothing at all rather than recording a pass.
