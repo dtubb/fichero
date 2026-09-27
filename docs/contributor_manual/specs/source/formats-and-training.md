@@ -158,6 +158,12 @@ Rules for every format
 - `source.format.export-validated` — **[GAP]** (#4943) an export is validated against its schema; an invalid
   one is a reported failure.
 - `source.format.loss-report` — **[GAP]** (#4943) every export states what it could not carry.
+  **The round trip subtracts exactly what the loss report names** (ruled 2026-09-26). That makes
+  honesty the acceptance criterion rather than completeness, which is the only way this work is ever
+  finishable — no format carries everything. A writer that drops something silently fails its round
+  trip; a writer that drops something and says so passes. So every future loss is a test change
+  somebody has to write down, rather than a silent regression: **a loss discovered later is a bug, a
+  loss declared in advance is a specification.**
 Round trips (export then import returns the same segments, shapes, orders and readings, less
 what the loss report named), one for each format that goes both ways:
 - `source.format.round-trip-pagexml` — **[GAP]** (#4944) the PAGEXML round trip holds.
