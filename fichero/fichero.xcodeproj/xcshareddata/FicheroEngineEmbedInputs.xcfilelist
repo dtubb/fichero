@@ -66,6 +66,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/dataset.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/documents.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/folders.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/format_import.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/hands.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/inspector.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/notes.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/page_export.py
@@ -342,6 +343,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/models/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/anchors.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/canvas.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/conversion.py
+$(SRCROOT)/../fichero-server/src/fichero_server/models/hands.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/hermeneutics.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/knowledge.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/node_aliases.py
