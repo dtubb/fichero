@@ -15,6 +15,9 @@ struct OCRGeometryOverlay: View {
     /// canvas since the document overlay draws them inside the scroll view (#5020, #5142); this
     /// layer then keeps only what has not moved yet -- inline words and the hover readout.
     var drawsBoxes: Bool = true
+    /// Whether this layer draws the inline words. False on the Mac image canvas since the document
+    /// overlay draws them on the page (#5142); this layer then keeps only the hover readout.
+    var drawsInlineText: Bool = true
 
     /// Draw each word's recognised text INSIDE its box (Daniel, 2026-08-31).
     /// The hover readout answers "what does this ONE box say"; this answers
@@ -62,7 +65,7 @@ struct OCRGeometryOverlay: View {
                     let plate = (colorScheme == .dark ? Color.black : Color.white)
                         .opacity(InlineWordText.plateOpacity)
                     // Nothing to draw at all: no per-tick mapping of every box for nothing.
-                    guard drawsBoxes || inlineTextEnabled else { return }
+                    guard drawsBoxes || (inlineTextEnabled && drawsInlineText) else { return }
                     for box in boxes {
                         guard let rect = BoundingBoxGeometry.viewRect(
                             normalized: box.bbox, in: size, visible: visible
@@ -80,7 +83,7 @@ struct OCRGeometryOverlay: View {
                         let uncertain = OCRBoxConfidence.isUncertain(box)
                         let stroke = Color.accentColor
                             .opacity(OCRBoxConfidence.strokeOpacity(box.confidence))
-                        let drawsText = inlineTextEnabled && !box.text.isEmpty
+                        let drawsText = drawsInlineText && inlineTextEnabled && !box.text.isEmpty
                             && OCRBoxConfidence.drawsInlineText(box.confidence)
                         if drawsText {
                             context.fill(path, with: .color(plate))

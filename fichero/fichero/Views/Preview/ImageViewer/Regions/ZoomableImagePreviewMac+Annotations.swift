@@ -251,6 +251,16 @@ extension ZoomableImagePreview {
     /// `geometryFrameMatchesDisplay` uses — blank beats a plausible band in
     /// the wrong place, and one predicate means the two layers cannot
     /// disagree about what frame is on screen.
+    /// The marks the page shows, after the two switches (2026-08-31): `annotationsEnabled` gates
+    /// the whole set, `regionsEnabled` drops the untyped legacy region boxes. ONE place, read by both
+    /// the SwiftUI glyph layer and the document overlay, so they cannot disagree about what shows.
+    var shownAnnotationMarks: [AnnotationMark] {
+        guard annotationsEnabled else { return [] }
+        return regionsEnabled
+            ? annotationMarks
+            : annotationMarks.filter { $0.kind != .unknown && $0.kind != .comment }
+    }
+
     var annotationMarks: [AnnotationMark] {
         guard let documentId else { return [] }
         return annotationStore.annotations

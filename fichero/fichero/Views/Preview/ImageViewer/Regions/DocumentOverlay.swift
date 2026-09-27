@@ -7,9 +7,37 @@ struct DocumentOverlay: Equatable {
         /// `[x, y, w, h]`, normalized, top-left origin.
         let bbox: [Double]
         let confidence: Double?
+        /// The recognised words, drawn IN the box when `showsText` (the inline-text switch, and a
+        /// machine sure enough of where the word is).
+        var text: String = ""
+        var showsText = false
     }
 
     var boxes: [Box] = []
+
+    /// A saved annotation mark whose look is pure geometry -- a wash, a bar, a line, a box. The
+    /// glyph and text marks (a check in the margin, a note, a star) and anything tappable stay in
+    /// SwiftUI: there are few of them, and a note must stay tappable.
+    struct Mark: Equatable {
+        enum Shape: Equatable { case wash, underline, strike, line, box }
+        let shape: Shape
+        let bbox: [Double]
+        /// The person's chosen colour (data, not chrome), or nil for the default.
+        let color: AnnotationRGBA?
+
+        /// The shape an annotation draws as here, or nil when it is drawn elsewhere.
+        static func shape(for kind: AnnotationKind) -> Shape? {
+            switch kind {
+            case .highlight: .wash
+            case .underline: .underline
+            case .strikethrough: .strike
+            case .line: .line
+            case .rating, .note, .bookmark: nil
+            default: .box
+            }
+        }
+    }
+
     /// The selected boxes' rects, normalized. Drawn in the SAME view and pass as the boxes, so a
     /// highlight can never sit a transform away from the box it marks.
     var selected: [[Double]] = []
@@ -18,6 +46,14 @@ struct DocumentOverlay: Equatable {
     var entryWashes: [[Double]] = []
     /// Words lit by the Reader's text selection, sharper than the entry wash.
     var linkedWashes: [[Double]] = []
+    /// Saved annotation marks drawn as geometry (`Mark`), frame-gated and switched by the host.
+    var marks: [Mark] = []
+    /// The annotation the Inspector has selected, drawn in the selection's own style.
+    var selectedMark: [Double]?
+    /// Ephemeral marquees (run scopes, not segments): dashed; the picked one solid. Their name
+    /// badges are buttons and stay in SwiftUI.
+    var marquees: [[Double]] = []
+    var pickedMarquee: Int?
     /// Edit Segments is on: a selection shows its resize handles (never while reading).
     var isEditing = false
     /// This pane's selection is the window's focused one (`WindowState.focusedRegionSelection`):

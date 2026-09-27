@@ -88,6 +88,63 @@ final class DocumentOverlayView: NSView {
 
     // MARK: - Drawing
 
+    /// Ephemeral marquees: dashed accent, visually distinct from a saved region; the picked one solid.
+    private func drawMarquees(in dirtyRect: CGRect, imageRect: CGRect, scale: CGFloat) {
+        for (index, bbox) in overlay.marquees.enumerated() {
+            guard let rect = DocumentBoxMapping.rect(normalized: bbox, imageRect: imageRect),
+                  rect.insetBy(dx: -2 / scale, dy: -2 / scale).intersects(dirtyRect) else { continue }
+            let picked = overlay.pickedMarquee == index
+            let path = NSBezierPath(rect: rect)
+            SelectionStyle.boxBase.withAlphaComponent(picked ? 0.18 : 0.08).setFill()
+            path.fill()
+            SelectionStyle.boxBase.setStroke()
+            path.lineWidth = (picked ? 2 : 1.5) / scale
+            if !picked { path.setLineDash([5 / scale, 5 / scale], count: 2, phase: 0) }
+            path.stroke()
+        }
+    }
+
+    /// Saved annotation marks, by kind: a highlight is a wash, an underline and a strike are bars, a
+    /// line is a line, a legacy region is a box. The person's colour when they chose one.
+    private func drawMarks(in dirtyRect: CGRect, imageRect: CGRect, scale: CGFloat) {
+        let bar: CGFloat = 2 / scale
+        for mark in overlay.marks {
+            guard let rect = DocumentBoxMapping.rect(normalized: mark.bbox, imageRect: imageRect),
+                  rect.insetBy(dx: -bar, dy: -bar).intersects(dirtyRect) else { continue }
+            let chosen = mark.color.map {
+                NSColor(srgbRed: $0.red, green: $0.green, blue: $0.blue, alpha: $0.alpha)
+            }
+            switch mark.shape {
+            case .wash:
+                let alpha = (mark.color?.alpha ?? 1) < 1 ? (mark.color?.alpha ?? 0.3) : 0.3
+                (chosen ?? .systemYellow).withAlphaComponent(alpha).setFill()
+                NSBezierPath(rect: rect).fill()
+            case .underline:
+                // The page's BOTTOM is low y in this unflipped space.
+                (chosen ?? .controlAccentColor).setFill()
+                NSBezierPath(rect: CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: bar)).fill()
+            case .strike:
+                (chosen ?? .controlAccentColor).setFill()
+                NSBezierPath(rect: CGRect(x: rect.minX, y: rect.midY - bar / 2, width: rect.width, height: bar)).fill()
+            case .line:
+                // Top-left to bottom-right on the PAGE: high y to low y here.
+                let path = NSBezierPath()
+                path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+                path.line(to: CGPoint(x: rect.maxX, y: rect.minY))
+                path.lineWidth = bar
+                (chosen ?? .controlAccentColor).setStroke()
+                path.stroke()
+            case .box:
+                let path = NSBezierPath(rect: rect)
+                NSColor.controlAccentColor.withAlphaComponent(0.12).setFill()
+                path.fill()
+                NSColor.controlAccentColor.setStroke()
+                path.lineWidth = 1.5 / scale
+                path.stroke()
+            }
+        }
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         guard let imageRect else { return }
         // Drawn in document points and magnified with the page: divide by the magnification so a
@@ -107,10 +164,19 @@ final class DocumentOverlayView: NSView {
             NSBezierPath(roundedRect: rect, xRadius: 2 / scale, yRadius: 2 / scale).fill()
         }
 
+        drawMarks(in: dirtyRect, imageRect: imageRect, scale: scale)
+
         for (box, rect) in overlay.boxes(in: dirtyRect, imageRect: imageRect) {
             let path = NSBezierPath(rect: rect)
-            SelectionStyle.boxBase.withAlphaComponent(SelectionStyle.boxWashAlpha).setFill()
-            path.fill()
+            if box.showsText, !box.text.isEmpty {
+                // A theme-matched plate so the word reads, translucent so the scan stays checkable.
+                NSColor.textBackgroundColor.withAlphaComponent(InlineWords.plateAlpha).setFill()
+                path.fill()
+                InlineWords.draw(box.text, in: rect)
+            } else {
+                SelectionStyle.boxBase.withAlphaComponent(SelectionStyle.boxWashAlpha).setFill()
+                path.fill()
+            }
             SelectionStyle.boxBase.withAlphaComponent(OCRBoxConfidence.strokeOpacity(box.confidence)).setStroke()
             path.lineWidth = line
             if OCRBoxConfidence.isUncertain(box.confidence) {
@@ -118,6 +184,8 @@ final class DocumentOverlayView: NSView {
             }
             path.stroke()
         }
+
+        drawMarquees(in: dirtyRect, imageRect: imageRect, scale: scale)
 
         let selected = overlay.selected(in: dirtyRect, imageRect: imageRect)
         if let hovered, hovered.intersects(dirtyRect), !selected.contains(hovered) {
@@ -130,6 +198,16 @@ final class DocumentOverlayView: NSView {
         let stroke = SelectionStyle.stroke(emphasized: emphasized)
         let wash = SelectionStyle.washBase(emphasized: emphasized)
             .withAlphaComponent(SelectionStyle.washAlpha(emphasized: emphasized))
+        // The Inspector's selected annotation: the same selection look as a selected box.
+        if let bbox = overlay.selectedMark,
+           let rect = DocumentBoxMapping.rect(normalized: bbox, imageRect: imageRect), rect.intersects(dirtyRect) {
+            let path = NSBezierPath(rect: rect)
+            wash.setFill()
+            path.fill()
+            stroke.setStroke()
+            path.lineWidth = line
+            path.stroke()
+        }
         for rect in selected {
             let path = NSBezierPath(rect: rect)
             wash.setFill()
@@ -147,6 +225,41 @@ final class DocumentOverlayView: NSView {
                 square.stroke()
             }
         }
+    }
+}
+
+/// A recognised word drawn IN its box, the size of the word it stands for (2026-09-01): the largest
+/// size that fits the box in BOTH axes, never truncated. In DOCUMENT space, so it is page ink and
+/// scales with the page like the pixels under it.
+enum InlineWords {
+    static let plateAlpha: CGFloat = 0.6
+    /// Leaves a hairline of plate above and below the cap height.
+    static let heightFill: CGFloat = 0.82
+
+    /// The font size `text` is drawn at in `rect`: from the box's height, then shrunk (up to three
+    /// passes, biased under the box) while it is wider than the box.
+    static func fittedSize(_ text: String, in rect: CGRect, measure: (String, CGFloat) -> CGFloat) -> CGFloat {
+        var size = max(rect.height * heightFill, 0.5)
+        var width = measure(text, size)
+        var passes = 0
+        while width > rect.width, width > 0, passes < 3 {
+            size *= (rect.width / width) * 0.98
+            width = measure(text, size)
+            passes += 1
+        }
+        return size
+    }
+
+    static func draw(_ text: String, in rect: CGRect) {
+        let size = fittedSize(text, in: rect) { string, points in
+            (string as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: points)]).width
+        }
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: size), .foregroundColor: NSColor.labelColor,
+        ]
+        let measured = (text as NSString).size(withAttributes: attributes)
+        let origin = CGPoint(x: rect.minX, y: rect.midY - measured.height / 2)
+        (text as NSString).draw(at: origin, withAttributes: attributes)
     }
 }
 #endif

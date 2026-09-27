@@ -56,6 +56,29 @@ struct SelectionStyleTests {
         #expect(focused != DocumentOverlay())
     }
 
+    /// Inline words are the size of the word they stand for, and never truncated (2026-09-01/02).
+    /// A stand-in measure (half the size per character) makes the fitting arithmetic exact.
+    @Test("an inline word never runs wider than its box, and a short word takes the box's height")
+    func inlineWordsFit() {
+        let measure: (String, CGFloat) -> CGFloat = { text, size in CGFloat(text.count) * size * 0.5 }
+        let box = CGRect(x: 0, y: 0, width: 100, height: 20)
+        let long = String(repeating: "m", count: 30)
+        let longSize = InlineWords.fittedSize(long, in: box, measure: measure)
+        #expect(measure(long, longSize) <= box.width)
+        let short = "ok"
+        #expect(InlineWords.fittedSize(short, in: box, measure: measure) == box.height * InlineWords.heightFill)
+    }
+
+    @Test("a new marquee, or picking one, redraws")
+    func marqueesRedraw() {
+        var drawn = DocumentOverlay()
+        drawn.marquees = [[0.1, 0.1, 0.2, 0.2]]
+        #expect(drawn != DocumentOverlay())
+        var picked = drawn
+        picked.pickedMarquee = 0
+        #expect(picked != drawn)
+    }
+
     /// One place for the colours, and no custom colour in it: every value must be a system colour
     /// that follows the accent, Dark Mode and Increase Contrast.
     @Test("the style names no RGB, hex or calibrated colour")

@@ -367,6 +367,8 @@ struct DocumentOverlayWiringGuardTests {
         let overlays = try source("Views/Preview/ImageViewer/ZoomableImagePreviewMac+Overlays.swift")
         #expect(overlays.contains("documentOverlay: documentOverlay"))
         #expect(overlays.contains("drawsBoxes: false"))
+        #expect(overlays.contains("drawsGeometricMarks: false"))
+        #expect(overlays.contains("drawsInlineText: false"))
         let regions = try source("Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Regions.swift")
         #expect(regions.contains("drawsSelection: false"))
         let tracking = try source("Views/Preview/ImageViewer/CursorTracking/ImageWithCursorTrackingMac.swift")

@@ -113,7 +113,7 @@ struct RegionInteractionLayer: View {
                 // Display layer: never hit-testable, so every trackpad
                 // gesture falls through to the NSScrollView beneath.
                 ZStack(alignment: .topLeading) {
-                    marqueeRects(in: geo.size)
+                    if drawsSelection { marqueeRects(in: geo.size) }  // else the document overlay does
                     selectedRegionRects(in: geo.size)
                     if let rect = liveBandRect {
                         RoundedRectangle(cornerRadius: 2)
