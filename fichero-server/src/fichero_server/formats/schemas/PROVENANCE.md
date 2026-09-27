@@ -18,3 +18,14 @@ is — and the whole point of validating is that somebody else's tool will read 
 **Fetching at build or run time is not an option.** A validator that reaches the network fails in a
 sandbox, fails offline, and can be pointed somewhere else by a document; all three are worse than a
 file in the repository.
+
+| `alto-4-2.xsd` | `https://raw.githubusercontent.com/altoxml/schema/master/v4/alto-4-2.xsd` | 2026-09-26 | 54,450 bytes. ALTO 4.2. **Cannot be parsed offline yet**: it imports `http://www.loc.gov/standards/xlink/xlink.xsd`, and that file is not vendored. |
+| `xml.xsd` | `https://www.w3.org/2001/xml.xsd` | 2026-09-26 | 8,836 bytes. The XML namespace's own schema, which xlink's imports. Correct and unmodified. |
+
+**MISSING, and ALTO export refuses until it arrives:** the xlink schema ALTO names
+(`http://www.loc.gov/standards/xlink/xlink.xsd`). **W3C's modern `xlink.xsd` is not a
+substitute** — it defines `simpleAttrs` where ALTO references `simpleLink`, so mapping one to the
+other builds a schema missing the definitions ALTO uses, and libxml2 refuses it. That substitution
+was tried and removed: **a wrong mapping is worse than a missing one, because the error it produces
+blames the document.** `loc.gov` returns 403 to a script, so this one needs a mirror or a manual
+download.

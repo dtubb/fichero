@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<!--
+  An XML catalog, so libxml2 resolves every nested schema import FROM DISK.
+
+  `source.format.schemas-on-disk` reaches deeper than the schema itself: ALTO's XSD
+  imports xlink by absolute URL, and xlink's imports the XML namespace's. Rewriting
+  the top-level import in memory fixed one level and left the next one reaching for
+  the network — a catalog is the mechanism built for exactly this and it covers
+  every level, including ones we have not met yet.
+
+  Nothing here edits a vendored schema. Each entry maps the URL a schema names to
+  the file beside it; a URL with no entry is NOT fetched, it fails, which is what
+  keeps a missing definition from validating vacuously.
+-->
+<catalog xmlns="urn:oasis:names:tc:entity:xmlns:xml:catalog">
+  <uri name="http://www.loc.gov/standards/xlink/xlink.xsd" uri="xlink.xsd"/>
+  <uri name="https://www.loc.gov/standards/xlink/xlink.xsd" uri="xlink.xsd"/>
+  <uri name="http://www.w3.org/1999/xlink.xsd" uri="xlink.xsd"/>
+  <uri name="http://www.w3.org/2001/xml.xsd" uri="xml.xsd"/>
+  <uri name="https://www.w3.org/2001/xml.xsd" uri="xml.xsd"/>
+  <system systemId="http://www.loc.gov/standards/xlink/xlink.xsd" uri="xlink.xsd"/>
+  <system systemId="http://www.w3.org/2001/xml.xsd" uri="xml.xsd"/>
+</catalog>
