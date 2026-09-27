@@ -109,7 +109,12 @@ Foundational backend first, then Thing 1, then Thing 2, then visibility/notes.
 9. **(fe+be)** Book/chapter workspace structure (outline mode).
 10. **(fe)** Workspace spatial view — reuse Mind Palace projector (ties to #1455).
 11. **(fe)** Make Chat/Research/Workspace mode visible (Window menu, shortcut, tooltip, onboarding).
-12. **(fe)** Standalone Notes Browser (`NotesBrowserView`).
+12. ~~**(fe)** Standalone Notes Browser (`NotesBrowserView`).~~ **RETIRED** — the
+    standalone browser, its Window-menu entry and its `showNotesBrowser` driver were
+    removed in #4024; notes are reached through the inspector's Notes tab
+    (`DocumentNotesTab` → `NotesInspectorPane`) instead. The orphaned
+    `NotesBrowserView.swift` was deleted 2026-09-27 (#2955). Do not rebuild from
+    this line.
 13. **(fe)** Entity bio note in entity inspector (#1484–#1486 series).
 
 ## Resolved decisions (Daniel, 2026-06-02)

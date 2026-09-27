@@ -80,10 +80,15 @@ final class NoteServiceTests: XCTestCase {
         XCTAssertFalse(source.contains("PlatformHSplitView {"))
     }
 
-    func testNotesBrowserShowsScopeLabelsForScopedNotes() throws {
-        // scopeLabel is a computed property on FocusedNote; NotesBrowserView consumes it.
-        let viewSource = try Self.appSource("Views/Library/Notes/NotesBrowserView.swift")
-        XCTAssertTrue(viewSource.contains("item.scopeLabel"))
+    func testScopedNotesShowTheirScopeLabel() throws {
+        // Repointed 2026-09-27: this pinned `item.scopeLabel` in NotesBrowserView,
+        // which was retired with the standalone browser (#4024) and has now been
+        // deleted. The assertion stayed green against a view nothing rendered, so
+        // the LIVE surface was unverified — if NoteDetailView stopped showing the
+        // label, nothing here would have noticed. `NoteDetailView` is the notes
+        // list's real detail pane, reached through `NotesInspectorPane`.
+        let viewSource = try Self.appSource("Views/Inspector/Notes/NoteDetailView.swift")
+        XCTAssertTrue(viewSource.contains("if let scopeLabel = item.scopeLabel"))
         let noteSource = try Self.appSource("Views/Inspector/Notes/FocusedNote.swift")
         XCTAssertTrue(noteSource.contains("if note.folderId?.isEmpty == false { return \"Folder\" }"))
         XCTAssertTrue(noteSource.contains("if note.pageId?.isEmpty == false { return \"Page\" }"))
