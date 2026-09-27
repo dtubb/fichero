@@ -35,8 +35,12 @@
 # so the app-bundle sync stays faithful to the pyproject requires.
 #
 # Also deliberately excluded from the shipped/base stack (install locally only
-# when working on those features): pykeen, torch (except as a kraken/mlx dep in
-# dev), rdflib.
+# when working on those features): nothing, as of the maintainer's ruling of
+# 2026-09-20. This paragraph used to exclude pykeen and rdflib and it was WRONG
+# from that date: pyproject's `requires` lists both, so the bundle ships them and
+# a requirements file claiming otherwise described a bundle that no longer
+# existed. torch is not listed here because nothing declares it directly -- it
+# arrives as pykeen's dependency, which is where its weight comes from.
 #
 # opencv-python-headless (cv2): SHIPS as of 2026-09-06 (Daniel's call). The
 # image-enhance / background-removal / deskew step is a demo feature and must
@@ -107,6 +111,26 @@ ftfy
 anyascii
 convertdate
 jdcal
+
+# --- Knowledge graph: embeddings, graph algorithms, SPARQL ---
+# IN the bundle by the maintainer's ruling of 2026-09-20. Absent from this file
+# until 2026-09-27 although pyproject declared all three, so anybody syncing the
+# dev venv from here got an engine that could not import its own KG routes.
+#
+# pykeen: ~HALF A GIGABYTE with torch and the rest of its dependency tree, and
+# the cost was stated when it was ruled in. Named here too, because a file people
+# `pip install -r` should not deliver half a gigabyte without saying so.
+pykeen
+# networkx: imported by name in knowledge/graph.py and friends. It also arrives
+# as a pykeen dependency, but a package the engine imports by name is declared by
+# name -- otherwise it vanishes the day pykeen goes.
+networkx
+# rdflib: 4.8 MB, pure Python, one dependency (pyparsing). NOT optional --
+# api/routes/kg/sparql.py imports it at module top and the engine imports that
+# route at startup, so a bundle without it exits 250 on launch and the app
+# reports "can't reach server". It was omitted only by sitting beside pykeen in
+# an older comment.
+rdflib
 
 # --- spaCy grammar gate (SVO) + bundled small models ---
 spacy

@@ -48,7 +48,9 @@ pip install pytest ruff
 `pytest` and `ruff` are not in the `[dev]` extra, but the lint/test commands assume
 them.
 
-There is no `requirements.txt`. `pyproject.toml` here is the dependency manifest
+`requirements.txt` beside this file is a GENERATED mirror of the shipped dependency
+union, not a manifest — it exists so a dev venv can be matched to the app bundle, and
+a guardrail fails when it drifts from pyproject. `pyproject.toml` here is the dependency manifest
 (the runtime dependencies, plus the `[dev]`, `[kg]` and `[image]` extras). Briefcase is a
 build tool, installed by `scripts/build_backend_bundle.sh` when packaging — not a
 runtime dependency.
