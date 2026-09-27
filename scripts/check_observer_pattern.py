@@ -62,6 +62,17 @@ NON_TRANSPORT_STATEOBJECT_SERVICES = ("BonjourDiscoveryService",)
 # backlog: direct `LibraryManager.shared.globalLibrary` reads, `client.api.`
 # access, and `client.api.` direct reads. (#3743 converted FeatureManager to
 # @Observable, so its former @EnvironmentObject consumers are no longer offenders.)
+#
+# Eleven entries checked and dropped 2026-09-27 (found already clean by the
+# scan, verified individually rather than dropped on the scan's say-so alone):
+# `OntologyBrowser.swift` and `OntologyBrowser+Toolbar.swift` are GONE — retired
+# with the Knowledge Graph view mode (#4705 increment 3), a different fact from
+# a migration; the other nine (ClaimSummaryCard+Details, ContradictionTriageSheet,
+# EntityDetailView+Audit/+Biography/+Metadata, EntityMergeSheet,
+# EntitySourceGroupsView, EntitySplitSheet, NewEntitySheet) still exist and read
+# `@Environment(...)` today, with none of the four anti-patterns in their text —
+# genuinely migrated, presumably in the #2960/#1863 flip this block's own
+# comment already names, just never pruned once it landed.
 KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
     [
         # #4123: Transferable export closures run OUTSIDE the SwiftUI
@@ -76,18 +87,7 @@ KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
         "fichero/fichero/Views/Shell/ContentView/Actions/ContentView+ActionsImport.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/KGMapView.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/KGTimelineView.swift",
-        "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCard+Details.swift",
-        "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/Claim/ContradictionTriageSheet.swift",
-        "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/Entity/EntityDetailView+Audit.swift",
-        "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/Entity/EntityDetailView+Biography.swift",
-        "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/Entity/EntityDetailView+Metadata.swift",
-        "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/Entity/EntityMergeSheet.swift",
-        "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/Entity/EntitySourceGroupsView.swift",
-        "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/Entity/EntitySplitSheet.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/ForceDirectedGraphView.swift",
-        "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/Entity/NewEntitySheet.swift",
-        "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+Toolbar.swift",
-        "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/OntologyBrowser.swift",
         "fichero/fichero/Views/Components/NodeClassPicker.swift",
         "fichero/fichero/Views/Library/ViewModes/Canvas/3D/SpaceSceneView.swift",
         "fichero/fichero/Views/Library/ViewModes/Canvas/2D/Legacy/SpatialNodeThumbnail.swift",
