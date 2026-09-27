@@ -516,8 +516,16 @@ Structure
   line changes no id, shape or reading of the line or its region.
 - `source.segment.physical-and-logical` — **[GAP]** (#4927) a segment can sit in the physical ladder and in a
   logical unit that crosses pages or documents.
-- `source.segment.flow` — **[GAP]** (#4930) text that continues across a column, page or picture is a named
-  reading order and reads straight through.
+- `source.segment.flow` — **[PARTIAL]** (→ #4930; reading straight through is **[GAP]** → #5090) text
+  that continues across a column, page or picture is a named reading order and reads straight
+  through. **Recorded, not read.** A flow's entries may name segments of another pass
+  (`fichero-server/tests/unit/api/test_reading_orders.py::TestPlacingWritesOneRow::test_a_flow_may_cross_passes`),
+  and an ordinary order correctly refuses a foreign segment
+  (`::test_a_segment_of_another_pass_is_refused_outside_a_flow`) — that distinction is deliberate.
+  But `document_text` draws its rows from ONE pass and then keeps only the ordered ids it holds, so
+  a cross-pass continuation is **silently dropped** from the derived text through the same filter
+  that legitimately drops a deleted line (#5090). Silent shortening of a transcription is the worst
+  failure this programme has, because nothing looks wrong.
 - `source.segment.furniture` — **[GAP]** (#4927) page furniture is marked, and a reading can leave it out.
 - `source.segment.table-cells` — **[GAP]** (#4928) a table's cells are segments with row, column, spans and
   header kind.
@@ -545,14 +553,42 @@ Passes, orders, links
   — it reads `Document.page_content`, and the app contains no reference to the derived-text route at
   all (#5077). Search and export are unverified in either direction. A behaviour naming three
   surfaces needs evidence from those surfaces; a passing engine test is not it.
-- `source.order.named-multiple` — **[GAP]** (#4930) a source can have several named reading orders, each with an
-  author and certainty.
-- `source.order.next-previous` — **[GAP]** (#4930) next and previous are always asked of a named order.
-- `source.link.typed` — **[GAP]** (#4931) a link between segments has a type, direction, author and certainty;
-  types come from an extendable list; it is the one typed-link record that the existing note,
-  canvas and prediction links converge on, not a further kind.
-- `source.link.any-depth` — **[GAP]** (#4931) links chain (a comment on a comment), and can cross sources.
-- `source.link.both-ways` — **[GAP]** (#4931) from either end of a link you can reach the other.
+- `source.order.named-multiple` — **[OK]** (→ #4930) a source can have several named reading orders,
+  each with an author and certainty (`ReadingOrder.certainty`, where `None` means nobody said and
+  NOT certainty 0). Two orders hold different sequences over the same segments, deleting one leaves
+  the other, and a deleted order restores with its entries
+  (`fichero-server/tests/unit/api/test_reading_orders.py::TestSeveralOrdersOverOnePage`). `as-written`
+  arrives with the pass rather than being invented later, and a pass made before this slice is NOT
+  given one silently (`::TestAsWrittenArrivesWithThePage`) — which is the honest half: a missing
+  order is left missing rather than back-filled with a guess at what somebody meant.
+- `source.order.next-previous` — **[OK]** (→ #4930) next and previous are always asked of a named
+  order — there is deliberately NO next-segment call without one
+  (`fichero-server/tests/unit/api/test_reading_orders.py::TestNeighbours::test_there_is_no_next_segment_call_without_an_order`),
+  because "the next segment" is meaningless until somebody says in which order. Neighbours differ
+  between two orders for the same segment, and the ends report null rather than wrapping.
+- `source.link.typed` — **[PARTIAL]** (→ #4931; the convergence is **[GAP]** → #5091) a link between
+  segments has a type, direction, author and certainty; types come from an extendable list; it is
+  the one typed-link record that the existing note, canvas and prediction links converge on, not a
+  further kind. **The record is built and the convergence has not started.** `TypedLink` carries all
+  four facts, `directed` is false for a symmetric relation so a reader is never shown a direction
+  that says nothing, and the MAKER is the engine's answer and not the caller's
+  (`fichero-server/tests/unit/api/test_typed_links.py::TestLinkingSegments`). The vocabulary reuses the KG's
+  words rather than respelling them, refuses near-misses by inflection or underscore, and reports
+  its one alias so no client keeps a list of its own
+  (`::TestTheVocabularyHasNoNearMisses`, `::TestTheAlias`). But `NoteLink`,
+  `SpatialConnection`, `PredictionLink` and `KnowledgeClaimLink` all still exist —
+  `::TestTheOtherFourRecordsAreNotMoved` asserts it deliberately — so there are FIVE link records
+  where this says one, and this record is for now the further kind it says it must not be (#5091).
+- `source.link.any-depth` — **[OK]** (→ #4931) links chain (a comment on a comment), and can cross
+  sources: they join segments of any granularity
+  (`fichero-server/tests/unit/api/test_typed_links.py::TestLinkingSegments::test_links_join_segments_of_any_granularity`),
+  with a link to itself refused and a provisional id refused — depth is not an excuse for a cycle
+  or for a link to an id that may still change.
+- `source.link.both-ways` — **[OK]** (→ #4931) from either end of a link you can reach the other
+  (`fichero-server/tests/unit/api/test_typed_links.py::TestLinkingSegments::test_a_link_is_reachable_from_either_end`),
+  a symmetric relation reads the same from both ends, and a withdrawn link disappears from both
+  ends while staying auditable (`::TestWithdrawingALink`) — reachable both ways has to mean
+  UNreachable both ways too, or a withdrawal leaves half a link behind.
 
 Maps
 - `source.geo.control-points` — **[GAP]** (#4933) a point on an image can be tied to a coordinate on the earth,
