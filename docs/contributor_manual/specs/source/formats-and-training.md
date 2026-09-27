@@ -90,7 +90,7 @@ easy. How that is met, after review:
 | **YOLO labels** | yes | yes | a class and a box or polygon for each object | everything else |
 | **Kraken training data** | yes | yes | ALTO or PageXML; line picture plus text; the compiled Arrow file | everything but lines, regions and text |
 | **Columnar dataset (Arrow / Parquet)** | yes | yes | one row per segment: picture, shape, kind, reading, language, script, hand, period, source, guideline, level, licence, split | links and structure, unless asked for as extra tables |
-| **Geographic** (IIIF Georeference Annotation, GCP tables, world file / GeoTIFF, GeoJSON, GeoPackage, Linked Places Format) | yes (georef, GCPs, world file) | yes | control points as segments with their CRS; the worked-out transform; places with gazetteer identifiers; places over time | specified in `maps-and-georeference.md`, whose Formats behaviours these are |
+| **Geographic** (IIIF Georeference Annotation, GCP tables, world file / GeoTIFF, KML, GeoJSON, GeoPackage, Linked Places Format) | yes (georef, GCPs, world file) | yes | control points as segments with their CRS; the worked-out transform; places with gazetteer identifiers; places over time | specified in `maps-and-georeference.md`, whose Formats behaviours these are |
 | **CSV / spreadsheet** | yes | yes | a table segment as rows and columns; each cell keeps a reference back to its segment | everything that is not the table |
 | **SVG** | no | yes | the page to look at: image, shapes, text in its direction and along its baseline, descriptions | it is a picture, not data |
 | **Searchable PDF** | as a source | yes | the text in place under the image; descriptions as alt text | it is a picture, not data |

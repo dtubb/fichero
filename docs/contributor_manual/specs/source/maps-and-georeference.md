@@ -183,7 +183,9 @@ A **place segment** is any segment that names a place: a label on a map, a place
 of a letter, a cell in a register. It is tied to a **place entity** in the knowledge graph with
 the existing typed link `names`, with a maker and certainty. The gazetteer identity belongs to
 the **entity**, not to each segment: ten letters that name Popayán are ten `names` links to one
-entity, and that entity is reconciled once.
+entity, and that entity is reconciled once. **Ruled 2026-09-27 (#5123):** the gazetteer link lives
+on the PLACE ENTITY and never on a segment. WHG, Pleiades, Getty TGN and Wikidata all connect to
+that one entity, and the entity may point to the segments that mention it.
 
 The entity's gazetteer identity **extends the authority seam that exists** rather than building
 a second one:
@@ -268,6 +270,12 @@ other software, never files written to look like them.
   carrying the stable reference back to its segment, claim or entity. WGS 84 only, as RFC 7946
   requires; anything else goes to GeoPackage.
 - **GeoPackage**, out: the same layers in any CRS, for QGIS.
+- **KML**, in and out: what Mapwarper exports a warped map as (a `GroundOverlay` with its
+  `LatLonBox`). It is the one XML format in this family and an OGC standard with a published XSD,
+  so our KML export is validated against the vendored schema like PAGE and ALTO (licence first).
+  **Import and export whatever Allmaps and Mapwarper use** (maintainer, 2026-09-27): IIIF
+  Georeference for Allmaps, and the GCP CSV and KML for Mapwarper. Each is tested on REAL exports
+  from that software, not only on files we write.
 - **Linked Places Format**, out: place entities with their names, geometries, spans and gazetteer
   links, for WHG and other gazetteers.
 - **DuckDB Spatial** for spatial questions inside the engine (which places fall inside this
@@ -436,6 +444,9 @@ Formats
   Mapwarper GCP CSV with the CRS carried or declared.
 - `source.geo.world-file-geotiff` — **[GAP]** (#4946) an affine pass exports as a world file with
   its `.prj`, and any pass as a GeoTIFF of the unwarped image with GCP tie points and the CRS.
+- `source.geo.kml` — **[GAP]** (#4946, → #5125) a warped map goes in and out as Mapwarper's KML
+  `GroundOverlay`. Our export validates against the vendored OGC KML schema, and the tests use real
+  Mapwarper exports (licence first).
 - `source.geo.geojson-out` — **[GAP]** (#4946) places, place segments and entity movements export
   as RFC 7946 GeoJSON, each Feature carrying its reference back to its segment, claim or entity.
 - `source.geo.geopackage-out` — **[GAP]** (#4946) the same layers export as a GeoPackage in any
@@ -504,10 +515,10 @@ None: this slice has no screen. The future map-view UI spec owns them.
 
 ## Open questions for the creative director
 
-1. **Where does a gazetteer identity live?** Recommended: on the KG place entity, reached from a
-   place segment by a typed `names` link, so a place is reconciled once however many pages name
-   it (the alternative, a gazetteer URI on each segment, reconciles the same town a thousand
-   times and cannot say two segments are the same place).
+1. ~~Where does a gazetteer identity live?~~ **Ruled 2026-09-27 (#5123): on the place entity,
+   never on a segment.** This is what was recommended here: a place is reconciled once however
+   many pages name it, and each gazetteer (WHG, Pleiades, Getty TGN, Wikidata) connects to that
+   one entity.
 2. ~~Store coordinates as entered, or normalise to WGS 84 on write?~~ **Ruled 2026-09-27 (#5124):
    stored in WGS 84.** The input CRS stays explicit, because converting correctly depends on it.
    The recommendation here had been "as entered", and the ruling overrides it. The design and
