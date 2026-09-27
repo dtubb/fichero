@@ -2789,6 +2789,230 @@
         }
       }
     },
+    "/api/segments": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "List Segments In Scope",
+        "description": "`GET /api/segments` \u2014 a bounded page of segments across a SCOPE.\n\nFor `source.editor.library-lists-segments` (#4941): every other segments read is\nper document or per segment, so a Library listing segments would have had to ask\nonce per page of the book. That is the N+1 the one-store seam exists to avoid,\nand moving it into the engine is the only way a project-wide list of lines is\nanswerable at all.\n\nOnly REAL rows. The per-document route also serves the old boxes of artifacts\nnobody has converted (`source.seam.read-either-store`), and that resolution is\nper artifact by nature \u2014 it reads one artifact's block and numbers its boxes.\nDoing it across a scope would mean hydrating every geometry blob in the folder to\nanswer one page, which is the cost this endpoint exists to avoid. So a scoped list\nshows what has been converted, and says so here rather than appearing to show\neverything.\n\n`limit` is capped at 1000 by the signature (`source.store.bounded-reads`): a\ncaller cannot ask for a whole project in one request, because a page of a library\nview never needs it and an agent asking for it would be asking for the thing that\ntakes the engine down.",
+        "operationId": "list_segments_in_scope_api_segments_get",
+        "parameters": [
+          {
+            "name": "document_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Comma-separated document ids to list segments for. Either this or `parent_id`; `parent_id` resolves to a folder's descendants.",
+              "title": "Document Ids"
+            },
+            "description": "Comma-separated document ids to list segments for. Either this or `parent_id`; `parent_id` resolves to a folder's descendants."
+          },
+          {
+            "name": "parent_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "A folder (or page-bearing document): its descendants are the scope",
+              "title": "Parent Id"
+            },
+            "description": "A folder (or page-bearing document): its descendants are the scope"
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Restrict to one segment kind (region, line, word, ...)",
+              "title": "Kind"
+            },
+            "description": "Restrict to one segment kind (region, line, word, ...)"
+          },
+          {
+            "name": "pass_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Restrict to one pass",
+              "title": "Pass Id"
+            },
+            "description": "Restrict to one pass"
+          },
+          {
+            "name": "include_furniture",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include running heads, folio numbers and catchwords",
+              "default": true,
+              "title": "Include Furniture"
+            },
+            "description": "Include running heads, folio numbers and catchwords"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "description": "Page size; bounded on purpose",
+              "default": 200,
+              "title": "Limit"
+            },
+            "description": "Page size; bounded on purpose"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScopedSegmentListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Update Segments Many",
+        "description": "`PATCH /api/segments` \u2014 one attribute edit across a selection, as one audited\naction and one undo step. Answers the new versions AND the audit id, so the app can\noffer \u2318Z for the whole edit without guessing which row to invert.\n\nPATCH on the collection, not `POST /update-many`: a partial modification of some of\nthe collection's members is what PATCH means, and `check_rest_conventions` requires\nan `update_*` operation to be PUT or PATCH. The body carries `expected_version`s, and\nPATCH \u2014 unlike DELETE \u2014 carries a body reliably, which is the invariant that matters.",
+        "operationId": "update_segments_many_api_segments_patch",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SegmentUpdateManyParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Update Segments Many Api Segments Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Create Segment",
+        "operationId": "create_segment_api_segments_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SegmentCreateParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segments/document/{doc_id}": {
       "get": {
         "tags": [
@@ -2970,59 +3194,6 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Delete Pass Api Segments Passes  Pass Id  Delete"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/segments": {
-      "post": {
-        "tags": [
-          "segments"
-        ],
-        "summary": "Create Segment",
-        "operationId": "create_segment_api_segments_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Origin-Window",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Origin-Window"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SegmentCreateParams"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SegmentRead"
                 }
               }
             }
@@ -6629,7 +6800,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ArtifactResponse"
+                  "$ref": "#/components/schemas/ArtifactRegionsEditResponse"
                 }
               }
             }
@@ -40319,6 +40490,120 @@
         "title": "ArtifactRegionsEditRequest",
         "description": "One curation edit against an artifact's `ocr_geometry.boxes`.\n\n- ``move``: exactly one index + ``bbox`` \u2014 reposition that box.\n- ``delete``: one or more indices \u2014 remove those boxes.\n- ``add``: ``bbox`` (+ optional ``text``/``level``) \u2014 append a new box;\n  bootstraps an empty user geometry when the artifact has none yet\n  (the rubber-band draw on a page whose regions artifact is bare).\n- ``combine``: two or more indices \u2014 replace them with one box whose bbox\n  is the union and whose text is the members' texts concatenated in\n  reading order."
       },
+      "ArtifactRegionsEditResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "artifact_type": {
+            "type": "string",
+            "title": "Artifact Type"
+          },
+          "content": {
+            "type": "string",
+            "nullable": true,
+            "title": "Content"
+          },
+          "data": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Data"
+          },
+          "ocr_geometry": {
+            "$ref": "#/components/schemas/OCRGeometryResult",
+            "nullable": true
+          },
+          "region_count": {
+            "type": "integer",
+            "title": "Region Count",
+            "default": 0
+          },
+          "geometry_rendition_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Geometry Rendition Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "confidence": {
+            "type": "number",
+            "nullable": true,
+            "title": "Confidence"
+          },
+          "reviewed": {
+            "type": "boolean",
+            "title": "Reviewed"
+          },
+          "source_artifact_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Artifact Id"
+          },
+          "source_document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Document Id"
+          },
+          "run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Run Id"
+          },
+          "step_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Step Name"
+          },
+          "workflow_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Workflow Id"
+          },
+          "sequence": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Sequence"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "document_id",
+          "artifact_type",
+          "version",
+          "reviewed",
+          "created_at"
+        ],
+        "title": "ArtifactRegionsEditResponse",
+        "description": "The edited artifact, plus the audit row the edit wrote.\n\nA SUPERSET of `ArtifactResponse`, so every existing caller decodes it unchanged\nand the new field is there for the one caller that needs it.\n\nWHY (#4941, `source.editor.system-undo`): the app cannot offer \u2318Z for a region\nedit without knowing which action to invert. `POST /api/actions/audit/{id}/undo`\ninverts any audited action, and the app had no id to hand it \u2014 reading the newest\naudit row instead would be a race against any other writer, and on a shared\nlibrary that is a person undoing somebody else's edit. The id is already in hand\nhere (`registry.invoke` returns it); it was simply not answered."
+      },
       "ArtifactResponse": {
         "properties": {
           "id": {
@@ -43454,7 +43739,8 @@
           "source_segment_id": {
             "type": "string",
             "nullable": true,
-            "title": "Source Segment Id"
+            "title": "Source Segment Id",
+            "description": "A client-supplied reference to an entry in a segmentation artifact's `data['segments']` list. NOT a `Segment` record id: this field predates the source model, has no engine producer, and conversion never writes to it (#4932). To point a claim at a segment, use the anchor's lasting segment id."
           },
           "source_page_label": {
             "type": "string",
@@ -43972,7 +44258,8 @@
           "source_segment_id": {
             "type": "string",
             "nullable": true,
-            "title": "Source Segment Id"
+            "title": "Source Segment Id",
+            "description": "A client-supplied reference to an entry in a segmentation artifact's `data['segments']` list. NOT a `Segment` record id: this field predates the source model, has no engine producer, and conversion never writes to it (#4932). To point a claim at a segment, use the anchor's lasting segment id."
           },
           "source_page_label": {
             "type": "string",
@@ -46992,6 +47279,14 @@
             },
             "type": "array",
             "title": "Omitted",
+            "default": []
+          },
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/TextBlock"
+            },
+            "type": "array",
+            "title": "Blocks",
             "default": []
           }
         },
@@ -53804,7 +54099,8 @@
           "source_segment_id": {
             "type": "string",
             "nullable": true,
-            "title": "Source Segment Id"
+            "title": "Source Segment Id",
+            "description": "A client-supplied reference to an entry in a segmentation artifact's `data['segments']` list. NOT a `Segment` record id: this field predates the source model, has no engine producer, and conversion never writes to it (#4932). To point a claim at a segment, use the anchor's lasting segment id."
           },
           "source_page_label": {
             "type": "string",
@@ -65518,6 +65814,41 @@
         ],
         "title": "ScheduleRunResponseList"
       },
+      "ScopedSegmentListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentRead"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Document Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count",
+          "total",
+          "document_ids"
+        ],
+        "title": "ScopedSegmentListResponse",
+        "description": "A page of segments across MANY documents (`source.editor.library-lists-segments`).\n\nNot `SegmentListResponse`: that one answers `document_id` and the page's passes,\nwhich a scoped list has neither of \u2014 the rows come from many documents and naming\none would be a lie. `total` is the match count so a Library can page without\nfetching to find out how much there is."
+      },
       "SearchAnchor": {
         "properties": {
           "document_id": {
@@ -65589,7 +65920,8 @@
           "source_segment_id": {
             "type": "string",
             "nullable": true,
-            "title": "Source Segment Id"
+            "title": "Source Segment Id",
+            "description": "A client-supplied reference to an entry in a segmentation artifact's `data['segments']` list. NOT a `Segment` record id: this field predates the source model, has no engine producer, and conversion never writes to it (#4932). To point a claim at a segment, use the anchor's lasting segment id."
           },
           "source_page_label": {
             "type": "string",
@@ -66866,6 +67198,51 @@
         "title": "SecurityScopedAccessResponse",
         "description": "Whether the engine can now read the library."
       },
+      "SegmentAttributeUpdate": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "expected_version": {
+            "type": "integer",
+            "title": "Expected Version"
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kind"
+          },
+          "is_furniture": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Is Furniture"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "script": {
+            "type": "string",
+            "nullable": true,
+            "title": "Script"
+          },
+          "direction": {
+            "type": "string",
+            "nullable": true,
+            "title": "Direction"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "segment_id",
+          "expected_version"
+        ],
+        "title": "SegmentAttributeUpdate",
+        "description": "One row's part of a selection-wide edit.\n\nATTRIBUTES ONLY \u2014 kind, furniture and the cascade's facts. Not a shape and not a\nparent: moving five lines' boxes at once is not a selection verb anyone has\nspecified, and a bulk path for shapes would be a second place to get anchors,\nbboxes and tiles right."
+      },
       "SegmentCarryParams": {
         "properties": {
           "match_id": {
@@ -67575,6 +67952,24 @@
         ],
         "title": "SegmentUndeleteParams",
         "description": "`segment.delete`'s inverse -- also directly callable to bring a\ndeleted segment back (`source.segment.delete-is-undoable`).\n\nTakes no `expected_version` (#4923 second look): a deleted segment\ncannot change -- `update`, `merge`, `split` and `carry` all refuse a\nnot-live participant -- so \"is it deleted\" (checked below) is the\nWHOLE precondition. A stale undelete (already live) is a plain 409,\nnot a `SegmentStale`."
+      },
+      "SegmentUpdateManyParams": {
+        "properties": {
+          "updates": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentAttributeUpdate"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Updates"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "updates"
+        ],
+        "title": "SegmentUpdateManyParams"
       },
       "SegmentUpdateParams": {
         "properties": {
@@ -69641,6 +70036,46 @@
           "label"
         ],
         "title": "TaxonomyItem"
+      },
+      "TextBlock": {
+        "properties": {
+          "region_segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Region Segment Id"
+          },
+          "direction": {
+            "type": "string",
+            "nullable": true,
+            "title": "Direction"
+          },
+          "direction_level": {
+            "type": "string",
+            "nullable": true,
+            "title": "Direction Level"
+          },
+          "spans": {
+            "items": {
+              "$ref": "#/components/schemas/DerivedTextSpan"
+            },
+            "type": "array",
+            "title": "Spans"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "region_segment_id",
+          "direction",
+          "direction_level",
+          "spans",
+          "text"
+        ],
+        "title": "TextBlock",
+        "description": "One directional run of the derived text (`source.textedit.reader-shows-segments`,\n#5001): a maximal, in-order stretch of spans sharing the same region AND the same\nresolved direction. A block boundary is a DIRECTION CHANGE, not a direction value --\na whole-page `rtl` region is one block; a boustrophedon region, where each line's own\nstated direction alternates, is one block PER LINE, because there is no shared\norientation two alternating lines can be laid out under at once.\n\n`alternating` and `follows-baseline` are per-segment values with no single orientation\nof their own (`languages-scripts-signs.md`'s six-value list), so a segment resolving to\neither NEVER merges with a neighbour even when the neighbour resolves to the same\nnon-orientable value -- there is nothing to share a block under."
       },
       "TextDiffResponse": {
         "properties": {

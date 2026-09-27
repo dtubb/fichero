@@ -3122,7 +3122,7 @@ def register_generated_openapi_commands(
                 "source_page_label": {'type': 'string', 'nullable': True, 'title': 'Source Page Label', 'x-cli-required': False},
                 "source_page_labels": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Source Page Labels', 'x-cli-required': False},
                 "source_ref": {'type': 'string', 'nullable': True, 'title': 'Source Ref', 'x-cli-required': False},
-                "source_segment_id": {'type': 'string', 'nullable': True, 'title': 'Source Segment Id', 'x-cli-required': False},
+                "source_segment_id": {'type': 'string', 'nullable': True, 'title': 'Source Segment Id', 'description': "A client-supplied reference to an entry in a segmentation artifact's `data['segments']` list. NOT a `Segment` record id: this field predates the source model, has no engine producer, and conversion never writes to it (#4932). To point a claim at a segment, use the anchor's lasting segment id.", 'x-cli-required': False},
                 "source_type": {'type': 'string', 'enum': ['document', 'claim', 'multiple', 'synthesis'], 'title': 'SourceType', 'x-cli-required': False},
                 "speaker_entity_id": {'type': 'string', 'nullable': True, 'title': 'Speaker Entity Id', 'x-cli-required': False},
                 "speaker_name": {'type': 'string', 'nullable': True, 'title': 'Speaker Name', 'x-cli-required': False},
@@ -3512,7 +3512,7 @@ def register_generated_openapi_commands(
                 "source_page_label": {'type': 'string', 'nullable': True, 'title': 'Source Page Label', 'x-cli-required': False},
                 "source_page_labels": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Source Page Labels', 'x-cli-required': False},
                 "source_ref": {'type': 'string', 'nullable': True, 'title': 'Source Ref', 'x-cli-required': False},
-                "source_segment_id": {'type': 'string', 'nullable': True, 'title': 'Source Segment Id', 'x-cli-required': False},
+                "source_segment_id": {'type': 'string', 'nullable': True, 'title': 'Source Segment Id', 'description': "A client-supplied reference to an entry in a segmentation artifact's `data['segments']` list. NOT a `Segment` record id: this field predates the source model, has no engine producer, and conversion never writes to it (#4932). To point a claim at a segment, use the anchor's lasting segment id.", 'x-cli-required': False},
                 "source_type": {'type': 'string', 'enum': ['document', 'claim', 'multiple', 'synthesis'], 'title': 'SourceType', 'x-cli-required': False},
                 "speaker_entity_id": {'type': 'string', 'nullable': True, 'title': 'Speaker Entity Id', 'x-cli-required': False},
                 "speaker_name": {'type': 'string', 'nullable': True, 'title': 'Speaker Name', 'x-cli-required': False},
@@ -12817,6 +12817,49 @@ def register_generated_openapi_commands(
         target_app = typer.Typer(help='Generated OpenAPI commands for segments endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='segments')
         existing_apps['segments'] = target_app
+
+    @target_app.command("list-in-scope")
+    def segments_list_in_scope_get(
+        ctx: typer.Context,
+        document_ids: Optional[str] = typer.Option(None, "--document-ids", help="Query parameter: document_ids."),
+        include_furniture: Optional[bool] = typer.Option(None, "--include-furniture/--no-include-furniture", help="Query parameter: include_furniture."),
+        kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
+        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
+        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Query parameter: parent_id."),
+        pass_id: Optional[str] = typer.Option(None, "--pass-id", help="Query parameter: pass_id."),
+    ) -> None:
+        """List Segments In Scope (GET /api/segments)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments"
+            params = {
+                "document_ids": document_ids,
+                "include_furniture": include_furniture,
+                "kind": kind,
+                "limit": limit,
+                "offset": offset,
+                "parent_id": parent_id,
+                "pass_id": pass_id,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("update-many")
+    def segments_update_many_patch(
+        ctx: typer.Context,
+        updates: str = typer.Option(..., "--updates", help="Request field: updates."),
+    ) -> None:
+        """Update Segments Many (PATCH /api/segments)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments"
+            params = None
+            payload = _build_json_payload({
+                "updates": updates,
+            }, {
+                "updates": {'items': {'$ref': '#/components/schemas/SegmentAttributeUpdate'}, 'type': 'array', 'minItems': 1, 'title': 'Updates', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
 
     @target_app.command("create")
     def segments_create_post(

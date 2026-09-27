@@ -31,7 +31,7 @@ extension ArtifactService {
 
         switch response {
         case .ok(let okResponse):
-            let updated = convertToArtifact(try okResponse.body.json)
+            let updated = try convertToArtifact(try okResponse.body.json)
             replaceCachedArtifact(updated, artifactId: artifactId, documentId: documentId)
             return updated
         case .unprocessableContent(let error):
@@ -40,6 +40,20 @@ extension ArtifactService {
         case .undocumented(let statusCode, _):
             throw ArtifactServiceError.unexpectedResponse(statusCode)
         }
+    }
+
+    /// The region edit answers `ArtifactRegionsEditResponse`: every `ArtifactResponse` field
+    /// plus `audit_id` (#4941, so ⌘Z can name the action to invert). The engine made it a
+    /// superset so existing callers decode unchanged -- true in JSON, but the generator flattens
+    /// it into a DIFFERENT Swift type, and this caller stopped compiling at the contract sync.
+    ///
+    /// Re-decoding the same JSON as `ArtifactResponse` (whose synthesized decoder ignores the
+    /// extra key) keeps every field by construction. A hand-written field-by-field copy would
+    /// silently drop whatever field `ArtifactResponse` gains next. `audit_id` is not used yet;
+    /// wiring ⌘Z for region edits is the archive lane's `source.editor.system-undo`.
+    func convertToArtifact(_ edited: Components.Schemas.ArtifactRegionsEditResponse) throws -> Artifact {
+        let json = try JSONEncoder().encode(edited)
+        return convertToArtifact(try JSONDecoder().decode(Components.Schemas.ArtifactResponse.self, from: json))
     }
 
     /// Create a bare `regions` artifact to hold hand-drawn boxes on a page
