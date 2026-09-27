@@ -56,6 +56,16 @@ EXPECTED_TOOLS = {
     "fichero_segment",
     "fichero_segment_versions",
     "fichero_segment_reference",
+    # The editor's verbs, for an agent (`source.editor.agent-parity`, #4941). Reads
+    # alone made that behaviour false on the MCP half: an agent could look at a page
+    # and change nothing, while the CLI half was true only because its surface is
+    # generated from the contract.
+    "fichero_segment_update",
+    "fichero_segment_split",
+    "fichero_segment_merge",
+    "fichero_segment_delete",
+    "fichero_segment_undelete",
+    "fichero_segment_choose_reading",
     # Library scoping + doc/workflow drive tools that were registered but had
     # gone missing from this contract set (S37762) — added here so the exact
     # set is truthful again.
@@ -702,3 +712,108 @@ def test_hpc_test_and_dry_run_submit_paths(monkeypatch):
     body = json.loads(submit.content)
     assert body["input_files"] == ["/a.pdf", "/b.pdf"]
     assert body["throttle"] == 2
+
+
+class TestSegmentWriteToolsCarryTheRoutesRefusals:
+    """`source.editor.agent-parity` (#4941): the editor's verbs, over MCP.
+
+    What these pin is the route each tool calls AND that the version checks reach it,
+    because the failure mode is a tool that edits without the checks the editor obeys
+    — an agent with a way around the one protection a concurrent human editor has.
+    """
+
+    def test_update_sends_the_expected_version_with_the_shape(self, monkeypatch):
+        cm, seen = _mock_both(monkeypatch, body={"id": "seg-1", "version": 3})
+        try:
+            mcp_server.fichero_segment_update(
+                "seg-1", expected_version=2, rect=[0.1, 0.2, 0.3, 0.05], kind="line"
+            )
+        finally:
+            cm.__exit__(None, None, None)
+
+        assert seen[0].method == "PUT"
+        assert seen[0].url.path == "/api/segments/seg-1"
+        body = json.loads(seen[0].content)
+        assert body["expected_version"] == 2, "without this the route overwrites a newer row"
+        assert body["anchor"] == {"rect": [0.1, 0.2, 0.3, 0.05]}
+        assert body["kind"] == "line"
+
+    def test_update_omits_what_the_caller_did_not_set(self, monkeypatch):
+        """A field cannot be cleared by omission, so the tool must not send `null` for
+        everything the caller left alone — that would blank a segment's language the
+        moment somebody moved its box."""
+        cm, seen = _mock_both(monkeypatch, body={"id": "seg-1"})
+        try:
+            mcp_server.fichero_segment_update("seg-1", expected_version=1, kind="word")
+        finally:
+            cm.__exit__(None, None, None)
+
+        body = json.loads(seen[0].content)
+        assert set(body) == {"segment_id", "expected_version", "kind"}, body
+
+    def test_delete_sends_a_version_per_segment(self, monkeypatch):
+        cm, seen = _mock_both(monkeypatch, body={"deleted": 2})
+        try:
+            mcp_server.fichero_segment_delete(
+                ["seg-1", "seg-2"], {"seg-1": 3, "seg-2": 1}, reason="duplicate lines"
+            )
+        finally:
+            cm.__exit__(None, None, None)
+
+        assert seen[0].url.path == "/api/segments/delete"
+        body = json.loads(seen[0].content)
+        assert body["expected_versions"] == {"seg-1": 3, "seg-2": 1}
+        assert body["reason"] == "duplicate lines"
+
+    def test_merge_names_the_survivor(self, monkeypatch):
+        cm, seen = _mock_both(monkeypatch, body={"keep_id": "seg-1"})
+        try:
+            mcp_server.fichero_segment_merge(["seg-1", "seg-2"], keep_id="seg-1")
+        finally:
+            cm.__exit__(None, None, None)
+
+        body = json.loads(seen[0].content)
+        assert seen[0].url.path == "/api/segments/merge"
+        assert body == {"segment_ids": ["seg-1", "seg-2"], "keep_id": "seg-1"}
+
+    def test_split_and_undelete_hit_their_own_routes(self, monkeypatch):
+        cm, seen = _mock_both(monkeypatch, body={"new_segment_ids": ["seg-9"]})
+        try:
+            mcp_server.fichero_segment_split(
+                "seg-1", [{"anchor": {"rect": [0, 0, 0.5, 0.1]}}]
+            )
+            mcp_server.fichero_segment_undelete(["seg-1"])
+        finally:
+            cm.__exit__(None, None, None)
+
+        assert [r.url.path for r in seen] == [
+            "/api/segments/split",
+            "/api/segments/undelete",
+        ]
+
+    def test_a_refusal_propagates_rather_than_being_swallowed(self, monkeypatch):
+        """A 409 means somebody else edited the row since the caller read it. The tool
+        must raise so the agent re-reads and decides, not return a dict that reads like
+        success — the shape that would let an agent loop overwriting a person's work."""
+        cm = _mock_client(monkeypatch, status=409, body={"detail": "version 2 is stale"})
+        cm.__enter__()
+        monkeypatch.setattr(mcp_server, "_mutating_client", mcp_server._client)
+        try:
+            with pytest.raises(Exception) as raised:
+                mcp_server.fichero_segment_update("seg-1", expected_version=2, kind="line")
+        finally:
+            cm.__exit__(None, None, None)
+        assert "stale" in str(raised.value) or "409" in str(raised.value)
+
+    def test_choosing_a_reading_is_offered_so_the_refusal_is_visible(self, monkeypatch):
+        """Only a person may choose which reading counts, and an agent acting as itself
+        is refused (403). The tool exists so that refusal is REPORTABLE rather than
+        invisible for want of a surface offering it."""
+        cm, seen = _mock_both(monkeypatch, body={"ok": True})
+        try:
+            mcp_server.fichero_segment_choose_reading("seg-1", "rep-1")
+        finally:
+            cm.__exit__(None, None, None)
+
+        assert seen[0].url.path == "/api/segments/seg-1/readings/choice"
+        assert json.loads(seen[0].content) == {"representation_id": "rep-1"}

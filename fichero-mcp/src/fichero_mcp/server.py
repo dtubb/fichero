@@ -441,6 +441,198 @@ def fichero_segment_reference(segment_id: str) -> Any:
         return client.segment_reference(segment_id)
 
 
+# -- segments: the editor's verbs, for an agent (`source.editor.agent-parity`) ---
+#
+# Reads above, writes here. Until 2026-09-27 an agent could LOOK at a page's
+# segments and change nothing, so "every edit the editor can make can be made over
+# MCP" was false on the MCP half while the CLI half was true by generation.
+#
+# Each of these is one audited, undoable engine action through its own route, and
+# each carries the route's refusals rather than smoothing them over: an
+# `expected_version` that has moved on is a 409 the caller must read and retry, not
+# something to paper over by fetching the current version first. An agent that could
+# edit without the version check would be a way around the one protection a
+# concurrent human editor has.
+
+
+@mcp.tool()
+def fichero_segment_update(
+    segment_id: str,
+    expected_version: int,
+    rect: Optional[list[float]] = None,
+    polygon: Optional[list[list[float]]] = None,
+    baseline: Optional[list[list[float]]] = None,
+    kind: Optional[str] = None,
+    is_furniture: Optional[bool] = None,
+    language: Optional[str] = None,
+    script: Optional[str] = None,
+    direction: Optional[str] = None,
+) -> Any:
+    """Change ONE segment: its shape, its kind, whether it is furniture, or any of
+    the cascade's three facts.
+
+    `expected_version` is required and is the point: pass the `version` you read
+    from `fichero_segment`, and if somebody else has edited the row since, this
+    REFUSES with 409 rather than overwriting their work. Read the row again, decide
+    whether your edit still makes sense, and send the new version — never loop
+    fetching the version to satisfy the check, which defeats it.
+
+    A shape is `rect` ([x, y, w, h], fractions of the page) or `polygon` (a list of
+    [x, y] points), not both. Omitted fields are left alone; a field cannot be
+    cleared by omission.
+
+    Args:
+        segment_id: The segment to change. A provisional id is refused.
+        expected_version: The version you believe you are editing.
+        rect: A rectangle, as fractions of the page.
+        polygon: A polygon's points, as fractions of the page.
+        baseline: The line's baseline, as [x, y] points.
+        kind: `line`, `word`, `region`, … (an open list).
+        is_furniture: True for a running head, folio number or catchword.
+        language: A BCP 47 tag; `script` an ISO 15924 code; `direction` one of the
+            known directions.
+    """
+    anchor: dict[str, Any] = {}
+    if rect is not None:
+        anchor["rect"] = rect
+    if polygon is not None:
+        anchor["polygon"] = polygon
+    body: dict[str, Any] = {
+        "segment_id": segment_id,
+        "expected_version": expected_version,
+    }
+    if anchor:
+        body["anchor"] = anchor
+    for key, value in (
+        ("baseline", baseline),
+        ("kind", kind),
+        ("is_furniture", is_furniture),
+        ("language", language),
+        ("script", script),
+        ("direction", direction),
+    ):
+        if value is not None:
+            body[key] = value
+    with _mutating_client() as client:
+        return client.request("PUT", f"/api/segments/{segment_id}", json=body)
+
+
+@mcp.tool()
+def fichero_segment_split(
+    segment_id: str, parts: list[dict[str, Any]], expected_version: Optional[int] = None
+) -> Any:
+    """Split one segment into several, each part carrying its own shape.
+
+    `parts` is a list of `{"anchor": {"rect": [x, y, w, h]}}` (or a polygon), in the
+    order they should read. The original id keeps forwarding to the parts, so a
+    citation made before the split still resolves — which is why this is a split
+    rather than a delete and three creates.
+
+    Args:
+        segment_id: The segment to split.
+        parts: The new shapes, in reading order.
+        expected_version: The version you believe you are splitting, when the route
+            takes one.
+    """
+    body: dict[str, Any] = {"segment_id": segment_id, "parts": parts}
+    if expected_version is not None:
+        body["expected_version"] = expected_version
+    with _mutating_client() as client:
+        return client.request("POST", "/api/segments/split", json=body)
+
+
+@mcp.tool()
+def fichero_segment_merge(
+    segment_ids: list[str], keep_id: Optional[str] = None
+) -> Any:
+    """Merge several segments into one.
+
+    `keep_id` is the survivor and must be one of `segment_ids`; the others forward to
+    it, so every id anybody has cited still resolves. Omit it and the engine decides,
+    which is fine for a machine's own rows and is worth naming explicitly when a
+    person has cited one of them.
+
+    Args:
+        segment_ids: The segments to merge, two or more.
+        keep_id: Which id survives.
+    """
+    body: dict[str, Any] = {"segment_ids": segment_ids}
+    if keep_id is not None:
+        body["keep_id"] = keep_id
+    with _mutating_client() as client:
+        return client.request("POST", "/api/segments/merge", json=body)
+
+
+@mcp.tool()
+def fichero_segment_delete(
+    segment_ids: list[str],
+    expected_versions: dict[str, int],
+    reason: Optional[str] = None,
+) -> Any:
+    """Delete segments — soft, versioned and undoable.
+
+    `expected_versions` maps each id to the version you believe you are deleting, so
+    a row somebody edited since is refused instead of quietly removed. Nothing is
+    erased: `fichero_segment_undelete` brings the rows back under their own ids.
+
+    `reason` is capped and goes into the tamper-evident audit chain, where nothing can
+    ever be purged — an operator's short note, never a quote from a source.
+
+    Args:
+        segment_ids: The segments to delete.
+        expected_versions: Segment id to the version you read.
+        reason: A short note for the audit record.
+    """
+    body: dict[str, Any] = {
+        "segment_ids": segment_ids,
+        "expected_versions": expected_versions,
+    }
+    if reason is not None:
+        body["reason"] = reason
+    with _mutating_client() as client:
+        return client.request("POST", "/api/segments/delete", json=body)
+
+
+@mcp.tool()
+def fichero_segment_undelete(segment_ids: list[str]) -> Any:
+    """Bring deleted segments back, under their OWN ids.
+
+    The counterpart to `fichero_segment_delete`, and the reason a delete is safe to
+    make over MCP at all.
+
+    Args:
+        segment_ids: The segments to restore.
+    """
+    with _mutating_client() as client:
+        return client.request(
+            "POST", "/api/segments/undelete", json={"segment_ids": segment_ids}
+        )
+
+
+@mcp.tool()
+def fichero_segment_choose_reading(
+    segment_id: str, representation_id: str
+) -> Any:
+    """Record WHICH of a segment's readings counts.
+
+    Only a person may choose (`ChoiceNeedsAPerson`, 403), and an agent acting as
+    itself will be refused — deliberately. A machine choosing which of its own
+    outputs is the true one is exactly the judgement the model keeps human. The tool
+    exists so an agent can ATTEMPT it on a person's behalf and be told no in a way it
+    can report, rather than the refusal being invisible because no surface offered it.
+
+    Args:
+        segment_id: The segment whose readings are being judged.
+        representation_id: The reading that counts.
+    """
+    with _mutating_client() as client:
+        return client.request(
+            "POST",
+            f"/api/segments/{segment_id}/readings/choice",
+            json={"representation_id": representation_id},
+        )
+
+
 # -- knowledge graph -------------------------------------------------------
 @mcp.tool()
 def fichero_kg_entities(
