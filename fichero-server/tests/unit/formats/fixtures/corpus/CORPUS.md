@@ -69,19 +69,31 @@ shape** (58 lines with `points=""`, 3 `eSc_dummyblock_` regions, 1 self-closing
 appeared.
 
 **The sources as they arrived — information about the FILES, never a test failure.**
-`scripts/validate_exports.py` on this directory (2026-09-27): 7 valid, 2 INVALID, 7
-other version, 1 no schema.
+`scripts/validate_exports.py` on this directory (2026-09-27, with the PAGE 2013 and ALTO
+4.3 schemas vendored): **8 valid, 7 INVALID, 1 other version, 1 no schema.** Seven of
+the eight PAGE files are **PAGE 2013** — an older version, which is the point: each goes
+out as PAGE 2019 and validates as that (bar the xfailed shape defect).
 
-- 7 are **PAGE 2013** (7 of the 8 PAGE files here) — an older version, which is the
-  point: each goes out as PAGE 2019 and must validate as that.
-- `escriptorium_occitan_flamenca-0001.alto.xml` is INVALID by its own schema:
-  eScriptorium line ids are UUIDs, and one starting with a digit is not an `xsd:ID`.
-  Import is fine and our export validates (the writer mints its own ids).
-- `transkribus_tibetan-layout_pagantibet-corr1.tei.xml` is not even well-formed under
+- `calfa_chinese-vertical_chi1087-0065.page.xml`: every region and line id is a bare
+  number (`79725`, `870630`), which `xs:ID` forbids; `Metadata` lacks `LastChange`.
+- `calfa_arabic-baseline-only_rasam417-0010.page.xml`: `points=""` fails the `Coords`
+  pattern; `Comments` in the wrong place.
+- `escriptorium-transkribus_syriac_smmj36-0004.page.xml` and
+  `transkribus_newa-pracalit_vetala-0221.page.xml`: `TranskribusMetadata` is not in the
+  2013 schema; the Syriac file's dummy region has no `Coords`.
+- `transkribus_greek-polytonic_vatgr2228-0036.page.xml`: `Comments` out of order.
+- `escriptorium_occitan_flamenca-0001.alto.xml`: eScriptorium line ids are UUIDs, and
+  one starting with a digit is not a valid `TextLineID`.
+- `transkribus_tibetan-layout_pagantibet-corr1.tei.xml`: not even well-formed under
   `xml:id` rules (the NCName problem above).
-- `transkribus_multidirection_cpas2000.page.xml` declares its namespace with `https://`,
-  so strictly it is not PAGE at all; we read it anyway.
+- `transkribus_multidirection_cpas2000.page.xml`: declares its namespace with
+  `https://`, so strictly it is no PAGE version at all ("other version"); we read it
+  anyway.
 - hOCR has no schema by nature.
+
+In every case but the two xfailed defects, **our export of the file is valid** — the
+writer mints its own ids and writes the 2019 namespace, so the source's non-conformance
+does not travel.
 
 **Silence, recorded honestly:** only one file here states a direction (`cpas2000`), and
 only the hOCR and `cpas2000` state a language in a field the model reads. The Chinese,
