@@ -188,6 +188,11 @@ class SourcePage:
     #: that becomes the pass. None when the file names none -- never a default, because
     #: "the file chose nothing" and "the file chose affine" are different facts.
     transformation: dict[str, Any] | None = None
+    #: The DECLARED SIGNS this page's text uses (`source.sign.export-honest`, #4939): each
+    #: `{"id", "name", "code_point", "list_references"}`. The text keeps the private-use
+    #: character; this says what it means. Filled by the library export from the project's sign
+    #: list; read back from TEI's `<charDecl>`.
+    signs: list[dict[str, Any]] = field(default_factory=list)
     #: File-level content the model has no field for
     #: (`source.format.keeps-unrecognised`). Kept on the PAGE, which becomes the
     #: pass -- not on segments, because a format adds no field to segments and
@@ -328,6 +333,9 @@ class FormatSpec:
     #: problems or []. `validate()` uses it where `schema` is None. A format with
     #: neither is unvalidatable by nature and must say so (test_export_validation.py).
     check: Callable[[bytes], list[str]] | None = None
+    #: Whether the format can say what a declared sign MEANS (TEI's `<g>` + `<charDecl>`). A
+    #: format that cannot still carries the character; `write_page` reports the rest as lost.
+    carries_declared_signs: bool = False
 
     @property
     def reads(self) -> bool:

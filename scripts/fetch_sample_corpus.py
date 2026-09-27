@@ -831,9 +831,11 @@ SETS: dict[str, Set] = {
         folder="Cherokee and English - Cherokee Phoenix newspaper, 1828 (ALTO 2, inch1200)",
         language="Cherokee, English", script="Cherokee syllabary and Latin, on one page", direction="left-to-right",
         producer="CCS docWizz / ABBYY FineReader 8.1 machine OCR (NDNP), ALTO 2.0, MeasurementUnit inch1200",
-        licence="Public domain (Library of Congress, Chronicling America: no known restrictions)",
-        licence_read="NDNP data at tile.loc.gov; the Chronicling America rights page on www.loc.gov refuses scripted "
-        "reads (Cloudflare), so the statement was NOT re-read by this script -- verify it in a browser",
+        licence="Public domain (Library of Congress, Chronicling America: published 1828, over 95 years ago)",
+        licence_read="Chronicling America rights and access page, "
+        "https://www.loc.gov/collections/chronicling-america/about-this-collection/rights-and-access/, read "
+        "2026-09-27 in a browser (the page refuses scripted reads): \"Newspapers published in the United States "
+        "more than 95 years ago are in the public domain in their entirety.\" The Phoenix is from 1828.",
         source="https://tile.loc.gov/storage-services/service/ndnp/dlc/batch_dlc_misctopsn83020866_ver03/",
         exercises="a syllabary of the Americas beside English on the same page (TextBlock language=\"chr\" / \"eng\"); "
         "coordinates in 1/1200 inch, not pixels; machine OCR at a stated ~90%, not hand-corrected",

@@ -250,6 +250,7 @@ def read_pages(data: bytes) -> list[SourcePage]:
     surface_by_id = {s.element.get(_XML_ID): s for s in surfaces if s.element.get(_XML_ID)}
 
     header = next((c for c in root if _tag(c) == "teiHeader"), None)
+    declared_signs = _signs_declared_in(header)
     header_xml = None
     if header is not None:
         from lxml import etree
@@ -435,6 +436,7 @@ def read_pages(data: bytes) -> list[SourcePage]:
     out: list[SourcePage] = []
     for index, raw_page in enumerate(pages):
         page = SourcePage()
+        page.signs = [dict(sign) for sign in declared_signs]
         pb = raw_page["pb"]
         surface: _Surface | None = None
         if pb is not None:
@@ -547,7 +549,6 @@ def write(page: SourcePage, report: LossReport) -> bytes:
     text_el = etree.SubElement(root, q("text"))
     body = etree.SubElement(text_el, q("body"))
     div = etree.SubElement(body, q("div"))
-    del header
 
     by_ref = {s.ref: s for s in page.segments if s.ref}
     children: dict[str | None, list[PageSegment]] = {}
@@ -720,7 +721,128 @@ def write(page: SourcePage, report: LossReport) -> bytes:
     if not len(div):
         etree.SubElement(div, q("ab"), type="anonymous")
 
+    _declare_signs(root, header, page, q)
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8", pretty_print=False)
+
+
+def _declare_signs(root: Any, header: Any, page: SourcePage, q: Any) -> None:
+    """Declared signs out as TEI says them (`source.sign.export-honest`, #4939): each use of a
+    sign's private-use character in the TEXT is wrapped `<g ref="#sign-…">`, and the header's
+    `<encodingDesc><charDecl>` gives each a `<glyph>` with its name, its mapping, and its
+    sign-list references. The character itself stays, so a reader without the declaration still
+    has the text."""
+    from lxml import etree
+
+    from fichero_server.models.signs import code_point_char
+
+    by_char = {
+        code_point_char(sign["code_point"]): sign for sign in page.signs if sign.get("code_point")
+    }
+    if not by_char:
+        return
+    text_el = root.find(q("text"))
+    used: set[str] = set()
+
+    def split(text: str | None) -> list[Any]:
+        """`text` as a list of str pieces and ("g", char) markers."""
+        pieces: list[Any] = []
+        buffer = ""
+        for ch in text or "":
+            if ch in by_char:
+                if buffer:
+                    pieces.append(buffer)
+                    buffer = ""
+                pieces.append(("g", ch))
+                used.add(ch)
+            else:
+                buffer += ch
+        if buffer:
+            pieces.append(buffer)
+        return pieces
+
+    def g_for(ch: str) -> Any:
+        g = etree.Element(q("g"), ref=f"#sign-{by_char[ch]['id']}")
+        g.text = ch
+        return g
+
+    for element in list(text_el.iter()) if text_el is not None else []:
+        if not isinstance(element.tag, str) or element.tag == q("g"):
+            continue
+        # The element's own text: the first plain piece stays as text, then each <g> and the
+        # plain piece after it as that <g>'s tail, inserted before the element's first child.
+        pieces = split(element.text)
+        if any(isinstance(p, tuple) for p in pieces):
+            element.text = pieces[0] if pieces and isinstance(pieces[0], str) else None
+            rest = pieces[1:] if pieces and isinstance(pieces[0], str) else pieces
+            position = 0
+            last = None
+            for piece in rest:
+                if isinstance(piece, tuple):
+                    last = g_for(piece[1])
+                    element.insert(position, last)
+                    position += 1
+                elif last is not None:
+                    last.tail = (last.tail or "") + piece
+        for child in list(element):
+            if child.tag == q("g") or not child.tail:
+                continue
+            pieces = split(child.tail)
+            if not any(isinstance(p, tuple) for p in pieces):
+                continue
+            child.tail = pieces[0] if isinstance(pieces[0], str) else None
+            anchor = child
+            for piece in (pieces[1:] if isinstance(pieces[0], str) else pieces):
+                if isinstance(piece, tuple):
+                    g = g_for(piece[1])
+                    anchor.addnext(g)
+                    anchor = g
+                else:
+                    anchor.tail = (anchor.tail or "") + piece
+
+    if not used:
+        return
+    encoding = header.find(q("encodingDesc"))
+    if encoding is None:
+        encoding = etree.Element(q("encodingDesc"))
+        header.find(q("fileDesc")).addnext(encoding)
+    char_decl = etree.SubElement(encoding, q("charDecl"))
+    for ch in sorted(used):
+        sign = by_char[ch]
+        glyph = etree.SubElement(char_decl, q("glyph"), {_XML_ID: f"sign-{sign['id']}"})
+        # `<localProp name="name">`, not `<glyphName>`: TEI P5 4.x removed glyphName, and the
+        # vendored schema refused it -- the export validation caught it.
+        etree.SubElement(glyph, q("localProp"), name="name", value=sign.get("name") or sign["code_point"])
+        for reference in sign.get("list_references") or []:
+            etree.SubElement(glyph, q("note"), type="sign-list", subtype=str(reference.get("authority", ""))).text = str(
+                reference.get("number", "")
+            )
+        etree.SubElement(glyph, q("mapping"), type="PUA").text = ch
+
+
+def _signs_declared_in(header: Any) -> list[dict[str, Any]]:
+    """TEI's `<charDecl>` glyphs back as declared signs, so a round trip keeps them."""
+    if header is None:
+        return []
+    signs = []
+    for glyph in header.iter(f"{{{TEI_NS}}}glyph"):
+        mapping = next((m for m in glyph.iter(f"{{{TEI_NS}}}mapping") if (m.text or "").strip()), None)
+        ch = (mapping.text or "").strip() if mapping is not None else ""
+        glyph_id = glyph.get(_XML_ID) or ""
+        name_prop = next(
+            (lp.get("value") for lp in glyph.iter(f"{{{TEI_NS}}}localProp") if lp.get("name") == "name"), None
+        )
+        old_name = glyph.find(f"{{{TEI_NS}}}glyphName")  # older TEI: still read
+        name = name_prop or ((old_name.text or "").strip() if old_name is not None else "") or glyph_id
+        signs.append({
+            "id": glyph_id[len("sign-"):] if glyph_id.startswith("sign-") else glyph_id,
+            "name": name,
+            "code_point": f"U+{ord(ch):04X}" if len(ch) == 1 else None,
+            "list_references": [
+                {"authority": note.get("subtype") or "", "number": (note.text or "").strip()}
+                for note in glyph.iter(f"{{{TEI_NS}}}note") if note.get("type") == "sign-list"
+            ],
+        })
+    return signs
 
 
 def _words_in_text(holder: Any, line: PageSegment, words: list[PageSegment], zone_for: Any,
@@ -831,5 +953,6 @@ register(
         schema="tei_all.xsd",
         round_trips=True,
         sniff=_sniff,
+        carries_declared_signs=True,
     )
 )

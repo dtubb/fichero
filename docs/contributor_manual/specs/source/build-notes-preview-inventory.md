@@ -92,3 +92,14 @@ The zoom cluster is the image viewer's, not the editor's.
 4. **Combine → Join**: rename, so the page, the Inspector and the menu use one word.
 5. **The order list**: in the Reader, the Inspector, or the Segments pane?
 6. **Marks on a selection**: may a highlight apply to selected segments, not only a drawn area?
+
+## 4. Ruled 2026-09-27
+
+The maintainer ruled on all six questions; the rulings are recorded in `segment-editor.md` ("The plan
+for slices 13 and 13b"). In short: Q1 **merge** Draw Region into the one Shape tool; Q2 **keep** the
+display switches, rethought as **layers** (image on or off, overlays on or off, workspace defaults),
+which overrides section 2's proposal to remove Show Regions and Word Bounding Boxes; Q3 the Edit
+Segments switch goes in the **head beside the pencil and** stays in What to show; Q4 **Combine → Join**
+everywhere; Q5 reorder in **all three places**, drag and keyboard, **one** implementation; Q6 marks
+apply to the **selection** or attach to what is drawn over, **Apple Preview's PDF annotations** are the
+target (read PDFKit's annotation types first), and marks export as real PDF annotations.

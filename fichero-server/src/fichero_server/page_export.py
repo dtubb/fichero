@@ -184,8 +184,23 @@ def page_from_library(
         direction=document.direction,
         segments=segments,
         orders=orders,
+        signs=_declared_signs_used(db, segments),
     )
     return page, choices
+
+
+def _declared_signs_used(db: Any, segments: list[PageSegment]) -> list[dict[str, Any]]:
+    """The project's declared signs whose characters this page's readings use
+    (`source.sign.export-honest`, #4939), for a format that can say what they mean."""
+    from fichero_server.models.signs import DeclaredSign, code_point_char
+
+    text = "".join(reading[1] for segment in segments for reading in segment.readings)
+    return [
+        {"id": sign.id, "name": sign.name, "code_point": sign.code_point,
+         "list_references": list(sign.list_references)}
+        for sign in db.all(DeclaredSign)
+        if sign.deleted_at is None and sign.code_point and code_point_char(sign.code_point) in text
+    ]
 
 
 def export_page(

@@ -268,6 +268,25 @@ Steps 1 and 2 are written in `build-notes-preview-inventory.md`: today's control
 `source.editor.*` and `source.textedit.*` behaviour placed in the existing Preview, and six
 questions for the maintainer.
 
+**Rulings on the wireframes (2026-09-27)**, the six questions of `build-notes-preview-inventory.md`:
+
+- **Q1, Draw Region: merged** into the one Shape tool. In the mode it draws a segment; outside it,
+  a marquee (a run scope), as today.
+- **Q2, display switches: kept, rethought as LAYERS.** The image on or off, and the overlays on
+  or off. Overlays *without* the image is a case the maintainer wants. Each layer has good
+  defaults tied to the workspace. This overrides the inventory's proposal to remove Show Regions
+  and Show Word Bounding Boxes, and `source.editor.two-switches` is read as layer switches with
+  workspace defaults, not a hard count of two.
+- **Q3, the Edit Segments switch:** in the pane HEAD beside the pencil, AND still in What to show.
+- **Q4: Combine is renamed JOIN everywhere**: the page, the Inspector and the menu.
+- **Q5, reordering: in all three places** (the Reader, the Inspector, the Segments pane), by
+  drag-and-drop and by keyboard shortcuts, with ONE behaviour. One implementation with the same
+  verbs, never three.
+- **Q6, marks:** a mark applies to the SELECTION, or attaches to whatever is drawn over. Check can
+  check a whole paragraph (a region), star works like check, and highlight draws over segments.
+  **The target is what Apple Preview supports for PDF annotations.** So PDFKit's annotation types are
+  read before marks are designed, and marks stay exportable as real PDF annotations.
+
 Slice 12 (the speed trial) is a hard gate before any of this.
 
 ### Slice 12: the speed trial, and how it is measured
@@ -800,21 +819,16 @@ The editor
   **Still `[PARTIAL]`**, because the behaviour is "every edit the editor can make" and the editor
   is unbuilt: reshape, cut, join-group, set-kind and the rest have no verb yet on any surface, so
   parity is currently a claim about six verbs rather than about an editor.
-- `source.editor.two-switches` — **[GAP]** (#4941) the editor has two view switches only (show the order; show
-  the links); everything else shown follows from zoom and selection.
-  **Neither of the two named switches exists, and eleven others do** (counted on disk 2026-09-27
-  in `ZoomableImagePreviewMac`): `magnifierEnabled`, `loupeEnabled`, `loupeMagnification`,
-  `loupeSize`, `panelMagnification`, `panelHeight`, `magnifierLocked`, `loupeLocked`,
-  `annotationsEnabled`, `regionsEnabled`, `inlineTextEnabled` — plus the markup tool bar. There
-  is no "show the order" and no "show the links", because named orders and typed links have no
-  drawing at all yet.
-  So this behaviour is not a switch to add: it is a **budget** on a surface that has already
-  spent eleven, and meeting it means deciding which of those eleven survive, which follow from
-  zoom and selection instead, and which belong to the image-viewing surface rather than the
-  editor. Three of them are plainly not editor switches (the loupe and magnifier sizing are
-  reading aids), which suggests the behaviour means "two switches BELONGING TO THE EDITOR" rather
-  than two in the pane — and that reading should be confirmed rather than assumed, with #5114 and
-  #5115, since all three are questions about what a sentence in this spec is asking for.
+- `source.editor.two-switches` — **[GAP]** (#4941) the editor's view switches are LAYERS (ruled 2026-09-27, Q2):
+  the image on or off and the overlays on or off, overlays without the image included, each with
+  defaults tied to the workspace. It is no longer a hard count of two. Show Order and Show Links are
+  among the overlay layers.
+  **Counted on disk 2026-09-27**, eleven stored settings exist in `ZoomableImagePreviewMac`:
+  `magnifierEnabled`, `loupeEnabled`, `loupeMagnification`, `loupeSize`, `panelMagnification`,
+  `panelHeight`, `magnifierLocked`, `loupeLocked`, `annotationsEnabled`, `regionsEnabled`,
+  `inlineTextEnabled`. Of these, `annotationsEnabled` and `regionsEnabled` become overlay layers; the
+  loupe and magnifier are viewing aids, not layers. Nothing yet turns the image itself off, and no
+  setting carries workspace defaults.
 - `source.editor.draw-shapes` — **[GAP]** (#4941) box, polygon, point, line and baseline can be drawn.
 - `source.editor.reshape` — **[GAP]** (#4941) points can be dragged, added and removed; shapes moved and nudged.
 - `source.editor.propose-shape` — **[GAP]** (#4941) a click asks the engine to propose a shape, which can then be
@@ -927,10 +941,9 @@ section above writes down. It takes one recorded run and a committed baseline
 (`scripts/perf_trial_baseline.json`) and says PASS, FAIL, INCONCLUSIVE, VOID or REFUSED, with exit
 codes 0, 1 or 2. It takes no measurements itself. The app's frame harness (Release build, on the
 oldest supported iPhone and the Mac) and the engine latency test produce results in its format.
-Two choices it makes that the spec left open are named in its code so they can be ruled. The edit
-gate, like the frame gate, is on the worst value. Memory "grows with the count" means the peak at
-20,000 shapes is at least halfway from flat to proportional (at least 2.5 times the peak at
-5,000). Until a run on each machine is recorded, these behaviours are PARTIAL.
+Two thresholds the spec had left open were **ruled by the maintainer on 2026-09-27**, as the
+script had them. The edit gate, like the frame gate, is decided by the WORST run. Memory "grows with
+the count", and FAILS, when the peak at 20,000 shapes is 2.5 times the peak at 5,000 or more. Until a run on each machine is recorded, these behaviours are PARTIAL.
 
 **The trial's first finding (2026-09-27), before any editor UI.** The engine's share of the edit
 gate is measured by `fichero-server/tests/perf/test_segment_edit_undo_perf.py`. It imports the

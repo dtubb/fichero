@@ -159,6 +159,14 @@ def write_page(name: str, page: SourcePage) -> tuple[bytes, LossReport]:
         raise FormatCannotWrite(name)
     report = LossReport(format=name)
     data = spec.write(page, report)
+    if page.signs and not spec.carries_declared_signs:
+        # HERE, not in each writer, so no format can forget it (`source.sign.export-honest`).
+        report.note(
+            "declared signs",
+            len(page.signs),
+            f"{name} carries each sign's private-use character but not what it means (its name "
+            "and sign-list references); TEI does",
+        )
     problems = validate(spec, data)
     if problems:
         raise InvalidExport(name, problems)

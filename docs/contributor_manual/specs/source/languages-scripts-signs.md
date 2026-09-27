@@ -275,10 +275,16 @@ Signs
   (`fichero-server/tests/unit/api/test_declared_signs.py::TestTheSignListAndItsInstances::test_every_instance_on_the_real_page_is_gathered_by_one_query`). **Not
   built:** each instance's picture, and instances of a sign with no code point.
 - `source.sign.shown-as-picture` — **[GAP]** (#4939) where no font has a sign, its picture is shown in line.
-- `source.sign.export-honest` — **[GAP]** (#4939) exports carry declared signs where the format can (TEI) and
-  report substitutions where it cannot.
-
-Fonts and input
+- `source.sign.export-honest` — **[PARTIAL]** (#4939) exports carry declared signs where the format can (TEI) and
+  report substitutions where it cannot. **TEI:** each use of a sign's character is wrapped
+  `<g ref="#sign-…">`, and `<encodingDesc><charDecl>` gives each sign a `<glyph>` with its name as
+  `<localProp name="name">` (TEI P5 4.x removed `<glyphName>`, and the vendored schema refused it), its
+  sign-list references, and a PUA `<mapping>`. The TEI reader reads it back
+  (`fichero-server/tests/unit/api/test_declared_signs.py::TestExportIsHonestAboutSigns::test_tei_wraps_every_use_and_declares_the_sign`,
+  `::TestExportIsHonestAboutSigns::test_a_tei_round_trip_keeps_the_declaration`). **Every other format**
+  keeps the character and reports "declared signs" as lost, in `write_page` itself so no writer can
+  forget (`::TestExportIsHonestAboutSigns::test_alto_keeps_the_character_and_reports_the_meaning_lost`).
+  **Not built:** a sign with no code point, which needs the position map.
 - `source.font.recorded` — **[GAP]** (#4939) a reading records the font it needs; a project can carry fonts.
 - `source.font.find-and-add` — **[GAP]** (#4939) fonts for a script can be searched for in open collections and
   added to a project in one step, with their licence shown.

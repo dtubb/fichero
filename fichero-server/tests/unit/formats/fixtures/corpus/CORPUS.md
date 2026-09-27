@@ -164,7 +164,7 @@ it.
 | eScriptorium's own TEI export sample (`tei_xml_export_full_part1.xml`, MIT repo) | MIT repository, but the file's own `<availability>` says CC-BY-NC-SA 4.0 | Contradictory; left out |
 | NDL `ndl-minhon-ocrdataset`, CODH kuzushiji, HJDataset (Japanese) | CC-BY-SA-4.0 / gated | JSON / CSV / COCO, not PAGE, ALTO, TEI or hOCR |
 | Cree syllabics (Zenodo 6915296), Tibetan-Cursive-GT, Kuzushiji HTR model (Zenodo 13942714), Old Cyrillic model (Zenodo 7755483) | CC-BY / CC0 | Tesseract `.box`, plain text, or a model with no ground truth |
-| Cherokee Phoenix ALTO 2 (LoC NDNP `ver03`) | public domain per LoC; the rights page refuses scripted reads | in the local folder; the smallest page is 567 KB, too big to vendor |
+| Cherokee Phoenix ALTO 2 (LoC NDNP `ver03`) | **public domain**: "Newspapers published in the United States more than 95 years ago are in the public domain in their entirety" (Chronicling America rights and access page, https://www.loc.gov/collections/chronicling-america/about-this-collection/rights-and-access/, read 2026-09-27 in a browser, since the page refuses scripted reads); the Phoenix is from 1828 | in the local folder; the smallest page is 567 KB, too big to vendor |
 | TranscriboQuest 2025 Medieval Latin (Zenodo 17093528) — the one gloss-focused Latin set found | **CC-BY-NC-SA-4.0** | NonCommercial; not fetched either |
 | 全交法師常々艸, 1794 kuzushiji woodblock TEI with polygon zones, `<ruby>`, `<choice>` | **none declared** | No licence; the one line-level vertical Japanese TEI found |
 | Homer Multitext, Venetus A with scholia (the glossed-page demo) | CC-BY-NC-SA per its site (not re-read) | CEX with fractional rectangles, not PAGE/ALTO/TEI |
