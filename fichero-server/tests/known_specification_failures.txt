@@ -35,7 +35,7 @@ tests/unit/seams/test_optional_callback_seam.py::test_claim_source_navigation_is
 tests/unit/seams/test_optional_callback_seam.py::test_every_control_gating_callback_is_supplied_by_every_host
 tests/unit/seams/test_state_channel_seam.py::test_every_key_read_from_graph_state_is_a_declared_channel
 
-# ---- #5121 (4) ----
+# ---- #5121 (5) ----
 # The Mac App Store channel is UNWIRED: one `Fichero` target, no `App Store` build
 # configuration, `Fichero (App Store).xcscheme` builds plain `Release`,
 # `FICHERO_APP_STORE` defined nowhere, Sparkle linked unconditionally, and both
@@ -46,9 +46,18 @@ tests/unit/scripts/test_check_mac_app_store_target.py::test_guardrail_passes_on_
 tests/unit/scripts/test_check_mac_app_store_target.py::test_embed_phase_asserts_no_get_task_allow
 tests/unit/scripts/test_check_mac_app_store_target.py::test_embed_phases_preflight_briefcase_bundle_before_copying
 tests/unit/scripts/test_check_mac_app_store_target.py::test_embed_phases_are_dependency_aware_not_always_out_of_date
+tests/unit/scripts/test_every_guard_passes_on_the_real_tree.py::test_every_guard_passes_on_the_real_tree[check_mac_app_store_target.py]
 
-# ---- #5099 (1) ----
+# ---- #5099 (2) ----
 # Two handlers own `POST /api/links`: slice 10's typed links (registered first,
 # so it wins) and library links' hidden legacy alias, which is now unreachable.
 # The guard is right; the per-concern node lets any NEW duplicate still fail.
 tests/unit/scripts/test_check_duplicate_paths.py::test_repo_concern_is_allowlisted[route:POST /api/links]
+tests/unit/scripts/test_every_guard_passes_on_the_real_tree.py::test_every_guard_passes_on_the_real_tree[check_duplicate_paths.py]
+
+# ---- #5113 (1) ----
+# The SwiftLint ratchet is held at its real 2026-09-05 baseline of 123; the tree
+# has more (186 on 2026-09-27, 167 after the first drain). Ruled: lint is a
+# milestone to FIX, never a baseline to raise. The guard was right the whole time
+# and ran nowhere anyone looked (#4861); this node is where it now runs.
+tests/unit/scripts/test_every_guard_passes_on_the_real_tree.py::test_every_guard_passes_on_the_real_tree[check_swiftlint_warning_ratchet.py]
