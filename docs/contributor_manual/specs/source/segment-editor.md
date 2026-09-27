@@ -264,6 +264,10 @@ getting the Preview good, not adding a pane beside it.
 3. The inventory and proposed layouts go to the manager, who turns them into wireframes the
    maintainer clicks through. **The maintainer rules before anything is built.**
 
+Steps 1 and 2 are written in `build-notes-preview-inventory.md`: today's controls, each
+`source.editor.*` and `source.textedit.*` behaviour placed in the existing Preview, and six
+questions for the maintainer.
+
 Slice 12 (the speed trial) is a hard gate before any of this.
 
 ### Slice 12: the speed trial, and how it is measured
