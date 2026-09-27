@@ -21,10 +21,14 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 #: PyMuPDF annot type codes → Fichero AnnotationKind values.
-#: Text markup (highlight/underline/strikeout/squiggly) keeps its color as a
-#: highlight; sticky notes and free text become notes. Everything else —
-#: links, form widgets, stamps — is chrome, not scholarship, and is skipped.
+#: Text markup keeps its OWN kind (Q6, applied 2026-09-27): an underline and a strike are
+#: judgements, not tints, and the engine has had `underline` and `strikethrough` since 2026-08-30 --
+#: folding them into "highlight" lost what the mark said. Squiggly has no kind of its own and is
+#: an underline. Sticky notes and free text become notes. Square, Circle and Ink still become
+#: highlights over their rect until kinds exist for them. Everything else -- links, form widgets,
+#: stamps -- is chrome, not scholarship, and is skipped.
 _MARKUP_TYPES = {8: "Highlight", 9: "Underline", 10: "Squiggly", 11: "StrikeOut"}
+_MARKUP_KINDS = {8: "highlight", 9: "underline", 10: "underline", 11: "strikethrough"}
 _NOTE_TYPES = {0: "Text", 2: "FreeText"}
 _REGION_TYPES = {4: "Square", 5: "Circle", 15: "Ink"}
 
@@ -61,7 +65,9 @@ def extract_pdf_annotations(pdf_path: str) -> list[dict[str, Any]]:
             for annot in page.annots() or []:
                 type_code = annot.type[0]
                 subtype = annot.type[1]
-                if type_code in _MARKUP_TYPES or type_code in _REGION_TYPES:
+                if type_code in _MARKUP_TYPES:
+                    kind = _MARKUP_KINDS[type_code]
+                elif type_code in _REGION_TYPES:
                     kind = "highlight"
                 elif type_code in _NOTE_TYPES:
                     kind = "note"
@@ -140,7 +146,7 @@ def import_pdf_annotations(
                 document_id=target_id,
                 page_id=page_doc.id if page_doc else None,
                 page_index=raw["page_index"],
-                kind="highlight" if raw["kind"] == "highlight" else "note",
+                kind=raw["kind"],
                 text=raw["text"] or None,
                 color=raw["color"],
                 anchor=anchor,
