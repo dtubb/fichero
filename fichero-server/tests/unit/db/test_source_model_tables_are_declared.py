@@ -12,11 +12,12 @@ import duckdb
 import pytest
 
 from fichero_server.db import Database
+from fichero_server.models.editorial import EditorialFact
 from fichero_server.models.hands import Hand, HandAttribution
 from fichero_server.models.rights import RightsRecord
 from fichero_server.models.signs import DeclaredSign
 
-MODELS = [Hand, HandAttribution, RightsRecord, DeclaredSign]
+MODELS = [Hand, HandAttribution, RightsRecord, DeclaredSign, EditorialFact]
 
 
 def _tables(conn) -> set[str]:

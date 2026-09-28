@@ -1206,6 +1206,7 @@ class Database(DatabaseEmbeddingMixin):
         from fichero_server.models.typed_links import LibraryLinkType, TypedLink
         from fichero_server.models.reading_orders import ReadingOrder, ReadingOrderEntry
         from fichero_server.models.source_declarations import LibraryScript
+        from fichero_server.models.editorial import EditorialFact
         from fichero_server.models.hands import Hand, HandAttribution
         from fichero_server.models.rights import RightsRecord
         from fichero_server.models.signs import DeclaredSign
@@ -1321,6 +1322,7 @@ class Database(DatabaseEmbeddingMixin):
             # created on first save and so missed the open-time schema (found sweeping after the
             # lead's review of PageLineMap). Declared, so a library gains them when it opens.
             DeclaredSign,
+            EditorialFact,
             Hand,
             HandAttribution,
             RightsRecord,
