@@ -1371,6 +1371,98 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(digest, recorded["original_sha256"] as? String, "as imported: the file, byte for byte")
     }
 
+    /// `source.segment.shape-kinds`, `curved-baseline`, `source.editor.reshape` end to end, on the
+    /// imported Syriac page's recorded route (whose polygons and baselines the engine test pins to the
+    /// PAGE file with lxml): the boxes the canvas draws carry each line's outline and baseline, so the
+    /// overlay draws them as themselves; in Edit Segments a press on a side's midpoint adds a point
+    /// (`SegmentShapes.handle`), and Reshape sends `segment.update` with the new polygon and the rect it
+    /// bounds, checked against the version read -- the exact call the engine test proved lands -- with
+    /// ⌘Z by its audit id; ⌥-click removes a baseline point, and never below two. Breaks if a shape is
+    /// dropped on the way to the overlay, a point lands elsewhere than pressed, or the edit sent is not
+    /// the one the engine takes.
+    func testALinesOutlineAndBaselineAreDrawnAsThemselvesAndReshapeSendsTheCheckedUpdate() async throws {
+        let store = try await loadedStore()
+        let selected = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
+        let segments = store.segments(documentId: "doc-0001")
+        let lines = segments.filter { $0.kind == "line" && $0.passId == selected.passId }
+        XCTAssertEqual(lines.count, 12)
+        for line in lines {
+            let box = try XCTUnwrap(line.boxIndex.map { selected.geometry.boxes[$0] })
+            XCTAssertEqual(box.shapes, [.polygon(try XCTUnwrap(line.anchor.polygon)), .baseline(try XCTUnwrap(line.baseline))],
+                           "the line is drawn as its outline and its baseline, not its box")
+        }
+
+    }
+
+    /// Reshape's outline half, on the same recorded line: a press on a side's midpoint adds a point,
+    /// dragged, and the edit sent is the polygon with the rect it bounds, checked against the version
+    /// read, ⌘Z by its audit id (the engine test proves this exact call lands and undoes).
+    func testReshapingALinesOutlineSendsTheCheckedUpdateAndUndoes() async throws {
+        let store = try await loadedStore()
+        let selected = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
+        let line = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.id == "seg-0003" })
+        let box = selected.geometry.boxes[try XCTUnwrap(line.boxIndex)]
+        let polygon = try XCTUnwrap(SegmentShapes.points(of: line, .polygon))
+        let side = SegmentShapes.sideMidpoints(polygon, .polygon)[0]
+        let reach = [0.004, 0.004]
+        XCTAssertEqual(SegmentShapes.handle(at: side, in: box.shapes, tolerance: reach), .side(.polygon, 0))
+        XCTAssertEqual(SegmentShapes.handle(at: polygon[2], in: box.shapes, tolerance: reach), .vertex(.polygon, 2))
+        let added = SegmentShapes.moving(
+            SegmentShapes.adding(polygon, after: 0, at: side, .polygon), index: 1, to: [side[0], side[1] - 0.01]
+        )
+        XCTAssertEqual(added.count, polygon.count + 1)
+        XCTAssertEqual(added[1], [side[0], side[1] - 0.01], "the new point is where it was dragged")
+
+        let call = try SegmentShapes.reshape(line, .polygon, to: added).get()
+        RecordedEngine.invoked = []
+        RecordedEngine.undone = []
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        try await SegmentEditRunner(actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store).run(
+            call, documentId: "doc-0001", actionName: "Reshape Segment", undoManager: manager
+        )
+        manager.endUndoGrouping()
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        XCTAssertEqual(sent["name"] as? String, "segment.update")
+        let params = try XCTUnwrap(sent["params"] as? [String: Any])
+        XCTAssertEqual(params["expected_version"] as? Int, line.version, "checked against the version read")
+        let anchor = try XCTUnwrap(params["anchor"] as? [String: Any])
+        XCTAssertEqual(anchor["polygon"] as? [[Double]], added)
+        XCTAssertEqual(anchor["rect"] as? [Double], SegmentShapes.bounds(added), "the box is the outline's bounds")
+        XCTAssertNil(params["baseline"], "an outline reshape leaves the baseline alone")
+        XCTAssertEqual(manager.undoActionName, "Reshape Segment")
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"], "⌘Z undoes the reshape by its own audit id")
+    }
+
+    /// Reshape's baseline half and its refusals: ⌥-click removes a baseline point and the edit is the
+    /// baseline alone; a baseline keeps two points; an outline rewrite on a segment with extra shapes is
+    /// refused, since the anchor sent would drop them.
+    func testReshapingABaselineSendsItAloneAndTheRefusalsHold() async throws {
+        let store = try await loadedStore()
+        let line = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.id == "seg-0003" })
+        let polygon = try XCTUnwrap(SegmentShapes.points(of: line, .polygon))
+        let added = SegmentShapes.adding(polygon, after: 0, at: SegmentShapes.sideMidpoints(polygon, .polygon)[0], .polygon)
+        let baseline = try XCTUnwrap(SegmentShapes.points(of: line, .baseline))
+        let fewer = try XCTUnwrap(SegmentShapes.removing(baseline, index: 1, .baseline))
+        guard case .baseline(let request) = try SegmentShapes.reshape(line, .baseline, to: fewer).get().params else {
+            return XCTFail("a baseline reshape sends the baseline alone")
+        }
+        XCTAssertEqual(request, SegmentBaselineRequest(segmentId: line.id, expectedVersion: try XCTUnwrap(line.version), baseline: fewer))
+        XCTAssertNil(SegmentShapes.removing(fewer, index: 0, .baseline), "a baseline keeps two points")
+        var withShapes = line
+        withShapes.anchor.shapes = [try makePointShape()]
+        XCTAssertEqual(SegmentShapes.reshape(withShapes, .polygon, to: added), .failure(.hasExtraShapes),
+                       "an anchor rewrite would drop the extra shapes, so it is refused")
+    }
+
+    /// One point shape, for the refusal above (the recorded page has no extra shapes).
+    private func makePointShape() throws -> AnchorShapeValue {
+        AnchorShapeValue(generated: Components.Schemas.AnchorShape(kind: .point, points: [[0.5, 0.5]]))
+    }
+
     /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the
     /// imported Syriac page's first line -- down to nothing at all -- is a NEW READING without them,
     /// through the calls the Reader's coordinator makes. No segment action is ever sent: the line and

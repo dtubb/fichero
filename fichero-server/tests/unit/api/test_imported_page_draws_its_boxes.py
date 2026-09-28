@@ -946,3 +946,80 @@ def test_export_choices_are_recorded_as_edited_and_as_imported_for_the_making_se
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         EXPORT_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
     assert json.loads(EXPORT_FIXTURE.read_text()) == recorded, "the app's export fixture drifted"
+
+
+def _file_shapes(path: Path) -> dict[str, dict]:
+    """Each TextLine's polygon and baseline as the PAGE file drew them, normalized to the page."""
+    root = etree.parse(str(path)).getroot()
+    page = next(el for el in root.iter() if isinstance(el.tag, str) and etree.QName(el).localname == "Page")
+    width, height = float(page.get("imageWidth")), float(page.get("imageHeight"))
+
+    def points(el):
+        return [[float(x) / width, float(y) / height] for x, y in (p.split(",") for p in el.get("points").split())]
+
+    shapes = {}
+    for line in (el for el in root.iter() if isinstance(el.tag, str) and etree.QName(el).localname == "TextLine"):
+        children = {etree.QName(c).localname: c for c in line if isinstance(c.tag, str)}
+        shapes[line.get("id")] = {"polygon": points(children["Coords"]),
+                                  "baseline": points(children["Baseline"]) if "Baseline" in children else None}
+    return shapes
+
+
+def test_an_imported_page_s_polygons_and_baselines_reach_the_app_as_the_file_drew_them_and_reshape_lands(db, client):
+    """`source.segment.shape-kinds`, `curved-baseline`, `source.editor.reshape` (the overlay draws each
+    shape as itself; Edit Segments reshapes it): every line of the imported Syriac PAGE page reaches the
+    canvas's call (GET /api/segments/document/{id}) with the polygon and the baseline its file drew --
+    checked point for point against the file with lxml -- and the recorded route the app plays back
+    says the same. Then the app's EXACT reshapes land: `segment.update` with the polygon a vertex added
+    and the rect its bounds, then with the baseline a point removed, each checked against the version
+    read, each undone by its audit id. Breaks if a shape is lost or rounded on the way, or the edit the
+    app sends is refused or does not write what was drawn."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    lines = [s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"]
+    in_file = _file_shapes(SYRIAC)
+    assert len(lines) == len(in_file) == 12
+
+    def close(a, b):
+        return a is not None and b is not None and len(a) == len(b) and all(
+            abs(p[0] - q[0]) < 1e-9 and abs(p[1] - q[1]) < 1e-9 for p, q in zip(a, b))
+
+    for line in lines:
+        match = [lid for lid, s in in_file.items() if close(s["polygon"], line["anchor"]["polygon"])]
+        assert len(match) == 1, f"line {line['id']}'s polygon is not the file's"
+        assert close(in_file[match[0]]["baseline"], line["baseline"]), "the baseline is the file's"
+    recorded = {s["id"]: s for s in json.loads(ROUTE_FIXTURE.read_text())["segments"]}
+    for line in lines:
+        twin = next(s for s in recorded.values() if s["anchor"]["rect"] == line["anchor"]["rect"])
+        assert twin["anchor"]["polygon"] == line["anchor"]["polygon"] and twin["baseline"] == line["baseline"]
+
+    line = min(lines, key=lambda s: s["anchor"]["rect"])
+    polygon = line["anchor"]["polygon"]
+    a, b = polygon[0], polygon[1]
+    reshaped = polygon[:1] + [[(a[0] + b[0]) / 2, (a[1] + b[1]) / 2 - 0.01]] + polygon[1:]
+    xs, ys = [p[0] for p in reshaped], [p[1] for p in reshaped]
+    rect = [min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)]
+    anchor = {k: line["anchor"].get(k) for k in ("document_id", "page_id", "rendition_id", "space", "rotation", "granularity")}
+
+    def invoke(name, params):
+        answer = client.post("/api/actions/invoke", json={"name": name, "params": params})
+        assert answer.status_code == 200, answer.text
+        return answer.json()
+
+    first = invoke("segment.update", {"segment_id": line["id"], "expected_version": line["version"],
+                                      "anchor": dict(anchor, polygon=reshaped, rect=rect)})
+    after = client.get(f"/api/segments/{line['id']}").json()["segment"]
+    assert after["anchor"]["polygon"] == reshaped, "the vertex added is stored"
+    assert after["baseline"] == line["baseline"], "a polygon reshape leaves the baseline alone"
+    fewer = line["baseline"][:1] + line["baseline"][2:]
+    second = invoke("segment.update", {"segment_id": line["id"], "expected_version": after["version"], "baseline": fewer})
+    assert client.get(f"/api/segments/{line['id']}").json()["segment"]["baseline"] == fewer, "a point removed"
+    stale = client.post("/api/actions/invoke", json={"name": "segment.update", "params": {
+        "segment_id": line["id"], "expected_version": line["version"], "baseline": line["baseline"]}})
+    assert stale.status_code == 409, "a reshape against a version somebody changed is refused"
+    # ⌘Z twice, newest first: the baseline comes back, then the polygon.
+    assert client.post(f"/api/actions/audit/{second['audit_id']}/undo").status_code == 200
+    assert client.post(f"/api/actions/audit/{first['audit_id']}/undo").status_code == 200
+    restored = client.get(f"/api/segments/{line['id']}").json()["segment"]
+    assert restored["anchor"]["polygon"] == polygon and restored["baseline"] == line["baseline"]

@@ -35,6 +35,15 @@ enum DocumentBoxMapping {
     /// person sees -- for a clip showing `documentVisibleRect` at `magnification`. Used by the tests
     /// to prove the document path and the pointer path agree; the drawing never needs it, because
     /// AppKit applies this transform itself.
+    /// A normalized `[x, y]` point (top-left origin) in the image view's document space (y grows up).
+    static func point(normalized: [Double], imageRect: CGRect) -> CGPoint? {
+        guard normalized.count >= 2, imageRect.width > 0, imageRect.height > 0 else { return nil }
+        return CGPoint(
+            x: imageRect.minX + normalized[0] * imageRect.width,
+            y: imageRect.minY + (1 - normalized[1]) * imageRect.height
+        )
+    }
+
     static func onScreen(
         documentRect: CGRect, documentVisibleRect: CGRect, magnification: CGFloat
     ) -> CGRect {

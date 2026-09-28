@@ -1015,7 +1015,22 @@ The editor
   loupe and magnifier are viewing aids, not layers. Nothing yet turns the image itself off, and no
   setting carries workspace defaults.
 - `source.editor.draw-shapes` — **[GAP]** (#4941) box, polygon, point, line and baseline can be drawn.
-- `source.editor.reshape` — **[GAP]** (#4941) points can be dragged, added and removed; shapes moved and nudged.
+- `source.editor.reshape` — **[PARTIAL]** (#4941) points can be dragged, added and removed; shapes moved and nudged.
+  **Built 2026-09-28 (image pages, segment passes):** the overlay draws a segment AS its shapes -- the
+  outline its file drew, an open path, a point, the baseline under the ink -- not its box
+  (`SegmentShapes.drawn`, `DocumentOverlayView`/`ShapeDrawing`), with the Mac selection look. In Edit Segments
+  the ONE selected segment shows a square handle per point of its outline and baseline and a round one per
+  side: drag a point, press a side to add one and drag it, ⌥-click to remove one (never below three for an
+  outline, two for a baseline). Each is one `segment.update` -- the polygon with the rect it bounds, or the
+  baseline alone -- checked against the version read, ⌘Z by its audit id; an outline rewrite on a segment
+  with extra shapes is refused, since the anchor sent would drop them. Pinned: the engine gets every
+  Syriac PAGE line's polygon and baseline point for point from the file (lxml) and takes the app's exact
+  reshapes and two ⌘Z (`test_imported_page_draws_its_boxes.py::test_an_imported_page_s_polygons_and_baselines_reach_the_app_as_the_file_drew_them_and_reshape_lands`);
+  the app draws them and sends those calls (`ImportedPageDrawsItsBoxesTests.testALinesOutlineAndBaselineAreDrawnAsThemselvesAndReshapeSendsTheCheckedUpdate`,
+  `…testReshapingALinesOutlineSendsTheCheckedUpdateAndUndoes`, `…testReshapingABaselineSendsItAloneAndTheRefusalsHold`).
+  Two successive edits of one segment undo twice (`test_segment_undo_twice.py`; the engine refused the second
+  ⌘Z before). **Not yet:** open paths and points are drawn but not reshaped; nudging with keys; PDF pages (the
+  `PDFAnnotation` renderer still draws boxes); a pass with an artifact behind it (its boxes carry no shapes).
 - `source.editor.propose-shape` — **[GAP]** (#4941) a click asks the engine to propose a shape, which can then be
   adjusted.
 - `source.editor.cut` — **[GAP]** (#4941) a scissors stroke splits one or many lines at once.

@@ -226,7 +226,8 @@ enum SegmentDisplay {
                     charStart: segment.anchor.charStart,
                     charEnd: segment.anchor.charEnd,
                     provider: segment.isHandCurated ? "user" : nil,
-                    source: segment.isHandCurated ? "manual" : nil
+                    source: segment.isHandCurated ? "manual" : nil,
+                    shapes: SegmentShapes.drawn(for: segment)
                 )
             }
         return OCRGeometry(

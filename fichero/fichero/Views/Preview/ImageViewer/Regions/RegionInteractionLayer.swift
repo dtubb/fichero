@@ -86,6 +86,8 @@ struct RegionInteractionLayer: View {
     /// Double-click a saved region box: (full-list index). The host decides
     /// whether that means opening the region's child node or zooming to it.
     let onOpenRegion: (Int) -> Void
+    /// Commit a Reshape: (full-list index, what was reshaped, its new points). Nil: no Reshape here.
+    var onReshapeCommit: ((Int, SegmentShapes.Target, [[Double]]) -> Void)?
 
     /// Sticky-tool + check-cycle seams (Daniel, 2026-08-30). Optional so
     /// headless hosts stay safe.
@@ -106,6 +108,8 @@ struct RegionInteractionLayer: View {
     /// ⇧ held? Tracked via `onModifierKeysChanged` (pure SwiftUI — the §6b
     /// no-AppKit rule) because a tap gesture's value carries no modifiers.
     @State private var shiftHeld = false
+    /// Live Reshape: the box, what is reshaped, the point being dragged, and the points as they are now.
+    @State var reshapeDrag: ReshapeDrag?
 
     var body: some View {
         GeometryReader { geo in
@@ -115,6 +119,7 @@ struct RegionInteractionLayer: View {
                 ZStack(alignment: .topLeading) {
                     if drawsSelection { marqueeRects(in: geo.size) }  // else the document overlay does
                     selectedRegionRects(in: geo.size)
+                    liveReshape(in: geo.size)
                     if let rect = liveBandRect {
                         RoundedRectangle(cornerRadius: 2)
                             .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1.5, dash: [4]))
@@ -276,6 +281,8 @@ struct RegionInteractionLayer: View {
     private func handlePointer(_ event: PreviewPointerEvent, in size: CGSize) {
         guard let point = layerPoint(event.point, in: size) else { return }
         shiftHeld = event.shift
+        // Edit Segments on ONE selected shape: Reshape takes the press, the drag and the release.
+        if handleReshape(event, in: size) { return }
         switch event.phase {
         case .pressed:
             handlePress(at: point, clickCount: event.clickCount, in: size)
@@ -342,7 +349,7 @@ struct RegionInteractionLayer: View {
     }
 
     /// The window's segment-editing mode (#5114). No window state reads as off.
-    private var isEditing: Bool { windowState?.isEditingSegments ?? false }
+    var isEditing: Bool { windowState?.isEditingSegments ?? false }
 
     /// The select tool armed (the DEFAULT since 2026-09-02)?
     private var isBandSelecting: Bool {

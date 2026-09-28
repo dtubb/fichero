@@ -335,7 +335,8 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             onPointer(PreviewPointerEvent(
                 phase: phase, point: normalized,
                 shift: event.modifierFlags.contains(.shift),
-                clickCount: event.clickCount
+                clickCount: event.clickCount,
+                option: event.modifierFlags.contains(.option)
             ))
         }
     }
