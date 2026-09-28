@@ -72,43 +72,7 @@ struct LibraryWorkspaceRoot: View {
             // read by a toolbar item must be injected for the toolbar — that
             // omission is #4448, and it is the only boundary that has ever
             // actually bitten here.
-            .environment(windowState)
-            .environment(library.savedSearchService)
-            .environment(library.bookmarkService)
-            .environment(library.searchService)
-            .environment(library.conversationService)
-            .environment(library.chatService)
-            .environment(library.workspaceStore)
-            .environment(library.batchStore)
-            .environment(library.workflowStore)
-            .environment(library.workflowService)
-            .environment(library.workflowStreamService)
-            .environment(library.importService)
-            .environment(library.documentService)
-            .environment(library.storageService)
-            .environment(library.providerService)
-            .environment(library.modelService)
-            .environment(library.artifactService)
-            .environment(library.entityService)
-            .environment(library.kgCurationService)
-            .environment(library.researchService)
-            .environment(executionObserver)
-            .environment(library.entityStore)
-            .environment(library.claimStore)
-            .environment(library.noteStore)
-            .environment(library.annotationStore)
-            .environment(library.actionStore)
-            .environment(library.activityStore)
-            .environment(library.chainStore)
-            .environment(library.workflowExecutionStore)
-            .environment(library.auditStore)
-            .environment(library.researchStore)
-            .environment(library.searchStore)
-            .environment(library.artifactStore)
-            .environment(library.citationStore)
-            .environment(library.referenceStore)
-            .environment(library.interpretationStore)
-            .environment(library.changeStream)
+            .modifier(LibraryTreeEnvironment(library: library, windowState: windowState, executionObserver: executionObserver))
             .task(id: "\(library.id.uuidString)-\(appState.isBackendRunning)") {
                 if windowState.libraryId != library.id {
                     windowState.libraryId = library.id
@@ -256,4 +220,22 @@ struct LibraryWorkspaceRoot: View {
         }
     }
     #endif
+}
+
+/// What every view in a library window's tree inherits: the window, the ONE library service list
+/// (`libraryServiceEnvironment`, never a hand-copied subset) and the execution observer. This tree's own
+/// copy had drifted -- no ReadingOrderService, SegmentService, RenditionService or APIClient -- so the
+/// Segments pane, hosted here, never got its order service and spun forever (2026-09-28, Daniel's
+/// morning build). A modifier so the test hosts a view in exactly this environment.
+struct LibraryTreeEnvironment: ViewModifier {
+    let library: LibraryManager.LibraryReference
+    let windowState: WindowState
+    let executionObserver: WorkflowExecutionObserver
+
+    func body(content: Content) -> some View {
+        content
+            .environment(windowState)
+            .libraryServiceEnvironment(library)
+            .environment(executionObserver)
+    }
 }

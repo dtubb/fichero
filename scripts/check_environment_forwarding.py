@@ -141,9 +141,20 @@ def non_optional_env_reads() -> dict[str, set[str]]:
     return found
 
 
+def _injecting_text(path: Path) -> str:
+    """A host's source, plus the shared list's when it delegates to it: a `.libraryServiceEnvironment(_:)`
+    call injects every type that helper lists. LibraryWorkspaceRoot delegates since 2026-09-28 -- its
+    hand-copied list had drifted (no ReadingOrderService, SegmentService, RenditionService, APIClient)
+    and the Segments pane, hosted in its tree, spun forever."""
+    text = _read(path)
+    if path != SHARED_HELPER and HELPER_CALL in text:
+        text += "\n" + _read(SHARED_HELPER)
+    return text
+
+
 def injected_types(path: Path, prop_types: dict[str, str]) -> set[str]:
     """Types a host injects, resolving `library.x` and bare locals to type names."""
-    text = _read(path)
+    text = _injecting_text(path)
     # A host's own `@Environment(T.self) var name` gives `name` -> `T`, and its
     # own stored `let windowState: WindowState` gives the rest — a host forwards
     # both things it received and things it holds.
@@ -166,7 +177,7 @@ def injected_library_types(path: Path, prop_types: dict[str, str]) -> set[str]:
     window/app objects (`windowState`, `kgFocusState`), and those are not part
     of the per-library contract being compared.
     """
-    text = _read(path)
+    text = _injecting_text(path)
     types: set[str] = set()
     for expr in INJECT_RE.findall(text):
         if "." not in expr:
