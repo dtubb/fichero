@@ -656,7 +656,14 @@ def _with_directions(
         directions.append(direction)
         neutral.append(row is not None and _has_no_direction_of_its_own(text, level))
     settled = settle_neutral_directions(directions, neutral)
-    return [{**line, "direction": direction} for line, direction in zip(lines, settled)]
+    return [
+        {**line, "direction": direction,
+         # Said, not left to look like the line's own answer (#5172): an inherited direction is
+         # the neighbours', because the line has no letters to decide it.
+         **({"direction_basis": "inherited from the neighbouring lines: no letters, only digits or marks"}
+            if is_neutral and direction != own else {})}
+        for line, direction, own, is_neutral in zip(lines, settled, directions, neutral)
+    ]
 
 
 #: How the reader should obtain the document's flat transcript. A closed set,

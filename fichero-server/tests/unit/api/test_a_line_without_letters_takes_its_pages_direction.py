@@ -60,6 +60,10 @@ def test_a_digit_only_line_takes_its_pages_direction(db, client):
     blocks = document_text(db, doc_id).blocks
     assert {b.direction for b in blocks if b.text.strip()} == {"rtl"}, [(b.direction, b.text[:10]) for b in blocks]
     assert _directions_by_text(client, doc_id)["2"] == {"rtl"}     # and the Reader says the same
+    page = _view(client, doc_id)[0]["pages"][0]
+    bases = {page["content"][l["char_start"]:l["char_end"]]: l.get("direction_basis") for l in page["lines"]}
+    assert "no letters" in bases["2"]                               # and says it was inherited
+    assert sum(1 for b in bases.values() if b) == 1                 # only that line
 
 
 def test_a_latin_folio_number_keeps_its_own_direction(db, client):
