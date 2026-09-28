@@ -176,6 +176,13 @@ async def facts_of_segment(
     segment = db.get(Segment, segment_id)
     if segment is None or segment.deleted_at is not None:
         raise HTTPException(status_code=404, detail=f"Segment not found: {segment_id}")
+    from fichero_server.models.segments import SegmentPass
+
+    owner = db.get(SegmentPass, segment.pass_id)
+    if owner is None or owner.deleted_at is not None:
+        # A deleted pass takes its segments with it (an import's undo deletes its pass, #5179): its
+        # facts are not a live segment's facts, whatever the segment row still says.
+        raise HTTPException(status_code=404, detail=f"Segment {segment_id} is in a deleted pass")
     facts = sorted(
         (f for f in db.query(EditorialFact, segment_id=segment_id) if f.withdrawn_at is None),
         key=lambda f: (f.char_start if f.char_start is not None else -1, f.created_at),

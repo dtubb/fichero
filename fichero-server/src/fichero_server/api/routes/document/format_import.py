@@ -708,6 +708,17 @@ def write_page_into_library(
     if readings:
         db.save_many(readings)
 
+    # What the file's editor SAID about stretches of the text (#5179): unclear, lost, restored,
+    # supplied, superfluous, added -- editorial facts on the reading this import just made, the
+    # file's claim (`external_import`, no person here as their maker), written in this same audited
+    # action so its undo takes them with the pass. What cannot be a fact is named, not dropped.
+    first_reading = {}
+    for reading in readings:
+        first_reading.setdefault(reading.segment_id, reading)
+    facts, not_imported = _editorial_facts(order, ids_by_ref, first_reading, source_name, imported)
+    if facts:
+        db.save_many(facts)
+
     # Each GCP CONTROLS its mask (#5122): a typed link, because a sheet with two maps has two masks
     # and a GCP belongs to one by what the file says, not by lying inside it.
     if georeferencing:
@@ -773,7 +784,88 @@ def write_page_into_library(
         "order_entries": len(entries),
         "checksum": checksum,
         "hand_attributions": hand_attributions,
+        "editorial_facts": len(facts),
+        # What the file marked that the library does not hold, and why (#5179): never dropped quietly.
+        "not_imported": not_imported,
     }
+
+
+#: TEI `@cert` in words, as a certainty (#5179, the mapping).
+_CERTAINTY = {"high": 0.9, "medium": 0.6, "low": 0.3}
+_PAGE_UNCLEAR = re.compile(r"unclear\s*\{([^}]*)\}")
+
+
+def _editorial_facts(order, ids_by_ref, first_reading, source_name, imported):
+    """(EditorialFact rows, not-imported notes) for the marks the file makes (#5179's mapping):
+    PAGE `unclear {offset;length}` in a line's `custom`, and TEI `tei:marks` recorded by the reader.
+    Spans are code points into the reading made for that segment."""
+    from fichero_server.formats.tei import TEI_MARKS
+    from fichero_server.models.editorial import EditorialFact
+
+    facts: list[EditorialFact] = []
+    skipped: dict[tuple[str, str], int] = {}
+
+    def skip(what: str, why: str) -> None:
+        skipped[(what, why)] = skipped.get((what, why), 0) + 1
+
+    for ref, segment in order:
+        reading = first_reading.get(ids_by_ref[ref])
+        text = reading.content if reading is not None else ""
+
+        def fact(kind, start=None, end=None, **fields):
+            spanned = start is not None
+            if spanned and end is not None:
+                end = min(end, len(text))
+                if start >= end:
+                    skip(f"an empty <{kind}> mark", "it covers no letters of the reading")
+                    return
+            facts.append(EditorialFact(
+                segment_id=ids_by_ref[ref], kind=kind,
+                representation_id=reading.id if (spanned and reading is not None) else None,
+                char_start=start, char_end=end,
+                provenance_kind=imported, created_by=None, source=f"file: {source_name}",
+                **{k: v for k, v in fields.items() if v is not None},
+            ))
+
+        for body in _PAGE_UNCLEAR.findall(str(segment.foreign.get("custom") or "")):
+            values = dict(part.split(":", 1) for part in body.replace(" ", "").split(";") if ":" in part)
+            try:
+                offset, length = int(values["offset"]), int(values["length"])
+            except (KeyError, ValueError):
+                skip("a PAGE unclear mark", "it states no offset and length")
+                continue
+            fact("unclear", offset, offset + length)
+
+        for mark in segment.foreign.get(TEI_MARKS, []):
+            tag, start, end, attrs = mark["tag"], mark["start"], mark["end"], mark.get("attrs", {})
+            certainty = _CERTAINTY.get(attrs.get("cert", ""))
+            quantity = float(attrs["quantity"]) if attrs.get("quantity", "").replace(".", "", 1).isdigit() else None
+            extent = {"extent_quantity": quantity, "extent_unit": attrs.get("unit"),
+                      "extent": None if quantity is not None else attrs.get("extent", "unknown")}
+            if tag == "unclear":
+                fact("unclear", start, end, reason=attrs.get("reason"), certainty=certainty)
+            elif tag == "supplied":
+                reason = attrs.get("reason")
+                if reason == "lost":
+                    fact("restored", start, end, certainty=certainty)
+                else:
+                    fact("supplied", start, end, certainty=certainty,
+                         reason="omitted by the scribe" if reason == "omitted" else reason)
+            elif tag == "gap":
+                if attrs.get("reason") == "illegible":
+                    fact("unclear", reason="illegible", **extent)     # position-only is not allowed for unclear
+                else:
+                    fact("lost", start, None, **extent)               # a position (abe343ae9)
+            elif tag == "surplus":
+                fact("superfluous", start, end)
+            elif tag == "add":
+                fact("added", start, end, place=attrs.get("place"))
+            elif tag == "del":
+                skip("deleted text (<del>)", "the reading leaves deleted letters out, so there is no "
+                     "stretch of it to mark; kept in the segment's foreign record")
+            elif tag == "delSpan":
+                skip("a deletion across lines (<delSpan>)", "it has no one reading to span")
+    return facts, [{"what": what, "count": count, "why": why} for (what, why), count in sorted(skipped.items())]
 
 
 def _edition_title(page: SourcePage) -> str | None:
