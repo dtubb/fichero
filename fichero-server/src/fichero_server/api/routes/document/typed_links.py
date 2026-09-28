@@ -45,7 +45,7 @@ router = APIRouter(prefix="/links")
 #: Relations where "from" and "to" carry no meaning. Stored `directed=False` so a
 #: reader is never shown a direction that says nothing — "A is the same as B" has
 #: no other end to read it from.
-SYMMETRIC_LINK_TYPES: frozenset[str] = frozenset({"same_as", "free", "related_to"})
+SYMMETRIC_LINK_TYPES: frozenset[str] = frozenset({"same_as", "different_from", "free", "related_to"})
 
 
 def _as_http_error(exc: Exception) -> HTTPException:
@@ -114,6 +114,15 @@ def _action_link_create(db: Database, params: TypedLinkCreateParams, ctx: Action
     if params.from_id == params.to_id:
         raise _as_http_error(LinkNeedsTwoEnds(params.from_id))
     known_kinds = {kind.value for kind in LinkEndKind}
+    # A URI end an authority knows is stored in its ONE canonical spelling (maps D2), so a link
+    # made to `wikidata.org/wiki/Q90` and one made to `.../entity/Q90` are found by one query.
+    from fichero_server.knowledge.authorities import authority_of_uri, canonical_uri
+
+    params = params.model_copy(update={
+        end: canonical_uri(*found)
+        for end, kind in (("from_id", params.from_kind), ("to_id", params.to_kind))
+        if kind == LinkEndKind.uri.value and (found := authority_of_uri(getattr(params, end)))
+    })
     for end_id, kind in ((params.from_id, params.from_kind), (params.to_id, params.to_kind)):
         if kind not in known_kinds:
             # An end of no known kind was stored as given; a reader could not tell what it named.

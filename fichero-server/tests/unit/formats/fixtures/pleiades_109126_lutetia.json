@@ -1,0 +1,2233 @@
+{
+    "features": [
+        {
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    2.342384,
+                    48.855847
+                ]
+            },
+            "type": "Feature",
+            "id": "darmc-location-13544",
+            "properties": {
+                "snippet": "Unknown; 330 BC - AD 640",
+                "link": "https://pleiades.stoa.org/places/109126/darmc-location-13544",
+                "description": "1:1 million scale representative point location digitized from the Barrington Atlas of the Greek and Roman World by the Digital Atlas of Roman and Medieval Civilizations project at Harvard University.",
+                "location_precision": "precise",
+                "title": "DARMC location 13544"
+            }
+        },
+        {
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    2.349952,
+                    48.852964
+                ]
+            },
+            "type": "Feature",
+            "id": "dare-location",
+            "properties": {
+                "snippet": "Settlement; 330 BC - AD 640",
+                "link": "https://pleiades.stoa.org/places/109126/dare-location",
+                "description": "Representative point location, site precision",
+                "location_precision": "precise",
+                "title": "DARE Location"
+            }
+        }
+    ],
+    "contributors": [
+        {
+            "username": "sstark",
+            "homepage": null,
+            "name": "Sören Stark",
+            "uri": "https://pleiades.stoa.org/author/sstark"
+        },
+        {
+            "username": "bkiesling",
+            "homepage": null,
+            "name": "Brady Kiesling",
+            "uri": "https://pleiades.stoa.org/author/bkiesling"
+        },
+        {
+            "username": "sgillies",
+            "homepage": null,
+            "name": "Sean Gillies",
+            "uri": "https://pleiades.stoa.org/author/sgillies"
+        },
+        {
+            "username": "jahlfeldt",
+            "homepage": null,
+            "name": "Johan Åhlfeldt",
+            "uri": "https://pleiades.stoa.org/author/jahlfeldt"
+        },
+        {
+            "username": "jbecker",
+            "homepage": null,
+            "name": "Jeffrey Becker",
+            "uri": "https://pleiades.stoa.org/author/jbecker"
+        },
+        {
+            "username": "thomase",
+            "homepage": null,
+            "name": "Tom Elliott",
+            "uri": "https://pleiades.stoa.org/author/thomase"
+        },
+        {
+            "username": null,
+            "name": "DARMC"
+        },
+        {
+            "username": null,
+            "name": "R. Talbert"
+        },
+        {
+            "username": "enesy",
+            "homepage": null,
+            "name": "Enes Yılandiloğlu",
+            "uri": "https://pleiades.stoa.org/author/enesy"
+        }
+    ],
+    "locations": [
+        {
+            "contributors": [
+                {
+                    "username": null,
+                    "name": "DARMC, R. Talbert, T. Elliott, S. Gillies"
+                }
+            ],
+            "associationCertainty": "certain",
+            "attestations": [
+                {
+                    "timePeriod": "hellenistic-republican",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/hellenistic-republican",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                },
+                {
+                    "timePeriod": "roman",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/roman",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                },
+                {
+                    "timePeriod": "late-antique",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/late-antique",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                }
+            ],
+            "references": [
+                {
+                    "alternateURI": "",
+                    "accessURI": "https://darmc.harvard.edu/",
+                    "citationDetail": "13544",
+                    "citationTypeURI": "http://purl.org/spar/cito/citesAsDataSource",
+                    "shortTitle": "DARMC",
+                    "bibliographicURI": "https://www.zotero.org/groups/2533/pleiades/items/itemKey/9UD9W75C",
+                    "formattedCitation": "Michael McCormick, Giovanni Zambotti, Leland Grigoli, and Kelly Gibson, eds., The Digital Atlas of Roman and Medieval Civilizations (Cambridge (Massachusetts): Harvard University, 2007-), 13544.",
+                    "otherIdentifier": " ",
+                    "type": "citesAsDataSource"
+                }
+            ],
+            "id": "darmc-location-13544",
+            "featureTypeURI": [
+                "https://pleiades.stoa.org/vocabularies/place-types/unknown"
+            ],
+            "end": 640,
+            "title": "DARMC location 13544",
+            "provenance": "DARMC OBJECTID: 13544",
+            "associationCertaintyURI": "https://pleiades.stoa.org/vocabularies/association-certainty/certain",
+            "start": -330,
+            "locationTypeURI": [
+                "https://pleiades.stoa.org/vocabularies/place-types/unknown"
+            ],
+            "archaeologicalRemains": "unknown",
+            "details": "DARMC OBJECTID: 13544",
+            "review_state": "published",
+            "accuracy_value": 10.0,
+            "accuracy": "https://pleiades.stoa.org/features/metadata/darmc-a",
+            "featureType": [
+                "unknown"
+            ],
+            "description": "1:1 million scale representative point location digitized from the Barrington Atlas of the Greek and Roman World by the Digital Atlas of Roman and Medieval Civilizations project at Harvard University.",
+            "created": "2011-03-09T21:41:23Z",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    2.342384,
+                    48.855847
+                ]
+            },
+            "locationType": [
+                "representative"
+            ],
+            "uri": "https://pleiades.stoa.org/places/109126/darmc-location-13544",
+            "creators": [
+                {
+                    "username": null,
+                    "name": "C. Haselgrove"
+                },
+                {
+                    "username": null,
+                    "name": "J. Kunow"
+                }
+            ],
+            "@type": "Location",
+            "history": [
+                {
+                    "comment": "Global migration and reindexing of citations and provenance, February 2012",
+                    "modifiedBy": "admin",
+                    "modified": "2012-02-15T02:11:23Z"
+                },
+                {
+                    "comment": "Global migration and reindexing of citations and provenance, February 2012",
+                    "modifiedBy": "admin",
+                    "modified": "2012-02-14T23:43:57Z"
+                },
+                {
+                    "action": "Publish externally",
+                    "modifiedBy": "thomase",
+                    "modified": "2011-03-10T05:07:50Z"
+                },
+                {
+                    "action": "Submit for review",
+                    "modifiedBy": "sgillies",
+                    "modified": "2011-03-09T21:41:24Z"
+                },
+                {
+                    "comment": "New locations, coordinates, and metadata from Harvard's DARMC project. See http://atlantides.org/trac/pleiades/wiki/PlaceUpgradesAndMigrations",
+                    "modifiedBy": "sgillies",
+                    "modified": "2011-03-09T21:41:24Z"
+                },
+                {
+                    "action": "Create",
+                    "modifiedBy": "sgillies",
+                    "modified": "2011-03-09T21:41:23Z"
+                }
+            ]
+        },
+        {
+            "contributors": [],
+            "associationCertainty": "certain",
+            "attestations": [
+                {
+                    "timePeriod": "hellenistic-republican",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/hellenistic-republican",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                },
+                {
+                    "timePeriod": "roman",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/roman",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                },
+                {
+                    "timePeriod": "late-antique",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/late-antique",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                }
+            ],
+            "references": [
+                {
+                    "alternateURI": "",
+                    "accessURI": "http://francia.ahlfeldt.se/imperium.php",
+                    "citationDetail": "",
+                    "citationTypeURI": "http://purl.org/spar/cito/cites",
+                    "shortTitle": "",
+                    "bibliographicURI": "",
+                    "formattedCitation": "Johan Åhlfeldt, Digital Atlas of the Roman Empire, 2012.",
+                    "otherIdentifier": " ",
+                    "type": "cites"
+                }
+            ],
+            "id": "dare-location",
+            "featureTypeURI": [
+                "https://pleiades.stoa.org/vocabularies/place-types/settlement"
+            ],
+            "end": 640,
+            "title": "DARE Location",
+            "provenance": "Digital Atlas of the Roman Empire (2012-10-15)",
+            "associationCertaintyURI": "https://pleiades.stoa.org/vocabularies/association-certainty/certain",
+            "start": -330,
+            "locationTypeURI": [
+                "https://pleiades.stoa.org/vocabularies/place-types/settlement"
+            ],
+            "archaeologicalRemains": "unknown",
+            "details": "",
+            "review_state": "published",
+            "accuracy_value": 10.0,
+            "accuracy": "https://pleiades.stoa.org/features/metadata/dare-3",
+            "featureType": [
+                "settlement"
+            ],
+            "description": "Representative point location, site precision",
+            "created": "2012-10-21T00:11:17Z",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    2.349952,
+                    48.852964
+                ]
+            },
+            "locationType": [
+                "representative"
+            ],
+            "uri": "https://pleiades.stoa.org/places/109126/dare-location",
+            "creators": [
+                {
+                    "username": "jahlfeldt",
+                    "homepage": null,
+                    "name": "Johan Åhlfeldt",
+                    "uri": "https://pleiades.stoa.org/author/jahlfeldt"
+                }
+            ],
+            "@type": "Location",
+            "history": [
+                {
+                    "action": "Publish externally",
+                    "modifiedBy": "sgillies",
+                    "modified": "2012-10-21T00:11:19Z"
+                },
+                {
+                    "action": "Submit for review",
+                    "modifiedBy": "sgillies",
+                    "modified": "2012-10-21T00:11:18Z"
+                },
+                {
+                    "comment": "Location updates and tags from Johan Ahlfeldt's (jahlfeldt) Digital Atlas of the Roman Empire in October 2012",
+                    "modifiedBy": "sgillies",
+                    "modified": "2012-10-21T00:11:18Z"
+                },
+                {
+                    "action": "Create",
+                    "modifiedBy": "sgillies",
+                    "modified": "2012-10-21T00:11:18Z"
+                }
+            ]
+        }
+    ],
+    "connections": [
+        {
+            "end": null,
+            "description": "",
+            "contributors": [],
+            "created": "2018-05-14T10:07:10Z",
+            "associationCertainty": "certain",
+            "title": "Sequana (river)",
+            "start": null,
+            "provenance": "Pleiades",
+            "uri": "https://pleiades.stoa.org/places/109126/sequana-river",
+            "connectionType": "on",
+            "id": "sequana-river",
+            "attestations": [],
+            "history": [
+                {
+                    "comment": "Edited",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-14T10:17:02Z"
+                },
+                {
+                    "action": "Publish externally",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-14T10:08:01Z"
+                },
+                {
+                    "action": "Submit for review",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-14T10:07:56Z"
+                },
+                {
+                    "comment": "Initial revision",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-14T10:07:12Z"
+                },
+                {
+                    "action": "Create",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-14T10:07:10Z"
+                }
+            ],
+            "connectsTo": "https://pleiades.stoa.org/places/109341",
+            "details": "",
+            "references": [],
+            "review_state": "published",
+            "creators": [
+                {
+                    "username": "thomase",
+                    "homepage": null,
+                    "name": "Tom Elliott",
+                    "uri": "https://pleiades.stoa.org/author/thomase"
+                }
+            ],
+            "@type": "Connection",
+            "connectionTypeURI": "https://pleiades.stoa.org/vocabularies/relationship-types/on"
+        },
+        {
+            "end": -30,
+            "description": "",
+            "contributors": [],
+            "created": "2018-05-14T10:10:07Z",
+            "associationCertainty": "certain",
+            "title": "Parisii",
+            "start": -330,
+            "provenance": "Pleiades",
+            "uri": "https://pleiades.stoa.org/places/109126/parisii",
+            "connectionType": "part_of_admin",
+            "id": "parisii",
+            "attestations": [
+                {
+                    "timePeriod": "hellenistic-republican",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/hellenistic-republican",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                }
+            ],
+            "history": [
+                {
+                    "action": "Publish externally",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-14T17:49:08Z"
+                },
+                {
+                    "action": "Submit for review",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-14T17:49:02Z"
+                },
+                {
+                    "comment": "Edited",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-14T17:48:57Z"
+                },
+                {
+                    "comment": "Initial revision",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-14T10:10:10Z"
+                },
+                {
+                    "action": "Create",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-14T10:10:07Z"
+                }
+            ],
+            "connectsTo": "https://pleiades.stoa.org/places/109242",
+            "details": "",
+            "references": [
+                {
+                    "alternateURI": "",
+                    "accessURI": "https://scaife.perseus.org/reader/urn:cts:latinLit:phi0448.phi001.perseus-lat2:7.57/?q=Lutetiam&qk=form",
+                    "citationDetail": "7.57",
+                    "citationTypeURI": "http://purl.org/spar/cito/citesAsEvidence",
+                    "shortTitle": "Caes. Gall. (Holmes: Perseus)",
+                    "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/QIX4MPDG",
+                    "formattedCitation": "<div class=\"csl-entry\">Caesar, Julius. <i>C. Iuli Caesaris commentarii rerum in Gallia gestarum VII. A. Hirti commentarius VIII. Edited by T. Rice Holmes.</i> Edited by Thomas Rice Edward Holmes. Oxford: Clarendon Press, 1914. https://scaife.perseus.org/reader/urn:cts:latinLit:phi0448.phi001.perseus-lat2:1.1.1-1.1.5/.</div>",
+                    "otherIdentifier": "",
+                    "type": "citesAsEvidence"
+                }
+            ],
+            "review_state": "published",
+            "creators": [
+                {
+                    "username": "thomase",
+                    "homepage": null,
+                    "name": "Tom Elliott",
+                    "uri": "https://pleiades.stoa.org/author/thomase"
+                }
+            ],
+            "@type": "Connection",
+            "connectionTypeURI": "https://pleiades.stoa.org/vocabularies/relationship-types/part_of_admin"
+        }
+    ],
+    "references": [
+        {
+            "alternateURI": "",
+            "accessURI": "http://www.worldcat.org/oclc/43970336",
+            "citationDetail": "11 C4 Lutetia",
+            "citationTypeURI": "http://purl.org/spar/cito/seeFurther",
+            "shortTitle": "BAtlas",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/MIAGQ5C6",
+            "formattedCitation": "<div class=\"csl-entry\">Talbert, Richard J. A., ed. <i>Barrington Atlas of the Greek and Roman World</i>. Princeton, N.J.: Princeton University Press, 2000. http://www.worldcat.org/oclc/43970336.</div>",
+            "otherIdentifier": " ",
+            "type": "seeFurther"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "http://www.worldcat.org/oclc/758914364",
+            "citationDetail": "142-43",
+            "citationTypeURI": "http://purl.org/spar/cito/seeFurther",
+            "shortTitle": "TIR Lutetia",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/WJXDVUB3",
+            "formattedCitation": "<div class=\"csl-entry\">Chevallier, Raymond. <i>Lutetia–Atuatuca–Ulpia Noviomagus</i>. Tabula Imperii Romani, M 31. Paris: Picard, 1975. http://www.worldcat.org/oclc/758914364.</div>",
+            "otherIdentifier": "",
+            "type": "seeFurther"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "http://www.worldcat.org/oclc/716697166",
+            "citationDetail": "",
+            "citationTypeURI": "http://purl.org/spar/cito/seeFurther",
+            "shortTitle": "CAG 75",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/BC6V9ZP4",
+            "formattedCitation": "<div class=\"csl-entry\">Busson, Daniel. <i>Carte archéologique de la Gaule 75 Paris</i>. Carte archéologique de la Gaule. [Nouvelle série] 75. Paris: Académie des inscriptions et belles-lettres Ministère de la culture Ministère de l’enseignement supérieur et de la recherche [etc.] diff. Fondation Maison des sciences de l’homme, 1998. http://gallica.bnf.fr/ark:/12148/bd6t54207080g.</div>",
+            "otherIdentifier": "",
+            "type": "seeFurther"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "http://francia.ahlfeldt.se/places/4156",
+            "citationDetail": "4156",
+            "citationTypeURI": "http://purl.org/spar/cito/citesAsRelated",
+            "shortTitle": "RFO",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/2CEKGRY9",
+            "formattedCitation": "<div class=\"csl-entry\">Åhlfeldt, Johan. <i>Regnum Francorum Online</i>, 2009. http://francia.ahlfeldt.se/.</div>",
+            "otherIdentifier": " ",
+            "type": "citesAsRelated"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "http://www.perseus.tufts.edu/hopper/text?doc=Perseus:text:1999.04.0006:entry=lutetia-parisiorum",
+            "citationDetail": "LUTETIA PARISIORUM later PARISIUS (Paris) France",
+            "citationTypeURI": "http://purl.org/spar/cito/seeFurther",
+            "shortTitle": "PECS (Perseus)",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/PV9N7BQD",
+            "formattedCitation": "<div class=\"csl-entry\">Stillwell, Richard, William L MacDonald, and Marian Holland McAllister, eds. <i>The Princeton Encyclopedia of Classical Sites</i>. Princeton, N.J.: Princeton University Press, 1976. http://www.perseus.tufts.edu/hopper/text?doc=Perseus:text:1999.04.0006.</div>",
+            "otherIdentifier": " ",
+            "type": "seeFurther"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "https://en.wikipedia.org/wiki/Paris",
+            "citationDetail": "Paris",
+            "citationTypeURI": "http://purl.org/spar/cito/seeAlso",
+            "shortTitle": "Wikipedia (English)",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/CI6F6W7W",
+            "formattedCitation": "<div class=\"csl-entry\"><i>Wikipedia: The Free Encyclopedia That Anyone Can Edit</i>. Wikimedia Foundation, 2001. https://en.wikipedia.org.</div>",
+            "otherIdentifier": " ",
+            "type": "seeAlso"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "http://www.geonames.org/2988507/paris.html",
+            "citationDetail": "Paris (2988507)",
+            "citationTypeURI": "http://purl.org/spar/cito/citesAsRelated",
+            "shortTitle": "GeoNames",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/IIFE4W6M",
+            "formattedCitation": "<div class=\"csl-entry\">Marc Wick, and Christophe Boutreux. <i>GeoNames</i>, 2005. https://www.geonames.org/.</div>",
+            "otherIdentifier": "",
+            "type": "citesAsRelated"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "http://www.trismegistos.org/place/3278",
+            "citationDetail": "GEO ID 3278: Lutetia (Paris)",
+            "citationTypeURI": "http://purl.org/spar/cito/citesAsRelated",
+            "shortTitle": "TM",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/TN3GJAU8",
+            "formattedCitation": "<div class=\"csl-entry\">Depauw, Mark, Tom Gheldof, Herbert Verreth, Nico Dogaer, Willy Clarysse, Yanne Broux, Gert Baetens, and Heinz-Josef Thissen. <i>Trismegistos: An Interdisciplinary Portal of the Ancient World</i>. Leuven, 2006. http://www.trismegistos.org/.</div>",
+            "otherIdentifier": "",
+            "type": "citesAsRelated"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "http://www.cambridge.org/us/talbert/talbertdatabase/TPPlace630.html",
+            "citationDetail": "1A4 (Talbert 630)",
+            "citationTypeURI": "http://purl.org/spar/cito/citesAsEvidence",
+            "shortTitle": "TP (Talbert: CUP)",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/QT8GLGGI",
+            "formattedCitation": "<div class=\"csl-entry\">Talbert, Richard. “Database: Peutinger Map Names and Features, with Commentary and User’s Guide.” In <i>Explore the Peutinger Map</i>. Cambridge UP, 2010. http://www.cambridge.org/us/talbert/talbertdatabase/prm.html.</div>",
+            "otherIdentifier": "",
+            "type": "citesAsEvidence"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "http://www.perseus.tufts.edu/hopper/text?doc=Perseus%3Atext%3A1999.04.0064%3Aalphabetic+letter%3DL%3Aentry+group%3D9%3Aentry%3Dlutetia-parisiorum-geo",
+            "citationDetail": "LUTÉTIA PARISIÓRUM",
+            "citationTypeURI": "http://purl.org/spar/cito/seeFurther",
+            "shortTitle": "Smith 1854 (Perseus)",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/BIA378QC",
+            "formattedCitation": "<div class=\"csl-entry\">Smith, William. <i>Dictionary of Greek and Roman Geography</i>. London: Murray, 1854. http://www.perseus.tufts.edu/hopper/text?doc=Perseus:text:1999.04.0064.</div>",
+            "otherIdentifier": "",
+            "type": "seeFurther"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "https://www.wikidata.org/wiki/Q270273",
+            "citationDetail": "Q270273",
+            "citationTypeURI": "http://purl.org/spar/cito/citesAsRelated",
+            "shortTitle": "Wikidata",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/BCQIKDKS",
+            "formattedCitation": "<div class=\"csl-entry\"><i>Wikidata: The Free Knowledge Base That Anyone Can Edit</i>. Wikimedia Foundation, 2014. https://www.wikidata.org/.</div>",
+            "otherIdentifier": "",
+            "type": "citesAsRelated"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "https://en.wikipedia.org/wiki/Lutetia",
+            "citationDetail": "Lutetia",
+            "citationTypeURI": "http://purl.org/spar/cito/seeFurther",
+            "shortTitle": "Wikipedia (English)",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/CI6F6W7W",
+            "formattedCitation": "<div class=\"csl-entry\"><i>Wikipedia: The Free Encyclopedia That Anyone Can Edit</i>. Wikimedia Foundation, 2001. https://en.wikipedia.org.</div>",
+            "otherIdentifier": "",
+            "type": "seeFurther"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "https://fr.wikipedia.org/wiki/Lut%C3%A8ce",
+            "citationDetail": "Lutèce",
+            "citationTypeURI": "http://purl.org/spar/cito/seeFurther",
+            "shortTitle": "Wikipedia (French)",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/B4HPCZIK",
+            "formattedCitation": "<div class=\"csl-entry\"><i>Wikipédia: L’encyclopédie libre que chacun peut améliorer</i>. Wikimedia Foundation, 2001. https://fr.wikipedia.org.</div>",
+            "otherIdentifier": "",
+            "type": "seeFurther"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "http://paris-atlas-historique.fr/",
+            "citationDetail": "AHP",
+            "citationTypeURI": "http://purl.org/spar/cito/seeFurther",
+            "shortTitle": "AHP",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/KD3W29IB",
+            "formattedCitation": "<div class=\"csl-entry\">Michel Huard. “Atlas Historique de Paris,” continuing 2012. http://paris-atlas-historique.fr/.</div>",
+            "otherIdentifier": "",
+            "type": "seeFurther"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "http://latin.packhum.org/loc/448/1/115/663-685",
+            "citationDetail": "6.3.4.4",
+            "citationTypeURI": "http://purl.org/spar/cito/citesAsEvidence",
+            "shortTitle": "Caes. BGall. (Seel: PHI)",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/Y3E58P65",
+            "formattedCitation": "<div class=\"csl-entry\">Caesar, Julius. <i>De bello Gallico</i>. Edited by Otto Seel. Los Altos, Calif.: Packard Humanities Institute, 1991. http://latin.packhum.org/loc/448/1/0#0.</div>",
+            "otherIdentifier": "",
+            "type": "citesAsEvidence"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "http://latin.packhum.org/loc/448/1/168/1238-1256",
+            "citationDetail": "7.57.1.4",
+            "citationTypeURI": "http://purl.org/spar/cito/citesAsEvidence",
+            "shortTitle": "Caes. BGall. (Seel: PHI)",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/Y3E58P65",
+            "formattedCitation": "<div class=\"csl-entry\">Caesar, Julius. <i>De bello Gallico</i>. Edited by Otto Seel. Los Altos, Calif.: Packard Humanities Institute, 1991. http://latin.packhum.org/loc/448/1/0#0.</div>",
+            "otherIdentifier": "",
+            "type": "citesAsEvidence"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "https://topostext.org/place/489023ULut",
+            "citationDetail": "Lutecia (Gallia)",
+            "citationTypeURI": "http://purl.org/spar/cito/seeFurther",
+            "shortTitle": "ToposText",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/MC9RGDVB",
+            "formattedCitation": "<div class=\"csl-entry\">Kiesling, Brady. <i>ToposText – a Reference Tool for Greek Civilization</i>. Version 2.0. Aikaterini Laskaridis Foundation, 2016. https://topostext.org/.</div>",
+            "otherIdentifier": "http://atlantides.org/bibliography/",
+            "type": "seeFurther"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "",
+            "citationDetail": "",
+            "citationTypeURI": "http://purl.org/spar/cito/seeFurther",
+            "shortTitle": "Busson 2019",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/R3CLKU5F",
+            "formattedCitation": "<div class=\"csl-entry\">Busson, Didier. <i>Atlas de Paris antique: Lutèce, naissance d’une ville</i>. Paris: Parigramme, DL, 2019.</div>",
+            "otherIdentifier": "",
+            "type": "seeFurther"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "https://www.sciencedirect.com/science/article/pii/S2352409X23000780",
+            "citationDetail": "section 4.1 \"Geese in urban centres\"",
+            "citationTypeURI": "http://purl.org/spar/cito/seeFurther",
+            "shortTitle": "Bourgois 2023",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/2WSX4KLR",
+            "formattedCitation": "<div class=\"csl-entry\">Bourgois, Alice, and Colin Duval. “Geese, Economic Practices and Religion in Northern Roman Gaul.” <i>Journal of Archaeological Science: Reports</i> 48 (April 1, 2023): 103903. https://doi.org/10.1016/j.jasrep.2023.103903.</div>",
+            "otherIdentifier": "",
+            "type": "seeFurther"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "http://www.worldcat.org/oclc/936644063",
+            "citationDetail": "368,2 Luticia",
+            "citationTypeURI": "http://purl.org/spar/cito/seeFurther",
+            "shortTitle": "ItAnt (Cuntz)",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/M4UH8NCU",
+            "formattedCitation": "<div class=\"csl-entry\">Cuntz, Otto, ed. <i>Itineraria Antonini Augusti et Burdigalense</i>. Itineraria Romana 1. Leipzig: Teubner, 1929. http://www.worldcat.org/oclc/936644063.</div>",
+            "otherIdentifier": "",
+            "type": "seeFurther"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "http://www.worldcat.org/oclc/6684340",
+            "citationDetail": "110, 100",
+            "citationTypeURI": "http://purl.org/spar/cito/seeFurther",
+            "shortTitle": "ItMiller",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/Q8X83VMV",
+            "formattedCitation": "<div class=\"csl-entry\">Miller, Konrad. <i>Itineraria romana: Römische Reisewege an der Hand der Tabula Peutingeriana</i>. Stuttgart: Strecker und Schröder, 1916. http://www.worldcat.org/oclc/6684340.</div>",
+            "otherIdentifier": "",
+            "type": "seeFurther"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "https://tp-online.ku.de/trefferanzeige_en.php?id=3067",
+            "citationDetail": "3067: Luteci",
+            "citationTypeURI": "http://purl.org/spar/cito/citesAsRelated",
+            "shortTitle": "KU TP Database (Rathmann)",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/KDZ6Q72N",
+            "formattedCitation": "<div class=\"csl-entry\">Ingolstadt, Katholische Universität Eichstätt-. “Tabula Peutingeriana.” Datenbank tp-online. Accessed June 4, 2025. https://www.ku.de/ggf/geschichte/alte-geschichte/forschung/datenbank-tp-online.</div>",
+            "otherIdentifier": "",
+            "type": "citesAsRelated"
+        },
+        {
+            "alternateURI": "",
+            "accessURI": "https://elexikon.ch/RE/XIII,2_2097.png",
+            "citationDetail": "Lutecia Parisiorum",
+            "citationTypeURI": "http://purl.org/spar/cito/seeFurther",
+            "shortTitle": "RE",
+            "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/HSGNAEBR",
+            "formattedCitation": "<div class=\"csl-entry\">Pauly, August Friedrich von, Georg Wissowa, Wilhelm Kroll, Kurt Witte, Karl Mittelhaus, and Konrat Ziegler, eds. <i>Real-Encyclopaedie der classischen Altertumswissenschaft</i>. 83 vols. Stuttgart: J. B. Metzler, 1894. https://de.wikisource.org/wiki/Paulys_Realencyclop%C3%A4die_der_classischen_Altertumswissenschaft.</div>",
+            "otherIdentifier": "",
+            "type": "seeFurther"
+        }
+    ],
+    "names": [
+        {
+            "nameType": "geographic",
+            "transcriptionAccuracy": "accurate",
+            "associationCertainty": "certain",
+            "romanized": "Lutetia",
+            "attestations": [
+                {
+                    "timePeriod": "hellenistic-republican",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/hellenistic-republican",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                },
+                {
+                    "timePeriod": "roman",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/roman",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                },
+                {
+                    "timePeriod": "late-antique",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/late-antique",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                }
+            ],
+            "references": [
+                {
+                    "alternateURI": "",
+                    "accessURI": "https://scaife.perseus.org/reader/urn:cts:latinLit:phi0448.phi001.perseus-lat2:7.58.3/?q=Lutetia&qk=form",
+                    "citationDetail": "7.58.3",
+                    "citationTypeURI": "http://purl.org/spar/cito/citesAsEvidence",
+                    "shortTitle": "Caes. Gall. (Holmes: Perseus)",
+                    "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/QIX4MPDG",
+                    "formattedCitation": "<div class=\"csl-entry\">Caesar, Julius. <i>C. Iuli Caesaris commentarii rerum in Gallia gestarum VII. A. Hirti commentarius VIII. Edited by T. Rice Holmes.</i> Edited by Thomas Rice Edward Holmes. Oxford: Clarendon Press, 1914.</div>",
+                    "otherIdentifier": "",
+                    "type": "citesAsEvidence"
+                }
+            ],
+            "id": "lutetia",
+            "end": 640,
+            "contributors": [
+                {
+                    "username": null,
+                    "name": "R. Talbert"
+                },
+                {
+                    "username": "sgillies",
+                    "homepage": null,
+                    "name": "Sean Gillies",
+                    "uri": "https://pleiades.stoa.org/author/sgillies"
+                },
+                {
+                    "username": "thomase",
+                    "homepage": null,
+                    "name": "Tom Elliott",
+                    "uri": "https://pleiades.stoa.org/author/thomase"
+                }
+            ],
+            "provenance": "Barrington Atlas: BAtlas 11 C4 Lutetia",
+            "associationCertaintyURI": "https://pleiades.stoa.org/vocabularies/association-certainty/certain",
+            "start": -330,
+            "details": "",
+            "review_state": "published",
+            "description": "Latin name used by Julius Caesar in his Gallic Wars (per Holmes 1914 edition)",
+            "transcriptionCompleteness": "complete",
+            "language": "la",
+            "created": "2009-11-02T15:53:17Z",
+            "uri": "https://pleiades.stoa.org/places/109126/lutetia",
+            "creators": [
+                {
+                    "username": null,
+                    "name": "C. Haselgrove"
+                },
+                {
+                    "username": null,
+                    "name": "J. Kunow"
+                }
+            ],
+            "attested": "Lutetia",
+            "@type": "Name",
+            "history": [
+                {
+                    "comment": "summary; fixed reference short title",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:10:54Z"
+                },
+                {
+                    "comment": "summary",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T12:46:26Z"
+                },
+                {
+                    "comment": "adjusted short title for Caesar reference",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T12:22:32Z"
+                },
+                {
+                    "comment": "evidence, attested form, language",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T12:18:12Z"
+                },
+                {
+                    "comment": "Global migration and reindexing of citations and provenance, February 2012",
+                    "modifiedBy": "admin",
+                    "modified": "2012-02-15T02:11:23Z"
+                },
+                {
+                    "comment": "Global migration and reindexing of citations and provenance, February 2012",
+                    "modifiedBy": "admin",
+                    "modified": "2012-02-14T23:43:57Z"
+                },
+                {
+                    "action": "Publish externally",
+                    "modifiedBy": "thomase",
+                    "modified": "2010-05-19T21:31:50Z"
+                },
+                {
+                    "action": "Submit for review",
+                    "modifiedBy": "sgillies",
+                    "modified": "2009-11-02T16:56:22Z"
+                },
+                {
+                    "action": "Create",
+                    "modifiedBy": "sgillies",
+                    "modified": "2009-11-02T15:53:17Z"
+                }
+            ]
+        },
+        {
+            "nameType": "geographic",
+            "transcriptionAccuracy": "accurate",
+            "associationCertainty": "certain",
+            "romanized": "Lutecia",
+            "attestations": [
+                {
+                    "timePeriod": "hellenistic-republican",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/hellenistic-republican",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                },
+                {
+                    "timePeriod": "roman",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/roman",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                },
+                {
+                    "timePeriod": "late-antique",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/late-antique",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                }
+            ],
+            "references": [
+                {
+                    "alternateURI": "",
+                    "accessURI": "http://latin.packhum.org/loc/448/1/168/1199-1204#168",
+                    "citationDetail": "7.57-58",
+                    "citationTypeURI": "http://purl.org/spar/cito/citesAsEvidence",
+                    "shortTitle": "Caes. Gal. (Seel: PHI)",
+                    "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/SV68FUSY",
+                    "formattedCitation": "<div class=\"csl-entry\">Caesar, Julius. <i>C. Iuli Caesaris commentarii rerum gestarum</i>. Edited by Otto Seel. 3 vols. Bibliotheca scriptorum Graecorum et Romanorum Teubneriana. Lipsiae: In aedibus B.G. Teubneri, 1961.</div>",
+                    "otherIdentifier": "",
+                    "type": "citesAsEvidence"
+                }
+            ],
+            "id": "lutecia",
+            "end": 640,
+            "contributors": [
+                {
+                    "username": null,
+                    "name": "R. Talbert"
+                },
+                {
+                    "username": "sgillies",
+                    "homepage": null,
+                    "name": "Sean Gillies",
+                    "uri": "https://pleiades.stoa.org/author/sgillies"
+                },
+                {
+                    "username": "thomase",
+                    "homepage": null,
+                    "name": "Tom Elliott",
+                    "uri": "https://pleiades.stoa.org/author/thomase"
+                }
+            ],
+            "provenance": "Barrington Atlas: BAtlas 11 C4 Lutetia",
+            "associationCertaintyURI": "https://pleiades.stoa.org/vocabularies/association-certainty/certain",
+            "start": -330,
+            "details": "",
+            "review_state": "published",
+            "description": "Latin name used by Julius Caesar in his Gallic Wars (per Seel 1961 edition)",
+            "transcriptionCompleteness": "complete",
+            "language": "la",
+            "created": "2009-11-02T15:53:17Z",
+            "uri": "https://pleiades.stoa.org/places/109126/lutecia",
+            "creators": [
+                {
+                    "username": null,
+                    "name": "C. Haselgrove"
+                },
+                {
+                    "username": null,
+                    "name": "J. Kunow"
+                }
+            ],
+            "attested": "Lutecia",
+            "@type": "Name",
+            "history": [
+                {
+                    "comment": "evidence",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:16:59Z"
+                },
+                {
+                    "comment": "summary; Caesar reference",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:16:03Z"
+                },
+                {
+                    "comment": "Global migration and reindexing of citations and provenance, February 2012",
+                    "modifiedBy": "admin",
+                    "modified": "2012-02-15T02:11:23Z"
+                },
+                {
+                    "comment": "Global migration and reindexing of citations and provenance, February 2012",
+                    "modifiedBy": "admin",
+                    "modified": "2012-02-14T23:43:57Z"
+                },
+                {
+                    "comment": "Time periods copied from sibling. See http://atlantides.org/trac/pleiades/wiki/PlaceUpgradesAndMigrations",
+                    "modifiedBy": "sgillies",
+                    "modified": "2011-01-20T03:25:44Z"
+                },
+                {
+                    "action": "Publish externally",
+                    "modifiedBy": "thomase",
+                    "modified": "2010-05-19T21:31:50Z"
+                },
+                {
+                    "action": "Submit for review",
+                    "modifiedBy": "sgillies",
+                    "modified": "2009-11-02T16:56:22Z"
+                },
+                {
+                    "action": "Create",
+                    "modifiedBy": "sgillies",
+                    "modified": "2009-11-02T15:53:17Z"
+                }
+            ]
+        },
+        {
+            "nameType": "geographic",
+            "transcriptionAccuracy": "accurate",
+            "associationCertainty": "certain",
+            "romanized": "Luticia",
+            "attestations": [
+                {
+                    "timePeriod": "hellenistic-republican",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/hellenistic-republican",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                },
+                {
+                    "timePeriod": "roman",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/roman",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                },
+                {
+                    "timePeriod": "late-antique",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/late-antique",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                }
+            ],
+            "references": [
+                {
+                    "alternateURI": "",
+                    "accessURI": "http://www.worldcat.org/oclc/936644063",
+                    "citationDetail": "368.2",
+                    "citationTypeURI": "http://purl.org/spar/cito/seeFurther",
+                    "shortTitle": "ItAnt (Cuntz)",
+                    "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/M4UH8NCU",
+                    "formattedCitation": "<div class=\"csl-entry\">Cuntz, Otto, ed. <i>Itineraria Antonini Augusti et Burdigalense</i>. Itineraria Romana 1. Leipzig: Teubner, 1929. http://www.worldcat.org/oclc/936644063.</div>",
+                    "otherIdentifier": "",
+                    "type": "seeFurther"
+                }
+            ],
+            "id": "luticia",
+            "end": 640,
+            "contributors": [
+                {
+                    "username": null,
+                    "name": "R. Talbert"
+                },
+                {
+                    "username": "sgillies",
+                    "homepage": null,
+                    "name": "Sean Gillies",
+                    "uri": "https://pleiades.stoa.org/author/sgillies"
+                },
+                {
+                    "username": "thomase",
+                    "homepage": null,
+                    "name": "Tom Elliott",
+                    "uri": "https://pleiades.stoa.org/author/thomase"
+                }
+            ],
+            "provenance": "Barrington Atlas: BAtlas 11 C4 Lutetia",
+            "associationCertaintyURI": "https://pleiades.stoa.org/vocabularies/association-certainty/certain",
+            "start": -330,
+            "details": "",
+            "review_state": "published",
+            "description": "Latin name as reflected in the so-called Antonine Itinerary",
+            "transcriptionCompleteness": "complete",
+            "language": "la",
+            "created": "2009-11-02T15:53:17Z",
+            "uri": "https://pleiades.stoa.org/places/109126/luticia",
+            "creators": [
+                {
+                    "username": null,
+                    "name": "J. Kunow"
+                },
+                {
+                    "username": null,
+                    "name": "C. Haselgrove"
+                }
+            ],
+            "attested": "Luticia",
+            "@type": "Name",
+            "history": [
+                {
+                    "comment": "evidence, attested form, language",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T12:37:59Z"
+                },
+                {
+                    "comment": "Global migration and reindexing of citations and provenance, February 2012",
+                    "modifiedBy": "admin",
+                    "modified": "2012-02-15T02:11:23Z"
+                },
+                {
+                    "comment": "Global migration and reindexing of citations and provenance, February 2012",
+                    "modifiedBy": "admin",
+                    "modified": "2012-02-14T23:43:57Z"
+                },
+                {
+                    "comment": "Time periods copied from sibling. See http://atlantides.org/trac/pleiades/wiki/PlaceUpgradesAndMigrations",
+                    "modifiedBy": "sgillies",
+                    "modified": "2011-01-20T03:25:45Z"
+                },
+                {
+                    "action": "Publish externally",
+                    "modifiedBy": "thomase",
+                    "modified": "2010-05-19T21:31:50Z"
+                },
+                {
+                    "action": "Submit for review",
+                    "modifiedBy": "sgillies",
+                    "modified": "2009-11-02T16:56:22Z"
+                },
+                {
+                    "action": "Create",
+                    "modifiedBy": "sgillies",
+                    "modified": "2009-11-02T15:53:18Z"
+                }
+            ]
+        },
+        {
+            "nameType": "geographic",
+            "transcriptionAccuracy": "accurate",
+            "associationCertainty": "certain",
+            "romanized": "Paris",
+            "attestations": [
+                {
+                    "timePeriod": "modern",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/modern",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                }
+            ],
+            "references": [
+                {
+                    "alternateURI": "",
+                    "accessURI": "http://www.geonames.org/2988507/paris.html",
+                    "citationDetail": "",
+                    "citationTypeURI": "http://purl.org/spar/cito/cites",
+                    "shortTitle": "",
+                    "bibliographicURI": "",
+                    "formattedCitation": "geonames:2988507",
+                    "otherIdentifier": " ",
+                    "type": "cites"
+                }
+            ],
+            "id": "paris",
+            "end": 2100,
+            "contributors": [],
+            "provenance": "Regnum Francorum Online",
+            "associationCertaintyURI": "https://pleiades.stoa.org/vocabularies/association-certainty/certain",
+            "start": 1700,
+            "details": "",
+            "review_state": "published",
+            "description": "Modern Name",
+            "transcriptionCompleteness": "complete",
+            "language": "fr",
+            "created": "2012-05-25T22:12:08Z",
+            "uri": "https://pleiades.stoa.org/places/109126/paris",
+            "creators": [
+                {
+                    "username": "jahlfeldt",
+                    "homepage": null,
+                    "name": "Johan Åhlfeldt",
+                    "uri": "https://pleiades.stoa.org/author/jahlfeldt"
+                }
+            ],
+            "attested": "Paris",
+            "@type": "Name",
+            "history": [
+                {
+                    "comment": "description, language, transliteration, reference",
+                    "modifiedBy": "thomase",
+                    "modified": "2014-03-05T21:47:23Z"
+                },
+                {
+                    "action": "Publish externally",
+                    "modifiedBy": "sgillies",
+                    "modified": "2012-05-25T22:12:09Z"
+                },
+                {
+                    "action": "Submit for review",
+                    "modifiedBy": "sgillies",
+                    "modified": "2012-05-25T22:12:09Z"
+                },
+                {
+                    "comment": "RFO and PECS references from Johan Ahlfeldt (jahlfeldt) and reviewd by Tom Elliott (thomase) in May 2012",
+                    "modifiedBy": "sgillies",
+                    "modified": "2012-05-25T22:12:09Z"
+                },
+                {
+                    "action": "Create",
+                    "modifiedBy": "sgillies",
+                    "modified": "2012-05-25T22:12:08Z"
+                }
+            ]
+        },
+        {
+            "nameType": "geographic",
+            "transcriptionAccuracy": "accurate",
+            "associationCertainty": "certain",
+            "romanized": "Loutokotia",
+            "attestations": [
+                {
+                    "timePeriod": "roman",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/roman",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                }
+            ],
+            "references": [
+                {
+                    "alternateURI": "",
+                    "accessURI": "http://www.perseus.tufts.edu/hopper/text?doc=Strab.+4.3.5&fromdoc=Perseus%3Atext%3A1999.01.0197",
+                    "citationDetail": "",
+                    "citationTypeURI": "http://purl.org/spar/cito/citesAsEvidence",
+                    "shortTitle": "",
+                    "bibliographicURI": "",
+                    "formattedCitation": "Strabo Geography 4.3.5 (Perseus)",
+                    "otherIdentifier": " ",
+                    "type": "citesAsEvidence"
+                }
+            ],
+            "id": "loutokotia",
+            "end": 300,
+            "contributors": [
+                {
+                    "username": "thomase",
+                    "homepage": null,
+                    "name": "Tom Elliott",
+                    "uri": "https://pleiades.stoa.org/author/thomase"
+                }
+            ],
+            "provenance": "Pleiades",
+            "associationCertaintyURI": "https://pleiades.stoa.org/vocabularies/association-certainty/certain",
+            "start": -30,
+            "details": "",
+            "review_state": "published",
+            "description": "Ancient Greek name for ancient Lutetia (modern Paris) as found in Strabo.",
+            "transcriptionCompleteness": "complete",
+            "language": "grc",
+            "created": "2012-11-12T18:11:15Z",
+            "uri": "https://pleiades.stoa.org/places/109126/loutokotia",
+            "creators": [
+                {
+                    "username": "jbecker",
+                    "homepage": null,
+                    "name": "Jeffrey Becker",
+                    "uri": "https://pleiades.stoa.org/author/jbecker"
+                }
+            ],
+            "attested": "Λουκοτοκία",
+            "@type": "Name",
+            "history": [
+                {
+                    "comment": "summary",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T12:45:38Z"
+                },
+                {
+                    "action": "Publish externally",
+                    "modifiedBy": "thomase",
+                    "modified": "2014-03-05T23:27:09Z"
+                },
+                {
+                    "action": "Submit for review",
+                    "modifiedBy": "thomase",
+                    "modified": "2014-03-05T23:26:58Z"
+                },
+                {
+                    "comment": "added Perseus URI for Strabo citation",
+                    "modifiedBy": "thomase",
+                    "modified": "2014-03-05T23:26:48Z"
+                },
+                {
+                    "comment": "added name",
+                    "modifiedBy": "jbecker",
+                    "modified": "2012-11-12T18:11:19Z"
+                },
+                {
+                    "action": "Create",
+                    "modifiedBy": "jbecker",
+                    "modified": "2012-11-12T18:11:16Z"
+                }
+            ]
+        },
+        {
+            "nameType": "geographic",
+            "transcriptionAccuracy": "accurate",
+            "associationCertainty": "certain",
+            "romanized": "Lutetia Parisiorum",
+            "attestations": [
+                {
+                    "timePeriod": "hellenistic-republican",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/hellenistic-republican",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                }
+            ],
+            "references": [
+                {
+                    "alternateURI": "",
+                    "accessURI": "https://scaife.perseus.org/reader/urn:cts:latinLit:phi0448.phi001.perseus-lat2:6.3.4/?q=parisiorum&qk=form",
+                    "citationDetail": "6.3.4",
+                    "citationTypeURI": "http://purl.org/spar/cito/citesAsEvidence",
+                    "shortTitle": "Caes. Gall. (Holmes: Perseus)",
+                    "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/QIX4MPDG",
+                    "formattedCitation": "<div class=\"csl-entry\">Caesar, Julius. <i>C. Iuli Caesaris commentarii rerum in Gallia gestarum VII. A. Hirti commentarius VIII. Edited by T. Rice Holmes.</i> Edited by Thomas Rice Edward Holmes. Oxford: Clarendon Press, 1914.</div>",
+                    "otherIdentifier": " ",
+                    "type": "citesAsEvidence"
+                }
+            ],
+            "id": "lutetia-parisiorum",
+            "end": -30,
+            "contributors": [],
+            "provenance": "Pleiades",
+            "associationCertaintyURI": "https://pleiades.stoa.org/vocabularies/association-certainty/certain",
+            "start": -330,
+            "details": "",
+            "review_state": "published",
+            "description": "Latin name used by Julius Caesar in his Gallic Wars (per Holmes 1914 edition).",
+            "transcriptionCompleteness": "complete",
+            "language": "la",
+            "created": "2014-03-05T21:04:50Z",
+            "uri": "https://pleiades.stoa.org/places/109126/lutetia-parisiorum",
+            "creators": [
+                {
+                    "username": "thomase",
+                    "homepage": null,
+                    "name": "Tom Elliott",
+                    "uri": "https://pleiades.stoa.org/author/thomase"
+                }
+            ],
+            "attested": "Lutetia Parisiorum",
+            "@type": "Name",
+            "history": [
+                {
+                    "comment": "summary; fixed reference short title",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:10:16Z"
+                },
+                {
+                    "comment": "updated reference with edition and link to scaife viewer",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T12:21:57Z"
+                },
+                {
+                    "action": "Publish externally",
+                    "modifiedBy": "thomase",
+                    "modified": "2014-03-05T21:05:41Z"
+                },
+                {
+                    "action": "Submit for review",
+                    "modifiedBy": "thomase",
+                    "modified": "2014-03-05T21:05:28Z"
+                },
+                {
+                    "comment": "Initial revision",
+                    "modifiedBy": "thomase",
+                    "modified": "2014-03-05T21:05:08Z"
+                },
+                {
+                    "action": "Create",
+                    "modifiedBy": "thomase",
+                    "modified": "2014-03-05T21:04:54Z"
+                }
+            ]
+        },
+        {
+            "nameType": "geographic",
+            "transcriptionAccuracy": "accurate",
+            "associationCertainty": "certain",
+            "romanized": "Luteci, LVTECI",
+            "attestations": [
+                {
+                    "timePeriod": "late-antique",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/late-antique",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                }
+            ],
+            "references": [
+                {
+                    "alternateURI": "",
+                    "accessURI": "http://www.cambridge.org/us/talbert/talbertdatabase/TPPlace630.html",
+                    "citationDetail": "1A4 Lvteci (Talbert 630)",
+                    "citationTypeURI": "http://purl.org/spar/cito/citesAsEvidence",
+                    "shortTitle": "TP (Talbert: CUP)",
+                    "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/QT8GLGGI",
+                    "formattedCitation": "<div class=\"csl-entry\">Talbert, Richard. “Database: Peutinger Map Names and Features, with Commentary and User’s Guide.” In <i>Explore the Peutinger Map</i>. Cambridge UP, 2010. http://www.cambridge.org/us/talbert/talbertdatabase/prm.html.</div>",
+                    "otherIdentifier": " ",
+                    "type": "citesAsEvidence"
+                },
+                {
+                    "alternateURI": "",
+                    "accessURI": "http://omnesviae.org/api/sites/TPPlace630",
+                    "citationDetail": "",
+                    "citationTypeURI": "http://purl.org/spar/cito/seeFurther",
+                    "shortTitle": "",
+                    "bibliographicURI": "",
+                    "formattedCitation": "Omnes Viae LVTECI",
+                    "otherIdentifier": " ",
+                    "type": "seeFurther"
+                }
+            ],
+            "id": "luteci",
+            "end": 640,
+            "contributors": [
+                {
+                    "username": "jbecker",
+                    "homepage": null,
+                    "name": "Jeffrey Becker",
+                    "uri": "https://pleiades.stoa.org/author/jbecker"
+                }
+            ],
+            "provenance": "Pleiades",
+            "associationCertaintyURI": "https://pleiades.stoa.org/vocabularies/association-certainty/certain",
+            "start": 300,
+            "details": "",
+            "review_state": "published",
+            "description": "Placename labeled for ancient Lutecia/Lutetia on the Peutinger Map.",
+            "transcriptionCompleteness": "complete",
+            "language": "la",
+            "created": "2014-03-13T12:21:44Z",
+            "uri": "https://pleiades.stoa.org/places/109126/luteci",
+            "creators": [
+                {
+                    "username": "thomase",
+                    "homepage": null,
+                    "name": "Tom Elliott",
+                    "uri": "https://pleiades.stoa.org/author/thomase"
+                }
+            ],
+            "attested": "Luteci",
+            "@type": "Name",
+            "history": [
+                {
+                    "comment": "update references",
+                    "modifiedBy": "jbecker",
+                    "modified": "2026-01-30T03:00:28Z"
+                },
+                {
+                    "action": "Publish externally",
+                    "modifiedBy": "thomase",
+                    "modified": "2014-03-13T12:32:50Z"
+                },
+                {
+                    "action": "Submit for review",
+                    "modifiedBy": "thomase",
+                    "modified": "2014-03-13T12:32:40Z"
+                },
+                {
+                    "comment": "swapped attested and romanized values",
+                    "modifiedBy": "thomase",
+                    "modified": "2014-03-13T12:32:12Z"
+                },
+                {
+                    "comment": "Initial revision",
+                    "modifiedBy": "thomase",
+                    "modified": "2014-03-13T12:22:02Z"
+                },
+                {
+                    "action": "Create",
+                    "modifiedBy": "thomase",
+                    "modified": "2014-03-13T12:21:47Z"
+                }
+            ]
+        },
+        {
+            "nameType": "geographic",
+            "transcriptionAccuracy": "accurate",
+            "associationCertainty": "certain",
+            "romanized": "Luticia Parisiorum",
+            "attestations": [
+                {
+                    "timePeriod": "roman",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/roman",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                }
+            ],
+            "references": [
+                {
+                    "alternateURI": "",
+                    "accessURI": "http://www.worldcat.org/oclc/936644063",
+                    "citationDetail": "366.5-6",
+                    "citationTypeURI": "http://purl.org/spar/cito/seeFurther",
+                    "shortTitle": "ItAnt (Cuntz)",
+                    "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/M4UH8NCU",
+                    "formattedCitation": "<div class=\"csl-entry\">Cuntz, Otto, ed. <i>Itineraria Antonini Augusti et Burdigalense</i>. Itineraria Romana 1. Leipzig: Teubner, 1929. http://www.worldcat.org/oclc/936644063.</div>",
+                    "otherIdentifier": "",
+                    "type": "seeFurther"
+                }
+            ],
+            "id": "luticia-parisiorum",
+            "end": 300,
+            "contributors": [],
+            "provenance": "Pleiades",
+            "associationCertaintyURI": "https://pleiades.stoa.org/vocabularies/association-certainty/certain",
+            "start": -30,
+            "details": "",
+            "review_state": "published",
+            "description": "Fuller latin name found in the Antonine Itinerary.",
+            "transcriptionCompleteness": "complete",
+            "language": "la",
+            "created": "2018-05-13T12:44:30Z",
+            "uri": "https://pleiades.stoa.org/places/109126/luticia-parisiorum",
+            "creators": [
+                {
+                    "username": "thomase",
+                    "homepage": null,
+                    "name": "Tom Elliott",
+                    "uri": "https://pleiades.stoa.org/author/thomase"
+                }
+            ],
+            "attested": "Luticia Parisiorum",
+            "@type": "Name",
+            "history": [
+                {
+                    "action": "Publish externally",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T12:44:46Z"
+                },
+                {
+                    "action": "Submit for review",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T12:44:40Z"
+                },
+                {
+                    "comment": "Initial revision",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T12:44:32Z"
+                },
+                {
+                    "action": "Create",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T12:44:30Z"
+                }
+            ]
+        },
+        {
+            "nameType": "geographic",
+            "transcriptionAccuracy": "accurate",
+            "associationCertainty": "certain",
+            "romanized": "Lutecia Parisiorum",
+            "attestations": [],
+            "references": [
+                {
+                    "alternateURI": "",
+                    "accessURI": "http://latin.packhum.org/loc/448/1/115/654-659#115",
+                    "citationDetail": "6.3.4",
+                    "citationTypeURI": "http://purl.org/spar/cito/citesAsEvidence",
+                    "shortTitle": "Caes. Gal. (Seel: PHI)",
+                    "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/SV68FUSY",
+                    "formattedCitation": "<div class=\"csl-entry\">Caesar, Julius. <i>C. Iuli Caesaris commentarii rerum gestarum</i>. Edited by Otto Seel. 3 vols. Bibliotheca scriptorum Graecorum et Romanorum Teubneriana. Lipsiae: In aedibus B.G. Teubneri, 1961.</div>",
+                    "otherIdentifier": "",
+                    "type": "citesAsEvidence"
+                }
+            ],
+            "id": "lutecia-parisiorum",
+            "end": null,
+            "contributors": [],
+            "provenance": "Pleiades",
+            "associationCertaintyURI": "https://pleiades.stoa.org/vocabularies/association-certainty/certain",
+            "start": null,
+            "details": "",
+            "review_state": "published",
+            "description": "Latin name used by Julius Caesar in his Gallic Wars (per Seel 1961 edition)",
+            "transcriptionCompleteness": "complete",
+            "language": "la",
+            "created": "2018-05-13T13:19:09Z",
+            "uri": "https://pleiades.stoa.org/places/109126/lutecia-parisiorum",
+            "creators": [
+                {
+                    "username": "thomase",
+                    "homepage": null,
+                    "name": "Tom Elliott",
+                    "uri": "https://pleiades.stoa.org/author/thomase"
+                }
+            ],
+            "attested": "Lutecia Parisiorum",
+            "@type": "Name",
+            "history": [
+                {
+                    "action": "Publish externally",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:19:26Z"
+                },
+                {
+                    "action": "Submit for review",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:19:20Z"
+                },
+                {
+                    "comment": "Initial revision",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:19:11Z"
+                },
+                {
+                    "action": "Create",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:19:09Z"
+                }
+            ]
+        },
+        {
+            "nameType": "geographic",
+            "transcriptionAccuracy": "accurate",
+            "associationCertainty": "certain",
+            "romanized": "Leukotekia polis",
+            "attestations": [
+                {
+                    "timePeriod": "roman",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/roman",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                }
+            ],
+            "references": [
+                {
+                    "alternateURI": "",
+                    "accessURI": "https://archive.org/stream/bub_gb_i_JfAAAAMAAJ#page/n233/mode/1up",
+                    "citationDetail": "2.8.10",
+                    "citationTypeURI": "http://purl.org/spar/cito/citesAsEvidence",
+                    "shortTitle": "Ptol. Geog. (Müller: IA)",
+                    "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/2AUSPQIZ",
+                    "formattedCitation": "<div class=\"csl-entry\">Ptolemy. <i>Klaudiou Ptolemaiou Geographike hyphegesis = Claudii Ptolemæi Geographia</i>. Edited by Karl Müller. 2 vols. Parisiis: Alfredo Firmin Didot, 1883.</div>",
+                    "otherIdentifier": "",
+                    "type": "citesAsEvidence"
+                }
+            ],
+            "id": "leukotekia-polis",
+            "end": 300,
+            "contributors": [],
+            "provenance": "Pleiades",
+            "associationCertaintyURI": "https://pleiades.stoa.org/vocabularies/association-certainty/certain",
+            "start": -30,
+            "details": "",
+            "review_state": "published",
+            "description": "Ancient Greek per Ptolemy",
+            "transcriptionCompleteness": "complete",
+            "language": "grc",
+            "created": "2018-05-13T12:07:04Z",
+            "uri": "https://pleiades.stoa.org/places/109126/leukotekia-polis",
+            "creators": [
+                {
+                    "username": "thomase",
+                    "homepage": null,
+                    "name": "Tom Elliott",
+                    "uri": "https://pleiades.stoa.org/author/thomase"
+                }
+            ],
+            "attested": "Λουκοτεκία πόλις",
+            "@type": "Name",
+            "history": [
+                {
+                    "comment": "adjusted order of elements in name",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:20:31Z"
+                },
+                {
+                    "comment": "time period: roman",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T12:10:37Z"
+                },
+                {
+                    "action": "Publish externally",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T12:09:32Z"
+                },
+                {
+                    "action": "Submit for review",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T12:09:24Z"
+                },
+                {
+                    "comment": "Edited",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T12:09:15Z"
+                },
+                {
+                    "comment": "Initial revision",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T12:07:27Z"
+                },
+                {
+                    "action": "Create",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T12:07:04Z"
+                }
+            ]
+        },
+        {
+            "nameType": "geographic",
+            "transcriptionAccuracy": "accurate",
+            "associationCertainty": "certain",
+            "romanized": "Lutèce",
+            "attestations": [
+                {
+                    "timePeriod": "modern",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/modern",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                }
+            ],
+            "references": [
+                {
+                    "alternateURI": "",
+                    "accessURI": "https://fr.wikipedia.org/wiki/Lut%C3%A8ce",
+                    "citationDetail": "Lutèce",
+                    "citationTypeURI": "http://purl.org/spar/cito/citesAsEvidence",
+                    "shortTitle": "Wikipedia (French)",
+                    "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/B4HPCZIK",
+                    "formattedCitation": "<div class=\"csl-entry\"><i>Wikipédia: L’encyclopédie libre que chacun peut améliorer</i>. Wikimedia Foundation, 2001. https://fr.wikipedia.org.</div>",
+                    "otherIdentifier": "",
+                    "type": "citesAsEvidence"
+                }
+            ],
+            "id": "lutace",
+            "end": 2100,
+            "contributors": [],
+            "provenance": "Pleiades",
+            "associationCertaintyURI": "https://pleiades.stoa.org/vocabularies/association-certainty/certain",
+            "start": 1700,
+            "details": "",
+            "review_state": "published",
+            "description": "Modern French form of Latin Lutetia",
+            "transcriptionCompleteness": "complete",
+            "language": "fr",
+            "created": "2018-05-13T13:22:30Z",
+            "uri": "https://pleiades.stoa.org/places/109126/lutace",
+            "creators": [
+                {
+                    "username": "thomase",
+                    "homepage": null,
+                    "name": "Tom Elliott",
+                    "uri": "https://pleiades.stoa.org/author/thomase"
+                }
+            ],
+            "attested": "Lutèce",
+            "@type": "Name",
+            "history": [
+                {
+                    "comment": "time period: modern",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:23:11Z"
+                },
+                {
+                    "action": "Publish externally",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:22:44Z"
+                },
+                {
+                    "action": "Submit for review",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:22:38Z"
+                },
+                {
+                    "comment": "Initial revision",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:22:31Z"
+                },
+                {
+                    "action": "Create",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:22:30Z"
+                }
+            ]
+        },
+        {
+            "nameType": "geographic",
+            "transcriptionAccuracy": "accurate",
+            "associationCertainty": "certain",
+            "romanized": "Lutecia",
+            "attestations": [
+                {
+                    "timePeriod": "modern",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/modern",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                }
+            ],
+            "references": [
+                {
+                    "alternateURI": "",
+                    "accessURI": "https://es.wikipedia.org/wiki/Lutecia",
+                    "citationDetail": "Lutecia",
+                    "citationTypeURI": "http://purl.org/spar/cito/citesAsEvidence",
+                    "shortTitle": "Wikipedia (Spanish)",
+                    "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/LPYQ8SZL",
+                    "formattedCitation": "<div class=\"csl-entry\"><i>Wikipedia: la enciclopedia de contenido libre</i>. Wikimedia Foundation, 2001. https://es.wikipedia.org.</div>",
+                    "otherIdentifier": "",
+                    "type": "citesAsEvidence"
+                }
+            ],
+            "id": "name.2018-05-13.8170055424",
+            "end": 2100,
+            "contributors": [],
+            "provenance": "Pleiades",
+            "associationCertaintyURI": "https://pleiades.stoa.org/vocabularies/association-certainty/certain",
+            "start": 1700,
+            "details": "",
+            "review_state": "published",
+            "description": "Modern Spanish form of ancient Latin name \"Lutetia\"",
+            "transcriptionCompleteness": "complete",
+            "language": "es",
+            "created": "2018-05-13T13:24:51Z",
+            "uri": "https://pleiades.stoa.org/places/109126/name.2018-05-13.8170055424",
+            "creators": [
+                {
+                    "username": "thomase",
+                    "homepage": null,
+                    "name": "Tom Elliott",
+                    "uri": "https://pleiades.stoa.org/author/thomase"
+                }
+            ],
+            "attested": "Lutecia",
+            "@type": "Name",
+            "history": [
+                {
+                    "action": "Publish externally",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:25:06Z"
+                },
+                {
+                    "action": "Submit for review",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:25:00Z"
+                },
+                {
+                    "comment": "Initial revision",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:24:52Z"
+                },
+                {
+                    "action": "Create",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:24:51Z"
+                }
+            ]
+        },
+        {
+            "nameType": "geographic",
+            "transcriptionAccuracy": "accurate",
+            "associationCertainty": "certain",
+            "romanized": "Lutezia",
+            "attestations": [
+                {
+                    "timePeriod": "modern",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/modern",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                }
+            ],
+            "references": [
+                {
+                    "alternateURI": "",
+                    "accessURI": "https://it.wikipedia.org/wiki/Lutezia",
+                    "citationDetail": "Lutezia",
+                    "citationTypeURI": "http://purl.org/spar/cito/seeFurther",
+                    "shortTitle": "Wikipedia (Italian)",
+                    "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/UMFZH98D",
+                    "formattedCitation": "<div class=\"csl-entry\"><i>Wikipedia: L’enciclopedia libera e collaborativa</i>. Wikimedia Foundation, 2001. https://it.wikipedia.org.</div>",
+                    "otherIdentifier": "",
+                    "type": "seeFurther"
+                }
+            ],
+            "id": "lutezia",
+            "end": 2100,
+            "contributors": [],
+            "provenance": "Pleiades",
+            "associationCertaintyURI": "https://pleiades.stoa.org/vocabularies/association-certainty/certain",
+            "start": 1700,
+            "details": "",
+            "review_state": "published",
+            "description": "Modern Italian version of ancient Latin name \"Lutetia\"",
+            "transcriptionCompleteness": "complete",
+            "language": "it",
+            "created": "2018-05-13T13:26:44Z",
+            "uri": "https://pleiades.stoa.org/places/109126/lutezia",
+            "creators": [
+                {
+                    "username": "thomase",
+                    "homepage": null,
+                    "name": "Tom Elliott",
+                    "uri": "https://pleiades.stoa.org/author/thomase"
+                }
+            ],
+            "attested": "Lutezia",
+            "@type": "Name",
+            "history": [
+                {
+                    "action": "Publish externally",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:26:58Z"
+                },
+                {
+                    "action": "Submit for review",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:26:52Z"
+                },
+                {
+                    "comment": "Initial revision",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:26:45Z"
+                },
+                {
+                    "action": "Create",
+                    "modifiedBy": "thomase",
+                    "modified": "2018-05-13T13:26:44Z"
+                }
+            ]
+        },
+        {
+            "nameType": "geographic",
+            "transcriptionAccuracy": "accurate",
+            "associationCertainty": "certain",
+            "romanized": "Paris",
+            "attestations": [
+                {
+                    "timePeriod": "sixteenth-ce",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/sixteenth-ce",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                }
+            ],
+            "references": [
+                {
+                    "alternateURI": "",
+                    "accessURI": "",
+                    "citationDetail": "1st Volume, 395",
+                    "citationTypeURI": "http://purl.org/spar/cito/citesAsEvidence",
+                    "shortTitle": "Künhü'l-ahbâr",
+                    "bibliographicURI": "https://www.zotero.org/groups/2533/items/WKDD5W8W",
+                    "formattedCitation": "",
+                    "otherIdentifier": "",
+                    "type": "citesAsEvidence"
+                }
+            ],
+            "id": "paris-2",
+            "end": 1599,
+            "contributors": [],
+            "provenance": "Pleiades",
+            "associationCertaintyURI": "https://pleiades.stoa.org/vocabularies/association-certainty/certain",
+            "start": 1500,
+            "details": "",
+            "review_state": "published",
+            "description": "",
+            "transcriptionCompleteness": "complete",
+            "language": "ota",
+            "created": "2025-12-03T12:51:51Z",
+            "uri": "https://pleiades.stoa.org/places/109126/paris-2",
+            "creators": [
+                {
+                    "username": "enesy",
+                    "homepage": null,
+                    "name": "Enes Yılandiloğlu",
+                    "uri": "https://pleiades.stoa.org/author/enesy"
+                }
+            ],
+            "attested": "",
+            "@type": "Name",
+            "history": [
+                {
+                    "action": "Publish externally",
+                    "modifiedBy": "jbecker",
+                    "modified": "2026-01-30T02:59:47Z"
+                },
+                {
+                    "action": "Submit for review",
+                    "modifiedBy": "enesy",
+                    "modified": "2025-12-03T12:52:04Z"
+                },
+                {
+                    "comment": "Initial revision",
+                    "modifiedBy": "enesy",
+                    "modified": "2025-12-03T12:51:54Z"
+                },
+                {
+                    "action": "Create",
+                    "modifiedBy": "enesy",
+                    "modified": "2025-12-03T12:51:51Z"
+                }
+            ]
+        },
+        {
+            "nameType": "geographic",
+            "transcriptionAccuracy": "accurate",
+            "associationCertainty": "certain",
+            "romanized": "Bārīs",
+            "attestations": [
+                {
+                    "timePeriod": "sixteenth-ce",
+                    "timePeriodURI": "https://pleiades.stoa.org/vocabularies/time-periods/sixteenth-ce",
+                    "confidence": "confident",
+                    "confidenceURI": "https://pleiades.stoa.org/vocabularies/attestation-confidence/confident"
+                }
+            ],
+            "references": [
+                {
+                    "alternateURI": "",
+                    "accessURI": "https://ekitap.yek.gov.tr/urun/kunhu%E2%80%99l-ahbar--takim-5-cilt-_821.aspx",
+                    "citationDetail": "1st Volume, 285, s.v. \"Cebel-i ʿAmmāre\"",
+                    "citationTypeURI": "http://purl.org/spar/cito/seeAlso",
+                    "shortTitle": "Künhü'l-ahbâr",
+                    "bibliographicURI": "https://www.zotero.org/groups/pleiades/items/WKDD5W8W",
+                    "formattedCitation": "<div class=\"csl-entry\">Âli, Mustafa bin Ahmet. <i>Künhü’l-ahbâr: (tenkitli metin)</i>. Edited by Suat Donuk and Derya Örs. 1. baskı. 5 vols. Türkiye Yazma Eserler Kurumu Başkanlığı yayınları. Fatih, İstanbul: Türkiye Yazma Eserler Kurumu Başkanlığı, 2020. https://ekitap.yek.gov.tr/urun/kunhu%E2%80%99l-ahbar--takim-5-cilt-_821.aspx.</div>",
+                    "otherIdentifier": "",
+                    "type": "seeAlso"
+                }
+            ],
+            "id": "baris",
+            "end": 1599,
+            "contributors": [],
+            "provenance": "Pleiades",
+            "associationCertaintyURI": "https://pleiades.stoa.org/vocabularies/association-certainty/certain",
+            "start": 1500,
+            "details": "<p><em>Cebel-i ʿAmmāre</em>: It is a mountain in the land of <em>ʿUdva</em>. It overlooks the sea, and only God knows the number of the nations upon it. When the Strait Sea (Baḥr-i Zuḳāḳ, i.e., the Strait of Gibraltar) extends toward Ceuta (<em>Sebte</em>), it becomes contiguous with a city called <em>Bārīs</em>, and the distance between the two is one hundred miles. And opposite <em>Bārīs</em>, on the Andalusian side, lies Málaga (<em>Malaġa</em>). [translation]</p>",
+            "review_state": "published",
+            "description": "",
+            "transcriptionCompleteness": "complete",
+            "language": "ota",
+            "created": "2025-12-11T10:12:49Z",
+            "uri": "https://pleiades.stoa.org/places/109126/baris",
+            "creators": [
+                {
+                    "username": "enesy",
+                    "homepage": null,
+                    "name": "Enes Yılandiloğlu",
+                    "uri": "https://pleiades.stoa.org/author/enesy"
+                }
+            ],
+            "attested": "باريس",
+            "@type": "Name",
+            "history": [
+                {
+                    "action": "Publish externally",
+                    "modifiedBy": "jbecker",
+                    "modified": "2026-01-30T02:59:59Z"
+                },
+                {
+                    "action": "Submit for review",
+                    "modifiedBy": "enesy",
+                    "modified": "2025-12-11T10:15:08Z"
+                },
+                {
+                    "comment": "Edited",
+                    "modifiedBy": "enesy",
+                    "modified": "2025-12-11T10:14:57Z"
+                },
+                {
+                    "action": "Retract",
+                    "modifiedBy": "enesy",
+                    "modified": "2025-12-11T10:14:42Z"
+                },
+                {
+                    "action": "Submit for review",
+                    "modifiedBy": "enesy",
+                    "modified": "2025-12-11T10:12:56Z"
+                },
+                {
+                    "comment": "Initial revision",
+                    "modifiedBy": "enesy",
+                    "modified": "2025-12-11T10:12:51Z"
+                },
+                {
+                    "action": "Create",
+                    "modifiedBy": "enesy",
+                    "modified": "2025-12-11T10:12:49Z"
+                }
+            ]
+        }
+    ],
+    "id": "109126",
+    "subject": [
+        "dare:ancient=1",
+        "dare:feature=settlement",
+        "dare:major=0"
+    ],
+    "title": "Lutetia",
+    "provenance": "Barrington Atlas: BAtlas 11 C4 Lutetia",
+    "placeTypeURIs": [
+        "https://pleiades.stoa.org/vocabularies/place-types/settlement"
+    ],
+    "details": "<p>The Barrington Atlas Directory notes: Paris</p>",
+    "@context": {
+        "snippet": "dcterms:abstract",
+        "rights": "dcterms:rights",
+        "description": "dcterms:description",
+        "title": "dcterms:title",
+        "dcterms": "http://purl.org/dc/terms/",
+        "subject": "dcterms:subject",
+        "uri": "@id",
+        "created": "dcterms:created"
+    },
+    "review_state": "published",
+    "type": "FeatureCollection",
+    "description": "Lutetia (modern Paris) was the capital of the Parisii, a tribe of ancient Gaul.",
+    "reprPoint": [
+        2.346168,
+        48.8544055
+    ],
+    "placeTypes": [
+        "settlement"
+    ],
+    "bbox": [
+        2.342384,
+        48.852964,
+        2.349952,
+        48.855847
+    ],
+    "connectsWith": [
+        "https://pleiades.stoa.org/places/109341",
+        "https://pleiades.stoa.org/places/109242",
+        "https://pleiades.stoa.org/places/955500071",
+        "https://pleiades.stoa.org/places/113295",
+        "https://pleiades.stoa.org/places/890816516"
+    ],
+    "rights": "Copyright © The Creators. Sharing and remixing permitted under terms of the Creative Commons Attribution 3.0 License (cc-by).",
+    "created": "2018-06-07T20:55:50Z",
+    "uri": "https://pleiades.stoa.org/places/109126",
+    "creators": [
+        {
+            "username": null,
+            "name": "C. Haselgrove"
+        },
+        {
+            "username": null,
+            "name": "J. Kunow"
+        }
+    ],
+    "@type": "Place",
+    "history": [
+        {
+            "comment": "update references",
+            "modifiedBy": "jbecker",
+            "modified": "2026-01-30T02:48:50Z"
+        },
+        {
+            "comment": "added Bourgois 2023",
+            "modifiedBy": "thomase",
+            "modified": "2023-03-07T16:20:01Z"
+        },
+        {
+            "comment": "reference",
+            "modifiedBy": "jbecker",
+            "modified": "2019-11-16T13:35:54Z"
+        },
+        {
+            "comment": "add ToposText reference provided by bkiesling",
+            "modifiedBy": "admin",
+            "modified": "2018-06-07T20:55:56Z"
+        },
+        {
+            "comment": "Baseline created",
+            "modifiedBy": "admin",
+            "modified": "2018-06-07T20:55:45Z"
+        },
+        {
+            "comment": "regularized and updated secondary references",
+            "modifiedBy": "thomase",
+            "modified": "2018-05-13T11:49:47Z"
+        },
+        {
+            "comment": "added reference",
+            "modifiedBy": "jbecker",
+            "modified": "2017-02-26T13:56:46Z"
+        },
+        {
+            "comment": "check in of working copy",
+            "modifiedBy": "jbecker",
+            "modified": "2017-02-26T13:53:40Z"
+        },
+        {
+            "comment": "Baseline created",
+            "modifiedBy": "sstark",
+            "modified": "2014-03-14T21:40:40Z"
+        },
+        {
+            "comment": "test",
+            "modifiedBy": "thomase",
+            "modified": "2014-03-05T22:51:41Z"
+        },
+        {
+            "comment": "test",
+            "modifiedBy": "thomase",
+            "modified": "2014-03-05T22:49:13Z"
+        },
+        {
+            "comment": "test for json generation",
+            "modifiedBy": "thomase",
+            "modified": "2014-03-05T22:45:41Z"
+        },
+        {
+            "comment": "test for json generation",
+            "modifiedBy": "thomase",
+            "modified": "2014-03-05T22:38:03Z"
+        },
+        {
+            "comment": "test for json generation",
+            "modifiedBy": "thomase",
+            "modified": "2014-03-05T22:28:51Z"
+        },
+        {
+            "comment": "test for json generation",
+            "modifiedBy": "thomase",
+            "modified": "2014-03-05T22:13:55Z"
+        },
+        {
+            "comment": "test for json generation",
+            "modifiedBy": "thomase",
+            "modified": "2014-03-05T22:08:53Z"
+        },
+        {
+            "comment": "test for json generation",
+            "modifiedBy": "thomase",
+            "modified": "2014-03-05T22:03:01Z"
+        },
+        {
+            "comment": "added connection",
+            "modifiedBy": "jbecker",
+            "modified": "2013-09-06T03:30:37Z"
+        },
+        {
+            "comment": "added connection",
+            "modifiedBy": "jbecker",
+            "modified": "2013-04-17T22:23:11Z"
+        },
+        {
+            "comment": "edited description; added references",
+            "modifiedBy": "jbecker",
+            "modified": "2013-04-17T22:22:32Z"
+        },
+        {
+            "comment": "edited description",
+            "modifiedBy": "jbecker",
+            "modified": "2012-11-12T18:12:39Z"
+        },
+        {
+            "comment": "Location updates and tags from Johan Ahlfeldt's (jahlfeldt) Digital Atlas of the Roman Empire in October 2012",
+            "modifiedBy": "sgillies",
+            "modified": "2012-10-21T00:11:19Z"
+        },
+        {
+            "comment": "RFO and PECS references from Johan Ahlfeldt (jahlfeldt) and reviewd by Tom Elliott (thomase) in May 2012",
+            "modifiedBy": "sgillies",
+            "modified": "2012-05-25T22:12:09Z"
+        },
+        {
+            "comment": "Global migration and reindexing of citations and provenance, February 2012",
+            "modifiedBy": "admin",
+            "modified": "2012-02-15T02:11:22Z"
+        },
+        {
+            "comment": "Global migration and reindexing of citations and provenance, February 2012",
+            "modifiedBy": "admin",
+            "modified": "2012-02-14T23:43:56Z"
+        },
+        {
+            "comment": "New locations, coordinates, and metadata from Harvard's DARMC project. See http://atlantides.org/trac/pleiades/wiki/PlaceUpgradesAndMigrations",
+            "modifiedBy": "sgillies",
+            "modified": "2011-03-09T21:41:24Z"
+        },
+        {
+            "comment": "Detail text updated from former modernLocation. See http://atlantides.org/trac/pleiades/wiki/PlaceDetailsUpgrade",
+            "modifiedBy": "sgillies",
+            "modified": "2011-01-14T18:52:36Z"
+        },
+        {
+            "action": "Publish externally",
+            "modifiedBy": "thomase",
+            "modified": "2010-05-19T21:31:50Z"
+        },
+        {
+            "action": "Submit for review",
+            "modifiedBy": "sgillies",
+            "modified": "2009-11-02T16:56:22Z"
+        },
+        {
+            "action": "Create",
+            "modifiedBy": "sgillies",
+            "modified": "2009-11-02T15:53:17Z"
+        }
+    ]
+}

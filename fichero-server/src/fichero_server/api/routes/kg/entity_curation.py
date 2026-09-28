@@ -904,10 +904,23 @@ class CandidatePair(BaseModel):
     entity_b_library_path: str | None = None
 
 
+#: How a candidate was found, and the confidence that method earns. A RANK of the match method,
+#: not a measured probability: the entity's own name being the record's label is a stronger match
+#: than a name meeting one of many aliases (Pleiades lists `Paris` among Lutetia's fifteen names).
+MATCH_CONFIDENCE = {"name": 1.0, "alias": 0.5}
+
+
 def _external_authority_candidates(
     db: Database, entity_id: str
 ) -> list[dict[str, Any]]:
-    """Match one entity against local snapshots only; this must never fetch."""
+    """Match one entity against local snapshots only; this must never fetch.
+
+    Each candidate says how it was found (`found_by`) and with what `confidence`, and its `state`:
+    `chosen` when the entity is already `same_as` it (kept after the choice), else `proposed`. A
+    candidate a person REJECTED (a `different_from` link, maps D4) is not offered again."""
+    from fichero_server.knowledge.authorities import (
+        DIFFERENT_FROM, AuthorityIdRefused, canonical_uri, same_as_links,
+    )
     from fichero_server.workflows.tools._entity_writer import _apply_entity_resolution_rules
 
     entity = db.get(KnowledgeEntity, entity_id)
@@ -918,26 +931,45 @@ def _external_authority_candidates(
     )
     if resolved is None or entity.curation_state == EntityCurationState.rejected:
         return []
-    names = {resolved[0].casefold(), *(alias.casefold() for alias in entity.aliases)}
+    name = resolved[0].casefold()
+    names = {name, *(alias.casefold() for alias in entity.aliases)}
+    chosen = {link.to_id for link in same_as_links(db, entity.id)}
+    rejected = {link.to_id for link in same_as_links(db, entity.id, DIFFERENT_FROM)} - chosen
     rows = []
     for snapshot in db.query(AuthoritySnapshot):
-        snapshot_names = {snapshot.label.casefold(), *(alias.casefold() for alias in snapshot.aliases)}
-        if names & snapshot_names:
-            rows.append(
-                {
-                    "entity_id": entity.id,
-                    "entity_name": entity.canonical_name,
-                    "authority": snapshot.authority,
-                    "authority_id": snapshot.authority_id,
-                    "label": snapshot.label,
-                    "aliases": snapshot.aliases,
-                    "type": snapshot.type,
-                    "description": snapshot.description,
-                    "source_url": snapshot.source_url,
-                    "fetched_at": snapshot.fetched_at,
-                }
-            )
-    return rows
+        label = snapshot.label.casefold()
+        if name == label:
+            found_by = "name"
+        elif names & {label, *(alias.casefold() for alias in snapshot.aliases)}:
+            found_by = "alias"
+        else:
+            continue
+        try:
+            uri = canonical_uri(snapshot.authority, snapshot.authority_id)
+        except AuthorityIdRefused:
+            continue  # a cached record no link could be made to is not a candidate
+        if uri in rejected:
+            continue
+        rows.append(
+            {
+                "entity_id": entity.id,
+                "entity_name": entity.canonical_name,
+                "authority": snapshot.authority,
+                "authority_id": snapshot.authority_id,
+                "uri": uri,
+                "snapshot_id": snapshot.id,
+                "label": snapshot.label,
+                "aliases": snapshot.aliases,
+                "type": snapshot.type,
+                "description": snapshot.description,
+                "source_url": snapshot.source_url,
+                "fetched_at": snapshot.fetched_at,
+                "found_by": found_by,
+                "confidence": MATCH_CONFIDENCE[found_by],
+                "state": "chosen" if uri in chosen else "proposed",
+            }
+        )
+    return sorted(rows, key=lambda row: (-row["confidence"], row["authority"], row["authority_id"]))
 
 
 def _cross_library_candidate_pairs(
@@ -1341,9 +1373,31 @@ def link_authority_impl(
     from fichero_server.knowledge.authorities import link_entity
     from fichero_server.models.knowledge import ProvenanceKind
 
+    from fichero_server.knowledge.authorities import DIFFERENT_FROM, same_as_links
+
     link = {"authority": snapshot.authority, "authority_id": snapshot.authority_id}
-    link_entity(db, entity.id, snapshot.authority, snapshot.authority_id,
-                provenance_kind=provenance_kind or ProvenanceKind.human, created_by=actor)
+    maker = provenance_kind or ProvenanceKind.human
+    # The candidates as they stood when the choice was made: its namesakes at the SAME authority
+    # are rejected by this choice (an entity is one Pleiades place), remembered and not offered
+    # again. Other authorities' candidates stay proposed -- several gazetteers per entity (D3).
+    namesakes = [row for row in _external_authority_candidates(db, entity.id)
+                 if row["authority"] == snapshot.authority and row["state"] == "proposed"
+                 and row["authority_id"] != snapshot.authority_id]
+    chosen = link_entity(db, entity.id, snapshot.authority, snapshot.authority_id,
+                         provenance_kind=maker, created_by=actor)
+    # Choosing what was rejected earlier withdraws the rejection: the person's latest word stands.
+    for earlier in same_as_links(db, entity.id, DIFFERENT_FROM):
+        if earlier.to_id == chosen.to_id:
+            earlier.deleted_at = utc_now()
+            db.save(earlier)
+    rejected = [
+        link_entity(db, entity.id, row["authority"], row["authority_id"], provenance_kind=maker,
+                    created_by=actor, note=f"another candidate was chosen: {chosen.to_id}",
+                    link_type=DIFFERENT_FROM).to_id
+        for row in namesakes
+    ]
+    if rejected:
+        link["rejected"] = rejected
     entity.updated_at = utc_now()
     db.save(entity)
     audit = EntityMergeAudit(
