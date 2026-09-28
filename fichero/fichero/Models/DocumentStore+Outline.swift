@@ -19,6 +19,9 @@ extension DocumentStore {
     @discardableResult
     func loadOutline(for id: String) async -> DocumentOutline? {
         if let cached = outlineCache[id] { return cached }
+        // A library row's selection (`library:<uuid>`) is no document: the engine has no outline for it,
+        // and asking logged "Document not found" on every library click. Its crumb is built locally.
+        guard !id.hasPrefix(PaneCrumb.libraryPrefix) else { return nil }
         do {
             let outline = try await documentService.getDocumentView(id)
             outlineCache[id] = outline
