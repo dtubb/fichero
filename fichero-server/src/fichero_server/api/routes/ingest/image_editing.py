@@ -606,7 +606,10 @@ def _write_derived_image(document_id: str, page: int, image: Image.Image) -> str
     suffix = "png" if image_format == "PNG" else "jpg"
     out_path = out_dir / f"latest.{suffix}"
     save_kwargs = {"quality": 92} if image_format == "JPEG" else {}
-    image.save(out_path, format=image_format, **save_kwargs)
+    from fichero_server.db.storage import save_image_atomically
+
+    # The same path is rewritten on every edit; a reader of the last one never sees half of this.
+    save_image_atomically(image, out_path, image_format, **save_kwargs)
     return str(out_path)
 
 

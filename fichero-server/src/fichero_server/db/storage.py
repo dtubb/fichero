@@ -36,7 +36,7 @@ import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor, Future
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
     pass
@@ -284,6 +284,25 @@ def _derive_doc_id_from_thumb_name(stem: str) -> str:
 
 def _source_mtime_ns(source: Path) -> int:
     return source.stat().st_mtime_ns
+
+
+def save_image_atomically(image: Any, dest: Path, image_format: str, **save_kwargs: Any) -> None:
+    """Write `image` to `dest` so a reader sees the whole file or none of it (#5187).
+
+    `image.save(dest)` creates the file and then writes the encoded bytes: a reader in between --
+    the thumbnail route answering while the derivative stage is still writing, under load -- found
+    the file, served it, and the client got a 200 with an EMPTY body. Two writers of the same
+    derivative could also interleave. Encoded into a staging name beside it (same filesystem, so
+    the rename is atomic), then `os.replace`d into place, as `_sync_alias_to_cache` already does.
+    """
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    staging = dest.with_name(f".{dest.name}.writing-{os.getpid()}-{threading.get_ident()}")
+    try:
+        image.save(staging, image_format, **save_kwargs)
+        os.replace(staging, dest)
+    finally:
+        if staging.exists():
+            staging.unlink(missing_ok=True)
 
 
 def _sync_alias_to_cache(cache_path: Path, alias_path: Path) -> None:
@@ -617,7 +636,7 @@ def resolve_edited_source(
     for op in operations:
         image = apply_operation(image, op)
     cache.parent.mkdir(parents=True, exist_ok=True)
-    image.save(cache, format="PNG")
+    save_image_atomically(image, cache, "PNG")
     return cache
 
 
@@ -854,7 +873,7 @@ def _generate_pdf_image(
                 for operation in operations:
                     img = apply_operation(img, operation)
                 img = img.convert("RGB")
-            img.save(dest, "JPEG", quality=settings.quality)
+            save_image_atomically(img, dest, "JPEG", quality=settings.quality)
 
         logger.info(
             "Generated PDF-derived image: %s from %s page %s",
@@ -926,7 +945,7 @@ def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | N
                 logger.debug(f"Flattening {img.mode} onto white for JPEG")
             img = flatten_for_opaque_format(img)
 
-            img.save(dest, "JPEG", quality=settings.quality)
+            save_image_atomically(img, dest, "JPEG", quality=settings.quality)
 
         logger.info(f"Generated thumbnail: {dest} from {source.name}")
         return dest
@@ -941,7 +960,7 @@ def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | N
                     with Image.open(converted) as img:
                         img.thumbnail(size, Image.Resampling.LANCZOS)
                         img = flatten_for_opaque_format(img)
-                        img.save(dest, "JPEG", quality=settings.quality)
+                        save_image_atomically(img, dest, "JPEG", quality=settings.quality)
                     logger.info(f"Generated thumbnail via sips fallback: {source.name}")
                     return dest
                 except Exception as fallback_exc:
@@ -1017,7 +1036,7 @@ def _generate_text_thumbnail(source: Path, dest: Path, size: tuple[int, int]) ->
         draw.text((margin, margin), text, fill=(30, 30, 30), font=font)
 
         dest.parent.mkdir(parents=True, exist_ok=True)
-        img.save(dest, "JPEG", quality=settings.quality)
+        save_image_atomically(img, dest, "JPEG", quality=settings.quality)
         logger.info(f"Generated text thumbnail: {dest} from {source.name}")
         return dest
     except Exception as e:
