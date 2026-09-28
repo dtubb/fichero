@@ -181,7 +181,8 @@ enum ConnectionPresentation {
         phase: EngineSession.Phase,
         ownership: EngineOwnership,
         accessError: AccessError?,
-        authBroken: Bool
+        authBroken: Bool,
+        conflict: EngineSession.Conflict = .port8765
     ) -> Display {
         switch phase {
         case .setupNeeded:
@@ -231,6 +232,17 @@ enum ConnectionPresentation {
                 isError: false,
                 isRecovering: false,
                 action: nil
+            )
+
+        case .portConflict where conflict != .port8765:
+            return Display(
+                title: "Another Fichero Is Running",
+                shortTitle: "Another engine running",
+                detail: conflict.sentence,
+                symbol: "exclamationmark.triangle.fill",
+                isError: true,
+                isRecovering: false,
+                action: .resolvePortConflict
             )
 
         case .portConflict(let pid):

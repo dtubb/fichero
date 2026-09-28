@@ -92,6 +92,7 @@ final class EngineSession {
         case .authRejected(let message), .unreachable(let message), .failed(let message):
             return message
         case .portConflict(let pid):
+            if case .socket = conflict { return conflict.sentence }
             let who = pid.map(String.init) ?? "unknown"
             return "Port 8765 is held by another process (PID \(who))."
         case .setupNeeded, .starting, .ready:
@@ -103,7 +104,23 @@ final class EngineSession {
 
     func markSetupNeeded() { phase = .setupNeeded }
     func markStarting() { phase = .starting }
-    func markPortConflict(pid: Int?) { phase = .portConflict(pid: pid) }
+    func markPortConflict(pid: Int?) {
+        conflict = .port8765
+        phase = .portConflict(pid: pid)
+    }
+
+    /// Another Fichero engine answers on the container socket (`EngineSocketConflict`): the same
+    /// in-window decision as a held port, worded for what it is.
+    func markSocketConflict(pid: Int?, version: String?) {
+        conflict = .socket(pid: pid, version: version)
+        phase = .portConflict(pid: pid)
+    }
+
+    /// What holds things up in `.portConflict` (`EngineConflict`).
+    typealias Conflict = EngineConflict
+
+    /// Set with the `.portConflict` phase by `markPortConflict` / `markSocketConflict`.
+    private(set) var conflict: Conflict = .port8765
     func markReady() { phase = .ready }
     func markAuthRejected(_ diagnosis: String) { phase = .authRejected(diagnosis: diagnosis) }
     func markUnreachable(_ diagnosis: String) { phase = .unreachable(diagnosis: diagnosis) }

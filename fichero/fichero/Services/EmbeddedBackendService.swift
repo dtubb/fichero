@@ -177,6 +177,10 @@ enum BackendError: LocalizedError {
     /// by the launch orchestrator (→ `markPortConflict`), never shown as a raw
     /// error string.
     case portConflict(pid: Int?)
+    /// Another Fichero engine already ANSWERS on the container socket (`EngineSocketConflict`): the app
+    /// never spawns a second over it. Handled like `portConflict` (→ `markSocketConflict`), naming the
+    /// other engine's version and pid when it says them.
+    case socketInUse(path: String, pid: Int?, version: String?)
     /// The engine IS reachable and answering, but rejected our credentials
     /// (health 401/403). Distinct from `.backendAppNotFound` — the engine is NOT
     /// missing; the app's token doesn't match the engine's (an auth/.api-key
@@ -191,6 +195,8 @@ enum BackendError: LocalizedError {
         case .portConflict(let pid):
             let who = pid.map(String.init) ?? "unknown"
             return "Port 8765 is held by another process (PID \(who))."
+        case .socketInUse(_, let pid, let version):
+            return EngineSession.Conflict.socket(pid: pid, version: version).sentence
         case .backendAppNotFound:
             // Debug builds don't embed the engine (the embed phase is Release-only),
             // so the usual cause in a Debug ⌘R is simply no engine running on :8765.

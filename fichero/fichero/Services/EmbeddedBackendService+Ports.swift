@@ -375,8 +375,11 @@ extension EmbeddedBackendService {
         // #4400, and MAS is where the dead end was worst: no holder PID means
         // no "Stop it", so Quit was the only way out of the adopt-then-time-out
         // loop. No sweep to preserve here, so this guard is the whole pre-flight.
+        // Not the port (UDS, in-memory): a live engine on the container socket -- the installed app's, a dev
+        // build's -- is a conflict, never a second engine (`liveSocketResolution`). The sandbox cannot learn or
+        // stop the holder's pid, so no Stop it here.
         guard Self.portPreflightApplies(transportMode: transportMode) else {
-            return .spawnOurs
+            return try await liveSocketResolution(for: transportMode) ?? .spawnOurs
         }
         guard Self.portIsAcceptingConnections(8765) else { return .spawnOurs }
 
@@ -402,9 +405,11 @@ extension EmbeddedBackendService {
         // could land after our own spawn and SIGTERM the engine we just
         // started. The pgrep+ps round trip is not in the measured launch cost.
         await sweep()
-        // Below here is all about 8765, which a UDS engine never binds.
+        // Below here is all about 8765, which a UDS engine never binds. A UDS engine instead checks its socket,
+        // AFTER the sweep (which frees a socket an orphan of OURS held): a live engine still answering there is
+        // somebody else's -- the installed app's, a dev build's -- and is never given a second.
         guard Self.portPreflightApplies(transportMode: transportMode) else {
-            return .spawnOurs
+            return try await liveSocketResolution(for: transportMode) ?? .spawnOurs
         }
         await Self.waitForPortToClear(8765, timeout: 3.0)
         let holder = await Task.detached(priority: .userInitiated) {
@@ -439,4 +444,39 @@ extension EmbeddedBackendService {
         #endif
     }
     #endif
+}
+
+extension EmbeddedBackendService {
+    /// `resolveLiveSocket` for a UDS transport; nil for any other (nothing to check).
+    func liveSocketResolution(for transportMode: TransportMode) async throws -> PortResolution? {
+        guard case .uds(let path) = transportMode else { return nil }
+        return try await resolveLiveSocket(path, holderPID: nil)
+    }
+
+    /// The socket half of the pre-flight (`EngineSocketConflict`): nil when nothing answers (go on and
+    /// spawn), the resolution when the person chose, or a `socketInUse` throw so the window asks.
+    func resolveLiveSocket(_ path: String, holderPID: Int?) async throws -> PortResolution? {
+        let live = await Task.detached(priority: .userInitiated) { EngineSocketConflict.isLive(socketPath: path) }.value
+        switch EngineSocketConflict.decision(
+            socketLive: live, holderPID: holderPID, pendingChoice: pendingPortConflictResolution
+        ) {
+        case .spawnOurs:
+            return nil
+        case .adoptExisting:
+            pendingPortConflictResolution = nil
+            return .adoptExisting
+        case .stopThenSpawn(let pid):
+            // ponytail: reached only once the engine's health reports its pid (bugs2's half); until then
+            // Stop it is not offered for a socket. Stopping stays outside this file's App Store build.
+            #if !FICHERO_APP_STORE
+            kill(pid_t(pid), SIGTERM)
+            #endif
+            pendingPortConflictResolution = nil
+            return nil
+        case .surface:
+            pendingPortConflictResolution = nil
+            let version = await EngineSocketConflict.liveEngineVersion(socketPath: path)
+            throw BackendError.socketInUse(path: path, pid: holderPID, version: version)
+        }
+    }
 }
