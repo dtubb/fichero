@@ -31,6 +31,11 @@ struct ReadKnowledgeMenuCommands: Commands {
             ImagePreviewMenuCommands()
         }
 
+        // MARK: Segment -- the page's segments, on the focused Preview's selection (#5229).
+        CommandMenu("Segment") {
+            SegmentMenuContent()
+        }
+
         // MARK: Knowledge — making & querying meaning (spec Part VII/VIII).
         // This is the former "Data" menu, renamed and organized into flyouts.
         CommandMenu("Knowledge") {

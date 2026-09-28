@@ -458,6 +458,16 @@ extension ZoomableImagePreview {
     /// a headless host reads, it does not edit.
     var isEditingSegments: Bool { windowState?.isEditingSegments ?? false }
 
+    /// What the menu bar's Segment menu acts on (#5229): this pane's own verbs, nothing new.
+    var segmentMenuTarget: SegmentMenuTarget {
+        SegmentMenuTarget(
+            isEditing: isEditingSegments, selectionCount: regionSelection.count,
+            toggleEditing: { windowState?.isEditingSegments.toggle() },
+            delete: { deleteSelectedRegions() }, join: { combineSelectedRegions() },
+            apply: { setSelectedSegments($0) }
+        )
+    }
+
     /// The head's markup-row verbs, gated by the mode.
     func handleRegionVerb(_ note: Notification) {
         guard let raw = note.object as? String, let verb = PreviewRegionVerb(rawValue: raw) else { return }

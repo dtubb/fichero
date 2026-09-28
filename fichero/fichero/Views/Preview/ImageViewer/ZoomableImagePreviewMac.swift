@@ -399,6 +399,8 @@ struct ZoomableImagePreview: View {
             .onReceive(NotificationCenter.default.publisher(for: .previewRegionVerb)) { note in
                 handleRegionVerb(note)
             }
+            // The menu bar's Segment menu acts on this pane while its window is key (#5229).
+            .focusedSceneValue(\.segmentMenu, segmentMenuTarget)
             .onChange(of: documentId) { _, _ in handleDocumentIDChanged() }
             .onReceive(NotificationCenter.default.publisher(for: .readerTextSelection)) { note in
                 handleReaderTextSelection(note)

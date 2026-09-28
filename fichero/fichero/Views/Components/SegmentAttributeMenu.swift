@@ -15,9 +15,17 @@ struct SegmentAttributeMenu: View {
     static let kinds = ["region", "line", "word", "character"]
 
     var body: some View {
-        Menu("Segment") {
+        Menu("Segment") { Items(apply: apply, askForCode: askForCode) }
+    }
+
+    /// The menu's items on their own: the menu bar's Segment menu lists them at its top level (#5229).
+    struct Items: View {
+        let apply: (SegmentEdit.Attribute) -> Void
+        var askForCode: ((CodeKind) -> Void)?
+
+        var body: some View {
             Menu("Kind") {
-                ForEach(Self.kinds, id: \.self) { kind in
+                ForEach(SegmentAttributeMenu.kinds, id: \.self) { kind in
                     Button(kind.capitalized) { apply(.kind(kind)) }
                 }
             }
