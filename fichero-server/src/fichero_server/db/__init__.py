@@ -7280,6 +7280,7 @@ class Database(DatabaseEmbeddingMixin):
             return
         # PRAGMA table_info: (cid, name, type, notnull, dflt_value, pk)
         current = {row[1]: str(row[2] or "").upper() for row in rows}
+        blocked: list[tuple[str, str | None, Exception]] = []
         for name, field_info in model.model_fields.items():
             if self._python_to_duckdb_type(field_info.annotation) != "BIGINT":
                 continue
@@ -7291,46 +7292,91 @@ class Database(DatabaseEmbeddingMixin):
                 execute(f"ALTER TABLE {sql_table} ALTER COLUMN {name} TYPE BIGINT")
                 logger.info("widened %s.%s from %s to BIGINT (#5059)", table, name, current[name])
             except (duckdb.CatalogException, duckdb.DependencyException) as exc:
-                # NARROW on purpose (#4395): only the two refusals we understand
-                # are swallowed. A broad `except Exception` here would also hide
-                # a full disk or a corrupt file behind a warning, and the whole
-                # point of this migration is that a widening either happens or
-                # is reported — the same silent-failure shape #5070 was.
-                #
-                # The usual cause is an INDEX on the column: DuckDB refuses
-                # "Cannot change the type of this column: an index depends on
-                # it!". Dropping and recreating the index at every library open
-                # would be real DDL surgery for a column that cannot overflow,
-                # so this warns and carries on rather than doing it — and the
-                # column still holds every value it ever held.
-                #
-                # Known and deliberate (#5059), SIX of them, not the two this
-                # listed until 2026-09-27: `references.year`,
-                # `canvas_layout.z_index`, `segments.version`,
-                # `segmentversions.version`, `readingorderentrys.version` and
-                # `segmentforwardings.sequence`. A publication year, a layout
-                # stacking order, three revision counters and a forwarding
-                # ordinal are all inherently bounded — cases where, as the
-                # reviewer put it, the DECLARATION should be narrower rather than
-                # the column wider. The four that were missing here had never
-                # been judged at all; they are now, and the list is pinned by a
-                # test so the next one cannot arrive unseen.
-                # Their CREATE TABLE is BIGINT now, so new libraries are clean.
-                #
-                # THOSE TWO ARE NOT A PRECEDENT, and the reason is luck. The
-                # obstacle (an index) and the exemption (a column that cannot
-                # overflow) coincided BY CHANCE. Had the index sat on a genuine
-                # byte count, skipping the widening would have left the original
-                # bug in place on a real library — so a future index-blocked
-                # column must be judged on whether ITS values can exceed
-                # 2,147,483,647, not on these two having been let through.
-                # If one can, the answer is to drop the index, alter, and
-                # recreate it, verifying the recreate.
-                logger.warning(
-                    "could not widen %s.%s from %s to BIGINT; it still holds every "
-                    "value it held before, but large ones will be refused: %s",
-                    table, name, current.get(name), exc,
-                )
+                blocked.append((name, current.get(name), exc))
+        # An INDEX anywhere on the table blocks every column's type change (#5250: the one index on
+        # `documents.parent_id` froze five integer columns in every older library, retried and warned
+        # at every open). Drop the table's indexes, widen, recreate each from its own SQL -- one
+        # transaction, so a failure leaves the table exactly as it was. Only then warn.
+        if blocked and self._widen_behind_indexes(sql_table, [name for name, _, _ in blocked], execute):
+            for name, old, _ in blocked:
+                logger.info("widened %s.%s from %s to BIGINT behind its table's indexes (#5250)", table, name, old)
+            return
+        for name, old, exc in blocked:
+            # NARROW on purpose (#4395): only the two refusals we understand
+            # are swallowed. A broad `except Exception` here would also hide
+            # a full disk or a corrupt file behind a warning, and the whole
+            # point of this migration is that a widening either happens or
+            # is reported — the same silent-failure shape #5070 was.
+            #
+            # Reached only when the widening behind the table's indexes (#5250) also failed -- an
+            # index with no recorded SQL, or an ALTER DuckDB still refuses -- so the column keeps
+            # its width and every value it held, and this says so by name.
+            #
+            # Known and deliberate (#5059), SIX of them, not the two this
+            # listed until 2026-09-27: `references.year`,
+            # `canvas_layout.z_index`, `segments.version`,
+            # `segmentversions.version`, `readingorderentrys.version` and
+            # `segmentforwardings.sequence`. A publication year, a layout
+            # stacking order, three revision counters and a forwarding
+            # ordinal are all inherently bounded — cases where, as the
+            # reviewer put it, the DECLARATION should be narrower rather than
+            # the column wider. The four that were missing here had never
+            # been judged at all; they are now, and the list is pinned by a
+            # test so the next one cannot arrive unseen.
+            # Their CREATE TABLE is BIGINT now, so new libraries are clean.
+            #
+            # THOSE TWO ARE NOT A PRECEDENT, and the reason is luck. The
+            # obstacle (an index) and the exemption (a column that cannot
+            # overflow) coincided BY CHANCE. Had the index sat on a genuine
+            # byte count, skipping the widening would have left the original
+            # bug in place on a real library — so a future index-blocked
+            # column must be judged on whether ITS values can exceed
+            # 2,147,483,647, not on these two having been let through.
+            # If one can, the answer is to drop the index, alter, and
+            # recreate it, verifying the recreate.
+            logger.warning(
+                "could not widen %s.%s from %s to BIGINT; it still holds every "
+                "value it held before, but large ones will be refused: %s",
+                table, name, old, exc,
+            )
+
+    def _widen_behind_indexes(self, sql_table: str, columns: list[str], execute) -> bool:
+        """Widen `columns` on a table whose indexes block the ALTER (#5250). True when all widened.
+
+        Every index on the table is dropped, the columns altered, and each index RECREATED from the
+        SQL DuckDB recorded for it -- in a `finally`, so the indexes come back whatever happens. Not one
+        transaction: DuckDB checks the dependency against the committed catalogue, so an index dropped
+        inside the same transaction still blocks the ALTER (measured 2026-09-28). An index is a speed-up,
+        never data, so the window without it loses nothing; a recreate that fails is logged as an ERROR.
+        An index with no recorded SQL cannot be recreated, so such a table is left alone.
+        """
+        bare = sql_table.strip('"')
+        try:
+            indexes = execute(
+                f"SELECT index_name, sql FROM duckdb_indexes() WHERE table_name = '{bare}'"
+            ).fetchall()
+        except Exception as exc:  # noqa: BLE001 -- no catalogue read, no surgery; the caller warns
+            logger.debug("cannot list %s's indexes: %s", bare, exc)
+            return False
+        if not indexes or any(not sql for _, sql in indexes):
+            return False
+        widened = True
+        try:
+            for index_name, _ in indexes:
+                execute(f'DROP INDEX "{index_name}"')
+            for column in columns:
+                try:
+                    execute(f"ALTER TABLE {sql_table} ALTER COLUMN {column} TYPE BIGINT")
+                except duckdb.Error as exc:
+                    logger.debug("widening %s.%s behind its indexes failed: %s", bare, column, exc)
+                    widened = False
+        finally:
+            for index_name, sql in indexes:
+                try:
+                    execute(sql)
+                except duckdb.Error as exc:
+                    logger.error("index %s on %s could not be recreated after widening: %s", index_name, bare, exc)
+        return widened
 
     def _python_to_duckdb_type(self, python_type) -> str:
         """Map Python types to DuckDB types."""

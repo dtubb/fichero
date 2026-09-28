@@ -242,33 +242,16 @@ class TestTheRealLibrarySchema:
         )
 
 
-class TestAnIndexBlocksTheWideningAndThatIsReported:
-    """The path where the original bug SURVIVES on a real library, and the only
-    one #5059 left resting on a comment rather than a test.
+class TestAnIndexNoLongerBlocksTheWidening:
+    """#5250 closed the residue #5059 left resting on a log line.
 
-    DuckDB refuses `ALTER COLUMN … TYPE BIGINT` when an index depends on the
-    column: "Cannot change the type of this column: an index depends on it!".
-    `_widen_int_columns` catches that narrowly and warns, on the reasoning that a
-    library which cannot be widened is a library that still works exactly as it
-    did — refusing to OPEN it over a column that has held every value it ever
-    needed would be worse than the ceiling.
+    DuckDB refuses `ALTER COLUMN … TYPE BIGINT` on ANY column of a table that has an index. Until
+    #5250 that was caught and warned about, so an indexed table kept its INT32 ceiling -- including
+    five columns of `documents` in every older library, retried and warned at every open. Now the
+    table's indexes are dropped, the columns widened, and each index recreated from its own SQL.
 
-    That reasoning is right, and it is also how the original defect stays alive:
-    an index-blocked column keeps its INT32 ceiling, and the only signal is a log
-    line. Two such columns are known and named in the source — `references.year`
-    and `canvas_layout.z_index` — and the comment beside them says, correctly,
-    that they are NOT a precedent: the obstacle (an index) and the exemption (a
-    value that cannot overflow) coincided by chance. Had the index sat on a
-    genuine byte count, the bug would have remained on a real library.
-
-    So these tests pin the three things that claim depends on:
-      * the widening is refused, not crashed through
-      * the library still opens and every row survives
-      * values within INT32 still round-trip, so "it works as it did" is true
-
-    What they deliberately do NOT assert is that a large value now saves — it
-    does not, and cannot, until the index is dropped and recreated. A test
-    claiming otherwise would paper over exactly the residue this describes.
+    These pin: the columns widen, the index comes back, old rows survive, the widening is reported
+    by name with no warning, and the value that originally failed now saves.
     """
 
     def _old_library_with_an_index(self, path) -> None:
@@ -297,75 +280,54 @@ class TestAnIndexBlocksTheWideningAndThatIsReported:
         finally:
             db.close()
 
-    def test_an_index_blocks_the_WHOLE_TABLE_not_just_the_indexed_column(self, tmp_path):
-        """The refusal is per TABLE, and `_widen_int_columns`' docstring says per column.
-
-        Measured against DuckDB directly: altering the indexed column raises
-        `CatalogException: Cannot change the type of this column: an index depends
-        on it!`, and then altering ANY OTHER column of the same table raises
-        `DependencyException: Cannot alter entry "t" because there are entries
-        that depend on it` — an error about the table, not about the column. So an
-        index on one column freezes the integer width of every column beside it.
-
-        This matters more than the wording: the source's exemption reasoning is
-        "this particular column cannot overflow", and the real question is whether
-        any int column on an INDEXED TABLE can. `free_bytes` here is exactly the
-        case the source comment warned about and believed it had avoided — a
-        genuine byte count, frozen at INT32, because something unrelated to it
-        has an index.
-
-        If this ever reads BIGINT, DuckDB learned to alter an indexed table and
-        the warning path became dead code that should be removed — a good outcome,
-        but one somebody must notice rather than inherit.
-        """
+    def test_an_indexed_table_is_widened_behind_its_index_and_the_index_comes_back(self, tmp_path):
+        """#5250: an index anywhere on a table blocks EVERY column's type change (measured: the
+        indexed column raises CatalogException, any other raises DependencyException on the table).
+        The one index on `documents.parent_id` froze five integer columns in every older library,
+        retried and warned at every open. Now the table's indexes are dropped, the columns widened and
+        each index recreated from its own SQL. If this regresses, a genuine byte count on an indexed
+        table keeps its INT32 ceiling -- the case the #5059 comment feared."""
         path = tmp_path / "indexed-type.duckdb"
         self._old_library_with_an_index(path)
 
         db = Database(path)
         try:
             db.save(_Measurement(id="new-1", free_bytes=2048))
-            assert _column_type(db.conn, "_measurements", "free_bytes") == "INTEGER"
-            # `small` carries no index of its own and is still not widened.
-            assert _column_type(db.conn, "_measurements", "small") == "INTEGER"
+            assert _column_type(db.conn, "_measurements", "free_bytes") == "BIGINT"
+            assert _column_type(db.conn, "_measurements", "small") == "BIGINT"
+            indexes = [r[0] for r in db.conn.execute(
+                "SELECT index_name FROM duckdb_indexes() WHERE table_name = '_measurements'").fetchall()]
+            assert indexes == ["idx_measurements_free"], "the index must be recreated, not lost"
+            assert db.get(_Measurement, "old-1").free_bytes == 1024
         finally:
             db.close()
 
-    def test_the_refusal_is_reported_and_names_the_column(self, tmp_path, caplog):
-        """A silent skip would be #5070's shape exactly — an operation that did
-        not happen while everything reported fine. The column name is what makes
-        the warning actionable rather than noise."""
+    def test_the_widening_is_reported_and_names_the_column(self, tmp_path, caplog):
+        """Said once, by name, when it happens -- and no warning, since nothing was refused."""
         import logging
 
         path = tmp_path / "indexed-log.duckdb"
         self._old_library_with_an_index(path)
 
-        db = Database(path)
-        try:
-            with caplog.at_level(logging.WARNING, logger="fichero_server.db"):
+        with caplog.at_level(logging.INFO, logger="fichero_server.db"):
+            db = Database(path)
+            try:
                 db.save(_Measurement(id="new-1", free_bytes=2048))
-            warnings = [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
-            blocked = [m for m in warnings if "free_bytes" in m and "BIGINT" in m]
-            assert blocked, f"no warning named the un-widened column; got {warnings}"
-        finally:
-            db.close()
+            finally:
+                db.close()
+        messages = [r.getMessage() for r in caplog.records]
+        assert any("free_bytes" in m and "BIGINT" in m and "#5250" in m for m in messages), messages
+        assert not [m for m in messages if "could not widen" in m], messages
 
-    def test_a_large_value_is_still_refused_on_the_indexed_column(self, tmp_path):
-        """The residue, stated as a test rather than as a comment.
-
-        This is the assertion that keeps #5059 honest: on a pre-existing library
-        whose narrow column carries an index, the ceiling is STILL THERE. If a
-        future index-blocked column holds a genuine byte count, this is the
-        failure its users will get — so the fix for that case is to drop the
-        index, alter, and recreate it, not to widen the exemption.
-        """
+    def test_a_large_value_now_saves_on_the_indexed_column(self, tmp_path):
+        """The residue #5059 left, closed: the value that failed saves on an indexed table too."""
         path = tmp_path / "indexed-big.duckdb"
         self._old_library_with_an_index(path)
 
         db = Database(path)
         try:
-            with pytest.raises(Exception) as raised:
-                db.save(_Measurement(id="too-big", free_bytes=REAL_FAILING_VALUE))
-            assert "INT32" in str(raised.value) or "out of range" in str(raised.value), raised.value
+            db.save(_Measurement(id="big", free_bytes=REAL_FAILING_VALUE))
+            assert db.get(_Measurement, "big").free_bytes == REAL_FAILING_VALUE
         finally:
             db.close()
 
