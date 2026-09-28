@@ -1437,9 +1437,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(RecordedEngine.undone, ["audit-1"], "⌘Z undoes the reshape by its own audit id")
     }
 
-    /// Reshape's baseline half and its refusals: ⌥-click removes a baseline point and the edit is the
-    /// baseline alone; a baseline keeps two points; an outline rewrite on a segment with extra shapes is
-    /// refused, since the anchor sent would drop them.
+    /// Reshape's baseline half and its limits: ⌥-click removes a baseline point and the edit is the
+    /// baseline alone; a baseline keeps two points; an outline rewrite on a segment with extra shapes
+    /// carries them, so none is dropped.
     func testReshapingABaselineSendsItAloneAndTheRefusalsHold() async throws {
         let store = try await loadedStore()
         let line = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.id == "seg-0003" })
@@ -1454,11 +1454,15 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertNil(SegmentShapes.removing(fewer, index: 0, .baseline), "a baseline keeps two points")
         var withShapes = line
         withShapes.anchor.shapes = [try makePointShape()]
-        XCTAssertEqual(SegmentShapes.reshape(withShapes, .polygon, to: added), .failure(.hasExtraShapes),
-                       "an anchor rewrite would drop the extra shapes, so it is refused")
+        guard case .update(let rewrite) = try SegmentShapes.reshape(withShapes, .polygon, to: added).get().params else {
+            return XCTFail("an outline reshape rewrites the anchor")
+        }
+        XCTAssertEqual(rewrite.anchor.shapes, [AnchorShapeParams(kind: "point", points: [[0.5, 0.5]], tStart: nil, tEnd: nil)],
+                       "an anchor rewrite carries the extra shapes, never drops them")
+        XCTAssertEqual(rewrite.anchor.polygon, added)
     }
 
-    /// One point shape, for the refusal above (the recorded page has no extra shapes).
+    /// One point shape, for the rewrite above (the recorded page has no extra shapes).
     private func makePointShape() throws -> AnchorShapeValue {
         AnchorShapeValue(generated: Components.Schemas.AnchorShape(kind: .point, points: [[0.5, 0.5]]))
     }
@@ -1606,6 +1610,54 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         manager.undo()
         for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(RecordedEngine.undone, ["audit-2"], "⌘Z undoes the last drawing by its own audit id")
+    }
+
+    /// `source.editor.reshape` for an anchor's extra shapes, and the arrow-key nudge, on a line of the
+    /// recorded Syriac page given a path and a point (the engine test makes the same and proves this exact
+    /// update lands): both are drawn and get handles; the path's point is dragged and the point shape --
+    /// which takes no new points and cannot be removed -- nudged one image pixel (ten with ⇧); the edit
+    /// is `segment.update` sending back every shape, the changed one changed and the rest as they were,
+    /// checked against the version read. Breaks if a rewrite drops a shape, a nudge moves by anything but
+    /// a pixel, or a point can be added to or removed.
+    func testReshapingAnAnchorsPathAndPointAndNudgingByAPixel() async throws {
+        let store = try await loadedStore()
+        var line = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.id == "seg-0003" })
+        let path = [[0.2, 0.6], [0.5, 0.6], [0.8, 0.61]]
+        line.anchor.shapes = [
+            AnchorShapeValue(generated: Components.Schemas.AnchorShape(kind: .path, points: path)),
+            AnchorShapeValue(generated: Components.Schemas.AnchorShape(kind: .point, points: [[0.9, 0.62]]))
+        ]
+        let drawn = SegmentShapes.drawn(for: line)
+        XCTAssertEqual(drawn, [
+            .polygon(try XCTUnwrap(line.anchor.polygon)), .path(path, shape: 0), .point([0.9, 0.62], shape: 1),
+            .baseline(try XCTUnwrap(line.baseline))
+        ], "outline, each extra shape by its index, then the baseline")
+        let reach = [0.004, 0.004]
+        XCTAssertEqual(SegmentShapes.handle(at: [0.5, 0.6], in: drawn, tolerance: reach), .vertex(.shape(0, .path), 1))
+        XCTAssertEqual(SegmentShapes.handle(at: [0.9, 0.62], in: drawn, tolerance: reach), .vertex(.shape(1, .point), 0))
+        XCTAssertTrue(SegmentShapes.sideMidpoints([[0.9, 0.62]], .shape(1, .point)).isEmpty, "a point takes no new points")
+        XCTAssertNil(SegmentShapes.removing([[0.9, 0.62]], index: 0, .shape(1, .point)), "and is never removed")
+
+        let nudged = SegmentShapes.nudging([[0.9, 0.62]], index: 0, byPixels: [1, 0], imageSize: [1969, 2365])
+        XCTAssertEqual(nudged[0][0], 0.9 + 1 / 1969, accuracy: 1e-12, "one image pixel")
+        let fast = SegmentShapes.nudging([[0.9, 0.62]], index: 0, byPixels: [0, 10], imageSize: [1969, 2365])
+        XCTAssertEqual(fast[0][1], 0.62 + 10 / 2365, accuracy: 1e-12, "ten with ⇧")
+
+        let movedPath = SegmentShapes.moving(path, index: 1, to: [0.5, 0.58])
+        let call = try SegmentShapes.reshape(line, .shape(0, .path), to: movedPath).get()
+        RecordedEngine.invoked = []
+        try await SegmentEditRunner(actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store).run(
+            call, documentId: "doc-0001", actionName: "Reshape Segment", undoManager: nil
+        )
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        let params = try XCTUnwrap(sent["params"] as? [String: Any])
+        XCTAssertEqual(params["expected_version"] as? Int, line.version)
+        let anchor = try XCTUnwrap(params["anchor"] as? [String: Any])
+        let shapes = try XCTUnwrap(anchor["shapes"] as? [[String: Any]])
+        XCTAssertEqual(shapes.compactMap { $0["kind"] as? String }, ["path", "point"], "every shape sent back, in order")
+        XCTAssertEqual(shapes[0]["points"] as? [[Double]], movedPath)
+        XCTAssertEqual(shapes[1]["points"] as? [[Double]], [[0.9, 0.62]], "the other shape as it was")
+        XCTAssertEqual(anchor["polygon"] as? [[Double]], line.anchor.polygon, "the outline carried")
     }
 
     /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the

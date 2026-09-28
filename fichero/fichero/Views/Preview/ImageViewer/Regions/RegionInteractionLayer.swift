@@ -95,7 +95,7 @@ struct RegionInteractionLayer: View {
 
     /// Sticky-tool + check-cycle seams (Daniel, 2026-08-30). Optional so
     /// headless hosts stay safe.
-    @Environment(WindowState.self) private var windowState: WindowState?
+    @Environment(WindowState.self) var windowState: WindowState?
     @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore?
 
     /// THE PANE'S selection, handed in (#5020): the layer never reaches for another pane's.

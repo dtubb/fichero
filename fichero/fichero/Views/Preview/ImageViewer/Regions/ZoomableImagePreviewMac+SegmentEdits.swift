@@ -39,6 +39,26 @@ extension ZoomableImagePreview {
         )
     }
 
+    /// NUDGE the shape point last pressed (an arrow key in Edit Segments): 1 image pixel, 10 with ⇧, as one
+    /// `segment.update` with ⌘Z. False when no point is selected here, so the arrow keeps its paging.
+    /// ponytail: one audited edit per key press; coalesce a held key into one if the audit trail grows.
+    func nudgeSelectedShapePoint(_ deltaX: Double, _ deltaY: Double, fast: Bool) -> Bool {
+        guard windowState?.isEditingSegments == true, let ref = windowState?.selectedShapePoint,
+              let documentId, ref.documentId == documentId, let passId = shownArtifactlessPassId,
+              let store = segmentEditStore, imageSize.width > 0, imageSize.height > 0,
+              let segment = store.segments(documentId: documentId)
+                .first(where: { $0.passId == passId && $0.boxIndex == ref.boxIndex }),
+              let points = SegmentShapes.points(of: segment, ref.target) else { return false }
+        let step = fast ? 10.0 : 1.0
+        let moved = SegmentShapes.nudging(
+            points, index: ref.index, byPixels: [deltaX * step, deltaY * step],
+            imageSize: [Double(imageSize.width), Double(imageSize.height)]
+        )
+        guard moved != points else { return true }  // at the page's edge: nothing to send, the key is still ours
+        reshapeSegment(index: ref.boxIndex, ref.target, to: moved)
+        return true
+    }
+
     /// DRAW a polygon or baseline with the Shape tool: `segment.create` on the shown pass, ⌘Z. Only on a
     /// segment pass (an imported page); a page drawn from an artifact keeps its box-only regions path.
     func drawSegmentShape(_ kind: SegmentShapes.DrawKind, points: [[Double]]) {

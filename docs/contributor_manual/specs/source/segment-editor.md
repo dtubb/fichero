@@ -1049,8 +1049,19 @@ The editor
   the app draws them and sends those calls (`ImportedPageDrawsItsBoxesTests.testALinesOutlineAndBaselineAreDrawnAsThemselvesAndReshapeSendsTheCheckedUpdate`,
   `…testReshapingALinesOutlineSendsTheCheckedUpdateAndUndoes`, `…testReshapingABaselineSendsItAloneAndTheRefusalsHold`).
   Two successive edits of one segment undo twice (`test_segment_undo_twice.py`; the engine refused the second
-  ⌘Z before). **Not yet:** open paths and points are drawn but not reshaped; nudging with keys; PDF pages (the
-  `PDFAnnotation` renderer still draws boxes); a pass with an artifact behind it (its boxes carry no shapes).
+  ⌘Z before). **Also built (2026-09-28):** the anchor's extra shapes -- an area, an open path, a point --
+  are drawn, get handles and are reshaped the same way (a point moves only: it takes no new points and is
+  never removed); every anchor rewrite now sends back ALL the shapes, the changed one changed, so none is
+  dropped -- the outline reshape and Move no longer refuse a segment with extra shapes, and Move shifts them
+  with the box. **Nudge:** the point last pressed stays selected (its handle filled); the arrow keys move it
+  one image pixel, ten with ⇧, each one `segment.update` with ⌘Z, and without a selected point the arrows
+  keep paging. Pinned: the engine takes the app's exact path-and-point rewrite and undoes it
+  (`test_imported_page_draws_its_boxes.py::test_reshaping_an_anchors_path_and_point_shapes_is_the_app_s_exact_update`);
+  the app's handles, limits, pixel nudge and request
+  (`ImportedPageDrawsItsBoxesTests.testReshapingAnAnchorsPathAndPointAndNudgingByAPixel`; Move with shapes,
+  `SegmentEditTests.moveShiftsExtraShapesToo`). **Not yet:** PDF pages (the `PDFAnnotation` renderer still
+  draws boxes); a pass with an artifact behind it (its boxes carry no shapes); a held arrow key is one edit
+  per press, not coalesced.
 - `source.editor.propose-shape` — **[GAP]** (#4941) a click asks the engine to propose a shape, which can then be
   adjusted.
 - `source.editor.cut` — **[GAP]** (#4941) a scissors stroke splits one or many lines at once.
