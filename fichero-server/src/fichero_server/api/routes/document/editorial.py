@@ -61,8 +61,15 @@ def _check_span(db: Database, params: EditorialRecordParams) -> None:
     has_span = params.char_start is not None or params.char_end is not None
     if not has_span:
         return
-    if params.char_start is None or params.char_end is None or params.char_start >= params.char_end:
-        raise HTTPException(status_code=422, detail="a span needs char_start < char_end")
+    # A LOST stretch has no text to span, but it has a place: a TEI <gap/> mid-line is lost letters
+    # BETWEEN two others. So a lost fact may give char_start alone -- a position, where the gap is
+    # drawn (`leiden.draw`) -- and every other kind needs a span.
+    position_only = (params.kind == EditorialFactKind.lost
+                     and params.char_start is not None and params.char_end is None)
+    if not position_only and (
+        params.char_start is None or params.char_end is None or params.char_start >= params.char_end
+    ):
+        raise HTTPException(status_code=422, detail="a span needs char_start < char_end (a lost stretch may give char_start alone)")
     if params.representation_id is None:
         raise HTTPException(status_code=422, detail="a span names the reading it is measured on (representation_id)")
     from fichero_server.api.routes.document.segment_readings import readings_of_segment
@@ -70,10 +77,11 @@ def _check_span(db: Database, params: EditorialRecordParams) -> None:
     reading = next((r for r in readings_of_segment(db, params.segment_id) if r.id == params.representation_id), None)
     if reading is None:
         raise HTTPException(status_code=422, detail=f"reading {params.representation_id} is not one of this segment's")
-    if params.char_end > len(reading.content):
+    end = params.char_end if params.char_end is not None else params.char_start
+    if end > len(reading.content):
         raise HTTPException(
             status_code=422,
-            detail=f"the span ends at {params.char_end}, past the reading's {len(reading.content)} characters",
+            detail=f"the span ends at {end}, past the reading's {len(reading.content)} characters",
         )
 
 

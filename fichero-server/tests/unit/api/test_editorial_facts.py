@@ -72,6 +72,31 @@ def test_a_lost_stretch_with_no_text_is_recorded_by_its_extent(db, client):
     assert client.get(f"/api/editorial/segment/{line['id']}").json()["drawn"] == reading["content"] + "[.4]"
 
 
+def test_a_lost_stretch_mid_line_is_placed_by_its_position_and_drawn_there(db, client):
+    """A TEI <gap reason="lost" quantity="2" unit="character"/> between two letters has a PLACE but no
+    text. Without a position it could only be drawn at the line's end -- in the wrong place -- so a
+    lost fact may give char_start alone; every other kind still needs a whole span."""
+    doc_id = _import(db, SYRIAC)
+    line, reading = _first_line(client, doc_id)
+    text = reading["content"]
+    placed = _invoke(client, "editorial.record", {
+        "segment_id": line["id"], "kind": "lost", "representation_id": reading["id"], "char_start": 3,
+        "extent_quantity": 2, "extent_unit": "character", "reason": "lost",
+    })
+    assert placed.status_code == 200, placed.text
+    assert client.get(f"/api/editorial/segment/{line['id']}").json()["drawn"] == text[:3] + "[.2]" + text[3:]
+    # A position is for a lost stretch only, and it must be inside the reading.
+    assert _invoke(client, "editorial.record", {
+        "segment_id": line["id"], "kind": "unclear", "representation_id": reading["id"], "char_start": 3,
+    }).status_code == 422
+    assert _invoke(client, "editorial.record", {
+        "segment_id": line["id"], "kind": "lost", "representation_id": reading["id"], "char_start": len(text) + 1,
+    }).status_code == 422
+    assert _invoke(client, "editorial.record", {
+        "segment_id": line["id"], "kind": "lost", "char_start": 3,
+    }).status_code == 422, "a position names the reading it is measured on"
+
+
 def test_a_span_is_refused_unless_it_names_a_reading_of_this_segment_and_fits_in_it(db, client):
     doc_id = _import(db, SYRIAC)
     line, reading = _first_line(client, doc_id)
