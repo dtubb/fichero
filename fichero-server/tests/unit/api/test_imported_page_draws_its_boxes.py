@@ -446,10 +446,14 @@ def test_what_rights_apply_to_a_line_is_recorded_for_the_app(db, client):
     line = min((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
                key=lambda s: s["anchor"]["rect"])
     record_ids = []
+    # A restriction names ACCOUNTS by id, and must name whoever sets it (#4953's enforcement refuses one
+    # that would lock its setter out); the owner's id is recorded as "owner", as before.
+    from fichero_server.security import authz
+    owner_id = authz.resolve_user("owner").id
     for params in (
         {"target_kind": "library", "labels": ["TK Attribution"], "holders": ["Österreichische Nationalbibliothek"]},
         {"target_kind": "document", "target_id": doc_id, "model_use": "local", "conditions": "agreement 2026-07"},
-        {"target_kind": "segment", "target_id": line["id"], "restricted": True, "readers": ["owner"]},
+        {"target_kind": "segment", "target_id": line["id"], "restricted": True, "readers": [owner_id]},
     ):
         answer = client.post("/api/actions/invoke", json={"name": "rights.set", "params": params})
         assert answer.status_code == 200, answer.text
@@ -462,7 +466,7 @@ def test_what_rights_apply_to_a_line_is_recorded_for_the_app(db, client):
     stable_route = json.loads(ROUTE_FIXTURE.read_text())
     token = next(s["id"] for s in stable_route["segments"]
                  if s["kind"] == "line" and s["anchor"]["rect"] == line["anchor"]["rect"])
-    ids = {doc_id: stable_route["document_id"], line["id"]: token}
+    ids = {doc_id: stable_route["document_id"], line["id"]: token, owner_id: "owner"}
     for index, record_id in enumerate(record_ids, start=1):
         ids[record_id] = f"rights-{index:04d}"
     recorded = _stabilizer(ids)(effective)
