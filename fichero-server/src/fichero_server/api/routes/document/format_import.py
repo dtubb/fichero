@@ -861,8 +861,9 @@ def _editorial_facts(order, ids_by_ref, first_reading, source_name, imported):
             elif tag == "add":
                 fact("added", start, end, place=attrs.get("place"))
             elif tag == "del":
-                skip("deleted text (<del>)", "the reading leaves deleted letters out, so there is no "
-                     "stretch of it to mark; kept in the segment's foreign record")
+                # Diplomatic (ruled 2026-09-28, #5179): the deleted letters are IN the reading and
+                # this fact spans them, drawn ⟦ ⟧ -- never silently dropped from what the page says.
+                fact("deleted", start, end)
             elif tag == "delSpan":
                 skip("a deletion across lines (<delSpan>)", "it has no one reading to span")
     return facts, [{"what": what, "count": count, "why": why} for (what, why), count in sorted(skipped.items())]

@@ -63,7 +63,7 @@ enum EngineSocketConflict {
     }
 
     /// The live engine's version, pid and owning app (`engine_pid`, `engine_owner`); each nil when unsaid.
-    static func liveEngine(socketPath: String) async -> LiveEngine {
+    @MainActor static func liveEngine(socketPath: String) async -> LiveEngine {
         let client = FicheroClient(transportMode: .uds(path: socketPath))
         guard let response = try? await client.api.healthCheckApiHealthGet(.init()),
               case .ok(let okResponse) = response, let health = try? okResponse.body.json else { return LiveEngine() }

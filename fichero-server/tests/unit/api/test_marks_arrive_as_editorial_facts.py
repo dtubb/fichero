@@ -110,12 +110,50 @@ def test_importing_the_same_file_again_does_not_double_them(db, client):
     assert len(db.all(EditorialFact)) == before
 
 
-def test_what_cannot_be_a_fact_is_named_not_dropped(db, client):
-    dels = sum(1 for path in PAPYRI for el in etree.parse(str(path)).getroot().iter("{*}del"))
-    assert dels
-    named = Counter()
+def test_deleted_letters_stay_in_the_reading_as_a_deletion_drawn_in_double_brackets(db, client):
+    """Ruled 2026-09-28 (#5179), diplomatic: a `<del>`'s letters are IN the line's reading, and a
+    `deleted` fact spans exactly them, drawn ⟦ ⟧. Before, the reader dropped them, so the reading
+    said less than the page and the deletion was only "named, not imported". If this regresses,
+    deleted letters vanish from the text again, or are shown as if never struck out."""
+    from fichero_server.models import ContentRepresentation
+
+    words = lambda text: " ".join(text.split())
+
+    def as_written(el) -> str:
+        """The letters the scribe wrote, by plain lxml: a <choice> gives its as-written side
+        (orig/sic/abbr, else its first) -- the rule the reading follows for every <choice>."""
+        parts = [el.text or ""]
+        for child in el:
+            if not isinstance(child.tag, str):
+                continue
+            if etree.QName(child).localname == "choice":
+                sides = [c for c in child if isinstance(c.tag, str)]
+                chosen = next((c for c in sides if etree.QName(c).localname in {"orig", "sic", "abbr"}),
+                              sides[0] if sides else None)
+                parts.append(as_written(chosen) if chosen is not None else "")
+            else:
+                parts.append(as_written(child))
+            parts.append(child.tail or "")
+        return "".join(parts)
+
+    expected = Counter(words(as_written(el)) for path in PAPYRI
+                       for el in etree.parse(str(path)).getroot().iter("{*}del") if as_written(el).strip())
+    assert expected                                                  # the premise, from the files
+    seen = Counter()
     for path in PAPYRI:
         _doc, result = _import(db, path)
-        for note in result.result["not_imported"]:
-            named[note["what"]] += note["count"]
-    assert named["deleted text (<del>)"] > 0
+        assert not [n for n in result.result["not_imported"] if "<del>" in n["what"]]
+    deletions = [f for f in db.all(EditorialFact) if f.kind == "deleted"]
+    per_segment = Counter(f.segment_id for f in deletions)
+    for fact in deletions:
+        reading = db.get(ContentRepresentation, fact.representation_id)
+        letters = reading.content[fact.char_start:fact.char_end]
+        seen[words(letters)] += 1
+        drawn = client.get(f"/api/editorial/segment/{fact.segment_id}").json()["drawn"]
+        # Each deletion opens its own ⟦ (a <del> inside a <del> draws nested, ⟦απ⟦η⟧λασιας̣⟧ on
+        # the real P.Oxy line), and its letters are there between the brackets.
+        assert drawn.count("⟦") >= per_segment[fact.segment_id], drawn
+        bare = drawn.replace("⟦", "").replace("⟧", "").replace(UNDERDOT, "")
+        assert letters.replace(UNDERDOT, "").strip() in bare, (letters, drawn)
+        assert "⟦" not in reading.content                             # drawn, never stored
+    assert seen == expected                                          # every <del>, its own letters
