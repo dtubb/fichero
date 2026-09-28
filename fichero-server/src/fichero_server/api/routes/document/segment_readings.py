@@ -49,6 +49,7 @@ from fichero_server.llm.language_policy import (
     STATUS_UNKNOWN,
     first_strong_direction,
     resolve_direction,
+    stated_direction_source,
 )
 from fichero_server.models import Artifact, ContentRepresentation, Document
 from fichero_server.models.anchors import SourceAnchor
@@ -795,10 +796,11 @@ def _why_omitted(
 #: 6: a line with no letters takes its BLOCK's direction, else its page's (#5172, as ruled).
 #: 7: a person's correction outranks the reading it corrects (#5175).
 #: 8: a georeferencing pass is never the page's text pass (#5122, maps C1).
-DERIVATION_VERSION = 8
+#: 9: a direction stated on the page's source (file/folder) reaches its lines (#5172).
+DERIVATION_VERSION = 9
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
-DERIVATION_SOURCE_SHA256 = "6351a2702a6ef6f58945dfd254e02a63ea2df1f2ded9b8d06dfd6b7500d8d3e4"
+DERIVATION_SOURCE_SHA256 = "4715839b022659bab73f0da3e23aa9aab3c3e3138ddec4e124736f84b8cf7052"
 
 
 def derivation_source_digest() -> str:
@@ -815,13 +817,15 @@ def derivation_source_digest() -> str:
 
 
 def _direction_of(
-    row: Segment, document: Any, text: str | None, lines_are_vertical: bool | None = None
+    row: Segment, document: Any, text: str | None, lines_are_vertical: bool | None = None,
+    source: Any = None,
 ) -> tuple[str | None, str | None]:
     """A span's direction and the rung that said so. With nothing stated anywhere, the text's own
     characters decide (#5137: Syriac and Hebrew lines came out `ltr`), and for a script that may
     be vertical, the page's line shapes (#5147)."""
     resolved = resolve_direction(
-        segment=row, document=document, text=text, lines_are_vertical=lines_are_vertical
+        segment=row, document=document, source=source, text=text,
+        lines_are_vertical=lines_are_vertical,
     )
     return (resolved.language if resolved.status != STATUS_UNKNOWN else None), resolved.level
 
@@ -1010,6 +1014,8 @@ def document_text(
     # pure counting function -- not a cache of the answer, which this design
     # deliberately does not store.
     document = db.get(Document, document_id)
+    # A direction stated on the file or folder above the page (#5172: region, page, SOURCE).
+    source = stated_direction_source(lambda i: db.get(Document, i), document)
     # Non-orientable per-segment values (`languages-scripts-signs.md`'s six-value list):
     # neither describes ONE orientation a block could be laid out under, so a segment
     # resolving to either always starts (and ends) its own block.
@@ -1057,7 +1063,7 @@ def document_text(
             span = DerivedTextSpan(
                 segment_id=row.id, representation_id=None, start=cursor, end=cursor
             )
-            direction, direction_level = _direction_of(row, document, None, vertical)
+            direction, direction_level = _direction_of(row, document, None, vertical, source)
             spans.append(span)
             span_directions.append((row.parent_segment_id, direction, direction_level, span))
             span_neutral.append(False)
@@ -1065,7 +1071,7 @@ def document_text(
         text = next(
             item.content for item in items if item.id == counted.representation_id
         )
-        direction, direction_level = _direction_of(row, document, text, vertical)
+        direction, direction_level = _direction_of(row, document, text, vertical, source)
         start = cursor
         pieces.append(text)
         cursor += len(text)

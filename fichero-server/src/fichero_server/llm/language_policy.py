@@ -939,18 +939,44 @@ def first_strong_direction(text: str | None) -> str | None:
     return None
 
 
+def stated_direction_source(get_document: Any, document: Any) -> Any:
+    """The nearest ancestor of `document` whose direction was stated or examined, or None.
+
+    `get_document(id)` loads a parent (the caller's own db read). Walks `parent_id` up from the
+    page's parent; a cycle or a missing parent ends the walk.
+    """
+    seen: set[str] = set()
+    parent_id = _doc_get(document, "parent_id") if document is not None else None
+    while parent_id and parent_id not in seen:
+        seen.add(parent_id)
+        parent = get_document(parent_id)
+        if parent is None:
+            return None
+        if _stated_fact(parent, value_field="direction", meta_field="direction_meta",
+                        level=LEVEL_DOCUMENT, noun="source") is not None:
+            return parent
+        parent_id = _doc_get(parent, "parent_id")
+    return None
+
+
 def resolve_direction(
     *,
     requested: str | None = None,
     reading: Any = None,
     segment: Any = None,
     document: Any = None,
+    source: Any = None,
     project: Any = None,
     script: str | None = None,
     text: str | None = None,
     lines_are_vertical: bool | None = None,
 ) -> LanguageResolution:
     """Which direction a thing is written in, and which rung said so (#4938).
+
+    `source` is the nearest document ABOVE the page that states a direction
+    (`stated_direction_source`): a direction set on a file or folder reaches its pages'
+    lines, after the page's own and before the project's (#5172). It answers at the
+    document level -- the same vocabulary, not a new rung name.
 
     `lines_are_vertical` is the page's own geometry (`lines_are_columns`): with nothing stated
     and a script that may be vertical, columns mean `ttb` (#5147).
@@ -990,6 +1016,7 @@ def resolve_direction(
         (reading, LEVEL_READING, "reading"),
         (segment, LEVEL_SEGMENT, "segment"),
         (document, LEVEL_DOCUMENT, "document"),
+        (source, LEVEL_DOCUMENT, "source"),
         (project, LEVEL_PROJECT, "project"),
     ):
         if holder is None:

@@ -87,3 +87,54 @@ def test_the_block_first_then_the_page():
     assert (got[0], basis[0]) == (rtl, "page")                  # alone in its zone: the page's
     got, basis = settle_neutral_directions([ltr, ltr], [True, True], ["b", "b"], [1, 1])
     assert (got, basis) == ([ltr, ltr], [None, None])           # nothing to inherit
+
+
+AJAMI = CORPUS / "ajami_fulfulde_elit-wan-00130-001r.alto.xml"
+
+
+def _alto_lines(path: Path) -> list[str]:
+    root = etree.parse(str(path)).getroot()
+    local = lambda el: etree.QName(el).localname if isinstance(el.tag, str) else ""
+    return [" ".join(s.get("CONTENT") for s in line.iter() if local(s) == "String" and s.get("CONTENT"))
+            for line in root.iter() if local(line) == "TextLine"]
+
+
+def test_a_latin_digit_folio_on_an_arabic_script_page_reads_right_to_left(db, client):
+    """Fulfulde in Ajami (Arabic script, right to left; CC-BY-4.0) with its folio number in Latin
+    digits: the `1` has no direction of its own, and takes its page's -- not a left-to-right
+    island on a right-to-left page."""
+    lines = [t for t in _alto_lines(AJAMI) if t.strip()]
+    assert "1" in lines and sum(1 for t in lines if _strong(t) & {"R", "AL"}) > 10     # the premise, from the file
+    doc_id = _import(db, AJAMI)
+    assert _directions_by_text(client, doc_id)["1"] == {"rtl"}
+    page = _view(client, doc_id)[0]["pages"][0]
+    basis = next(l.get("direction_basis") for l in page["lines"] if page["content"][l["char_start"]:l["char_end"]] == "1")
+    assert basis and "no letters" in basis
+
+
+def test_a_direction_stated_on_the_source_reaches_a_line_without_letters(db, client):
+    """Nearest STATED direction first -- region, page, then SOURCE (#5172 as ruled): a direction
+    set on the file or folder the page belongs to is its lines' by the cascade, stated, not
+    inherited from the letters around it. The cascade stopped at the page itself, so a person who
+    set a whole manuscript to `ttb` still saw its pages in rows. If this regresses, a direction
+    set on a source silently does nothing to its pages."""
+    from fichero_server.actions.registry import registry
+    from fichero_server.models import DocType, Document
+    from tests.unit.api.test_page_text_follows_the_file import BOOT
+
+    doc_id = _import(db, AJAMI)
+    source = Document(name="ELIT/WAN/00130", doc_type=DocType.folder)
+    db.save(source)
+    page_doc = db.get(Document, doc_id)
+    page_doc.parent_id = source.id
+    db.save(page_doc)
+    registry.invoke(db, "source_setting.set",
+                    {"level": "node", "key": "direction", "value": "ttb", "target_id": source.id}, BOOT)
+    page = _view(client, doc_id)[0]["pages"][0]
+    line = next(l for l in page["lines"] if page["content"][l["char_start"]:l["char_end"]] == "1")
+    assert line["direction"] == "ttb" and not line.get("direction_basis")         # the source said so
+    # The derivation (export, blocks) and the resolve route read the same cascade, not a copy.
+    assert {b.direction for b in document_text(db, doc_id).blocks if b.text.strip()} == {"ttb"}
+    resolved = client.get("/api/source-settings/resolve", params={"segment_id": line["segment_id"]})
+    [direction] = [s for s in resolved.json()["settings"] if s["key"] == "direction"]
+    assert (direction["value"], direction["level"], direction["basis"]) == ("ttb", "document", "recorded on this source")

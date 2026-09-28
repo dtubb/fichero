@@ -235,7 +235,12 @@ Direction
   **Added 2026-09-28 (#5172):** a segment with no strongly directional character and nothing
   stated (a folio number, a year) takes its block's direction, else its page's, rather than an
   assumed `ltr` (`fichero-server/tests/unit/api/test_a_line_without_letters_takes_its_pages_direction.py::test_a_digit_only_line_takes_its_pages_direction`,
-  `::test_the_block_first_then_the_page`).
+  `::test_the_block_first_then_the_page`). The nearest STATED direction still comes first, and that
+  includes the source: a direction set on the file or folder above the page reaches its lines,
+  after the page's own and before the project's (`::test_a_direction_stated_on_the_source_reaches_a_line_without_letters`,
+  through the Reader, the derivation and the resolve route). A Latin-digit folio on an Arabic-script
+  page reads right to left (`::test_a_latin_digit_folio_on_an_arabic_script_page_reads_right_to_left`,
+  the Ajami Fulfulde ALTO page).
 - `source.dir.logical-order-stored` — **[OK]** (→ #4938) stored text is in reading order; mixed
   direction in a line follows the Unicode bidirectional rules on display. Nothing in the engine
   reorders a string: a mixed-direction reading round trips byte for byte and resolving a direction

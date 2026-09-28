@@ -52,6 +52,7 @@ from fichero_server.llm.language_policy import (
     assert_known_direction,
     build_language_meta,
     resolve_direction,
+    stated_direction_source,
     resolve_language,
     resolve_script,
 )
@@ -406,7 +407,10 @@ async def resolve_source_settings(
         document=document, segment=segment, detect=False,
         script=script.language if script.source == SOURCE_DETECTED else None,
     )
-    direction = resolve_direction(segment=segment, document=document, project=project, text=text)
+    source = stated_direction_source(lambda i: db.get(Document, i), document)
+    direction = resolve_direction(
+        segment=segment, document=document, source=source, project=project, text=text
+    )
     encoding = resolve_encoding(
         db, segment=segment, document=document, project=project, script=script.language
     )

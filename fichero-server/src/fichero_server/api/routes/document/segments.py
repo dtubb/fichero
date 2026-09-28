@@ -2948,7 +2948,10 @@ def _parts_cut_at(db: Database, original: Segment, offset: int) -> list["Segment
         raise HTTPException(status_code=422, detail="the line has no box to cut")
     document = db.get(Document, original.document_id)
     shapes = [row for row in db.query(Segment, pass_id=original.pass_id) if row.deleted_at is None]
-    direction, _level = _direction_of(original, document, text, _lines_are_vertical(shapes, document))
+    from fichero_server.llm.language_policy import stated_direction_source
+
+    source = stated_direction_source(lambda i: db.get(Document, i), document)
+    direction, _level = _direction_of(original, document, text, _lines_are_vertical(shapes, document), source)
     rects = estimated_cut(list(anchor.rect), offset / len(text), direction)
     return [
         SegmentSplitPart(
