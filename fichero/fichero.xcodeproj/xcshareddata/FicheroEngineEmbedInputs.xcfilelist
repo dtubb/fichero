@@ -67,6 +67,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/documents.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/editorial.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/folders.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/format_import.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/georeference.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/hands.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/inspector.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/notes.py
@@ -227,6 +228,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/formats/harness.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/hocr.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/iiif_georef.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/pagexml.py
+$(SRCROOT)/../fichero-server/src/fichero_server/formats/qgis_points.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/PROVENANCE.md
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/alto-4-2.xsd
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/alto-4-3.xsd
@@ -347,6 +349,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/models/anchors.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/canvas.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/conversion.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/editorial.py
+$(SRCROOT)/../fichero-server/src/fichero_server/models/geo.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/hands.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/hermeneutics.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/knowledge.py
@@ -438,6 +441,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/search/query_parser.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/accounts.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/authz.py
+$(SRCROOT)/../fichero-server/src/fichero_server/security/authz_kinds.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/bind_host.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/discovery.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/keychain.py
