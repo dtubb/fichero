@@ -183,11 +183,15 @@ def test_generated_multiuser_auth_policy_pairing_contracts_current_main(
 
     owner = _login(monkeypatch, cli_multiuser_engine, "alice", "secret")
     assert owner["username"] == "alice"
-    whoami = _cli_json(cli_multiuser_engine, "auth", "whoami")
+    # On loopback the CLI is the owner unless an account is NAMED (loopback is always owner): a
+    # stored session is read only for `--as-user`. So every call as alice names her.
+    whoami = _cli_json(cli_multiuser_engine, "--as-user", "alice", "auth", "whoami")
     assert whoami["username"] == "alice"
 
     bob = _cli_json(
         cli_multiuser_engine,
+        "--as-user",
+        "alice",
         "users",
         "create",
         "--username",
@@ -198,16 +202,18 @@ def test_generated_multiuser_auth_policy_pairing_contracts_current_main(
         "bob-secret",
     )
     assert bob["username"] == "bob"
-    listed_users = _cli_json(cli_multiuser_engine, "users", "list")
+    listed_users = _cli_json(cli_multiuser_engine, "--as-user", "alice", "users", "list")
     assert {item["username"] for item in listed_users["items"]} >= {"alice", "bob"}
 
-    owner_snapshot = _cli_json(cli_multiuser_engine, "authz", "get-library-snapshot")
+    owner_snapshot = _cli_json(cli_multiuser_engine, "--as-user", "alice", "authz", "get-library-snapshot")
     assert owner_snapshot["current_user_role"] == "owner"
     assert owner_snapshot["can_manage_roles"] is True
     assert len(owner_snapshot["roles"]) == 1
 
     updated_members = _cli_json(
         cli_multiuser_engine,
+        "--as-user",
+        "alice",
         "authz",
         "set-library-member-role",
         "--user",
@@ -218,6 +224,8 @@ def test_generated_multiuser_auth_policy_pairing_contracts_current_main(
     assert any(member["username"] == "bob" and member["role"] == "viewer" for member in updated_members["members"])
     share = _cli_json(
         cli_multiuser_engine,
+        "--as-user",
+        "alice",
         "authz",
         "share-library-object",
         "--user",
@@ -230,9 +238,11 @@ def test_generated_multiuser_auth_policy_pairing_contracts_current_main(
     assert share["object_type"] == "document"
     assert share["share_url"].endswith(f"/api/documents/{cli_multiuser_engine['summary']['keys']['doc_letter']}")
 
-    pairing_code = _cli_json(cli_multiuser_engine, "pair", "create-pairing-code")
+    pairing_code = _cli_json(cli_multiuser_engine, "--as-user", "alice", "pair", "create-pairing-code")
     paired_device = _cli_json(
         cli_multiuser_engine,
+        "--as-user",
+        "alice",
         "pair",
         "device",
         "--code",
@@ -240,10 +250,12 @@ def test_generated_multiuser_auth_policy_pairing_contracts_current_main(
         "--device-name",
         "CLI Phone",
     )
-    listed_devices = _cli_json(cli_multiuser_engine, "pair", "list-devices")
+    listed_devices = _cli_json(cli_multiuser_engine, "--as-user", "alice", "pair", "list-devices")
     assert any(item["id"] == paired_device["device_id"] for item in listed_devices["items"])
     revoked_device = _cli_json(
         cli_multiuser_engine,
+        "--as-user",
+        "alice",
         "pair",
         "revoke-device",
         paired_device["device_id"],
@@ -252,6 +264,8 @@ def test_generated_multiuser_auth_policy_pairing_contracts_current_main(
 
     created_rule = _cli_json(
         cli_multiuser_engine,
+        "--as-user",
+        "alice",
         "policies",
         "create-a-new-rule",
         "--name",
@@ -264,10 +278,12 @@ def test_generated_multiuser_auth_policy_pairing_contracts_current_main(
         "2",
         "--requires-source",
     )
-    listed_rules = _cli_json(cli_multiuser_engine, "policies", "list-orchestration-rules")
+    listed_rules = _cli_json(cli_multiuser_engine, "--as-user", "alice", "policies", "list-orchestration-rules")
     assert any(item["id"] == created_rule["id"] for item in listed_rules["rules"])
     fetched_rule = _cli_json(
         cli_multiuser_engine,
+        "--as-user",
+        "alice",
         "policies",
         "get-a-specific-rule",
         created_rule["id"],
@@ -275,6 +291,8 @@ def test_generated_multiuser_auth_policy_pairing_contracts_current_main(
     assert fetched_rule["name"] == "Require evidence"
     evaluated_rule = _cli_json(
         cli_multiuser_engine,
+        "--as-user",
+        "alice",
         "policies",
         "evaluate-a-hypothetical-write-against",
         "--entity-type",
@@ -286,6 +304,8 @@ def test_generated_multiuser_auth_policy_pairing_contracts_current_main(
     assert evaluated_rule["action"] == "require_approval"
     updated_rule = _cli_json(
         cli_multiuser_engine,
+        "--as-user",
+        "alice",
         "policies",
         "update-a-rule",
         created_rule["id"],
@@ -296,6 +316,8 @@ def test_generated_multiuser_auth_policy_pairing_contracts_current_main(
     assert updated_rule["priority"] == 50
     deleted_rule = _cli_json(
         cli_multiuser_engine,
+        "--as-user",
+        "alice",
         "policies",
         "delete-a-rule",
         created_rule["id"],
@@ -303,7 +325,7 @@ def test_generated_multiuser_auth_policy_pairing_contracts_current_main(
     )
     assert deleted_rule is None
 
-    activities = _cli_json(cli_multiuser_engine, "activity-api", "list-activities")
+    activities = _cli_json(cli_multiuser_engine, "--as-user", "alice", "activity-api", "list-activities")
     assert activities["count"] == 0
 
 
@@ -315,6 +337,8 @@ def test_generated_multiuser_fail_closed_contracts_current_main(
     _login(monkeypatch, cli_multiuser_engine, "alice", "secret")
     viewer = _cli_json(
         cli_multiuser_engine,
+        "--as-user",
+        "alice",
         "users",
         "create",
         "--username",
@@ -326,6 +350,8 @@ def test_generated_multiuser_fail_closed_contracts_current_main(
     )
     _cli_json(
         cli_multiuser_engine,
+        "--as-user",
+        "alice",
         "authz",
         "set-library-member-role",
         "--user",

@@ -81,7 +81,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
     item = _cli_json(
         cli_live_engine,
         "canvas",
-        "create-folder-canvas-item",
+        "create-folder-item",
         folder_id,
         "--kind",
         "text",
@@ -95,7 +95,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
     listed_items = _cli_json(
         cli_live_engine,
         "canvas",
-        "list-folder-canvas-items",
+        "list-folder-items",
         folder_id,
     )
     assert any(row["id"] == item_id for row in listed_items["items"])
@@ -103,7 +103,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
     updated_item = _cli_json(
         cli_live_engine,
         "canvas",
-        "update-folder-canvas-item",
+        "update-folder-item",
         folder_id,
         item_id,
         "--text",
@@ -114,7 +114,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
     saved_layout = _cli_json(
         cli_live_engine,
         "canvas",
-        "save-folder-canvas-layout",
+        "save-folder-layout",
         folder_id,
         "--items",
         json.dumps(
@@ -140,7 +140,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
     fetched_layout = _cli_json(
         cli_live_engine,
         "canvas",
-        "get-folder-canvas-layout",
+        "get-folder-layout",
         folder_id,
     )
     saved_row = next(
@@ -152,7 +152,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
     arranged = _cli_json(
         cli_live_engine,
         "canvas",
-        "arrange-folder-canvas-layout",
+        "arrange-folder-layout",
         folder_id,
         "--node-ids",
         json.dumps([summary["keys"]["doc_letter"], summary["keys"]["doc_photo"]]),
@@ -168,7 +168,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
     deleted_item = _cli_json(
         cli_live_engine,
         "canvas",
-        "delete-folder-canvas-item",
+        "delete-folder-item",
         folder_id,
         item_id,
         "--yes",
