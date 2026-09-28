@@ -469,3 +469,46 @@ def test_what_rights_apply_to_a_line_is_recorded_for_the_app(db, client):
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         RIGHTS_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
     assert json.loads(RIGHTS_FIXTURE.read_text()) == recorded, "the app's rights fixture drifted"
+
+
+STATEMENTS_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.first-line-statements.json"
+
+
+def test_what_is_said_about_a_line_is_recorded_for_the_app(db, client):
+    """`source.statement.on-segment`, `both-ways` (the Inspector's 5.7, statements half): the app reads
+    GET /api/segments/{id}/statements. Recorded for the imported Syriac page's first line after a claim
+    is anchored to it (claim.create, then claim.patch of its anchor -- the calls the app makes) and an
+    entity's supporting source names it (seeded, as an extraction would write it)."""
+    from fichero_server.models.anchors import SourceAnchor
+    from fichero_server.models.knowledge import EntityType, KnowledgeEntity, SourceSupport
+
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    line = min((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+               key=lambda s: s["anchor"]["rect"])
+    created = client.post("/api/actions/invoke", json={"name": "claim.create", "params": {
+        "text": "Abraham begat Isaac", "source_document_id": doc_id, "source_excerpt": "ܐܒܪܗܡ ܐܘܠܕ"}})
+    assert created.status_code == 200, created.text
+    claim_id = created.json()["result"]["id"]
+    patched = client.post("/api/actions/invoke", json={"name": "claim.patch", "params": {
+        "claim_id": claim_id,
+        "patch": {"source_anchor": {"document_id": doc_id, "segment_id": line["id"], "rect": line["anchor"]["rect"]}},
+    }})
+    assert patched.status_code == 200, patched.text
+    entity = KnowledgeEntity(
+        canonical_name="Abraham", entity_type=EntityType.person, source_document_ids=[doc_id],
+        source_supports=[SourceSupport(source_document_id=doc_id, source_excerpt="ܐܒܪܗܡ",
+                                       source_anchor=SourceAnchor(document_id=doc_id, segment_id=line["id"]))])
+    db.save(entity)
+    said = client.get(f"/api/segments/{line['id']}/statements").json()
+    assert [c["claim_id"] for c in said["claims"]] == [claim_id]
+    assert [m["entity_id"] for m in said["mentions"]] == [entity.id]
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    token = next(s["id"] for s in stable_route["segments"]
+                 if s["kind"] == "line" and s["anchor"]["rect"] == line["anchor"]["rect"])
+    recorded = _stabilizer({line["id"]: token, claim_id: "claim-0001", entity.id: "entity-0001"})(said)
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        STATEMENTS_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(STATEMENTS_FIXTURE.read_text()) == recorded, "the app's statements fixture drifted"

@@ -1,0 +1,21 @@
+{
+ "segment_id": "seg-0003",
+ "claims": [
+  {
+   "claim_id": "claim-0001",
+   "text": "Abraham begat Isaac",
+   "curation_state": "unreviewed",
+   "confidence": 0.5,
+   "via": "anchor",
+   "excerpt": "\u0710\u0712\u072a\u0717\u0721 \u0710\u0718\u0720\u0715"
+  }
+ ],
+ "mentions": [
+  {
+   "entity_id": "entity-0001",
+   "name": "Abraham",
+   "entity_type": "person",
+   "excerpt": "\u0710\u0712\u072a\u0717\u0721"
+  }
+ ]
+}

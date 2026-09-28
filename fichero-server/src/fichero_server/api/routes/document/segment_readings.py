@@ -1145,3 +1145,87 @@ async def get_document_text(
         )
     except Exception as exc:
         raise _as_http_error(exc) from exc
+
+
+# ---------------------------------------------------------------------------
+# What is said about a segment (#4932; `source.statement.on-segment`, `both-ways`; the Inspector's
+# 5.7, statements half). A claim or an entity's supporting source points at a segment through its
+# anchor's lasting segment id (`source.point.anchor-names-its-segment`); this read gathers them from
+# the segment's own page: the page's claims whose own anchor or a supporting source names it, and
+# the entities citing the page one of whose supporting sources names it (a MENTION). Read-only,
+# worked out on every call. Not covered: a claim on an unconverted page that points by its
+# rectangle alone. Here, not in a module of its own, to keep the app's import budget (#3950).
+# ---------------------------------------------------------------------------
+
+class ClaimOnSegment(BaseModel):
+    claim_id: str
+    text: str
+    curation_state: str
+    confidence: float
+    #: "anchor" when the claim's own anchor names the segment; "support" when one of its supporting
+    #: sources does.
+    via: str
+    excerpt: Optional[str] = None
+
+
+class MentionOnSegment(BaseModel):
+    entity_id: str
+    name: str
+    entity_type: str
+    #: What the supporting source quotes, when it does.
+    excerpt: Optional[str] = None
+
+
+class SegmentStatementsResponse(BaseModel):
+    segment_id: str
+    claims: list[ClaimOnSegment]
+    mentions: list[MentionOnSegment]
+
+
+def _names(anchor: Any, segment_id: str) -> bool:
+    return anchor is not None and getattr(anchor, "segment_id", None) == segment_id
+
+
+@router.get("/{segment_id}/statements", response_model=SegmentStatementsResponse)
+async def segment_statements(
+    segment_id: str, db: Database = Depends(get_library_database)
+) -> SegmentStatementsResponse:
+    """From a segment, what is said about it (`source.statement.both-ways`)."""
+    from fichero_server.api.routes.document.segments import _assert_not_provisional_http
+    from fichero_server.models import Segment
+    from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
+
+    _assert_not_provisional_http(segment_id, what="segment_id")
+    segment = db.get(Segment, segment_id)
+    if segment is None or segment.deleted_at is not None:
+        raise HTTPException(status_code=404, detail=f"Segment not found: {segment_id}")
+
+    claims: list[ClaimOnSegment] = []
+    for claim in db.query(KnowledgeClaim, source_document_id=segment.document_id):
+        via = excerpt = None
+        if _names(claim.source_anchor, segment_id):
+            via, excerpt = "anchor", claim.source_excerpt
+        else:
+            support = next((s for s in claim.source_supports if _names(s.source_anchor, segment_id)), None)
+            if support is not None:
+                via, excerpt = "support", support.source_excerpt
+        if via:
+            claims.append(ClaimOnSegment(
+                claim_id=claim.id, text=claim.text, curation_state=claim.curation_state.value,
+                confidence=claim.confidence, via=via, excerpt=excerpt,
+            ))
+
+    mentions: list[MentionOnSegment] = []
+    for entity in db.query_json_list_intersects(KnowledgeEntity, "source_document_ids", [segment.document_id]):
+        if entity.merged_into_id is not None:
+            continue  # a merged entity speaks through the one it was merged into
+        support = next((s for s in entity.source_supports if _names(s.source_anchor, segment_id)), None)
+        if support is not None:
+            mentions.append(MentionOnSegment(
+                entity_id=entity.id, name=entity.canonical_name, entity_type=entity.entity_type.value,
+                excerpt=support.source_excerpt,
+            ))
+
+    claims.sort(key=lambda c: (c.via != "anchor", c.text))
+    mentions.sort(key=lambda m: m.name)
+    return SegmentStatementsResponse(segment_id=segment_id, claims=claims, mentions=mentions)
