@@ -415,6 +415,7 @@ extension ReadingPaneView {
                 onPageSelected: isPinned ? { _ in } : onPageSelected,
                 scrollSync: scrollSync,
                 zoom: webZoom,
+                onPinchZoom: { webZoom = $0 },
                 externalActiveTab: tab,
                 // Only the Knowledge tab owns the sub-mode. A tab change published
                 // while the transcript is showing must not silently rewrite it.
