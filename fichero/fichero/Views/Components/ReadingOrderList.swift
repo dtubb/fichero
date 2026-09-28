@@ -99,6 +99,7 @@ struct ReadingOrderList: View {
         } label: {
             Label(title, systemImage: icon).labelStyle(.iconOnly)
         }
+        .accessibilityLabel(title)
         .keyboardShortcut(ReadingOrderListKeys.shortcut(key, listFocused: listFocused))
         .help("\(title) (⌥⌘\(Self.keyName(key)))")
         .accessibilityIdentifier("readingOrder.\(title)")
