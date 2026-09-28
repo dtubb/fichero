@@ -62,7 +62,7 @@ def test_a_digit_only_line_takes_its_pages_direction(db, client):
     assert _directions_by_text(client, doc_id)["2"] == {"rtl"}     # and the Reader says the same
     page = _view(client, doc_id)[0]["pages"][0]
     bases = {page["content"][l["char_start"]:l["char_end"]]: l.get("direction_basis") for l in page["lines"]}
-    assert "no letters" in bases["2"]                               # and says it was inherited
+    assert bases["2"].startswith("inherited from the ") and "no letters" in bases["2"]
     assert sum(1 for b in bases.values() if b) == 1                 # only that line
 
 
@@ -73,7 +73,17 @@ def test_a_latin_folio_number_keeps_its_own_direction(db, client):
     assert _directions_by_text(client, doc_id)["1v"] == {"ltr"}
 
 
-def test_neutrals_between_and_alone():
-    assert settle_neutral_directions(["rtl", "ltr", "rtl"], [False, True, False]) == ["rtl", "rtl", "rtl"]
-    assert settle_neutral_directions(["ltr", "rtl"], [True, False]) == ["rtl", "rtl"]      # first: the next
-    assert settle_neutral_directions(["ltr", "ltr"], [True, True]) == ["ltr", "ltr"]      # nothing to take
+def test_the_block_first_then_the_page():
+    """As ruled: the block's direction (most of its characters), else the page's -- not the
+    nearest line. `1773` heading a block of three short English notes and nine Persian lines is
+    the block's rtl, though the line after it is English."""
+    rtl, ltr = "rtl", "ltr"
+    got, basis = settle_neutral_directions(
+        [ltr, ltr, ltr, rtl, rtl], [True, False, False, False, False],
+        ["b", "b", "b", "b", "b"], [4, 13, 6, 40, 40])
+    assert (got[0], basis[0]) == (rtl, "block")
+    got, basis = settle_neutral_directions(
+        [ltr, rtl, rtl], [True, False, False], ["numbers", "text", "text"], [1, 30, 30])
+    assert (got[0], basis[0]) == (rtl, "page")                  # alone in its zone: the page's
+    got, basis = settle_neutral_directions([ltr, ltr], [True, True], ["b", "b"], [1, 1])
+    assert (got, basis) == ([ltr, ltr], [None, None])           # nothing to inherit

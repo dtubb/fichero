@@ -780,10 +780,11 @@ def _why_omitted(
 #: it at render, and the map stores none again -- 3 stays, a bump is never undone.
 #: 4: a line with no direction of its own (digits) takes its neighbours' (#5172).
 #: 5: the stored line map carries each line's counting reading, `representation_id` (#5154).
-DERIVATION_VERSION = 5
+#: 6: a line with no letters takes its BLOCK's direction, else its page's (#5172, as ruled).
+DERIVATION_VERSION = 6
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
-DERIVATION_SOURCE_SHA256 = "edcebc5ace0161c726dc2d735d8c0ca41f62e92207390e7668cfbcf6f6e5d491"
+DERIVATION_SOURCE_SHA256 = "cb942546b66e6dd0b869cbffb8f127dda7e63d2f46e1d824c1f8765b6adc31d4"
 
 
 def derivation_source_digest() -> str:
@@ -817,20 +818,38 @@ def _has_no_direction_of_its_own(text: str | None, level: str | None) -> bool:
     return level is None and bool((text or "").strip()) and first_strong_direction(text) is None
 
 
-def settle_neutral_directions(directions: list[str | None], neutral: list[bool]) -> list[str | None]:
-    """Each neutral line takes the direction of the line before it on the page, else the line after
-    (#5172: `1773` on a Persian page, `2` and `1` on an Aljamiado page came out `ltr`, so the page
-    was reported as having English lines). Digits have no direction of their own (Unicode bidi:
-    EN/AN are weak); the page around them has one. A page of nothing but neutrals keeps its
-    assumption. Shared by the derivation and the Reader's render, so the two cannot disagree."""
-    out = list(directions)
-    for index, is_neutral in enumerate(neutral):
-        if not is_neutral:
+def settle_neutral_directions(
+    directions: list[str | None],
+    neutral: list[bool],
+    blocks: list[str | None],
+    sizes: list[int],
+) -> tuple[list[str | None], list[str | None]]:
+    """Each neutral line takes its BLOCK's direction, else its PAGE's (#5172, ruled 2026-09-28):
+    the direction most of the other lines' characters have, in its region, else on the page.
+    `1773` heads a Persian block (under three English notes and nine Persian lines) and is
+    `rtl`; `2` alone in a numbering zone on a Syriac folio takes the page's `rtl`. Digits have no
+    direction of their own (Unicode bidi: EN/AN are weak); the text around them has one. Returns
+    the directions and, per line, where an inherited one came from ("block" / "page") or None.
+    Shared by the derivation and the Reader's render, so the two cannot disagree."""
+
+    def dominant(indexes: list[int]) -> str | None:
+        weight: dict[str, int] = {}
+        for i in indexes:
+            if not neutral[i] and directions[i]:
+                weight[directions[i]] = weight.get(directions[i], 0) + sizes[i]
+        return max(weight, key=lambda d: weight[d]) if weight else None
+
+    everything = list(range(len(directions)))
+    page = dominant(everything)
+    out, basis = list(directions), [None] * len(directions)
+    for index in everything:
+        if not neutral[index]:
             continue
-        before = next((out[i] for i in range(index - 1, -1, -1) if not neutral[i]), None)
-        after = next((directions[i] for i in range(index + 1, len(directions)) if not neutral[i]), None)
-        out[index] = before or after or directions[index]
-    return out
+        block = dominant([i for i in everything if blocks[i] == blocks[index]]) if blocks[index] else None
+        chosen, where = (block, "block") if block else (page, "page")
+        if chosen:
+            out[index], basis[index] = chosen, where
+    return out, basis
 
 
 def _lines_are_vertical(rows: list[Segment], document: Any) -> bool | None:
@@ -1044,7 +1063,10 @@ def document_text(
 
     joined = " ".join(pieces)
 
-    settled = settle_neutral_directions([d for _r, d, _l, _s in span_directions], span_neutral)
+    settled, _basis = settle_neutral_directions(
+        [d for _r, d, _l, _s in span_directions], span_neutral,
+        [r for r, _d, _l, _s in span_directions], [sp.end - sp.start for _r, _d, _l, sp in span_directions],
+    )
     span_directions = [(r, d, l, sp) for (r, _d, l, sp), d in zip(span_directions, settled)]
     blocks: list[TextBlock] = []
     for region_id, direction, direction_level, span in span_directions:

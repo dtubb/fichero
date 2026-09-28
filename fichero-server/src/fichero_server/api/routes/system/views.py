@@ -649,20 +649,22 @@ def _with_directions(
     vertical = _lines_are_vertical(shapes, page)
     directions: list[str | None] = []
     neutral: list[bool] = []
+    blocks: list[str | None] = []
     for line in lines:
         row = rows.get(str(line["segment_id"]))
         text = content[int(line["char_start"]):int(line["char_end"])]
         direction, level = _direction_of(row, page, text, vertical) if row is not None else (None, None)
         directions.append(direction)
         neutral.append(row is not None and _has_no_direction_of_its_own(text, level))
-    settled = settle_neutral_directions(directions, neutral)
+        blocks.append(row.parent_segment_id if row is not None else None)
+    sizes = [int(line["char_end"]) - int(line["char_start"]) for line in lines]
+    settled, inherited = settle_neutral_directions(directions, neutral, blocks, sizes)
     return [
         {**line, "direction": direction,
-         # Said, not left to look like the line's own answer (#5172): an inherited direction is
-         # the neighbours', because the line has no letters to decide it.
-         **({"direction_basis": "inherited from the neighbouring lines: no letters, only digits or marks"}
-            if is_neutral and direction != own else {})}
-        for line, direction, own, is_neutral in zip(lines, settled, directions, neutral)
+         # Said, not left to look like the line's own answer (#5172): the line has no letters.
+         **({"direction_basis": f"inherited from the {where}: no letters, only digits or marks"}
+            if where else {})}
+        for line, direction, where in zip(lines, settled, inherited)
     ]
 
 
