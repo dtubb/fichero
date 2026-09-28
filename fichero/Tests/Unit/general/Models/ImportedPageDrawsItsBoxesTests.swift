@@ -25,6 +25,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         nonisolated(unsafe) static var undone: [String] = []
         /// What `POST /api/actions/invoke` answers with; 409 is the engine's stale refusal (#5001).
         nonisolated(unsafe) static var invokeStatus = 200
+        /// The engine out of reach for an invoke: the transport fails, no answer at all (13b out of reach).
+        nonisolated(unsafe) static var invokeUnreachable = false
         /// The `result` an invoke answers with (the engine's is per action; `{}` unless a test says).
         nonisolated(unsafe) static var invokeResult = "{}"
 
@@ -108,6 +110,10 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
 
         override func startLoading() {
             let path = request.url?.path ?? ""
+            if Self.invokeUnreachable, path == "/api/actions/invoke" {
+                client?.urlProtocol(self, didFailWithError: URLError(.cannotConnectToHost))
+                return
+            }
             let isAnnotation = path == "/api/annotations"
             // Only a CREATE is what is under test: a GET that re-reads the list has no body, and
             // recording it made the highlight test parse empty data when a store reloaded.
@@ -212,6 +218,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             invoked = []
             undone = []
             invokeStatus = 200
+            invokeUnreachable = false
             invokeResult = "{}"
             handsReply = Data()
             attributionsReply = Data()
@@ -1516,7 +1523,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         for body in posted {
             let edit = try XCTUnwrap(ReaderTextEdit.message(from: body), "the app reads every message the page posts")
             let answer = await runner.apply(edit)
-            answers.append(try XCTUnwrap(answer))
+            answers.append(try XCTUnwrap(answer).script)
         }
 
         let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
@@ -1712,6 +1719,50 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let sent = try RecordedEngine.placed.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
         XCTAssertEqual(sent.compactMap { $0["segment_id"] as? String }, Array(ids.prefix(2)))
         XCTAssertEqual(sent.compactMap { $0["at_end"] as? Bool }, [true, true], "at the flow's end")
+    }
+
+    /// `source.textedit.stale-keeps-your-words`, "out of reach of the engine the text is read-only" (13b):
+    /// the served page's own typing message (the joint's recording) goes through the bridge's parse and
+    /// `ReaderTextEditRunner` while the engine cannot be reached -- the transport fails, no HTTP answer --
+    /// and the page is told `unreachable: true` with short words, never `ok`, and the coordinator is told
+    /// why so it can tell the page the engine is gone and watch for its return. An HTTP refusal is not
+    /// "out of reach". Breaks if a lost connection reads as a refusal (the page would re-read from an
+    /// engine that is not there) or as success (the words would be dropped as sent).
+    func testATypedLineThatCannotReachTheEngineIsHeldNotLost() async throws {
+        _ = try await loadedStore()
+        let posted = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.page-messages.json")
+        )) as? [[String: Any]])
+        let client = try XCTUnwrap(storeClient)
+        let runner = ReaderTextEditRunner(
+            actionsService: ActionsService(client: client), segmentService: SegmentService(ficheroClient: client),
+            undoManager: nil, refreshPage: { _ in XCTFail("no engine to re-read from") }
+        )
+        RecordedEngine.invokeUnreachable = true
+        let typed = try XCTUnwrap(ReaderTextEdit.message(from: posted[0]))
+        let fetched = await runner.apply(typed)
+        let answer = try XCTUnwrap(fetched)
+        XCTAssertEqual(answer.unreachableReason, "connection refused")
+        let told = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: Data(answer.script.dropFirst("window.fichero?.lineCommitted?.(".count).dropLast(2).utf8)
+        ) as? [String: Any])
+        XCTAssertEqual(told["unreachable"] as? Bool, true)
+        XCTAssertEqual(told["ok"] as? Bool, false)
+        XCTAssertEqual(told["segmentId"] as? String, "seg-0003")
+        XCTAssertEqual(ReaderTextEdit.engineStateScript(reachable: false, reason: "connection refused"),
+                       #"window.fichero?.engineState?.({"reachable":false,"reason":"connection refused"});"#)
+        XCTAssertEqual(ReaderTextEdit.engineStateScript(reachable: true), #"window.fichero?.engineState?.({"reachable":true});"#)
+        XCTAssertNil(ReaderTextEdit.unreachableReason(APIError.httpError(statusCode: 409, message: "stale")),
+                     "a refusal reached the engine: not out of reach")
+
+        // The engine comes back on the third ask: the page is told once, and asked about nothing more.
+        var asks = 0
+        var saidToPage: [String] = []
+        await ReaderTextEdit.waitForReturn(
+            isBack: { asks += 1; return asks == 3 }, pause: {}, tell: { saidToPage.append($0) }
+        )
+        XCTAssertEqual(asks, 3)
+        XCTAssertEqual(saidToPage, [ReaderTextEdit.engineStateScript(reachable: true)], "told once, when it answers")
     }
 
     /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the

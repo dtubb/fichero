@@ -6,13 +6,20 @@ import Foundation
 /// Answers the script that tells the page how it went, or nil when there is nothing to say.
 @MainActor
 struct ReaderTextEditRunner {
+    /// What to tell the page, and -- when the write never reached the engine -- why, so the
+    /// coordinator can tell the page the engine is out of reach and watch for its return.
+    struct Answer {
+        let script: String
+        var unreachableReason: String?
+    }
+
     let actionsService: ActionsService
     let segmentService: SegmentService
     let undoManager: UndoManager?
     /// Re-reads the page's text on screen (the coordinator's web view); a no-op in a test.
     let refreshPage: @MainActor (String) async -> Void
 
-    func apply(_ edit: ReaderTextEdit.Message) async -> String? {
+    func apply(_ edit: ReaderTextEdit.Message) async -> Answer? {
         let store = SegmentStore.shared(for: segmentService)
         let pageId = edit.pageId
         let refreshPage = refreshPage
@@ -51,17 +58,30 @@ struct ReaderTextEditRunner {
                     afterChange: { await refreshPage(pageId) }
                 )
             }
+        } catch let error where ReaderTextEdit.unreachableReason(error) != nil {
+            return unreachable(edit, reason: ReaderTextEdit.unreachableReason(error) ?? "engine unreachable")
         } catch APIError.httpError(409, _) {
             // Stale (#5001): another reading counts now. Nothing was written; tell the page what counts
             // so it keeps the typed words and offers Keep Mine / Take Theirs / Compare. No refresh. A
             // split or join refused as stale has no typed words: a plain refusal.
-            return await ReaderTextEdit.staleAnswer(to: edit, readings: segmentService)
-                ?? ReaderTextEdit.committedScript(pageId: pageId, segmentId: edit.segmentId, reason: "stale")
+            return Answer(script: await ReaderTextEdit.staleAnswer(to: edit, readings: segmentService)
+                ?? ReaderTextEdit.committedScript(pageId: pageId, segmentId: edit.segmentId, reason: "stale"))
         } catch {
             reason = String(describing: error)
         }
-        return ReaderTextEdit.committedScript(
+        return Answer(script: ReaderTextEdit.committedScript(
             pageId: pageId, segmentId: edit.segmentId, reason: reason, representationId: made
-        )
+        ))
+    }
+
+    /// Out of reach (13b): nothing was written. A typed run goes back to held on the page; a split or
+    /// join is a plain refusal. Either way the coordinator is told why, and says the engine is gone.
+    private func unreachable(_ edit: ReaderTextEdit.Message, reason: String) -> Answer {
+        let script = if case .edited = edit {
+            ReaderTextEdit.unreachableScript(pageId: edit.pageId, segmentId: edit.segmentId, reason: reason)
+        } else {
+            ReaderTextEdit.committedScript(pageId: edit.pageId, segmentId: edit.segmentId, reason: reason)
+        }
+        return Answer(script: script, unreachableReason: reason)
     }
 }
