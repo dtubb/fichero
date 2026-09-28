@@ -429,31 +429,53 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
         }
     }
 
+    /// The controls, collapsing like a macOS toolbar when the pane is narrow (#5213): first the shared chrome
+    /// (pin, split, tools) folds into a "…" overflow menu, then the pane's own controls join it. Close and the
+    /// kind switcher (the identity capsule) never fold, and the crumbs degrade on their own ladder, so the
+    /// head's narrowest form is that essential set -- it never holds the window wider than it.
+    /// AnyView per rung is load-bearing (the #4331 rule, as the crumb ladder).
     private var controlsCapsule: some View {
         capsule {
-            HStack(spacing: 6) {
-                controls()
-                // Shared chrome, automatic: the pin TOGGLE (when the pane
-                // supplies its state) and the split "+" (from the
-                // environment).
-                pinToggle
-                PaneChromeMenu(splitActions: canSplit ? splitAxisActions : nil)
-                if Tools.self != EmptyView.self {
-                    Divider().frame(height: PaneHeadMetrics.dividerHeight)
-                    Button {
-                        withAnimation(.snappy(duration: 0.16)) { showsTools.toggle() }
-                    } label: {
-                        Image(systemName: toolsIcon)
-                    }
-                    .buttonStyle(.borderless)
-                    // Reads as toggled while its row is out (the pencil case
-                    // must show it is armed — Daniel, 2026-08-29).
-                    .foregroundStyle(showsTools ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.primary))
-                    .accessibilityLabel(showsTools ? "Hide \(toolsHelp)" : "Show \(toolsHelp)")
-                    .help(showsTools ? "Hide the \(toolsHelp)" : "Show the \(toolsHelp)")
-                }
+            ViewThatFits(in: .horizontal) {
+                AnyView(HStack(spacing: 6) { controls(); chromeControls })
+                AnyView(HStack(spacing: 6) { controls(); overflowMenu { chromeControls } })
+                AnyView(overflowMenu { controls(); chromeControls })
             }
         }
+    }
+
+    /// Shared chrome, automatic: the pin TOGGLE (when the pane supplies its state), the split "+" (from the
+    /// environment), and the tools row's toggle.
+    @ViewBuilder
+    private var chromeControls: some View {
+        pinToggle
+        PaneChromeMenu(splitActions: canSplit ? splitAxisActions : nil)
+        if Tools.self != EmptyView.self {
+            Divider().frame(height: PaneHeadMetrics.dividerHeight)
+            Button {
+                withAnimation(.snappy(duration: 0.16)) { showsTools.toggle() }
+            } label: {
+                Image(systemName: toolsIcon)
+            }
+            .buttonStyle(.borderless)
+            // Reads as toggled while its row is out (the pencil case
+            // must show it is armed — Daniel, 2026-08-29).
+            .foregroundStyle(showsTools ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.primary))
+            .accessibilityLabel(showsTools ? "Hide \(toolsHelp)" : "Show \(toolsHelp)")
+            .help(showsTools ? "Hide the \(toolsHelp)" : "Show the \(toolsHelp)")
+        }
+    }
+
+    /// The "…" that holds what no longer fits.
+    private func overflowMenu<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        Menu { content() } label: { Image(systemName: "ellipsis.circle") }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("More controls")
+            .accessibilityLabel("More controls")
+            .accessibilityIdentifier(PaneHeadMetrics.overflowIdentifier)
     }
 
     /// ONE capsule treatment, so every zone reads as the same material floating
@@ -485,4 +507,6 @@ enum PaneHeadMetrics {
     static let capsulePadding: CGFloat = 8
     static let capsuleVerticalPadding: CGFloat = 3
     static let dividerHeight: CGFloat = 14
+    /// The overflow "…" menu's accessibility identifier (#5213).
+    static let overflowIdentifier = "PaneHeadOverflow"
 }
