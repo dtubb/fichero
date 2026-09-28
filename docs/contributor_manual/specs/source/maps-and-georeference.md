@@ -376,12 +376,19 @@ PARTIAL: no screen offers the choice.
   image of the page only through a recorded alignment, and otherwise Fichero says they do not.
 
 A segment's place in the world
-- `source.geo.world-shape` — **[GAP]** (#4933) on a georeferenced image any segment's world shape
+- `source.geo.world-shape` — **[PARTIAL]** (#4933) on a georeferenced image any segment's world shape
   is answered with its CRS, the pass and transform version used and an error estimate, and is
   never stored as the segment's truth.
-- `source.geo.outside-the-mask` — **[GAP]** (#4933) a segment outside the map's mask is answered
+  **Built 2026-09-28 (#5122):** `GET /api/georeference/segments/{segment_id}/world-shape` answers
+  an RFC 7946 geometry in EPSG:4326 with the pass, transformation, `gcp_set_version` and the fit's
+  RMS as `error_m`, worked out on every read (`fichero-server/tests/unit/api/test_a_segments_place_in_the_world.py::test_a_label_at_a_gcps_pixel_is_at_that_gcps_place`,
+  `::test_a_corrected_gcp_moves_the_answer`). PARTIAL: with several georeferencing passes on one
+  image the caller must name one (the working-pass rule is not applied to them yet); no screen.
+- `source.geo.outside-the-mask` — **[PARTIAL]** (#4933) a segment outside the map's mask is answered
   "outside the map", never extrapolated.
-
+  **Built 2026-09-28 (#5122):** a segment not wholly inside any mask is answered
+  `outside_the_map: true` with no geometry (`fichero-server/tests/unit/api/test_a_segments_place_in_the_world.py::test_the_margin_is_outside_the_map_not_extrapolated`).
+  PARTIAL: no screen shows it.
 The coordinate reference system
 - `source.geo.crs-explicit` — **[PARTIAL]** (#4933) every coordinate arrives with its CRS as an EPSG
   code or WKT2, and a write that names no CRS is refused (or held as unknown, below).

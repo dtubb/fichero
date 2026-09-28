@@ -32,7 +32,9 @@ from fichero_server.models.geo import (
     TooFewControlPoints,
     UnknownTransformation,
     WorkedOutTransform,
+    inside_polygon,
     residuals,
+    world_points,
 )
 from fichero_server.models.segments import SegmentPass
 from fichero_server.models.typed_links import TypedLink
@@ -195,5 +197,90 @@ async def get_transform(
     """`GET /api/georeference/passes/{pass_id}/transform` -- worked out now, with residuals."""
     try:
         return worked_out_transform(db, pass_id, mask_id)
+    except (LookupError, ValueError) as exc:
+        raise _http(exc) from exc
+
+
+class WorldShape(BaseModel):
+    """A segment's place in the world, WORKED OUT through a georeferencing pass and never stored
+    as the segment's truth (`source.geo.world-shape`). `outside_the_map` instead of a shape when
+    any of it lies outside the map's mask (`source.geo.outside-the-mask`): never extrapolated."""
+
+    segment_id: str
+    pass_id: str
+    mask_id: str | None = None
+    transformation: str
+    gcp_set_version: str
+    crs: str = "EPSG:4326"
+    #: RFC 7946 geometry, lon/lat, or None when outside the map.
+    geometry: dict[str, Any] | None = None
+    #: The fit's RMS residual on the ground: how far off the answer may be.
+    error_m: float
+    outside_the_map: bool = False
+    reason: str | None = None
+
+
+def _segment_shape(segment: Segment) -> tuple[str, list[list[float]]]:
+    """(GeoJSON type, normalised points) for a segment's own shape."""
+    anchor = segment.anchor
+    for shape in anchor.shapes or []:
+        kind = str(getattr(shape.kind, "value", shape.kind))
+        if kind == "point" and shape.points:
+            return "Point", [shape.points[0]]
+        if kind == "path" and shape.points:
+            return "LineString", shape.points
+        if kind in ("polygon", "rect") and shape.points:
+            return "Polygon", shape.points
+    if anchor.polygon:
+        return "Polygon", anchor.polygon
+    if anchor.rect:
+        x, y, w, h = anchor.rect
+        return "Polygon", [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]
+    raise ValueError(f"segment {segment.id} has no shape on the image")
+
+
+def world_shape(db: Database, segment_id: str, pass_id: str | None = None) -> WorldShape:
+    segment = db.get(Segment, segment_id)
+    if segment is None or segment.deleted_at is not None:
+        raise LookupError(f"Segment not found: {segment_id}")
+    if pass_id is None:
+        georef = [p for p in db.query(SegmentPass, document_id=segment.document_id)
+                  if p.transformation and p.deleted_at is None]
+        if not georef:
+            raise ValueError("this image is not georeferenced: no pass on it has a transformation")
+        if len(georef) > 1:
+            raise ValueError(f"{len(georef)} georeferencing passes on this image; name one (pass_id): "
+                             + ", ".join(p.id for p in georef))
+        pass_id = georef[0].id
+    pass_row = _live_pass(db, pass_id)
+    if pass_row.document_id != segment.document_id:
+        raise ValueError(f"pass {pass_id} georeferences another image")
+    kind, points = _segment_shape(segment)
+    masks = [db.get(Segment, m) for m in _masks(db, pass_row)]
+    containing = [m for m in masks if m is not None and m.anchor.polygon
+                  and all(inside_polygon((x, y), m.anchor.polygon) for x, y in points)]
+    transform = worked_out_transform(db, pass_row.id, containing[0].id if containing else (masks[0].id if len(masks) == 1 else None))
+    common = {"segment_id": segment.id, "pass_id": pass_row.id, "transformation": transform.transformation,
+              "gcp_set_version": transform.gcp_set_version, "error_m": transform.rms_m}
+    if masks and not containing:
+        return WorldShape(**common, mask_id=None, outside_the_map=True,
+                          reason="the segment is not wholly inside any of this sheet's maps (masks)")
+    document = db.get(Document, segment.document_id)
+    width, height = document.metadata["width"], document.metadata["height"]
+    usable, _not_used, _version = control_points(db, pass_row, transform.mask_id)
+    lonlat = [list(p) for p in world_points(transform.transformation, usable, [(x * width, y * height) for x, y in points])]
+    coordinates: Any = lonlat[0] if kind == "Point" else lonlat if kind == "LineString" else [lonlat + [lonlat[0]]]
+    return WorldShape(**common, mask_id=transform.mask_id, geometry={"type": kind, "coordinates": coordinates})
+
+
+@router.get("/segments/{segment_id}/world-shape", response_model=WorldShape)
+async def get_world_shape(
+    segment_id: str,
+    pass_id: Optional[str] = Query(None, description="The georeferencing pass, when the image has several"),
+    db: Database = Depends(get_library_database),
+) -> WorldShape:
+    """`GET /api/georeference/segments/{segment_id}/world-shape` -- worked out now."""
+    try:
+        return world_shape(db, segment_id, pass_id)
     except (LookupError, ValueError) as exc:
         raise _http(exc) from exc

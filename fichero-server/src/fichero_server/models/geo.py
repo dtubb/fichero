@@ -159,18 +159,48 @@ class TooFewControlPoints(ValueError):
         )
 
 
-def _local_metres(worlds: list[tuple[float, float]]):
-    """(to_metres, centre): lon/lat -> x/y metres on a plane about the points' centre."""
+def _local_plane(worlds: list[tuple[float, float]]):
+    """(to_metres, to_lonlat): lon/lat <-> x/y metres on a plane about the points' centre."""
     import math
 
     lon0 = sum(p[0] for p in worlds) / len(worlds)
     lat0 = sum(p[1] for p in worlds) / len(worlds)
     k = math.pi / 180 * _EARTH_RADIUS_M
+    c = math.cos(math.radians(lat0))
 
     def to_metres(lon: float, lat: float) -> tuple[float, float]:
-        return ((lon - lon0) * k * math.cos(math.radians(lat0)), (lat - lat0) * k)
+        return ((lon - lon0) * k * c, (lat - lat0) * k)
 
-    return to_metres
+    def to_lonlat(x: float, y: float) -> tuple[float, float]:
+        return (lon0 + x / (k * c), lat0 + y / k)
+
+    return to_metres, to_lonlat
+
+
+def _local_metres(worlds: list[tuple[float, float]]):
+    return _local_plane(worlds)[0]
+
+
+def world_points(transformation: str, gcps, pixels: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """Pixels on the image to WGS 84 (lon, lat) through the transform worked out from `gcps`
+    ([(id, pixel, world), ...]) -- the same fit the residuals report on."""
+    to_metres, to_lonlat = _local_plane([g[2] for g in gcps])
+    forward = fit(transformation, [g[1] for g in gcps], [to_metres(*g[2]) for g in gcps])
+    return [tuple(round(v, 9) for v in to_lonlat(float(x), float(y))) for x, y in forward(pixels)]
+
+
+def inside_polygon(point: tuple[float, float], polygon: list[list[float]]) -> bool:
+    """Even-odd rule; a point on an edge counts as inside."""
+    x, y = point
+    inside = False
+    for (x1, y1), (x2, y2) in zip(polygon, polygon[1:] + polygon[:1]):
+        if (y1 > y) != (y2 > y):
+            crossing = x1 + (y - y1) * (x2 - x1) / (y2 - y1)
+            if x == crossing:
+                return True
+            if x < crossing:
+                inside = not inside
+    return inside
 
 
 def _poly_terms(x, y, order: int):
