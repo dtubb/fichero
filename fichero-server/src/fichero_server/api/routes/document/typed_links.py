@@ -113,11 +113,25 @@ def _action_link_create(db: Database, params: TypedLinkCreateParams, ctx: Action
     """Link two things, with a type this library knows (`source.link.typed`)."""
     if params.from_id == params.to_id:
         raise _as_http_error(LinkNeedsTwoEnds(params.from_id))
+    known_kinds = {kind.value for kind in LinkEndKind}
     for end_id, kind in ((params.from_id, params.from_kind), (params.to_id, params.to_kind)):
+        if kind not in known_kinds:
+            # An end of no known kind was stored as given; a reader could not tell what it named.
+            raise HTTPException(status_code=422, detail=f"unknown link end kind {kind!r}; one of {', '.join(sorted(known_kinds))}")
         if kind == LinkEndKind.segment.value:
             assert_not_provisional(end_id, what="segment id")
             if db.get(Segment, end_id) is None:
                 raise HTTPException(status_code=404, detail=f"Segment not found: {end_id}")
+        elif kind == LinkEndKind.entity.value:
+            # A place segment `names` its place ENTITY (maps D, `source.geo.place-segment-names-entity`):
+            # a live one -- a merged entity answers with the one it was merged into.
+            from fichero_server.models.knowledge import KnowledgeEntity
+
+            entity = db.get(KnowledgeEntity, end_id)
+            if entity is None:
+                raise HTTPException(status_code=404, detail=f"Entity not found: {end_id}")
+            if entity.merged_into_id:
+                raise HTTPException(status_code=422, detail=f"entity {end_id} was merged into {entity.merged_into_id}; link that one")
     try:
         resolved = assert_known_link_type(db, params.link_type)
     except ValueError as refusal:

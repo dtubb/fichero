@@ -436,8 +436,13 @@ The coordinate reference system
   build time and never downloads code at run time.
 
 Places and gazetteers
-- `source.geo.place-segment-names-entity` — **[GAP]** (#4933) a segment that names a place is
+- `source.geo.place-segment-names-entity` — **[PARTIAL]** (#4933) a segment that names a place is
   joined to a KG place entity by a typed `names` link with a maker and certainty.
+  **Built 2026-09-28 (maps D1):** a typed link's end may be a knowledge-graph `entity` (and a
+  `uri`); `typed_link.create` refuses an entity that does not exist, one merged into another (naming
+  the survivor), and an end kind it does not know (it stored any string before). The real Syriac
+  line l_77, "in the land of Palestine", `names` its place entity with a certainty, seen from both
+  ends (`fichero-server/tests/unit/api/test_a_place_segment_names_its_entity.py`). PARTIAL: no screen.
 - `source.geo.gazetteer-authorities` — **[GAP]** (#4933) WHG, Pleiades, Getty TGN and GeoNames are
   authorities beside Wikidata, each identifier is stored in its canonical URI form, and one that
   does not fit its authority's pattern is refused.
