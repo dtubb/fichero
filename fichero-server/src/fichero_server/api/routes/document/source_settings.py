@@ -358,6 +358,20 @@ class ResolvedSourceSettings(BaseModel):
     settings: list[SettingResolution]
 
 
+def _text_of(db: Database, segment: Segment | None, document: Document | None) -> str | None:
+    """The segment's counting reading, else the page's text: what the letters rung reads."""
+    if segment is not None:
+        from fichero_server.api.routes.document.segment_readings import counting_by_kind, readings_of_segment
+
+        items = readings_of_segment(db, segment.id)
+        by_id = {item.id: item.content for item in items}
+        for answer in counting_by_kind(db, segment.id, items).values():
+            if answer.representation_id in by_id:
+                return by_id[answer.representation_id]
+        return None
+    return getattr(document, "page_content", None) or None
+
+
 @router.get("/resolve", response_model=ResolvedSourceSettings)
 async def resolve_source_settings(
     document_id: Optional[str] = Query(None, description="The document, when no segment"),
@@ -382,11 +396,17 @@ async def resolve_source_settings(
             raise HTTPException(status_code=404, detail=f"Document not found: {document_id}")
 
     project = project_facts(db)
-    language = resolve_language(document=document, segment=segment, detect=False)
-    script = resolve_script(segment=segment, document=document, project=project)
-    direction = resolve_direction(
-        segment=segment, document=document, project=project, script=script.language
+    # The TEXT is evidence too (#5176): with nothing stated, a Syriac line's letters name its
+    # script, and its script's letters its direction -- the same rungs the page text's
+    # derivation uses (`resolve_direction(text=)`), not a second implementation. Language is
+    # never guessed from the script; without a statement it is "not determined", naming it.
+    text = _text_of(db, segment, document)
+    script = resolve_script(segment=segment, document=document, project=project, text=text)
+    language = resolve_language(
+        document=document, segment=segment, detect=False,
+        script=script.language if script.source == SOURCE_DETECTED else None,
     )
+    direction = resolve_direction(segment=segment, document=document, project=project, text=text)
     encoding = resolve_encoding(
         db, segment=segment, document=document, project=project, script=script.language
     )

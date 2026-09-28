@@ -39,7 +39,10 @@ substitution rule).
 
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any, Literal
 
 # Resolution statuses. RESOLVED carries a concrete language; UNKNOWN means the
@@ -447,6 +450,46 @@ def _stated_fact(
     return None
 
 
+#: Unicode character names whose first word is not their script's ISO 15924 English name.
+_SCRIPT_NAME_ALIASES = {"cjk": "Hani", "canadian": "Cans"}
+
+
+@lru_cache(maxsize=1)
+def _script_codes_by_first_word() -> dict[str, str]:
+    """`{first word of a script's English name, lowercased: ISO 15924 code}`, from the ISO 15924
+    list the PAGE schema already ships (`pagexml._schema_vocabularies`), never a hand copy. Where
+    several codes share a first word (`Syrc - Syriac`, `Syre - Syriac (Estrangelo variant)`), the
+    plain one -- the name that IS the word -- wins."""
+    from fichero_server.formats.pagexml import _schema_vocabularies
+
+    table: dict[str, str] = {}
+    for code, value in sorted(_schema_vocabularies()[1].items()):
+        name = value.split(" - ", 1)[-1].strip()
+        word = re.split(r"[\s,(]", name, maxsplit=1)[0].lower()
+        if word and (word not in table or name.lower() == word):
+            table[word] = code
+    return {**table, **_SCRIPT_NAME_ALIASES}
+
+
+def script_of_text(text: str | None) -> str | None:
+    """The ISO 15924 code most of the text's LETTERS are written in, or None (#5176).
+
+    A Unicode letter's name starts with its script ("SYRIAC LETTER ALAPH", "LATIN SMALL LETTER
+    A", "CJK UNIFIED IDEOGRAPH-4E00"), which is the stdlib's only view of the Script property.
+    Evidence about the text, not a statement about the source: the rung that uses it says so."""
+    import unicodedata
+
+    counts: dict[str, int] = {}
+    table = _script_codes_by_first_word()
+    for ch in text or "":
+        if not ch.isalpha():
+            continue
+        code = table.get(unicodedata.name(ch, "").split(" ", 1)[0].lower())
+        if code:
+            counts[code] = counts.get(code, 0) + 1
+    return max(counts, key=lambda code: counts[code]) if counts else None
+
+
 def resolve_script(
     *,
     requested: str | None = None,
@@ -454,8 +497,13 @@ def resolve_script(
     segment: Any = None,
     document: Any = None,
     project: Any = None,
+    text: str | None = None,
 ) -> LanguageResolution:
     """Which script a thing is written in, and which rung said so (#4938).
+
+    With nothing stated at any rung and `text` given, the text's own LETTERS answer (#5176):
+    `source=detected`, basis "from the letters of its text". A Syriac line said "not
+    determined" while its reading was Syriac.
 
     A SIMPLER cascade than language's, deliberately, and not a copy of it:
     there is no script policy to consult and no script detector to run, so the
@@ -500,6 +548,15 @@ def resolve_script(
         if stated is not None:
             return stated
 
+    from_letters = script_of_text(text)
+    if from_letters:
+        return LanguageResolution(
+            language=from_letters,
+            status=RESOLVED,
+            source=SOURCE_DETECTED,
+            basis=f"from the letters of its text: most are {from_letters}",
+            level=None,
+        )
     return LanguageResolution(
         language=None,
         status=UNKNOWN,
@@ -549,8 +606,15 @@ def resolve_language(
     text: str = "",
     policy: LanguagePolicy | None = None,
     detect: bool = True,
+    script: str | None = None,
 ) -> LanguageResolution:
     """Resolve the language to use for one document, or one segment of one.
+
+    `script` (#5176): the script the text's letters are in, when the caller knows it. Where the
+    legacy path would fall back to English, a text whose script is known is answered "not
+    determined" and names the script instead -- a Syriac line is never a confident English.
+    A language is never GUESSED from a script: Syriac script is Syriac, Aramaic, Arabic
+    (Garshuni) or Malayalam (Suriyani Malayalam).
 
     Precedence, highest first:
 
@@ -667,6 +731,13 @@ def resolve_language(
                 status=RESOLVED,
                 source=SOURCE_DETECTED,
                 basis="detected from the text (no language policy is set)",
+            )
+        if script:
+            return LanguageResolution(
+                language=None,
+                status=UNKNOWN,
+                source=NEVER_DETERMINED,
+                basis=f"not determined: nothing states a language and none was detected; its letters are {script}",
             )
         return LanguageResolution(
             language="English",
@@ -930,11 +1001,16 @@ def resolve_direction(
         if stated is not None:
             return stated
 
+    script_from_letters = False
     if script is None:
         resolved_script = resolve_script(
-            reading=reading, segment=segment, document=document, project=project
+            reading=reading, segment=segment, document=document, project=project, text=text
         )
         script = resolved_script.language
+        # A script READ FROM THE LETTERS (#5176) is the letters' evidence, not a statement: the
+        # letters' own bidi class still decides the direction below, exactly as before it was
+        # named, so this changes the basis a caller sees and not the answer.
+        script_from_letters = resolved_script.source == SOURCE_DETECTED
 
     if lines_are_vertical and (
         script_may_be_vertical(script) or (script is None and text_may_be_vertical(text))
@@ -952,10 +1028,14 @@ def resolve_direction(
             level=None,
         )
 
-    from_text = None if script else first_strong_direction(text)
+    from_text = first_strong_direction(text) if (script is None or script_from_letters) else None
     if from_text is not None:
         derived = from_text
-        basis = "no script is recorded, so the text's first strongly directional character decides (Unicode bidi P2)"
+        basis = (
+            f"from the letters of its text ({script}): the first strongly directional character decides (Unicode bidi P2)"
+            if script else
+            "no script is recorded, so the text's first strongly directional character decides (Unicode bidi P2)"
+        )
     else:
         derived = DIRECTION_RTL if script in _RTL_SCRIPTS else DIRECTION_LTR
         basis = (
