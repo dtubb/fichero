@@ -126,3 +126,17 @@ def test_health_never_opens_a_library_it_names(tmp_path: Path) -> None:
     assert response.status_code == 200, response.text
     assert response.json()["status"] == "healthy"
     assert not db_manager.is_open(library), "a health check opened the library"
+
+
+def test_health_never_walks_the_mlx_runtime(monkeypatch) -> None:
+    """#5228: each health call cost ~1.1 s -- `status()` adds up the MLX runtime's disk usage by
+    walking every file (22,869 on the maintainer's Mac) -- and health is the app's heartbeat. It reads
+    the recorded versions only."""
+    from fichero_server.llm import mlx_runtime
+
+    def walked(self):  # pragma: no cover - the assertion is that this never runs
+        raise AssertionError("health walked the MLX runtime for its disk usage")
+
+    monkeypatch.setattr(mlx_runtime.MLXRuntime, "_disk_usage_bytes", walked, raising=False)
+    response = _client().get("/api/health")
+    assert response.status_code == 200, response.text

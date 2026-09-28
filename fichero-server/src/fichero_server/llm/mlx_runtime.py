@@ -131,6 +131,13 @@ class MLXRuntime:
         metadata = self._metadata()
         return self.python_path().exists() and bool(metadata.get("mlx_whisper_version"))
 
+    def versions(self) -> dict[str, object]:
+        """The recorded package versions ONLY -- no disk walk (#5228). ``status()`` adds up the
+        runtime's disk usage by walking every file (22,869 on the maintainer's Mac, ~1.1 s), and the
+        engine's health check -- the app's heartbeat -- asked for it on every poll just to read these."""
+        metadata = self._metadata()
+        return {key: metadata.get(key) for key in ("mlx_lm_version", "mlx_vlm_version", "mlx_whisper_version")}
+
     def status(self) -> dict[str, object]:
         python_path = self.python_path()
         return {

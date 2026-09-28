@@ -199,7 +199,7 @@ def audio_runtime_status() -> dict[str, object]:
     ready = runtime.has_audio()
     return {
         "ready": ready,
-        "mlx_whisper_version": runtime.status().get("mlx_whisper_version"),
+        "mlx_whisper_version": runtime.versions().get("mlx_whisper_version"),  # no disk walk (#5228)
         "reason": None
         if ready
         else (

@@ -1742,7 +1742,7 @@ def _dependency_versions() -> dict[str, str]:
     try:
         from fichero_server.llm.mlx_runtime import get_mlx_runtime
 
-        status = get_mlx_runtime().status()
+        status = get_mlx_runtime().versions()  # versions only: status() walks the whole runtime (#5228)
         for meta_key, dist in (
             ("mlx_lm_version", "mlx-lm"),
             ("mlx_vlm_version", "mlx-vlm"),
@@ -1771,13 +1771,34 @@ def _dependency_versions() -> dict[str, str]:
 
 
 @app.get("/api/health", response_model=HealthResponse)
-def health_check(
+async def health_check(
     request: Request,
     x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_client_nonce: str | None = Header(
         None, alias="X-Fichero-Client-Nonce"
     ),
     nonce: str | None = None,
+) -> HealthResponse:
+    """Health check endpoint -- answered on the event loop, never queued behind other work (#5228).
+
+    At launch the app sends ~350 requests at once; a thread-pool health check waited behind all of
+    them (7-9 s measured), and the app's readiness waits on health. Everything here is cheap except
+    reading an OPEN library's count, which goes to the thread pool.
+    """
+    if x_fichero_library_path and db_manager.is_open(x_fichero_library_path):
+        from starlette.concurrency import run_in_threadpool
+
+        return await run_in_threadpool(
+            _health_sync, request, x_fichero_library_path, x_fichero_client_nonce, nonce
+        )
+    return _health_sync(request, x_fichero_library_path, x_fichero_client_nonce, nonce)
+
+
+def _health_sync(
+    request: Request,
+    x_fichero_library_path: str | None,
+    x_fichero_client_nonce: str | None,
+    nonce: str | None,
 ) -> HealthResponse:
     """Health check endpoint.
 
