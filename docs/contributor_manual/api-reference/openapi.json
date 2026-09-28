@@ -27311,6 +27311,75 @@
         }
       }
     },
+    "/api/fonts": {
+      "get": {
+        "tags": [
+          "fonts",
+          "fonts"
+        ],
+        "summary": "List Fonts",
+        "description": "The bundled fallback fonts, in fallback order.",
+        "operationId": "list_fonts_api_fonts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BundledFont"
+                  },
+                  "type": "array",
+                  "title": "Response List Fonts Api Fonts Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fonts/{name}": {
+      "get": {
+        "tags": [
+          "fonts",
+          "fonts"
+        ],
+        "summary": "Font File",
+        "description": "One bundled font file, or its licence.",
+        "operationId": "font_file_api_fonts__name__get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kg/rebuild": {
       "post": {
         "tags": [
@@ -43819,6 +43888,39 @@
           "entries"
         ],
         "title": "BulkImportResponse"
+      },
+      "BundledFont": {
+        "properties": {
+          "family": {
+            "type": "string",
+            "title": "Family"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "format": {
+            "type": "string",
+            "title": "Format",
+            "default": "opentype"
+          },
+          "covers": {
+            "type": "string",
+            "title": "Covers"
+          },
+          "licence_url": {
+            "type": "string",
+            "title": "Licence Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "family",
+          "url",
+          "covers",
+          "licence_url"
+        ],
+        "title": "BundledFont"
       },
       "CacheClearResponse": {
         "properties": {

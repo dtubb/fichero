@@ -39,6 +39,12 @@ def _templates():
             # parents[2]: routes/system/views.py -> routes/system -> routes -> api (#2569)
             directory=str(Path(__file__).resolve().parents[2] / "templates")
         )
+        from fichero_server.api.routes.system.fonts import FALLBACK_FAMILIES, font_face_css
+
+        # The bundled fonts (#5210): declared once for every page, named after the system fonts
+        # so they only draw what those lack.
+        _TEMPLATES.env.globals["bundled_font_faces"] = font_face_css()
+        _TEMPLATES.env.globals["bundled_font_families"] = FALLBACK_FAMILIES
     return _TEMPLATES
 
 
