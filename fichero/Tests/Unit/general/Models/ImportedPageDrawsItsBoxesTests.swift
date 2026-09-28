@@ -1,6 +1,7 @@
 @testable import Fichero
 import CryptoKit
 import FicheroAPIClient
+import PDFKit
 import XCTest
 
 /// #5146, end to end: an imported page draws its boxes on the image.
@@ -1489,6 +1490,11 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         }
     }
 
+    /// A page point within an annotation's bounds, edges included.
+    private func isInside(_ point: CGPoint, _ rect: CGRect) -> Bool {
+        point.x >= rect.minX && point.x <= rect.maxX && point.y >= rect.minY && point.y <= rect.maxY
+    }
+
     /// One point shape, for the rewrite above (the recorded page has no extra shapes).
     private func makePointShape() throws -> AnchorShapeValue {
         AnchorShapeValue(generated: Components.Schemas.AnchorShape(kind: .point, points: [[0.5, 0.5]]))
@@ -1818,6 +1824,51 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(SegmentsPane.rowLabel(typed, at: 16), "Line · ܫܠܡܐ")
         let redrawn = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
         XCTAssertFalse(redrawn.geometry.boxes[try XCTUnwrap(typed.boxIndex)].noReading)
+    }
+
+    /// Shapes on PDF pages (#5163 residue), end to end: the recorded Syriac lines (whose outlines and
+    /// baselines the engine test proves reach a PDF page as the file drew them) drawn on the corpus's real
+    /// PDF page (`dialogo_lengua_page_18.pdf`, opened with PDFKit) by the renderer's own builder
+    /// (`PDFShapeAnnotations.make`): each line is two ink annotations -- its closed outline and its
+    /// heavier baseline -- placed where the page's crop box and rotation put the file's points; a segment
+    /// with no reading is dashed; a box with no shapes of its own is left to the square it always was.
+    /// Breaks if a PDF page draws boxes where an image draws shapes, or puts a point off the ink.
+    func testAPDFPageDrawsALinesOutlineAndBaselineAsThemselves() async throws {
+        let store = try await loadedStore()
+        let selected = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
+        let line = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.id == "seg-0003" })
+        let box = selected.geometry.boxes[try XCTUnwrap(line.boxIndex)]
+        let pdf = try XCTUnwrap(PDFDocument(url: fixtures().appendingPathComponent("dialogo_lengua_page_18.pdf")))
+        let page = try XCTUnwrap(pdf.page(at: 0))
+        let crop = page.bounds(for: .cropBox)
+
+        let drawn = try XCTUnwrap(PDFShapeAnnotations.make(for: box, on: page, userName: "fichero.ocr-box"))
+        XCTAssertEqual(drawn.count, 2, "the outline and the baseline")
+        XCTAssertEqual(drawn.compactMap(\.type), ["Ink", "Ink"])
+        let polygon = try XCTUnwrap(line.anchor.polygon)
+        let baseline = try XCTUnwrap(line.baseline)
+        let firstCorner = try XCTUnwrap(PDFRegionGeometry.pagePoint(normalized: polygon[0], rotation: page.rotation, crop: crop))
+        XCTAssertTrue(isInside(firstCorner, drawn[0].bounds), "the outline sits on the file's points on this page")
+        let baselineStart = try XCTUnwrap(PDFRegionGeometry.pagePoint(normalized: baseline[0], rotation: page.rotation, crop: crop))
+        XCTAssertTrue(isInside(baselineStart, drawn[1].bounds))
+        XCTAssertEqual(drawn[1].border?.lineWidth, 2, "the baseline heavier than the outline")
+        XCTAssertEqual(drawn[0].border?.lineWidth, 1)
+        XCTAssertTrue(drawn.allSatisfy { $0.userName == "fichero.ocr-box" }, "swept with the boxes")
+
+        // The mapping itself, on this page and on a rotated one: the same rule as the boxes'.
+        XCTAssertEqual(PDFRegionGeometry.pagePoint(normalized: [0.25, 0.25], rotation: 0, crop: crop),
+                       CGPoint(x: crop.minX + 0.25 * crop.width, y: crop.minY + 0.75 * crop.height))
+        let quarter = PDFRegionGeometry.unrotated(normalized: [0.25, 0.25, 0, 0], rotation: 90)
+        XCTAssertEqual(PDFRegionGeometry.pagePoint(normalized: [0.25, 0.25], rotation: 90, crop: crop),
+                       CGPoint(x: crop.minX + quarter[0] * crop.width, y: crop.minY + (1 - quarter[1]) * crop.height))
+
+        var unread = box
+        unread.noReading = true
+        let dashed = try XCTUnwrap(PDFShapeAnnotations.make(for: unread, on: page, userName: "fichero.ocr-box"))
+        XCTAssertTrue(dashed.allSatisfy { $0.border?.style == .dashed }, "no reading: dashed, never hidden")
+        var plain = box
+        plain.shapes = []
+        XCTAssertNil(PDFShapeAnnotations.make(for: plain, on: page, userName: "fichero.ocr-box"), "a box stays a square")
     }
 
     /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the

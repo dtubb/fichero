@@ -1274,3 +1274,38 @@ def test_a_segment_with_no_reading_is_listed_as_such_and_typing_one_gives_it_tex
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         NO_READING_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
     assert json.loads(NO_READING_FIXTURE.read_text()) == recorded, "the app's no-reading fixture drifted"
+
+
+PDF_PAGE = Path(__file__).resolve().parents[2] / "fixtures" / "paleography" / "dialogo_lengua_page_18.pdf"
+
+
+def test_a_pdf_page_given_a_page_file_s_lines_reaches_the_app_with_their_outlines_and_baselines(db, client):
+    """Shapes on PDF pages (#5163 residue): a real PDF page (`dialogo_lengua_page_18.pdf`, the corpus's)
+    given a PAGE file's lines through the one importer answers the canvas's call -- which the PDF
+    renderer reads too (`PDFPageWithToolbar.loadOCRGeometry`) -- with every line's polygon and baseline
+    exactly as the file drew them, so the PDF view can draw them as themselves
+    (`PDFShapeAnnotations`, whose e2e opens this same PDF). Breaks if a PDF page loses the shapes an
+    image page keeps."""
+    from fichero_server.actions.registry import registry
+    from fichero_server.models import DocType, Document, FileType, Status
+    from tests.unit.api.test_page_text_follows_the_file import BOOT
+
+    assert PDF_PAGE.is_file(), PDF_PAGE
+    page = Document(name=PDF_PAGE.stem, doc_type=DocType.file, file_type=FileType.pdf, path=str(PDF_PAGE),
+                    status=Status.completed)
+    db.save(page)
+    registry.invoke(db, "format.import", {"document_id": page.id, "path": str(SYRIAC)}, BOOT)
+    body = client.get(f"/api/segments/document/{page.id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    lines = [s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"]
+    in_file = _file_shapes(SYRIAC)
+    assert len(lines) == len(in_file) == 12
+
+    def close(a, b):
+        return a is not None and b is not None and len(a) == len(b) and all(
+            abs(p[0] - q[0]) < 1e-9 and abs(p[1] - q[1]) < 1e-9 for p, q in zip(a, b))
+
+    for line in lines:
+        match = [lid for lid, s in in_file.items() if close(s["polygon"], line["anchor"]["polygon"])]
+        assert len(match) == 1, "a PDF page keeps the file's outline"
+        assert close(in_file[match[0]]["baseline"], line["baseline"]), "and its baseline"

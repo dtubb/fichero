@@ -1079,9 +1079,15 @@ The editor
   (`test_imported_page_draws_its_boxes.py::test_reshaping_an_anchors_path_and_point_shapes_is_the_app_s_exact_update`);
   the app's handles, limits, pixel nudge and request
   (`ImportedPageDrawsItsBoxesTests.testReshapingAnAnchorsPathAndPointAndNudgingByAPixel`; Move with shapes,
-  `SegmentEditTests.moveShiftsExtraShapesToo`). **Not yet:** PDF pages (the `PDFAnnotation` renderer still
-  draws boxes); a pass with an artifact behind it (its boxes carry no shapes); a held arrow key is one edit
-  per press, not coalesced.
+  `SegmentEditTests.moveShiftsExtraShapesToo`). **PDF pages draw shapes too (2026-09-28):** the PDF
+  renderer's annotations follow the same shapes -- the outline and any area as closed ink, a path and the
+  baseline as open ink (the baseline heavier), a point as a dot, a segment with no reading dashed -- placed
+  through the page's crop box and rotation (`PDFShapeAnnotations`, `PDFRegionGeometry.pagePoint`; the
+  engine test imports a PAGE file onto the corpus's real PDF page, the e2e draws its lines on that page:
+  `test_a_pdf_page_given_a_page_file_s_lines_reaches_the_app_with_their_outlines_and_baselines`,
+  `ImportedPageDrawsItsBoxesTests.testAPDFPageDrawsALinesOutlineAndBaselineAsThemselves`). **Not yet:**
+  RESHAPING on a PDF page (drawn, not editable there); a pass with an artifact behind it (its boxes carry no
+  shapes); a held arrow key is one edit per press, not coalesced.
 - `source.editor.propose-shape` — **[GAP]** (#4941) a click asks the engine to propose a shape, which can then be
   adjusted.
 - `source.editor.cut` — **[GAP]** (#4941) a scissors stroke splits one or many lines at once.
