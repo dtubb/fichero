@@ -292,9 +292,9 @@ def test_snapshot_copies_the_database_under_one_lock(
     calls: list[tuple[Path, Path]] = []
     real_copy = db_manager.copy_database_file
 
-    def copy_spy(package_path, dest, *, source=None):
+    def copy_spy(package_path, dest, *, source=None, **options):   # options: `wait` (#5185)
         calls.append((Path(package_path), Path(dest)))
-        return real_copy(package_path, dest, source=source)
+        return real_copy(package_path, dest, source=source, **options)
 
     monkeypatch.setattr(db_manager, "copy_database_file", copy_spy)
 

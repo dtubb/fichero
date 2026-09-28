@@ -336,6 +336,15 @@ class FormatSpec:
     #: Whether the format can say what a declared sign MEANS (TEI's `<g>` + `<charDecl>`). A
     #: format that cannot still carries the character; `write_page` reports the rest as lost.
     carries_declared_signs: bool = False
+    #: The extension an EXPORT of this format is named with. None: the first of `extensions`
+    #: (hOCR `.hocr`, YOLO `.txt`). Set where the ecosystem names files more precisely than the
+    #: sniffing extension does (a PAGE file is `x.page.xml`, not just `.xml`). The one source of
+    #: an export's filename (`page_export.export_page`) -- no second table beside the registry.
+    export_extension: str | None = None
+
+    @property
+    def file_extension(self) -> str:
+        return self.export_extension or self.extensions[0]
 
     @property
     def reads(self) -> bool:

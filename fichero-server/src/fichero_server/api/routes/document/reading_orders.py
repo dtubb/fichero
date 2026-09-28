@@ -22,11 +22,12 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import action_context
+from fichero_server.api.library_header import optional_library_path
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.api.routes.document.segment_readings import _segment_order_key
 from fichero_server.api.routes.document.segments import provenance_kind_from_ctx
@@ -914,3 +915,93 @@ async def place_in_reading_order(
     it is undoable through the audit trail like every other edit."""
     result = registry.invoke(db, "reading_order.place", {"order_id": order_id, **body.model_dump()}, ctx)
     return ReadingOrderActionAnswer(ok=result.ok, result=result.result, audit_id=result.audit_id)
+
+
+# ---------------------------------------------------------------------------
+# Flows that could continue onto a page (`source.segment.flow`): so the app can add THIS page's
+# segments to a flow that ended on an earlier page -- a letter's text running on from folio 3r to 3v.
+# ---------------------------------------------------------------------------
+
+
+class FlowCandidate(BaseModel):
+    order: ReadingOrderRead
+    #: Where the flow ends now: its last entry's segment and that segment's page.
+    last_segment_id: str | None = None
+    last_page_id: str | None = None
+    #: "earlier page": ends on a page before this one in the source's page order. "same project":
+    #: a flow on a source a project shares with this page -- other sources have no page order with
+    #: this one, so it is offered and marked, not ranked.
+    relation: str
+
+
+class FlowCandidatesResponse(BaseModel):
+    document_id: str
+    flows: list[FlowCandidate]
+    #: Flows on pages this caller may not read, left out and counted (#5135, #5180).
+    withheld: int = 0
+
+
+def flows_continuing_onto(db: Database, page_id: str) -> list[tuple[ReadingOrder, Segment | None, str]]:
+    """Live flows that could continue onto `page_id`: ending on an earlier page of its source, or on a
+    source a project shares with it. A flow that already ends on this page (or later) is not a
+    candidate. Nearest first."""
+    from fichero_server.models import Document
+    from fichero_server.models.knowledge import ProjectInclusion
+
+    page = db.get(Document, page_id)
+    if page is None or page.deleted_at is not None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {page_id}")
+    siblings = [page]
+    if page.parent_id:
+        from fichero_server.api.routes.document.documents import _ordered_by_sort_order
+
+        siblings = _ordered_by_sort_order([d for d in db.query(Document, parent_id=page.parent_id) if d.deleted_at is None])
+    position = {doc.id: i for i, doc in enumerate(siblings)}
+    here = position[page.id]
+    members = {page.id, *( [page.parent_id] if page.parent_id else [])}
+    projects = {row.project_id for row in db.query_in(ProjectInclusion, "target_id", sorted(members))}
+    shared = {row.target_id for row in db.query_in(ProjectInclusion, "project_id", sorted(projects))} - members
+    project_pages = set(shared)
+    for doc_id in shared:          # a project may include a whole source: its pages count too
+        project_pages.update(d.id for d in db.query(Document, parent_id=doc_id) if d.deleted_at is None)
+
+    homes = [doc_id for doc_id in position if position[doc_id] < here] + sorted(project_pages)
+    out = []
+    for order in db.query_in(ReadingOrder, "document_id", homes):
+        if order.deleted_at is not None or order.kind != ReadingOrderKind.flow.value:
+            continue
+        entries = entries_in_sequence(db, order.id)
+        last = db.get(Segment, entries[-1].segment_id) if entries else None
+        last_page = last.document_id if last is not None else order.document_id
+        if last_page in position:
+            if position[last_page] >= here:
+                continue            # it already reaches this page, or runs past it
+            out.append((order, last, "earlier page", here - position[last_page]))
+        elif last_page in project_pages:
+            out.append((order, last, "same project", len(position) + 1))
+    out.sort(key=lambda row: (row[3], row[0].name, row[0].id))
+    return [(order, last, relation) for order, last, relation, _distance in out]
+
+
+@router.get("/flows/onto/{document_id}", response_model=FlowCandidatesResponse)
+async def flows_onto_page(
+    document_id: str,
+    request: Request,
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    db: Database = Depends(get_library_database),
+) -> FlowCandidatesResponse:
+    """`GET /api/reading-orders/flows/onto/{document_id}` -- the flows this page's segments could be
+    added to (`reading_order.place` then continues them here). Nearest earlier page first."""
+    from fichero_server.api.main import readable_documents
+
+    found = flows_continuing_onto(db, document_id)
+    readable = set(readable_documents(request, x_fichero_library_path,
+                                      sorted({order.document_id for order, _l, _r in found})))
+    kept = [row for row in found if row[0].document_id in readable]
+    return FlowCandidatesResponse(
+        document_id=document_id,
+        flows=[FlowCandidate(order=_order_read(db, order), last_segment_id=last.id if last else None,
+                             last_page_id=last.document_id if last else order.document_id, relation=relation)
+               for order, last, relation in kept],
+        withheld=len(found) - len(kept),
+    )

@@ -862,6 +862,7 @@ register(
     FormatSpec(
         name="pagexml",
         extensions=(".xml",),
+        export_extension=".page.xml",
         read=read,
         write=write,
         # The XSD is not vendored yet, and `None` here would claim this format

@@ -2169,6 +2169,10 @@ def docs_restore(
     except FicheroError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
+    if ctx.obj["json"]:
+        # --json output is JSON, always (as `docs delete`): the route answers no body, so `null`.
+        typer.echo(render(None, as_json=True))
+        return
     typer.secho(f"Restored {doc_id} (and its subtree).", fg=typer.colors.GREEN)
 
 

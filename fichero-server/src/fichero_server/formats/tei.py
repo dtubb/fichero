@@ -1193,6 +1193,7 @@ register(
     FormatSpec(
         name="tei",
         extensions=(".xml", ".tei"),
+        export_extension=".tei.xml",
         read=read,
         write=write,
         schema="tei_all.xsd",

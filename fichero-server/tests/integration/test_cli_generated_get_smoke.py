@@ -16,9 +16,8 @@ os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
 os.environ.setdefault("FICHERO_DISABLE_AUTH", "1")
 
 from fichero_cli import __main__ as cli  # noqa: E402
-from tests.integration._cli_live import cli_live_engine as _cli_live_engine, path_values  # noqa: E402,F401
+from tests.integration._cli_live import cli_live_engine, path_values  # noqa: E402,F401  (fixture: imported under its own name, which is the name pytest registers)
 
-cli_live_engine = _cli_live_engine
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 _GENERATOR_PATH = REPO_ROOT / "fichero-server" / "scripts" / "generate_openapi_cli.py"
@@ -71,8 +70,25 @@ _SKIP_PATHS = {
     "/api/workflow-execution/workflows/{workflow_id}/visualization",
     "/api/workflow-execution/workflows/{workflow_id}/visualization.png",
 }
-_MAX_SKIPPED_GET_COMMANDS = 118
+#: A CEILING, recounted 2026-09-28 (#5184): 138 GET commands cannot run against the seeded library --
+#: 23 are skip-listed above; 17 take a segment-family id (segment_id 11, pass_id, representation_id,
+#: order_id 2 each) and the seeder makes no segments; the rest take ids of the engine's own state
+#: (tasks 9, projects 8, threads 6, notes 5, batches, providers, models, schedules, triggers, ...)
+#: or a second path value the seed has no row for. Seeding segments would bring the segment family
+#: in; until then, a NEW GET route with an unseedable id raises this count and fails here on purpose.
+_MAX_SKIPPED_GET_COMMANDS = 138
 _MIN_EXECUTABLE_GET_COMMANDS = 194
+#: GET commands whose RIGHT answer, called with no optional arguments against a single-user loopback
+#: engine, is a refusal -- checked for exactly that status, never skipped (a 500 here still fails).
+_EXPECTED_REFUSALS = {
+    "/api/artifacts/{artifact_id}/region": 422,   # names a line, or a char span
+    "/api/letterforms": 422,                      # names a character, an allograph or a hand
+    "/api/segments": 422,                         # exactly one scope: document_ids or parent_id
+    "/api/auth/invites": 404,                     # multi-user auth is off
+    "/api/auth/sessions": 404,                    # multi-user auth is off
+    "/api/auth/identity": 401,                    # a session, not the loopback owner key
+    "/api/authz/libraries": 401,                  # a session, not the loopback owner key
+}
 _BINARY_IMAGE_PATHS = {
     "/api/images/{document_id}/preview",
     "/api/storage/display/{doc_id}",
@@ -178,7 +194,11 @@ def test_generated_get_commands_succeed_against_seeded_library(cli_live_engine):
     for path, args in executable:
         print(f"CLI smoke GET {path}", flush=True)
         result = runner.invoke(cli.app, args)
-        if result.exit_code != 0:
+        refusal = _EXPECTED_REFUSALS.get(path)
+        if refusal is not None:
+            if result.exit_code != 1 or f"-> {refusal}:" not in result.output:
+                failures.append((path, result.exit_code, f"expected a {refusal}: " + result.output[-450:]))
+        elif result.exit_code != 0:
             failures.append((path, result.exit_code, result.output[-500:]))
 
     if failures:

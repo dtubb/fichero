@@ -1,0 +1,64 @@
+{
+ "id": "Q2900",
+ "labels": {
+  "es": {
+   "language": "es",
+   "value": "Quito"
+  },
+  "en": {
+   "language": "en",
+   "value": "Quito"
+  }
+ },
+ "claims": {
+  "P625": [
+   {
+    "mainsnak": {
+     "snaktype": "value",
+     "property": "P625",
+     "hash": "bf5b0d2532799a1af83173f82f68b7f115c93818",
+     "datavalue": {
+      "value": {
+       "latitude": -0.22,
+       "longitude": -78.5125,
+       "altitude": null,
+       "precision": 0.0002777777777777778,
+       "globe": "http://www.wikidata.org/entity/Q2"
+      },
+      "type": "globecoordinate"
+     },
+     "datatype": "globe-coordinate"
+    },
+    "type": "statement",
+    "id": "Q2900$babb72f1-eb24-4912-846a-65d77541aa4d",
+    "rank": "normal",
+    "references": [
+     {
+      "hash": "fa278ebfc458360e5aed63d5058cca83c46134f1",
+      "snaks": {
+       "P143": [
+        {
+         "snaktype": "value",
+         "property": "P143",
+         "hash": "e4f6d9441d0600513c4533c672b5ab472dc73694",
+         "datavalue": {
+          "value": {
+           "entity-type": "item",
+           "numeric-id": 328,
+           "id": "Q328"
+          },
+          "type": "wikibase-entityid"
+         },
+         "datatype": "wikibase-item"
+        }
+       ]
+      },
+      "snaks-order": [
+       "P143"
+      ]
+     }
+    ]
+   }
+  ]
+ }
+}

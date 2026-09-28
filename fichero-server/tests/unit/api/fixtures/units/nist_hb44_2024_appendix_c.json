@@ -1,0 +1,17 @@
+{
+ "source": "NIST Handbook 44 -- 2024 Edition, Appendix C, General Tables of Units of Measurement; https://nvlpubs.nist.gov/nistpubs/hb/2024/NIST.HB.44-2024.pdf (text extracted with pdftotext -layout)",
+ "licence": "US government work, public domain (17 U.S.C. 105)",
+ "lines": {
+  "C-5": [
+   "8 furlongs = 1 mile (mi) 4 = 5280 feet",
+   "1 league = 15 840 feet = 3 miles"
+  ],
+  "C-10": [
+   "1 mile (mi) = 63 360 5 280 1 760 1 160 934.4 1609.344",
+   "1 international foot = 12 × 0.0254 meter = 0.304 8 (exactly)"
+  ],
+  "C-11": [
+   "1 league = 4 828.032 4 828.041 656 083"
+  ]
+ }
+}

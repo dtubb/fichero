@@ -519,6 +519,7 @@ register(
     FormatSpec(
         name="iiif-georef",
         extensions=(".json", ".jsonld"),
+        export_extension=".georef.json",
         read=read,
         write=write,
         schema=None,

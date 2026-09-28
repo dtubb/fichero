@@ -1,0 +1,60 @@
+{
+ "id": "Q2841",
+ "labels": {
+  "es": {
+   "language": "es",
+   "value": "Bogotá"
+  },
+  "en": {
+   "language": "en",
+   "value": "Bogotá"
+  }
+ },
+ "claims": {
+  "P625": [
+   {
+    "mainsnak": {
+     "snaktype": "value",
+     "property": "P625",
+     "hash": "401cc407fef09b103dcbac6e5311fbfa2513f7fb",
+     "datavalue": {
+      "value": {
+       "latitude": 4.60971,
+       "longitude": -74.08175,
+       "altitude": null,
+       "precision": 1e-05,
+       "globe": "http://www.wikidata.org/entity/Q2"
+      },
+      "type": "globecoordinate"
+     },
+     "datatype": "globe-coordinate"
+    },
+    "type": "statement",
+    "id": "q2841$230E902E-701D-4678-8638-988BDCA9900C",
+    "rank": "normal",
+    "references": [
+     {
+      "hash": "31fbac85de1b05fd40e02524deb129d27ec5219e",
+      "snaks": {
+       "P1566": [
+        {
+         "snaktype": "value",
+         "property": "P1566",
+         "hash": "a6f3edb71d626103e4b4b062bcaab52567589bee",
+         "datavalue": {
+          "value": "3688689",
+          "type": "string"
+         },
+         "datatype": "external-id"
+        }
+       ]
+      },
+      "snaks-order": [
+       "P1566"
+      ]
+     }
+    ]
+   }
+  ]
+ }
+}
