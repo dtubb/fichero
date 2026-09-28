@@ -149,9 +149,17 @@ final class KnownLibraryRegistryStore {
         return head + tail
     }
 
+    /// Paths already noted this session (#5228): launch opened each library twice (restore, then
+    /// again at ready), and each note was a POST plus a full re-fetch of the registry and open list --
+    /// 12 adds and 24 reads for six libraries on the maintainer's launch.
+    private var notedThisSession: Set<String> = []
+
     func noteOpenedLibrary(url: URL, displayName: String?) async {
         guard !LibraryManager.shared.isTemporaryLibrary(url) else { return }
         guard url.pathExtension.lowercased() == "fichero" else { return }
+        let path = url.path.nfcNormalized
+        guard notedThisSession.insert(path).inserted else { return }
+        let alreadyKnown = libraries.contains { $0.path.nfcNormalized == path }
 
         do {
             // NFC-normalize path + name (#3076) so the global registry keys this
@@ -163,7 +171,8 @@ final class KnownLibraryRegistryStore {
                     name: (displayName ?? url.lastPathComponent).nfcNormalized
                 )
             )
-            if case .ok = response {
+            // A library already in the list keeps its row; only a NEW one needs the list re-read.
+            if case .ok = response, !alreadyKnown {
                 await refresh()
             }
         } catch {
