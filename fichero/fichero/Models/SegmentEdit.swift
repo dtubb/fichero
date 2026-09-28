@@ -291,16 +291,27 @@ struct SegmentEditRunner {
 final class SegmentChangeObserver {
     nonisolated(unsafe) private var token: (any NSObjectProtocol)?
 
-    init(reload: @escaping @MainActor @Sendable (String) async -> Void) {
+    nonisolated(unsafe) private var sourceToken: (any NSObjectProtocol)?
+
+    /// `reload` gets the changed page's id, or nil for EVERY page shown: a direction stated on a source
+    /// (`SourceDirection.didChange`) reaches every page below it.
+    init(reload: @escaping @MainActor @Sendable (String?) async -> Void) {
         token = NotificationCenter.default.addObserver(
             forName: SegmentEditRunner.didChange, object: nil, queue: .main
         ) { note in
             guard let pageId = note.object as? String else { return }
             Task { @MainActor in await reload(pageId) }
         }
+        // ponytail: every shown page, not only those under the node; filter by ancestry if a Reader of many pages makes this slow.
+        sourceToken = NotificationCenter.default.addObserver(
+            forName: SourceDirection.didChange, object: nil, queue: .main
+        ) { _ in
+            Task { @MainActor in await reload(nil) }
+        }
     }
 
     deinit {
         if let token { NotificationCenter.default.removeObserver(token) }
+        if let sourceToken { NotificationCenter.default.removeObserver(sourceToken) }
     }
 }

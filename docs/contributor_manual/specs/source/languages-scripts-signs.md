@@ -236,6 +236,14 @@ Direction
   stated (a folio number, a year) takes its block's direction, else its page's, rather than an
   assumed `ltr` (`fichero-server/tests/unit/api/test_a_line_without_letters_takes_its_pages_direction.py::test_a_digit_only_line_takes_its_pages_direction`,
   `::test_the_block_first_then_the_page`).
+  **Added 2026-09-28 (#5171, the app):** a direction is stated on a SOURCE -- a folder, a document or a
+  page -- from the Library's right-click (**Direction ▸** the six, or **Not Stated**) and from the
+  Inspector's Language section, whose **Direction** row shows what the engine resolves and where it came
+  from. One audited `source_setting.set` at level node (Not Stated: `source_setting.clear`), ⌘Z by its
+  audit id; the set, its ⌘Z and its ⇧⌘Z each re-read the pages the Reader shows, once
+  (`SourceDirection`, `SourceDirectionMenu`;
+  `ImportedPageDrawsItsBoxesTests.testADirectionStatedOnASourceIsOneUndoableSettingThatReReadsTheReader`).
+  A segment's own direction is the Segment menu's (`segment.update_many`).
 - `source.dir.logical-order-stored` — **[OK]** (→ #4938) stored text is in reading order; mixed
   direction in a line follows the Unicode bidirectional rules on display. Nothing in the engine
   reorders a string: a mixed-direction reading round trips byte for byte and resolving a direction

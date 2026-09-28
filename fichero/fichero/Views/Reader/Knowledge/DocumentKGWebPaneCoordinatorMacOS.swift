@@ -80,7 +80,11 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
         self.parent = parent
         super.init()
         segmentChanges = SegmentChangeObserver { [weak self] pageId in
-            await Self.refreshIfShown(pageId, in: self?.webView)
+            if let pageId {
+                await Self.refreshIfShown(pageId, in: self?.webView)
+            } else {
+                await Self.refreshShownPages(in: self?.webView)
+            }
         }
     }
 
@@ -549,6 +553,17 @@ extension DocumentKGWebPaneCoordinatorMacOS {
         )
         guard (shown as? Bool) == true else { return }
         await refreshPage(pageId, in: webView)
+    }
+
+    /// Every page this Reader shows, each patched in place: a direction stated on a source (#5171).
+    @MainActor
+    static func refreshShownPages(in webView: WKWebView?) async {
+        guard let webView else { return }
+        let ids = try? await webView.callAsyncJavaScript(
+            "return [...document.querySelectorAll('article[data-page-id]')].map((a) => a.dataset.pageId);",
+            arguments: [:], in: nil, contentWorld: .page
+        )
+        for pageId in (ids as? [String]) ?? [] { await refreshPage(pageId, in: webView) }
     }
 
     /// Patch the one page in place (`window.fichero.refreshPage` in `document_view.html`), so the

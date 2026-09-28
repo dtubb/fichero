@@ -46,6 +46,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
 
         /// What `GET /api/source-settings/resolve` answers (set by the test that asks).
         nonisolated(unsafe) static var settingsReply = Data()
+        /// The query `GET /api/source-settings/resolve` was asked with (a segment's, or a source's).
+        nonisolated(unsafe) static var settingsQuery: String?
 
         /// What `GET /api/segments/document/{id}/matches` answers, and the query it was asked (#5165).
         nonisolated(unsafe) static var matchesReply = Data()
@@ -132,6 +134,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             } else if path.hasPrefix("/api/hands/segment/") {
                 actionBody = Self.attributionsReply
             } else if path == "/api/source-settings/resolve" {
+                Self.settingsQuery = request.url?.query
                 actionBody = Self.settingsReply
             } else if path.hasPrefix("/api/segments/document/"), path.hasSuffix("/matches") {
                 Self.matchesQuery = request.url?.query
@@ -224,6 +227,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             handsReply = Data()
             attributionsReply = Data()
             settingsReply = Data()
+            settingsQuery = nil
             readingsReply = Data()
             versionsReply = Data()
             matchesReply = Data()
@@ -594,7 +598,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let picked = Array(store.segments(documentId: "doc-0001").filter { $0.kind == "line" }.prefix(1))
         final class Reloads { var pages: [String] = [] }
         let reloaded = Reloads()
-        let observer = SegmentChangeObserver { pageId in reloaded.pages.append(pageId) }
+        let observer = SegmentChangeObserver { pageId in reloaded.pages.append(pageId ?? "every page") }
         let settle = { (count: Int) in
             for _ in 0..<200 where reloaded.pages.count < count { try await Task.sleep(nanoseconds: 10_000_000) }
             try await Task.sleep(nanoseconds: 50_000_000)  // a second, unwanted reload would land here
@@ -621,6 +625,62 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         try await settle(3)
         XCTAssertEqual(RecordedEngine.undone, ["audit-1", "undo-of-audit-1"], "⇧⌘Z inverts the undo's own row")
         XCTAssertEqual(reloaded.pages, ["doc-0001", "doc-0001", "doc-0001"], "its ⇧⌘Z once more")
+        withExtendedLifetime(observer) {}
+    }
+
+    /// #5171, the source level: a direction stated on a SOURCE from the Library's right-click or the
+    /// Inspector's Language section (`SourceDirectionMenu` -> `SourceDirection.apply`) is ONE audited
+    /// `source_setting.set` at level node on that source, ⌘Z by its audit id; the set, its ⌘Z and its ⇧⌘Z
+    /// each re-read every page the Reader shows once (`SegmentChangeObserver`, nil = every page). "Not
+    /// Stated" is `source_setting.clear` with no value. The Inspector's row asks the engine to resolve the
+    /// SOURCE (document_id), not a segment, and shows its answer and where it came from. Breaks if the menu
+    /// writes the wrong level or node, the change does not reach the Reader, or the row reads a segment.
+    func testADirectionStatedOnASourceIsOneUndoableSettingThatReReadsTheReader() async throws {
+        let store = try await loadedStore()
+        final class Reloads { var pages: [String] = [] }
+        let reloaded = Reloads()
+        let observer = SegmentChangeObserver { pageId in reloaded.pages.append(pageId ?? "every page") }
+        let settle = { (count: Int) in
+            for _ in 0..<200 where reloaded.pages.count < count { try await Task.sleep(nanoseconds: 10_000_000) }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        _ = store
+        RecordedEngine.invoked = []
+        RecordedEngine.undone = []
+        let actions = ActionsService(client: try XCTUnwrap(storeClient))
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        try await SourceDirection.apply("ttb", on: "doc-0001", actionsService: actions, undoManager: manager)
+        manager.endUndoGrouping()
+        try await settle(1)
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        XCTAssertEqual(sent["name"] as? String, "source_setting.set")
+        XCTAssertEqual(sent["params"] as? [String: String],
+                       ["level": "node", "key": "direction", "value": "ttb", "target_id": "doc-0001"])
+        XCTAssertEqual(reloaded.pages, ["every page"], "the set re-reads the Reader's pages once")
+
+        manager.undo()
+        try await settle(2)
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
+        XCTAssertEqual(reloaded.pages.count, 2, "its ⌘Z once more")
+        manager.redo()
+        try await settle(3)
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1", "undo-of-audit-1"])
+        XCTAssertEqual(reloaded.pages.count, 3, "its ⇧⌘Z once more")
+
+        RecordedEngine.invoked = []
+        try await SourceDirection.apply(nil, on: "doc-0001", actionsService: actions, undoManager: nil)
+        let cleared = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        XCTAssertEqual(cleared["name"] as? String, "source_setting.clear")
+        XCTAssertEqual(cleared["params"] as? [String: String], ["level": "node", "key": "direction", "target_id": "doc-0001"])
+
+        RecordedEngine.settingsReply = try Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-line-settings.json")
+        )
+        let settings = try await SegmentService(ficheroClient: try XCTUnwrap(storeClient)).resolvedSettings(documentId: "doc-0001")
+        XCTAssertEqual(RecordedEngine.settingsQuery, "document_id=doc-0001", "the row resolves the source, not a segment")
+        XCTAssertEqual(InspectorLanguage.rows(settings).first { $0.key == "direction" }?.value, "Right to Left")
         withExtendedLifetime(observer) {}
     }
 
