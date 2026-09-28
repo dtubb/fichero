@@ -21,4 +21,21 @@ final class LaunchLoadOrderTests: XCTestCase {
         XCTAssertFalse(FolderAccessManager.grantCoversALibrary("/Users/d/Fichero Test", libraryPaths: libraries),
                        "a sibling whose name is a prefix is not a parent")
     }
+
+    /// #5228: launch reconciled against the KNOWN registry (every library ever added: 15 on the
+    /// maintainer's engine) and opened all ten that still existed, when four were open. It opens what the
+    /// engine HAS OPEN; the known list only decides drops.
+    func testLaunchOpensWhatTheEngineHasOpenNotEveryKnownLibrary() {
+        let known = (1...10).map { "/Users/d/Fichero/L\($0).fichero" }
+        let engineOpen = ["/Users/d/Fichero/L3.fichero"]
+        let appOpen: [(id: UUID, path: String)] = []
+        let fromKnown = LibraryManager.registryReconciliation(
+            openLibraries: appOpen, registryPaths: known, globalLibraryId: UUID()
+        ).pathsToOpen
+        let fromEngine = LibraryManager.registryReconciliation(
+            openLibraries: appOpen, registryPaths: engineOpen, globalLibraryId: UUID()
+        ).pathsToOpen
+        XCTAssertEqual(fromKnown.count, 10, "what the old reconcile opened")
+        XCTAssertEqual(fromEngine, engineOpen)
+    }
 }

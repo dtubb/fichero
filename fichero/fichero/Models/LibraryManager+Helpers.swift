@@ -133,13 +133,19 @@ extension LibraryManager {
             registryPaths: registryPaths
         ) else { return }
 
+        let appOpen = openLibraries.map { (id: $0.id, path: $0.url.path) }
         let plan = Self.registryReconciliation(
-            openLibraries: openLibraries.map { (id: $0.id, path: $0.url.path) },
-            registryPaths: registryPaths,
-            globalLibraryId: Self.globalLibraryId
+            openLibraries: appOpen, registryPaths: registryPaths, globalLibraryId: Self.globalLibraryId
         )
+        // OPEN only what the engine has open (#5228): the known registry is every library ever added,
+        // and opening each of them made launch wait for ten libraries when four were open. DROP still
+        // follows the known registry: a library removed from it entirely leaves the app too.
+        let engineOpen = KnownLibraryRegistryStore.shared.openPaths ?? []
+        let pathsToOpen = Self.registryReconciliation(
+            openLibraries: appOpen, registryPaths: engineOpen, globalLibraryId: Self.globalLibraryId
+        ).pathsToOpen
 
-        for path in plan.pathsToOpen {
+        for path in pathsToOpen {
             let url = URL(fileURLWithPath: path)
             // Skip registry entries whose package is gone from disk — opening a
             // missing package would just fail; the backend row is stale.

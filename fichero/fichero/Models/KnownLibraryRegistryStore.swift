@@ -82,6 +82,26 @@ final class KnownLibraryRegistryStore {
         } catch {
             fetchError = error.localizedDescription
         }
+        await refreshOpenPaths()
+    }
+
+    /// The libraries the engine HAS OPEN (`GET /api/registry/open`), which is what launch mirrors
+    /// (#5228). The known list above is every library ever added -- fifteen on the maintainer's
+    /// engine -- and reconciling against it opened every one of them at launch. nil when the fetch
+    /// failed, so nothing is reconciled against a stale answer.
+    private(set) var openPaths: [String]?
+
+    private func refreshOpenPaths() async {
+        do {
+            let response = try await apiClient.api.listOpenLibrariesApiRegistryOpenGet(.init())
+            if case .ok(let okResponse) = response {
+                openPaths = try okResponse.body.json.libraries.map(\.path)
+            } else {
+                openPaths = nil
+            }
+        } catch {
+            openPaths = nil
+        }
     }
 
     /// Remote host: the libraries this credential may open (#3151), from
