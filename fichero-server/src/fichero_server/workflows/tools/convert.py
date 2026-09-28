@@ -222,6 +222,11 @@ async def convert(
     files = inputs.get("files") or state.get("input_files", [])
     documents = inputs.get("documents", [])
     context = inputs.get("context")
+    if not context and inputs.get("documents"):
+        # The page's own reading and boxes (#5026): what it already says, not pixels alone.
+        from fichero_server.tool_context import with_page_context
+
+        context = with_page_context(None, inputs.get("documents", []), files, state.get("library_path", ""))
     input_metadata = inputs.get("metadata")
 
     # Get convert-specific config

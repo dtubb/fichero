@@ -37,6 +37,8 @@ class ToolContext:
     characters: int = 0
     pass_id: str | None = None
     statement: str = ""
+    #: True when the page has no segments and `text` is its text as one block, with no boxes.
+    plain: bool = False
 
 
 def _maker(reading: Any) -> str:
@@ -80,6 +82,13 @@ def tool_context(db: Any, document_id: str, segment_ids: list[str] | None = None
         text = derived.text[span.start:span.end].replace("\n", " ")
         lines.append(f"{span.segment_id} | {box} | {_maker(readings.get(span.representation_id))} | {text}")
         ids.append(span.segment_id)
+    if not lines and wanted is None:
+        block, came_from = _text_without_segments(db, document_id)
+        if block:
+            return ToolContext(
+                text=block, characters=len(block), plain=True,
+                statement=f"no segments on the page: its text as one block, {len(block)} characters, from {came_from}",
+            )
     characters = sum(len(line) for line in lines)
     where = "the page" if wanted is None else f"{len(wanted)} selected segment(s)"
     statement = (
@@ -90,8 +99,29 @@ def tool_context(db: Any, document_id: str, segment_ids: list[str] | None = None
                        pass_id=derived.pass_id, statement=statement)
 
 
+def _text_without_segments(db: Any, document_id: str) -> tuple[str, str]:
+    """A page with no segments still has text a tool should see: its page text, else its newest
+    transcription (a Transcribe run writes an artifact and no segments). What the old
+    `_existing_transcription_context` sent, so a review of such a page keeps its draft."""
+    from fichero_server.models import Artifact, Document
+
+    page = db.get(Document, document_id)
+    if page is not None and (page.page_content or "").strip():
+        return page.page_content, "the page text"
+    transcriptions = [
+        a for a in db.query(Artifact, document_id=document_id)
+        if (a.artifact_type or "").startswith("transcription") and (a.content or "").strip()
+    ]
+    if transcriptions:
+        newest = max(transcriptions, key=lambda a: a.created_at)
+        return newest.content, f"its newest {newest.artifact_type} ({newest.id})"
+    return "", ""
+
+
 def as_prompt_context(context: ToolContext) -> str:
     """The context as the model reads it: what it is, then the lines."""
+    if context.plain:
+        return f"The page's existing text ({context.statement}):\n{context.text}"
     if not context.segment_ids:
         return f"This page has {context.statement}."
     return (
@@ -104,8 +134,9 @@ def as_prompt_context(context: ToolContext) -> str:
 def with_page_context(
     context: str | list | None, documents: list, files: list, library_path: str
 ) -> str | list | None:
-    """A vision tool's per-file context with each page's lines added (files[i] pairs with
-    documents[i], as `process_vision` pairs them). Anything already wired in comes first."""
+    """A vision tool's per-file context: what is WIRED IN wins (a draft from the step before is the
+    thing to work on); a file with nothing wired gets its page's lines. files[i] pairs with
+    documents[i], as `process_vision` pairs them."""
     if not library_path or not documents:
         return context
     import logging
@@ -120,10 +151,10 @@ def with_page_context(
         doc_id = doc.get("id") if isinstance(doc, dict) else getattr(doc, "id", None)
         wired = (context[index] if isinstance(context, list) and index < len(context)
                  else context if isinstance(context, str) else None)
-        page = None
-        if doc_id:
-            built = tool_context(db, str(doc_id))
-            log.info("page context for %s: %s", doc_id, built.statement)   # says what it sends
-            page = as_prompt_context(built)
-        out.append("\n\n".join(part for part in (wired, page) if part) or None)
+        if wired or not doc_id:
+            out.append(wired or None)
+            continue
+        built = tool_context(db, str(doc_id))
+        log.info("page context for %s: %s", doc_id, built.statement)   # says what it sends
+        out.append(as_prompt_context(built))
     return out

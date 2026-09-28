@@ -520,7 +520,18 @@ Giving a tool a piece of a page (#5026)
   of the working pass in reading order; a person's correction is what the tool reads, marked
   `person` (`fichero-server/tests/unit/workflows/test_a_tool_is_given_the_pages_reading.py::test_a_persons_correction_is_what_the_tool_reads_and_is_marked_as_a_persons`).
   The maker mark (open question 3) is `provenance_kind` written as person / agent / machine /
-  file / unrecorded. **Still PARTIAL:** the other vision tools are not wired to it yet.
+  file / unrecorded, from the server-set `provenance_kind`, never `created_by`
+  (`::test_a_machine_reading_is_marked_machine_though_a_person_started_the_run`).
+  **Slice 2 (2026-09-28):** it is the ONE page-context builder. Extract Table, Transcribe Review,
+  Analyze, Describe and Convert are given it when nothing is wired in, and transcribe_review's own
+  `_existing_transcription_context` is gone
+  (`fichero-server/tests/unit/workflows/test_every_page_reading_tool_is_given_the_page.py`, one
+  captured model call per tool). Left out on purpose: Transcribe and Handwriting (an independent
+  reading must not be primed with the one it may be compared against), Detect Regions and Layout
+  (they make geometry, and given the page's boxes would echo them), Classify Script (a property
+  of the ink's look), and the picture tools. **Still PARTIAL:** a page with no segments is given
+  its page text, else its newest transcription, as one block with no boxes -- there is no pass to
+  follow there.
 - `source.tool.results-name-their-segments` — **[GAP]** (#5026) a tool's result names the segment
   ids it was read from (a table cell names its lines), so the output is anchored instead of
   free text that must be matched back; this is what `Tables and forms` means by a table becoming
