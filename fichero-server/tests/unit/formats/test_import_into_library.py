@@ -96,10 +96,11 @@ class TestAnImportArrivesAsAPass:
         assert pass_row.import_checksum == result["checksum"]
         assert pass_row.name == "my_export.xml"
 
-    def test_a_person_importing_makes_it_theirs_and_a_runner_does_not(self, db, tmp_path):
-        """One rule for who made this (#4868/#4869), not a second copy of it: a
-        person brought a file, so the pass is theirs; a runner's import is a
-        machine's."""
+    def test_an_import_is_the_files_whoever_brought_it(self, db, tmp_path):
+        """#5150 (was: "a person importing makes it theirs"). Bringing a file is not writing
+        it: an imported PAGE/ALTO page is often a machine's, and calling it `human` was the
+        #4868/#4869 class and ranked every import as hand-curated. Whoever brings it, the pass
+        is `external_import`; `actor` records who brought it."""
         doc = _document(db)
         mine = tmp_path / "mine.xml"
         mine.write_bytes(OCRD.read_bytes())
@@ -112,8 +113,11 @@ class TestAnImportArrivesAsAPass:
             ctx=ActionContext(actor="runner", run_id="run-1", is_bootstrap=True),
         )
 
-        assert db.get(SegmentPass, person["pass_id"]).provenance_kind == ProvenanceKind.human
-        assert db.get(SegmentPass, runner["pass_id"]).provenance_kind != ProvenanceKind.human
+        mine_row = db.get(SegmentPass, person["pass_id"])
+        theirs_row = db.get(SegmentPass, runner["pass_id"])
+        assert mine_row.provenance_kind == ProvenanceKind.external_import
+        assert theirs_row.provenance_kind == ProvenanceKind.external_import
+        assert (mine_row.actor, theirs_row.actor) == ("historian", "runner")
 
     def test_it_does_NOT_become_the_working_pass(self, db, tmp_path):
         """Ruled 2026-09-26: **arriving is not winning.** Promoting an import would

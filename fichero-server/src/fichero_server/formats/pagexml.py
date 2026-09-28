@@ -297,6 +297,42 @@ def _sniff(data: bytes) -> bool:
     return root is not None and (root[0] in KNOWN_NAMESPACES or root[1].lower() == "pcgts")
 
 
+_TRANSKRIBUS_ATTRS = re.compile(r'(docId|pageId|status|userId|tsid)="([^"]*)"')
+
+
+def _stated_maker(root: Any) -> str | None:
+    """Who or what the FILE says made it (#5150): the file's claim, recorded as such, never ours.
+
+    `<Metadata><Creator>`; failing that, a `Producer:` line in `<Comments>` (Transkribus writes
+    the OCR engine there, e.g. "ABBYY FineReader Engine 11", beside an empty Creator); and
+    `TranskribusMetadata` -- an element in 2013 files, an XML comment in 2019 ones -- which says
+    the page came through Transkribus and in what state (`status="GT"`)."""
+    metadata = next((el for el in root.iter() if _tag(el) == "Metadata"), None)
+    if metadata is None:
+        return None
+    parts: list[str] = []
+    creator = next((el for el in metadata if _tag(el) == "Creator"), None)
+    if creator is not None and (creator.text or "").strip():
+        parts.append(creator.text.strip())
+    else:
+        comments = next((el for el in metadata if _tag(el) == "Comments"), None)
+        for line in ((comments.text or "") if comments is not None else "").splitlines():
+            if line.strip().lower().startswith("producer:"):
+                parts.append(line.split(":", 1)[1].strip())
+    for el in metadata.iter():
+        text = None
+        if isinstance(el.tag, str) and _tag(el) == "TranskribusMetadata":
+            text = " ".join(f'{k}="{v}"' for k, v in el.attrib.items())
+        elif not isinstance(el.tag, str) and "TranskribusMetadata" in (el.text or ""):
+            text = el.text
+        if text:
+            fields = dict(_TRANSKRIBUS_ATTRS.findall(text))
+            detail = ", ".join(f"{k} {fields[k]}" for k in ("docId", "status") if fields.get(k))
+            parts.append(f"Transkribus ({detail})" if detail else "Transkribus")
+            break
+    return "; ".join(p for p in parts if p) or None
+
+
 def read(data: bytes) -> SourcePage:
     """One PAGE XML file as the model would have stored it.
 
@@ -321,8 +357,7 @@ def read(data: bytes) -> SourcePage:
     page.script = _script_in(page_el.get("primaryScript"))
     page.direction = DIRECTIONS_IN.get(page_el.get("readingDirection") or "")
 
-    creator = next((child for child in root.iter() if _tag(child) == "Creator"), None)
-    page.producer = (creator.text or "").strip() or None if creator is not None else None
+    page.producer = _stated_maker(root)
 
     for element in page_el.iter():
         kind = ELEMENT_KINDS.get(_tag(element))
