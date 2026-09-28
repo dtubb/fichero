@@ -57,6 +57,30 @@ about the ENGINE; this file is about the person.
 **The rule from now on** (2026-09-27): a slice is not done until one end-to-end test goes through the
 exact call the screen makes, on a real imported file.
 
+## Wired overnight (2026-09-27/28) -- pending the lead's build and test run
+
+None of this is tagged [OK] in a spec: the Swift is typechecked, not compiled into the app, and its
+end-to-end tests have not run. Each row names the end-to-end test through the screen's own call on a
+real imported file (the recorded Syriac PAGE import, `fichero/Tests/Fixtures/segments/`, re-checked
+against the engine on every Python run). When the lead's run is green, the rows' behaviours move.
+
+| Gap issue | Behaviours | Commit(s) | End-to-end test (`ImportedPageDrawsItsBoxesTests`) |
+|---|---|---|---|
+| #5146 | `source.app.overlays-draw-from-the-seam` (imported pages) | 6dc912235 | `…DrawsTheFilesRegionsAndLines` |
+| #5152 | `source.editor.shapes-in-source-view`, `selection-shared` (imported) | ba9557474, 0e149018f, 431248e41 | `…ALineClicked…`, `…JoiningTwoImportedLines…` |
+| #5149 | `source.making.in-inspector` (page level, imported file) | c254941e6, c59ef6007, e91a3c4eb | `…SaysHowItWasMadeAndShowsItsOriginal` |
+| #5153 | `source.reading.chosen-is-worked-out`, `corrections-are-new` (seen) | 61ba0e9e4 | `…ChoosingTheCorrection…` |
+| #5155 | `source.editor.selection-shared` (Order list, Reader app half) | f5f580761 | `…ALineNamedByTheReader…` |
+| #5156 | `source.pass.working`, `named-authored` (shown, chosen) | a1d41dcdb, 2196a3ec2 | `…MakeWorkingSendsPassChooseWorking…` |
+| #5157 | `source.editor.set-kind`, `set-direction`, `set-language-script` | 71a3fbac1 | `…SegmentMenuSetsDirection…` |
+| #5158 | `source.lang.three-facts`, `says-where-from`, `unknown-is-not-unexamined` | afad2c57e | `…LanguageSectionShows…` |
+| #5161 | `source.hand.attributed`, `not-provenance`, `record` | a98f4db80 | `…HandsSectionShows…` |
+| Q6 | `source.editor.marks` (on the selection) | 81ba748a1 | `…AHighlightOnTwoSelectedLines…` |
+| #5154 | `source.textedit.typing-is-a-new-reading`, `return-splits-the-line`, `backspace-joins-in-reading-order` -- APP HALF ONLY | 02cd36aa2 | `…SplitAndJoinMessages…` (the page's half is the bugs lane's) |
+
+Engine defects found on the way, filed: #5176 (the Syriac page resolves to "English, left to right"
+by fallback); fixed in-lane: a page's first working-pass choice could not be undone (a1d41dcdb).
+
 ## The headline
 
 Of **144** behaviours: **26** wired and visible, **18** reachable in part, **39** not reachable
