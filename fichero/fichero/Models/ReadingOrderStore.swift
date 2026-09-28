@@ -61,8 +61,11 @@ final class ReadingOrderStore {
     }
 
     /// Show another of the page's orders (the picker, #5160): its top level, from the engine.
+    ///
+    /// Choosing the order already shown is a no-op: nothing is re-read and the level shown stays. Only a
+    /// DIFFERENT order replaces the list -- the list's identity changed, there is nothing to splice.
     func choose(_ orderId: String) async throws {
-        guard orders.contains(where: { $0.id == orderId }) else { return }
+        guard orderId != self.orderId, orders.contains(where: { $0.id == orderId }) else { return }
         self.orderId = orderId
         levels = [:]
         shownLevel = .top

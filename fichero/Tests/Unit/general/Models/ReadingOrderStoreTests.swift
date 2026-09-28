@@ -32,10 +32,13 @@ struct ReadingOrderStoreTests {
         ]
         var sent: [ReadingOrderMove.Place] = []
         var failWith: Error?
+        /// How many levels were read, so a no-op can be seen to read nothing.
+        var entriesCalls = 0
 
         func orders(documentId: String) async throws -> [ReadingOrderSummary] { orderList }
         func entries(orderId: String, parentEntryId: String?) async throws -> [ReadingOrderMove.Entry] {
-            switch parentEntryId {
+            entriesCalls += 1
+            return switch parentEntryId {
             case nil: entryList
             case "e-b": linesOfB
             case "e-l2": wordsOfL2
@@ -54,6 +57,23 @@ struct ReadingOrderStoreTests {
         let store = ReadingOrderStore(transport: transport)
         try await store.load(documentId: "d1")
         return (store, transport)
+    }
+
+    /// The picker's choice (#5160; `check_store_wholesale_reload`): picking the order already shown
+    /// must not re-read and replace the list -- that is the wholesale reload the guard forbids, and it
+    /// would throw away the level the person opened. Another order does replace it: a new list.
+    @Test("choosing the order already shown re-reads nothing and keeps the level; another order replaces the list")
+    func choosingTheShownOrderIsANoOp() async throws {
+        let (store, transport) = try await loaded()
+        await store.show(childrenOf: "s-b")
+        let calls = transport.entriesCalls
+        try await store.choose("o-written")
+        #expect(transport.entriesCalls == calls, "nothing re-read")
+        #expect(store.shown.map(\.segmentId) == ["s-l1", "s-l2", "s-l3"], "the level opened stays")
+        try await store.choose("o-imposed")
+        #expect(store.orderId == "o-imposed")
+        #expect(transport.entriesCalls == calls + 1)
+        #expect(store.shown.map(\.segmentId) == ["s-a", "s-b", "s-c"], "another order shows its own top level")
     }
 
     @Test("the file's own order is shown first")
