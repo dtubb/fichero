@@ -676,7 +676,125 @@ The editor
   **Worded as "a segment that has no reading" (ruled 2026-09-28 by the lead, default accepted):** words
   keep their OWN readings (import writes one per word) and the Reader edits lines, so deleting every word of
   a line leaves its word segments WITH their readings, stale against the line. Whether to show that
-  disagreement, retire those word readings, or leave it is the maintainer's question, #5190.
+  disagreement, retire those word readings, or leave it was the maintainer's question. **Ruled 2026-09-28: retire** — see "When a Reader edit takes a word's text out of its line" below (#5190).
+**When a Reader edit takes a word's text out of its line (#5190).**
+
+**Ruled by the maintainer, 2026-09-28:** when a Reader edit takes a word's text out of its line, the engine
+**retires** that word's reading. The behaviours below are the spec for that ruling. None is built. The
+defaults marked "(default)" are the lead's reading of the ruling, and the maintainer may revisit them.
+
+What exists today, read from the code on 2026-09-28 and not yet run to confirm:
+
+- Import writes one reading per word, from PAGE `TextEquiv` or ALTO `String@CONTENT`. A word reading holds
+  no position in its line's text.
+- The page text's `read_through_children` (`segment_readings.py`) skips a line whose children have text, so that line's
+  text on the page comes from its words.
+- The line map (`page_text_cache.line_map`) folds those word spans into the line and gives the line
+  `representation_id = None` ("read from its words").
+- So a line reading typed in the Reader over such a line creates a `representation.create` that the page
+  does not read: the words still win. Whatever else #5190 builds, `an-edited-line-reads-from-itself` has to
+  come first. Its first test reproduces this on the recorded Syriac page, where the words have readings.
+
+- `source.textedit.word-spans-in-the-line` — **[GAP]** (#5190) **What the words held.** The line's text
+  before the edit ("the base") is what the page showed:
+  - its counting line reading, if it has one;
+  - otherwise its words' counting readings joined with single spaces in text order. The derived text's
+    `DerivedTextSpan`s already produce this.
+
+  Each word with a counting reading holds one span `[start, end)` of the base. Offsets are UTF-16, as for
+  every anchor (`core/utf16_offsets.py`). The engine works the mapping out when the edit lands and never
+  stores it. It is always recomputable from the base, the new line reading and the words' readings, so
+  a stored copy could only go stale (`source.derived.recomputable`).
+
+  The line's base is the reading the edit corrects: `corrects_representation_id`, or the words when
+  `basedOn` is None. A later edit to the same line maps against the previous edit's line reading, not
+  against the words again.
+- `source.textedit.a-word-leaves-the-line` — **[GAP]** (#5190) **What "leaves the line" means.** The base
+  and the new line reading are both split into whitespace-separated tokens. The tokens are aligned in
+  order, the same `difflib.SequenceMatcher(autojunk=False)` alignment as `views.diff_word_tokens`. A word
+  **stays** only when:
+  - the whole of its span falls in an `equal` run of that alignment; and
+  - its text is unchanged, compared after Unicode NFC normalisation and nothing else.
+
+  Every other word **leaves**, and its reading is retired:
+  - **Deleted.** It is gone.
+  - **Changed.** One letter, a case change or punctuation fused to it all count as its text leaving
+    (default). The word's reading records ink, and "ſ" is not "s". A person who corrects a word in the
+    line has corrected the line, not that word.
+  - **Moved.** A word taken out and typed elsewhere in the same line is `delete` plus `insert` in the
+    alignment, so it leaves (default). Its old span is gone, and matching it to a new one by text alone
+    would pick the wrong one of two equal words.
+  - **Split or joined.** "and the" typed as "andthe", or the reverse, leaves both words.
+
+  Whitespace inside the line never counts: `a  b` is `a b`. A word that stays gets its **new** span in the
+  new line reading. Words with no counting reading are neither mapped nor retired: nothing of theirs was
+  on the line.
+
+  The rule is the same in every direction and script. The base is in logical order, never visual, so
+  right-to-left and vertical lines need no case of their own.
+- `source.textedit.an-edited-line-reads-from-itself` — **[GAP]** (#5190) **The edit is what the page shows.**
+  Once a person's line reading counts for a line, the page text, line map and export read that line from
+  **its own reading**, not from its words. `read_through_children` stops applying to it, and `line_map`
+  gives it that `representation_id`, so the next edit corrects it.
+
+  Words that stayed keep their readings and are marked on the image and in the Segments pane as before.
+  This is the only way the ruling can hold. If the words still carried the page, retiring some of them
+  would drop text the person just typed, and keeping all of them would drop the edit. A machine's line
+  reading changes nothing here, because a machine's reading is never the record over a reading it
+  disagrees with (#5175).
+- `source.textedit.retiring-is-part-of-the-edit` — **[GAP]** (#5190) **One action, one undo.** Retiring
+  happens inside the same `representation.create` that saves the line reading. It is one audit row and
+  one ⌘Z, never a second action or a background job.
+
+  A retired word reading is **not** retracted and not deleted. Its row stays, its `retracted_at` stays
+  empty, and its segment stays. It stops counting for the same reason a corrected line does: a person's
+  newer reading of the thing it is part of left it out. The action's `ChangeSpec` names the retired word
+  ids, so the audit says which words the edit retired.
+
+  **Undo.** ⌘Z retracts the line reading, as today. With it gone, nothing retires those words, and they
+  count again. Retirement is worked out from the counting line reading at read time, in the same way that
+  a withdrawn correction retires nothing (`models/readings.py`, #5175), so undo writes nothing about words
+  and cannot miss one. ⌘⇧Z brings the line reading back and retires them again. After an edit, its undo
+  and its redo, the page, the Segments pane and the Inspector each read exactly as they did at that point,
+  on the recorded Syriac page.
+
+  A person can also give a retired word a reading of its own later: Inspector ▸ Type a Reading…, or a word
+  pass. That reading is newer than the line reading and counts. "Retired" applies only to the readings
+  that existed when the line was edited.
+- `source.textedit.a-retired-word-in-the-inspector` — **[GAP]** (#5190) **What the Inspector shows.** Select a retired word
+  on the image or in the Segments pane. The Inspector's Text section shows its reading, labelled
+  **Retired**, with the sentence "Taken out of the line by your edit of <date>". The reading is struck
+  through in secondary style and still selectable, the same as the equal-alternatives listing. The word is
+  not hidden.
+
+  The section offers:
+  - **Show the Line**, which selects the line and names the reading that retired the word;
+  - **Type a Reading…**, as for a segment with no reading.
+
+  The image draws the word hollow and dashed, like a segment with no reading, because it now has no
+  counting text. The Segments pane lists it "Word 4 · Retired", which differs from "No reading": the word
+  had a reading and the edit took it out.
+
+  A strict project shows the same thing. Retirement is not a disagreement, so it never makes a line's
+  text vanish.
+- `source.textedit.retired-words-in-the-export` — **[GAP]** (#5190) **The export.** Every exporter writes what the page
+  shows:
+  - the line's text is its counting reading;
+  - a retired word is written with its geometry and **no text**:
+    - PAGE XML: a `Word` with its `Coords` and no `TextEquiv`;
+    - ALTO: `String CONTENT=""`, the same form an untranscribed word already takes (#5130, `alto.py`);
+    - hOCR: an `ocrx_word` with empty text;
+    - TEI facsimile: a `zone` with no text.
+
+  Words that stayed keep their text. Retired readings are not written as alternatives either, because
+  PAGE XML's `TextEquiv@index` cannot say which one counts, and every alternative would read as a live
+  transcription.
+
+  The round-trip check follows the rule that a round trip is tested per path, with a library in the
+  middle. Import the recorded Syriac page, edit a line so that one word leaves, then export and import the
+  result into a second library. That library's page must read the edited line, carry the retired word as
+  a segment with no reading, and carry every word that stayed with its text.
+
 - `source.textedit.lines-move-in-the-order` — **[PARTIAL]** (#5001) cutting and pasting whole lines changes the named
   reading order and nothing on the page; other pasted text is typing, its line breaks
   turned to spaces.
