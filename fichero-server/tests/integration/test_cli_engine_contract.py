@@ -21,6 +21,9 @@ import pytest
 
 from fichero_cli import FicheroClient
 
+# #5187: spawns an engine and waits on it -- a gate under heavy load may retry or exclude it.
+pytestmark = pytest.mark.load_sensitive
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 VENV_UVICORN = REPO_ROOT / ".venv" / "bin" / "uvicorn"
 

@@ -43,6 +43,9 @@ from tests.integration.test_transport_round_trips import (  # noqa: F401
     uds_engine,
 )
 
+# #5187: spawns an engine and waits on it -- a gate under heavy load may retry or exclude it.
+pytestmark = pytest.mark.load_sensitive
+
 HEALTH = "/api/health"
 
 _ONE_PIXEL_PNG = base64.b64decode(
