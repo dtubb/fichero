@@ -11452,6 +11452,18 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("flows-onto-page")
+    def reading_orders_flows_onto_page_get(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+    ) -> None:
+        """Flows Onto Page (GET /api/reading-orders/flows/onto/{document_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/reading-orders/flows/onto/{document_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-entries")
     def reading_orders_list_entries_get(
         ctx: typer.Context,
