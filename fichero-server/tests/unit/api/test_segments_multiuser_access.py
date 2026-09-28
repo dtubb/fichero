@@ -322,6 +322,22 @@ def _build_read_reference(db, doc_id):
     return "GET", f"/api/segments/{seg.id}/reference", None
 
 
+def _build_read_pass_original(db, doc_id):
+    """A pass with a kept original file (#5149): the file an import keeps lives under the library
+    package's files/, which is where the route will serve it from."""
+    from pathlib import Path
+
+    pass_row = _make_pass(db, doc_id)
+    package = Path(db.path).parent
+    kept = package / "files" / "zz" / f"{pass_row.id}.xml"
+    kept.parent.mkdir(parents=True, exist_ok=True)
+    kept.write_text("<PcGts/>")
+    pass_row.import_file = "page.xml"
+    pass_row.import_original = kept.relative_to(package).as_posix()
+    db.save(pass_row)
+    return "GET", f"/api/segments/passes/{pass_row.id}/original", None
+
+
 def _build_read_versions(db, doc_id):
     pass_row = _make_pass(db, doc_id)
     seg = _make_segment(db, document_id=doc_id, pass_id=pass_row.id, rect=[0.1, 0.1, 0.1, 0.1])
@@ -337,6 +353,7 @@ _READ_ROUTE_CHECKS: dict[tuple[str, str], object] = {
     ("GET", "/segments/{segment_id}"): _build_read_by_segment_id,
     ("GET", "/segments/{segment_id}/reference"): _build_read_reference,
     ("GET", "/segments/{segment_id}/versions"): _build_read_versions,
+    ("GET", "/segments/passes/{pass_id}/original"): _build_read_pass_original,
 }
 
 #: Read-only routes on the same router with no per-target id to check

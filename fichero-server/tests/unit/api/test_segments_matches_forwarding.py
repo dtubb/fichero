@@ -1696,6 +1696,9 @@ _ROUTE_ID_CHECKS: dict[tuple[str, str], list[tuple[str, Any]]] = {
             {"document_id": doc_id, "name": "n", "source_artifact_id": "legacy:x"},
         )),
     ],
+    # Read-only (#5149): a provisional pass id names no kept file, so it is simply not found (404);
+    # nothing is written through a GET, so there is no provisional id to refuse.
+    ("GET", "/segments/passes/{pass_id}/original"): [],
     ("DELETE", "/segments/passes/{pass_id}"): [
         ("pass_id (path)", lambda doc_id, pass_id: ("DELETE", "/api/segments/passes/legacy:x", None)),
     ],
