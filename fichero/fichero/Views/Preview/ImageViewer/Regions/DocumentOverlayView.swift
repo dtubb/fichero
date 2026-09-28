@@ -279,6 +279,9 @@ final class DocumentOverlayView: NSView {
            let rect = DocumentBoxMapping.rect(normalized: bbox, imageRect: imageRect), rect.intersects(dirtyRect) {
             outline(rect)
         }
+        // Handles only for ONE selected box, as in Preview (#5236): with several, each is marked and the
+        // set moves together; 27 boxes of 8 handles each was a wall of dots.
+        let handles = overlay.isEditing && selected.count == 1
         for (index, rect) in selected.enumerated() {
             let shapes = overlay.selectedShapes.indices.contains(index) ? overlay.selectedShapes[index] : []
             if !shapes.isEmpty {
@@ -286,7 +289,7 @@ final class DocumentOverlayView: NSView {
                 ShapeDrawing.draw(shapes, imageRect: imageRect, scale: scale, look: .init(
                     line: line * 1.5, stroke: stroke, wash: wash, dashed: false
                 ))
-                if overlay.isEditing {
+                if handles {
                     ShapeDrawing.drawHandles(shapes, imageRect: imageRect, scale: scale, line: line, stroke: stroke)
                     // The frame around the shape too, whose handles scale every point (#5215).
                     drawFrameHandles(around: rect, scale: scale, line: line, stroke: stroke)
@@ -300,7 +303,7 @@ final class DocumentOverlayView: NSView {
                 continue
             }
             outline(rect)
-            guard overlay.isEditing else { continue }  // handles only in Edit Segments
+            guard handles else { continue }  // handles only in Edit Segments, on a single selection
             drawFrameHandles(around: rect, scale: scale, line: line, stroke: stroke)
         }
     }
