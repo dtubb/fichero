@@ -73,6 +73,8 @@ struct PDFPageView: NSViewRepresentable {
     /// Page-turn axis (2026-08-09): horizontal for paged spreads (book),
     /// vertical only for continuous modes. See PageLayoutMode.pdfDisplayDirection.
     var displayDirection: PDFDisplayDirection = .horizontal
+    /// Edit Segments on this page: selection and Reshape (`PDFPageView+Reshape`).
+    var segmentEditing = PDFSegmentEditing()
 
     // MARK: - Loupe State
 
@@ -126,6 +128,7 @@ struct PDFPageView: NSViewRepresentable {
         )
         pan.delegate = context.coordinator
         view.addGestureRecognizer(pan)
+        wireSegmentEditing(context.coordinator, on: view)
         // Register for tracking area updates
         NotificationCenter.default.addObserver(
             context.coordinator,
@@ -198,6 +201,8 @@ extension PDFPageView {
         private var panDidTurnPage = false
         /// Start point (in view coords) of an in-progress region-draw drag (#2458).
         private var regionDragStartView: CGPoint?
+        /// A Reshape in progress in Edit Segments (`reshapePan`).
+        var reshapeSession: PDFReshapeSession?
 
         // MARK: - Loupe Bindings
 
@@ -454,6 +459,7 @@ extension PDFPageView {
         @objc
         func handlePan(_ recognizer: NSPanGestureRecognizer) {
             guard let view = pdfView else { return }
+            if owner.segmentEditing.isEditing, reshapePan(recognizer, in: view) { return }
 
             // Region-draw mode: a drag defines a bounding box on the current
             // page instead of turning the page (#2458).
@@ -598,6 +604,8 @@ struct PDFPageView: UIViewRepresentable {
     /// Page-turn axis (2026-08-09): horizontal for paged spreads (book),
     /// vertical only for continuous modes. See PageLayoutMode.pdfDisplayDirection.
     var displayDirection: PDFDisplayDirection = .horizontal
+    /// ponytail: taken so the shared call site compiles; a PDF page on iOS has no Edit Segments yet.
+    var segmentEditing = PDFSegmentEditing()
 
     @AppStorage("pdfPreview.loupeEnabled") private var loupeEnabled = false
     @AppStorage("pdfPreview.loupeMagnification") private var loupeMagnification: Double = 3.0

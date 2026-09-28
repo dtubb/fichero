@@ -33,6 +33,9 @@ final class PreviewPaneChrome {
     /// switch (ruled 2026-09-27, Q3: in the head AND in What to show). Only the image canvas
     /// publishes it today; a PDF or a workflow canvas leaves it false and the head shows nothing.
     var canEditSegments = false
+    /// Which segment verbs the mounted canvas ACTS on while editing segments. The head offers only these
+    /// (`SegmentVerbs.offered`): a control that does nothing is not shown.
+    var segmentVerbs: SegmentVerbs = .all
 
     /// Clears everything a departing canvas published, so a pane that swaps
     /// from image to PDF (or to a non-visual document) doesn't keep serving
@@ -43,6 +46,33 @@ final class PreviewPaneChrome {
         renditionIndex = 0
         selectRendition = nil
         canEditSegments = false
+        segmentVerbs = .all
+    }
+}
+
+/// The segment verbs a canvas acts on in Edit Segments. An image page acts on all of them; a PDF page
+/// (2026-09-28) selects and reshapes, and draws, moves, deletes and joins nothing yet -- so its head
+/// offers none of those (`source.editor.reshape`'s Not yet names each one).
+struct SegmentVerbs: OptionSet, Equatable {
+    let rawValue: Int
+    /// The Shape tool's kind menu: Polygon, Baseline -- drawing new segments.
+    static let draw = SegmentVerbs(rawValue: 1 << 0)
+    static let delete = SegmentVerbs(rawValue: 1 << 1)
+    static let join = SegmentVerbs(rawValue: 1 << 2)
+    static let reshape = SegmentVerbs(rawValue: 1 << 3)
+    static let all: SegmentVerbs = [.draw, .delete, .join, .reshape]
+    /// A PDF page: select and reshape only.
+    static let pdfPage: SegmentVerbs = [.reshape]
+
+    /// The head controls offered, by accessibility identifier, in the row's order: the one rule the
+    /// markup row draws from and its test reads.
+    static func offered(_ verbs: SegmentVerbs, isEditing: Bool, selectionCount: Int) -> [String] {
+        guard isEditing else { return [] }
+        var out: [String] = []
+        if verbs.contains(.draw) { out.append("previewMarkupShapeKind") }
+        if selectionCount > 0, verbs.contains(.delete) { out.append("previewMarkupDelete") }
+        if selectionCount >= 2, verbs.contains(.join) { out.append("previewMarkupCombine") }
+        return out
     }
 }
 

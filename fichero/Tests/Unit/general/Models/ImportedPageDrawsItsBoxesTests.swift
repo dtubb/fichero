@@ -2002,6 +2002,140 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertNil(PDFShapeAnnotations.make(for: plain, on: page, userName: "fichero.ocr-box"), "a box stays a square")
     }
 
+    /// Reshape on a PDF page (`source.editor.reshape`), end to end on the recorded Syriac line drawn on the
+    /// corpus's real PDF page: the page's own session (`PDFReshapeSession`, what its click and pan call)
+    /// picks the LINE under a click (not the region around it), reads a press on the baseline's second
+    /// point -- placed where the renderer drew it (`PDFRegionGeometry.pagePoint`) -- back to that point,
+    /// drags it 6 page points right and 4 down, and the release commits through the image's own rule:
+    /// ONE `segment.update` of the baseline alone, checked against the version read, ⌘Z by its audit id.
+    /// ⌥ on a baseline point is refused (a baseline keeps two), on an outline corner removes it. Breaks if a
+    /// PDF press lands on another point than the one drawn, or a PDF reshape sends anything the image's
+    /// would not.
+    func testReshapingALinesBaselineOnAPDFPageSendsTheImagesUpdateAndUndoes() async throws {
+        let store = try await loadedStore()
+        let selected = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
+        let line = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.id == "seg-0003" })
+        let index = try XCTUnwrap(line.boxIndex)
+        let box = selected.geometry.boxes[index]
+        let pdf = try XCTUnwrap(PDFDocument(url: fixtures().appendingPathComponent("dialogo_lengua_page_18.pdf")))
+        let page = try XCTUnwrap(pdf.page(at: 0))
+        let crop = page.bounds(for: .cropBox)
+        // Zoomed to 4×: a handle reaches 1.5 page points, so a press means the point under it.
+        var session = PDFReshapeSession(page: page)
+
+        // A click inside the line picks the line, the smallest box around it.
+        let middle = [box.bbox[0] + box.bbox[2] / 2, box.bbox[1] + box.bbox[3] / 2]
+        XCTAssertEqual(PDFReshapeSession.pick(middle, in: selected.geometry.boxes)?.id, box.id)
+        XCTAssertNil(PDFReshapeSession.pick([0.001, 0.001], in: [box]), "blank page picks nothing")
+
+        let baseline = try XCTUnwrap(line.baseline)
+        let drawnAt = try XCTUnwrap(PDFRegionGeometry.pagePoint(normalized: baseline[1], rotation: page.rotation, crop: crop))
+        assertClose(session.normalized(drawnAt).map { [$0] }, [baseline[1]], "a press reads back the point drawn there")
+        guard case .drag = session.press(at: drawnAt, on: box, boxIndex: index, scale: 4, option: false) else {
+            return XCTFail("a press on a baseline point begins a drag")
+        }
+        let movedTo = CGPoint(x: drawnAt.x + 6, y: drawnAt.y - 4)
+        session.drag(to: movedTo)
+        let done = try XCTUnwrap(session.release())
+        XCTAssertEqual(done.target, .baseline)
+        XCTAssertEqual(done.boxIndex, index)
+        let expected = SegmentShapes.moving(baseline, index: 1, to: try XCTUnwrap(session.normalized(movedTo)))
+        assertClose(done.points, expected)
+
+        RecordedEngine.invoked = []
+        RecordedEngine.undone = []
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        _ = try await SegmentEditRunner(actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store).run(
+            try SegmentShapes.reshape(line, done.target, to: done.points).get(), documentId: "doc-0001",
+            actionName: "Reshape Baseline", undoManager: manager
+        )
+        manager.endUndoGrouping()
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        XCTAssertEqual(sent["name"] as? String, "segment.update")
+        let params = try XCTUnwrap(sent["params"] as? [String: Any])
+        XCTAssertEqual(params["segment_id"] as? String, line.id)
+        XCTAssertEqual(params["expected_version"] as? Int, line.version)
+        XCTAssertNil(params["anchor"], "the baseline alone")
+        assertClose(params["baseline"], expected)
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
+
+        // ⌥: a baseline point cannot be spared; an outline corner can.
+        XCTAssertEqual(session.press(at: drawnAt, on: box, boxIndex: index, scale: 4, option: true), .refused)
+        let polygon = try XCTUnwrap(line.anchor.polygon)
+        let corner = try XCTUnwrap(PDFRegionGeometry.pagePoint(normalized: polygon[0], rotation: page.rotation, crop: crop))
+        guard case .remove(.polygon, let fewer) = session.press(at: corner, on: box, boxIndex: index, scale: 4, option: true) else {
+            return XCTFail("⌥ on an outline corner removes it")
+        }
+        XCTAssertEqual(fewer, Array(polygon.dropFirst()))
+
+        // The mapping back from a page point, on a page turned every way: the inverse of the drawing's.
+        for rotation in [0, 90, 180, 270] {
+            let there = try XCTUnwrap(PDFRegionGeometry.pagePoint(normalized: [0.2, 0.7], rotation: rotation, crop: crop))
+            assertClose(PDFRegionGeometry.normalizedPoint(fromPagePoint: there, rotation: rotation, crop: crop).map { [$0] },
+                        [[0.2, 0.7]], "rotation \(rotation)")
+        }
+    }
+
+    /// A PDF page's selection is the ONE selection (#5155's ruling), both ways, on the recorded Syriac page:
+    /// a click on the PDF page picks the line (`PDFReshapeSession.pick`) and writes it into the page's
+    /// selection in the shown pass's scope (`PDFSegmentEditing.select`, the host's own call), and the
+    /// Inspector reads THAT line from it (`InspectorPath.selectedSegmentIds`); the Reader's caret line
+    /// written the other way (`InspectorPath.select`) is the box the PDF page then gives handles to
+    /// (`PDFSegmentEditing.selected`); a click on blank page clears it. Breaks if a PDF selection is its
+    /// own, invisible to the Inspector and the Reader, or theirs never reaches the PDF page.
+    func testAPDFPagesSelectionIsTheOneSelectionTheInspectorAndReaderShare() async throws {
+        let store = try await loadedStore()
+        let shown = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
+        let scope = SegmentDisplay.selectionScope(artifactId: shown.artifactId, passId: shown.passId)
+        let boxes = shown.geometry.boxes
+        let lines = store.segments(documentId: "doc-0001").filter { $0.kind == "line" && $0.passId == shown.passId }
+        let first = try XCTUnwrap(lines.first), second = try XCTUnwrap(lines.dropFirst().first)
+        let firstBox = boxes[try XCTUnwrap(first.boxIndex)]
+        let selection = RegionSelection()
+
+        let middle = [firstBox.bbox[0] + firstBox.bbox[2] / 2, firstBox.bbox[1] + firstBox.bbox[3] / 2]
+        let picked = PDFReshapeSession.pick(middle, in: boxes)
+        PDFSegmentEditing.select(picked, among: boxes, scope: scope, documentId: "doc-0001", into: selection)
+        XCTAssertEqual(InspectorPath.selectedSegmentIds(selection: selection, documentId: "doc-0001", store: store),
+                       [first.id], "the Inspector inspects the line picked on the PDF page")
+
+        let windowState = WindowState(libraryId: UUID())
+        windowState.focusRegionSelection(selection)
+        XCTAssertEqual(InspectorPath.select(
+            segmentIds: [second.id], into: try XCTUnwrap(windowState.focusedRegionSelection), documentId: "doc-0001", store: store
+        ), [second.id])
+        XCTAssertEqual(PDFSegmentEditing.selected(from: selection, among: boxes, scope: scope, documentId: "doc-0001")?.index,
+                       second.boxIndex, "the Reader's line is the one the PDF page gives handles to")
+
+        PDFSegmentEditing.select(PDFReshapeSession.pick([0.001, 0.001], in: [firstBox]), among: boxes, scope: scope,
+                                 documentId: "doc-0001", into: selection)
+        XCTAssertTrue(selection.isEmpty, "a click on blank page clears it")
+    }
+
+    /// No dead controls: a PDF page acts on selection and Reshape only, so while editing its segments the
+    /// head offers no Shape kinds, no Delete and no Join -- whatever is selected -- while an image page offers
+    /// each once it can act (Delete with one selected, Join with two). The row draws from this one rule
+    /// (`SegmentVerbs.offered`) and the PDF canvas publishes `.pdfPage`. Breaks if a PDF head shows a verb
+    /// that does nothing, or an image head loses one that works.
+    func testAPDFPagesHeadOffersOnlyTheSegmentVerbsThatAct() {
+        XCTAssertEqual(SegmentVerbs.pdfPage, [.reshape])
+        XCTAssertEqual(SegmentVerbs.offered(.pdfPage, isEditing: true, selectionCount: 2), [], "nothing that does nothing")
+        XCTAssertEqual(SegmentVerbs.offered(.all, isEditing: true, selectionCount: 0), ["previewMarkupShapeKind"])
+        XCTAssertEqual(SegmentVerbs.offered(.all, isEditing: true, selectionCount: 1),
+                       ["previewMarkupShapeKind", "previewMarkupDelete"])
+        XCTAssertEqual(SegmentVerbs.offered(.all, isEditing: true, selectionCount: 2),
+                       ["previewMarkupShapeKind", "previewMarkupDelete", "previewMarkupCombine"])
+        XCTAssertEqual(SegmentVerbs.offered(.all, isEditing: false, selectionCount: 2), [], "reading a page: no edit verbs")
+        let chrome = PreviewPaneChrome()
+        chrome.segmentVerbs = .pdfPage
+        chrome.reset()
+        XCTAssertEqual(chrome.segmentVerbs, .all, "a departing PDF canvas does not leave its limits on the next one")
+    }
+
     /// A drawn line lands in its region (`source.editor.draw-shapes`), on the recorded Syriac page: a
     /// baseline drawn at the foot of region 2 is placed in region 2 -- the region holding MOST of it -- and
     /// the create sends it as the parent (the engine test proves that makes region 2's last line, one undo

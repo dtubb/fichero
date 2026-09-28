@@ -26,6 +26,11 @@ extension PDFPageWithToolbar {
         paneChrome.renditionNames = []
         paneChrome.renditionIndex = 0
         paneChrome.selectRendition = nil
+        // Edit Segments reaches a PDF page too: select a segment, reshape its outline and baseline.
+        #if os(macOS)
+        paneChrome.canEditSegments = true
+        paneChrome.segmentVerbs = .pdfPage
+        #endif
     }
 
     /// The magnification family, bottom-right (Daniel, 2026-08-29): the zoom

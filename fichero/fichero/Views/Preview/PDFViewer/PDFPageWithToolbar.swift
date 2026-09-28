@@ -115,7 +115,12 @@ struct PDFPageWithToolbar: View {
     /// hosts outside the preview pane publish nowhere.
     @Environment(PreviewPaneChrome.self) var paneChrome: PreviewPaneChrome?
     /// Sticky markup tool seam (Daniel, 2026-08-30); optional for headless hosts.
-    @Environment(WindowState.self) private var pdfWindowState: WindowState?
+    @Environment(WindowState.self) var pdfWindowState: WindowState?
+    @Environment(ActionStore.self) var pdfActionStore: ActionStore?
+    @Environment(\.undoManager) var pdfUndoManager
+    /// This page's region selection -- the window's ONE selection while it is the focused pane (#5155):
+    /// the Inspector and the Reader read and write it (`PDFPageWithToolbar+SegmentEdits`).
+    @State var pdfRegionSelection = RegionSelection()
     /// ON by default (#4418) — same reasoning as the image surface: geometry
     /// that exists but is never drawn is geometry nobody can check a
     /// transcription against.
@@ -481,12 +486,15 @@ struct PDFPageWithToolbar: View {
                 isDrawingRegion: isDrawingRegion,
                 onCreateRegion: { box in persistRegion(box, tool: pendingTool) },
                 displayMode: pageLayout.pdfDisplayMode ?? .singlePage,
-                displayDirection: pageLayout.pdfDisplayDirection
+                displayDirection: pageLayout.pdfDisplayDirection,
+                segmentEditing: pdfSegmentEditing
             )
             .onAppear {
                 localPageIndex = pageIndex
                 loadAnnotations()
+                pdfWindowState?.offerRegionSelection(pdfRegionSelection)
             }
+            .onDisappear { pdfWindowState?.releaseRegionSelection(pdfRegionSelection) }
             .onChange(of: pageIndex) { _, newIndex in
                 // Primary unpinned pane: keep in step with parent selection.
                 // Secondary or pinned pane: ignore parent changes.
@@ -494,6 +502,7 @@ struct PDFPageWithToolbar: View {
             }
             .onChange(of: effectiveDocumentId) { _, _ in
                 isDrawingRegion = false
+                pdfRegionSelection.clear()  // a selection belongs to its page
                 loadAnnotations()
             }
             .onChange(of: annotationStore.changeToken) { _, _ in

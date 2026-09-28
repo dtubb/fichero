@@ -28,6 +28,8 @@ struct PreviewMarkupToolsRow: View {
     /// Icon-and-Text (Daniel, 2026-08-30): labels render beneath the glyphs
     /// when the window's label mode is on — same switch as the workflow bar.
     var showsLabels = false
+    /// What the mounted canvas acts on in Edit Segments (`PreviewPaneChrome.segmentVerbs`).
+    var segmentVerbs: SegmentVerbs = .all
 
     /// Coding v1 (Daniel, 2026-08-30, ruling 4): the chevron menu's "Tag Next
     /// Highlight…" opens this popover; its comma-separated tags ride the next
@@ -99,7 +101,7 @@ struct PreviewMarkupToolsRow: View {
                 name: .previewRegionVerb, object: PreviewRegionVerb.draw.rawValue
             )
         }
-        if windowState?.isEditingSegments == true { shapeKindMenu }
+        if offered.contains("previewMarkupShapeKind") { shapeKindMenu }
 
         toolButton(
             icon: PreviewMarkupTool.line.icon,
@@ -156,6 +158,14 @@ struct PreviewMarkupToolsRow: View {
         editVerbs
     }
 
+    /// The segment controls this row offers now: only verbs the canvas acts on (`SegmentVerbs.offered`).
+    private var offered: [String] {
+        SegmentVerbs.offered(
+            segmentVerbs, isEditing: windowState?.isEditingSegments == true,
+            selectionCount: windowState?.focusedRegionSelection?.count ?? 0
+        )
+    }
+
     /// Delete / Combine act on the SELECTED bounding boxes (Daniel,
     /// 2026-08-31, ruling 2), so they are only shown while there IS a
     /// selection — a destructive verb with nothing to destroy is the bar
@@ -167,7 +177,7 @@ struct PreviewMarkupToolsRow: View {
         let selection = windowState?.focusedRegionSelection ?? RegionSelection()
         // Delete and Combine write segments, so they appear only in the segment-editing
         // mode (#5114); reading a page, a selection is for reading.
-        if !selection.isEmpty, windowState?.isEditingSegments == true {
+        if offered.contains("previewMarkupDelete") {
             Divider().frame(height: PaneHeadMetrics.dividerHeight)
 
             // No ⌘⌥ binding: Delete already answers to the ⌫ key path the
@@ -186,7 +196,7 @@ struct PreviewMarkupToolsRow: View {
 
             // Join needs two boxes to have anything to merge. JOIN, not Combine (ruled 2026-09-27,
             // Q4): one word on the page, the Inspector and the menu.
-            if selection.count >= 2 {
+            if offered.contains("previewMarkupCombine") {
                 toolButton(
                     icon: "arrow.triangle.merge",
                     label: "Join \(selection.count)",

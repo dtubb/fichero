@@ -97,6 +97,14 @@ extension PDFPageView.Coordinator {
             annotation.userName = Self.ocrBoxAnnotationName
             page.addAnnotation(annotation)
         }
+        // The ONE selection's box on this page (picked here, in the Inspector or the Reader): its handles
+        // in Edit Segments, an outline otherwise -- swept with the boxes.
+        if let selected = owner.segmentEditing.selected {
+            let marks = owner.segmentEditing.isEditing
+                ? PDFShapeAnnotations.handles(for: selected.box, on: page, scale: view.scaleFactor, userName: Self.ocrBoxAnnotationName)
+                : PDFShapeAnnotations.selectionOutline(for: selected.box, on: page, userName: Self.ocrBoxAnnotationName)
+            marks.forEach(page.addAnnotation)
+        }
     }
 
     static let ocrBoxAnnotationName = "fichero.ocr-box"

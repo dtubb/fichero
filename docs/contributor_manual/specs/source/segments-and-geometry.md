@@ -485,7 +485,15 @@ Identity and versions
   person's reordering included; the undo of a create and its redo go the same way
   (`test_imported_page_draws_its_boxes.py::test_a_deleted_region_leaves_the_order_and_its_undo_puts_it_back_in_its_place`,
   `::test_a_line_drawn_inside_a_region_is_that_region_s_line_in_its_order_and_one_undo_takes_both`).
-  Not yet: `segment.merge`, `split` and `carry` retire segments without taking their entries out.
+  **The same for merge and split (2026-09-28):** a merge takes the absorbed segments' entries out and
+  its undo (`segment.unmerge`) writes the same rows back -- the PAGE export's `<ReadingOrder>` names one
+  region fewer, then the same ones again
+  (`::test_a_merge_takes_the_absorbed_segment_out_of_the_order_and_its_undo_puts_the_same_row_back`);
+  a split's new parts, which had NO entry, follow the line they were cut from at its level in every
+  order holding it, and `segment.unsplit` takes them out with the parts
+  (`::test_a_split_line_s_new_part_follows_it_in_the_order_and_its_undo_takes_the_part_out`).
+  `segment.carry` retires no segment (it copies readings and annotations onto a matched one), so it
+  has no entries to move.
 
 Shape and images
 - `source.segment.shape-kinds` — **[OK]** (#4925 closed; `test_anchor_shapes.py::TestEachKindStoresAndReadsBack`) a segment's shape is a point, a line, an area or a stretch of

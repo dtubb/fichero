@@ -82,6 +82,23 @@ enum PDFRegionGeometry {
         return CGPoint(x: crop.minX + unrotated[0] * crop.width, y: crop.minY + (1 - unrotated[1]) * crop.height)
     }
 
+    /// The inverse of `pagePoint`: a PDFKit page point (a press on a PDF page) as the DISPLAY-space
+    /// normalized point a segment's shapes are stored in, clamped to the page. Reshape on a PDF page
+    /// reads its presses through this, so a point is moved in the same space it was drawn from.
+    static func normalizedPoint(fromPagePoint point: CGPoint, rotation: Int, crop: CGRect) -> [Double]? {
+        guard crop.width > 0, crop.height > 0 else { return nil }
+        let unrotatedX = Double((point.x - crop.minX) / crop.width)
+        let unrotatedY = 1 - Double((point.y - crop.minY) / crop.height)
+        let display: (Double, Double)
+        switch ((rotation % 360) + 360) % 360 {
+        case 90: display = (1 - unrotatedY, unrotatedX)
+        case 180: display = (1 - unrotatedX, 1 - unrotatedY)
+        case 270: display = (unrotatedY, 1 - unrotatedX)
+        default: display = (unrotatedX, unrotatedY)
+        }
+        return [clamp(display.0), clamp(display.1)]
+    }
+
     /// Normalized top-left box for a drag between two PDF page points
     /// (bottom-left origin), clamped to 0…1 with a positive size. `nil` for a
     /// degenerate (tap-sized) drag.
