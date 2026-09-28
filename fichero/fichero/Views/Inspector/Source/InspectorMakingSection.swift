@@ -8,7 +8,10 @@ struct InspectorMakingSection: View {
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
     @Environment(\.undoManager) private var undoManager
+    @Environment(LibraryManager.self) private var libraryManager: LibraryManager?
     @State private var shown: PassOriginal?
+    /// What the engine writes, for each pass's Export menu (#5162).
+    @State private var formats: [PageExportChoice.Format] = []
     @State private var failure: String?
 
     private var entries: [InspectorMaking.Entry] {
@@ -46,6 +49,7 @@ struct InspectorMakingSection: View {
                                 .font(.caption)
                                 .accessibilityLabel("Show the original file \(entry.title)")
                         }
+                        exportMenu(entry)
                     }
                 }
                 if let failure {
@@ -55,7 +59,47 @@ struct InspectorMakingSection: View {
             .sheet(item: $shown) { original in
                 PassOriginalSheet(original: original)
             }
+            .task { await loadFormats() }
         }
+    }
+
+    /// Export (#5162): this pass AS EDITED in each format the engine writes of its kind, and AS
+    /// IMPORTED -- its original file, byte for byte -- when one is kept.
+    @ViewBuilder
+    private func exportMenu(_ entry: InspectorMaking.Entry) -> some View {
+        let offers = PageExportChoice.offers(formats, georeferencing: entry.georeferencing)
+        if let library = segmentService.flatMap({ libraryManager?.library(owningService: $0) }),
+           !offers.isEmpty || entry.hasOriginal {
+            Menu("Export") {
+                if !offers.isEmpty {
+                    Section("As Edited") {
+                        ForEach(offers) { format in
+                            Button(format.title + "…") {
+                                Task {
+                                    await PageExportRunner.exportPass(
+                                        documentId: documentId, passId: entry.passId, format: format, library: library
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                if entry.hasOriginal {
+                    Button("As Imported…") { Task { await PageExportRunner.saveOriginal(passId: entry.passId, library: library) } }
+                        .help("Save the file this pass was imported from, exactly as it arrived")
+                }
+            }
+            .menuStyle(.button)
+            .buttonStyle(.borderless)
+            .font(.caption)
+            .fixedSize()
+        }
+    }
+
+    private func loadFormats() async {
+        guard formats.isEmpty, let segmentService,
+              let library = libraryManager?.library(owningService: segmentService) else { return }
+        formats = (try? await library.documentService.formats()) ?? []
     }
 
     /// "Make Working" (#5156): the audited `pass.choose_working`, with ⌘Z.

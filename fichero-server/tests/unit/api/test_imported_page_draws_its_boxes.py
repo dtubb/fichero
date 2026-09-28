@@ -901,3 +901,44 @@ def test_a_citable_reference_resolves_to_its_page_and_follows_a_merge_for_the_ur
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         RESOLVE_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
     assert json.loads(RESOLVE_FIXTURE.read_text()) == recorded, "the app's reference fixture drifted"
+
+
+EXPORT_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.export-choices.json"
+
+
+def test_export_choices_are_recorded_as_edited_and_as_imported_for_the_making_section(db, client):
+    """`source.format.export-choices`, `first-four`, `everywhere` (#5162, Inspector › Making's per-pass
+    Export): the app lists what this build WRITES (GET /api/formats), exports one pass by its id in a
+    chosen format -- the exact call, GET /api/documents/{id}/export/{format}?pass_id=… -- and saves the
+    pass AS IMPORTED from its original (GET /api/segments/passes/{id}/original), whose bytes are the
+    file's own, byte for byte. Recorded for the app. Breaks if a written format is not listed, the
+    pass the person chose is not the one exported, or "as imported" is not the file as it arrived."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+
+    formats = client.get("/api/formats").json()
+    written = {f["name"] for f in formats["items"] if f["writes"]}
+    assert {"pagexml", "alto", "tei", "hocr"} <= written
+    exported = client.get(f"/api/documents/{doc_id}/export/hocr", params={"pass_id": real["id"]})
+    assert exported.status_code == 200, exported.text
+    assert exported.json()["choices"]["pass_id"] == real["id"], "the pass chosen is the pass exported"
+    original = client.get(f"/api/segments/passes/{real['id']}/original").json()
+    import base64
+    assert base64.b64decode(original["content_base64"]) == SYRIAC.read_bytes(), "as imported, byte for byte"
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    ids = {doc_id: stable_route["document_id"],
+           real["id"]: next(p["id"] for p in stable_route["passes"] if not p["provisional"])}
+    by_rect = {repr(seg["anchor"]["rect"]): seg["id"] for seg in stable_route["segments"]}
+    for segment in body["segments"]:
+        ids.setdefault(segment["id"], by_rect.get(repr(segment["anchor"]["rect"]), segment["id"]))
+    stable = _stabilizer(ids)
+    answer = stable(exported.json())
+    for raw, token in ids.items():  # the file names its segments inside its text, too
+        answer["content"] = answer["content"].replace(raw, token)
+    recorded = {"formats": formats, "export": answer, "original": stable(original),
+                "original_sha256": __import__("hashlib").sha256(SYRIAC.read_bytes()).hexdigest()}
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        EXPORT_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(EXPORT_FIXTURE.read_text()) == recorded, "the app's export fixture drifted"

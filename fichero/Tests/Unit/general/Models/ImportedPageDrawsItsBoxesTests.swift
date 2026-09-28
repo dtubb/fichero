@@ -1,4 +1,5 @@
 @testable import Fichero
+import CryptoKit
 import FicheroAPIClient
 import XCTest
 
@@ -83,6 +84,11 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         /// What the reading-order routes answer: the page's orders, the top level, one region's
         /// children (for `parent_entry_id` = `childrenOf`); every place POST is recorded.
         nonisolated(unsafe) static var ordersReply = Data()
+        /// What `GET /api/formats` and `GET /api/documents/{id}/export/{format}` answer, and the
+        /// export's path and query (#5162).
+        nonisolated(unsafe) static var formatsReply = Data()
+        nonisolated(unsafe) static var exportReply = Data()
+        nonisolated(unsafe) static var exportRequest: (path: String, query: String?)?
         /// What `POST /api/locations/resolve` answers, and the body it was sent (#5164).
         nonisolated(unsafe) static var resolveReply = Data()
         nonisolated(unsafe) static var resolveRequests: [Data] = []
@@ -155,6 +161,11 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 actionBody = Self.statementsReply
             } else if path.hasPrefix("/api/reading-orders/document/") {
                 actionBody = Self.ordersReply
+            } else if path == "/api/formats" {
+                actionBody = Self.formatsReply
+            } else if path.hasPrefix("/api/documents/"), path.split(separator: "/").dropLast().last == "export" {
+                Self.exportRequest = (path, request.url?.query)
+                actionBody = Self.exportReply
             } else if path == "/api/locations/resolve" {
                 Self.resolveRequests.append(Self.bodyOf(request))
                 actionBody = Self.resolveReply
@@ -227,6 +238,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             ordersReply = Data()
             neighboursReply = Data()
             resolveReply = Data()
+            formatsReply = Data()
+            exportReply = Data()
+            exportRequest = nil
             resolveRequests = []
             neighboursQuery = nil
             topEntriesReply = Data()
@@ -1321,6 +1335,48 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let followed = try await reference.resolve(with: locations)
         XCTAssertEqual(followed, ReadingOrderChoice.Landing(documentId: "doc-0001", segmentId: "seg-0010"),
                        "an old reference opens the line that absorbed it")
+    }
+
+    /// `source.format.export-choices` end to end (#5162, Inspector › Making's per-pass Export), on the
+    /// imported Syriac page: the choices are built from what the engine WRITES (a text pass is offered
+    /// the text formats, a georeferencing pass only the georeference ones); exporting the pass the
+    /// person picked sends its id (`pass_id`) and the engine says it exported that pass; the file is
+    /// named for its format even where the engine's name is not (hOCR as `.hocr`); and "as imported"
+    /// is the original file byte for byte (its SHA-256 is the file's). Breaks if a written format is
+    /// missing, the wrong pass is exported, or "as imported" is anything but the file.
+    func testExportChoicesOfferWhatTheEngineWritesPerPassAndAsImportedIsTheFile() async throws {
+        _ = try await loadedStore()
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.export-choices.json")
+        )) as? [String: Any])
+        RecordedEngine.formatsReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["formats"]))
+        RecordedEngine.exportReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["export"]))
+        RecordedEngine.originalReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["original"]))
+        let client = try XCTUnwrap(storeClient)
+
+        let formats = try await DocumentService(ficheroClient: client).formats()
+        XCTAssertEqual(PageExportChoice.offers(formats, georeferencing: false).map(\.title),
+                       ["PAGE XML", "ALTO", "TEI", "hOCR", "YOLO"])
+        XCTAssertEqual(PageExportChoice.offers(formats, georeferencing: true).map(\.title),
+                       ["IIIF Georeference", "QGIS Points"])
+
+        let hocr = try XCTUnwrap(formats.first { $0.name == "hocr" })
+        let result = try await DocumentService(ficheroClient: client).exportPage(
+            documentId: "doc-0001", format: hocr.name, passId: "pass-0002"
+        )
+        XCTAssertEqual(RecordedEngine.exportRequest?.path, "/api/documents/doc-0001/export/hocr")
+        XCTAssertEqual(RecordedEngine.exportRequest?.query, "pass_id=pass-0002", "the pass the person picked")
+        XCTAssertEqual(result.choices.passId, "pass-0002")
+        XCTAssertEqual(PageExportChoice.filename(engine: result.filename, format: hocr),
+                       "escriptorium_syriac_onb-syr1-0001.page.hocr", "named for what it is")
+        let pagexml = try XCTUnwrap(formats.first { $0.name == "pagexml" })
+        XCTAssertEqual(PageExportChoice.filename(engine: "a.page.xml", format: pagexml), "a.page.xml", "the engine's name kept")
+
+        let fetched = try await SegmentService(ficheroClient: client).original(passId: "pass-0002")
+        let original = try XCTUnwrap(fetched)
+        XCTAssertEqual(original.fileName, "escriptorium_syriac_onb-syr1-0001.page.xml")
+        let digest = SHA256.hash(data: original.bytes).map { String(format: "%02x", $0) }.joined()
+        XCTAssertEqual(digest, recorded["original_sha256"] as? String, "as imported: the file, byte for byte")
     }
 
     /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the
