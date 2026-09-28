@@ -295,7 +295,10 @@ struct MenuShortcutUniquenessTests {
 
             // The two known key:/shortcut: indirections — matched by declaring file, since both
             // wrap their key parameter in a HARDCODED modifier set the regex above can't see.
-            if file == "Views/Shell/PaneHead/PreviewHeadControls.swift",
+            // `toolButton` moved to PreviewMarkupToolsRow.swift for file_length (#5113); scanning only
+            // its old home left every markup chord (⌘⌥U/R/G/S/K/N) unchecked (found 2026-09-28).
+            if file == "Views/Shell/PaneHead/PreviewHeadControls.swift"
+                || file == "Views/Shell/PaneHead/PreviewMarkupToolsRow.swift",
                let match = toolButtonKey.firstMatch(in: rawLine, range: range),
                let keyRange = Range(match.range(at: 1), in: rawLine) {
                 mints.append(Mint(

@@ -1126,6 +1126,9 @@ The editor
 - `source.editor.cut` — **[GAP]** (#4941) a scissors stroke splits one or many lines at once.
 - `source.editor.join-group` — **[PARTIAL]** (#4941) selected segments can be merged; lines grouped into a region
   and ungrouped.
+  **Join is ⌘J (ruled 2026-09-28):** the head's Join, offered while editing with two or more selected
+  (`PreviewMarkupToolsRow`, was ⌘⌥C). ⌘J was free -- the only j chord is ⌃⌘J, Show Side Preview -- and
+  `MenuShortcutUniquenessTests` now reads the markup row's chords too (it scanned the row's old file only).
   **The join half has its plan (2026-09-27); grouping lines into a region does not.**
   `SegmentEditCommand.mergePlan` turns a `SegmentSelection` into one `segment.merge` request and
   refuses three ways — fewer than two selected, a selection left over from another page, a

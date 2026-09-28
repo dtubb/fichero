@@ -201,7 +201,10 @@ struct PreviewMarkupToolsRow: View {
                     icon: "arrow.triangle.merge",
                     label: "Join \(selection.count)",
                     identifier: "previewMarkupCombine",
-                    key: "c", help: "Join — merge the selected regions into one (⌘⌥C)"
+                    // ⌘J, ruled by the maintainer 2026-09-28 (checked free: the only j chord is ⌃⌘J,
+                    // Show Side Preview). Was ⌘⌥C.
+                    shortcut: KeyboardShortcut("j", modifiers: [.command]),
+                    help: "Join — merge the selected regions into one (⌘J)"
                 ) {
                     NotificationCenter.default.post(
                         name: .previewRegionVerb, object: PreviewRegionVerb.combine.rawValue
@@ -310,7 +313,7 @@ struct PreviewMarkupToolsRow: View {
     /// every text view for free.
     private func toolButton(
         icon: String, label: String, identifier: String,
-        key: KeyEquivalent? = nil, help: String,
+        key: KeyEquivalent? = nil, shortcut: KeyboardShortcut? = nil, help: String,
         mode: PreviewMarkupTool? = nil, action: @escaping () -> Void
     ) -> some View {
         let armed = mode != nil && windowState?.activeMarkupTool == mode
@@ -329,7 +332,8 @@ struct PreviewMarkupToolsRow: View {
             }
             .buttonStyle(.borderless)
             .foregroundStyle(armed ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
-            .keyboardShortcut(key.map { KeyboardShortcut($0, modifiers: [.command, .option]) })
+            // `shortcut` for a chord outside the ⌘⌥ family (Join is ⌘J, ruled 2026-09-28).
+            .keyboardShortcut(shortcut ?? key.map { KeyboardShortcut($0, modifiers: [.command, .option]) })
             .help(help)
             .accessibilityLabel(label)
             .accessibilityIdentifier(identifier)

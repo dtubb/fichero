@@ -2,6 +2,7 @@
 import CryptoKit
 import FicheroAPIClient
 import PDFKit
+import SwiftUI
 import XCTest
 
 /// #5146, end to end: an imported page draws its boxes on the image.
@@ -318,6 +319,110 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let store = SegmentStore(service: SegmentService(ficheroClient: client))
         await store.load(documentId: "doc-0001")
         return store
+    }
+
+    // MARK: - Hosted in the library window's tree (2026-09-28)
+
+    /// A library whose EVERY client talks to the recorded engine -- the one seam (`session:`) -- so a view
+    /// hosted under `LibraryTreeEnvironment` gets the window's real service list and nothing of its own.
+    private func hostedLibrary() throws -> LibraryManager.LibraryReference {
+        RecordedEngine.body = try Data(contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.route.json"))
+        setenv("FICHERO_AUTH_TOKEN", "test-token", 1)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RecordedEngine.self]
+        return LibraryManager.LibraryReference(
+            url: URL(fileURLWithPath: "/tmp/ImportedPageDrawsItsBoxesTests.fichero"), document: FicheroDocument(),
+            displayName: "Hosted", host: BackendHost(url: try XCTUnwrap(URL(string: "https://127.0.0.1:8765"))),
+            session: URLSession(configuration: configuration)
+        )
+    }
+
+    /// `view` in a window, in EXACTLY the library window's environment (`LibraryTreeEnvironment`) plus the
+    /// app-level objects its scene carries.
+    private func hostInWindow(_ view: some View, library: LibraryManager.LibraryReference) -> NSWindow {
+        let rooted = view
+            .modifier(LibraryTreeEnvironment(
+                library: library, windowState: WindowState(libraryId: library.id), executionObserver: WorkflowExecutionObserver()
+            ))
+            .environment(LibraryManager.shared)
+            .environment(AppState())
+            .environment(KGFocusState())
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 1000), styleMask: [.titled], backing: .buffered, defer: false
+        )
+        window.contentView = NSHostingView(rootView: rooted)
+        return window
+    }
+
+    private static func firstSubview<T: NSView>(_ type: T.Type, in view: NSView) -> T? {
+        if let match = view as? T { return match }
+        for child in view.subviews {
+            if let match = firstSubview(type, in: child) { return match }
+        }
+        return nil
+    }
+
+    /// Daniel's morning build drew NO boxes: the Preview read SegmentService from a tree that never injected
+    /// it. The REAL image preview (`ZoomableImagePreview`), hosted in the library window's own environment
+    /// over the recorded Syriac page (network stubbed, nothing else), draws the file's regions and lines:
+    /// every region and line box of the page is in the overlay it paints, and a line is painted where its
+    /// normalized box falls on the drawn image. Breaks if the window's tree loses the service again, or the
+    /// preview's overlay stops reading the seam.
+    func testTheRealPreviewInTheLibraryWindowsTreeDrawsTheImportedPagesRegionsAndLines() async throws {
+        let expectedStore = try await loadedStore()
+        let geometry = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: expectedStore)).geometry
+        let wanted = Set(geometry.boxes.filter { $0.level == "region" || $0.level == "line" }.map(\.bbox))
+        XCTAssertFalse(wanted.isEmpty)
+
+        let library = try hostedLibrary()
+        let window = hostInWindow(
+            ZoomableImagePreview(documentId: "doc-0001", renderedImage: NSImage(size: NSSize(width: 1000, height: 1400))),
+            library: library
+        )
+        defer { window.contentView = nil }
+        let root = try XCTUnwrap(window.contentView)
+        var overlay: DocumentOverlayView?
+        for _ in 0..<500 {
+            root.layoutSubtreeIfNeeded()
+            overlay = Self.firstSubview(DocumentOverlayView.self, in: root)
+            if let drawn = overlay?.overlay.boxes, wanted.isSubset(of: Set(drawn.map(\.bbox))) { break }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        let view = try XCTUnwrap(overlay, "the preview mounted its overlay")
+        let drawn = view.overlay.boxes.map(\.bbox)
+        XCTAssertTrue(wanted.isSubset(of: Set(drawn)), "every region and line of the page is drawn (\(drawn.count) drawn)")
+
+        let line = try XCTUnwrap(geometry.boxes.first { $0.level == "line" })
+        let imageRect = DrawnImageFrame.drawnRect(in: try XCTUnwrap(view.superview))
+        XCTAssertGreaterThan(imageRect.width, 0)
+        let painted = view.overlay.boxes(in: .infinite, imageRect: imageRect).first { $0.box.bbox == line.bbox }
+        XCTAssertEqual(painted?.rect, DocumentBoxMapping.rect(normalized: line.bbox, imageRect: imageRect),
+                       "the line is painted where its box falls on the drawn image")
+    }
+
+    /// The Segments pane, hosted the same way (`SegmentsPaneView` in the library window's tree), lists the
+    /// recorded page's four regions -- rows, not a spinner. Breaks if the pane cannot reach its order
+    /// service in the window again.
+    func testTheRealSegmentsPaneInTheLibraryWindowsTreeListsThePagesRows() async throws {
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.reading-order.json")
+        )) as? [String: Any])
+        let library = try hostedLibrary()
+        RecordedEngine.ordersReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["orders"]))
+        RecordedEngine.topEntriesReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["top"]))
+        let window = hostInWindow(
+            SegmentsPaneView(document: Document(id: "doc-0001", docType: .page, name: "Page 1")), library: library
+        )
+        defer { window.contentView = nil }
+        let root = try XCTUnwrap(window.contentView)
+        var rows = 0
+        for _ in 0..<500 {
+            root.layoutSubtreeIfNeeded()
+            rows = Self.firstSubview(NSTableView.self, in: root)?.numberOfRows ?? 0
+            if rows == 4 { break }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTAssertEqual(rows, 4, "the page's four regions, as rows")
     }
 
     /// #5152: the boxes drew but a click selected nothing, because a click needs a selection scope

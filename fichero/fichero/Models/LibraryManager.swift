@@ -349,7 +349,8 @@ class LibraryManager {
             storageService: StorageService? = nil,
             providerService: ProviderAPIService? = nil,
             modelService: ModelService? = nil,
-            startAccessing: Bool = false
+            startAccessing: Bool = false,
+            session: URLSession? = nil
         ) {
             self.id = id ?? UUID()
             self.url = url
@@ -364,8 +365,14 @@ class LibraryManager {
 
             // Reuse existing instances or create new ones. A new client targets
             // THIS library's backend host, not the global one.
+            // `session` is a TEST seam: a hosted-view test serves this library's EVERY client from a
+            // recorded engine (a URLProtocol on the session), so the views are tested in the window's own
+            // environment and not with dependencies of their own (2026-09-28). HTTPS, because only an
+            // HTTPS transport honours an injected session. Production passes nil.
             if let existingClient = apiClient {
                 self.apiClient = existingClient
+            } else if let session {
+                self.apiClient = APIClient(client: FicheroClient(baseURL: host.url, libraryPath: url.path, session: session))
             } else {
                 self.apiClient = APIClient(baseURL: host.url)
             }
@@ -381,11 +388,12 @@ class LibraryManager {
             // inner client and AppState.ficheroClient; without it every generated
             // service on this client (WorkflowStore's list_workflows was the
             // reported symptom) fails "Could not connect to the server".
-            self.ficheroClient = FicheroClient(
-                baseURL: host.url,
-                libraryPath: url.path,
-                transportMode: EngineConfig.transportMode
-            )
+            self.ficheroClient = session.map { FicheroClient(baseURL: host.url, libraryPath: url.path, session: $0) }
+                ?? FicheroClient(
+                    baseURL: host.url,
+                    libraryPath: url.path,
+                    transportMode: EngineConfig.transportMode
+                )
 
             // Initialize all services with the library's APIClient
             self.documentStore = documentStore ?? DocumentStore(apiClient: self.apiClient)
