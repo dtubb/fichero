@@ -27,6 +27,7 @@ from fichero_server.models import (
     ContentRepresentationRevision,
     ContentRepresentationRevisionListResponse,
 )
+from fichero_server.models.geo import WORLD_POINT, world_point_content
 from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.knowledge import ProvenanceKind
 from fichero_server.models.source_declarations import assert_known_script
@@ -315,6 +316,10 @@ def create_representation(
     it is why there is no update action here at all.
     """
     assert_known_reading_kind(db, params.kind)
+    if params.kind == WORLD_POINT:
+        # A place on the earth is checked and stored in WGS 84 with the CRS it arrived in, or held
+        # unconverted as `unknown` -- never guessed (`models/geo.py`, #5122).
+        params = params.model_copy(update={"content": world_point_content(params.content)})
     if params.script:
         # `source.lang.project-declared`: a private-use script code is refused
         # unless this library declared it. Checked on the WRITE only -- a

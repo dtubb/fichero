@@ -65,6 +65,9 @@ BUILTIN_READING_KINDS: tuple[tuple[str, str], ...] = (
     ("as_read_aloud", "As read aloud"),
     ("description", "Description"),
     ("coordinate", "Coordinate"),
+    # A place on the earth (#5122): a ground control point's world end, stored in WGS 84 with the
+    # CRS it arrived in (`models/geo.py`). Its content is checked on write.
+    ("world-point", "World point"),
     ("music", "Music"),
     ("drawing", "Drawing"),
 )
