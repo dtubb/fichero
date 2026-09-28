@@ -35,7 +35,6 @@ import socket
 import subprocess
 import sys
 import tempfile
-import time
 from pathlib import Path
 
 import httpx
@@ -54,8 +53,16 @@ def _free_port() -> int:
 
 
 def _child_env(base_path: Path, token: str) -> dict[str, str]:
+    from tests.integration._engine_wait import _share_real_model_cache
+
+    # The engine's OWN home (#5187): with the real one, the engine's startup library discovery
+    # walks the maintainer's libraries (`_cli_live`'s reason for its fake HOME, #4434). Only the
+    # models cache is shared.
+    home = base_path / "home"
+    _share_real_model_cache(home)
     env = dict(os.environ)
     env.update(
+        HOME=str(home),
         # Each engine gets its OWN base path: app.duckdb takes an EXCLUSIVE
         # lock, so a shared one silently prevents the second engine booting.
         FICHERO_BASE_PATH=str(base_path),
@@ -88,20 +95,18 @@ class _Engine:
     def auth_header(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.token}"}
 
-    def wait_ready(self, timeout: float = 90.0) -> None:
-        deadline = time.time() + timeout
-        last: Exception | None = None
-        while time.time() < deadline:
-            if self.proc.poll() is not None:
-                raise RuntimeError(f"engine exited early: rc={self.proc.returncode}")
-            try:
-                with httpx.Client(timeout=5, **self.client_kwargs) as c:
-                    if c.get(HEALTH).status_code == 200:
-                        return
-            except Exception as exc:  # not up yet
-                last = exc
-            time.sleep(0.5)
-        raise RuntimeError(f"engine never became ready: {last}")
+    def wait_ready(self) -> None:
+        """Ready when /api/health answers 200 over this transport; bounded by the engine's own
+        CPU progress, not the wall clock (#5187, `tests/integration/_engine_wait.py`)."""
+        from tests.integration._engine_wait import wait_for_engine
+
+        def answers() -> bool:
+            with httpx.Client(timeout=5, **self.client_kwargs) as c:
+                return c.get(HEALTH).status_code == 200
+
+        why = wait_for_engine(answers, self.proc)
+        if why:
+            raise RuntimeError(f"engine never became ready: {why}")
 
     def stop(self) -> None:
         self.proc.terminate()

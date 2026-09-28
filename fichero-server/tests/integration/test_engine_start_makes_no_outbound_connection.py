@@ -20,10 +20,8 @@ import json
 import os
 import socket
 import subprocess
-import sys
 import threading
 import time
-from pathlib import Path
 
 import httpx
 import pytest
@@ -141,7 +139,8 @@ def test_an_engine_start_and_a_minute_idle_reach_nothing_off_the_machine(tmp_pat
             env=env, stdout=subprocess.DEVNULL, stderr=log_handle,
         )
         try:
-            assert _wait_healthy(base_url), engine_log.read_text(errors="replace")[-3000:]
+            why = _wait_healthy(base_url, process)
+            assert why is None, f"{why}\n" + engine_log.read_text(errors="replace")[-3000:]
             assert httpx.get(f"{base_url}/api/health", timeout=10).status_code == 200
             opened = httpx.get(f"{base_url}/api/documents", headers={"X-Fichero-Library-Path": str(library)}, timeout=30)
             assert opened.status_code == 200, opened.text[:300]

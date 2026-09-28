@@ -1,8 +1,8 @@
 """Live CLI<->engine contract test — the CLI mirror of the Swift
 AppEngineContractTests.
 
-Spawns a real uvicorn on an ephemeral port (so it never contends with the app's
-:8765 or the Swift harness), seeds a disposable library via the shared seeder,
+Runs against the shared live engine (`_cli_live.cli_live_engine`: an ephemeral port, its own HOME,
+a disposable library via the shared seeder),
 and drives the real cli.FicheroClient against it. Asserts the values the CLI
 decodes equal the library's ground truth — proving the CLI's hand-written
 request/parse layer faithfully matches the engine, the gap mock tests can't cover.
@@ -10,13 +10,7 @@ request/parse layer faithfully matches the engine, the gap mock tests can't cove
 
 from __future__ import annotations
 
-import os
-import socket
-import subprocess
-import time
-from pathlib import Path
 
-import httpx
 import pytest
 
 from fichero_cli import FicheroClient
@@ -24,80 +18,22 @@ from fichero_cli import FicheroClient
 # #5187: spawns an engine and waits on it -- a gate under heavy load may retry or exclude it.
 pytestmark = pytest.mark.load_sensitive
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-VENV_UVICORN = REPO_ROOT / ".venv" / "bin" / "uvicorn"
-
-
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
-def _wait_healthy(base_url: str, timeout: float = 30.0) -> bool:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        try:
-            r = httpx.get(f"{base_url}/api/health", timeout=2.0)
-            if r.status_code == 200 and r.json().get("status") == "healthy":
-                return True
-        except httpx.HTTPError:
-            pass
-        time.sleep(0.3)
-    return False
+from tests.integration._cli_live import cli_live_engine  # noqa: E402,F401  (fixture)
 
 
 @pytest.fixture(scope="module")
-def cli_against_seed(tmp_path_factory):
-    """Spawn an engine on a free port, seed a library, yield (client, summary)."""
-    if not VENV_UVICORN.exists():
-        pytest.skip(f"venv uvicorn not found at {VENV_UVICORN}")
-
-    from tests.integration._seedlib import seed
-
-    workdir = tmp_path_factory.mktemp("cli-itest")
-    library = workdir / "library.fichero"
-    summary = seed(library)
-
-    port = _free_port()
-    base_url = f"http://127.0.0.1:{port}"
-    env = {
-        **os.environ,
-        "PYTHONPATH": str(REPO_ROOT / "fichero-server" / "src"),
-        "FICHERO_DISABLE_AUTH": "1",
-        "FICHERO_FEATURE_TIER": "dev",
-        "FICHERO_SKIP_DEFAULT_WORKFLOWS": "1",
-        "FICHERO_BASE_PATH": str(workdir / "base"),
-        "FICHERO_PARENT_PID": str(os.getpid()),
-    }
-    # Capture the engine's stderr so a failed boot is diagnosable (not silent).
-    engine_log = workdir / "engine.log"
-    log_handle = open(engine_log, "w")
-    proc = subprocess.Popen(
-        [str(VENV_UVICORN), "fichero_server.api.main:app", "--host", "127.0.0.1", "--port", str(port)],
-        env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=log_handle,
-    )
+def cli_against_seed(cli_live_engine):  # noqa: F811
+    """The shared live engine (#5187): its HOME is the test's own, its wait follows the engine's
+    progress. This file used to spawn its own engine with the maintainer's REAL home -- an engine
+    that must never read the maintainer's state; under load (2026-09-28) it burned 30 CPU-seconds
+    after "startup complete" without answering /api/health, where the isolated engine is idle at
+    ~3.8 -- and it looked for `<repo>/.venv`, so it was skipped outright in a worktree."""
+    client = FicheroClient(base_url=cli_live_engine["base_url"],
+                           library_path=str(cli_live_engine["library"]), token=None)
     try:
-        if not _wait_healthy(base_url):
-            tail = engine_log.read_text(errors="replace")[-4000:]
-            pytest.fail(
-                "spawned engine never became healthy in 30s.\n"
-                f"--- engine stderr (tail) ---\n{tail}"
-            )
-        client = FicheroClient(base_url=base_url, library_path=str(library), token=None)
-        try:
-            yield client, summary
-        finally:
-            client.close()
+        yield client, cli_live_engine["summary"]
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-        log_handle.close()
+        client.close()
 
 
 def _expected(summary, key):

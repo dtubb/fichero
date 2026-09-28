@@ -7,11 +7,11 @@ import os
 import socket
 import subprocess
 import sys
-import time
 from pathlib import Path
 
-import httpx
 import pytest
+
+from tests.integration._engine_wait import _wait_healthy  # (#5187)
 from typer.testing import CliRunner
 
 from fichero_cli import __main__ as cli
@@ -47,19 +47,6 @@ def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
         return sock.getsockname()[1]
-
-
-def _wait_healthy(base_url: str, timeout: float = 30.0) -> bool:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        try:
-            response = httpx.get(f"{base_url}/api/health", timeout=2.0)
-            if response.status_code == 200 and response.json().get("status") == "healthy":
-                return True
-        except httpx.HTTPError:
-            pass
-        time.sleep(0.3)
-    return False
 
 
 def _cli_json(live_engine, *args: str):
@@ -154,10 +141,11 @@ def cli_multiuser_engine(tmp_path_factory):
         stderr=log_handle,
     )
     try:
-        if not _wait_healthy(base_url):
+        why = _wait_healthy(base_url, process)
+        if why:
             tail = engine_log.read_text(errors="replace")[-4000:]
             pytest.fail(
-                "spawned multiuser engine never became healthy in 30s.\n"
+                f"spawned multiuser engine never became healthy: {why}.\n"
                 f"--- engine stderr (tail) ---\n{tail}"
             )
         yield {

@@ -27,6 +27,12 @@ from unittest.mock import MagicMock
 # defense lives where the threat does.
 import openai  # noqa: F401  (side effect: freeze real httpx base classes)
 
+# #5187: no test spawns the engine with the maintainer's real HOME -- every subprocess.Popen of
+# uvicorn/fichero_server is checked for a HOME inside a temp dir (tests/_engine_home_guard.py).
+from tests._engine_home_guard import install as _install_engine_home_guard  # noqa: E402
+
+_install_engine_home_guard()
+
 # #4227 split fichero-cli/ and fichero-mcp/ out of the server package. Their
 # tests still live in this tree, and every gate sets only
 # PYTHONPATH=fichero-server/src — add the sibling products' src dirs here so
