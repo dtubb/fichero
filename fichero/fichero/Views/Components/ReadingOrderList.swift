@@ -175,6 +175,7 @@ struct ReadingOrderList: View {
     private func row(_ segmentId: String, at index: Int) -> some View {
         HStack {
             Text(rowLabel?(segmentId, index) ?? label(for: segmentId, at: index))
+                .font(BundledFonts.shared.font(.body))
                 .lineLimit(2)
             if let onOpen, opens?(segmentId) ?? false {
                 Spacer(minLength: 4)

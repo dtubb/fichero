@@ -133,7 +133,7 @@ struct OCRGeometryOverlay: View {
                 if let hit = hoveredBox(at: hoverPoint, in: geo.size),
                    !hit.box.text.isEmpty {
                     Text(hit.box.text)
-                        .font(.caption)
+                        .font(BundledFonts.shared.font(.caption))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 4))
@@ -360,7 +360,7 @@ private enum InlineWordText {
             height: CGFloat.greatestFiniteMagnitude
         )
         var size = clamp(rect.height * heightFillRatio)
-        var resolved = context.resolve(Text(string).font(.system(size: size)))
+        var resolved = context.resolve(Text(string).font(BundledFonts.shared.font(size: size)))
         var measured = resolved.measure(in: unbounded)
         var passes = 0
         while measured.width > rect.width, measured.width > 0,
@@ -368,7 +368,7 @@ private enum InlineWordText {
             // 0.98: bias UNDER the box so metric nonlinearity can't push the
             // corrected size back over the edge it was correcting for.
             size = clamp(size * (rect.width / measured.width) * 0.98)
-            resolved = context.resolve(Text(string).font(.system(size: size)))
+            resolved = context.resolve(Text(string).font(BundledFonts.shared.font(size: size)))
             measured = resolved.measure(in: unbounded)
             passes += 1
         }
