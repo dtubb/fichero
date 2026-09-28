@@ -344,7 +344,9 @@ class FormatSpec:
 
     @property
     def file_extension(self) -> str:
-        return self.export_extension or self.extensions[0]
+        # "" for a format read only BESIDE its image, by stem (plain text, #5174): it names no
+        # extension of its own, and indexing an empty tuple broke every page export.
+        return self.export_extension or (self.extensions[0] if self.extensions else "")
 
     @property
     def reads(self) -> bool:

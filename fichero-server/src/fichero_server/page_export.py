@@ -285,7 +285,7 @@ def export_stem(name: str | None, fallback: str) -> str:
     base = PurePosixPath(name).name if name else ""
     lower = base.lower()
     specs = known_formats()
-    known = sorted({ext.lower() for spec in specs for ext in (spec.file_extension, *spec.extensions)},
+    known = sorted({ext.lower() for spec in specs for ext in (spec.file_extension, *spec.extensions) if ext},
                    key=len, reverse=True)
     for ext in known:
         if lower.endswith(ext) and len(base) > len(ext):

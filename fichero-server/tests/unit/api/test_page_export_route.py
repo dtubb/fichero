@@ -107,7 +107,11 @@ class TestTheFormatList:
     def test_it_names_what_this_build_reads_and_writes(self, client):
         items = {i["name"]: i for i in client.get("/api/formats").json()["items"]}
         assert {"tei", "pagexml", "alto", "hocr", "yolo"} <= set(items)
-        assert all(i["reads"] and i["writes"] for i in items.values())
+        assert all(items[n]["reads"] and items[n]["writes"] for n in ("tei", "pagexml", "alto", "hocr", "yolo"))
+        # A sidecar read only BESIDE its image (plain text, a Tesseract .box: #5174) is listed as
+        # read, not written -- the app's Export menu offers only what `writes` says (PageExportChoice).
+        assert all(i["reads"] for i in items.values())
+        assert not items["plain-text"]["writes"]
 
         # `validated` is NOT true of every format, and saying so is the point of the list.
         # hOCR is HTML with an agreed microformat and YOLO is five numbers a line: neither
