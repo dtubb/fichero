@@ -31,6 +31,30 @@ final class PinchOwningPDFView: PDFView {
         }
         super.magnify(with: event)
     }
+
+    /// The segment boxes drawn on the current page, in PAGE space (#5192), set by `applyOCRBoxes`.
+    var segmentBoxes: [PDFSegmentBox] = []
+
+    /// PDFKit's own elements, plus one per segment box drawn in view (`SegmentBoxAccessibility`).
+    override func accessibilityChildren() -> [Any]? {
+        let own = super.accessibilityChildren() ?? []
+        guard let page = currentPage else { return own }
+        return own + segmentBoxes.compactMap { box in
+            let rect = convert(box.pageRect, from: page)
+            guard rect.intersects(visibleRect) else { return nil }
+            return SegmentBoxAccessibility.element(
+                segmentId: box.segmentId, kind: box.kind, frame: rect, in: self, selected: box.selected
+            )
+        }
+    }
+}
+
+/// One segment box drawn on a PDF page, as `PinchOwningPDFView` names it to accessibility (#5192).
+struct PDFSegmentBox: Equatable {
+    let segmentId: String
+    let kind: String
+    let pageRect: CGRect
+    let selected: Bool
 }
 
 /// Interactive PDF preview using PDFKit's `PDFView`.

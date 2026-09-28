@@ -354,6 +354,23 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         return window
     }
 
+    /// The segment ids the ACCESSIBILITY TREE names as drawn boxes (`SegmentBox-<id>`, #5192), walking every
+    /// view and every element below `root` -- what XCUITest, AppleScript and VoiceOver read, not the model.
+    private static func drawnSegmentBoxes(under root: NSView) -> [NSAccessibilityElement] {
+        var found: [NSAccessibilityElement] = []
+        func walk(_ view: NSView) {
+            for child in view.accessibilityChildren() ?? [] {
+                if let element = child as? NSAccessibilityElement,
+                   element.accessibilityIdentifier()?.hasPrefix(SegmentBoxAccessibility.identifierPrefix) == true {
+                    found.append(element)
+                }
+            }
+            view.subviews.forEach(walk)
+        }
+        walk(root)
+        return found
+    }
+
     private static func firstSubview<T: NSView>(_ type: T.Type, in view: NSView) -> T? {
         if let match = view as? T { return match }
         for child in view.subviews {
@@ -398,6 +415,46 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let painted = view.overlay.boxes(in: .infinite, imageRect: imageRect).first { $0.box.bbox == line.bbox }
         XCTAssertEqual(painted?.rect, DocumentBoxMapping.rect(normalized: line.bbox, imageRect: imageRect),
                        "the line is painted where its box falls on the drawn image")
+
+        // #5192: the same boxes, read the way a test or a script outside the app reads them -- the
+        // ACCESSIBILITY TREE -- are exactly the page's regions and lines, by segment id, each with its
+        // kind and its drawn frame.
+        let pageSegments = expectedStore.segments(documentId: "doc-0001")
+            .filter { $0.kind == "region" || $0.kind == "line" }
+        let elements = Self.drawnSegmentBoxes(under: root)
+        let ids = elements.map { String(($0.accessibilityIdentifier() ?? "").dropFirst(SegmentBoxAccessibility.identifierPrefix.count)) }
+        XCTAssertEqual(ids.sorted(), pageSegments.map(\.id).sorted(), "exactly the page's regions and lines, once each")
+        let lineId = try XCTUnwrap(pageSegments.first { $0.kind == "line" }?.id)
+        let lineElement = try XCTUnwrap(elements.first { $0.accessibilityIdentifier() == "SegmentBox-" + lineId })
+        XCTAssertEqual(lineElement.accessibilityLabel(), "Line")
+        XCTAssertFalse(lineElement.accessibilityFrameInParentSpace().isEmpty, "with the frame it is drawn at")
+    }
+
+    /// #5192 on a PDF page: the recorded Syriac segments drawn on the corpus's real PDF page are named to
+    /// accessibility by the PDF view itself (`PinchOwningPDFView.accessibilityChildren`), one
+    /// `SegmentBox-<id>` per region and line, placed by the squares' own rule, the selected one marked.
+    func testAPDFPagesDrawnSegmentBoxesAreAccessibilityElements() async throws {
+        let store = try await loadedStore()
+        let shown = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
+        let pdf = try XCTUnwrap(PDFDocument(url: fixtures().appendingPathComponent("dialogo_lengua_page_18.pdf")))
+        let page = try XCTUnwrap(pdf.page(at: 0))
+        let firstLine = try XCTUnwrap(shown.geometry.boxes.first { $0.level == "line" })
+        let boxes = PDFPageView.Coordinator.segmentBoxes(shown.geometry.boxes, on: page, selectedId: firstLine.segmentId)
+        XCTAssertEqual(boxes.map(\.segmentId).sorted(), shown.geometry.boxes.compactMap(\.segmentId).sorted())
+
+        let view = PinchOwningPDFView(frame: NSRect(x: 0, y: 0, width: 600, height: 800))
+        let window = NSWindow(contentRect: view.frame, styleMask: [.titled], backing: .buffered, defer: false)
+        defer { window.contentView = nil }
+        window.contentView = view
+        view.document = pdf
+        view.autoScales = true
+        view.layoutSubtreeIfNeeded()
+        view.segmentBoxes = boxes
+        let elements = Self.drawnSegmentBoxes(under: view)
+        XCTAssertEqual(Set(elements.map { $0.accessibilityIdentifier() ?? "" }),
+                       Set(boxes.map { "SegmentBox-" + $0.segmentId }), "every box drawn on the page, by id")
+        let selected = elements.filter { $0.isAccessibilitySelected() }
+        XCTAssertEqual(selected.map { $0.accessibilityIdentifier() ?? "" }, ["SegmentBox-" + (firstLine.segmentId ?? "")])
     }
 
     /// The Segments pane, hosted the same way (`SegmentsPaneView` in the library window's tree), lists the

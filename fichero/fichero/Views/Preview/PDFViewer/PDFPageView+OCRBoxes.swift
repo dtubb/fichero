@@ -42,6 +42,9 @@ extension PDFPageView.Coordinator {
         for existing in page.annotations where existing.userName == Self.ocrBoxAnnotationName {
             page.removeAnnotation(existing)
         }
+        (view as? PinchOwningPDFView)?.segmentBoxes = Self.segmentBoxes(
+            owner.ocrBoxes, on: page, selectedId: owner.segmentEditing.selected?.box.segmentId
+        )
         // `ocrBoxes` arrives already reduced to ONE level by the owner (words
         // when the pass produced them, lines otherwise). Drawing every level
         // would nest a line box around each of its own word boxes, which reads
@@ -108,6 +111,23 @@ extension PDFPageView.Coordinator {
     }
 
     static let ocrBoxAnnotationName = "fichero.ocr-box"
+
+    /// The drawn boxes that come from segments, placed in page space by the squares' own rule
+    /// (unrotated, flipped, offset by the crop), for the PDF view's accessibility elements (#5192).
+    static func segmentBoxes(_ boxes: [OCRGeometryBox], on page: PDFPage, selectedId: String?) -> [PDFSegmentBox] {
+        let crop = page.bounds(for: .cropBox)
+        return boxes.compactMap { box in
+            guard let segmentId = box.segmentId,
+                  let rect = PDFRegionGeometry.pageRect(
+                      normalized: PDFRegionGeometry.unrotated(normalized: box.bbox, rotation: page.rotation),
+                      pageSize: crop.size
+                  ) else { return nil }
+            return PDFSegmentBox(
+                segmentId: segmentId, kind: box.level, pageRect: rect.offsetBy(dx: crop.minX, dy: crop.minY),
+                selected: segmentId == selectedId
+            )
+        }
+    }
 }
 
 // The loader lives here beside the renderer, and out of PDFPageWithToolbar,
