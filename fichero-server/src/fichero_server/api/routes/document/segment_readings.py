@@ -361,14 +361,7 @@ def _text_bearing_rows(
     ids = {rep_row.segment_id for rep_row in readings if rep_row.segment_id}
     pass_row = db.get(SegmentPass, pass_id)
     if pass_row is not None and pass_row.source_artifact_id:
-        table = db._sql_table_name(Segment)
-        ids.update(
-            row[0] for row in db.execute_fetchall(
-                f"SELECT id FROM {table} WHERE pass_id = $pass_id "
-                "AND json_extract(metadata, '$.box_index') IS NOT NULL",
-                {"pass_id": pass_id},
-            )
-        )
+        ids.update(db.segment_ids_with_box_index(pass_id))
     if not ids:
         return []
     return [row for row in db.query_in(Segment, "id", sorted(ids)) if row.pass_id == pass_id]
@@ -696,18 +689,12 @@ def _as_written_sequence(db: Database, pass_id: str) -> dict[str, int] | None:
     by position (a block, then its lines, then their words), or None when the pass has no such
     order. One query for the order's entries, read as four columns, not hydrated rows."""
     from fichero_server.api.routes.document.reading_orders import as_written_order
-    from fichero_server.models.reading_orders import ReadingOrderEntry
 
     order = as_written_order(db, pass_id)
     if order is None:
         return None
-    table = db._sql_table_name(ReadingOrderEntry)
-    db._ensure_table(ReadingOrderEntry)
     children: dict[str | None, list[tuple[float, str, str]]] = {}
-    for entry_id, segment_id, parent_id, position in db.execute_fetchall(
-        f"SELECT id, segment_id, parent_entry_id, position FROM {table} WHERE order_id = $order_id",
-        {"order_id": order.id},
-    ):
+    for entry_id, segment_id, parent_id, position in db.reading_order_entry_rows(order.id):
         children.setdefault(parent_id, []).append((position, entry_id, segment_id))
     sequence: dict[str, int] = {}
     pending: list[tuple[float, str, str]] = sorted(children.get(None, []), reverse=True)
@@ -791,7 +778,7 @@ def _why_omitted(
 DERIVATION_VERSION = 2
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
-DERIVATION_SOURCE_SHA256 = "044b0bc0843899e31a49c6f24a833b8450a4ba2109535164743abf6a80df5d0d"
+DERIVATION_SOURCE_SHA256 = "42e44a29b34e1f954e25534ee32c001271adca664d46c7db1bcdfb75afc77868"
 
 
 def derivation_source_digest() -> str:

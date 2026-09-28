@@ -21,7 +21,7 @@ from fichero_server.api.main import get_library_database, get_library_database_f
 from fichero_server.api.routes.document.segments import provenance_kind_from_ctx
 from fichero_server.core.timeutil import utc_now
 from fichero_server.db import Database
-from fichero_server.models import ContentRepresentation, Segment
+from fichero_server.models import Segment
 from fichero_server.models.segments import assert_not_provisional
 from fichero_server.models.signs import DeclaredSign, SignListReference, code_point_char
 
@@ -234,13 +234,7 @@ def sign_instances(db: Database, sign: DeclaredSign) -> list[SignInstance]:
     if sign.code_point is None:
         return []
     ch = code_point_char(sign.code_point)
-    table = db._sql_table_name(ContentRepresentation)
-    db._ensure_table(ContentRepresentation)
-    rows = db.execute_fetchall(
-        f"SELECT id, segment_id, document_id, content FROM {table} "
-        "WHERE retracted_at IS NULL AND strpos(content, $ch) > 0 ORDER BY document_id, id",
-        {"ch": ch},
-    )
+    rows = db.live_readings_containing(ch)
     return [
         SignInstance(representation_id=r[0], segment_id=r[1], document_id=r[2], count=r[3].count(ch))
         for r in rows
