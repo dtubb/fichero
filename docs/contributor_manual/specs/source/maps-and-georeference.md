@@ -537,10 +537,25 @@ Places over time and in words
   `::test_the_source_s_year_numbering_is_honoured`, `::test_the_mcp_tool_is_the_route`).
   PARTIAL: no screen; the full date model (`source.date.*`, #4936) is not built -- comparison is by
   year.
-- `source.geo.boundary-from-map` — **[GAP]** (#5120) a boundary segment's worked-out world shape
+- `source.geo.boundary-from-map` — **[PARTIAL]** (#5120) a boundary segment's worked-out world shape
   can be adopted as a place geometry that remembers the segment and map it came from.
-- `source.geo.map-depicts-date` — **[GAP]** (#5120) a georeferenced map carries the date it
+  **Built 2026-09-28 (maps D8):** `entity.adopt_boundary` (audited, undoable) works the segment's
+  world shape out now and adds it to the place's geometries with `source_segment_id`,
+  `source_pass_id` and `source_document_id`, its error on the ground as `precision_m`, and `when` =
+  the map's depicted date (undated when nobody has said); a shape outside the map is refused
+  (`fichero-server/tests/unit/api/test_a_boundary_from_a_map.py::test_a_boundary_drawn_on_the_map_becomes_the_places_dated_geometry`,
+  `::test_a_map_nobody_has_dated_gives_an_undated_geometry`, `::test_a_boundary_outside_the_map_is_refused`).
+  PARTIAL: no screen; the adopted shape is a copy -- a later GCP correction does not move it (it
+  names the segment and pass, so it can be adopted again).
+- `source.geo.map-depicts-date` — **[PARTIAL]** (#5120) a georeferenced map carries the date it
   depicts, separate from when it was made.
+  **Built 2026-09-28 (maps D8):** the georeferencing pass carries `depicts` (an `EvidentialDateRange`),
+  set by `georef.set_depicts` (audited, undoable) and answered on every world shape; the map's
+  made date stays the document's own. On the Internet Archive's "Plan général de l'Exposition
+  universelle de 1889" (made 1889; depicts the exhibition, May-October 1889); an older library gains
+  the column on open (`fichero-server/tests/unit/api/test_a_boundary_from_a_map.py::test_the_map_says_what_it_depicts_apart_from_when_it_was_made`,
+  `::test_a_library_from_before_the_column_opens_and_gains_it`). PARTIAL: no screen; per pass, so a
+  sheet whose two maps depict different dates needs two passes.
 - `source.geo.relative-place` — **[GAP]** (#5120) a relative description is stored as an anchor
   place, a relation, a distance as written and a certainty, and resolves to an area of
   uncertainty, never a point.

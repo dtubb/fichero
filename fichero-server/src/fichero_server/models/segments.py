@@ -40,7 +40,7 @@ from fichero_server.models.anchors import (
     SourceAnchor,
     shapes_bound,
 )
-from fichero_server.models.knowledge import ProvenanceKind
+from fichero_server.models.knowledge import EvidentialDateRange, ProvenanceKind
 
 logger = logging.getLogger(__name__)
 
@@ -597,6 +597,11 @@ class SegmentPass(BaseModel):
     #: georeferences nothing. The transform itself is WORKED OUT from the pass's GCPs and this,
     #: never stored as the truth. A typed column: existing libraries gain it on open (reconcile).
     transformation: str | None = None
+    #: The date a georeferenced map DEPICTS (maps D8, `source.geo.map-depicts-date`), on the pass
+    #: that georeferences it -- separate from when the map was MADE, which is the document's own
+    #: date (`histdate`). A 1900 atlas plate of Roman Lutetia depicts c. 300 and was made in 1900.
+    #: A place geometry adopted from the map is dated by this (`entity.adopt_boundary`).
+    depicts: EvidentialDateRange | None = None
     created_at: datetime = Field(default_factory=utc_now)
     #: Soft delete -- a pass is never removed (`segment.pass_delete`'s
     #: inverse, `segment.pass_restore`, clears this).

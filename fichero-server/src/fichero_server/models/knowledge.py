@@ -593,6 +593,10 @@ class EvidentialPlace(BaseModel):
     source_page_label: str | None = None
     source_field: str | None = None
     source_excerpt: str | None = None
+    #: A geometry ADOPTED from a map (maps D8, `source.geo.boundary-from-map`): the boundary segment
+    #: it was worked out from and the georeferencing pass (so, the transformation) that placed it.
+    source_segment_id: str | None = None
+    source_pass_id: str | None = None
     rationale: str | None = None
     created_by: str = "extractor"
 

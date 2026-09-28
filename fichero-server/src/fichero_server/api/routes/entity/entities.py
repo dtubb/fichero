@@ -2429,3 +2429,55 @@ async def place_as_of(
     except ValueError as refusal:
         raise HTTPException(status_code=422, detail=str(refusal)) from refusal
     return PlaceAsOfResponse(entity_id=entity.id, as_of=as_of, **answer)
+
+
+class EntityAdoptBoundaryParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    entity_id: str
+    #: The boundary segment on a georeferenced map.
+    segment_id: str
+    #: The georeferencing pass; the image's working one when omitted.
+    pass_id: str | None = None
+    label: str | None = Field(default=None, max_length=200)
+
+
+@action("entity.adopt_boundary", EntityAdoptBoundaryParams, domains=["entity"], undoable=True, invert=_invert_add_geometry)
+def _action_adopt_boundary(db: Database, params: EntityAdoptBoundaryParams, ctx: ActionContext):
+    """A boundary drawn on a georeferenced map becomes one of the place's geometries
+    (`source.geo.boundary-from-map`): its world shape worked out NOW, remembering the segment, the
+    pass and the map it came from, its error on the ground, and dated by what the map DEPICTS
+    (`source.geo.map-depicts-date`) -- undated when nobody has said. A shape outside the map is
+    refused, never extrapolated."""
+    from fichero_server.api.routes.document.georeference import world_shape
+    from fichero_server.models import Segment
+    from fichero_server.models.knowledge import EvidenceBasis, PlaceGeometryType
+    from fichero_server.models.segments import SegmentPass
+
+    entity = _live_entity(db, params.entity_id)
+    try:
+        shape = world_shape(db, params.segment_id, params.pass_id)
+    except (LookupError, ValueError) as refusal:
+        raise HTTPException(status_code=422, detail=str(refusal)) from refusal
+    if shape.outside_the_map or shape.geometry is None:
+        raise HTTPException(status_code=422, detail=f"segment {params.segment_id} has no place on the map: {shape.reason}")
+    segment = db.get(Segment, params.segment_id)
+    pass_row = db.get(SegmentPass, shape.pass_id)
+    kind = shape.geometry["type"]
+    point = shape.geometry["coordinates"] if kind == "Point" else None
+    place = EvidentialPlace(
+        label=params.label or entity.canonical_name,
+        geometry_type=PlaceGeometryType.point if kind == "Point" else PlaceGeometryType.region,
+        lon=point[0] if point else None, lat=point[1] if point else None,
+        geojson=shape.geometry, precision_m=shape.error_m,
+        when=pass_row.depicts, basis=EvidenceBasis.source_anchored,
+        source_document_id=segment.document_id, source_segment_id=segment.id, source_pass_id=pass_row.id,
+        rationale=(f"adopted from the world shape of segment {segment.id} through georeferencing pass "
+                   f"{pass_row.id} ({shape.transformation}, ±{shape.error_m:.0f} m)"),
+        created_by=ctx.actor or "human",
+    )
+    entity.place_values = [*entity.place_values, place]
+    entity.updated_at = utc_now()
+    db.save(entity)
+    return ({"entity_id": entity.id, "place_id": place.id, "dated": place.when is not None},
+            _entity_spec(entity.id, before=None, after={"entity_id": entity.id, "place_id": place.id}, emit="entity.updated"))
