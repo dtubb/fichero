@@ -57,15 +57,17 @@ enum EngineSocketConflict {
     struct LiveEngine: Equatable {
         var version: String?
         var pid: Int?
+        /// The app the engine runs from (`engine_owner`): a bundle path such as "/Applications/Fichero.app",
+        /// or "dev external" for a script-started engine (7c00a47ed).
+        var owner: String?
     }
 
-    /// The live engine's version and pid (`engine_pid`, 7c00a47ed); each nil when it does not say.
-    /// ponytail: `engine_owner` (the other app's bundle path) joins once the contract regen carries it.
+    /// The live engine's version, pid and owning app (`engine_pid`, `engine_owner`); each nil when unsaid.
     static func liveEngine(socketPath: String) async -> LiveEngine {
         let client = FicheroClient(transportMode: .uds(path: socketPath))
         guard let response = try? await client.api.healthCheckApiHealthGet(.init()),
               case .ok(let okResponse) = response, let health = try? okResponse.body.json else { return LiveEngine() }
-        return LiveEngine(version: health.backendVersion, pid: health.enginePid)
+        return LiveEngine(version: health.backendVersion, pid: health.enginePid, owner: health.engineOwner)
     }
 }
 
@@ -73,19 +75,29 @@ enum EngineSocketConflict {
 /// Nonisolated: `BackendError.errorDescription` words it too.
 nonisolated enum EngineConflict: Equatable, Sendable {
     case port8765
-    case socket(pid: Int?, version: String?)
+    case socket(pid: Int?, version: String?, owner: String? = nil)
 
     /// One sentence naming the other engine as far as it is known -- never an invented version or pid.
     var sentence: String {
         switch self {
         case .port8765:
             return "Another process is already using port 8765."
-        case .socket(let pid, let version):
+        case .socket(let pid, let version, let owner):
             var named = "Another Fichero engine"
             if let version { named += " (version \(version))" }
             if let pid { named += ", PID \(pid)," }
+            if let from = Self.ownerPhrase(owner) { named += " " + from }
             return named + " is already running on this Mac. Fichero will not start a second one over it: "
                 + "use that one, or quit the other Fichero first."
         }
+    }
+
+    /// Where the other engine runs from, in words: the app bundle's name ("from Fichero.app in
+    /// /Applications"), or "started from a script" for "dev external". Nil when it did not say.
+    static func ownerPhrase(_ owner: String?) -> String? {
+        guard let owner, !owner.isEmpty else { return nil }
+        if owner == "dev external" { return "started from a script" }
+        let url = URL(fileURLWithPath: owner)
+        return "from \(url.lastPathComponent) in \(url.deletingLastPathComponent().path)"
     }
 }

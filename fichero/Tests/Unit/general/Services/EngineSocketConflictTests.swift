@@ -103,6 +103,11 @@ struct EngineSocketConflictTests {
         #expect(shown.title == "Another Fichero Is Running")
         #expect(shown.action == .resolvePortConflict)
         #expect(EngineSession.Conflict.socket(pid: 71, version: nil).sentence.hasPrefix("Another Fichero engine, PID 71,"))
+        // The owning app (engine_owner, 7c00a47ed), in words -- the installed app of the 2026-09-28 401s.
+        let installed = EngineSession.Conflict.socket(pid: 71, version: "0.9.3", owner: "/Applications/Fichero.app").sentence
+        #expect(installed.hasPrefix("Another Fichero engine (version 0.9.3), PID 71, from Fichero.app in /Applications is"))
+        #expect(EngineConflict.ownerPhrase("dev external") == "started from a script")
+        #expect(EngineConflict.ownerPhrase(nil) == nil)
 
         session.markPortConflict(pid: 9)
         #expect(ConnectionPresentation.status(

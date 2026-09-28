@@ -488,7 +488,7 @@ extension EmbeddedBackendService {
             return nil
         case .surface:
             pendingPortConflictResolution = nil
-            throw BackendError.socketInUse(path: path, pid: holderPID, version: other.version)
+            throw BackendError.socketInUse(path: path, pid: holderPID, version: other.version, owner: other.owner)
         }
     }
 }
