@@ -657,6 +657,41 @@ def georeferences(pass_row: Any) -> bool:
     return getattr(pass_row, "transformation", None) is not None
 
 
+#: Audit actors whose writes are not a person's: the engine, a run, an import, the in-app agent.
+_NOT_A_PERSON = frozenset({"", "system", "workflow", "import", "chat"})
+
+
+def artifacts_a_person_worked_on(db: Database, artifact_ids: Any) -> set[str]:
+    """Which of these results hold a PERSON's work in the older format (#5222, the SACRED rule).
+
+    Before the page model, a person's correction lived on the result itself: made by a person
+    (`provider` "user" or "human"), marked reviewed, or its text corrected through
+    `artifact.update`. Converted, such a result's pass must rank as a person's -- above every
+    machine pass, never replaced by a newer run -- exactly as a pass holding a human segment does.
+
+    ponytail: the audit check scans this library's `artifact.update` rows once per call (they are
+    manual corrections, so few); index them by target if a library ever holds many.
+    """
+    from fichero_server.models import ActionAudit
+
+    ids = {i for i in artifact_ids if i}
+    if not ids:
+        return set()
+    worked = {
+        a.id for a in db.query_in(Artifact, "id", list(ids))
+        if (a.provider or "").lower() in ("user", "human") or a.reviewed
+    }
+    rest = ids - worked
+    if rest:
+        for row in db.query(ActionAudit, action_name="artifact.update"):
+            if row.undone or (row.actor or "") in _NOT_A_PERSON:
+                continue
+            if ((row.params or {}).get("patch") or {}).get("content") is None:
+                continue
+            worked |= rest.intersection(row.target_ids or [])
+    return worked
+
+
 def _pass_candidates(db: Database, document_id: str, georeferencing: bool = False) -> list[PassCandidate]:
     """Every live pass of a document, with what the ranking needs to know.
 
@@ -665,7 +700,9 @@ def _pass_candidates(db: Database, document_id: str, georeferencing: bool = Fals
     a historian corrected by hand is theirs, and only its segments say so.
     """
     candidates: list[PassCandidate] = []
-    for pass_row in db.query(SegmentPass, document_id=document_id):
+    pass_rows = list(db.query(SegmentPass, document_id=document_id))
+    corrected = artifacts_a_person_worked_on(db, (p.source_artifact_id for p in pass_rows if p.deleted_at is None))
+    for pass_row in pass_rows:
         if pass_row.deleted_at is not None:
             continue
         if georeferences(pass_row) != georeferencing:
@@ -691,7 +728,8 @@ def _pass_candidates(db: Database, document_id: str, georeferencing: bool = Fals
             PassCandidate(
                 pass_id=pass_row.id,
                 provenance_kind=pass_row.provenance_kind,
-                has_human_segment=human_live > 0,
+                # A result a person corrected in the older format counts as a person's (#5222).
+                has_human_segment=human_live > 0 or pass_row.source_artifact_id in corrected,
                 from_text_layer=from_text_layer,
                 created_at=pass_row.created_at,
             )

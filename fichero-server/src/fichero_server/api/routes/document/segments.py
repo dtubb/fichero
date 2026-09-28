@@ -752,14 +752,17 @@ def _mark_working_pass(db: Database, doc_id: str, passes: list[PassRead], segmen
         PassCandidate,
         SegmentPassChoice,
         _pass_candidates,
+        artifacts_a_person_worked_on,
         project_record_rule,
         resolve_working_pass,
     )
 
     human_passes = {s.pass_id for s in segments if s.provisional and s.provenance_kind == ProvenanceKind.human}
+    corrected = artifacts_a_person_worked_on(db, (p.source_artifact_id for p in passes if p.provisional))
     provisional = [
         PassCandidate(
-            pass_id=p.id, provenance_kind=p.provenance_kind, has_human_segment=p.id in human_passes,
+            pass_id=p.id, provenance_kind=p.provenance_kind,
+            has_human_segment=p.id in human_passes or p.source_artifact_id in corrected,
             from_text_layer=p.artifact_type == TEXT_LAYER_ARTIFACT_TYPE,
             created_at=p.created_at or datetime.min.replace(tzinfo=timezone.utc),
         )

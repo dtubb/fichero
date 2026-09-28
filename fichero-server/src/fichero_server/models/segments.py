@@ -263,7 +263,10 @@ def derive_pass_provenance_kind(*, provider: str | None, model: str | None) -> P
     is the honest best-supported answer from what the row already carries,
     never a trusting default.
     """
-    if provider == "user":
+    # "human" as well as "user" (#5222): libraries written by earlier versions record a person's
+    # result as provider "human" (the Artifact model's own documented values). Read as a machine
+    # run, a converted page would rank a person's work below the newest machine pass.
+    if (provider or "").lower() in ("user", "human"):
         return ProvenanceKind.human
     if provider or model:
         return ProvenanceKind.workflow
