@@ -1,0 +1,38 @@
+{
+ "document_id": "doc-0001",
+ "segment_id": "seg-0003",
+ "settings": [
+  {
+   "key": "language",
+   "value": "English",
+   "status": "resolved",
+   "source": "fallback",
+   "basis": "no language policy is set and there is no text to detect from",
+   "level": null
+  },
+  {
+   "key": "script",
+   "value": null,
+   "status": "unknown",
+   "source": "never_determined",
+   "basis": "no script has been recorded at any level",
+   "level": null
+  },
+  {
+   "key": "direction",
+   "value": "ltr",
+   "status": "resolved",
+   "source": "derived-from-script",
+   "basis": "no script is recorded either, so the reading order of the text is assumed",
+   "level": null
+  },
+  {
+   "key": "encoding",
+   "value": null,
+   "status": "unknown",
+   "source": "never_determined",
+   "basis": "no script is established, so there is no encoding to read",
+   "level": null
+  }
+ ]
+}

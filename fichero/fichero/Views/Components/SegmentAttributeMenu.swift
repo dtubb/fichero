@@ -23,7 +23,7 @@ struct SegmentAttributeMenu: View {
             }
             Menu("Direction") {
                 ForEach(SegmentEdit.directions, id: \.self) { direction in
-                    Button(Self.directionName(direction)) { apply(.direction(direction)) }
+                    Button(SegmentEdit.directionName(direction)) { apply(.direction(direction)) }
                 }
             }
             Button("Mark as Text") { apply(.furniture(false)) }
@@ -33,18 +33,6 @@ struct SegmentAttributeMenu: View {
                 Button("Language…") { askForCode(.language) }
                 Button("Script…") { askForCode(.script) }
             }
-        }
-    }
-
-    static func directionName(_ direction: String) -> String {
-        switch direction {
-        case "ltr": "Left to Right"
-        case "rtl": "Right to Left"
-        case "ttb": "Top to Bottom"
-        case "btt": "Bottom to Top"
-        case "alternating": "Alternating (Boustrophedon)"
-        case "follows-baseline": "Follows the Baseline"
-        default: direction
         }
     }
 }

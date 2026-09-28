@@ -168,3 +168,30 @@ def test_a_line_s_readings_with_a_correction_are_recorded_for_the_app(db, client
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         READINGS_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
     assert json.loads(READINGS_FIXTURE.read_text()) == recorded, "the app's readings fixture drifted"
+
+
+SETTINGS_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.first-line-settings.json"
+
+
+def test_a_line_s_resolved_language_script_and_direction_are_recorded_for_the_app(db, client):
+    """#5158 (the Inspector's Language & script section): the app reads GET
+    /api/source-settings/resolve?segment_id= for the selection -- each fact with the rung that
+    answered (source.lang.says-where-from). Recorded for the imported Syriac page's first line."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    line = min((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+               key=lambda s: s["anchor"]["rect"])
+    resolved = client.get("/api/source-settings/resolve", params={"segment_id": line["id"]})
+    assert resolved.status_code == 200, resolved.text
+    answer = resolved.json()
+    keys = [s["key"] for s in answer["settings"]]
+    assert {"language", "script", "direction"} <= set(keys)
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    token = next(s["id"] for s in stable_route["segments"]
+                 if s["kind"] == "line" and s["anchor"]["rect"] == line["anchor"]["rect"])
+    recorded = dict(answer, document_id=stable_route["document_id"], segment_id=token)
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        SETTINGS_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(SETTINGS_FIXTURE.read_text()) == recorded, "the app's settings fixture drifted"

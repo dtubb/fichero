@@ -138,6 +138,28 @@ extension SegmentService {
     }
 }
 
+extension SegmentService {
+    /// The language, script, direction and encoding the engine resolves for ONE segment, each with
+    /// where it came from (#5158; `GET /api/source-settings/resolve`). Empty for an id it cannot find.
+    func resolvedSettings(segmentId: String) async throws -> [InspectorLanguage.Setting] {
+        let response = try await client.api.resolveSourceSettingsApiSourceSettingsResolveGet(
+            query: .init(segmentId: segmentId)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.settings.map {
+                InspectorLanguage.Setting(
+                    key: $0.key, value: $0.value, status: $0.status, source: $0.source, basis: $0.basis, level: $0.level
+                )
+            }
+        case .undocumented(404, _), .unprocessableContent:
+            return []
+        case .undocumented(let statusCode, _):
+            throw SegmentServiceError.unexpectedResponse(statusCode)
+        }
+    }
+}
+
 /// A kept original: its bytes as they arrived, and what to call it.
 struct PassOriginal: Equatable {
     let fileName: String?

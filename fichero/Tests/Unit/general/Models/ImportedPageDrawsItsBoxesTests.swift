@@ -29,7 +29,11 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             return path.hasPrefix("/api/segments/document/") || path == "/api/annotations"
                 || path.hasPrefix("/api/actions/") || path.hasPrefix("/api/segments/passes/")
                 || (path.hasPrefix("/api/segments/") && path.hasSuffix("/readings"))
+                || path == "/api/source-settings/resolve"
         }
+
+        /// What `GET /api/source-settings/resolve` answers (set by the test that asks).
+        nonisolated(unsafe) static var settingsReply = Data()
 
         /// What `GET /api/segments/{id}/readings` answers (set by the test that asks).
         nonisolated(unsafe) static var readingsReply = Data()
@@ -49,7 +53,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             let isAnnotation = path == "/api/annotations"
             if isAnnotation { Self.annotationRequests.append(Self.bodyOf(request)) }
             var actionBody: Data?
-            if path.hasPrefix("/api/segments/"), path.hasSuffix("/readings") {
+            if path == "/api/source-settings/resolve" {
+                actionBody = Self.settingsReply
+            } else if path.hasPrefix("/api/segments/"), path.hasSuffix("/readings") {
                 actionBody = Self.readingsReply
             } else if path.hasPrefix("/api/segments/passes/"), path.hasSuffix("/original") {
                 actionBody = Self.originalReply
@@ -384,6 +390,26 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         manager.undo()
         for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
+    }
+
+    /// #5158 end to end: the imported Syriac page's first line, through `SegmentService.resolvedSettings`
+    /// over the engine's recorded answer. What the section shows is exactly what the engine says --
+    /// including that "English" is only a FALLBACK and the script is not determined (#5176: the engine
+    /// does not yet read the line's own Syriac text). A fallback is never shown as a fact.
+    func testTheLanguageSectionShowsTheEnginesAnswerAndWhereEachFactCameFrom() async throws {
+        _ = try await loadedStore()
+        RecordedEngine.settingsReply = try Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-line-settings.json")
+        )
+        let settings = try await SegmentService(ficheroClient: try XCTUnwrap(storeClient))
+            .resolvedSettings(segmentId: "seg-0003")
+        let rows = Dictionary(uniqueKeysWithValues: InspectorLanguage.rows(settings).map { ($0.key, $0) })
+        XCTAssertEqual(rows["language"]?.value, "English")
+        XCTAssertEqual(rows["language"]?.origin, "a fallback")
+        XCTAssertEqual(rows["script"]?.value, "Not determined")
+        XCTAssertEqual(rows["direction"]?.value, "Left to Right")
+        XCTAssertEqual(rows["direction"]?.origin, "from the script")
+        XCTAssertEqual(rows["encoding"]?.value, "Not determined")
     }
 
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {

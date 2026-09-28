@@ -16,6 +16,7 @@ struct SegmentInspectorView: View {
     @Environment(\.undoManager) private var undoManager
     @State private var level: Level = .selection
     @State private var text: InspectorText?
+    @State private var language: [InspectorLanguage.Row] = []
     /// The Segment menu's Language… / Script… prompt (#5157).
     @State private var askingFor: SegmentAttributeMenu.CodeKind?
     @State private var code = ""
@@ -59,6 +60,9 @@ struct SegmentInspectorView: View {
                     }
                     if let text, !text.readings.isEmpty {
                         InspectorTextSection(text: text) { reading in choose(reading, in: text) }
+                    }
+                    if !language.isEmpty {
+                        InspectorLanguageSection(rows: language)
                     }
                     if level == .page {
                         // Page level: how the page's passes were made (#5149).
@@ -109,8 +113,11 @@ struct SegmentInspectorView: View {
     }
 
     private func reloadText() async {
+        language = []
         guard let inspected, let segmentService else { return }
         text = try? await segmentService.readings(segmentId: inspected)
+        let settings = (try? await segmentService.resolvedSettings(segmentId: inspected)) ?? []
+        language = InspectorLanguage.rows(settings)
     }
 
     /// "Make This Count" (#5153): the audited `reading.choose`, ⌘Z by its own audit id.
@@ -156,6 +163,30 @@ struct SegmentInspectorView: View {
         InspectorPath.kindCounts(selectedIds, in: segments)
             .map { "\($0.count) \($0.count == 1 ? $0.kind : $0.kind + "s")" }
             .joined(separator: ", ")
+    }
+}
+
+/// Language, script, direction and encoding for the inspected segment, each saying where it came from
+/// (#5158). A fallback says it is one.
+struct InspectorLanguageSection: View {
+    let rows: [InspectorLanguage.Row]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Language & Script").font(.headline)
+            ForEach(rows) { row in
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(row.title).font(.subheadline).foregroundStyle(.secondary)
+                        Spacer(minLength: 8)
+                        Text(row.value).font(.body).textSelection(.enabled)
+                    }
+                    Text(row.origin).font(.caption).foregroundStyle(.secondary)
+                        .help(row.basis)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
     }
 }
 

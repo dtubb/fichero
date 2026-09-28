@@ -44,6 +44,19 @@ enum SegmentEdit {
     /// The directions the engine accepts (`language_policy.DIRECTIONS`), in the menu's order.
     static let directions = ["ltr", "rtl", "ttb", "btt", "alternating", "follows-baseline"]
 
+    /// A direction as people say it -- the Segment menu and the Inspector use the same words.
+    static func directionName(_ direction: String) -> String {
+        switch direction {
+        case "ltr": "Left to Right"
+        case "rtl": "Right to Left"
+        case "ttb": "Top to Bottom"
+        case "btt": "Bottom to Top"
+        case "alternating": "Alternating (Boustrophedon)"
+        case "follows-baseline": "Follows the Baseline"
+        default: direction
+        }
+    }
+
     /// Why nothing is sent. Each is said, never guessed around.
     enum Refusal: Error, Equatable {
         /// A segment the list gave no version for (a provisional one): an edit could not be checked
