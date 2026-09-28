@@ -249,6 +249,20 @@
             max-width: 100%;
         }
 
+        /* The page's directions (#5147 Reader half), from the line map's per-line `direction`.
+           A `ttb` page is columns, right to left (CJK); it scrolls inside its own box so the
+           pane never scrolls sideways (#4385). An `rtl` page is `dir="rtl"`. A run whose
+           direction differs from the page's is a `<span dir>` isolate, so the Unicode bidi
+           algorithm orders it on its own and it never reorders its neighbours. */
+        .transcript-page-body[data-direction="ttb"] {
+            writing-mode: vertical-rl;
+            max-height: 70vh;
+            overflow-x: auto;
+        }
+        .transcript-page-body span[dir] {
+            unicode-bidi: isolate;
+        }
+
         /* Table representations (2026-08-29): a real table in the page's own
            idiom, inside its own horizontal scroller — a wide ledger scrolls
            HERE, never the page body (#4385's rule applied to tables). */
@@ -1108,6 +1122,50 @@ function lineMoveMessage(event, at) {
 }
 // </line-map>
 
+// The page's directions (#5147 Reader half). Each line-map entry carries its block's resolved
+// direction; consecutive lines sharing one make a RUN, and a run owns the separator after it, so
+// the runs cover the page text exactly and every offset walk (caret, claim, search) is unchanged.
+// The page takes the direction most of its characters have; a run in the other horizontal
+// direction is a `<span dir>` isolate. Text only ever lives in text nodes: an all-`ltr` page (or
+// one with no map) renders exactly as before -- one escaped text node.
+function directionRuns(content, lines) {
+    const runs = [];
+    for (const line of Array.isArray(lines) ? lines : []) {
+        const direction = line.direction || null;
+        const last = runs[runs.length - 1];
+        if (last && last.direction === direction) continue;
+        runs.push({ direction, start: runs.length ? line.char_start : 0 });
+    }
+    runs.forEach((run, i) => { run.end = i + 1 < runs.length ? runs[i + 1].start : content.length; });
+    return runs;
+}
+
+function pageDirection(runs) {
+    const size = new Map();
+    for (const run of runs) {
+        if (run.direction) size.set(run.direction, (size.get(run.direction) || 0) + run.end - run.start);
+    }
+    let best = null;
+    for (const [direction, n] of size) if (best === null || n > size.get(best)) best = direction;
+    return best;
+}
+
+function pageBodyMarkup(page) {
+    const content = String(page.content ?? "");
+    const runs = directionRuns(content, page.lines);
+    const base = pageDirection(runs);
+    const attr = base === "rtl" ? ' dir="rtl"' : base === "ttb" ? ' data-direction="ttb"' : "";
+    const flow = base === "rtl" ? "rtl" : "ltr";
+    const inner = runs.length
+        ? runs.map((run) => {
+            const text = escapeHtml(content.slice(run.start, run.end));
+            const own = run.direction === "rtl" || run.direction === "ltr" ? run.direction : flow;
+            return own === flow ? text : `<span dir="${own}">${text}</span>`;
+        }).join("")
+        : escapeHtml(content);
+    return `<div class="transcript-page-body"${attr}>${inner}</div>`;
+}
+
 function transcriptPageMarkup(page) {
     if (page.id) pageLineMaps.set(page.id, page.lines || []);
     const placeholder = page.hasContent
@@ -1136,7 +1194,7 @@ function transcriptPageMarkup(page) {
             <div class="page-marker">${proxy}Page ${page.number}${label}</div>
             ${page.markup_render ? markupRenderMarkup(page.markup_render)
                 : page.table ? tableMarkup(page.table)
-                : `<div class="transcript-page-body">${escapeHtml(page.content)}</div>`}
+                : pageBodyMarkup(page)}
             ${placeholder}
         </article>
     `;

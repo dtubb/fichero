@@ -461,6 +461,10 @@ class PassBasis(str, Enum):
     #: it. THE 2026-09-03 CASE: this is what stops a newer machine run hiding
     #: a region somebody drew by hand.
     human_touched = "human-touched"
+    #: Nobody chose and nobody touched a pass; this one was imported from a file (PAGE, ALTO,
+    #: TEI, hOCR, YOLO) -- the #5146 ladder's second tier, above anything a machine ran here
+    #: (#5150). Before, an import was stamped `human` and ranked as hand-curated.
+    imported = "imported"
     #: Nobody chose and nobody has touched any pass; this one came from the
     #: file's own text layer, which is at least the author's own words.
     text_layer = "text-layer"
@@ -518,7 +522,8 @@ def resolve_working_pass(
     out in the engine means the app's ranking can read this answer and delete
     its own copy, so the two can no longer disagree about which pass is shown.
 
-    The order: a live human choice; then a pass a person made or touched; then
+    The order: a live human choice; then a pass a person made or touched; then a pass
+    imported from a file (#5150); then
     a pass from the file's own text layer; then the newest.
 
     The project rule does NOT withhold a pass -- the Reader has to show
@@ -547,6 +552,10 @@ def resolve_working_pass(
     touched = [row for row in passes_with_makers if row.touched_by_a_person]
     if touched:
         return PassAnswer(pass_id=newest(touched).pass_id, basis=PassBasis.human_touched)
+
+    imported = [row for row in passes_with_makers if row.provenance_kind is ProvenanceKind.external_import]
+    if imported:
+        return PassAnswer(pass_id=newest(imported).pass_id, basis=PassBasis.imported)
 
     text_layer = [row for row in passes_with_makers if row.from_text_layer]
     if text_layer:

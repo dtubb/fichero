@@ -24,12 +24,14 @@ from tests.unit.api.test_page_text_counts_each_character_once import _imported
 
 def test_the_derivation_cannot_change_without_its_version():
     """Fails when the source of the functions that derive a page's text changes and the pinned
-    digest does not. The fix is two lines beside `DERIVATION_VERSION`: bump the version (so every
-    cached page is re-derived on its next read) and re-pin the digest. Re-pinning WITHOUT bumping
-    is the #5148 bug: pages cached under the old code keep its text."""
+    digest does not. It makes a person DECIDE: if the change alters what a page's text comes out
+    as, bump the version (so every cached page is re-derived on its next read) and re-pin; if it
+    is a refactor with the same output, re-pin alone and say so in the commit. Re-pinning without
+    bumping after a change of output is the #5148 bug: pages cached under the old code keep its
+    text."""
     assert sr.derivation_source_digest() == sr.DERIVATION_SOURCE_SHA256, (
-        "document_text's derivation changed: bump DERIVATION_VERSION and re-pin "
-        f"DERIVATION_SOURCE_SHA256 = {sr.derivation_source_digest()!r}"
+        "document_text's derivation changed. If its OUTPUT changed, bump DERIVATION_VERSION; "
+        f"either way re-pin DERIVATION_SOURCE_SHA256 = {sr.derivation_source_digest()!r}"
     )
 
 

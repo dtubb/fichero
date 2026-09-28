@@ -17,6 +17,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from _scan_files import scan_rglob
 
 import fichero_server.api.routes.document.format_import  # noqa: F401  (registers format.import)
 import fichero_server.api.routes.ingest  # noqa: F401  (registers import.folder)
@@ -52,7 +53,7 @@ def export_folder(tmp_path) -> Path:
 
 class TestThePairing:
     def test_the_stated_image_name_wins_over_the_stem_and_a_subfolder_finds_its_parent(self, export_folder):
-        files = [p.resolve() for p in export_folder.rglob("*") if p.is_file()]
+        files = [p.resolve() for p in scan_rglob(export_folder) if p.is_file()]
         plan = plan_pairs(files)
         pairs = {layout.name: image.name for layout, image in plan.pairs.items()}
         assert pairs == {
@@ -61,7 +62,7 @@ class TestThePairing:
         }
 
     def test_a_layout_file_with_no_image_is_unpaired_BY_NAME_and_never_guessed(self, export_folder):
-        files = [p.resolve() for p in export_folder.rglob("*") if p.is_file()]
+        files = [p.resolve() for p in scan_rglob(export_folder) if p.is_file()]
         plan = plan_pairs(files)
         [(layout, why)] = plan.unpaired.items()
         assert layout.name == "orphan.page.xml"
@@ -77,7 +78,7 @@ class TestThePairing:
         assert "2 images share the stem" in next(iter(plan.unpaired.values()))
 
     def test_an_xml_that_is_not_layout_is_not_a_candidate(self, export_folder):
-        files = [p.resolve() for p in export_folder.rglob("*") if p.is_file()]
+        files = [p.resolve() for p in scan_rglob(export_folder) if p.is_file()]
         plan = plan_pairs(files)
         assert "notes.xml" not in {p.name for p in [*plan.pairs, *plan.unpaired]}
 

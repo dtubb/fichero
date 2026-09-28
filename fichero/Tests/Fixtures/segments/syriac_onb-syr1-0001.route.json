@@ -6,7 +6,7 @@
    "provisional": false,
    "document_id": "doc-0001",
    "name": "escriptorium_syriac_onb-syr1-0001.page.xml",
-   "provenance_kind": "human",
+   "provenance_kind": "external_import",
    "provider": "escriptorium",
    "model": null,
    "run_id": null,
@@ -29,7 +29,7 @@
    "kind": "line",
    "kind_raw": "DefaultLine",
    "parent_segment_id": "seg-0016",
-   "provenance_kind": "human",
+   "provenance_kind": "external_import",
    "anchor": {
     "document_id": "doc-0001",
     "page_id": null,
@@ -271,7 +271,7 @@
    "kind": "line",
    "kind_raw": "DefaultLine",
    "parent_segment_id": "seg-0016",
-   "provenance_kind": "human",
+   "provenance_kind": "external_import",
    "anchor": {
     "document_id": "doc-0001",
     "page_id": null,
@@ -509,7 +509,7 @@
    "kind": "line",
    "kind_raw": "DefaultLine",
    "parent_segment_id": "seg-0016",
-   "provenance_kind": "human",
+   "provenance_kind": "external_import",
    "anchor": {
     "document_id": "doc-0001",
     "page_id": null,
@@ -795,7 +795,7 @@
    "kind": "line",
    "kind_raw": null,
    "parent_segment_id": "seg-0016",
-   "provenance_kind": "human",
+   "provenance_kind": "external_import",
    "anchor": {
     "document_id": "doc-0001",
     "page_id": null,
@@ -869,7 +869,7 @@
    "kind": "line",
    "kind_raw": null,
    "parent_segment_id": "seg-0015",
-   "provenance_kind": "human",
+   "provenance_kind": "external_import",
    "anchor": {
     "document_id": "doc-0001",
     "page_id": null,
@@ -943,7 +943,7 @@
    "kind": "line",
    "kind_raw": null,
    "parent_segment_id": "seg-0017",
-   "provenance_kind": "human",
+   "provenance_kind": "external_import",
    "anchor": {
     "document_id": "doc-0001",
     "page_id": null,
@@ -1017,7 +1017,7 @@
    "kind": "line",
    "kind_raw": null,
    "parent_segment_id": "seg-0017",
-   "provenance_kind": "human",
+   "provenance_kind": "external_import",
    "anchor": {
     "document_id": "doc-0001",
     "page_id": null,
@@ -1091,7 +1091,7 @@
    "kind": "line",
    "kind_raw": null,
    "parent_segment_id": "seg-0017",
-   "provenance_kind": "human",
+   "provenance_kind": "external_import",
    "anchor": {
     "document_id": "doc-0001",
     "page_id": null,
@@ -1165,7 +1165,7 @@
    "kind": "line",
    "kind_raw": null,
    "parent_segment_id": "seg-0017",
-   "provenance_kind": "human",
+   "provenance_kind": "external_import",
    "anchor": {
     "document_id": "doc-0001",
     "page_id": null,
@@ -1239,7 +1239,7 @@
    "kind": "line",
    "kind_raw": null,
    "parent_segment_id": "seg-0017",
-   "provenance_kind": "human",
+   "provenance_kind": "external_import",
    "anchor": {
     "document_id": "doc-0001",
     "page_id": null,
@@ -1313,7 +1313,7 @@
    "kind": "line",
    "kind_raw": null,
    "parent_segment_id": "seg-0017",
-   "provenance_kind": "human",
+   "provenance_kind": "external_import",
    "anchor": {
     "document_id": "doc-0001",
     "page_id": null,
@@ -1387,7 +1387,7 @@
    "kind": "line",
    "kind_raw": "NumberingZone",
    "parent_segment_id": "seg-0018",
-   "provenance_kind": "human",
+   "provenance_kind": "external_import",
    "anchor": {
     "document_id": "doc-0001",
     "page_id": null,
@@ -1461,7 +1461,7 @@
    "kind": "region",
    "kind_raw": "MarginTextZone",
    "parent_segment_id": null,
-   "provenance_kind": "human",
+   "provenance_kind": "external_import",
    "anchor": {
     "document_id": "doc-0001",
     "page_id": null,
@@ -1526,7 +1526,7 @@
    "kind": "region",
    "kind_raw": "MainZone",
    "parent_segment_id": null,
-   "provenance_kind": "human",
+   "provenance_kind": "external_import",
    "anchor": {
     "document_id": "doc-0001",
     "page_id": null,
@@ -1607,7 +1607,7 @@
    "kind": "region",
    "kind_raw": "MainZone-gold",
    "parent_segment_id": null,
-   "provenance_kind": "human",
+   "provenance_kind": "external_import",
    "anchor": {
     "document_id": "doc-0001",
     "page_id": null,
@@ -1672,7 +1672,7 @@
    "kind": "region",
    "kind_raw": "NumberingZone",
    "parent_segment_id": null,
-   "provenance_kind": "human",
+   "provenance_kind": "external_import",
    "anchor": {
     "document_id": "doc-0001",
     "page_id": null,

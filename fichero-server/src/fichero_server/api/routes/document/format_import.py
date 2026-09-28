@@ -18,8 +18,8 @@ readers into a feature.
   which reading of a page counts.
 * **It overwrites nothing.** Existing segments, readings and orders are untouched. An
   import is another opinion about the page, which is exactly what a pass is for.
-* **Its provenance says a person brought a file**, through the one
-  `provenance_kind_from_ctx` rule rather than a second copy of it.
+* **Its provenance says it came from a file** (`external_import`, #5150): `actor` names who
+  brought it and `provider` what the file says made it. Bringing a file is not writing it.
 
 `source.format.reimport-recognised` uses the mechanism the spec names — the
 importer's content hash (→ #739) — stored where slice 1 already put a home for it:
@@ -54,13 +54,13 @@ from fichero_server.api.routes.document.reading_orders import ensure_as_written_
 from fichero_server.api.routes.document.segments import (
     SegmentSpec,
     _build_segment_row,
-    provenance_kind_from_ctx,
 )
 from fichero_server.db import Database
 from fichero_server.formats import UnknownFormat, format_for, format_named, read_page
 from fichero_server.formats.harness import SourcePage
 from fichero_server.models import ContentRepresentation, Document, Segment
 from fichero_server.models.anchors import SourceAnchor
+from fichero_server.models.knowledge import ProvenanceKind
 from fichero_server.models.reading_orders import ReadingOrderEntry
 from fichero_server.models.segments import SegmentPass
 
@@ -550,13 +550,18 @@ def write_page_into_library(
     segment by searching its siblings — the import of a dense page is where that cost
     would land.
     """
+    # WHO MADE THIS: the FILE did (#5150). A person bringing a file is not its author: an
+    # imported PAGE/ALTO page is often a machine's (Transkribus HTR, eScriptorium, OCR), and
+    # stamping it `human` was the #4868/#4869 class again -- and put every import in the
+    # hand-curated tier of the pass ladder. The pass, its segments and its readings are
+    # `external_import`; `actor` says who brought it, `provider` what the file says made it
+    # (`SourcePage.producer`: PAGE Creator/Transkribus, ALTO processingSoftware, TEI respStmt).
+    # A person's later edits on the pass are theirs as usual.
+    imported = ProvenanceKind.external_import
     pass_row = SegmentPass(
         document_id=document_id,
         name=pass_name,
-        # ONE rule for who made this (#4868/#4869): a person brought a file, so the
-        # pass is theirs; a runner importing is a machine's. Never a second copy of
-        # the derivation.
-        provenance_kind=provenance_kind_from_ctx(ctx),
+        provenance_kind=imported,
         actor=ctx.actor,
         provider=page.producer,
         run_id=ctx.run_id,
@@ -612,7 +617,7 @@ def write_page_into_library(
                 kind_raw=raw_kind(segment),
             ),
             actor=ctx.actor,
-            provenance_kind=provenance_kind_from_ctx(ctx),
+            provenance_kind=imported,
             id=ids_by_ref[ref],
         )
         # Slice 9's three facts arrive WITH the segment, with provenance saying the
@@ -661,7 +666,7 @@ def write_page_into_library(
                     source_anchor=SourceAnchor(
                         document_id=document_id, granularity=segment.kind
                     ),
-                    provenance_kind=provenance_kind_from_ctx(ctx),
+                    provenance_kind=imported,
                     created_by=ctx.actor or None,
                 )
             )
