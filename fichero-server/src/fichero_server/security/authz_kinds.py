@@ -58,6 +58,8 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
     **{name: (RECORD, ("ContentRepresentation",)) for name in (
         "representation_id", "representation_ids", "corrects_representation_id",
         "derived_from_representation_id", "read_id", "written_id",
+        # The reading a typed edit was based on, checked still to count (#5001, stale-keeps-your-words).
+        "expected_counting_id",
     )},
     "order_id": (RECORD, ("ReadingOrder",)),
     **{name: (RECORD, ("ReadingOrderEntry",)) for name in ("entry_id", "after_entry_id", "parent_entry_id")},
