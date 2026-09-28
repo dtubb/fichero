@@ -10,7 +10,7 @@ Page From…. Every edit below should undo with ⌘Z and redo with ⇧⌘Z.
    lines. *Should:* boxes on the image, not only text.
 2. **Select a box on an imported page** (#5152). Click a line. *Should:* it highlights; the Inspector's
    Source section shows the path **Page › Region › Line**, then **Text**, **Language & Script**,
-   **Hands**, and **Order**. Click a crumb to inspect that level.
+   **Hands**, **Certainty and Damage**, and **Order**. Click a crumb to inspect that level.
 3. **Edit an imported page** (#5152). Turn on Edit Segments (head, beside the pencil). Drag a line's
    box; select two lines and right-click ▸ **Join 2 Regions**; select one and press Delete. *Should:*
    each happens, and ⌘Z puts it back.
@@ -20,12 +20,13 @@ Page From…. Every edit below should undo with ⌘Z and redo with ⇧⌘Z.
 5. **The working pass** (#5156). On a page with two passes, the Making section says which is
    "Working" and why; the other offers **Make Working**. *Should:* the Source view redraws from the
    chosen pass; ⌘Z goes back (a first choice goes back to the rule).
-6. **Which reading counts** (#5153). Select a line that has two readings (type a correction into one,
-   or use a line with two). *Should:* Text lists both, says nothing counts yet, and offers **Make
-   This Count**; the chosen one is marked "Chosen by a person"; ⌘Z.
-7. **Language & script** (#5158). Select a line. *Should:* language, script, direction, encoding, each
-   saying where it came from. **Known:** the Syriac page shows "English · a fallback" and
-   left-to-right -- the engine does not yet read the line's own text (#5176).
+6. **Which reading counts** (#5153, #5175). Select a line and type a correction of it. *Should:* Text
+   lists both; the correction counts, marked "A person's correction, over the reading it corrects";
+   the file's reading offers **Make This Count**, and choosing it marks it "Chosen by a person"; ⌘Z.
+7. **Language & script** (#5158, #5176). Select a line. *Should:* language, script, direction, encoding,
+   each saying where it came from. On the Syriac page: script **Syrc · detected**, direction **Right
+   to Left · from the script**, language **Not determined** (nothing states it; never an English
+   fallback).
 8. **The Segment menu** (#5157). With lines selected: Inspector path head ▸ **Segment** ▸ Direction ▸
    Right to Left, or Language… (type `syc`); also right-click in Edit Segments. *Should:* all the
    selected lines change in one step; one ⌘Z undoes it.
@@ -39,11 +40,21 @@ Page From…. Every edit below should undo with ⌘Z and redo with ⇧⌘Z.
     *Should:* the Reader's text follows the new order; ⌘Z restores it byte for byte. In the Reader,
     put the caret in a line and press ⌥⌘↑ (with the Order list NOT focused): the line moves.
 12. **One selection** (#5155). Pick a row in the Order list. *Should:* that segment lights on the
-    image and the Inspector follows it.
+    image and the Inspector follows it. In the Reader, put the caret on a line: that line lights on
+    the image; select boxes: their lines are tinted in the Reader.
+13. **Certainty and damage** (5.5). Select a line ▸ Certainty and Damage ▸ **Mark** ▸ Unclear.
+    *Should:* the section shows the line with an under-dot on every letter (drawn, not typed: Text
+    still shows the plain reading) and "Unclear · letters 1–N · by ‹you›"; **Withdraw** takes it out
+    of view; ⌘Z. Once #5179 lands, the Syriac page's own file marks six lines unclear on import.
+14. **Typing in the Reader** (#5154, both halves). Put the caret in a derived page's line and type,
+    then move off the line. *Should:* a new reading, correcting the old (see 6); Return mid-line splits
+    the line and its box (the engine records the box cut as an estimate); Backspace at a line's start joins it
+    to the line before; each one ⌘Z.
+15. **A georeference beside a transcription** (#5122). On a page with an imported transcription AND an
+    imported IIIF georeference: *Should:* the Source view draws the transcription's lines, never the
+    control points; Making lists the georeference under **Georeferencing**.
 
-**Not testable yet** (the served page's half, the bugs lane): typing in the Reader (a new reading,
-Return splits, Backspace joins -- #5154) and the Reader's caret selecting the line on the image
-(#5155). **Not built:** the menu-bar Segment menu, comparing two passes side by side, attribute edits
+**Not built:** the menu-bar Segment menu, comparing two passes side by side, attribute edits
 on a page still read from an artifact (it is converted on first edit, #4924).
 
 Asked for by the maintainer after his try-out of 2026-09-27: everything built must be hooked into the
@@ -69,17 +80,25 @@ against the engine on every Python run). When the lead's run is green, the rows'
 | #5146 | `source.app.overlays-draw-from-the-seam` (imported pages) | 6dc912235 | `…DrawsTheFilesRegionsAndLines` |
 | #5152 | `source.editor.shapes-in-source-view`, `selection-shared` (imported) | ba9557474, 0e149018f, 431248e41 | `…ALineClicked…`, `…JoiningTwoImportedLines…` |
 | #5149 | `source.making.in-inspector` (page level, imported file) | c254941e6, c59ef6007, e91a3c4eb | `…SaysHowItWasMadeAndShowsItsOriginal` |
-| #5153 | `source.reading.chosen-is-worked-out`, `corrections-are-new` (seen) | 61ba0e9e4 | `…ChoosingTheCorrection…` |
+| #5153 | `source.reading.chosen-is-worked-out`, `corrections-are-new` (seen) | 61ba0e9e4, fd9793f60 | `…ChoosingTheFilesReadingOverACorrection…` |
 | #5155 | `source.editor.selection-shared` (Order list, Reader app half) | f5f580761 | `…ALineNamedByTheReader…` |
 | #5156 | `source.pass.working`, `named-authored` (shown, chosen) | a1d41dcdb, 2196a3ec2 | `…MakeWorkingSendsPassChooseWorking…` |
 | #5157 | `source.editor.set-kind`, `set-direction`, `set-language-script` | 71a3fbac1 | `…SegmentMenuSetsDirection…` |
 | #5158 | `source.lang.three-facts`, `says-where-from`, `unknown-is-not-unexamined` | afad2c57e | `…LanguageSectionShows…` |
 | #5161 | `source.hand.attributed`, `not-provenance`, `record` | a98f4db80 | `…HandsSectionShows…` |
 | Q6 | `source.editor.marks` (on the selection) | 81ba748a1 | `…AHighlightOnTwoSelectedLines…` |
-| #5154 | `source.textedit.typing-is-a-new-reading`, `return-splits-the-line`, `backspace-joins-in-reading-order` -- APP HALF ONLY | 02cd36aa2 | `…SplitAndJoinMessages…` (the page's half is the bugs lane's) |
+| #5154 | `source.textedit.typing-is-a-new-reading`, `return-splits-the-line`, `backspace-joins-in-reading-order` (app half; page half bugs2 6857c8ae6, ba90038e6) | 02cd36aa2, fd9793f60 | `…ReadersEditSplitAndJoinMessagesBecomeTheirActions` |
+| 5.5 | `source.sure.editorial-facts`, `brackets-are-drawn` (shown, marked, withdrawn) | b75cac9ef, abe343ae9, fd3e57f96 | `…CertaintyAndDamageSectionShowsTheFactsDrawn…` |
+| #5122 | a georeferencing pass is never drawn as the page's boxes; Making lists it apart | 8b9e51c37 | unit only: `SegmentDisplayTests.aGeoreferenceIsNotDrawnAsThePagesBoxes` (no real georef+transcription page recorded yet) |
 
-Engine defects found on the way, filed: #5176 (the Syriac page resolves to "English, left to right"
-by fallback); fixed in-lane: a page's first working-pass choice could not be undone (a1d41dcdb).
+Engine defects found on the way, filed: #5176 (the Syriac page resolved to "English, left to right"
+by fallback; fixed by bugs2, 844b6d3bc); #5179 (a file's own editorial marks are dropped on import).
+Fixed in-lane: a page's first working-pass choice could not be undone (a1d41dcdb); a mid-line lost
+stretch could not be placed (abe343ae9).
+
+**Engine only, no screen yet:** letterforms (`source.letterform.*`, 8b6a8b7bc) and campaigns
+(`source.campaign.*`, de90ff63f). Their actions are reachable from MCP and the command line; the
+Inspector spec has no section for either yet.
 
 ## The headline
 
