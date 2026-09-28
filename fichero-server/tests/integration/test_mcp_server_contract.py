@@ -20,6 +20,9 @@ import pytest
 
 from tests.integration._cli_live import cli_live_engine  # noqa: F401  (fixture)
 
+# #5187: spawns an engine and waits on it -- a gate under heavy load may retry or exclude it.
+pytestmark = pytest.mark.load_sensitive
+
 EXPECTED_TOOLS = {
     "fichero_health",
     "fichero_import",
