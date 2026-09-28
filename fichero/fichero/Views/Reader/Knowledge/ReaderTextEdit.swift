@@ -120,6 +120,11 @@ enum ReaderTextEdit {
         return "window.fichero?.lineCommitted?.(\(json));"
     }
 
+    /// Asks the page to send the line being typed now, before the page goes away: it is swapped for
+    /// another or its window closes (`window.fichero.commitPending()`, the page half; idempotent, and
+    /// optional-chained so an older page ignores it).
+    static let commitPendingScript = "window.fichero?.commitPending?.();"
+
     /// The stale answer for a refused `readingEdit`: re-reads the line's readings (the 409's body is not
     /// in the contract, so the app asks what counts now) and says it with `staleScript`. Nil for the
     /// other two messages, which carry no typed words.

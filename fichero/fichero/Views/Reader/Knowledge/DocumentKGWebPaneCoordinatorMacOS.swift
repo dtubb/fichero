@@ -76,6 +76,8 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
         guard lastLoadedDocumentId != parent?.documentId || lastLoadedLibraryPath != parent?.libraryPath
             || lastLoadedPageIds != parent?.pageIds
             || lastLoadedRepresentation != parent?.representation else { return }
+        // A page swap: the old page sends the line being typed first (#5001), so no words are lost.
+        if lastLoadedDocumentId != nil { webView.evaluateJavaScript(ReaderTextEdit.commitPendingScript) }
         // An explicit load supersedes any scheduled failure retry.
         failureRetryTask?.cancel()
         failureRetryTask = nil
