@@ -112,3 +112,29 @@ struct InspectorRightsSection: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("Rights: a label on the library, local models for the page, a restricted line") {
+    let answer = InspectorRights.Answer(
+        restricted: true, readers: ["owner"], modelUse: "local", labels: ["TK Attribution"],
+        records: [
+            .init(id: "r1", targetKind: "library", targetId: "library", holders: ["Österreichische Nationalbibliothek"],
+                  labels: ["TK Attribution"]),
+            .init(id: "r2", targetKind: "document", targetId: "p1", conditions: "agreement 2026-07", modelUse: "local"),
+            .init(id: "r3", targetKind: "segment", targetId: "l1", restricted: true, readers: ["owner"], createdBy: "owner")
+        ]
+    )
+    VStack(alignment: .leading, spacing: 6) {
+        Text("Rights").font(.headline)
+        ForEach(InspectorRights.effect(answer)) { line in
+            HStack { Text(line.title).foregroundStyle(.secondary); Spacer(); Text(line.value) }
+        }
+        ForEach(InspectorRights.rows(answer.records, targetKind: "segment", targetId: "l1", pageId: "p1")) { row in
+            Text(row.place)
+            Text(row.detail).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+    .padding()
+    .frame(width: 340)
+}
+#endif

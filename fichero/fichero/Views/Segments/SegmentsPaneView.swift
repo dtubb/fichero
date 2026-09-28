@@ -65,3 +65,12 @@ struct SegmentsPaneView: View {
         )
     }
 }
+
+#if DEBUG
+/// With no page selected the pane says how to get one; the rows of a real page are the Order list's,
+/// previewed in `ReadingOrderList.swift` over a fixture transport.
+#Preview("Segments pane — no page selected") {
+    SegmentsPaneView(document: nil)
+        .frame(width: 320, height: 360)
+}
+#endif

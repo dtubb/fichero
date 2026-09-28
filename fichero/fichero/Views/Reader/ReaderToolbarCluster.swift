@@ -58,3 +58,25 @@ struct ReaderToolbarCluster<Expanded: View>: View {
         .accessibilityLabel(help)
     }
 }
+
+#if DEBUG
+/// The Reader's zoom cluster, collapsed and expanded, as the toolbar mounts it: the toggle alone,
+/// then the toggle with the zoom controls beside it.
+private struct ReaderToolbarClusterPreview: View {
+    @State var expanded: Bool
+
+    var body: some View {
+        ReaderToolbarCluster(
+            isExpanded: $expanded, collapsedIcon: "textformat.size", collapsedHelp: "Show zoom controls"
+        ) {
+            Button { } label: { Image(systemName: "minus.magnifyingglass") }.accessibilityLabel("Zoom Out")
+            Text("100%").font(.caption).monospacedDigit()
+            Button { } label: { Image(systemName: "plus.magnifyingglass") }.accessibilityLabel("Zoom In")
+        }
+        .padding()
+    }
+}
+
+#Preview("Reader cluster — collapsed") { ReaderToolbarClusterPreview(expanded: false) }
+#Preview("Reader cluster — expanded") { ReaderToolbarClusterPreview(expanded: true) }
+#endif

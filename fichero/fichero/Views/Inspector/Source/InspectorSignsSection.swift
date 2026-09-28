@@ -76,3 +76,31 @@ struct InspectorSignsSection: View {
         )
     }
 }
+
+#if DEBUG
+#Preview("Signs: the MUFI sign on a line, and a character's letterform") {
+    let rows = InspectorSigns.rows(
+        signs: [.init(id: "s1", name: "MUFI abbreviation sign", pictureSegmentId: "l1", codePoint: "U+F1AC",
+                      listReferences: [.init(authority: "MUFI", number: "F1AC")])],
+        segmentId: "l1", reading: "⁋ ꝓc̾atur \u{F1AC} ⁋", usedInProject: ["s1": 50]
+    )
+    let forms = InspectorSigns.lines(
+        [.init(id: "d1", character: "ܐ", allographId: "a1", handId: "h1",
+               features: [(component: "stem", feature: "wedged")], describedBy: "owner")],
+        allographs: ["a1": "Estrangela alaph"], hands: ["h1": "hand B"]
+    )
+    VStack(alignment: .leading, spacing: 6) {
+        Text("Signs").font(.headline)
+        ForEach(rows) { row in
+            Text(row.title)
+            Text(row.detail).font(.caption).foregroundStyle(.secondary)
+        }
+        ForEach(forms) { line in
+            Text(line.chain)
+            Text(line.detail).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+    .padding()
+    .frame(width: 340)
+}
+#endif

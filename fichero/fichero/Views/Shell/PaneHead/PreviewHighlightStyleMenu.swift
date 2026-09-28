@@ -66,14 +66,9 @@ struct PreviewHighlightStyleMenu: View {
 // v1, ruling 4) live in AnnotationBar.swift — the annotation bar is the one
 // home for markup verbs; both chevron menus here mount them.
 
-// Both label modes, as `AnnotationBar` shows them. No `WindowState` is injected: the row reads
-// it optionally, so this is its no-window default (select tool, standard highlight style).
-#Preview("Markup tools — icons") {
-    PreviewMarkupToolsRow()
-        .padding()
-}
-
-#Preview("Markup tools — with labels") {
-    PreviewMarkupToolsRow(showsLabels: true)
+// The chevron menu alone, as the annotation bar's split button opens it: the highlight colours, then
+// Underline and Strikethrough as checkable modes, all from the one storage key.
+#Preview("Highlight style menu") {
+    PreviewHighlightStyleMenu()
         .padding()
 }
