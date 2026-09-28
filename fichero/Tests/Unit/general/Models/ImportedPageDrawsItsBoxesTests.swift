@@ -1801,14 +1801,45 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertNil(ReaderTextEdit.unreachableReason(APIError.httpError(statusCode: 409, message: "stale")),
                      "a refusal reached the engine: not out of reach")
 
-        // The engine comes back on the third ask: the page is told once, and asked about nothing more.
-        var asks = 0
-        var saidToPage: [String] = []
-        await ReaderTextEdit.waitForReturn(
-            isBack: { asks += 1; return asks == 3 }, pause: {}, tell: { saidToPage.append($0) }
-        )
-        XCTAssertEqual(asks, 3)
-        XCTAssertEqual(saidToPage, [ReaderTextEdit.engineStateScript(reachable: true)], "told once, when it answers")
+        // Through the coordinator's own store and follower: out of reach is said once, and the engine
+        // coming back on the third ask is said once.
+        final class Said { var scripts: [String] = []; var asks = 0 }
+        let said = Said()
+        let store = EngineReachabilityStore(isBack: { said.asks += 1; return said.asks == 3 }, pause: { await Task.yield() })
+        let follow = Task { await store.tellEachChange { said.scripts.append($0) } }
+        store.wentAway("connection refused")
+        for _ in 0..<200 where said.scripts.count < 2 { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(said.asks, 3)
+        XCTAssertEqual(said.scripts, [
+            ReaderTextEdit.engineStateScript(reachable: false, reason: "connection refused"),
+            ReaderTextEdit.engineStateScript(reachable: true),
+        ], "told when it went, and once when it answers")
+        follow.cancel()
+    }
+
+    /// 13b's probe lives in a STORE (the observable data layer: a view never calls the client). Two writes
+    /// failing while out of reach start ONE probe and say "out of reach" ONCE; its return flips
+    /// `reachable` once and is said once. Breaks if a second failure starts a second probe or the page
+    /// is told the same state twice.
+    func testTheEngineReachabilityStoreFlipsOnceAndTellsEachChangeOnce() async throws {
+        final class Seen { var scripts: [String] = []; var asks = 0; var back = false }
+        let seen = Seen()
+        let store = EngineReachabilityStore(isBack: { seen.asks += 1; return seen.back }, pause: { await Task.yield() })
+        let follow = Task { await store.tellEachChange { seen.scripts.append($0) } }
+        await Task.yield()
+        store.wentAway("connection refused")
+        store.wentAway("timed out")
+        for _ in 0..<200 where seen.scripts.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        for _ in 0..<50 where seen.asks < 5 { try await Task.sleep(nanoseconds: 1_000_000) }
+        XCTAssertFalse(store.reachable)
+        XCTAssertEqual(seen.scripts.count, 1, "out of reach said once, for two failed writes")
+        seen.back = true
+        for _ in 0..<200 where !store.reachable { try await Task.sleep(nanoseconds: 10_000_000) }
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertTrue(store.reachable)
+        XCTAssertEqual(seen.scripts.last, ReaderTextEdit.engineStateScript(reachable: true))
+        XCTAssertEqual(seen.scripts.count, 2, "back said once -- one probe, one flip")
+        follow.cancel()
     }
 
     /// `source.textedit.deleting-words-keeps-ink`, its last clause, end to end on the imported Syriac page
