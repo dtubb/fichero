@@ -679,20 +679,21 @@ The editor
 - `source.textedit.a-run-of-keys-is-one-action` — **[GAP]** (#5001) typing in one line commits as one reading, one
   audit record and one undo step, on leaving the line, a structural key, loss of focus, Save,
   or two seconds' pause; structural edits are their own action at once.
-- `source.textedit.stale-keeps-your-words` — **[GAP]** (#5001) an edit against a version that has moved on is refused
+- `source.textedit.stale-keeps-your-words` — **[PARTIAL]** (#5001) an edit against a version that has moved on is refused
   and the typed words are kept and offered: keep mine, take theirs, compare; out of reach of
-  the engine the text is read-only. **Confirmed absent 2026-09-27, not merely stale-tagged:**
-  `Segment` writes already have this shape — `segment.update`/`.merge`/`.split`/`.restore_version`
-  all take an `expected_version` and refuse with `SegmentStale` when the live row has moved on.
-  `representation.create` — the action a text edit actually calls — takes no such field and has
-  no conflict machinery at all; two corrections of one reading, neither aware of the other, both
-  simply succeed as two more candidate readings
-  (`fichero-server/tests/unit/api/test_textedit_engine_primitives.py::TestStaleKeepsYourWordsHasNoCompareAndSetOnAReadingWrite`,
-  3 tests). **Not invented here:** what a caller's "my edit is against version N" token even means
-  for an append-only, immutable row store where several readings of one line legitimately
-  coexist — a version number, a last-known `representation_id`, a timestamp — is a design
-  decision, the same shape as `return-splits-the-line`'s caret-to-geometry gap above, and needs a
-  ruling before it is built.
+  the engine the text is read-only. **The token (decided 2026-09-28 by the lead as a default; the
+  maintainer may revisit):** a write carries `expected_counting_id`, the id of the reading that
+  counted when the person began typing. `representation.create` compares it with what counts now
+  (`counting_by_kind`); if another reading counts, it answers 409 `{"reason": "stale",
+  "counting_representation_id", "counting_text", ...}` and writes nothing. Keep Mine is the same
+  words sent again against the reading that counts now. A write without the field behaves as before:
+  two corrections of one reading, neither aware of the other, both land as candidates. MCP, the
+  command line and imports send no token. **Built: the engine** (`test_stale_keeps_your_words.py`,
+  3 tests on the imported Syriac page: a stale write writes nothing and names what counts; Keep Mine
+  against the new basis lands and counts; no token behaves as today; a token without a segment is
+  refused), plus `test_textedit_engine_primitives.py::TestWithoutTheTokenTwoCorrectionsBothLand`.
+  **Not yet:** the app sending the token and turning the 409 into the page's stale answer, and the
+  page's inline Keep Mine / Take Theirs / Compare (bugs2's half).
 - `source.textedit.every-direction` — **[PARTIAL]** (#5001) each block is laid out and edited in its own direction;
   line starts, joins and cuts follow reading order and the baseline; a direction the platform
   cannot lay out is labelled, never reordered.
@@ -1213,7 +1214,7 @@ the click-around leg is still to be filled at approval):
 | `reader-shows-segments` | `document_text()` | `test_textedit_engine_primitives.py::TestReaderShowsSegmentsUsesTheWorkingPassAndNamedOrder` (follows the working pass and order) + `test_textedit_reader_blocks.py` (9 tests across `TestOneDirectionIsOneBlock`, `TestADirectionChangeStartsANewBlock`, `TestNonOrientableValuesNeverMerge`, `TestRegionGrouping`: region/direction packaging, boustrophedon one-block-per-line, follows-baseline/alternating never merge) |
 | `typing-is-a-new-reading` | `representation.create` + `provenance_kind_from_ctx` | `test_textedit_engine_primitives.py::TestTypingIsANewReadingSetsTheMakerFromContext` (4 tests: human, workflow, refused client-supplied maker, earlier reading unchanged) |
 | `return-splits-the-line` | `segment.split` | `test_textedit_engine_primitives.py::TestReturnSplitsTheLineSegmentSplitPrimitive` (2 tests: independent anchor + reading_span per part; no caret-to-geometry mapping exists) |
-| `stale-keeps-your-words` | none — confirmed absent | `test_textedit_engine_primitives.py::TestStaleKeepsYourWordsHasNoCompareAndSetOnAReadingWrite` (3 tests: two corrections of one target both silently succeed; params take no expected-version field; no conflict machinery in the file at all) |
+| `stale-keeps-your-words` | `representation.create` `expected_counting_id` → 409 (decided 2026-09-28 by the lead as a default) | `test_stale_keeps_your_words.py` (3 tests: stale write writes nothing and names what counts; Keep Mine against the new basis lands; no token = today, a token without a segment refused) + `test_textedit_engine_primitives.py::TestWithoutTheTokenTwoCorrectionsBothLand` |
 | `backspace-joins-in-reading-order` | `segment.merge` | `test_segments_write_actions.py::TestMergeRefusesAcrossRegions` (3 tests: two different regions refused, one region + one no-region refused, same region still merges) |
 
 ## Open questions

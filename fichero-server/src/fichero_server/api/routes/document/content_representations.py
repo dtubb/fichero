@@ -168,6 +168,8 @@ def _content_sha256(content: str) -> str:
 
 def _as_http_error(exc: Exception) -> HTTPException:
     """Typed refusals as 4xx, so a caller sees a refusal, not a crash."""
+    if isinstance(exc, HTTPException):
+        return exc  # already a refusal with its status (the stale 409 carries its own detail)
     if isinstance(exc, ProvisionalSegmentIdError):
         return HTTPException(422, str(exc))
     if isinstance(exc, (UnknownReadingKind, ReadingAnchorMismatch)):
@@ -179,6 +181,39 @@ def _as_http_error(exc: Exception) -> HTTPException:
     if isinstance(exc, ValueError):
         return HTTPException(422, str(exc))
     return HTTPException(500, str(exc))
+
+
+def _refuse_if_the_counting_reading_moved(
+    db: Database, params: RepresentationCreateParams, segment: Segment | None
+) -> None:
+    """The compare-and-set of a reading write (`source.textedit.stale-keeps-your-words`).
+
+    Readings are immutable and several coexist, so what can move under a writer is WHICH ONE COUNTS
+    (a correction or a choice made meanwhile). The writer says which counted when it read; if another
+    counts now, the write is refused -- 409, naming the reading that counts now and its text, so the
+    writer can offer keep-mine / take-theirs / compare -- and NOTHING is written. The typed words stay
+    with the writer; the engine never keeps a half-applied edit.
+    """
+    from fichero_server.api.routes.document.segment_readings import counting_by_kind, readings_of_segment
+
+    if segment is None:
+        raise HTTPException(status_code=422, detail="expected_counting_id needs the segment_id whose counting reading it names")
+    items = readings_of_segment(db, segment.id)
+    answer = counting_by_kind(db, segment.id, items).get(params.kind)
+    current = answer.representation_id if answer is not None else None
+    if current == params.expected_counting_id:
+        return
+    text = next((item.content for item in items if item.id == current), None)
+    raise HTTPException(status_code=409, detail={
+        "reason": "stale",
+        "message": (f"another {params.kind} counts for this segment now; nothing was written. "
+                    "Keep yours (write again against the one that counts), take theirs, or compare."),
+        "segment_id": segment.id,
+        "kind": params.kind,
+        "expected_counting_id": params.expected_counting_id,
+        "counting_representation_id": current,
+        "counting_text": text,
+    })
 
 
 def _live_segment(db: Database, segment_id: str) -> Segment:
@@ -273,6 +308,11 @@ class RepresentationCreateParams(BaseModel):
     #: than inheriting a guess.
     language_meta: dict | None = None
     script_meta: dict | None = None
+    #: The reading that COUNTED for this segment and kind when the writer read it
+    #: (`source.textedit.stale-keeps-your-words`; decided 2026-09-28 by the lead as a default). When
+    #: given, the write is a compare-and-set: if another reading counts now, it is refused with 409,
+    #: naming the one that counts, and nothing is written. Absent, today's behaviour.
+    expected_counting_id: str | None = None
 
     def audit_params(self) -> dict:
         """The audit row gets every argument EXCEPT the words, and a digest in
@@ -336,6 +376,9 @@ def create_representation(
                 f"not {params.document_id}"
             )
         _check_anchor_against_segment(params.source_anchor, segment)
+
+    if params.expected_counting_id is not None:
+        _refuse_if_the_counting_reading_moved(db, params, segment)
 
     if params.corrects_representation_id is not None:
         assert_not_provisional(
