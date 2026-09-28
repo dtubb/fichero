@@ -37,6 +37,7 @@ from fichero_server.models.knowledge import (
     EntityResolutionRule,
     EntityResolutionRuleType,
     EntityType,
+    EvidentialPlace,
     KnowledgeEntity,
 )
 from fichero_server.models import (
@@ -662,7 +663,11 @@ def update_entity_impl(
     now = utc_now()
     entity.canonical_name = request.canonical_name.strip()
     entity.entity_type = request.entity_type
-    entity.aliases = sorted(set(a.strip() for a in request.aliases if a.strip()))
+    new_aliases = sorted(set(a.strip() for a in request.aliases if a.strip()))
+    # `aliases` is derived from `names` (maps D6): a name whose text the new list leaves out is
+    # withdrawn with it, or the next read would put it straight back.
+    entity.drop_names([name.text for name in entity.names if name.text not in new_aliases])
+    entity.aliases = new_aliases
     entity.description = request.description
     entity.language = request.language
     entity.metadata = request.metadata
@@ -2243,3 +2248,184 @@ def _action_entity_neighborhood(
         db, params.entity_id, hops=params.hops, limit=params.limit, rank=params.rank
     )
     return response.model_dump(mode="json"), ChangeSpec(domains=["entity", "claim"])
+
+
+# ---------------------------------------------------------------------------
+# Places over time (maps D6/D7, #5120): an entity's dated, sourced names and dated geometries, and
+# the place as of a date. Writes are audited, undoable actions; `aliases` reads the names (the
+# model's validator), so "what is it called" has one answer.
+# ---------------------------------------------------------------------------
+
+
+class EntityAddNameParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    entity_id: str
+    text: str = Field(min_length=1, max_length=500)
+    romanized: str | None = Field(default=None, max_length=500)
+    language: str | None = Field(default=None, max_length=35)
+    script: str | None = Field(default=None, max_length=4)
+    when: dict | None = None
+    source: str | None = Field(default=None, max_length=500)
+    #: A name put back by an undo keeps its id.
+    name_id: str | None = None
+
+
+class EntityWithdrawNameParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    entity_id: str
+    name_id: str
+
+
+def _live_entity(db: Database, entity_id: str) -> KnowledgeEntity:
+    entity = db.get(KnowledgeEntity, entity_id)
+    if entity is None or entity.merged_into_id:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+    return entity
+
+
+def _entity_spec(entity_id: str, *, before, after, emit: str) -> ChangeSpec:
+    return ChangeSpec(domains=["entity"], target_ids=[entity_id], before=before, after=after,
+                      emit_type=emit, entity_ids=[entity_id], emit_fn=_emit_entity_change_spec)
+
+
+def _invert_add_name(before, after, ctx):
+    after = after or {}
+    return ("entity.withdraw_name", {"entity_id": after["entity_id"], "name_id": after["name_id"]}) if after.get("name_id") else None
+
+
+@action("entity.add_name", EntityAddNameParams, domains=["entity"], undoable=True, invert=_invert_add_name)
+def _action_add_name(db: Database, params: EntityAddNameParams, ctx: ActionContext):
+    """A name the entity was known by, as a source attests it (`source.geo.names-over-time`)."""
+    from fichero_server.api.routes.document.segments import provenance_kind_from_ctx
+    from fichero_server.llm.language_policy import script_of_text
+    from fichero_server.models.knowledge import EntityName, EvidentialDateRange
+
+    entity = _live_entity(db, params.entity_id)
+    fields = params.model_dump(exclude={"entity_id", "name_id", "when"})
+    fields["script"] = params.script or script_of_text(params.text)
+    if params.when is not None:
+        fields["when"] = EvidentialDateRange.model_validate(params.when)
+    if params.name_id:
+        fields["id"] = params.name_id
+    name = EntityName(**fields, provenance_kind=provenance_kind_from_ctx(ctx), created_by=ctx.actor or None)
+    entity.names = [*entity.names, name]
+    entity = KnowledgeEntity.model_validate(entity.model_dump())      # `aliases` reads the new name
+    entity.updated_at = utc_now()
+    db.save(entity)
+    return ({"entity_id": entity.id, "name_id": name.id, "script": name.script},
+            _entity_spec(entity.id, before=None, after={"entity_id": entity.id, "name_id": name.id}, emit="entity.updated"))
+
+
+def _invert_withdraw_name(before, after, ctx):
+    name = (before or {}).get("name")
+    if not name:
+        return None
+    return ("entity.add_name", {"entity_id": before["entity_id"], "name_id": name["id"],
+                                **{k: name.get(k) for k in ("text", "romanized", "language", "script", "when", "source")}})
+
+
+@action("entity.withdraw_name", EntityWithdrawNameParams, domains=["entity"], undoable=True, invert=_invert_withdraw_name)
+def _action_withdraw_name(db: Database, params: EntityWithdrawNameParams, ctx: ActionContext):
+    entity = _live_entity(db, params.entity_id)
+    name = next((n for n in entity.names if n.id == params.name_id), None)
+    if name is None:
+        raise HTTPException(status_code=404, detail=f"Name not found on {params.entity_id}: {params.name_id}")
+    keep = [n for n in entity.names if n.id != name.id]
+    still = {form for n in keep for form in (n.text, n.romanized) if form}
+    entity.names = keep
+    entity.aliases = [a for a in entity.aliases if a in still or a not in (name.text, name.romanized)]
+    entity.updated_at = utc_now()
+    db.save(entity)
+    return ({"entity_id": entity.id, "name_id": name.id, "withdrawn": True},
+            _entity_spec(entity.id, before={"entity_id": entity.id, "name": name.model_dump(mode="json")},
+                         after={"entity_id": entity.id, "name_id": name.id, "withdrawn": True}, emit="entity.updated"))
+
+
+class EntityAddGeometryParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    entity_id: str
+    #: An `EvidentialPlace`: its geometry, its `when` (a span or a point in time), its basis and source.
+    place: dict
+
+
+class EntityWithdrawGeometryParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    entity_id: str
+    place_id: str
+
+
+def _invert_add_geometry(before, after, ctx):
+    after = after or {}
+    return ("entity.withdraw_geometry", {"entity_id": after["entity_id"], "place_id": after["place_id"]}) if after.get("place_id") else None
+
+
+@action("entity.add_geometry", EntityAddGeometryParams, domains=["entity"], undoable=True, invert=_invert_add_geometry)
+def _action_add_geometry(db: Database, params: EntityAddGeometryParams, ctx: ActionContext):
+    """A geometry the place had, and when (`source.geo.geometry-over-time`)."""
+    from fichero_server.models.knowledge import EvidentialPlace
+
+    entity = _live_entity(db, params.entity_id)
+    try:
+        place = EvidentialPlace.model_validate({"created_by": ctx.actor or "human", **params.place})
+    except ValueError as refusal:
+        raise HTTPException(status_code=422, detail=str(refusal)) from refusal
+    entity.place_values = [*entity.place_values, place]
+    entity.updated_at = utc_now()
+    db.save(entity)
+    return ({"entity_id": entity.id, "place_id": place.id},
+            _entity_spec(entity.id, before=None, after={"entity_id": entity.id, "place_id": place.id}, emit="entity.updated"))
+
+
+def _invert_withdraw_geometry(before, after, ctx):
+    place = (before or {}).get("place")
+    return ("entity.add_geometry", {"entity_id": before["entity_id"], "place": place}) if place else None
+
+
+@action("entity.withdraw_geometry", EntityWithdrawGeometryParams, domains=["entity"], undoable=True,
+        invert=_invert_withdraw_geometry)
+def _action_withdraw_geometry(db: Database, params: EntityWithdrawGeometryParams, ctx: ActionContext):
+    entity = _live_entity(db, params.entity_id)
+    place = next((p for p in entity.place_values if p.id == params.place_id), None)
+    if place is None:
+        raise HTTPException(status_code=404, detail=f"Geometry not found on {params.entity_id}: {params.place_id}")
+    entity.place_values = [p for p in entity.place_values if p.id != place.id]
+    entity.updated_at = utc_now()
+    db.save(entity)
+    return ({"entity_id": entity.id, "place_id": place.id, "withdrawn": True},
+            _entity_spec(entity.id, before={"entity_id": entity.id, "place": place.model_dump(mode="json")},
+                         after={"entity_id": entity.id, "place_id": place.id, "withdrawn": True}, emit="entity.updated"))
+
+
+class PlaceAsOfResponse(BaseModel):
+    entity_id: str
+    as_of: str
+    #: Every geometry valid then -- rivals stay rivals, each with its source.
+    geometries: list[EvidentialPlace]
+    #: Geometries with no date: valid, time unknown -- never counted as valid at `as_of`.
+    undated: list[EvidentialPlace]
+    #: Why nothing is valid ("none valid in 1800"), or None.
+    reason: str | None = None
+
+
+@router.get("/{entity_id}/place", response_model=PlaceAsOfResponse)
+async def place_as_of(
+    entity_id: str,
+    as_of: str = Query(..., min_length=1, max_length=40, description="A year or ISO 8601 date (astronomical count: -329 is 330 BC)"),
+    db: Database = Depends(get_library_database),
+) -> PlaceAsOfResponse:
+    """The place as of a date (`source.geo.geometry-over-time`): the geometries valid then, or
+    none with the reason -- never the nearest. Nothing is fetched."""
+    from fichero_server.knowledge.places import geometries_as_of
+
+    entity = db.get(KnowledgeEntity, entity_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+    try:
+        answer = geometries_as_of(entity, as_of)
+    except ValueError as refusal:
+        raise HTTPException(status_code=422, detail=str(refusal)) from refusal
+    return PlaceAsOfResponse(entity_id=entity.id, as_of=as_of, **answer)

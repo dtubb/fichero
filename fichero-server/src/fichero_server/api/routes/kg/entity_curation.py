@@ -413,6 +413,10 @@ def merge_entities_impl(
             alias_changes["added"].append(stripped)
             absorber_aliases.add(stripped)
 
+    # Names move with their aliases (maps D6): the absorber keeps each absorbed name's language,
+    # script, dates and source, not just its text.
+    have = {name.text for name in absorber.names}
+    absorber.names = [*absorber.names, *(name for ent in absorbed for name in ent.names if name.text not in have)]
     absorber.aliases = sorted(absorber_aliases)
     if request.merged_description:
         absorber.description = request.merged_description
@@ -595,7 +599,10 @@ def split_entity_impl(
     alias_changes: dict[str, Any] = {
         "restored_from": list(moved),
         "moved_to": {},
+        # The names leaving, whole, so an undo restores them with their dates and sources (D6).
+        "names_moved": [name.model_dump(mode="json") for name in primary.names if name.text in moved],
     }
+    primary.drop_names(moved)
     primary.aliases = [a for a in primary.aliases if a not in moved]
     now = utc_now()
     primary.updated_at = now
@@ -702,6 +709,7 @@ def undo_entity_operation_impl(
                 if target == absorber.id and alias in ent.aliases:
                     restored.append(alias)
         absorbed_aliases = set(audit.alias_changes.get("added", []))
+        absorber.drop_names(absorbed_aliases)
         absorber.aliases = [a for a in absorber.aliases if a not in absorbed_aliases]
         absorber.updated_at = now
         db.save(absorber)
@@ -768,6 +776,11 @@ def undo_entity_operation_impl(
                 detail=f"Primary entity not found: {audit.target_entity_id}",
             )
         moved = audit.alias_changes.get("restored_from", [])
+        from fichero_server.models.knowledge import EntityName
+
+        have = {name.text for name in primary.names}
+        primary.names = [*primary.names, *(EntityName.model_validate(row) for row in audit.alias_changes.get("names_moved", [])
+                                           if row.get("text") not in have)]
         primary.aliases = sorted(set(primary.aliases) | set(moved))
         primary.updated_at = now
         db.save(primary)

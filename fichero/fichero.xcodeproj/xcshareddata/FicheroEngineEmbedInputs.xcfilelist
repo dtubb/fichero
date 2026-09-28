@@ -280,6 +280,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/graph_reasoning.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/jsonld_context.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/ner.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/paragraph.py
+$(SRCROOT)/../fichero-server/src/fichero_server/knowledge/places.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/probabilistic_scorer.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/pykeen_inference.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/pykeen_predictor.py

@@ -482,6 +482,16 @@ def fichero_segments_naming_place(uri: str) -> Any:
 
 
 @mcp.tool()
+def fichero_place_as_of(entity_id: str, as_of: str) -> Any:
+    """Where a place was as of a date: every geometry valid then (rival ones listed as rivals,
+    each with its source), the undated ones apart, or none with the reason -- never the nearest
+    (read-only, never fetches). ``as_of`` is a year or ISO 8601 date, astronomical count (-329 is
+    330 BC). The same answer as ``GET /api/entities/{entity_id}/place``."""
+    with _client() as client:
+        return client.request("GET", f"/api/entities/{entity_id}/place", params={"as_of": as_of})
+
+
+@mcp.tool()
 def fichero_document_text(
     doc_id: str,
     pass_id: Optional[str] = None,

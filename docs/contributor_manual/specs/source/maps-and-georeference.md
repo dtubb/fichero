@@ -509,11 +509,34 @@ Places and gazetteers
   PARTIAL: no screen.
 
 Places over time and in words
-- `source.geo.names-over-time` — **[GAP]** (#5120) a place entity holds several names, each with
+- `source.geo.names-over-time` — **[PARTIAL]** (#5120) a place entity holds several names, each with
   a language, a script, a time span and the source that attests it.
-- `source.geo.geometry-over-time` — **[GAP]** (#5120) a place holds several geometries each with a
+  **Built 2026-09-28 (maps D6):** `KnowledgeEntity.names` -- text in its own script, romanized form,
+  BCP 47 language as the source gives it, ISO 15924 script (the source's, else the letters'), a
+  dated span with its year numbering named, the attesting source, maker -- written by the audited,
+  undoable `entity.add_name` / `entity.withdraw_name`; all fifteen of Pleiades's Lutetia names
+  (`fichero-server/tests/unit/api/test_places_over_time.py::test_each_name_keeps_its_language_script_dates_and_source`). `aliases` is DERIVED from the
+  names (ruled 2026-09-28: one answer to "what is it called"): an alias written the old way still
+  reads back, search finds a name by either form, a withdrawn name leaves `aliases` and undo puts it
+  back, names move with a merge
+  (`::test_aliases_read_the_names_and_an_old_alias_still_reads_back`,
+  `::test_withdrawing_a_name_takes_it_out_of_aliases_and_undo_puts_it_back`, `::test_names_move_with_a_merge`).
+  PARTIAL: no screen; the KG writer's own dedupe merges (`_entity_writer`, `cleanup`) carry a merged
+  entity's name texts as plain aliases, not its names.
+- `source.geo.geometry-over-time` — **[PARTIAL]** (#5120) a place holds several geometries each with a
   time span and source, and asking for a place as of a date returns the one valid then or says
   there is none.
+  **Built 2026-09-28 (maps D7):** `EvidentialPlace.when` dates the existing place evidence (a span,
+  or a point in time) -- no second geometry store; `entity.add_geometry` / `withdraw_geometry`
+  (audited, undoable); `GET /api/entities/{id}/place?as_of=` and the MCP tool `fichero_place_as_of`
+  answer every geometry valid then (rivals as rivals, each with its source), undated ones apart, or
+  none with the reason -- never the nearest; each span's year numbering is honoured. On Wikidata's
+  North Magnetic Pole (ten dated positions, 1831-2025) and Pleiades's Lutetia
+  (`fichero-server/tests/unit/api/test_places_over_time.py::test_as_of_a_date_the_place_is_where_it_was_then_or_nowhere_said`,
+  `::test_rival_geometries_of_one_period_are_listed_as_rivals_and_undated_apart`,
+  `::test_the_source_s_year_numbering_is_honoured`, `::test_the_mcp_tool_is_the_route`).
+  PARTIAL: no screen; the full date model (`source.date.*`, #4936) is not built -- comparison is by
+  year.
 - `source.geo.boundary-from-map` — **[GAP]** (#5120) a boundary segment's worked-out world shape
   can be adopted as a place geometry that remembers the segment and map it came from.
 - `source.geo.map-depicts-date` — **[GAP]** (#5120) a georeferenced map carries the date it
