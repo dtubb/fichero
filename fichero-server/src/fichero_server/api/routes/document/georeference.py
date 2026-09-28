@@ -189,6 +189,34 @@ def _action_set_transformation(db: Database, params: TransformationSetParams, ct
     )
 
 
+class DepictsSetParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    pass_id: str
+    #: An `EvidentialDateRange`: the date (or span) the map shows, its wording and its basis; None clears.
+    depicts: Optional[dict[str, Any]] = None
+
+
+def _invert_set_depicts(before, after, ctx: ActionContext):
+    return ("georef.set_depicts", {"pass_id": before["pass_id"], "depicts": before["depicts"]}) if before else None
+
+
+@action("georef.set_depicts", DepictsSetParams, domains=["georeference"], undoable=True, invert=_invert_set_depicts)
+def _action_set_depicts(db: Database, params: DepictsSetParams, ctx: ActionContext):
+    """Say what date a georeferenced map depicts (`source.geo.map-depicts-date`)."""
+    from fichero_server.models.knowledge import EvidentialDateRange
+
+    pass_row = _live_pass(db, params.pass_id)
+    if not pass_row.transformation:
+        raise HTTPException(status_code=422, detail=f"pass {pass_row.id} georeferences nothing: a depicted date belongs to a georeferenced map")
+    before = {"pass_id": pass_row.id, "depicts": pass_row.depicts.model_dump(mode="json") if pass_row.depicts else None}
+    pass_row.depicts = EvidentialDateRange.model_validate(params.depicts) if params.depicts is not None else None
+    db.save(pass_row)
+    after = {"pass_id": pass_row.id, "depicts": pass_row.depicts.model_dump(mode="json") if pass_row.depicts else None}
+    return after, ChangeSpec(domains=["georeference"], target_ids=[pass_row.id], before=before, after=after,
+                             emit_type="segment.pass_updated", pass_ids=[pass_row.id], document_ids=[pass_row.document_id])
+
+
 def working_georeference(db: Database, document_id: str) -> tuple[str | None, str | None]:
     """(pass id, basis): the image's working georeferencing pass, by the SAME rule as its text
     pass (`resolve_working_pass`) over its georeferencing passes only (#5122,
@@ -305,6 +333,8 @@ class WorldShape(BaseModel):
     working: bool = False
     pass_basis: str | None = None
     unchosen: bool = False
+    #: The date the map depicts (the pass's `depicts`), or None when nobody has said.
+    depicts: dict[str, Any] | None = None
 
 
 def _segment_shape(segment: Segment) -> tuple[str, list[list[float]]]:
@@ -352,6 +382,7 @@ def world_shape(db: Database, segment_id: str, pass_id: str | None = None) -> Wo
     transform = worked_out_transform(db, pass_row.id, containing[0].id if containing else (masks[0].id if len(masks) == 1 else None))
     common = {"segment_id": segment.id, "pass_id": pass_row.id, "transformation": transform.transformation,
               "gcp_set_version": transform.gcp_set_version, "error_m": transform.rms_m,
+              "depicts": pass_row.depicts.model_dump(mode="json") if pass_row.depicts else None,
               **{k: getattr(transform, k) for k in ("pass_provenance", "working", "pass_basis", "unchosen")}}
     if masks and not containing:
         return WorldShape(**common, mask_id=None, outside_the_map=True,

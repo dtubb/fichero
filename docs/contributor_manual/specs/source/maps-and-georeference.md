@@ -415,7 +415,7 @@ The coordinate reference system
   **Built 2026-09-28 (#5122):** a `world-point` write names its CRS (EPSG code, WKT2 or `unknown`)
   and axis order, or is refused
   (`fichero-server/tests/unit/api/test_a_control_point_has_a_place_on_the_earth.py::test_no_crs_is_refused_and_another_crs_is_held_unconverted`).
-  PARTIAL: only world points exist yet; `GeoPoint`/`EvidentialPlace` are `crs-declared-on-existing`.
+  PARTIAL: `GeoPoint`/`EvidentialPlace` declare EPSG:4326 (`crs-declared-on-existing`, built); a write naming no CRS there is taken as WGS 84, the only CRS they have ever held.
 - `source.geo.crs-stored-as-wgs84` — **[PARTIAL]** (#4933; ruled on #5124) a coordinate is converted to
   WGS 84 (EPSG:4326) and stored in it, recording the CRS it arrived in and the conversion used.
   **Built for EPSG:4326 (2026-09-28, #5122):** stored lon/lat with `crs_in`, `axis_order_in`,
@@ -430,8 +430,14 @@ The coordinate reference system
   held with its numbers as entered, lon/lat null, `crs: unknown` and the reason
   (`fichero-server/tests/unit/api/test_a_control_point_has_a_place_on_the_earth.py::test_no_crs_is_refused_and_another_crs_is_held_unconverted`).
   PARTIAL: "declare the CRS later and it is converted" waits on `proj-at-build`; exports do not yet exist to refuse it.
-- `source.geo.crs-declared-on-existing` — **[GAP]** (#4933) existing `GeoPoint` and
+- `source.geo.crs-declared-on-existing` — **[PARTIAL]** (#4933) existing `GeoPoint` and
   `EvidentialPlace` coordinates are declared EPSG:4326 by an additive schema change.
+  **Built 2026-09-28 (maps D5):** both carry `crs`, fixed to `EPSG:4326` and defaulting to it, so a
+  row an older build wrote (no `crs` key) reads back declaring WGS 84 with no number touched; the
+  claim route answers it and refuses a claim point naming any other CRS (422), and the geocoder's
+  points say it (`fichero-server/tests/unit/api/test_existing_coordinates_declare_wgs84.py::test_a_claim_an_older_build_wrote_reads_back_as_wgs84`,
+  `::test_the_claim_route_says_the_crs_and_refuses_another`, `::test_the_geocoder_writes_wgs84_and_says_so`).
+  PARTIAL: no screen shows it.
 - `source.geo.proj-at-build` — **[GAP]** (#4933) CRS conversion uses PROJ shipped with the app at
   build time and never downloads code at run time.
 
@@ -503,15 +509,53 @@ Places and gazetteers
   PARTIAL: no screen.
 
 Places over time and in words
-- `source.geo.names-over-time` — **[GAP]** (#5120) a place entity holds several names, each with
+- `source.geo.names-over-time` — **[PARTIAL]** (#5120) a place entity holds several names, each with
   a language, a script, a time span and the source that attests it.
-- `source.geo.geometry-over-time` — **[GAP]** (#5120) a place holds several geometries each with a
+  **Built 2026-09-28 (maps D6):** `KnowledgeEntity.names` -- text in its own script, romanized form,
+  BCP 47 language as the source gives it, ISO 15924 script (the source's, else the letters'), a
+  dated span with its year numbering named, the attesting source, maker -- written by the audited,
+  undoable `entity.add_name` / `entity.withdraw_name`; all fifteen of Pleiades's Lutetia names
+  (`fichero-server/tests/unit/api/test_places_over_time.py::test_each_name_keeps_its_language_script_dates_and_source`). `aliases` is DERIVED from the
+  names (ruled 2026-09-28: one answer to "what is it called"): an alias written the old way still
+  reads back, search finds a name by either form, a withdrawn name leaves `aliases` and undo puts it
+  back, names move with a merge
+  (`::test_aliases_read_the_names_and_an_old_alias_still_reads_back`,
+  `::test_withdrawing_a_name_takes_it_out_of_aliases_and_undo_puts_it_back`, `::test_names_move_with_a_merge`).
+  PARTIAL: no screen; the KG writer's own dedupe merges (`_entity_writer`, `cleanup`) carry a merged
+  entity's name texts as plain aliases, not its names.
+- `source.geo.geometry-over-time` — **[PARTIAL]** (#5120) a place holds several geometries each with a
   time span and source, and asking for a place as of a date returns the one valid then or says
   there is none.
-- `source.geo.boundary-from-map` — **[GAP]** (#5120) a boundary segment's worked-out world shape
+  **Built 2026-09-28 (maps D7):** `EvidentialPlace.when` dates the existing place evidence (a span,
+  or a point in time) -- no second geometry store; `entity.add_geometry` / `withdraw_geometry`
+  (audited, undoable); `GET /api/entities/{id}/place?as_of=` and the MCP tool `fichero_place_as_of`
+  answer every geometry valid then (rivals as rivals, each with its source), undated ones apart, or
+  none with the reason -- never the nearest; each span's year numbering is honoured. On Wikidata's
+  North Magnetic Pole (ten dated positions, 1831-2025) and Pleiades's Lutetia
+  (`fichero-server/tests/unit/api/test_places_over_time.py::test_as_of_a_date_the_place_is_where_it_was_then_or_nowhere_said`,
+  `::test_rival_geometries_of_one_period_are_listed_as_rivals_and_undated_apart`,
+  `::test_the_source_s_year_numbering_is_honoured`, `::test_the_mcp_tool_is_the_route`).
+  PARTIAL: no screen; the full date model (`source.date.*`, #4936) is not built -- comparison is by
+  year.
+- `source.geo.boundary-from-map` — **[PARTIAL]** (#5120) a boundary segment's worked-out world shape
   can be adopted as a place geometry that remembers the segment and map it came from.
-- `source.geo.map-depicts-date` — **[GAP]** (#5120) a georeferenced map carries the date it
+  **Built 2026-09-28 (maps D8):** `entity.adopt_boundary` (audited, undoable) works the segment's
+  world shape out now and adds it to the place's geometries with `source_segment_id`,
+  `source_pass_id` and `source_document_id`, its error on the ground as `precision_m`, and `when` =
+  the map's depicted date (undated when nobody has said); a shape outside the map is refused
+  (`fichero-server/tests/unit/api/test_a_boundary_from_a_map.py::test_a_boundary_drawn_on_the_map_becomes_the_places_dated_geometry`,
+  `::test_a_map_nobody_has_dated_gives_an_undated_geometry`, `::test_a_boundary_outside_the_map_is_refused`).
+  PARTIAL: no screen; the adopted shape is a copy -- a later GCP correction does not move it (it
+  names the segment and pass, so it can be adopted again).
+- `source.geo.map-depicts-date` — **[PARTIAL]** (#5120) a georeferenced map carries the date it
   depicts, separate from when it was made.
+  **Built 2026-09-28 (maps D8):** the georeferencing pass carries `depicts` (an `EvidentialDateRange`),
+  set by `georef.set_depicts` (audited, undoable) and answered on every world shape; the map's
+  made date stays the document's own. On the Internet Archive's "Plan général de l'Exposition
+  universelle de 1889" (made 1889; depicts the exhibition, May-October 1889); an older library gains
+  the column on open (`fichero-server/tests/unit/api/test_a_boundary_from_a_map.py::test_the_map_says_what_it_depicts_apart_from_when_it_was_made`,
+  `::test_a_library_from_before_the_column_opens_and_gains_it`). PARTIAL: no screen; per pass, so a
+  sheet whose two maps depict different dates needs two passes.
 - `source.geo.relative-place` — **[GAP]** (#5120) a relative description is stored as an anchor
   place, a relation, a distance as written and a certainty, and resolves to an area of
   uncertainty, never a point.
@@ -595,8 +639,18 @@ Formats
   place ENTITIES and entity movements are not written yet.
 - `source.geo.geopackage-out` — **[GAP]** (#4946) the same layers export as a GeoPackage in any
   CRS.
-- `source.geo.linked-places-out` — **[GAP]** (#4946) place entities export as Linked Places Format
+- `source.geo.linked-places-out` — **[PARTIAL]** (#4946) place entities export as Linked Places Format
   with names, geometries, time spans and gazetteer links.
+  **Built 2026-09-28 (maps D9):** `GET /api/entities/{id}/linked-places` -- a FeatureCollection (the
+  LPF v1.1 context) whose Feature has every name as a toponym with its language, citation and
+  `when` (a romanized form as its own toponym, `<lang>-Latn`), every dated geometry in a
+  GeometryCollection with its own `when`, and the `same_as` gazetteer links as `exactMatch`; `when`
+  is ISO 8601, so a source's historical years are converted (Pleiades -30 -> `-0029`); worked out
+  each time, nothing stored (`fichero-server/tests/unit/api/test_places_export_as_linked_places.py::test_lutetia_leaves_with_every_name_dated_in_iso_8601_and_its_gazetteer_link`,
+  `::test_a_moving_place_leaves_with_each_position_dated`, `::test_a_place_with_no_history_is_still_a_valid_feature`).
+  PARTIAL: one place per call (no whole-library export yet), no screen, and not validated against
+  the LPF JSON schema -- its repository states no licence, so the schema is not vendored; each
+  geometry is checked against RFC 7946 instead.
 - `source.geo.duckdb-spatial` — **[GAP]** (#4946) spatial questions in the engine use DuckDB
   Spatial shipped at build time, never installed at run time.
 - `source.geo.fixtures-licensed` — **[GAP]** (#4946) every vendored geographic fixture is real

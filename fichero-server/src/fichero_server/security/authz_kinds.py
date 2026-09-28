@@ -52,14 +52,14 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
     "attribution_id": (RECORD, ("HandAttribution",)),
     # Slice 14 letterforms and campaigns (8b6a8b7bc, de90ff63f): each resolves to its document.
     "description_id": (RECORD, ("LetterformDescription",)),
+    # stale-keeps-your-words (24c16562b): the reading a typed edit was based on; resolves to its document.
+    "expected_counting_id": (RECORD, ("ContentRepresentation",)),
     "restore_id": (RECORD, ("LetterformDescription",)),
     "campaign_id": (RECORD, ("Campaign",)),
     "campaign_ids": (RECORD, ("Campaign",)),
     **{name: (RECORD, ("ContentRepresentation",)) for name in (
         "representation_id", "representation_ids", "corrects_representation_id",
         "derived_from_representation_id", "read_id", "written_id",
-        # The reading a typed edit was based on, checked still to count (#5001, stale-keeps-your-words).
-        "expected_counting_id",
     )},
     "order_id": (RECORD, ("ReadingOrder",)),
     **{name: (RECORD, ("ReadingOrderEntry",)) for name in ("entry_id", "after_entry_id", "parent_entry_id")},

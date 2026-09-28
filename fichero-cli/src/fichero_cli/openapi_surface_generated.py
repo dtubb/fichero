@@ -3135,7 +3135,7 @@ def register_generated_openapi_commands(
                 "translation_chain": translation_chain,
             }, {
                 "audience": {'type': 'string', 'nullable': True, 'title': 'Audience', 'x-cli-required': False},
-                "claim_geo": {'properties': {'lat': {'type': 'number', 'maximum': 90.0, 'minimum': -90.0, 'title': 'Lat'}, 'lon': {'type': 'number', 'maximum': 180.0, 'minimum': -180.0, 'title': 'Lon'}, 'precision_m': {'type': 'number', 'nullable': True, 'title': 'Precision M', 'description': 'Radius of locational uncertainty in metres (None = exact).'}, 'place_name': {'type': 'string', 'nullable': True, 'title': 'Place Name'}}, 'additionalProperties': True, 'type': 'object', 'required': ['lat', 'lon'], 'title': 'GeoPoint', 'description': "Lat/lon for the spatial scope a claim refers to.\n\nDistinct from entity locations (a claim about Pedro travelling from\nPopayán to Quito has a different geo scope than Pedro's birthplace).\nOptional precision_m lets the renderer draw a confidence radius\ninstead of a point pin when locations are imprecise.", 'x-cli-required': False},
+                "claim_geo": {'properties': {'lat': {'type': 'number', 'maximum': 90.0, 'minimum': -90.0, 'title': 'Lat'}, 'lon': {'type': 'number', 'maximum': 180.0, 'minimum': -180.0, 'title': 'Lon'}, 'precision_m': {'type': 'number', 'nullable': True, 'title': 'Precision M', 'description': 'Radius of locational uncertainty in metres (None = exact).'}, 'place_name': {'type': 'string', 'nullable': True, 'title': 'Place Name'}, 'crs': {'type': 'string', 'const': 'EPSG:4326', 'title': 'Crs', 'default': 'EPSG:4326'}}, 'additionalProperties': True, 'type': 'object', 'required': ['lat', 'lon'], 'title': 'GeoPoint', 'description': "Lat/lon for the spatial scope a claim refers to.\n\nDistinct from entity locations (a claim about Pedro travelling from\nPopayán to Quito has a different geo scope than Pedro's birthplace).\nOptional precision_m lets the renderer draw a confidence radius\ninstead of a point pin when locations are imprecise.", 'x-cli-required': False},
                 "claim_recorded_at": {'type': 'string', 'nullable': True, 'title': 'Claim Recorded At', 'x-cli-required': False},
                 "claim_type": {'type': 'string', 'enum': ['fact', 'analysis', 'interpretation', 'argument', 'historiography', 'theory'], 'title': 'ClaimType', 'x-cli-required': False},
                 "confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Confidence', 'default': 0.5, 'x-cli-required': False},
@@ -3523,7 +3523,7 @@ def register_generated_openapi_commands(
                 "translation_chain": translation_chain,
             }, {
                 "audience": {'type': 'string', 'nullable': True, 'title': 'Audience', 'x-cli-required': False},
-                "claim_geo": {'properties': {'lat': {'type': 'number', 'maximum': 90.0, 'minimum': -90.0, 'title': 'Lat'}, 'lon': {'type': 'number', 'maximum': 180.0, 'minimum': -180.0, 'title': 'Lon'}, 'precision_m': {'type': 'number', 'nullable': True, 'title': 'Precision M', 'description': 'Radius of locational uncertainty in metres (None = exact).'}, 'place_name': {'type': 'string', 'nullable': True, 'title': 'Place Name'}}, 'additionalProperties': True, 'type': 'object', 'required': ['lat', 'lon'], 'title': 'GeoPoint', 'description': "Lat/lon for the spatial scope a claim refers to.\n\nDistinct from entity locations (a claim about Pedro travelling from\nPopayán to Quito has a different geo scope than Pedro's birthplace).\nOptional precision_m lets the renderer draw a confidence radius\ninstead of a point pin when locations are imprecise.", 'x-cli-required': False},
+                "claim_geo": {'properties': {'lat': {'type': 'number', 'maximum': 90.0, 'minimum': -90.0, 'title': 'Lat'}, 'lon': {'type': 'number', 'maximum': 180.0, 'minimum': -180.0, 'title': 'Lon'}, 'precision_m': {'type': 'number', 'nullable': True, 'title': 'Precision M', 'description': 'Radius of locational uncertainty in metres (None = exact).'}, 'place_name': {'type': 'string', 'nullable': True, 'title': 'Place Name'}, 'crs': {'type': 'string', 'const': 'EPSG:4326', 'title': 'Crs', 'default': 'EPSG:4326'}}, 'additionalProperties': True, 'type': 'object', 'required': ['lat', 'lon'], 'title': 'GeoPoint', 'description': "Lat/lon for the spatial scope a claim refers to.\n\nDistinct from entity locations (a claim about Pedro travelling from\nPopayán to Quito has a different geo scope than Pedro's birthplace).\nOptional precision_m lets the renderer draw a confidence radius\ninstead of a point pin when locations are imprecise.", 'x-cli-required': False},
                 "claim_recorded_at": {'type': 'string', 'nullable': True, 'title': 'Claim Recorded At', 'x-cli-required': False},
                 "claim_type": {'type': 'string', 'enum': ['fact', 'analysis', 'interpretation', 'argument', 'historiography', 'theory'], 'title': 'ClaimType', 'x-cli-required': False},
                 "confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Confidence', 'x-cli-required': False},
@@ -5162,6 +5162,33 @@ def register_generated_openapi_commands(
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/entities/{entity_id}/inspector"
             params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("place-as-linked-places")
+    def entities_place_as_linked_places_get(
+        ctx: typer.Context,
+        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
+    ) -> None:
+        """Place As Linked Places (GET /api/entities/{entity_id}/linked-places)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/entities/{entity_id}/linked-places"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("place-as-of")
+    def entities_place_as_of_get(
+        ctx: typer.Context,
+        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
+        as_of: str = typer.Option(..., "--as-of", help="Query parameter: as_of."),
+    ) -> None:
+        """Place As Of (GET /api/entities/{entity_id}/place)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/entities/{entity_id}/place"
+            params = {
+                "as_of": as_of,
+            }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 

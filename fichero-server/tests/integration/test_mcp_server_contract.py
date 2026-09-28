@@ -60,10 +60,23 @@ EXPECTED_TOOLS = {
     # #5139: reading the text of the shapes above.
     "fichero_segment_readings",
     "fichero_segments_naming_place",
+    "fichero_place_as_of",
     "fichero_document_text",
     "fichero_segments_in_scope",
     "fichero_reading_orders",
     "fichero_reading_order_entries",
+    # #4941: the editor's verbs for an agent, each the audited action the app's editor uses
+    # (reads alone made agent-parity false).
+    "fichero_segment_update",
+    "fichero_segment_split",
+    "fichero_segment_merge",
+    "fichero_segment_delete",
+    "fichero_segment_undelete",
+    "fichero_segment_choose_reading",
+    # #4943: interchange formats everywhere -- list, import a file as a pass, export a page.
+    "fichero_formats_list",
+    "fichero_page_import",
+    "fichero_page_export",
     # #4485: KG writes through the audited /api/mcp/tools/knowledge/* path
     # (actor from auth state, change events emitted).
     "fichero_kg_entity_upsert",

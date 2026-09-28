@@ -711,17 +711,23 @@ The editor
   3 tests on the imported Syriac page: a stale write writes nothing and names what counts; Keep Mine
   against the new basis lands and counts; no token behaves as today; a token without a segment is
   refused), plus `test_textedit_engine_primitives.py::TestWithoutTheTokenTwoCorrectionsBothLand`.
+  **Built: the page** (2026-09-28): on `lineCommitted({ok:false, stale:true, mine, theirs})` the line
+  keeps the person's words, marked (`::highlight(fichero-stale-lines)`), with Keep Mine (the same
+  words re-sent with `basedOn` = theirs, which lands), Take Theirs (the library's line, re-read) and
+  Compare (theirs struck against mine, word by word); a stale line's commits are HELD, never re-sent
+  (no loop), and its words survive any re-read of the page until the person chooses
+  (`fichero-server/tests/unit/api/test_reader_stale_keeps_your_words.py::test_keep_mine_sends_the_same_words_against_what_counts_now_and_it_lands`,
+  `::test_a_stale_line_is_held_never_re_sent`, `::test_a_re_read_keeps_the_stale_words_on_their_line`,
+  `::test_compare_shows_theirs_struck_against_mine_and_the_bar_offers_three_choices`).
   **Built: the app** sends `basedOn` as the token (`ReaderTextEdit.newReading`); a 409 is answered to
   the page as `lineCommitted({ok:false, stale:true, mine, theirs:{representationId, text}})`, with what
   counts re-read from the engine and no page refresh over the typed words (`ReaderTextEdit.staleAnswer`;
   `ImportedPageDrawsItsBoxesTests.testATypedLineAgainstAReadingThatNoLongerCountsKeepsTheWordsAndNamesWhatCounts`,
   recorded Syriac readings: token sent, 409 answered with the words kept and `rep-0002` named, Keep Mine
   re-sent against it). A line whose text came from its words sends no `basedOn`, so no check.
-  **Page half built (bugs2, 4e6e9ef5a, dbe236d0a):** the stale line keeps the typed words, marked, with Keep
-  Mine / Take Theirs / Compare inline; its commits are held so it is never re-sent into a 409 loop; Keep Mine
-  posts the same words against what counts now, or with no basis when nothing counts; the page's own message
-  goes through `representation.create` with `expected_counting_id` on a real imported page
-  (`fichero-server/tests/unit/api/test_reader_stale_keeps_your_words.py`, 5 tests). still PARTIAL, not OK, because no test carries the served page's OWN message through the app's bridge (`DocumentKGWebPaneCoordinatorMacOS.applyTextEdit`): each side pins the message shape against the same real page separately, and that joint is the screen path.
+  **Not yet:** "out of reach of the engine the text is read-only"; and no test carries the served page's
+  OWN message through the app's bridge (`applyTextEdit`) -- each side pins the message shape against the
+  same real page separately, and that joint is the screen path.
 - `source.textedit.every-direction` — **[PARTIAL]** (#5001) each block is laid out and edited in its own direction;
   line starts, joins and cuts follow reading order and the baseline; a direction the platform
   cannot lay out is labelled, never reordered.
