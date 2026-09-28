@@ -158,7 +158,8 @@ struct ClaimsTableView: View {
             }
             guard id != lastOpenedId, let item = items.first(where: { $0.id == id }) else { return }
             lastOpenedId = id
-            onOpenSource(item.claim)
+            // INSTANT FEEDBACK, as every Library mode: the row highlights now; its source opens next turn.
+            DispatchQueue.main.async { onOpenSource(item.claim) }
         }
     }
 

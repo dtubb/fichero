@@ -233,7 +233,9 @@ extension LibraryView {
         // filtered list, so arrows there selected a row whose preview never
         // followed while a click on the same row worked.
         if let doc = navigableDocument(for: targetId) {
-            detailDocument = doc
+            // The highlight moves in this event; the panes follow on the next run-loop turn, so a held
+            // arrow key moves the selection without waiting for each item to load (instant feedback).
+            DispatchQueue.main.async { detailDocument = doc }
         }
     }
 

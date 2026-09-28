@@ -106,7 +106,9 @@ struct DatasetModeView: View {
             guard newSelection.count == 1,
                   let row = store.visibleRows.first(where: { newSelection.contains($0.id) })
             else { return }
-            onOpen(row)
+            // INSTANT FEEDBACK, as every Library mode: the row highlights in this event; the panes it
+            // opens rebuild on the next run-loop turn.
+            DispatchQueue.main.async { onOpen(row) }
         }
         .onChange(of: store.dateFilter) { _, _ in reportVisible() }
         .onChange(of: store.prototypeFilter) { _, _ in reportVisible() }

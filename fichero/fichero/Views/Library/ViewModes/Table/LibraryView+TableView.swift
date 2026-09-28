@@ -269,39 +269,43 @@ extension LibraryView {
             selectionAnchor = reconciled.anchor
             selectionCursor = reconciled.cursor
             guard let nodeId = primaryNodeId(in: newSelection) else { return }
-            if let pageDoc = pageDocumentForNodeId(nodeId) {
-                onPageFocus(pageDoc)
-            } else if let artifactSelection = artifactSelectionForNodeId(nodeId) {
-                detailDocument = artifactSelection.document
-                FocusedArtifact.shared.select(
-                    artifactSelection.artifact.id,
-                    documentId: artifactSelection.document.id,
-                    documentName: artifactSelection.document.name,
-                    in: [artifactSelection.artifact]
-                )
-            } else if let entitySelection = entitySelectionForNodeId(nodeId) {
-                detailDocument = entitySelection.document
-                if let entityId = entitySelection.entity.id {
-                    kgFocusState.focusEntity(entityId: entityId)
-                }
-            } else if let claimSelection = claimSelectionForNodeId(nodeId) {
-                detailDocument = claimSelection.document
-                if let claimId = claimSelection.claim.id {
-                    kgFocusState.focusClaim(
-                        claimId: claimId,
-                        entityId: claimSelection.claim.entityIds?.first,
-                        sourceDocumentId: claimSelection.claim.sourceDocumentId
+            // INSTANT FEEDBACK, as every other mode (LibraryView+Selection.previewSelectedDocument): the
+            // row highlights in this event; the panes that follow it rebuild on the next run-loop turn.
+            DispatchQueue.main.async {
+                if let pageDoc = pageDocumentForNodeId(nodeId) {
+                    onPageFocus(pageDoc)
+                } else if let artifactSelection = artifactSelectionForNodeId(nodeId) {
+                    detailDocument = artifactSelection.document
+                    FocusedArtifact.shared.select(
+                        artifactSelection.artifact.id,
+                        documentId: artifactSelection.document.id,
+                        documentName: artifactSelection.document.name,
+                        in: [artifactSelection.artifact]
                     )
+                } else if let entitySelection = entitySelectionForNodeId(nodeId) {
+                    detailDocument = entitySelection.document
+                    if let entityId = entitySelection.entity.id {
+                        kgFocusState.focusEntity(entityId: entityId)
+                    }
+                } else if let claimSelection = claimSelectionForNodeId(nodeId) {
+                    detailDocument = claimSelection.document
+                    if let claimId = claimSelection.claim.id {
+                        kgFocusState.focusClaim(
+                            claimId: claimId,
+                            entityId: claimSelection.claim.entityIds?.first,
+                            sourceDocumentId: claimSelection.claim.sourceDocumentId
+                        )
+                    }
+                } else if let doc = filteredDocuments.first(where: { $0.id == nodeId }) {
+                    // The MISSING else (night review, divergence 1): a plain
+                    // DOCUMENT row — the overwhelmingly common click — fell off
+                    // this chain, so table mode alone never drove the preview
+                    // directly and relied on ContentView's browserSelection
+                    // onChange arriving later (the double-fire path the same
+                    // review removed). Same direct write the other three modes
+                    // make in handleTap.
+                    detailDocument = doc
                 }
-            } else if let doc = filteredDocuments.first(where: { $0.id == nodeId }) {
-                // The MISSING else (night review, divergence 1): a plain
-                // DOCUMENT row — the overwhelmingly common click — fell off
-                // this chain, so table mode alone never drove the preview
-                // directly and relied on ContentView's browserSelection
-                // onChange arriving later (the double-fire path the same
-                // review removed). Same direct write the other three modes
-                // make in handleTap.
-                detailDocument = doc
             }
         }
     }

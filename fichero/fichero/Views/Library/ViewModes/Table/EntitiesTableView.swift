@@ -192,7 +192,8 @@ struct EntitiesTableView: View {
             }
             guard id != lastOpenedId, let item = items.first(where: { $0.id == id }) else { return }
             lastOpenedId = id
-            actions.open(item.entity)
+            // INSTANT FEEDBACK, as every Library mode: the row highlights now; the panes follow next turn.
+            DispatchQueue.main.async { actions.open(item.entity) }
         }
     }
 
