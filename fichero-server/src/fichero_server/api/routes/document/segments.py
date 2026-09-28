@@ -2937,7 +2937,11 @@ def _parts_cut_at(db: Database, original: Segment, offset: int) -> list["Segment
     """`at_offset` made into the two parts `segment.split` takes (#5154): reading spans at the
     character, boxes cut in proportion along the line's resolved direction. An estimate, because
     nothing records where a character sits on the image; `cut: estimated` says so on both rows."""
-    from fichero_server.api.routes.document.segment_readings import _direction_of, _lines_are_vertical
+    from fichero_server.api.routes.document.segment_readings import (
+        _direction_of,
+        _lines_are_vertical,
+        direction_rungs,
+    )
 
     counted = _counting_readings(db, original.id)
     _rid, text = counted.get("transcription") or next(iter(counted.values()), (None, ""))
@@ -2948,10 +2952,9 @@ def _parts_cut_at(db: Database, original: Segment, offset: int) -> list["Segment
         raise HTTPException(status_code=422, detail="the line has no box to cut")
     document = db.get(Document, original.document_id)
     shapes = [row for row in db.query(Segment, pass_id=original.pass_id) if row.deleted_at is None]
-    from fichero_server.llm.language_policy import stated_direction_source
-
-    source = stated_direction_source(lambda i: db.get(Document, i), document)
-    direction, _level = _direction_of(original, document, text, _lines_are_vertical(shapes, document), source)
+    direction, _level = _direction_of(
+        original, document, text, _lines_are_vertical(shapes, document), direction_rungs(db, document)
+    )
     rects = estimated_cut(list(anchor.rect), offset / len(text), direction)
     return [
         SegmentSplitPart(

@@ -52,7 +52,6 @@ from fichero_server.llm.language_policy import (
     assert_known_direction,
     build_language_meta,
     resolve_direction,
-    stated_direction_source,
     resolve_language,
     resolve_script,
 )
@@ -407,9 +406,11 @@ async def resolve_source_settings(
         document=document, segment=segment, detect=False,
         script=script.language if script.source == SOURCE_DETECTED else None,
     )
-    source = stated_direction_source(lambda i: db.get(Document, i), document)
+    from fichero_server.api.routes.document.segment_readings import direction_rungs
+
+    # The rungs above the page from the SAME function the derivation and the Reader use (#5172).
     direction = resolve_direction(
-        segment=segment, document=document, source=source, project=project, text=text
+        segment=segment, document=document, text=text, **direction_rungs(db, document)
     )
     encoding = resolve_encoding(
         db, segment=segment, document=document, project=project, script=script.language

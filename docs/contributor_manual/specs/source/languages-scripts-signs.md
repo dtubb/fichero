@@ -238,7 +238,10 @@ Direction
   `::test_the_block_first_then_the_page`). The nearest STATED direction still comes first, and that
   includes the source: a direction set on the file or folder above the page reaches its lines,
   after the page's own and before the project's (`::test_a_direction_stated_on_the_source_reaches_a_line_without_letters`,
-  through the Reader, the derivation and the resolve route). A Latin-digit folio on an Arabic-script
+  through the Reader, the derivation and the resolve route), and the project's is the last stated
+  rung for all of them, taken from one function (`direction_rungs`) so the Reader and the resolve
+  route cannot disagree (`::test_a_direction_stated_on_the_project_reaches_a_line_without_letters_everywhere`,
+  the clm 13027 f. 38r folio `38`). A Latin-digit folio on an Arabic-script
   page reads right to left (`::test_a_latin_digit_folio_on_an_arabic_script_page_reads_right_to_left`,
   the Ajami Fulfulde ALTO page).
 - `source.dir.logical-order-stored` — **[OK]** (→ #4938) stored text is in reading order; mixed
