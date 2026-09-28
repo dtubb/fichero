@@ -262,6 +262,14 @@
         .transcript-page-body span[dir] {
             unicode-bidi: isolate;
         }
+        /* A line whose words were all deleted (13b, `deleting-words-keeps-ink`): the line is still on
+           the page, in its place, under its segment -- only its reading is empty. The placeholder is
+           drawn, never text, so the page's text and every offset walk are unchanged. */
+        .transcript-page-body .line-empty::before {
+            content: "(empty line)";
+            color: var(--muted);
+            font-style: italic;
+        }
 
         /* The Source view's selected lines (#5155): a CSS Custom Highlight over text ranges, so
            no line is wrapped in an element and the caret never moves. The system selection
@@ -922,10 +930,12 @@ function makeEditable(article) {
 }
 
 let pendingEdit = null;   // {pageId, segmentId} of the line being typed in
+let editsSent = 0;        // readingEdit messages posted, so `commitPending` can say whether it sent one
 
 // Send the typed line as a new reading (or refuse and put the page text back). Returns true when
 // nothing is left pending.
 function commitPendingEdit() {
+    pauseCommit.cancel();
     if (!pendingEdit) return true;
     const { pageId, segmentId } = pendingEdit;
     pendingEdit = null;
@@ -944,8 +954,17 @@ function commitPendingEdit() {
     pageTexts.set(pageId, body.textContent);
     pageLineMaps.set(pageId, shiftLines(lines, segmentId, edit.delta));
     notify("readingEdit", edit.message);
+    editsSent += 1;
     return true;
 }
+
+const pauseCommit = pauseCommitter(() => commitPendingEdit(), (f, ms) => setTimeout(f, ms), (h) => clearTimeout(h));
+document.addEventListener("input", () => { if (pendingEdit) pauseCommit.touch(); });
+// ⌘S commits the line being typed. Not prevented: the app's Save still runs, and calls
+// `commitPending()` too, which finds nothing left to send.
+document.addEventListener("keydown", (event) => {
+    if (event.metaKey && !event.altKey && !event.ctrlKey && (event.key === "s" || event.key === "S")) commitPendingEdit();
+});
 
 document.addEventListener("beforeinput", () => {
     const at = lineAtCaret();
@@ -1283,19 +1302,33 @@ function pageDirection(runs) {
     return best;
 }
 
+// content[start, end) escaped, with an EMPTY line's marker at its offset: an element with no text,
+// so the text nodes (and every offset) are exactly the page text's.
+function textWithEmptyLines(content, start, end, empties) {
+    let out = "", at = start;
+    for (const line of empties) {
+        if (line.char_start < start || line.char_start > end || (line.char_start === end && end !== content.length)) continue;
+        out += escapeHtml(content.slice(at, line.char_start))
+            + `<span class="line-empty" data-segment-id="${escapeHtml(String(line.segment_id))}"></span>`;
+        at = line.char_start;
+    }
+    return out + escapeHtml(content.slice(at, end));
+}
+
 function pageBodyMarkup(page) {
     const content = String(page.content ?? "");
     const runs = directionRuns(content, page.lines);
     const base = pageDirection(runs);
     const attr = base === "rtl" ? ' dir="rtl"' : base === "ttb" ? ' data-direction="ttb"' : "";
     const flow = base === "rtl" ? "rtl" : "ltr";
+    const empties = (Array.isArray(page.lines) ? page.lines : []).filter((line) => line.char_end === line.char_start);
     const inner = runs.length
         ? runs.map((run) => {
-            const text = escapeHtml(content.slice(run.start, run.end));
+            const text = textWithEmptyLines(content, run.start, run.end, empties);
             const own = run.direction === "rtl" || run.direction === "ltr" ? run.direction : flow;
             return own === flow ? text : `<span dir="${own}">${text}</span>`;
         }).join("")
-        : escapeHtml(content);
+        : textWithEmptyLines(content, 0, content.length, empties);
     return `<div class="transcript-page-body"${attr}>${inner}</div>`;
 }
 
@@ -1344,10 +1377,16 @@ async function refreshPage(pageId) {
     const selection = window.getSelection();
     const oldOffset = at && at.pageId === pageId ? bodyOffset(body, selection.focusNode, selection.focusOffset) : null;
     const oldLines = pageLineMaps.get(pageId);
-    body.outerHTML = pageBodyMarkup({ content: fresh.content, lines: fresh.lines });
+    // Words typed and not yet sent are NEVER re-read over (13b): a commit's re-read can land while
+    // the next run is being typed. They stay on their line, on top of the library's page, and go
+    // with that run's commit.
+    const unsent = pendingEdit && pendingEdit.pageId === pageId
+        ? keepUnsent(fresh, pageTexts.get(pageId) ?? "", body.textContent, oldLines, pendingEdit.segmentId)
+        : null;
+    body.outerHTML = pageBodyMarkup({ content: unsent ? unsent.shown : fresh.content, lines: fresh.lines });
     pageLineMaps.set(pageId, fresh.lines || []);
     pageTexts.set(pageId, String(fresh.content ?? ""));
-    pendingEdit = null;
+    if (!unsent) pendingEdit = null;
     const entry = (documentData.pages || []).find((page) => page.id === pageId);
     if (entry) { entry.content = fresh.content; entry.lines = fresh.lines; }
     const offset = oldOffset === null ? null : caretAfterMove(oldLines, fresh.lines, at.segmentId, oldOffset);
@@ -1420,6 +1459,49 @@ function shiftLines(lines, segmentId, delta) {
         after = true;
         return { ...line, char_end: line.char_end + delta };
     });
+}
+
+// The map once the app says which reading a line's commit made (`lineCommitted.representationId`):
+// the next run of typing on that line is based on it, before the page is even re-read.
+function withReading(lines, segmentId, representationId) {
+    return (lines || []).map((line) => line.segment_id === segmentId ? { ...line, representation_id: representationId } : line);
+}
+
+// A re-read page with the words still being typed kept on (13b): `fresh` is the page as the
+// library has it, `before`/`now` the body's text as last sent and as it is. The typed line's local
+// text replaces its line in the fresh text; everything else is the library's. Returns
+// {shown, text, lines}: what to draw, what an edit is measured against, the fresh map -- or null
+// when nothing is unsent (or the unsent edit is no longer one line's, which the commit refuses).
+function keepUnsent(fresh, before, now, lines, segmentId) {
+    const edit = editedLine(before, now, lines, segmentId);
+    if (!edit || edit.refused) return null;
+    const line = (fresh.lines || []).find((item) => item.segment_id === segmentId);
+    if (!line) return null;
+    const text = String(fresh.content ?? "");
+    return {
+        shown: text.slice(0, line.char_start) + edit.text + text.slice(line.char_end),
+        text,
+        lines: fresh.lines || [],
+    };
+}
+
+// A run of keys is ONE action (13b, `a-run-of-keys-is-one-action`): the run ends at two seconds
+// without a key (or on leaving the line, a structural key, blur or Save, handled where they
+// happen). `touch()` on every key restarts the wait; `cancel()` drops it. Timers are passed in so
+// the rule runs the same under a test's clock.
+// (A literal default, not a `const`: the page builds its committer before this line runs.)
+function pauseCommitter(commit, setTimer, clearTimer, ms = 2000) {
+    let handle = null;
+    return {
+        touch() {
+            if (handle !== null) clearTimer(handle);
+            handle = setTimer(() => { handle = null; commit(); }, ms);
+        },
+        cancel() {
+            if (handle !== null) clearTimer(handle);
+            handle = null;
+        },
+    };
 }
 
 // Return at `offset` (in the page body): split that line at the caret's place in its own text.
@@ -2519,10 +2601,22 @@ window.fichero = {
         }
     },
 
+    // Send the line being typed now (13b): the app's Save, and before the window closes or the
+    // page is swapped. Nothing pending -> nothing sent. {committed, segmentId}.
+    commitPending() {
+        const segmentId = pendingEdit ? pendingEdit.segmentId : null;
+        const sent = editsSent;
+        commitPendingEdit();
+        return { committed: editsSent > sent, segmentId };
+    },
+
     // The app's answer to readingEdit / lineSplit / lineJoin (#5154). The app then asks for the
     // page again (`refreshPage`); a refusal re-reads it too, so the page never keeps words the
     // library did not take. The reason is logged for the console, not invented into the page.
     lineCommitted(answer) {
+        if (answer && answer.ok && answer.representationId && answer.pageId) {
+            pageLineMaps.set(answer.pageId, withReading(pageLineMaps.get(answer.pageId), answer.segmentId, answer.representationId));
+        }
         if (!answer || answer.ok) return true;
         console.warn("[fichero] edit not taken:", answer.reason || "no reason given", answer);
         return answer.pageId ? refreshPage(answer.pageId) : false;
