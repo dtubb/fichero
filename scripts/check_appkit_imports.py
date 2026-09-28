@@ -139,6 +139,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     # search walks the same hitTest. Replaced by .onDrop(of: [.item]) at the
     # same detailColumn scope, which needs no bridge. See #4473.
     "Views/Library/ViewModes/Canvas/Engine/CanvasInteractionController.swift": "#4408 — reads NSEvent.modifierFlags to resolve the click grammar; SwiftUI exposes modifiers only inside a gesture callback, not at tap time; deliberately maps to its own enum rather than passing NSEvent.ModifierFlags around; #2101",
+    "Views/Preview/PDFViewer/PDFShapeAnnotations.swift": "2026-09-28 -- a segment's outline, baseline and points as PDFAnnotations: ink paths are NSBezierPath and colours NSColor; the same PDFKit bridge as PDFPageView+OCRBoxes.swift, which calls it",
     "Views/Preview/PDFViewer/PDFPageView+OCRBoxes.swift": "#2713 — PDFAnnotation.color is NSColor/UIColor, not SwiftUI.Color; same PDFKit bridge as PDFPageView.swift, split out by file_length; #2101",
     "Views/Reader/Page/Immersive/KeyboardExitCatcher.swift": "#2520 — immersive reader catches Esc via AppKit keyboard bridge (moved here when ImmersiveReaderView was split by file_length); #2101",
     "Views/Preview/PDFViewer/PDFPageView.swift": "the actual PDFKit page bridge: NSView/UIView representable with gesture recognizers and tracking areas (#2713, #2101)",

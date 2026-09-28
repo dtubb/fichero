@@ -57,6 +57,11 @@ extension PDFPageView.Coordinator {
         // of true, sideways across the text it describes.
         let rotation = page.rotation
         for box in owner.ocrBoxes {
+            // A segment with its own shapes is drawn AS them -- outline, baseline, points -- as on an image.
+            if let shaped = PDFShapeAnnotations.make(for: box, on: page, userName: Self.ocrBoxAnnotationName) {
+                shaped.forEach(page.addAnnotation)
+                continue
+            }
             let pageSpaceBox = PDFRegionGeometry.unrotated(normalized: box.bbox, rotation: rotation)
             guard let rect = PDFRegionGeometry.pageRect(normalized: pageSpaceBox, pageSize: cropBounds.size)
             else { continue }
@@ -77,7 +82,8 @@ extension PDFPageView.Coordinator {
             // assertion on the other is the two disagreeing about the same
             // fact. PDFKit gives a border its own dash style, so the axis is
             // spelled the same way: recessive colour plus a dash.
-            let uncertain = OCRBoxConfidence.isUncertain(box)
+            // A box with no reading is dashed the same way (`SegmentsPane.lacksReading`).
+            let uncertain = OCRBoxConfidence.isUncertain(box) || box.noReading
             annotation.color = uncertain
                 ? NSColor.systemTeal.withAlphaComponent(0.35)
                 : NSColor.systemTeal

@@ -128,6 +128,9 @@ Page From…. Every edit below should undo with ⌘Z and redo with ⇧⌘Z.
     dashed, a click picks it, the Segments pane lists it "Line N · No reading", and the Inspector's Text
     says "No reading" with **Type a Reading…**; type one and the mark goes (⌘Z brings it back). A line
     you emptied in the Reader is NOT marked: it has an empty reading.
+32. **Shapes on a PDF page.** Import a PAGE or ALTO file onto a PDF page (File ▸ Import Page From…).
+    *Should:* each line is drawn as its outline with its baseline under the ink, as on an image page, at
+    any zoom; a line with no reading is dashed. (Reshaping stays on image pages for now.)
 
 **Not built:** the menu-bar Segment menu, comparing two passes side by side, attribute edits
 on a page still read from an artifact (it is converted on first edit, #4924).
@@ -377,7 +380,7 @@ Python e2e test paths are relative to `fichero-server/tests/unit/`. "Real data" 
 | source.segment.carry-across-a-match | segments-and-geometry.md | OK | `POST /api/segments/carry` (`segment.carry`) | none | no | none | carry readings/marks across an accepted match |
 | source.segment.versioned-alone | segments-and-geometry.md | OK | `GET /api/segments/{id}/versions`, `segment.restore_version` | `SegmentService.versions`, `SegmentHistory` (Inspector › Making at segment level, #5163) | yes — each kept version with what the change after it did; Restore checked against the version read, ⌘Z | `ImportedPageDrawsItsBoxesTests.testALinesHistoryShowsWhatEachChangeDidAndRestoreSendsTheCheckedCall` + recorder `test_a_line_s_history_is_recorded_and_restoring_it_is_the_app_s_exact_call` (real Syriac page) | compare two versions side by side |
 | source.segment.delete-is-undoable | segments-and-geometry.md | OK | `segment.delete/undelete`; in the app via `segment.convert_and_edit` + audit undo | RGN `deleteSelectedRegions` + `registerRegionUndo` | yes — ⌫ in Edit Segments, then ⌘Z | none on real data | imported pages cannot be selected for delete (caveat) |
-| source.segment.shape-kinds | segments-and-geometry.md | OK | `SourceAnchor` shapes | `SegmentShapes.drawn` → `OCRGeometryBox.shapes` → `DocumentOverlayView` (image pages) | yes on image pages — polygon, open path, point and baseline drawn as themselves; PDF pages still boxes | `ImportedPageDrawsItsBoxesTests.testALinesOutlineAndBaselineAreDrawnAsThemselvesAndReshapeSendsTheCheckedUpdate` + engine pin against the PAGE file | draw shapes on PDF pages |
+| source.segment.shape-kinds | segments-and-geometry.md | OK | `SourceAnchor` shapes | `SegmentShapes.drawn` → `OCRGeometryBox.shapes` → `DocumentOverlayView` (image pages) | yes — polygon, open path, point and baseline drawn as themselves on image AND PDF pages (`PDFShapeAnnotations`) | `ImportedPageDrawsItsBoxesTests.testALinesOutlineAndBaselineAreDrawnAsThemselvesAndReshapeSendsTheCheckedUpdate` + engine pin against the PAGE file | reshape on PDF pages |
 | source.segment.box-is-derived | segments-and-geometry.md | OK | bbox from anchor | n/a | engine-internal | n/a | |
 | source.segment.curved-baseline | segments-and-geometry.md | OK | baseline shape; `GET /api/segments/{id}/picture` levelling | drawn on the image (`ShapeDrawing`), said in Inspector › Making, reshaped in Edit Segments (`SegmentShapes.reshape`, #5163 residue) | yes on image pages — drawn, points dragged/added/removed, ⌘Z | same e2e + `…testReshapingABaselineSendsItAloneAndTheRefusalsHold` | PDF pages |
 | source.segment.names-its-image | segments-and-geometry.md | OK | seam rendition id | `SegmentDisplay.geometry(... renditionId:)` | engine-internal (coordinate frame) | n/a | |
