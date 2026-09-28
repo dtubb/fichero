@@ -80,8 +80,13 @@ extension LibraryManager {
             LaunchProfile.milestone("all libraries ready", detail: "1 library")
             return
         }
+        // All at once, not one after another (#5228): each load is engine round trips, and the engine
+        // opens libraries under per-library locks, so six sequential ~0.4 s loads were 2.4 s of waiting.
         Task(priority: .utility) { @MainActor in
-            for library in rest { await self.loadLibraryDataIfNeeded(for: library) }
+            let loads = rest.map { library in
+                Task { @MainActor in await self.loadLibraryDataIfNeeded(for: library) }
+            }
+            for load in loads { await load.value }
             LaunchProfile.milestone("all libraries ready", detail: "\(rest.count + 1) libraries")
         }
     }
@@ -317,9 +322,12 @@ extension LibraryManager {
         // Ensure the .fichero package exists on disk (mkdir + Info.plist). Moved
         // off LibraryManager.shared's synchronous init so it no longer runs before
         // the first frame; idempotent, so running it per library is safe (#3974).
+        LaunchProfile.milestone("library load starts", detail: library.displayName)
         createPackageStructure(at: library.url)
         await initializeBackendDatabase(for: library)
+        LaunchProfile.milestone("library initialized", detail: library.displayName)
         await loadLibraryData(for: library)
+        LaunchProfile.milestone("library data loaded", detail: library.displayName)
 
         // A load that FAILED must not be marked loaded (#3986-B). DocumentStore
         // swallows a load error into `error`/`isConnected=false` (it never throws),
@@ -499,6 +507,7 @@ extension LibraryManager {
         guard !Task.isCancelled else { return }
         await library.documentStore.loadCollections()
         let docCount = library.documentStore.collections.count
+        LaunchProfile.milestone("library documents loaded", detail: "\(library.displayName): \(docCount)")
         libraryManagerLogger.info("⏱ loadLibraryData documents loaded (\(docCount) items)")
 
         guard !Task.isCancelled else { return }
@@ -525,26 +534,31 @@ extension LibraryManager {
         let showWorkflows = FeatureManager.shared.isVisible(.workflows)
         let showChat = FeatureManager.shared.isVisible(.chat)
         let showModelComparison = FeatureManager.shared.isVisible(.modelComparison)
+        let libraryName = library.displayName
         async let workflowsLoaded: Void = await {
             if showWorkflows {
                 await library.workflowStore.loadWorkflows()
                 libraryManagerLogger.info("⏱ loadLibraryData workflows loaded")
+                LaunchProfile.milestone("library workflows loaded", detail: libraryName)
             }
         }()
         async let conversationsLoaded: Void = await {
             if showChat {
                 try? await library.conversationService.loadConversations()
                 libraryManagerLogger.info("⏱ loadLibraryData conversations loaded")
+                LaunchProfile.milestone("library conversations loaded", detail: libraryName)
             }
         }()
         async let comparisonsLoaded: Void = await {
             if showModelComparison {
                 await library.modelComparisonStore.loadHistory()
                 libraryManagerLogger.info("⏱ loadLibraryData comparisons loaded")
+                LaunchProfile.milestone("library comparisons loaded", detail: libraryName)
             }
         }()
         async let savedSearchesLoaded: Void = await {
             try? await library.savedSearchService.loadSavedSearches()
+            LaunchProfile.milestone("library saved searches loaded", detail: libraryName)
         }()
         _ = await (workflowsLoaded, conversationsLoaded, comparisonsLoaded, savedSearchesLoaded)
         libraryManagerLogger.info("⏱ loadLibraryData exit — library: \(library.displayName)")
