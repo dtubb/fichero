@@ -88,9 +88,55 @@ def control_points(
         if point is None:
             not_used.append({"segment_id": gcp.id, "reason": "it has no point on the image"})
             continue
+        try:
+            # Measured on another image of the page: carried to the page's frame only through a
+            # recorded alignment (`source.geo.gcp-other-image`); otherwise said, not guessed.
+            [point] = page_frame_points(db, gcp.anchor.rendition_id, [point])
+        except NoKnownAlignment as refusal:
+            not_used.append({"segment_id": gcp.id, "reason": str(refusal)})
+            continue
         usable.append((gcp.id, (point[0] * width, point[1] * height), (world["lon"], world["lat"])))
     version = hashlib.sha256(f"{pass_row.transformation}|{mask_id}|{'|'.join(fingerprint)}".encode()).hexdigest()[:16]
     return usable, not_used, version
+
+
+class NoKnownAlignment(ValueError):
+    """A shape measured on an image whose relation to the page's own frame is not recorded:
+    Fichero says it cannot place it, rather than guess (`source.geo.gcp-other-image`,
+    `source.segment.no-guessing-across-images`)."""
+
+
+#: Roles whose image is turned against the page: a crop rect alone does not say how.
+_TURNED = {"rotated", "deskewed"}
+
+
+def page_frame_points(db: Database, rendition_id: str | None, points: list[list[float]], _depth: int = 0) -> list[list[float]]:
+    """Normalised points measured on `rendition_id` expressed in the PAGE's own frame, through the
+    rendition's recorded relation to it (`Rendition.transform`, which chains). No rendition, or a
+    pure resample (no transform), is the page's frame already. A crop maps exactly. Anything else
+    -- a turned image, a relation in pixels of an unknown size, a missing rendition -- raises
+    `NoKnownAlignment` naming why."""
+    from fichero_server.models import Rendition
+
+    if rendition_id is None:
+        return [list(p) for p in points]
+    if _depth > 8:
+        raise NoKnownAlignment(f"rendition {rendition_id}'s frames chain too deep to follow")
+    rendition = db.get(Rendition, rendition_id)
+    if rendition is None:
+        raise NoKnownAlignment(f"it was measured on image {rendition_id}, which is not in this library")
+    region = rendition.transform
+    if region is None:
+        return [list(p) for p in points]                       # a pure resample: the same frame
+    if rendition.role in _TURNED:
+        raise NoKnownAlignment(
+            f"it was measured on a {rendition.role} image ({rendition_id}) whose turn against the page "
+            "is not recorded, so it cannot be carried to the page")
+    if str(getattr(region.space, "value", region.space)) != "normalized":
+        raise NoKnownAlignment(f"image {rendition_id}'s place on the page is recorded in pixels of a size not known here")
+    x, y, w, h = region.rect
+    mapped = [[x + px * w, y + py * h] for px, py in points]
+    return page_frame_points(db, region.rendition_id, mapped, _depth + 1)
 
 
 def _masks(db: Database, pass_row: SegmentPass) -> list[str]:
@@ -292,9 +338,17 @@ def world_shape(db: Database, segment_id: str, pass_id: str | None = None) -> Wo
     if pass_row.document_id != segment.document_id:
         raise ValueError(f"pass {pass_id} georeferences another image")
     kind, points = _segment_shape(segment)
+    points = page_frame_points(db, segment.anchor.rendition_id, points)     # NoKnownAlignment -> 422
     masks = [db.get(Segment, m) for m in _masks(db, pass_row)]
-    containing = [m for m in masks if m is not None and m.anchor.polygon
-                  and all(inside_polygon((x, y), m.anchor.polygon) for x, y in points)]
+
+    def mask_on_page(mask: Segment) -> list[list[float]] | None:
+        try:
+            return page_frame_points(db, mask.anchor.rendition_id, mask.anchor.polygon)
+        except NoKnownAlignment:
+            return None   # a mask that cannot be placed on the page contains nothing we can say
+
+    containing = [m for m in masks if m is not None and m.anchor.polygon and (outline := mask_on_page(m))
+                  and all(inside_polygon((x, y), outline) for x, y in points)]
     transform = worked_out_transform(db, pass_row.id, containing[0].id if containing else (masks[0].id if len(masks) == 1 else None))
     common = {"segment_id": segment.id, "pass_id": pass_row.id, "transformation": transform.transformation,
               "gcp_set_version": transform.gcp_set_version, "error_m": transform.rms_m,

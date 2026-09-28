@@ -381,9 +381,13 @@ PARTIAL: no screen offers the choice.
   whether it is the image's working georeferencing pass and why, and `unchosen: true` for a
   machine's pass no person has chosen; `pass.choose_working` makes it chosen
   (`fichero-server/tests/unit/api/test_machine_gcps_are_unchosen.py::test_a_machines_gcps_are_unchosen_until_a_person_chooses_them`). PARTIAL: no screen shows the label.
-- `source.geo.gcp-other-image` — **[GAP]** (#4933) GCPs measured on one image apply to another
+- `source.geo.gcp-other-image` — **[PARTIAL]** (#4933) GCPs measured on one image apply to another
   image of the page only through a recorded alignment, and otherwise Fichero says they do not.
-
+  **Built 2026-09-28 (#5122, maps C2):** every GCP, mask and placed shape is carried to the page's own
+  frame through its image's recorded relation (`Rendition.transform`, chained): a pure resample
+  passes, a crop maps exactly; a turned image with no recorded turn, or a relation in pixels of an
+  unknown size, is said -- a GCP is left out with the reason, a shape is refused with it
+  (`fichero-server/tests/unit/api/test_gcps_on_another_image.py`). PARTIAL: rotation angles are not recorded anywhere yet, so every turned image is "cannot"; no screen.
 A segment's place in the world
 - `source.geo.world-shape` — **[PARTIAL]** (#4933) on a georeferenced image any segment's world shape
   is answered with its CRS, the pass and transform version used and an error estimate, and is
