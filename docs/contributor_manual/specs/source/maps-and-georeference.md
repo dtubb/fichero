@@ -528,9 +528,19 @@ Formats
   retired), and a format is built on a real file or not at all.
 - `source.geo.world-file-geotiff` — **[GAP]** (#4946) an affine pass exports as a world file with
   its `.prj`, and any pass as a GeoTIFF of the unwarped image with GCP tie points and the CRS.
+  **Not built, and why (2026-09-28, maps C6):** no real world file from a georeferencing tool with a
+  stated licence was found -- GDAL's one (`autotest/gdrivers/data/png/test.wld`) states no origin, so
+  it is not known to be another program's output -- and a format is built on a real file or not at
+  all. Importing a world file would also mean INVENTING control points (a world file is an affine
+  with no GCPs; the model derives the transform from GCPs), which needs a ruling on whether an
+  imported transform may stand without them. The GeoTIFF half needs a TIFF writer the engine does not
+  ship.
 - `source.geo.kml` — **[GAP]** (#4946, → #5125) a warped map goes in and out as Mapwarper's KML
   `GroundOverlay`. Our export validates against the vendored OGC KML schema, and the tests use real
   Mapwarper exports (licence first).
+  **Not built, and why (2026-09-28, maps C6):** the spec's rule is real Mapwarper exports, licence
+  first; mapwarper.net states no licence for its maps' data and NYPL's Map Warper is retired, so there
+  is no real KML to test against yet.
 - `source.geo.geojson-out` — **[PARTIAL]** (#4946) places, place segments and entity movements export
   as RFC 7946 GeoJSON, each Feature carrying its reference back to its segment, claim or entity.
   **Place segments built 2026-09-28 (#5122, maps C5):** `GET /api/georeference/documents/{doc_id}/geojson`
