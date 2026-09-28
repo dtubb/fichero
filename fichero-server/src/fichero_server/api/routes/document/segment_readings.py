@@ -1093,6 +1093,28 @@ def document_text(
     read_through_children = {
         row.parent_segment_id for row in rows if row.id in carrying and row.parent_segment_id
     }
+    # A LINE A PERSON READ reads from itself (#5224, `source.textedit.an-edited-line-reads-from-itself`).
+    # Typing in the Reader on a line read through its words saves a person's line reading; read
+    # through the words, the page never showed it. Once a person has read a segment of this kind,
+    # the segment is read from its own reading and everything under it is skipped (each
+    # character once, as above), so the words stay readings of their own segments.
+    reads_itself = {
+        row.id for row in rows
+        if any(item.kind == kind and item.provenance_kind is ProvenanceKind.human for item in page_readings[row.id])
+    }
+    read_through_children -= reads_itself
+    parent_of = {row.id: row.parent_segment_id for row in rows}
+
+    def _under_a_line_read_by_a_person(row_id: str) -> bool:
+        seen: set[str] = set()
+        parent = parent_of.get(row_id)
+        while parent and parent not in seen:
+            if parent in reads_itself:
+                return True
+            seen.add(parent)
+            parent = parent_of.get(parent)
+        return False
+
     # Once per page: are its lines columns? Only asked of a text whose script may be vertical.
     vertical = _lines_are_vertical(rows, document)
     record_rule = project_record_rule(db)
@@ -1101,7 +1123,7 @@ def document_text(
         choices_by_segment.setdefault(choice.segment_id, []).append(choice)
     for row in rows:
         items = [item for item in page_readings[row.id] if item.kind == kind]
-        if not items or row.id in read_through_children:
+        if not items or row.id in read_through_children or _under_a_line_read_by_a_person(row.id):
             continue
         counted = counting_by_kind(
             db, row.id, items, rule=record_rule, choices=choices_by_segment.get(row.id, []),
