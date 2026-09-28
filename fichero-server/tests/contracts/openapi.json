@@ -3211,6 +3211,47 @@
         }
       }
     },
+    "/api/segments/passes/{pass_id}/original": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Get Pass Original",
+        "description": "The file an imported pass was read from, byte for byte as it arrived (#5149): the Inspector's\nMaking section offers it as \"Show original\". Read access to the pass's page is the check\n(`pass_id` resolves to its document). 404 for a pass not made from a kept file.",
+        "operationId": "get_pass_original_api_segments_passes__pass_id__original_get",
+        "parameters": [
+          {
+            "name": "pass_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pass Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segments/bulk": {
       "post": {
         "tags": [
@@ -61954,6 +61995,26 @@
             "type": "string",
             "nullable": true,
             "title": "Artifact Type"
+          },
+          "import_file": {
+            "type": "string",
+            "nullable": true,
+            "title": "Import File"
+          },
+          "import_checksum": {
+            "type": "string",
+            "nullable": true,
+            "title": "Import Checksum"
+          },
+          "import_format": {
+            "type": "string",
+            "nullable": true,
+            "title": "Import Format"
+          },
+          "has_original": {
+            "type": "boolean",
+            "title": "Has Original",
+            "default": false
           }
         },
         "type": "object",
@@ -69160,6 +69221,16 @@
             "type": "string",
             "nullable": true,
             "title": "Import Checksum"
+          },
+          "import_format": {
+            "type": "string",
+            "nullable": true,
+            "title": "Import Format"
+          },
+          "import_original": {
+            "type": "string",
+            "nullable": true,
+            "title": "Import Original"
           },
           "created_at": {
             "type": "string",

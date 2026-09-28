@@ -13349,6 +13349,18 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("get-pass-original")
+    def segments_get_pass_original_get(
+        ctx: typer.Context,
+        pass_id: str = typer.Argument(..., help="Path parameter: pass_id."),
+    ) -> None:
+        """Get Pass Original (GET /api/segments/passes/{pass_id}/original)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/passes/{pass_id}/original"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("split")
     def segments_split_post(
         ctx: typer.Context,
