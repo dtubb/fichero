@@ -850,3 +850,54 @@ def test_a_named_order_and_a_flow_onto_the_next_page_are_recorded_for_the_order_
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         FLOW_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
     assert json.loads(FLOW_FIXTURE.read_text()) == recorded, "the app's orders-and-flow fixture drifted"
+
+
+RESOLVE_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.reference-resolved.json"
+
+
+def test_a_citable_reference_resolves_to_its_page_and_follows_a_merge_for_the_url_handler(db, client):
+    """`source.segment.citable` (#5164, the app's `fichero:segment/…` URL handler): the engine's own
+    reference for the imported Syriac page's first line (GET /api/segments/{id}/reference) is sent
+    WHOLE to POST /api/locations/resolve -- the handler's exact call -- and names the page and the
+    line. Then the line is joined into the next one (`segment.merge`, keeping the next), and the SAME
+    reference resolves to the live line that absorbed it: an old link still opens the right place.
+    Both answers are recorded for the app. Breaks if the resolver does not accept the string form, or
+    an old reference to a merged line opens nothing or the wrong line."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    lines = sorted((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+                   key=lambda s: s["anchor"]["rect"][1])
+    first, second = lines[0], lines[1]
+    reference = client.get(f"/api/segments/{first['id']}/reference").json()["reference"]
+    assert reference.startswith("fichero:segment/") and reference.endswith(f"/{doc_id}/{first['id']}")
+
+    direct = client.post("/api/locations/resolve", json={"segmentId": reference})
+    assert direct.status_code == 200, direct.text
+    assert direct.json()["resolvedDocumentId"] == doc_id and direct.json()["resolvedSegmentId"] == first["id"]
+
+    merged = client.post("/api/actions/invoke", json={"name": "segment.merge", "params": {
+        "segment_ids": [second["id"], first["id"]], "keep_id": second["id"],
+        "expected_versions": {second["id"]: second["version"], first["id"]: first["version"]}}})
+    assert merged.status_code == 200, merged.text
+    followed = client.post("/api/locations/resolve", json={"segmentId": reference})
+    assert followed.status_code == 200, followed.text
+    assert followed.json()["resolvedSegmentId"] == second["id"], "an old reference follows the merge"
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+
+    def token_of(segment):
+        return next(s["id"] for s in stable_route["segments"]
+                    if s["kind"] == segment["kind"] and s["anchor"]["rect"] == segment["anchor"]["rect"])
+
+    library = reference.split("/")[1]
+    ids = {doc_id: stable_route["document_id"], first["id"]: token_of(first), second["id"]: token_of(second),
+           library: "lib-0001", reference: f"fichero:segment/lib-0001/{stable_route['document_id']}/{token_of(first)}"}
+    for index, note in enumerate(followed.json().get("segmentForwarding") or [], start=1):
+        ids.setdefault(note.get("id"), f"forward-{index:04d}")
+        ids.setdefault(note.get("audit_id"), f"audit-{index:04d}")
+    stable = _stabilizer(ids)
+    recorded = {"reference": ids[reference], "direct": stable(direct.json()), "after_merge": stable(followed.json())}
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        RESOLVE_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(RESOLVE_FIXTURE.read_text()) == recorded, "the app's reference fixture drifted"

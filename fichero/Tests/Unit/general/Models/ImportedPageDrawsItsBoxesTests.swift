@@ -83,6 +83,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         /// What the reading-order routes answer: the page's orders, the top level, one region's
         /// children (for `parent_entry_id` = `childrenOf`); every place POST is recorded.
         nonisolated(unsafe) static var ordersReply = Data()
+        /// What `POST /api/locations/resolve` answers, and the body it was sent (#5164).
+        nonisolated(unsafe) static var resolveReply = Data()
+        nonisolated(unsafe) static var resolveRequests: [Data] = []
         /// What `GET /api/reading-orders/{id}/neighbours` answers, and the query it was asked (#5160).
         nonisolated(unsafe) static var neighboursReply = Data()
         nonisolated(unsafe) static var neighboursQuery: String?
@@ -152,6 +155,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 actionBody = Self.statementsReply
             } else if path.hasPrefix("/api/reading-orders/document/") {
                 actionBody = Self.ordersReply
+            } else if path == "/api/locations/resolve" {
+                Self.resolveRequests.append(Self.bodyOf(request))
+                actionBody = Self.resolveReply
             } else if path.hasPrefix("/api/reading-orders/"), path.hasSuffix("/neighbours") {
                 Self.neighboursQuery = request.url?.query
                 actionBody = Self.neighboursReply
@@ -220,6 +226,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             statementsReply = Data()
             ordersReply = Data()
             neighboursReply = Data()
+            resolveReply = Data()
+            resolveRequests = []
             neighboursQuery = nil
             topEntriesReply = Data()
             childEntriesReply = Data()
@@ -1286,6 +1294,33 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertFalse(segments.contains { $0.id == target }, "Next leaves this page")
         let fetched = try await SegmentService(ficheroClient: try XCTUnwrap(storeClient)).segment(id: target)
         XCTAssertEqual(fetched?.documentId, "doc-0002", "the page Next opens")
+    }
+
+    /// `source.segment.citable` end to end (#5164, the app's URL handler), with the engine's own
+    /// reference to the imported Syriac page's first line: the URL parses, the WHOLE string is sent to
+    /// the one resolver (so the engine checks its library and page parts), and the answer lands on the
+    /// page and the line. After the line was merged into the next, the same reference lands on the line
+    /// that absorbed it. Breaks if the handler sends only the bare id, or lands on a stale segment.
+    func testASegmentReferenceURLResolvesToItsPageAndFollowsAMerge() async throws {
+        _ = try await loadedStore()
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.reference-resolved.json")
+        )) as? [String: Any])
+        let string = try XCTUnwrap(recorded["reference"] as? String)
+        let reference = try XCTUnwrap(SegmentReference.parse(XCTUnwrap(URL(string: string))))
+        XCTAssertEqual(reference.segmentId, "seg-0012")
+        let locations = LocationService(ficheroClient: try XCTUnwrap(storeClient))
+
+        RecordedEngine.resolveReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["direct"]))
+        let landing = try await reference.resolve(with: locations)
+        XCTAssertEqual(landing, ReadingOrderChoice.Landing(documentId: "doc-0001", segmentId: "seg-0012"))
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.resolveRequests.first)) as? [String: Any])
+        XCTAssertEqual(sent["segmentId"] as? String, string, "the whole reference, not the bare id")
+
+        RecordedEngine.resolveReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["after_merge"]))
+        let followed = try await reference.resolve(with: locations)
+        XCTAssertEqual(followed, ReadingOrderChoice.Landing(documentId: "doc-0001", segmentId: "seg-0010"),
+                       "an old reference opens the line that absorbed it")
     }
 
     /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the

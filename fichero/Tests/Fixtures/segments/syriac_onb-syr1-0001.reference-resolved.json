@@ -1,0 +1,64 @@
+{
+ "reference": "fichero:segment/lib-0001/doc-0001/seg-0012",
+ "direct": {
+  "documentId": "doc-0001",
+  "page": null,
+  "bbox": [
+   0.29812087353986794,
+   0.3192389006342495,
+   0.4022346368715084,
+   0.013953488372093037
+  ],
+  "charRange": null,
+  "claimId": null,
+  "entityId": null,
+  "segmentId": "fichero:segment/lib-0001/doc-0001/seg-0012",
+  "surface": "both",
+  "resolvedDocumentId": "doc-0001",
+  "resolvedPage": null,
+  "resolvedSegmentId": "seg-0012",
+  "liveSegmentIds": [
+   "seg-0012"
+  ],
+  "segmentForwarding": [],
+  "segmentDeleted": false
+ },
+ "after_merge": {
+  "documentId": "doc-0001",
+  "page": null,
+  "bbox": [
+   0.28745556119857796,
+   0.36617336152219876,
+   0.431183341797867,
+   0.017758985200845623
+  ],
+  "charRange": null,
+  "claimId": null,
+  "entityId": null,
+  "segmentId": "fichero:segment/lib-0001/doc-0001/seg-0012",
+  "surface": "both",
+  "resolvedDocumentId": "doc-0001",
+  "resolvedPage": null,
+  "resolvedSegmentId": "seg-0010",
+  "liveSegmentIds": [
+   "seg-0010"
+  ],
+  "segmentForwarding": [
+   {
+    "id": "forward-0001",
+    "document_id": "doc-0001",
+    "old_segment_id": "seg-0012",
+    "kind": "merged",
+    "new_segment_ids": [
+     "seg-0010"
+    ],
+    "actor": "owner",
+    "audit_id": "audit-0001",
+    "reason": null,
+    "created_at": "2026-09-27T12:00:00Z",
+    "sequence": 1
+   }
+  ],
+  "segmentDeleted": false
+ }
+}
