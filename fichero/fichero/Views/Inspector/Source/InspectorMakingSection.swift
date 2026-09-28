@@ -13,6 +13,8 @@ struct InspectorMakingSection: View {
     /// What the engine writes, for each pass's Export menu (#5162).
     @State private var formats: [PageExportChoice.Format] = []
     @State private var failure: String?
+    /// The working pass asked about before it is deleted (#5227); any other pass goes at once, ⌘Z brings it back.
+    @State private var confirmingDelete: InspectorMaking.Entry?
 
     private var entries: [InspectorMaking.Entry] {
         guard let segmentService else { return [] }
@@ -50,11 +52,28 @@ struct InspectorMakingSection: View {
                                 .accessibilityLabel("Show the original file \(entry.title)")
                         }
                         exportMenu(entry)
+                        if PassDeletion.canDelete(entry.passId) {
+                            Button("Delete Pass", role: .destructive) {
+                                if entry.working { confirmingDelete = entry } else { Task { await delete(entry.passId) } }
+                            }
+                            .buttonStyle(.borderless)
+                            .font(.caption)
+                            .help("Delete this pass. Edit ▸ Undo brings it back")
+                        }
                     }
                 }
                 if let failure {
                     Text(failure).font(.caption).foregroundStyle(.secondary)
                 }
+            }
+            .confirmationDialog(
+                "Delete the working pass?", isPresented: Binding(
+                    get: { confirmingDelete != nil }, set: { if !$0 { confirmingDelete = nil } }
+                ), presenting: confirmingDelete
+            ) { entry in
+                Button("Delete Pass", role: .destructive) { Task { await delete(entry.passId) } }
+            } message: { entry in
+                Text("\(entry.title) is the pass the page's text and edits come from. Edit ▸ Undo brings it back.")
             }
             .sheet(item: $shown) { original in
                 PassOriginalSheet(original: original)
@@ -113,6 +132,20 @@ struct InspectorMakingSection: View {
             failure = nil
         } catch {
             failure = "The working pass could not be changed: \(error.localizedDescription)"
+        }
+    }
+
+    /// Delete Pass (#5227): the audited `segment.pass_delete`, with ⌘Z.
+    private func delete(_ passId: String) async {
+        guard let segmentService, let actionsService = actionStore?.actionsService else { return }
+        do {
+            try await PassDeletion.run(
+                documentId: documentId, passId: passId, actionsService: actionsService,
+                store: SegmentStore.shared(for: segmentService), undoManager: undoManager
+            )
+            failure = nil
+        } catch {
+            failure = "The pass could not be deleted: \(error.localizedDescription)"
         }
     }
 

@@ -38,3 +38,32 @@ struct WorkingPassChooseParams: Encodable, Equatable {
         case documentId = "document_id", passId = "pass_id"
     }
 }
+
+/// Delete a pass (#5227): the audited `segment.pass_delete` -- a soft delete; ⌘Z restores it by its audit id.
+/// A pass still read from an older result (`legacy:…`) is not a row yet, so it has nothing to delete.
+enum PassDeletion {
+    static func canDelete(_ passId: String) -> Bool { !passId.hasPrefix("legacy:") }
+
+    @MainActor
+    static func run(
+        documentId: String, passId: String, actionsService: ActionsService, store: SegmentStore,
+        undoManager: UndoManager?
+    ) async throws {
+        let result = try await actionsService.invokeAction(name: "segment.pass_delete", params: PassDeleteParams(passId: passId))
+        ActionUndo.register(
+            auditId: result.auditId, actionName: "Delete Pass", undoManager: undoManager,
+            performUndo: { auditId in
+                let next = try await actionsService.undoAction(auditId: auditId).auditId
+                await store.load(documentId: documentId, force: true)
+                return next
+            }
+        )
+        await store.load(documentId: documentId, force: true)
+    }
+}
+
+struct PassDeleteParams: Encodable, Equatable {
+    let passId: String
+
+    enum CodingKeys: String, CodingKey { case passId = "pass_id" }
+}
