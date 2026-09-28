@@ -47,13 +47,13 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let bbox: [Double]
     }
 
-    func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {
-        let fixtures = try AppSource.sibling("Tests").appendingPathComponent("Fixtures/segments")
-        RecordedEngine.body = try Data(contentsOf: fixtures.appendingPathComponent("syriac_onb-syr1-0001.route.json"))
-        let expected = try JSONDecoder().decode(
-            [ExpectedBox].self,
-            from: Data(contentsOf: fixtures.appendingPathComponent("syriac_onb-syr1-0001.expected-boxes.json"))
-        )
+    private func fixtures() throws -> URL {
+        try AppSource.sibling("Tests").appendingPathComponent("Fixtures/segments")
+    }
+
+    /// The canvas's store, loaded from the recorded engine answer through the real service.
+    private func loadedStore() async throws -> SegmentStore {
+        RecordedEngine.body = try Data(contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.route.json"))
         setenv("FICHERO_AUTH_TOKEN", "test-token", 1)
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [RecordedEngine.self]
@@ -63,8 +63,42 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             session: URLSession(configuration: configuration)
         )
         let store = SegmentStore(service: SegmentService(ficheroClient: client))
-
         await store.load(documentId: "doc-0001")
+        return store
+    }
+
+    /// #5152: the boxes drew but a click selected nothing, because a click needs a selection scope
+    /// and the only one was the pass's ARTIFACT, which an imported pass does not have. This clicks a
+    /// line the way `RegionInteractionLayer` does, then asks the Inspector's own resolution
+    /// (`InspectorPath.selectedSegmentIds`, what `SourceSectionView` calls) what is selected.
+    func testALineClickedOnTheImportedPageIsTheLineTheInspectorShows() async throws {
+        let store = try await loadedStore()
+        let selected = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
+        XCTAssertNil(selected.artifactId, "the imported pass has no artifact -- the case under test")
+        let scope = try XCTUnwrap(
+            SegmentDisplay.selectionScope(artifactId: selected.artifactId, passId: selected.passId),
+            "an imported pass must still give a click something to select in"
+        )
+        let boxes = selected.geometry.boxes
+        let lineIndex = try XCTUnwrap(boxes.firstIndex { $0.level == "line" })
+
+        let selection = RegionSelection()
+        selection.select(lineIndex, artifactId: scope, documentId: "doc-0001", in: boxes)
+        let ids = InspectorPath.selectedSegmentIds(selection: selection, documentId: "doc-0001", store: store)
+
+        let segments = store.segments(documentId: "doc-0001")
+        let clicked = try XCTUnwrap(segments.first { $0.passId == selected.passId && $0.boxIndex == lineIndex })
+        XCTAssertEqual(ids, [clicked.id])
+        let path = try XCTUnwrap(InspectorPath.to(clicked.id, in: segments))
+        XCTAssertEqual(path.crumbs.map(\.kind), ["region", "line"])
+    }
+
+    func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {
+        let expected = try JSONDecoder().decode(
+            [ExpectedBox].self,
+            from: Data(contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.expected-boxes.json"))
+        )
+        let store = try await loadedStore()
         XCTAssertNil(store.loadError(documentId: "doc-0001"))
         let selected = try XCTUnwrap(
             SegmentDisplay.selected(for: "doc-0001", store: store),

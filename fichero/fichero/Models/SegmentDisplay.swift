@@ -26,7 +26,7 @@ enum SegmentDisplay {
     @MainActor
     static func selected(
         for documentId: String, store: SegmentStore
-    ) -> (geometry: OCRGeometry, artifactId: String?)? {
+    ) -> Selected? {
         let passes = store.passes(documentId: documentId)
         let segments = store.segments(documentId: documentId)
         let focus = FocusedArtifact.shared
@@ -34,7 +34,24 @@ enum SegmentDisplay {
         guard let winner = winningPass(
             passes: passes, segments: segments, preferringArtifactId: focused
         ) else { return nil }
-        return (winner.geometry, winner.pass.sourceArtifactId)
+        return Selected(geometry: winner.geometry, artifactId: winner.pass.sourceArtifactId, passId: winner.pass.id)
+    }
+
+    /// What the canvas draws and what it came from: the boxes, the artifact of the winning pass (nil
+    /// for an imported pass), and the pass itself.
+    struct Selected {
+        let geometry: OCRGeometry
+        let artifactId: String?
+        let passId: String
+    }
+
+    /// What a selection of the shown boxes is scoped to (#5152): the artifact the pass came from, or
+    /// -- for a pass with no artifact, which is every IMPORTED pass -- the pass itself. Selection needs
+    /// a scope (box indices mean nothing across two geometries), and requiring an ARTIFACT for it left
+    /// an imported page's boxes drawn and unclickable. Only a scope: the edit verbs still need a real
+    /// artifact id and keep taking it from `ocrGeometryArtifactId`.
+    nonisolated static func selectionScope(artifactId: String?, passId: String?) -> String? {
+        artifactId ?? passId.map { "pass:\($0)" }
     }
 
     @MainActor

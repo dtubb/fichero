@@ -136,7 +136,7 @@ extension ZoomableImagePreview {
     var selectedMarkupBoxes: [OCRGeometryBox] {
         guard let geometry = ocrGeometry, geometryFrameMatchesDisplay(geometry) else { return [] }
         let selection = regionSelection
-        if let artifactId = ocrGeometryArtifactId, selection.artifactId == artifactId,
+        if let artifactId = ocrGeometrySelectionScope, selection.artifactId == artifactId,
            !selection.isEmpty {
             let picked = selection.resolvedIndices(in: geometry.boxes).map { geometry.boxes[$0] }
             if !picked.isEmpty { return picked }
