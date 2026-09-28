@@ -224,6 +224,54 @@ def boundary_gaps(canonical: set[str], prop_types: dict[str, str]) -> list[str]:
     return gaps
 
 
+def helper_misses(prop_types: dict[str, str]) -> list[str]:
+    """Library service types some view READS (`@Environment(T.self)`, optional or not) that the shared
+    helper does not inject. Optional reads count: the Segments pane read ReadingOrderService optionally,
+    so the gap never trapped -- it just spun forever. The helper is the one list, so it answers to the
+    views that read, not to another copy of itself."""
+    library_types = set(prop_types.values())
+    read: set[str] = set()
+    for path in scan_rglob(APP, "*.swift"):
+        read.update(type_name for type_name, _var, _optional in ENV_READ_RE.findall(_read(path)))
+    return sorted((read & library_types) - injected_library_types(SHARED_HELPER, prop_types))
+
+
+#: A run of this many chained `.environment(<ref>.<library property>)` lines is a hand-copied LIST.
+HAND_LIST_MIN = 3
+CHAIN_LINE_RE = re.compile(r"^\s*\.environment\(\s*[A-Za-z_][A-Za-z0-9_]*\.([A-Za-z_][A-Za-z0-9_]*)\s*\)\s*$")
+
+
+def hand_copied_lists(prop_types: dict[str, str]) -> list[str]:
+    """Every hand-copied list of library services outside `libraryServiceEnvironment`.
+
+    The failure this exists for (2026-09-28): LibraryWorkspaceRoot, the library window's own tree, kept
+    its OWN list of ~37 `.environment(library.x)` lines. It drifted -- no ReadingOrderService,
+    SegmentService, RenditionService, APIClient -- and in Daniel's build the Segments pane spun forever
+    and the Preview drew no boxes, while this guard reported zero gaps, because it TRUSTED that file as
+    the canonical list. A copy is the defect, whatever it holds today, so any run of
+    `HAND_LIST_MIN`+ chained library-service injections anywhere but the shared helper fails: call
+    `.libraryServiceEnvironment(library)`. (One or two named services -- a sheet that needs just the
+    document store -- are not a list.)"""
+    found: list[str] = []
+    for path in sorted(APP.rglob("*.swift")):
+        if path == SHARED_HELPER:
+            continue
+        run, start = 0, 0
+        for number, line in enumerate(_read(path).splitlines() + [""], 1):
+            match = CHAIN_LINE_RE.match(line)
+            if match and match.group(1) in prop_types:
+                if run == 0:
+                    start = number
+                run += 1
+                continue
+            if run and line.strip().startswith("//"):
+                continue  # a comment inside the chain does not end it
+            if run >= HAND_LIST_MIN:
+                found.append(f"{path.relative_to(REPO)}:{start} ({run} services)")
+            run = 0
+    return found
+
+
 def read_baseline() -> set[str]:
     if not BASELINE.exists():
         return set()
@@ -242,6 +290,23 @@ def main() -> int:
             return 2
 
     prop_types = library_property_types()
+    missed = helper_misses(prop_types)
+    if missed:
+        print("\nThe shared libraryServiceEnvironment omits library services that views read -- they are\n"
+              "nil (or a trap) in every tree it hosts:\n", file=sys.stderr)
+        for type_name in missed:
+            print(f"  {type_name}", file=sys.stderr)
+        return 1
+
+    copies = hand_copied_lists(prop_types)
+    if copies:
+        print("\nA HAND-COPIED library service list -- the copy that drifted and left the Segments\n"
+              "pane spinning and the Preview without boxes (2026-09-28). Call\n"
+              ".libraryServiceEnvironment(library) instead:\n", file=sys.stderr)
+        for copy in copies:
+            print(f"  {copy}", file=sys.stderr)
+        return 1
+
     canonical = injected_types(CANONICAL_HOST, prop_types)
     if len(canonical) < 20:
         print("environment-forwarding guardrail: only "
@@ -360,6 +425,22 @@ def self_test() -> int:
         else:
             _TEXT_OVERRIDES[detached] = hand_rolled
             expect("a boundary host reverting to a hand-picked list is caught", 1)
+            _TEXT_OVERRIDES.clear()
+
+        # LibraryWorkspaceRoot's OWN list as it stood before 2026-09-28 (its first four lines, verbatim):
+        # the copy that drifted. Put back, it must fail -- the guard reported zero gaps while it existed.
+        root_original = _read(CANONICAL_HOST)
+        old_list = root_original.replace(
+            "            .libraryServiceEnvironment(library)\n",
+            "            .environment(library.savedSearchService)\n"
+            "            .environment(library.bookmarkService)\n"
+            "            .environment(library.searchService)\n"
+            "            .environment(library.conversationService)\n")
+        if old_list == root_original:
+            failures.append("could not restore LibraryWorkspaceRoot's old list — the helper call moved")
+        else:
+            _TEXT_OVERRIDES[CANONICAL_HOST] = old_list
+            expect("LibraryWorkspaceRoot's old hand-copied list is caught", 1)
             _TEXT_OVERRIDES.clear()
 
         expect("overrides cleared, tree clean again", 0)

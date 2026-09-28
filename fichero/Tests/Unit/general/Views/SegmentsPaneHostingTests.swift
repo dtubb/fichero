@@ -13,14 +13,26 @@ final class SegmentsPaneHostingTests: XCTestCase {
     /// (`SegmentsPane.listState`). Breaks if the tree's list drifts from the shared one again, or the
     /// pane can wait on a service that will never come.
     func testTheSegmentsPaneInTheLibraryWindowsTreeGetsItsOrderServiceAndNeverSpinsForever() {
-        final class Seen { var order = false; var segments = false }
+        final class Seen {
+            var order: ReadingOrderService?
+            var segments: SegmentService?
+            var renditions: RenditionService?
+            var client: APIClient?
+        }
+        // Reads the four services the tree's old copy lacked, as the Segments pane (ReadingOrderService),
+        // the image and PDF previews (SegmentService: no boxes in Daniel's build), the document canvas and
+        // ContentView's renditions (RenditionService) and the activity and automation views (APIClient) do.
         struct Probe: View {
             let seen: Seen
             @Environment(ReadingOrderService.self) private var order: ReadingOrderService?
             @Environment(SegmentService.self) private var segments: SegmentService?
+            @Environment(RenditionService.self) private var renditions: RenditionService?
+            @Environment(APIClient.self) private var client: APIClient?
             var body: some View {
-                seen.order = order != nil
-                seen.segments = segments != nil
+                seen.order = order
+                seen.segments = segments
+                seen.renditions = renditions
+                seen.client = client
                 return Color.clear
             }
         }
@@ -31,8 +43,11 @@ final class SegmentsPaneHostingTests: XCTestCase {
         )))
         host.frame = CGRect(x: 0, y: 0, width: 80, height: 80)
         host.layoutSubtreeIfNeeded()
-        XCTAssertTrue(seen.order, "the pane's order service reaches the library window's tree")
-        XCTAssertTrue(seen.segments)
+        XCTAssertTrue(seen.order === library.readingOrderService, "the Segments pane's order service reaches the tree")
+        XCTAssertTrue(seen.segments === library.segmentService,
+                      "the previews' SegmentService is the library's -- the one SegmentStore.shared(for:) keys the boxes by")
+        XCTAssertTrue(seen.renditions === library.renditionService)
+        XCTAssertTrue(seen.client === library.apiClient)
 
         XCTAssertEqual(SegmentsPane.listState(hasDocument: true, hasOrders: false, hasOrderService: true), .loading)
         XCTAssertEqual(SegmentsPane.listState(hasDocument: true, hasOrders: true, hasOrderService: true), .list)
