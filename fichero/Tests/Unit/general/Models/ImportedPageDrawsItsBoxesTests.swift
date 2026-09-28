@@ -1144,6 +1144,34 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(RecordedEngine.undone, ["audit-1"], "⌘Z undoes the restore by its own audit id")
     }
 
+    /// `source.segment.table-cells` end to end (#5168), on a real Transkribus table page (recorded
+    /// reduced to the table and its 172 cells): through the store's own load, a cell's path head names
+    /// the table and the cell by its place, counted from 1 as people count ("Rows 3–4, Column 1" for
+    /// the file's row 2 spanning two), and the Segments pane's row labels say the same. Breaks if a
+    /// cell's place is lost on the way, counted from 0, or its span dropped.
+    func testATableCellIsNamedByItsRowAndColumnInThePathAndTheRows() async throws {
+        let store = try await loadedStore()
+        RecordedEngine.body = try Data(
+            contentsOf: fixtures().appendingPathComponent("transkribus_abp_table_0019.route.json")
+        )
+        await store.load(documentId: "doc-0001", force: true)
+        let segments = store.segments(documentId: "doc-0001")
+        XCTAssertEqual(segments.filter { $0.cell != nil }.count, 172, "every cell's place arrived")
+        let table = try XCTUnwrap(segments.first { $0.kind == "table" })
+
+        let spanning = try XCTUnwrap(segments.first { $0.id == "seg-0006" })
+        XCTAssertEqual(spanning.cell?.row, 2)
+        XCTAssertEqual(spanning.cell?.rowSpan, 2)
+        let path = try XCTUnwrap(InspectorPath.to(spanning.id, in: segments))
+        XCTAssertEqual(path.crumbs.map(\.label), ["Table", "Cell, Rows 3–4, Column 1"])
+        XCTAssertEqual(path.crumbs.first?.segmentId, table.id)
+
+        let plain = try XCTUnwrap(segments.first { $0.id == "seg-0003" })
+        XCTAssertEqual(SegmentsPane.rowLabel(plain, at: 0), "Cell, Row 13, Column 1", "no count after a place")
+        let steps = SegmentsPane.path(pageTitle: "Page", to: spanning.id, in: segments)
+        XCTAssertEqual(steps.map(\.title), ["Page", "Table", "Cell, Rows 3–4, Column 1"])
+    }
+
     /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the
     /// imported Syriac page's first line -- down to nothing at all -- is a NEW READING without them,
     /// through the calls the Reader's coordinator makes. No segment action is ever sent: the line and

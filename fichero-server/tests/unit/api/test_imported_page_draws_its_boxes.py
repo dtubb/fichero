@@ -698,3 +698,35 @@ def test_a_line_s_history_is_recorded_and_restoring_it_is_the_app_s_exact_call(d
     assert client.get(f"/api/segments/{line['id']}").json()["segment"]["anchor"]["rect"] == original_rect
     assert client.post(f"/api/actions/audit/{restored['audit_id']}/undo").status_code == 200
     assert client.get(f"/api/segments/{line['id']}").json()["segment"]["anchor"]["rect"][0] == original_rect[0] + 0.01
+
+
+TABLE_PAGE = Path(__file__).resolve().parents[1] / "formats" / "fixtures" / "transkribus_abp_table_0019.page.xml"
+TABLE_FIXTURE = FIXTURES / "transkribus_abp_table_0019.route.json"
+
+
+def test_an_imported_table_s_cells_say_their_row_and_column_to_the_app(db, client):
+    """`source.segment.table-cells` (#5168): a Transkribus table page, imported, answers the canvas's
+    and the Segments pane's call (GET /api/segments/document/{id}) with every cell's row, column and
+    spans exactly as its `TableCell` said -- checked against the file with lxml -- and the answer is
+    recorded for the app, whose path head and row labels name a cell by its place. Breaks if a cell's
+    place is lost or shifted on the way to the app."""
+    doc_id = _import(db, TABLE_PAGE)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    cells = [s["cell"] for s in body["segments"] if s["pass_id"] == real["id"] and s.get("cell")]
+
+    root = etree.parse(str(TABLE_PAGE)).getroot()
+    in_file = sorted(
+        (int(c.get("row")), int(c.get("col")), int(c.get("rowSpan") or 1), int(c.get("colSpan") or 1))
+        for c in root.iter() if isinstance(c.tag, str) and etree.QName(c).localname == "TableCell"
+    )
+    assert len(in_file) == 172
+    assert sorted((c["row"], c["column"], c["row_span"], c["column_span"]) for c in cells) == in_file
+
+    # Recorded REDUCED to the table and its cells (the lines inside them are 60% of 600 KB and no part of
+    # what the path head or a row label reads); reduced before stabilizing, so box indices stay whole.
+    reduced = dict(body, segments=[s for s in body["segments"] if s["kind"] == "table" or s.get("cell")])
+    stable = _stable(reduced)
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        TABLE_FIXTURE.write_text(json.dumps(stable, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(TABLE_FIXTURE.read_text()) == stable, "the app's table fixture drifted"

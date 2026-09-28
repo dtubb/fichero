@@ -152,7 +152,7 @@ struct ReadingOrderList: View {
         let segment = SegmentStore.shared(for: segmentService)
             .segments(documentId: documentId).first { $0.id == segmentId }
         if let text = segment?.text, !text.isEmpty { return text }
-        return "\((segment?.kind ?? "segment").capitalized) \(index + 1)"
+        return SegmentsPane.rowLabel(segment, at: index)
     }
 
     private static func keyName(_ key: KeyEquivalent) -> String {
