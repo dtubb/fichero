@@ -15,6 +15,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from _scan_files import scan_rglob
+
 from fichero_server.db import Database
 
 SRC = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
@@ -29,7 +31,7 @@ NOT_A_TABLE: dict[str, str] = {
 def model_class_names(src: Path = SRC) -> set[str]:
     """Every class in the engine that is a pydantic model (directly, or through another one)."""
     bases: dict[str, set[str]] = {}
-    for path in src.rglob("*.py"):
+    for path in scan_rglob(src, "*.py"):
         for node in ast.walk(ast.parse(path.read_text())):
             if isinstance(node, ast.ClassDef):
                 names = {b.id if isinstance(b, ast.Name) else b.attr if isinstance(b, ast.Attribute) else "" for b in node.bases}
@@ -48,7 +50,7 @@ def models_used(src: Path = SRC) -> dict[str, set[str]]:
     """Model class name -> where it is passed to a LIBRARY database call (as the class, or a new row)."""
     classes = model_class_names(src)
     used: dict[str, set[str]] = {}
-    for path in src.rglob("*.py"):
+    for path in scan_rglob(src, "*.py"):
         for node in ast.walk(ast.parse(path.read_text())):
             if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                     and node.func.attr in DB_METHODS and node.args):
