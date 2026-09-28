@@ -25,12 +25,16 @@ struct InspectorMakingSection: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Making").font(.headline)
                 ForEach(entries) { entry in
+                    if entry.georeferencing, entry.id == entries.first(where: \.georeferencing)?.id {
+                        // Georeferencing passes place the page in the world; they are not its text (#5122).
+                        Text("Georeferencing").font(.subheadline).foregroundStyle(.secondary).padding(.top, 4)
+                    }
                     VStack(alignment: .leading, spacing: 2) {
                         Text(entry.title).font(.body).textSelection(.enabled)
                         Text(entry.detail).font(.caption).foregroundStyle(.secondary)
                         if let note = entry.workingNote {
                             Text(note).font(.caption.weight(.semibold))
-                        } else {
+                        } else if !entry.georeferencing {
                             Button("Make Working") { Task { await makeWorking(entry.passId) } }
                                 .buttonStyle(.borderless)
                                 .font(.caption)

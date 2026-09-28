@@ -390,4 +390,35 @@ struct SegmentDisplayTests {
         )
         #expect(focused?.pass.sourceArtifactId == "art-clicked")
     }
+
+    /// #5122 (found by bugs2, a35449e3b): a page with an imported transcription AND an imported
+    /// georeference drew the georeference -- same tier, newer -- so its boxes were control points and a
+    /// mask. The page draws its TEXT pass; a georeferencing pass belongs in a map view. Even a
+    /// georeferencing pass a person chose for the map is not drawn as the page's boxes.
+    @Test("a page with an imported transcription and an imported georeference draws the transcription")
+    func aGeoreferenceIsNotDrawnAsThePagesBoxes() {
+        var georef = SegmentPassValue(
+            id: "georef", provisional: false, documentId: "doc-1", name: "paris.georef.json",
+            provenanceKind: .externalImport, createdAt: Date(timeIntervalSince1970: 500),
+            importFile: "paris.georef.json", importFormat: "iiif-georef"
+        )
+        georef.transformation = "thin-plate-spline"
+        georef.working = true
+        georef.workingBasis = "chosen"
+        let transcription = SegmentPassValue(
+            id: "page-xml", provisional: false, documentId: "doc-1", name: "0065.xml",
+            provenanceKind: .externalImport, createdAt: Date(timeIntervalSince1970: 0),
+            importFile: "0065.xml", importFormat: "pagexml"
+        )
+        let segments = [
+            segment(id: "gcp-0", passId: "georef", boxIndex: 0, rect: [0.1, 0.1, 0, 0], text: nil),
+            segment(id: "line-0", passId: "page-xml", boxIndex: 0, rect: [0.1, 0.2, 0.8, 0.05], text: "a line")
+        ]
+
+        let drawn = SegmentDisplay.winningPass(passes: [georef, transcription], segments: segments)
+        #expect(drawn?.pass.id == "page-xml")
+        #expect(drawn?.geometry.boxes.map(\.text) == ["a line"])
+        // Only a georeference: nothing is drawn as the page's text boxes, rather than control points.
+        #expect(SegmentDisplay.winningPass(passes: [georef], segments: segments) == nil)
+    }
 }

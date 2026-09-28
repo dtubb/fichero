@@ -88,7 +88,9 @@ struct SegmentMappingTests {
             "id", "provisional", "document_id", "pass_id", "kind", "kind_raw", "parent_segment_id",
             "provenance_kind", "anchor", "baseline", "text", "confidence",
             "language", "script", "direction",
-            "source_artifact_id", "box_index", "page_index", "metadata", "version"
+            "source_artifact_id", "box_index", "page_index", "metadata", "version",
+            // A table cell's place (#5168), mapped as the contract's own type.
+            "cell"
         ]
         #expect(
             declared == accounted,
@@ -130,7 +132,9 @@ struct SegmentMappingTests {
             "provider", "model", "run_id", "created_at", "text",
             "source_artifact_id", "artifact_type",
             "import_file", "import_checksum", "import_format", "has_original",
-            "working", "working_basis"
+            "working", "working_basis",
+            // A georeferencing pass's transformation type (#5122): what ranks it apart from text passes.
+            "transformation"
         ]
         #expect(declared == accounted, "PassRead's fields changed. Unaccounted: \(declared.subtracting(accounted).sorted()).")
     }
@@ -411,9 +415,11 @@ struct SegmentMappingTests {
             id: "legacy:a1", provisional: true, documentId: "doc-1", name: "transcription",
             provenanceKind: .workflow, provider: "anthropic", model: "sonnet-5.1", runId: "run-7",
             createdAt: createdAt, text: "the pass's own result text",
-            sourceArtifactId: "art-9", artifactType: "text_geometry"
+            sourceArtifactId: "art-9", artifactType: "text_geometry", transformation: "polynomial-2"
         )
         let pass = SegmentPassValue(generated: generated)
+        #expect(pass.transformation == "polynomial-2")
+        #expect(pass.isGeoreferencing)
         #expect(pass.id == "legacy:a1")
         #expect(pass.provisional)
         #expect(pass.documentId == "doc-1")
@@ -429,6 +435,23 @@ struct SegmentMappingTests {
     }
 
     // MARK: - The mapping itself keeps every value, not just every key
+
+    /// #5168: a table cell's place survives the mapping with its own values -- a cell whose row or span
+    /// were dropped would be drawn in the wrong place of its table.
+    @Test("Segment.init(generated:) keeps a table cell's row, column and spans")
+    func segmentMappingKeepsTheCell() {
+        let cell = Components.Schemas.TableCellPlace(row: 2, column: 5, rowSpan: 1, columnSpan: 3)
+        let generated = Components.Schemas.SegmentRead(
+            id: "c1", provisional: false, documentId: "doc-1", passId: "p1", kind: "cell",
+            provenanceKind: .externalImport, anchor: Components.Schemas.SourceAnchorOutput(documentId: "doc-1"),
+            cell: cell
+        )
+        #expect(Segment(generated: generated).cell == cell)
+        #expect(Segment(generated: Components.Schemas.SegmentRead(
+            id: "l1", provisional: false, documentId: "doc-1", passId: "p1", kind: "line",
+            provenanceKind: .externalImport, anchor: Components.Schemas.SourceAnchorOutput(documentId: "doc-1")
+        )).cell == nil)
+    }
 
     @Test("Segment.init(generated:) carries every field's VALUE through, not just its presence")
     func segmentMappingKeepsValues() throws {

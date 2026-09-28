@@ -111,7 +111,10 @@ enum OCRGeometrySelection {
     nonisolated static func rankedPasses(_ passes: [SegmentPassValue], segments: [Segment]) -> [SegmentPassValue] {
         let curatedPassIds = Set(segments.filter(\.isHandCurated).map(\.passId))
         var ranked: [RankedPass] = []
-        for pass in passes {
+        // A georeferencing pass holds control points and a mask, not the page's text (#5122): it is
+        // never drawn as the page's boxes, whatever its tier. Ranked with them, an imported
+        // georeference outranked a machine transcription and the page went blank (bugs2, a35449e3b).
+        for pass in passes where !pass.isGeoreferencing {
             let tier: Int
             var typeRank = 0
             if pass.working && pass.workingBasis == "chosen" {
