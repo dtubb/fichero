@@ -69,6 +69,9 @@ class TestIngestFile:
             for sensitive_path in ("/etc/passwd", str(Path.home() / ".ssh" / "id_ed25519")):
                 response = client.post("/api/ingest/file", json={"path": sensitive_path})
                 assert response.status_code == 403
+                # The app recognises this refusal BY ITS WORDING to offer Grant Access… on a drop
+                # (#5219); reword it and a refused drop falls back to a bare error.
+                assert "not in an allowed location" in response.json()["detail"], response.text
 
             response = client.post("/api/ingest/file", json={"path": str(allowed)})
 
