@@ -48,18 +48,8 @@ extension LibraryView {
             crumbs: libraryHeadCrumbs,
             onClose: onClosePane,
             isPinned: isPanePinned,
-            onCrumb: { crumb in
-                NotificationCenter.default.post(
-                    name: .sidebarRevealDocument,
-                    object: nil,
-                    userInfo: ["documentId": crumb.id]
-                )
-            },
-            crumbChildren: { crumb in
-                (documentStore.outline(for: crumb.id)?.children
-                    ?? documentStore.childrenCache[crumb.id]
-                    ?? []).map(PaneCrumb.init)
-            },
+            onCrumb: { PaneCrumb.reveal($0) },
+            crumbChildren: { PaneCrumb.children(of: $0, in: documentStore) },
             // #4860: this window's OWN library, not the app-wide
             // `LibraryManager.shared.currentLibraryId` — with two window tabs
             // on different libraries, the app-wide pointer names whichever
@@ -71,7 +61,8 @@ extension LibraryView {
             // The node-model axis (Documents / Claims / Entities) sits beside the
             // view-mode picker: WHAT you browse next to HOW it's laid out.
             controls: { LibraryContentKindControl(kind: contentKindBinding) },
-            tools: { EmptyView() }
+            tools: { EmptyView() },
+            switchableRoots: PaneCrumb.otherLibraries(than: windowState.libraryId)
         )
     }
 
@@ -83,13 +74,7 @@ extension LibraryView {
         // recently ANYWHERE, so a second window tab on a different library
         // could show the wrong breadcrumb root.
         if let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) {
-            crumbs.append(PaneCrumb(
-                id: "library-root",
-                title: library.displayName,
-                icon: "books.vertical.fill",
-                isNavigable: false,
-                tint: .accentColor
-            ))
+            crumbs.append(.library(library))
         }
         // `folderId` is the sidebar item id, which prefixes documents "doc:".
         let anchor = folderId.map { $0.hasPrefix("doc:") ? String($0.dropFirst(4)) : $0 }

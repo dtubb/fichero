@@ -20,13 +20,10 @@ extension ReadingPaneView {
     var readerCrumbs: [PaneCrumb] {
         // The library is the root crumb: a path that starts at a folder does
         // not say WHICH library's Inbox you are in, and several are open at
-        // once in the normal case. Not navigable from a reader (yet).
+        // once in the normal case. Navigable (#5218): it shows the library's top level.
         var crumbs: [PaneCrumb] = []
-        if let libraryName {
-            crumbs.append(PaneCrumb(
-                id: "library-root", title: libraryName,
-                icon: "books.vertical.fill", isNavigable: false, tint: .accentColor
-            ))
+        if let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) {
+            crumbs.append(.library(library))
         }
         // Breadcrumb honesty (Daniel, 2026-08-29): N>1 selected means the
         // pane shows N items, and the crumb must say so — the shared parent's
@@ -48,14 +45,5 @@ extension ReadingPaneView {
         )
         crumbs += ancestry.isEmpty ? [PaneCrumb(document)] : ancestry.map(PaneCrumb.init)
         return crumbs
-    }
-
-    /// The library the read document belongs to, for the root crumb.
-    ///
-    /// `Document` carries no library id — the current library IS the reading
-    /// context, the same assumption the path bar and the sidebar reveal make.
-    var libraryName: String? {
-        // #4860: THIS pane's own window's library.
-        LibraryManager.shared.getLibrary(id: windowState.libraryId)?.displayName
     }
 }

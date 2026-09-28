@@ -385,3 +385,9 @@ func libraryCellDropOutcomeMessage(attempted: Int, failures: [String]) -> String
     guard let reason = failures.first else { return prefix }
     return "\(prefix) \(reason)"
 }
+
+#Preview("Drop Failed: Grant Access…") {
+    DropAccessGrantButton()
+        .padding()
+        .onAppear { DropAccessRefusal.shared.path = "/Users/me/Fichero Test Corpus" }
+}

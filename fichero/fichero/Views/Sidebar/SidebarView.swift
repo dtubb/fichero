@@ -151,6 +151,11 @@ struct SidebarView: View {
             .onReceive(
                 NotificationCenter.default.publisher(for: .sidebarRevealDocument)
             ) { note in
+                // A library crumb (#5218): that library's top level, selected as its sidebar row is.
+                if let raw = note.userInfo?["libraryId"] as? String, let libraryId = UUID(uuidString: raw) {
+                    applySidebarSelectionProposal([.library(libraryId)])
+                    return
+                }
                 guard let docId = note.userInfo?["documentId"] as? String else { return }
                 // A segment to select when the page arrives: a citable reference (#5164), a flow's Next (#5160).
                 if let segmentId = note.userInfo?["segmentId"] as? String {

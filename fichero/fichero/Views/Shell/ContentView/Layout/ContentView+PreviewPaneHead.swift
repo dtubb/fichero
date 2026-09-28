@@ -123,18 +123,8 @@ extension ContentView {
                 get: { PreviewPanePin.isPinned(pinned: pinnedPreviewDocument.wrappedValue) },
                 set: { pin in pinnedPreviewDocument.wrappedValue = pin ? shown : nil }
             ),
-            onCrumb: { crumb in
-                NotificationCenter.default.post(
-                    name: .sidebarRevealDocument,
-                    object: nil,
-                    userInfo: ["documentId": crumb.id]
-                )
-            },
-            crumbChildren: { crumb in
-                (documentStore.outline(for: crumb.id)?.children
-                    ?? documentStore.childrenCache[crumb.id]
-                    ?? []).map(PaneCrumb.init)
-            },
+            onCrumb: { PaneCrumb.reveal($0) },
+            crumbChildren: { PaneCrumb.children(of: $0, in: documentStore) },
             crumbDragPayload: { crumb in
                 paneCrumbDragPayload(crumb, store: documentStore, libraryId: windowState.libraryId)
             },
@@ -156,7 +146,8 @@ extension ContentView {
             },
             controls: { PreviewHeadLensControls(chrome: self.previewChrome) },
             tools: { EmptyView() },
-            canSplit: previewPaneCanSplit
+            canSplit: previewPaneCanSplit,
+            switchableRoots: PaneCrumb.otherLibraries(than: windowState.libraryId)
         )
     }
 

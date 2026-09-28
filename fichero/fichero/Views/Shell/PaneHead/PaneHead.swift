@@ -77,6 +77,8 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     /// actions" behaviour: passing `nil` instead of the real actions hides
     /// the "+" entirely rather than adding a second disabled-state path.
     var canSplit: Bool = true
+    /// Other roots to switch to, listed above the path in the crumb menu (#5218: every other open library).
+    var switchableRoots: [PaneCrumb] = []
 
     @State private var showsTools = false
     /// Split actions arrive from the pane's own environment, so EVERY
@@ -223,6 +225,13 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
 
     @ViewBuilder
     private var contextMenuRows: some View {
+        if !switchableRoots.isEmpty {
+            ForEach(switchableRoots) { root in
+                Button { onCrumb?(root) } label: { Label(root.title, systemImage: root.icon) }
+                    .disabled(onCrumb == nil)
+            }
+            Divider()
+        }
         ForEach(crumbs) { crumb in
                     Button {
                         onCrumb?(crumb)
