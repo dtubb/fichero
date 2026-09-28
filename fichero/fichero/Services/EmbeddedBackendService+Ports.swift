@@ -447,18 +447,27 @@ extension EmbeddedBackendService {
 }
 
 extension EmbeddedBackendService {
-    /// `resolveLiveSocket` for a UDS transport; nil for any other (nothing to check).
+    /// `resolveLiveSocket` for a UDS transport; nil for any other (nothing to check). The live engine's
+    /// pid is used (for Stop it) only where the app may signal another process: never in the App Store build.
     func liveSocketResolution(for transportMode: TransportMode) async throws -> PortResolution? {
         guard case .uds(let path) = transportMode else { return nil }
-        return try await resolveLiveSocket(path, holderPID: nil)
+        #if FICHERO_APP_STORE
+        return try await resolveLiveSocket(path, mayStop: false)
+        #else
+        return try await resolveLiveSocket(path, mayStop: true)
+        #endif
     }
 
     /// The socket half of the pre-flight (`EngineSocketConflict`): nil when nothing answers (go on and
-    /// spawn), the resolution when the person chose, or a `socketInUse` throw so the window asks.
-    func resolveLiveSocket(_ path: String, holderPID: Int?) async throws -> PortResolution? {
-        let live = await Task.detached(priority: .userInitiated) { EngineSocketConflict.isLive(socketPath: path) }.value
+    /// spawn), the resolution when the person chose, or a `socketInUse` throw so the window asks -- naming
+    /// the other engine's version and, where it may be stopped, its pid.
+    func resolveLiveSocket(_ path: String, mayStop: Bool) async throws -> PortResolution? {
+        guard await Task.detached(priority: .userInitiated, operation: { EngineSocketConflict.isLive(socketPath: path) }).value
+        else { return nil }
+        let other = await EngineSocketConflict.liveEngine(socketPath: path)
+        let holderPID = mayStop ? other.pid : nil
         switch EngineSocketConflict.decision(
-            socketLive: live, holderPID: holderPID, pendingChoice: pendingPortConflictResolution
+            socketLive: true, holderPID: holderPID, pendingChoice: pendingPortConflictResolution
         ) {
         case .spawnOurs:
             return nil
@@ -466,17 +475,20 @@ extension EmbeddedBackendService {
             pendingPortConflictResolution = nil
             return .adoptExisting
         case .stopThenSpawn(let pid):
-            // ponytail: reached only once the engine's health reports its pid (bugs2's half); until then
-            // Stop it is not offered for a socket. Stopping stays outside this file's App Store build.
-            #if !FICHERO_APP_STORE
-            kill(pid_t(pid), SIGTERM)
-            #endif
             pendingPortConflictResolution = nil
+            #if !FICHERO_APP_STORE
+            // Stop it, and wait for the socket to fall silent: an engine spawned over a live one refuses to
+            // start (7c00a47ed), so spawning early would only fail the other way.
+            kill(pid_t(pid), SIGTERM)
+            for _ in 0..<50 where EngineSocketConflict.isLive(socketPath: path) {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+            if EngineSocketConflict.isLive(socketPath: path) { kill(pid_t(pid), SIGKILL) }
+            #endif
             return nil
         case .surface:
             pendingPortConflictResolution = nil
-            let version = await EngineSocketConflict.liveEngineVersion(socketPath: path)
-            throw BackendError.socketInUse(path: path, pid: holderPID, version: version)
+            throw BackendError.socketInUse(path: path, pid: holderPID, version: other.version)
         }
     }
 }

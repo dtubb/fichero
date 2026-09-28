@@ -53,14 +53,19 @@ enum EngineSocketConflict {
         }
     }
 
-    /// The live engine's version, from its unauthenticated `/api/health`, to name it in the window; nil
-    /// when it does not say. ponytail: its pid and owning app join when the engine's health carries them
-    /// (bugs2's half of this fix).
-    static func liveEngineVersion(socketPath: String) async -> String? {
+    /// What the live engine says of itself on its unauthenticated `/api/health`, to name it in the window.
+    struct LiveEngine: Equatable {
+        var version: String?
+        var pid: Int?
+    }
+
+    /// The live engine's version and pid (`engine_pid`, 7c00a47ed); each nil when it does not say.
+    /// ponytail: `engine_owner` (the other app's bundle path) joins once the contract regen carries it.
+    static func liveEngine(socketPath: String) async -> LiveEngine {
         let client = FicheroClient(transportMode: .uds(path: socketPath))
         guard let response = try? await client.api.healthCheckApiHealthGet(.init()),
-              case .ok(let okResponse) = response, let health = try? okResponse.body.json else { return nil }
-        return health.backendVersion
+              case .ok(let okResponse) = response, let health = try? okResponse.body.json else { return LiveEngine() }
+        return LiveEngine(version: health.backendVersion, pid: health.enginePid)
     }
 }
 
