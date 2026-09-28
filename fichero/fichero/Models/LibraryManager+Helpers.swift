@@ -72,10 +72,17 @@ extension LibraryManager {
         let byId = Dictionary(openLibraries.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         guard let frontId = order.first, let front = byId[frontId] else { return }
         await loadLibraryDataIfNeeded(for: front)
+        // The two moments a launch is measured by (maintainer, 2026-09-28: "then you know when it's
+        // ready"): the front library usable, then every open library loaded.
+        LaunchProfile.milestone("front library ready")
         let rest = order.dropFirst().compactMap { byId[$0] }
-        guard !rest.isEmpty else { return }
+        guard !rest.isEmpty else {
+            LaunchProfile.milestone("all libraries ready", detail: "1 library")
+            return
+        }
         Task(priority: .utility) { @MainActor in
             for library in rest { await self.loadLibraryDataIfNeeded(for: library) }
+            LaunchProfile.milestone("all libraries ready", detail: "\(rest.count + 1) libraries")
         }
     }
 
