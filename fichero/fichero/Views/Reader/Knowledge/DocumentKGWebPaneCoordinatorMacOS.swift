@@ -483,7 +483,9 @@ extension DocumentKGWebPaneCoordinatorMacOS {
         } catch {
             detail = String(describing: error)
         }
-        webView?.evaluateJavaScript(
+        // In an async context the async-throwing overload is chosen; the page's answer is a courtesy, so a
+        // failure to deliver it is ignored (the page re-reads itself on refresh either way).
+        _ = try? await webView?.evaluateJavaScript(
             ReaderTextEdit.committedScript(kind: kind, segmentId: segmentId, succeeded: detail.isEmpty, detail: detail)
         )
     }
