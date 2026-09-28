@@ -67,6 +67,11 @@ Page From…. Every edit below should undo with ⌘Z and redo with ⇧⌘Z.
     `source_anchor` naming the line's `segment_id`, from MCP or the command line), then select that line. *Should:* "Said About This" lists the
     claim ("anchored here", its excerpt) and the entities mentioned on the line; clicking one opens it
     in the knowledge views. Hidden on a line nothing is said about.
+20. **The Segments pane** (#4942). Click any pane's kind icon ▸ **Segments**, beside a Preview, with
+    an imported page selected. *Should:* the page's regions, in its order, each "Region · ‹words›";
+    the chevron opens a region to its lines, and the path at the top goes back up. Pick a row: its box
+    lights in the Preview and the Inspector follows. Drag a row, or ⌥⌘↑ / ⌥⌘↓ with the list focused:
+    the order changes; ⌘Z. **Not yet:** strip and grid, and gathered sets (one hand, a sign).
 15. **A georeference beside a transcription** (#5122). On a page with an imported transcription AND an
     imported IIIF georeference: *Should:* the Source view draws the transcription's lines, never the
     control points; Making lists the georeference under **Georeferencing**.
@@ -109,7 +114,8 @@ against the engine on every Python run). When the lead's run is green, the rows'
 | 5.6 | `source.sign.declared`, `list-authority`, `gather-instances` (a count); `source.letterform.chain`, `features` (read-only, inside Signs) | 46cf7efa1 | `…SignsSectionNamesTheMUFISign…` (real MUFI page), `…SignsSectionReadsACharactersLetterform…` |
 | #5164 | `source.link.typed`, `both-ways` (read from each end), `source.segment.citable` (Copy Reference) | 13494cbb7 | `…LinksSectionReadsALinkFromThisEnd…` |
 | 5.8 | `source.rights.record`, `tighten-only` (shown in words, records placed), `who-acts` (the engine's refusal said) | b01d0cdf4 | `…RightsSectionSaysWhatApplies…` |
-| 5.7 | `source.statement.on-segment`, `both-ways` (from the segment: claims and mentions whose anchor names it, each opening its claim or entity) | f95b6e43a, (this commit) | `…WhatIsSaidAboutALineListsItsClaimAndMention…` |
+| 5.7 | `source.statement.on-segment`, `both-ways` (from the segment: claims and mentions whose anchor names it, each opening its claim or entity) | f95b6e43a, 0f0d01e37 | `…WhatIsSaidAboutALineListsItsClaimAndMention…` |
+| #4942 | `source.segments-pane.exists`, `selection-shared`, `reorders` (first slice: the list) | 9b7e783fd (spec), (this commit) | `…SegmentsPaneListsOpensReordersAndSelects…` |
 | #5122 | a georeferencing pass is never drawn as the page's boxes; Making lists it apart | 8b9e51c37 | unit only: `SegmentDisplayTests.aGeoreferenceIsNotDrawnAsThePagesBoxes` (no real georef+transcription page recorded yet) |
 
 Engine defects found on the way, filed: #5176 (the Syriac page resolved to "English, left to right"

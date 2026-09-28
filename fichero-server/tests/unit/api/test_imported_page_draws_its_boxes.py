@@ -512,3 +512,42 @@ def test_what_is_said_about_a_line_is_recorded_for_the_app(db, client):
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         STATEMENTS_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
     assert json.loads(STATEMENTS_FIXTURE.read_text()) == recorded, "the app's statements fixture drifted"
+
+
+ORDER_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.reading-order.json"
+
+
+def test_the_page_s_reading_order_is_recorded_for_the_segments_pane(db, client):
+    """`source.segments-pane.exists`, `reorders` (the Segments pane, #4942): the pane lists a page's
+    segments through the Order list's own calls -- GET /api/reading-orders/document/{id}, then
+    GET /api/reading-orders/{order}/entries for the top level and for a region's lines. Recorded for
+    the imported Syriac page, so the app's test lists, opens and reorders over the engine's answer."""
+    doc_id = _import(db, SYRIAC)
+    orders = client.get(f"/api/reading-orders/document/{doc_id}").json()
+    order = next(o for o in orders["orders"] if o["name"] == "as-written")
+    top = client.get(f"/api/reading-orders/{order['id']}/entries").json()
+    assert top["entries"], "the imported page has an as-written order"
+    region_entry = next(e for e in top["entries"]
+                        if client.get(f"/api/reading-orders/{order['id']}/entries",
+                                      params={"parent_entry_id": e["id"]}).json()["entries"])
+    children = client.get(f"/api/reading-orders/{order['id']}/entries",
+                          params={"parent_entry_id": region_entry["id"]}).json()
+
+    route = client.get(f"/api/segments/document/{doc_id}").json()
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    by_rect = {repr(s["anchor"]["rect"]): s["id"] for s in stable_route["segments"]}
+    ids = {doc_id: stable_route["document_id"], order["id"]: "order-0001"}
+    for segment in route["segments"]:
+        ids[segment["id"]] = by_rect[repr(segment["anchor"]["rect"])]
+    real_pass = next(p["id"] for p in route["passes"] if not p["provisional"])
+    ids[real_pass] = next(p["id"] for p in stable_route["passes"] if not p["provisional"])
+    for index, entry in enumerate(top["entries"] + children["entries"], start=1):
+        ids[entry["id"]] = f"entry-{index:04d}"
+    for other in orders["orders"]:
+        ids.setdefault(other["id"], f"order-{len(ids):04d}")
+    stable = _stabilizer(ids)
+    recorded = {"orders": stable(orders), "top": stable(top), "region_entry": ids[region_entry["id"]],
+                "children": stable(children)}
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        ORDER_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(ORDER_FIXTURE.read_text()) == recorded, "the app's reading-order fixture drifted"

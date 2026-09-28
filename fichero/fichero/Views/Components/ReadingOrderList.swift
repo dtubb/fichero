@@ -12,6 +12,12 @@ struct ReadingOrderList: View {
     var parentSegmentId: String?
     /// Show nothing at all for an empty level (ruled: a section with nothing to say is hidden).
     var hidesWhenEmpty = false
+    /// The Segments pane's: open a row to its children (nil: rows do not open, as in the Inspector).
+    var onOpen: ((String) -> Void)?
+    /// Which rows can be opened (they have children).
+    var opens: ((String) -> Bool)?
+    /// The Segments pane's row words; nil keeps the Order list's own.
+    var rowLabel: ((String, Int) -> String)?
 
     @Environment(ReadingOrderService.self) private var service: ReadingOrderService?
     @Environment(SegmentService.self) private var segmentService: SegmentService?
@@ -23,11 +29,15 @@ struct ReadingOrderList: View {
 
     init(
         documentId: String, parentSegmentId: String? = nil, hidesWhenEmpty: Bool = false,
-        store: ReadingOrderStore? = nil
+        store: ReadingOrderStore? = nil, onOpen: ((String) -> Void)? = nil, opens: ((String) -> Bool)? = nil,
+        rowLabel: ((String, Int) -> String)? = nil
     ) {
         self.documentId = documentId
         self.parentSegmentId = parentSegmentId
         self.hidesWhenEmpty = hidesWhenEmpty
+        self.onOpen = onOpen
+        self.opens = opens
+        self.rowLabel = rowLabel
         // A store handed in (a preview's, over a fixture transport) is used as is; otherwise the
         // library's service makes one.
         _store = State(initialValue: store)
@@ -44,8 +54,7 @@ struct ReadingOrderList: View {
             if let store, !store.shown.isEmpty {
                 List(selection: $selection) {
                     ForEach(Array(store.shown.enumerated()), id: \.element.segmentId) { index, entry in
-                        Text(label(for: entry.segmentId, at: index))
-                            .lineLimit(2)
+                        row(entry.segmentId, at: index)
                             .tag(entry.segmentId)
                     }
                     .onMove { offsets, destination in
@@ -81,6 +90,23 @@ struct ReadingOrderList: View {
             if store == nil, let service { store = ReadingOrderStore(transport: service) }
             if store?.documentId != documentId { try? await store?.load(documentId: documentId) }
             await store?.show(childrenOf: parentSegmentId)
+        }
+    }
+
+    /// A row: its words, and -- in the Segments pane -- a control that opens it to its children.
+    private func row(_ segmentId: String, at index: Int) -> some View {
+        HStack {
+            Text(rowLabel?(segmentId, index) ?? label(for: segmentId, at: index))
+                .lineLimit(2)
+            if let onOpen, opens?(segmentId) ?? false {
+                Spacer(minLength: 4)
+                Button { onOpen(segmentId) } label: {
+                    Image(systemName: "chevron.right")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Open")
+                .help("List what this segment holds")
+            }
         }
     }
 

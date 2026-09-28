@@ -35,6 +35,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 || (path.hasPrefix("/api/segments/") && path.hasSuffix("/reference"))
                 || path == "/api/rights/effective"
                 || (path.hasPrefix("/api/segments/") && path.hasSuffix("/statements"))
+                || path.hasPrefix("/api/reading-orders/")
         }
 
         /// What `GET /api/hands` and `GET /api/hands/segment/{id}` answer (set by the test that asks).
@@ -68,6 +69,13 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         nonisolated(unsafe) static var rightsReply = Data()
         /// What `GET /api/segments/{id}/statements` answers.
         nonisolated(unsafe) static var statementsReply = Data()
+        /// What the reading-order routes answer: the page's orders, the top level, one region's
+        /// children (for `parent_entry_id` = `childrenOf`); every place POST is recorded.
+        nonisolated(unsafe) static var ordersReply = Data()
+        nonisolated(unsafe) static var topEntriesReply = Data()
+        nonisolated(unsafe) static var childEntriesReply = Data()
+        nonisolated(unsafe) static var childrenOf = ""
+        nonisolated(unsafe) static var placed: [Data] = []
 
         private static func actionReply(auditId: String) -> Data {
             Data(#"{"ok":true,"result":{},"audit_id":"\#(auditId)","changed_domains":["segment"]}"#.utf8)
@@ -111,6 +119,15 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 actionBody = Self.rightsReply
             } else if path.hasPrefix("/api/segments/"), path.hasSuffix("/statements") {
                 actionBody = Self.statementsReply
+            } else if path.hasPrefix("/api/reading-orders/document/") {
+                actionBody = Self.ordersReply
+            } else if path.hasPrefix("/api/reading-orders/"), path.hasSuffix("/entries") {
+                let query = request.url?.query ?? ""
+                actionBody = !Self.childrenOf.isEmpty && query == "parent_entry_id=\(Self.childrenOf)"
+                    ? Self.childEntriesReply : Self.topEntriesReply
+            } else if path.hasPrefix("/api/reading-orders/"), path.hasSuffix("/place") {
+                Self.placed.append(Self.bodyOf(request))
+                actionBody = Self.actionReply(auditId: "place-\(Self.placed.count)")
             } else if path.hasPrefix("/api/segments/passes/"), path.hasSuffix("/original") {
                 actionBody = Self.originalReply
             } else if path == "/api/actions/invoke" {
@@ -158,6 +175,11 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             referenceReply = Data()
             rightsReply = Data()
             statementsReply = Data()
+            ordersReply = Data()
+            topEntriesReply = Data()
+            childEntriesReply = Data()
+            childrenOf = ""
+            placed = []
         }
 
         /// URLSession hands a protocol its body as a stream, not as `httpBody`.
@@ -818,6 +840,59 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         focus.focusEntity(entityId: rows[1].targetId, sourceDocumentId: "doc-0001")
         XCTAssertEqual(focus.focusedEntityId, "entity-0001")
         XCTAssertNil(focus.focusedClaimId, "opening an entity is not opening a claim")
+    }
+
+    /// `source.segments-pane.exists`, `reorders`, `selection-shared` end to end (#4942): the imported
+    /// Syriac page in the Segments pane, over the engine's recorded reading order. Through the Order
+    /// list's own store (`ReadingOrderStore` over `ReadingOrderService`, the one implementation) the
+    /// pane lists the page's four regions, opens the first to its line with a path back up, moves a
+    /// region down with ONE place call whose ⌘Z undoes it by its own audit row, and a row picked is
+    /// the Source view's selection (`InspectorPath.select`, the call the list makes on a pick).
+    func testTheSegmentsPaneListsOpensReordersAndSelectsTheImportedPagesSegments() async throws {
+        let segmentStore = try await loadedStore()
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.reading-order.json")
+        )) as? [String: Any])
+        RecordedEngine.ordersReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["orders"]))
+        RecordedEngine.topEntriesReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["top"]))
+        RecordedEngine.childEntriesReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["children"]))
+        RecordedEngine.childrenOf = try XCTUnwrap(recorded["region_entry"] as? String)
+        let segments = segmentStore.segments(documentId: "doc-0001")
+
+        let orders = ReadingOrderStore(transport: ReadingOrderService(ficheroClient: try XCTUnwrap(storeClient)))
+        try await orders.load(documentId: "doc-0001")
+        let top = orders.shown.map(\.segmentId)
+        XCTAssertEqual(top.count, 4, "the page's four regions, in its order")
+        XCTAssertEqual(top.map { id in segments.first { $0.id == id }?.kind }, Array(repeating: "region", count: 4))
+        let region = try XCTUnwrap(top.first)
+        XCTAssertTrue(SegmentsPane.hasChildren(region, in: segments), "a region opens to its lines")
+
+        await orders.show(childrenOf: region)
+        let lines = orders.shown.map(\.segmentId)
+        XCTAssertEqual(lines.count, 1)
+        let line = try XCTUnwrap(segments.first { $0.id == lines.first })
+        XCTAssertEqual(line.kind, "line")
+        XCTAssertEqual(SegmentsPane.rowLabel(line, at: 0), "Line · " + (line.text ?? "").trimmingCharacters(in: .whitespaces))
+        XCTAssertEqual(SegmentsPane.path(pageTitle: "page", to: region, in: segments).map(\.title), ["page", "Region"])
+
+        await orders.show(childrenOf: nil)
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        let auditId = await orders.move(region, step: .downward)
+        orders.registerUndo(auditId: auditId, undoManager: manager, actionsService: ActionsService(client: try XCTUnwrap(storeClient)))
+        manager.endUndoGrouping()
+        XCTAssertEqual(auditId, "place-1")
+        let placed = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.placed.first)) as? [String: Any])
+        XCTAssertEqual(placed["segment_id"] as? String, region)
+        XCTAssertEqual(placed["after_entry_id"] as? String, "entry-0002", "one place down: after the second region")
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["place-1"])
+
+        let selection = RegionSelection()
+        XCTAssertEqual(InspectorPath.select(segmentIds: [line.id], into: selection, documentId: "doc-0001", store: segmentStore), [line.id])
+        XCTAssertEqual(InspectorPath.selectedSegmentIds(selection: selection, documentId: "doc-0001", store: segmentStore), [line.id])
     }
 
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {
