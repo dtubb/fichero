@@ -58,7 +58,7 @@ something goes badly wrong.
 
 ### A. What a snapshot is, and what it costs
 
-- `safety.net.what-a-snapshot-holds`: a snapshot holds the library's rows (research, versions,
+- `safety.net.what-a-snapshot-holds` — **[GAP]** (#5246) a snapshot holds the library's rows (research, versions,
   the record) and its search vectors, and a **list** of the stored original files with their
   sizes and content fingerprints. It does **not** copy the original files. *Why that is safe:*
   stored originals are never rewritten: image edits are settings, and no code deletes stored
@@ -67,20 +67,20 @@ something goes badly wrong.
   and in that case the restore says exactly which files are gone (D). *Existing data:* present
   snapshots already have this shape, minus the list; they stay valid. *Test:* snapshot, edit,
   restore: every row finds its file.
-- `safety.net.cheap-where-the-disk-allows`: where the disk can share unchanged data between
+- `safety.net.cheap-where-the-disk-allows` — **[GAP]** (#5246) where the disk can share unchanged data between
   two files (APFS on a Mac; reflinks on a Linux server that has them), a snapshot is made that
   way and takes almost no space at first. Elsewhere it is a full copy. Either way the engine
   knows the cost before it starts. *Data:* the copy goes through one function that tries the
   sharing copy first. *Test:* on APFS, free space falls by far less than the database size.
-- `safety.net.says-what-it-costs`: the Settings screen shows each snapshot's size on disk and
+- `safety.net.says-what-it-costs` — **[GAP]** (#5246) the Settings screen shows each snapshot's size on disk and
   the total, and the size the next one would need. *Test:* availability.
-- `safety.net.never-pegs-the-machine`: a scheduled snapshot runs at background priority and
+- `safety.net.never-pegs-the-machine` — **[GAP]** (#5246) a scheduled snapshot runs at background priority and
   yields to the person's work. A snapshot taken before a step the person just asked for runs at
   once, shows progress, and can be cancelled (which cancels the step). *Test:* load leg.
 
 ### B. Before every step that cannot be reversed
 
-- `safety.net.the-steps`: a snapshot is taken before: Empty Trash and Delete Permanently; an
+- `safety.net.the-steps` — **[GAP]** (#5246) a snapshot is taken before: Empty Trash and Delete Permanently; an
   update to the library's format; the knowledge-graph reset; a library merge; orphan cleanup;
   any bulk action that is not reversible (pruning trivial statements, purging machine drafts,
   rewriting stored text); and a snapshot restore itself. **Not** before a workflow run or an
@@ -89,23 +89,23 @@ something goes badly wrong.
   (`safety.undo.every-action-says-how-it-comes-back`) gains the value "snapshot first"; the
   registry takes the snapshot, not each action's own code. *Test:* a guardrail: every action
   that is neither reversible nor Trash-bound is "snapshot first" or carries a written reason.
-- `safety.net.no-snapshot-no-step`: if the snapshot cannot be taken, the step is **refused**.
+- `safety.net.no-snapshot-no-step` — **[GAP]** (#5246) if the snapshot cannot be taken, the step is **refused**.
   The message says why in a sentence and what would help: "There is not enough room to make a
   safety copy first (needs about 2.1 GB, 0.8 GB free). Nothing was deleted. You can free space
   by removing older snapshots: 6 unpinned, 9.4 GB." The present behaviour (log a warning and
   carry on) is removed. *Existing data:* none. *Test:* fill the disk in a fixture; Empty Trash
   is refused; nothing is removed; the sentence names the numbers.
-- `safety.net.room-is-checked-first`: before starting, the engine compares what the snapshot
+- `safety.net.room-is-checked-first` — **[GAP]** (#5246) before starting, the engine compares what the snapshot
   needs with what is free, and leaves a margin so the machine stays usable. It does not start
   a copy it cannot finish. *Test:* no partial snapshot folder is left behind by a refusal.
-- `safety.net.a-step-and-its-snapshot-are-linked`: the record row for the step names the
+- `safety.net.a-step-and-its-snapshot-are-linked` — **[GAP]** (#5246) the record row for the step names the
   snapshot taken before it, and that snapshot is exempt from thinning until the person removes
   it or ten newer protected steps exist. *Test:* eleven plain snapshots later, the one before
   an Empty Trash is still there.
 
 ### C. Updating a library (#4983)
 
-- `safety.net.an-update-completes-or-changes-nothing`: each update to a library's format runs
+- `safety.net.an-update-completes-or-changes-nothing` — **[GAP]** (#5246) each update to a library's format runs
   in a transaction with a number, recorded in a version table in the library. On failure the
   transaction is rolled back, the version is unchanged, and (in phase two, see the next
   behaviour) **the library does not open for writing**. The person is told which update failed, that nothing was changed, and that the
@@ -115,7 +115,7 @@ something goes badly wrong.
   matches, and updated from there; the existing updates are already written to be safe to run
   twice. Nothing is discarded. *Test:* an update that fails half way: the library's tables are
   byte-identical to before, the version is unchanged, the open is refused with the sentence.
-- `safety.net.an-update-in-two-phases`: #4983 is being built in two phases, and the split is
+- `safety.net.an-update-in-two-phases` — **[GAP]** (#5246) #4983 is being built in two phases, and the split is
   deliberate. **Phase one, now:** each update is atomic (it completes or changes nothing), and
   a failure is VISIBLE: the person is told, in the app, which update failed and that nothing
   was changed. The library still opens. **Phase two, the maintainer's decision:** a failed
@@ -127,38 +127,38 @@ something goes badly wrong.
   run on the real libraries and shows no failing update, phase two is safe to turn on; if it
   shows one, that update is repaired first. *Test:* phase one: an update that fails leaves the
   tables byte-identical, and the failure is returned to the app and shown, not only logged.
-- `safety.net.an-update-is-snapshotted-first`: the snapshot rule of B applies; with no room,
+- `safety.net.an-update-is-snapshotted-first` — **[GAP]** (#5246) the snapshot rule of B applies; with no room,
   the update does not start and the library opens read-only in its present format if the app
   can read it, or not at all, and says which. *Test:* no room: no update attempted.
-- `safety.net.data-repairs-are-runs`: an update that changes research data (not just its
+- `safety.net.data-repairs-are-runs` — **[GAP]** (#5246) an update that changes research data (not just its
   format) runs as a stamped run and is taken back as one (`safety.run.a-repair-is-a-run`).
   *Test:* there.
 
 ### D. Returning the whole library to an earlier day
 
-- `safety.net.restore-says-what-is-lost`: before a restore, the app shows when the snapshot
+- `safety.net.restore-says-what-is-lost` — **[GAP]** (#5246) before a restore, the app shows when the snapshot
   was taken and what has happened since, from the record: how many steps, by whom, how many
   things made, and which stored files the library has removed since (so rows would point at
   nothing). The button says "Return Library to 14 March, 09:12". *Test:* the numbers equal
   the record.
-- `safety.net.restore-loses-nothing-for-good`: the present state is set aside first (as
+- `safety.net.restore-loses-nothing-for-good` — **[GAP]** (#5246) the present state is set aside first (as
   today), listed in Settings as "Before the restore of …" with its size, and can itself be
   returned to. Set-aside copies count as protected snapshots under B and are thinned by the
   same rule, never silently. *Existing data:* set-aside copies already lying in library
   folders are found and listed on first open. *Test:* restore, then return to the set-aside
   copy: the library is as it was.
-- `safety.net.restore-is-written-down`: the record inside a restored library ends at the
+- `safety.net.restore-is-written-down` — **[GAP]** (#5246) the record inside a restored library ends at the
   snapshot, so the restore is written as the first new row after it, naming who, when, and
   which snapshot, and the chain's outside anchor is updated so the shortened record is not
   mistaken for tampering. *Test:* the chain verifies after a restore.
-- `safety.net.owner-only`: only the library's owner may restore a snapshot or delete one.
+- `safety.net.owner-only` — **[GAP]** (#5246) only the library's owner may restore a snapshot or delete one.
   Anyone who may write may take one. *Test:* an editor's restore and delete are refused.
-- `safety.net.not-while-others-are-working`: a restore is refused while another person or a
+- `safety.net.not-while-others-are-working` — **[GAP]** (#5246) a restore is refused while another person or a
   run is writing, and says who. *Test:* two sessions.
 
 ### E. The knowledge-graph reset (#4982)
 
-- `safety.net.reset-never-touches-curated-work`: the reset removes only machine-made entities,
+- `safety.net.reset-never-touches-curated-work` — **[GAP]** (#5246) the reset removes only machine-made entities,
   statements and links that no person has touched, and says how many before it does anything.
   It is a recorded action in the one registry, shaped like the draft purge that exists: a dry
   run unless told otherwise, a set of protected ids worked out from the record, counts first,
@@ -166,18 +166,18 @@ something goes badly wrong.
   none at risk; the route has never been able to run. *Test:* against a real database with
   curated and machine-made rows: the curated rows are byte-identical afterwards; the test that
   fakes the delete's shape is deleted with the route.
-- `safety.net.rebuild-is-a-run`: rebuilding the graph from sources is a stamped run and is
+- `safety.net.rebuild-is-a-run` — **[GAP]** (#5246) rebuilding the graph from sources is a stamped run and is
   taken back as one. *Test:* in `run-take-back.md`.
 
 ### F. Three stores that do not share a transaction
 
-- `safety.net.the-database-is-the-truth`: rows are the truth; search vectors and derived
+- `safety.net.the-database-is-the-truth` — **[GAP]** (#5246) rows are the truth; search vectors and derived
   images are derived and can be made again; stored originals are kept until the Trash is
   emptied. So after any failure: a vector with no row is dropped; a row with no vector is
   embedded again in the background, throttled; neither is ever a reason to change a row.
   *Test:* delete a vector behind the engine's back; it returns; remove a row's vector partner;
   search still works after the background pass.
-- `safety.net.orphans-are-listed-never-swept`: stored files that no row points at, and rows
+- `safety.net.orphans-are-listed-never-swept` — **[GAP]** (#5246) stored files that no row points at, and rows
   whose file is missing, are found by a check that runs at background priority and are listed
   in Settings with sizes. Orphaned bytes are removed only when a person says yes; a row whose
   file is missing is shown as such in the library, never hidden. *Existing data:* this is how

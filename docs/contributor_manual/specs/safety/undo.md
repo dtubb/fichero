@@ -72,7 +72,7 @@ The engine half can ship alone. It makes every client safe at once, including ag
 
 ### A. Whose step it is
 
-- `safety.undo.mine-only`: the undo route reverses a step only for the account that made it.
+- `safety.undo.mine-only` — **[GAP]** (#5242) the undo route reverses a step only for the account that made it.
   Anyone else is refused, with a message that names who made the step. *Data:* the record
   already stores the actor on every row; the actor of the request comes from sign-in, never
   from the request body. *Existing data:* every old row already has its actor; rows made by
@@ -80,25 +80,25 @@ The engine half can ship alone. It makes every client safe at once, including ag
   *Test:* editor A makes a step; editor B's undo of it is refused and nothing changes; A's
   succeeds. The existing test that pins "any editor may undo anyone" is replaced, not deleted
   quietly: that was a past decision, and it goes to the maintainer as a question.
-- `safety.undo.owner-may-reverse-anyone`: the owner of a library may reverse any step, but
+- `safety.undo.owner-may-reverse-anyone` — **[GAP]** (#5242) the owner of a library may reverse any step, but
   only from the history list, one chosen step at a time, and never with Command-Z. The reversal
   is a new recorded step that names both people: who reversed, and whose step it was. The
   person whose step was reversed can see that it was. *Data:* the reversal row carries the
   reverser as actor and points at the step reversed. *Existing data:* none to move. *Test:*
   owner reverses an editor's step from the list; the record shows both names; the owner's
   Command-Z never offers that step.
-- `safety.undo.agents-and-runs-are-not-in-my-stack`: a step made by an AI agent's account or
+- `safety.undo.agents-and-runs-are-not-in-my-stack` — **[GAP]** (#5242) a step made by an AI agent's account or
   by a workflow run is never offered by my Command-Z, even if I started the run. Their work is
   taken back as a batch (`run-take-back.md`). *Test:* start a run that writes; press Command-Z;
   my own previous step is offered, not the run's.
-- `safety.undo.viewers-have-no-stack`: an account that may not write has nothing to undo; the
+- `safety.undo.viewers-have-no-stack` — **[GAP]** (#5242) an account that may not write has nothing to undo; the
   menu item is disabled. The #4917 access rules apply to undo as to any write: a step on a
   thing I may no longer edit is refused. *Test:* remove A's access to a folder; A's undo of an
   earlier step inside it is refused.
 
 ### B. Never over the top of later work
 
-- `safety.undo.refuses-when-changed`: a step is reversed only if it is still the newest live
+- `safety.undo.refuses-when-changed` — **[GAP]** (#5242) a step is reversed only if it is still the newest live
   step on every thing it touched. If a later step, by anyone, touched any of the same things
   and has not itself been taken back, the undo is refused. Nothing is changed. The message says
   what changed, who changed it and when, and offers the thing's history (`versions-and-restore.md`).
@@ -107,7 +107,7 @@ The engine half can ship alone. It makes every client safe at once, including ag
   built from the existing record on first open, read-only to the record itself. *Test:* A
   edits a page; B edits the same page; A's undo is refused and B's text is byte-identical
   afterwards; B undoes; now A's undo succeeds.
-- `safety.undo.version-is-the-second-lock`: where a kind of thing carries a version number
+- `safety.undo.version-is-the-second-lock` — **[GAP]** (#5242) where a kind of thing carries a version number
   (segments today, on the source-model branch; the other kinds of `versions-and-restore.md`
   as they gain versions), the reversal also names the
   version it expects and is refused if the version has moved. This catches a change that did
@@ -115,13 +115,13 @@ The engine half can ship alone. It makes every client safe at once, including ag
   columns of the source-model set; no new store. *Existing data:* kinds without versions rely
   on the first lock alone. *Test:* bump a version behind the record's back; the undo is
   refused.
-- `safety.undo.refusal-loses-nothing`: a refused undo leaves the step where it was in my
+- `safety.undo.refusal-loses-nothing` — **[GAP]** (#5242) a refused undo leaves the step where it was in my
   stack, not skipped and not marked. I can look, decide, and try again. *Test:* after a
   refusal, the same step is still the next one offered.
 
 ### C. One step is undone once
 
-- `safety.undo.marked-inside-the-transaction`: reversing a step and marking it reversed happen
+- `safety.undo.marked-inside-the-transaction` — **[GAP]** (#5242) reversing a step and marking it reversed happen
   in one transaction. Either both are stored or neither. *Data:* the mark moves inside the
   registry's own transaction; it is written by the registry, not by the route afterwards.
   *Test:* force a failure after the inverse runs; neither the inverse nor the mark is stored.
@@ -130,7 +130,7 @@ The engine half can ship alone. It makes every client safe at once, including ag
 
 ### D. Redo brings back the same thing
 
-- `safety.undo.reversed-through-its-own-inverse`: when the step being taken back is itself a
+- `safety.undo.reversed-through-its-own-inverse` — **[GAP]** (#5242) when the step being taken back is itself a
   reversal or a redo, and its own action is reversible, it is reversed through ITS OWN inverse,
   worked out from what it actually did. A recorded request is replayed only when the step has
   no inverse of its own. *Why:* TRACED for entities with the registrations as they stand:
@@ -144,12 +144,12 @@ The engine half can ship alone. It makes every client safe at once, including ag
   worktree: `actions/registry.py:185`, `api/routes/document/segments.py:505`), so shipped
   actions are unchanged. This slice makes it THE rule of the route: on for every action, and
   the switch removed once the last action has moved. *Test:* the next behaviour.
-- `safety.undo.every-action-on-the-rule-has-a-four-lap-test`: no action moves onto the rule
+- `safety.undo.every-action-on-the-rule-has-a-four-lap-test` — **[GAP]** (#5242) no action moves onto the rule
   without a test that runs do, undo, redo, undo through the real route and asserts on ROWS,
   not status codes: after the second undo the rows equal the rows after the first undo, and no
   live row is left that no later undo can remove. This is the source-model set's condition,
   adopted. *Test:* a guardrail: every action with the rule on is named by such a test.
-- `safety.undo.redo-keeps-the-id`: what the rule promises about ids, precisely, in three
+- `safety.undo.redo-keeps-the-id` — **[GAP]** (#5242) what the rule promises about ids, precisely, in three
   parts. **(1) Always:** the thing a step was ABOUT comes back under the id it had. Redoing a
   create restores the same thing; it never makes a second one; everything that pointed at it
   still does. **(2) Always:** no lap leaves a stray. Whatever a redo makes, the next undo
@@ -165,7 +165,7 @@ The engine half can ship alone. It makes every client safe at once, including ag
   undo both; redo both; the statement points at the original id and exactly one entity exists.
   For a split: after each lap exactly one live segment covers the line, or exactly the parts
   do, never both.
-- `safety.undo.a-restore-checks-where-it-lands`: a step that brings something back (an undo of
+- `safety.undo.a-restore-checks-where-it-lands` — **[GAP]** (#5242) a step that brings something back (an undo of
   a delete, an unmerge, an unsplit, a Put Back, a redo) first checks that what it restores INTO
   still exists and is live: the folder, the document, the pass, the parent. If not, it refuses
   with a reason, and brings nothing back into a place where it would be invisible. *Why:* the
@@ -173,28 +173,28 @@ The engine half can ship alone. It makes every client safe at once, including ag
   the parent is still live, so a segment can return into a deleted pass and never be seen.
   The same holds for any kind. *Test:* delete a thing; delete its container; undo the first
   delete: refused, with the container named; put the container back; now it succeeds.
-- `safety.undo.inverses-are-locked-too`: an inverse obeys the two locks like any other step.
+- `safety.undo.inverses-are-locked-too` — **[GAP]** (#5242) an inverse obeys the two locks like any other step.
   It names the versions it expects of everything it will change or remove, and it never
   hard-deletes something a later step has touched. On the source-model branch merge, split
   and carry take no expected version, and neither do unmerge, unsplit and uncarry; unsplit
   hard-deletes the parts it is given even if someone has since edited or annotated one
   (VERIFIED by that set's review). Agreed with that set: all six take the token. *Test:* split;
   someone annotates a part; undo the split: refused, the part and its annotation untouched.
-- `safety.undo.redo-is-refused-when-changed`: redo obeys the same two locks as undo (B).
+- `safety.undo.redo-is-refused-when-changed` — **[GAP]** (#5242) redo obeys the same two locks as undo (B).
   *Test:* undo an edit; someone else edits the thing; redo is refused.
-- `safety.undo.a-new-step-clears-redo`: once I make a new step, my earlier undone steps are no
+- `safety.undo.a-new-step-clears-redo` — **[GAP]** (#5242) once I make a new step, my earlier undone steps are no
   longer offered by Shift-Command-Z. They remain in the history list. This is the Mac's rule.
   *Test:* undo, make a new step, Redo is disabled.
 
 ### E. The stack is worked out by the engine
 
-- `safety.undo.the-engine-says-what-is-next`: one read call returns, for the account asking:
+- `safety.undo.the-engine-says-what-is-next` — **[GAP]** (#5242) one read call returns, for the account asking:
   the next step Command-Z would take back, the next step Redo would put back, and a short name
   for each. The app, the command line and an agent all use this call; none works it out for
   itself. A step that was redone counts as live again (today the app skips it). *Data:* worked
   out from the record: chains of reversals are followed to their newest row. *Test:* do, undo,
   redo; "next to undo" is that same step, not the one before it.
-- `safety.undo.this-sitting-only`: Command-Z reaches back through my steps of **this sitting**:
+- `safety.undo.this-sitting-only` — **[GAP]** (#5242) Command-Z reaches back through my steps of **this sitting**:
   since I opened this library in this app, on this device. It does not reach into yesterday.
   Older steps of mine stay reversible from the history list, deliberately, one at a time, under
   the same locks. *Data:* the client sends a sitting id, made when the library is opened, with
@@ -202,31 +202,31 @@ The engine half can ship alone. It makes every client safe at once, including ag
   *Existing data:* old rows have no sitting id, so they are never in a Command-Z stack and are
   still reversible from the list. *Test:* make a step, reopen the library, Command-Z is
   disabled, the step is in the list and can be reversed there.
-- `safety.undo.one-stack-per-person-per-library`: the stack is not per window and not per
+- `safety.undo.one-stack-per-person-per-library` — **[GAP]** (#5242) the stack is not per window and not per
   pane. With three panes open on one library, Command-Z takes back my last step wherever it
   was, and shows me where (H). Two libraries open have two stacks; the front window's library
   decides. *Test:* a step in pane one, focus pane two, Command-Z reverses the step and pane one
   shows it.
-- `safety.undo.history-is-paged-in-the-database`: the history list and the "what is next" call
+- `safety.undo.history-is-paged-in-the-database` — **[GAP]** (#5242) the history list and the "what is next" call
   read only the rows they return, by index, newest first, filtered by account. *Data:* indexes
   on time, on account, and the id index of B. *Test:* load leg: with a million rows, both calls
   stay within the perf ratchet.
 
 ### F. What Command-Z does, in order
 
-- `safety.undo.routing-order`: Command-Z goes to exactly one of these, in this order, and the
+- `safety.undo.routing-order` — **[GAP]** (#5242) Command-Z goes to exactly one of these, in this order, and the
   menu item's title says which: (1) a focused, editable text field: its own typing undo; if
   its typing stack is empty, nothing, never the library; (2) the image editor, when open with
   uncommitted steps: its last step; (3) my next step from the engine; (4) nothing, disabled.
   *Test:* pure rule, off the main thread, every combination.
-- `safety.undo.command-z-never-navigates`: going Back is not an undo. Command-Z never changes
+- `safety.undo.command-z-never-navigates` — **[GAP]** (#5242) going Back is not an undo. Command-Z never changes
   what is shown except to reveal the thing a reversal changed. Back keeps its own key. *Data:*
   the navigation case is removed from the routing. *Existing data:* none. *Test:* navigate into
   a folder, delete nothing, press Command-Z: the view does not move.
 
 ### G. One undo path in the app
 
-- `safety.undo.no-library-step-lives-in-the-window-undo-manager`: no change to the library is
+- `safety.undo.no-library-step-lives-in-the-window-undo-manager` — **[GAP]** (#5242) no change to the library is
   registered with the window's undo manager. The sidebar delete, the workflow canvas and the
   canvas move and resize registrations are **deleted**, not wired. Those steps are already
   recorded actions, or become recorded actions, and come back through the one record.
@@ -235,11 +235,11 @@ The engine half can ship alone. It makes every client safe at once, including ag
   its own refusal rules. One code path per thing. *Existing data:* none; these stacks live in
   memory. *Test:* a guardrail refuses a new registration outside text fields and the image
   editor; the three source-scan tests that cover the dead registrations are deleted with them.
-- `safety.undo.canvas-moves-are-recorded-steps`: moving or resizing a note on a canvas, and
+- `safety.undo.canvas-moves-are-recorded-steps` — **[GAP]** (#5242) moving or resizing a note on a canvas, and
   editing a workflow's graph, are recorded actions with inverses, one step per gesture (a drag
   is one step, not one per frame). *Test:* drag, Command-Z, the note is back; the record has
   two rows.
-- `safety.undo.every-action-says-how-it-comes-back`: every registered action is one of:
+- `safety.undo.every-action-says-how-it-comes-back` — **[GAP]** (#5242) every registered action is one of:
   reversible; sends its thing to the Trash; or carries a written reason why neither, in which
   case the app asks before doing it and says plainly that it cannot be taken back. *Data:* a
   field on the registration. *Test:* a guardrail over the registry replaces the path-string
@@ -247,40 +247,40 @@ The engine half can ship alone. It makes every client safe at once, including ag
 
 ### H. Saying what happened
 
-- `safety.undo.menu-names-the-step`: the Edit menu reads "Undo Move of Letter 12", not "Undo".
+- `safety.undo.menu-names-the-step` — **[GAP]** (#5242) the Edit menu reads "Undo Move of Letter 12", not "Undo".
   *Data:* each action registration gains a short name template, filled by the engine.
   *Test:* the name returned for a move includes the moved thing's name.
-- `safety.undo.shows-what-it-took-back`: after an undo or redo, the app reveals the thing
+- `safety.undo.shows-what-it-took-back` — **[GAP]** (#5242) after an undo or redo, the app reveals the thing
   (selects it, scrolls to it) when it is in an open pane, and shows a short notice naming the
   step either way. Nothing is taken back off-screen in silence. *Test:* click-around.
-- `safety.undo.offered-after-a-removal`: after a delete or a merge, a short notice offers
+- `safety.undo.offered-after-a-removal` — **[GAP]** (#5242) after a delete or a merge, a short notice offers
   Undo for a few seconds. It is the same step as Command-Z, not a second path. *Test:*
   click-around.
-- `safety.undo.refusal-is-plain`: a refusal reads as a sentence a researcher can act on: "This
+- `safety.undo.refusal-is-plain` — **[GAP]** (#5242) a refusal reads as a sentence a researcher can act on: "This
   page was changed by Ana at 14:02, after your edit. Your edit was not undone. See history."
   No status codes, no ids. *Test:* the message for each refusal kind.
 
 ### I. Typing, and the image editor
 
-- `safety.undo.typing-belongs-to-the-field`: while an editable text field has focus, Command-Z
+- `safety.undo.typing-belongs-to-the-field` — **[GAP]** (#5242) while an editable text field has focus, Command-Z
   and Shift-Command-Z are the system's own typing undo for that field, per field, with the
   grouping Mac users expect. Nothing in this set changes it. It never reaches the library's
   record, even when the typing stack is empty. *Data:* none; built. *Test:* the existing pure
   routing test, plus a mounted test: type, press Command-Z, the typing is undone and the record
   has no new row.
-- `safety.undo.commit-hands-over`: when a field commits an edit (focus leaves, or the app
+- `safety.undo.commit-hands-over` — **[GAP]** (#5242) when a field commits an edit (focus leaves, or the app
   saves), that whole edit becomes ONE step in my stack, named "Edit Transcription" or the like.
   With focus elsewhere, Command-Z takes the whole committed edit back, under the locks of B.
   With focus still in the field, Command-Z keeps undoing typing, and the next commit is a new
   step. The two never mix in one key press. *Test:* type, click away, Command-Z: the text
   returns to what it was before the edit, and the record shows the edit and its reversal.
-- `safety.undo.commits-are-not-per-keystroke`: autosave must not turn one sitting at a field
+- `safety.undo.commits-are-not-per-keystroke` — **[GAP]** (#5242) autosave must not turn one sitting at a field
   into dozens of steps. Commits from one uninterrupted stay in a field fold into one step.
   *Data:* the commit carries the field's editing-session id; the engine folds a commit into the
   previous row when the account, the thing and the session match and nothing else touched the
   thing between. *Test:* three autosaves in one stay; one step in the stack; undo returns to
   the text before the first.
-- `safety.undo.image-editor-owns-its-steps`: inside the image editor, Command-Z drops the last
+- `safety.undo.image-editor-owns-its-steps` — **[GAP]** (#5242) inside the image editor, Command-Z drops the last
   uncommitted step and Shift-Command-Z puts it back (Redo does not exist there today). On Done,
   the whole session is one recorded step. Returning to the original is itself a step.
   *Test:* crop, rotate, Command-Z, Shift-Command-Z, Done, Command-Z outside the editor: the
@@ -288,12 +288,12 @@ The engine half can ship alone. It makes every client safe at once, including ag
 
 ### J. The same from everywhere
 
-- `safety.undo.command-line-and-agents`: the command line and the agent tools can ask "what is
+- `safety.undo.command-line-and-agents` — **[GAP]** (#5242) the command line and the agent tools can ask "what is
   my next step to undo", take it back, put it back, and list their own history. Each acts as
   its own account: an agent can take back only the agent's own steps. The command line's
   audit command reads the one record. *Test:* CLI leg and MCP leg; an agent's undo of a
   person's step is refused.
-- `safety.undo.iphone-and-ipad`: the system's undo gesture and the on-screen Undo call the same
+- `safety.undo.iphone-and-ipad` — **[GAP]** (#5242) the system's undo gesture and the on-screen Undo call the same
   engine stack under the same rules. *Test:* iOS leg.
 
 ## Things to try by hand

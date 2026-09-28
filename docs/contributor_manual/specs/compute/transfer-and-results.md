@@ -100,7 +100,7 @@ always asked again (`jobs-and-fine-tuning.md`).
 
 A work package is a folder with two things in it:
 
-- `job.json`: what to run (a workflow and its settings, or a training recipe), the version it
+- `job.json` — **[GAP]** (#5239) what to run (a workflow and its settings, or a training recipe), the version it
   was made by, the models it needs by card id, and the identities of its inputs;
 - `objects/`: the inputs, each stored under its sha256.
 
@@ -208,40 +208,40 @@ All untagged and unbuilt unless stated.
 
 ### Leaving
 
-- `compute.leave.one-gate` — a send to any target is allowed or refused by the one egress gate
+- `compute.leave.one-gate` — **[GAP]** (#5239) a send to any target is allowed or refused by the one egress gate
   (`source.egress.one-gate`), called with the collection, the target and the kind of work. This
   slice adds no second check. *Routed:* the gate itself is #4949's. *Test:* with the gate faked
   to refuse, no carrier is ever called.
-- `compute.leave.stays-local-is-absolute` — a collection marked "may not leave this machine"
+- `compute.leave.stays-local-is-absolute` — **[GAP]** (#5239) a collection marked "may not leave this machine"
   (`source.project.stays-local`) can be sent only to targets of kind `this-mac`. A
   `local-container` counts as this Mac. The refusal names the collection's rule. *Test:* each
   kind of target against a collection so marked.
-- `compute.leave.sheet-before-first-send` — before the first send of a kind of work from a
+- `compute.leave.sheet-before-first-send` — **[GAP]** (#5239) before the first send of a kind of work from a
   collection to a target, a sheet shows the seven things listed above, computed from the actual
   package and the target's record. *Data:* the package manifest; the target's `operator_note`.
   *Test:* pure Swift: a package of 3 images and a cluster target yields those strings; bytes
   shown equal the pending set, not the package total.
-- `compute.leave.says-when-it-cannot-tell` — until a rights record exists to read, the sheet
+- `compute.leave.says-when-it-cannot-tell` — **[GAP]** (#5239) until a rights record exists to read, the sheet
   carries the sentence "Fichero does not yet know which of these sources are restricted.
   Nothing has been left out." When the rights slice is built, this behaviour is replaced by
   `compute.leave.restricted-left-out`. *Test:* the sentence is present; a guardrail ties its
   removal to the rights behaviour being tagged built.
-- `compute.leave.restricted-left-out` — once a rights record can mark a source or segment as
+- `compute.leave.restricted-left-out` — **[GAP]** (#5239) once a rights record can mark a source or segment as
   not to leave, the package builder leaves it out in the one export stream
   (`source.format.rights-filtered-once`, #4943), and the sheet lists what was left out and why.
   **Blocked** with `source/rights-and-access.md`. *Test:* to be written with that slice.
-- `compute.leave.community-question-once` — the community question is asked once for a
+- `compute.leave.community-question-once` — **[GAP]** (#5239) the community question is asked once for a
   collection, its answer is stored on the collection, and "Not sure: do not send" refuses every
   send from it to any target but this Mac until changed. *Data:* a collection setting
   `compute.community_answer` with values `none` · `agreed` · `unsure`, and who set it and
   when. *Existing data:* collections with no answer are asked at their first send. *Test:* each
   answer against a send.
-- `compute.leave.yes-is-recorded-and-scoped` — a yes is an audited action (person, collection,
+- `compute.leave.yes-is-recorded-and-scoped` — **[GAP]** (#5239) a yes is an audited action (person, collection,
   target, kind of work, the answers shown). It covers later sends of that kind from that
   collection to that target only. It can be withdrawn in the collection's settings, after
   which the sheet appears again. *Test:* second send: no sheet; other target: sheet; after
   withdrawal: sheet; the audit log holds one record for each yes.
-- `compute.leave.nothing-in-the-background-without-a-yes` — automatic work (a collection's
+- `compute.leave.nothing-in-the-background-without-a-yes` — **[GAP]** (#5239) automatic work (a collection's
   default chain, `source.project.automatic-after-first-yes`) never chooses a remote target by
   itself. A remote target is used only when a person chose it for that run or set it as that
   collection's default after a yes. *Test:* an automatic run with a remote default and no
@@ -249,26 +249,26 @@ All untagged and unbuilt unless stated.
 
 ### The package
 
-- `compute.package.least-needed` — a package holds only the objects its kind of work needs, by
+- `compute.package.least-needed` — **[GAP]** (#5239) a package holds only the objects its kind of work needs, by
   the table above. *Test:* for a segmentation job over 3 of 40 sources: exactly 3 images, no
   database object, no text. For a fine-tune: exactly the training set's objects.
-- `compute.package.is-a-sync-manifest` — a package's `manifest.json` is a `SyncManifest`; its
+- `compute.package.is-a-sync-manifest` — **[GAP]** (#5239) a package's `manifest.json` is a `SyncManifest`; its
   objects are `SyncObject`s with sha256 and size. `BundleManifest`, `build_bundle_manifest` and
   `write_manifest` are removed from `remote_jobs.py`, and the dry-run route builds a package
   instead. *Existing data:* none is stored in the old shape (VERIFIED above). *Test:* the old
   names no longer import; the dry-run answer lists object hashes.
-- `compute.package.no-paths-cross` — no absolute path from the Mac appears in `job.json`,
+- `compute.package.no-paths-cross` — **[GAP]** (#5239) no absolute path from the Mac appears in `job.json`,
   `manifest.json` or any log line sent to a target; inputs are named by source id and sha256.
   *Test:* build a package from a library under a temp folder; assert that folder's path is in
   none of the package's text files.
-- `compute.package.names-its-models` — `job.json` names every model the work will use by card
+- `compute.package.names-its-models` — **[GAP]** (#5239) `job.json` names every model the work will use by card
   id and version, so staging (`compute.connect.models-staged-before-a-job`) can happen before
   submit and a job never discovers a missing model half-way. *Test:* a workflow with two model
   steps yields two model entries.
-- `compute.package.is-a-projection` — a package is never the record: it can be deleted at any
+- `compute.package.is-a-projection` — **[GAP]** (#5239) a package is never the record: it can be deleted at any
   time and made again, and two packages made from the same collection state and the same job
   are byte-identical. *Test:* build twice, compare hashes.
-- `compute.package.no-secrets` — no token, key or provider API key is ever in a package or a
+- `compute.package.no-secrets` — **[GAP]** (#5239) no token, key or provider API key is ever in a package or a
   job script. Work that needs a cloud provider's key cannot be sent to a target; it is refused
   with "this step needs your *provider* key, which never leaves this Mac". *Test:* a workflow
   with an OpenRouter step is refused before packaging; a scan of a built package for the
@@ -276,96 +276,96 @@ All untagged and unbuilt unless stated.
 
 ### Transfer
 
-- `compute.transfer.one-core` — every send and every fetch, on every carrier, goes through
+- `compute.transfer.one-core` — **[GAP]** (#5239) every send and every fetch, on every carrier, goes through
   `diff_manifests`, `SyncCheckpoint` and `pending_objects`. No other code decides what to send.
   *Test:* a guardrail: no `rsync`, `scp` or `sftp put` call exists outside the SSH carrier, and
   the carrier's only entry points take a `SyncObject`.
-- `compute.transfer.only-what-is-missing` — before sending, the target is asked which object
+- `compute.transfer.only-what-is-missing` — **[GAP]** (#5239) before sending, the target is asked which object
   hashes it already holds; only the rest travel. *Test:* a second job over the same pages sends
   zero object bytes.
-- `compute.transfer.resumes` — an interrupted send or fetch, restarted, moves only objects not
+- `compute.transfer.resumes` — **[GAP]** (#5239) an interrupted send or fetch, restarted, moves only objects not
   yet confirmed. The checkpoint is stored on the Mac for each (target, direction) and survives
   a restart of the app. *Data:* `<server state dir>/compute/<target_id>/checkpoint-<dir>.json`.
   *Test:* kill the carrier after 2 of 5 objects; restart; 3 objects move.
-- `compute.transfer.verified-on-arrival` — an object counts as arrived only after the receiving
+- `compute.transfer.verified-on-arrival` — **[GAP]** (#5239) an object counts as arrived only after the receiving
   side has re-hashed it and the hash matches; a mismatch deletes it and reports it, and a retry
   sends it again. Built for landing on disk (VERIFIED `library_sync_io.py:110-118`); this id
   extends it to the far side. *Test:* corrupt one object in flight on the fake carrier.
-- `compute.transfer.https-write-half` — the library sync routes gain `PUT` of an object and a
+- `compute.transfer.https-write-half` — **[GAP]** (#5239) the library sync routes gain `PUT` of an object and a
   commit, needing the write role, no more permissive than the sharing surface (the existing
   header rule of `api/routes/library/sync.py`). *Existing data:* the two read routes are
   unchanged. *Test:* a viewer's token is refused; an editor's succeeds; a partial upload is
   invisible until commit.
-- `compute.transfer.ssh-carrier` — over the one SSH connection, objects are written to
+- `compute.transfer.ssh-carrier` — **[GAP]** (#5239) over the one SSH connection, objects are written to
   `<base>/fichero/objects/<sha256>` by way of a temporary name and a rename, and "which do you
   have" is a listing. *Test:* against the SSH fixture.
-- `compute.transfer.stays-in-the-background` — hashing and sending run at background priority
+- `compute.transfer.stays-in-the-background` — **[GAP]** (#5239) hashing and sending run at background priority
   with at most a fixed number of objects in flight, and a 5 GB send does not raise the app's
   main-thread latency above the perf ratchet. *Test:* load leg (#4634).
-- `compute.transfer.progress-is-the-checkpoint` — the progress a person sees (objects and bytes
+- `compute.transfer.progress-is-the-checkpoint` — **[GAP]** (#5239) the progress a person sees (objects and bytes
   done of total) is read from the checkpoint, so it is right after a restart. *Test:* restart
   mid-send; the bar resumes at the same figure.
 
 ### After the work
 
-- `compute.transfer.far-side-cleaned` — when a job's results have landed, its folder on the
+- `compute.transfer.far-side-cleaned` — **[GAP]** (#5239) when a job's results have landed, its folder on the
   target is deleted and the deletion confirmed by listing. Shared objects are deleted when no
   unfinished job names them, or at once if the person chose "remove everything when done".
   A failure to delete is shown on the job as "could not remove *n* files from *target*", never
   ignored. *Test:* fixture: folder gone; with a read-only folder: the message appears.
-- `compute.transfer.says-what-it-cannot-vouch-for` — the sheet and the job's finished state
+- `compute.transfer.says-what-it-cannot-vouch-for` — **[GAP]** (#5239) the sheet and the job's finished state
   carry one sentence for cluster and Hugging Face targets: that the operator's backups and
   access are outside Fichero's reach. *Test:* pure.
 
 ### Landing
 
-- `compute.land.same-records-as-a-local-run` — a job's `records.jsonl` is written by the one
+- `compute.land.same-records-as-a-local-run` — **[GAP]** (#5239) a job's `records.jsonl` is written by the one
   export stream from a scratch collection the unchanged runner wrote into; no second writer of
   run output exists. *Data:* `iter_export_records`; the scratch package under the job's folder.
   *Test:* the same three-page workflow run on this Mac directly, and as a job on the `this-mac`
   target, leaves identical readings and identical ledger lines apart from ids and times.
-- `compute.land.ledger-lines-merge` — a job's `episodes.jsonl` lines are appended to the
+- `compute.land.ledger-lines-merge` — **[GAP]** (#5239) a job's `episodes.jsonl` lines are appended to the
   collection's ledger under their own `episode_id`s; a line whose id is already present is
   skipped. *Existing data:* the ledger is append-only and is never rewritten. *Test:* land
   twice; line count unchanged the second time; the training export
   (`episodes.export_training_pairs`) sees the remote calls.
-- `compute.land.only-the-mac-writes` — the far side produces a result package and never writes
+- `compute.land.only-the-mac-writes` — **[GAP]** (#5239) the far side produces a result package and never writes
   to a collection; every change is an audited action run by the Mac's server. *Test:* a result
   package that tries to name an action outside the allowed list for its job kind is refused
   whole.
-- `compute.land.allowed-actions-by-job-kind` — each job kind has a fixed list of actions its
+- `compute.land.allowed-actions-by-job-kind` — **[GAP]** (#5239) each job kind has a fixed list of actions its
   results may propose (a reading job: add a pass, add segments to that pass, add readings; a
   fine-tune: add a model file, add a card, add scores). Anything else refuses the package.
   *Data:* a table in code beside the job kinds. *Test:* one refusal for each kind.
-- `compute.land.server-sets-the-maker` — every landed action is stamped by the Mac's server as
+- `compute.land.server-sets-the-maker` — **[GAP]** (#5239) every landed action is stamped by the Mac's server as
   machine-made, with job id, target id, model card and version, and the sending person as
   responsible. A `created_by` or similar field inside the package is ignored. This is the rule
   of #4869 applied here. *Test:* a package claiming `created_by: human` lands as machine-made.
-- `compute.land.never-overwrites` — results arrive as a new pass or new readings; no existing
+- `compute.land.never-overwrites` — **[GAP]** (#5239) results arrive as a new pass or new readings; no existing
   pass, reading, segment or claim is changed or removed by landing. *Test:* land onto a source
   with a person's pass; that pass's rows are byte-identical afterwards.
-- `compute.land.idempotent` — every line has an id made from the job id and its position;
+- `compute.land.idempotent` — **[GAP]** (#5239) every line has an id made from the job id and its position;
   landing a package again adds nothing and reports "already landed". *Test:* land twice; row
   counts equal.
-- `compute.land.whole-source-or-none` — a failure while landing one source undoes that source's
+- `compute.land.whole-source-or-none` — **[GAP]** (#5239) a failure while landing one source undoes that source's
   lines and reports it; other sources stand; the job's state is *landed, with problems*.
   *Test:* inject a failure on the second of three sources.
-- `compute.land.stale-is-marked-not-refused` — a result computed from an earlier version of a
+- `compute.land.stale-is-marked-not-refused` — **[GAP]** (#5239) a result computed from an earlier version of a
   source lands as a new pass marked with the version it was computed from. *Data:* the version
   in each result line, against the segment versions of `source-model.md` slice 5. *Test:* edit
   a page after sending; the landed pass carries the old version and a visible mark.
-- `compute.land.orphans-set-aside` — a line whose source or segment no longer exists (and has
+- `compute.land.orphans-set-aside` — **[GAP]** (#5239) a line whose source or segment no longer exists (and has
   no forwarding note) is kept in `<server state dir>/compute/jobs/<job_id>/set-aside.jsonl`,
   counted on the job with the reason, and never dropped silently. *Test:* delete one of three
   sources while the job is away.
-- `compute.land.completed-means-landed` — a job is *done* only when its result package has been
+- `compute.land.completed-means-landed` — **[GAP]** (#5239) a job is *done* only when its result package has been
   fetched, verified and landed. Built as a pure rule for Slurm (VERIFIED
   `remote_jobs.py:281-293`); this id makes it true for every kind of target. *Test:* the state
   machine never reaches *done* from *finished there* without a landing record.
-- `compute.land.change-stream-tells-the-app` — landing emits the ordinary change events, so open
+- `compute.land.change-stream-tells-the-app` — **[GAP]** (#5239) landing emits the ordinary change events, so open
   windows show the new pass without a reload. *Test:* a subscriber sees one event for each
   source landed.
-- `compute.land.undoable-as-one` — a landed job can be undone as one step: its passes, readings
+- `compute.land.undoable-as-one` — **[GAP]** (#5239) a landed job can be undone as one step: its passes, readings
   and cards are removed by the inverse actions, and the audit log keeps both the landing and
   the undo. *Test:* land, undo, compare with the state before.
 

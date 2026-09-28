@@ -59,20 +59,20 @@ This supersedes `audit.blame-and-rollback-view` (#1691, #4636) in the action-lay
 
 ### A. Checked, not just written
 
-- `safety.record.verified-on-a-schedule`: the chain is verified in the background when a
+- `safety.record.verified-on-a-schedule` — **[GAP]** (#5247) the chain is verified in the background when a
   library is opened and at most once a day after, throttled, and on demand from Settings and
   the command line. The result is shown in Settings: "Record checked today, 09:14. 48,210
   entries. Intact." *Data:* none new; the verify function exists. *Test:* behaviour test that
   the open path calls it; load leg that it does not peg the machine on a million rows.
-- `safety.record.a-break-is-loud`: a failed check stops nothing and hides nothing. The app
+- `safety.record.a-break-is-loud` — **[GAP]** (#5247) a failed check stops nothing and hides nothing. The app
   says which entry and when, offers the snapshots from before that time, and the record keeps
   being written. Nothing is repaired automatically. *Test:* tamper with a row in a fixture;
   the sentence names it.
-- `safety.record.everything-that-matters-is-in-the-hash`: for new rows the hash also covers
+- `safety.record.everything-that-matters-is-in-the-hash` — **[GAP]** (#5247) for new rows the hash also covers
   which tool made the change and the sitting it belonged to. *Data:* a new chain mode number;
   old rows verify under their old mode, as legacy rows already do. *Existing data:* nothing is
   rehashed. *Test:* change the tool field on a new row; verification fails.
-- `safety.record.undone-is-worked-out`: whether a step has been taken back is worked out from
+- `safety.record.undone-is-worked-out` — **[GAP]** (#5247) whether a step has been taken back is worked out from
   the chain itself: a step is undone when a live reversal row points at it. The stored flag
   becomes a cache that can be rebuilt, never the truth. So it cannot be flipped without trace.
   *Existing data:* old flags agree with their chains or are rebuilt from them. *Test:* flip
@@ -80,17 +80,17 @@ This supersedes `audit.blame-and-rollback-view` (#1691, #4636) in the action-lay
 
 ### B. Small
 
-- `safety.record.rows-hold-what-happened-not-the-research`: a new record row holds the action,
+- `safety.record.rows-hold-what-happened-not-the-research` — **[GAP]** (#5247) a new record row holds the action,
   who, when, the run and sitting, the ids touched, the version numbers before and after, and
   small settings. It does not hold page text, note text, or whole rows of kinds that keep
   versions. A reversal returns to a version (`versions-and-restore.md`) instead of restoring a
   copy from the record. *Data:* the version store. *Existing data:* old rows keep their
   copies and their undo keeps working from them; nothing is rewritten. *Test:* edit a long
   transcription; the new record row is under a fixed small size and undo still works.
-- `safety.record.kinds-without-versions-keep-a-copy-beside`: a kind that has no version
+- `safety.record.kinds-without-versions-keep-a-copy-beside` — **[GAP]** (#5247) a kind that has no version
   history (a tag, a board position, a link) still needs its earlier state to be reversed. That
   state is small and is kept in the row's content part (see C). *Test:* undo a tag change.
-- `safety.record.never-trimmed`: once rows are small, the record is never trimmed or thinned.
+- `safety.record.never-trimmed` — **[GAP]** (#5247) once rows are small, the record is never trimmed or thinned.
   It is the library's memory of who did what. *Test:* a guardrail refuses a sweeper.
 
 ### C. The collision: words in a record that can never be rewritten
@@ -124,16 +124,16 @@ For **old rows**, whose content is inside the hash: they are left alone unless a
 one. Then the content is blanked, and the purge's own row lists the blanked entries, so the
 check reports them as "removed by a recorded purge" rather than as tampering.
 
-- `safety.record.content-sits-beside-the-chain`: as proposed above. *Data:* two parts per new
+- `safety.record.content-sits-beside-the-chain` — **[GAP]** (#5247) as proposed above. *Data:* two parts per new
   row; a new chain mode number. *Existing data:* old rows untouched until a purge reaches one.
   *Test:* blank a content part through the purge action: the chain verifies and reports one
   recorded removal; blank one by hand: the chain reports tampering.
-- `safety.record.the-fingerprint-cannot-be-guessed`: the fingerprint of a content part is
+- `safety.record.the-fingerprint-cannot-be-guessed` — **[GAP]** (#5247) the fingerprint of a content part is
   keyed with a random value of at least 128 bits, made per row, stored in the content part
   and blanked with it. *Test:* purge a row whose content was one common word; with the chained
   part alone, trying a word list finds no match; before the purge, with the content part
   present, verification still passes.
-- `safety.record.a-typed-reason-is-content`: a reason or note typed by a person with a step is
+- `safety.record.a-typed-reason-is-content` — **[GAP]** (#5247) a reason or note typed by a person with a step is
   content, not chained text. *Test:* it can be purged.
 
 **Where it stands.** The source-model set's author agreed this as the joint proposal on
@@ -143,42 +143,42 @@ are already outside the chain on their branch, so a purge can reach those today.
 
 ### D. Seeing who did what
 
-- `safety.record.a-history-of-the-library`: one view lists who changed what, newest first,
+- `safety.record.a-history-of-the-library` — **[GAP]** (#5247) one view lists who changed what, newest first,
   filtered by person, by kind of thing, by run, by date, or for one thing (the Inspector's
   History section links here). Each row is a sentence: "Ana moved Letter 12 to Box 3." Rows
   made by a machine say so and name the run. *Data:* the record, paged and filtered in the
   database; the name templates of `safety.undo.menu-names-the-step`. *Test:* the list equals
   the record under each filter; load leg.
-- `safety.record.you-see-what-you-may-see`: a row about a thing a person may not see is not
+- `safety.record.you-see-what-you-may-see` — **[GAP]** (#5247) a row about a thing a person may not see is not
   shown to them, names included. The #4917 rules apply to the record as to the thing. *Test:*
   deny a viewer on a folder; rows about its documents are absent from their list.
-- `safety.record.reverse-from-here`: from this view a person can take back an older step of
+- `safety.record.reverse-from-here` — **[GAP]** (#5247) from this view a person can take back an older step of
   their own, and an owner can reverse anyone's (`safety.undo.owner-may-reverse-anyone`), one
   chosen step at a time, under the same two locks. Reversing here is never bulk; bulk is a run's
   take-back. *Test:* in `undo.md`.
 
 ### E. The only record
 
-- `safety.record.one-record`: nothing new is written to the older mutation log. Its rows stay
+- `safety.record.one-record` — **[GAP]** (#5247) nothing new is written to the older mutation log. Its rows stay
   readable for ever. Its undo route first refuses what the action layer owns, naming the right
   route (#4864), then is removed once no client calls it. The 30-second matching goes with it.
   The merge audit stays as the merge's own working data (which aliases moved), reached only
   through the registry. *Existing data:* kept and readable; nothing converted. *Test:* an
   entity delete writes one row in one record; the older undo route refuses it by name.
-- `safety.record.one-reader-of-the-past`: "has a person touched this" is answered from the
+- `safety.record.one-reader-of-the-past` — **[GAP]** (#5247) "has a person touched this" is answered from the
   record, and from the older tables only for rows older than this slice. *Test:* the curation
   guard's tests pass with the mutation log empty for new rows.
-- `safety.record.every-change-is-in-it`: every route that changes a library goes through the
+- `safety.record.every-change-is-in-it` — **[GAP]** (#5247) every route that changes a library goes through the
   registry: the nine graph and entity routes (#4831), deleting a run, deleting a folder's
   contents, deleting a snapshot, schedules. The guardrail that checks this covers every route
   folder, not two. Deleting an account is outside any one library; it is recorded in the
   server's own record. *Test:* the guardrail at zero.
-- `safety.record.the-command-line-reads-it`: the command line's audit command reads this
+- `safety.record.the-command-line-reads-it` — **[GAP]** (#5247) the command line's audit command reads this
   record. *Test:* CLI leg.
 
 ### F. A standard form
 
-- `safety.record.reads-as-prov`: the record can be exported as W3C PROV with the library's
+- `safety.record.reads-as-prov` — **[GAP]** (#5247) the record can be exported as W3C PROV with the library's
   other linked-data exports. A row is an activity. The account is the agent: a person, or a
   software agent acting on behalf of the person who started it. A run is an activity that the
   rows were informed by. A thing at a version is an entity; the next version is a revision of

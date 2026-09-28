@@ -217,148 +217,148 @@ All untagged and unbuilt unless stated.
 
 ### Jobs
 
-- `compute.job.choose-where` — wherever a workflow can be run, the person can choose a target
+- `compute.job.choose-where` — **[GAP]** (#5240) wherever a workflow can be run, the person can choose a target
   from those that are green and able to run it; the default is this Mac. The choice can be
   saved as a collection's default only after a yes for that collection and target
   (`compute.leave.yes-is-recorded-and-scoped`). *Data:* `capabilities` of each target against
   the workflow's model cards. *Test:* a workflow needing an MLX-only model offers only this Mac,
   and says why the others are absent.
-- `compute.job.one-runner` — a `workflow` job runs the same workflow code, with the same step
+- `compute.job.one-runner` — **[GAP]** (#5240) a `workflow` job runs the same workflow code, with the same step
   semantics, as a run on the Mac. No separate runner exists. *Existing data:* the default
   `runner_command` in `build_remote_run_spec` (`remote_jobs.py:435-442`) is replaced by the
   image's "run a package" command. *Test:* the same three-page workflow on this Mac and in the
   cpu image yields identical readings.
-- `compute.job.one-state-machine` — every job, on every target, moves through the states above
+- `compute.job.one-state-machine` — **[GAP]** (#5240) every job, on every target, moves through the states above
   and no others; each change is stored and broadcast. *Data:* a `compute_jobs` table: job id,
   kind, collection id, target id, person, package manifest hash, state, state history, far-side
   ids, counts, reason. *Existing data:* none. *Test:* pure transitions; illegal ones raise.
-- `compute.job.done-means-landed` — see `compute.land.completed-means-landed`.
-- `compute.job.array-by-shard` — a `workflow` job over many sources is one Slurm array job, one
+- `compute.job.done-means-landed` — **[GAP]** (#5240) see `compute.land.completed-means-landed`.
+- `compute.job.array-by-shard` — **[GAP]** (#5240) a `workflow` job over many sources is one Slurm array job, one
   piece for each shard of a fixed number of sources; the number is a setting on the job with a
   default that amortises start-up. Built as a pure rule for one piece for each *file*
   (VERIFIED `api/routes/ai/hpc.py:298-301`); this changes the unit to a shard. *Test:* 1,000
   sources at 50 to a shard yields `--array=0-19`.
-- `compute.job.sparse-resubmit` — when some pieces fail, "Send the failed pieces again" submits
+- `compute.job.sparse-resubmit` — **[GAP]** (#5240) when some pieces fail, "Send the failed pieces again" submits
   only those indices. Built as a pure rule (VERIFIED `remote_jobs.py:310-344`). *Test:* fixture:
   pieces 3 and 7 of 10 fail; the re-submit names `3,7`; the other eight are not re-run and
   their results are landed once.
-- `compute.job.live-submit` — `SshCliSubmitter`'s `submit`, `poll` and `cancel` are
+- `compute.job.live-submit` — **[GAP]** (#5240) `SshCliSubmitter`'s `submit`, `poll` and `cancel` are
   implemented over the in-process SSH connection, and the `enabled` flag goes away: the guard
   against accidental submission is now the consent sheet and the owner role, not a constant.
   *Existing data:* `DryRunSubmitter` stays as the test fake; the dry-run route stays as "show
   me what will run". *Test:* fixture: submit returns the scheduler's job id; poll follows it to
   COMPLETED; cancel ends it.
-- `compute.job.poll-is-gentle` — polling a cluster is one `sacct` call for all of a person's
+- `compute.job.poll-is-gentle` — **[GAP]** (#5240) polling a cluster is one `sacct` call for all of a person's
   open jobs on that cluster, no more often than a stated interval (default 60 seconds), and
   stops when none are open. *Test:* three open jobs produce one call for each interval on the
   fixture's log.
-- `compute.job.queued-says-so` — a job waiting in a cluster's queue reads "Queued on *name*",
+- `compute.job.queued-says-so` — **[GAP]** (#5240) a job waiting in a cluster's queue reads "Queued on *name*",
   with the scheduler's estimated start if it gives one; it never reads "running". *Data:* the
   existing `QUEUED_SLURM_STATES` (VERIFIED `remote_jobs.py:267`). *Test:* pure.
-- `compute.job.fails-with-a-reason` — a failed job carries a reason from a fixed list (*out of
+- `compute.job.fails-with-a-reason` — **[GAP]** (#5240) a failed job carries a reason from a fixed list (*out of
   time*, *out of memory*, *node failed*, *a model was missing*, *the step refused: …*,
   *cancelled by the cluster*) and the last lines of the far side's output, fetched before the
   job folder is cleaned. *Data:* Slurm's state (`TIMEOUT`, `OUT_OF_MEMORY`, `NODE_FAIL`…;
   VERIFIED mapping `:246-263`) and the package mode's exit record. *Test:* one for each reason.
-- `compute.job.cancel-everywhere` — cancelling a job stops sending, cancels it on the target,
+- `compute.job.cancel-everywhere` — **[GAP]** (#5240) cancelling a job stops sending, cancels it on the target,
   fetches nothing more, cleans the far side, and lands nothing that was not already landed.
   *Test:* cancel in each state.
-- `compute.job.survives-the-app-quitting` — a job on a target carries on while the Mac sleeps
+- `compute.job.survives-the-app-quitting` — **[GAP]** (#5240) a job on a target carries on while the Mac sleeps
   or Fichero is closed; on next launch the state is caught up by one poll, and fetching and
   landing resume. *Test:* stop the server in `running`; restart; the job reaches `done`.
-- `compute.job.resources-from-the-card` — the GPU, memory and time a job asks for come from the
+- `compute.job.resources-from-the-card` — **[GAP]** (#5240) the GPU, memory and time a job asks for come from the
   model cards it uses and its size, shown and changeable before sending; they are never silent
   constants. On Alliance clusters the GPU is asked for by its model name (CITED, S7). *Data:*
   `SlurmJobConfig` (VERIFIED `remote_jobs.py:28-36`), filled from cards. *Test:* an 8B LoRA
   recipe proposes one GPU of at least 40 GB.
-- `compute.job.costs-shown-where-known` — for Hugging Face Jobs, the price for each hour of the
+- `compute.job.costs-shown-where-known` — **[GAP]** (#5240) for Hugging Face Jobs, the price for each hour of the
   chosen hardware is shown before sending, read from its API, and a time limit is always set
   explicitly because the service's default is 30 minutes (CITED, S12). *Test:* recorded API.
-- `compute.job.everywhere` — jobs can be listed, started, watched and cancelled from the app,
+- `compute.job.everywhere` — **[GAP]** (#5240) jobs can be listed, started, watched and cancelled from the app,
   MCP and the command line, with one exception: only a person in the app can say yes
   (`transfer-and-results.md`). *Test:* cross-surface invariant.
 
 ### Engines
 
-- `compute.engine.vllm-is-a-provider-row` — `vllm` is a provider kind, a peer of `omlx`, in the
+- `compute.engine.vllm-is-a-provider-row` — **[GAP]** (#5240) `vllm` is a provider kind, a peer of `omlx`, in the
   one provider list; it is *available* only where a CUDA GPU is. *Routed:* its row's look is
   `ai/ai-settings.md`'s. *Test:* on the Mac and the cpu image it reads unavailable with the
   reason.
-- `compute.engine.batch-runs-in-process` — inside a `workflow` job, a language or vision model
+- `compute.engine.batch-runs-in-process` — **[GAP]** (#5240) inside a `workflow` job, a language or vision model
   step runs through vLLM's offline mode in the job's own process: no port is opened, and the
   engine is started once for the piece, not once for a page. *Test:* the job's process list and
   sockets, read during the fixture run on a GPU machine (a named-machine test, see
   `compute.image.gpu-path-is-tested-somewhere-named`).
-- `compute.engine.kraken-and-layout-in-process` — Kraken and layout models are loaded directly
+- `compute.engine.kraken-and-layout-in-process` — **[GAP]** (#5240) Kraken and layout models are loaded directly
   in the job's process, on the GPU when there is one. *Test:* cpu image: Kraken reads one page.
-- `compute.engine.same-card-resolves-by-platform` — a card names the engines that can run it;
+- `compute.engine.same-card-resolves-by-platform` — **[GAP]** (#5240) a card names the engines that can run it;
   the same workflow resolves to MLX on the Mac and vLLM in the gpu image with no change to the
   workflow. A card no engine on the target can run refuses the job before sending.
   *Routed:* the card's fields are #4948's. *Test:* resolution table, pure.
-- `compute.engine.session-adds-and-removes-a-row` — a `session` job that reaches *ready* adds
+- `compute.engine.session-adds-and-removes-a-row` — **[GAP]** (#5240) a `session` job that reaches *ready* adds
   one provider row of kind `vllm`, named for the target and the model, addressed at the local
   end of the forward; it is removed when the session ends. It is not saved as a setting.
   *Test:* fixture with a stub OpenAI-style server in place of vLLM.
-- `compute.engine.session-serves-adapters` — a session can serve its base model with any of the
+- `compute.engine.session-serves-adapters` — **[GAP]** (#5240) a session can serve its base model with any of the
   person's adapters for that base, chosen as models of that row. *Test:* named-machine.
-- `compute.engine.session-passes-the-gate` — every request to a session's row passes the one
+- `compute.engine.session-passes-the-gate` — **[GAP]** (#5240) every request to a session's row passes the one
   egress gate like any model that is not on this Mac, so a collection marked "may not leave"
   cannot use it. *Test:* such a collection is refused with the collection's rule.
-- `compute.engine.no-gpu-fallback-is-named` — on a Linux machine with no GPU, language models
+- `compute.engine.no-gpu-fallback-is-named` — **[GAP]** (#5240) on a Linux machine with no GPU, language models
   run through llama.cpp and the row and every result say so; nothing silently runs on a CPU
   when a GPU was asked for. *Test:* a job asking for a GPU on the cpu image is refused.
 
 ### Fine-tuning
 
-- `compute.tune.input-is-a-training-set` — a training job's only data input is a training set
+- `compute.tune.input-is-a-training-set` — **[GAP]** (#5240) a training job's only data input is a training set
   as `source.train.*` defines it, made by that spec's code; this slice adds no second way to
   cut line pictures. *Routed:* #4947. *Test:* a training package holds exactly the training
   set's objects and its description.
-- `compute.tune.kraken-recognition` — a `train-kraken-recognition` job runs `ketos train` on the
+- `compute.tune.kraken-recognition` — **[GAP]** (#5240) a `train-kraken-recognition` job runs `ketos train` on the
   training set, from a base model card or from nothing, and returns the best model, its log,
   and character and word error rates on the held-out part. *Data:* the training set's split
   (`source.train.split-by-manuscript`). *Test:* a tiny set in the cpu image for two epochs
   yields a loadable `.mlmodel`.
-- `compute.tune.kraken-segmentation` — the same with `ketos segtrain`, and Kraken's line finder
+- `compute.tune.kraken-segmentation` — **[GAP]** (#5240) the same with `ketos segtrain`, and Kraken's line finder
   on the Mac can then be told to use that model rather than its built-in one. *Existing data:*
   pages segmented before are untouched; the trained model makes new passes. *Test:* as above,
   plus one page segmented on the Mac with the returned model.
-- `compute.tune.lora` — a `train-lora` job fine-tunes a base model named by card with LoRA
+- `compute.tune.lora` — **[GAP]** (#5240) a `train-lora` job fine-tunes a base model named by card with LoRA
   (QLoRA when the card and the target's memory call for it), from a recipe file that names
   rank, learning rate, epochs and the prompt form, and returns the adapter, its log and scores.
   A recipe is a shareable file in the sense of `source.recipe.is-a-file` (#4950). *Test:* a
   tiny model and a tiny set, in automation on CPU for a few steps, yields an adapter that
   loads; the full path is a named-machine test.
-- `compute.tune.survives-the-time-limit` — a training job longer than its time limit saves a
+- `compute.tune.survives-the-time-limit` — **[GAP]** (#5240) a training job longer than its time limit saves a
   checkpoint on the scheduler's warning signal, is re-queued under the same job id, and resumes
   from the checkpoint; the job's row reads "running (part 2)". *Test:* fixture with a
   two-minute limit and a trainer stub: the run completes across two parts with no repeated
   steps. Whether `ketos train` resumes by itself is UNVERIFIED (S18) and is checked when the
   slice is cut.
-- `compute.tune.model-comes-back-as-a-card` — a returned model lands as a model file and a card
+- `compute.tune.model-comes-back-as-a-card` — **[GAP]** (#5240) a returned model lands as a model file and a card
   in the one catalogue, naming its base, its training set, the job, the target, the recipe and
   its scores (`source.train.model-lineage`). It is a row under its provider like any downloaded
   model (`source.find.download-is-a-provider-row`). *Test:* after landing, the catalogue lists
   it with those fields.
-- `compute.tune.scored-against-your-own-pages` — on landing, the model is scored against the
+- `compute.tune.scored-against-your-own-pages` — **[GAP]** (#5240) on landing, the model is scored against the
   collection's ground truth beside its base model, and the card shows both. A model that is
   worse is shown as worse. *Routed:* the scoring is `source.train.measured`. *Test:* a
   deliberately bad model lands with a worse score displayed.
-- `compute.tune.not-default-until-chosen` — a returned model is never made a collection's
+- `compute.tune.not-default-until-chosen` — **[GAP]** (#5240) a returned model is never made a collection's
   default by landing; the person chooses it (`source.find.try-before-default`). *Test:* defaults
   unchanged after landing.
-- `compute.tune.adapter-always-returns` — a `train-lora` job always returns the adapter. A
+- `compute.tune.adapter-always-returns` — **[GAP]** (#5240) a `train-lora` job always returns the adapter. A
   merged model is returned only when asked for, because it is as large as the base. *Test:*
   result package contents for both choices.
-- `compute.tune.convert-for-mlx` — a merged model fetched to the Mac can be converted and
+- `compute.tune.convert-for-mlx` — **[GAP]** (#5240) a merged model fetched to the Mac can be converted and
   quantised for MLX, and then appears as a model of the MLX row. The convert step runs on the
   Mac only. **Its own slice; not promised until its test is green.** *Test:* a tiny merged
   model converts, loads in the MLX runtime, and answers one prompt.
-- `compute.tune.licence-carries` — a fine-tuned model's card carries its base model's licence
+- `compute.tune.licence-carries` — **[GAP]** (#5240) a fine-tuned model's card carries its base model's licence
   and licence class, and the training set's; publishing reads them. *Routed:*
   `source.model.licence-class`. *Test:* an adapter on a base with a bespoke licence is marked
   so.
-- `compute.tune.bootstrapped-data-is-marked` — if a training set includes readings made by a
+- `compute.tune.bootstrapped-data-is-marked` — **[GAP]** (#5240) if a training set includes readings made by a
   model rather than checked by a person, which `source.train.human-checked-by-default`
   allows only by a deliberate choice, the job's record and the card say how many, so a model
   taught by another model is never mistaken for one taught by a person. *Test:* counts on the
@@ -366,33 +366,33 @@ All untagged and unbuilt unless stated.
 
 ### Publishing (offered to the exporter and model-card specs)
 
-- `compute.publish.is-separate-and-asked-again` — publishing a dataset, adapter, model or card
+- `compute.publish.is-separate-and-asked-again` — **[GAP]** (#5240) publishing a dataset, adapter, model or card
   is always its own act with its own sheet (the four things above); a yes to *sending* never
   covers it. *Test:* a collection with a recorded send yes still gets the publish sheet.
-- `compute.publish.private-by-default` — a new repository is private unless the person chooses
+- `compute.publish.private-by-default` — **[GAP]** (#5240) a new repository is private unless the person chooses
   gated or public. *Test:* the create call's visibility.
-- `compute.publish.gated-is-offered` — "people I approve" makes a gated repository with manual
+- `compute.publish.gated-is-offered` — **[GAP]** (#5240) "people I approve" makes a gated repository with manual
   approval, and requests can be seen and answered from Fichero. *Test:* recorded API.
-- `compute.publish.builds-on-the-exporter` — a dataset is published by uploading the exporter's
+- `compute.publish.builds-on-the-exporter` — **[GAP]** (#5240) a dataset is published by uploading the exporter's
   Hugging Face bundle (`export.huggingface-dataset-ready-bundle`); no second emitter exists.
   *Test:* a guardrail: nothing under `compute/` writes Parquet.
-- `compute.publish.card-is-the-card` — the model card published is the catalogue's card
+- `compute.publish.card-is-the-card` — **[GAP]** (#5240) the model card published is the catalogue's card
   rendered in the Hub's form, with base model, training set, licence and the adapter library
   named as the Hub expects (CITED, S14); no second card is written by hand. *Test:* round trip
   of the rendered fields.
-- `compute.publish.zenodo-for-kraken` — a Kraken model or a ground-truth set can instead be
+- `compute.publish.zenodo-for-kraken` — **[GAP]** (#5240) a Kraken model or a ground-truth set can instead be
   deposited on Zenodo, with the metadata Kraken's own repository expects, and gets a DOI that
   the card then carries. *Test:* against Zenodo's sandbox.
-- `compute.publish.is-audited-and-says-what-cannot-be-undone` — a publish is an audited action
+- `compute.publish.is-audited-and-says-what-cannot-be-undone` — **[GAP]** (#5240) a publish is an audited action
   recording what, where, visibility and the answers given; "unpublish" is offered and described
   honestly as slow and possibly incomplete. *Test:* the audit record; the wording is present.
-- `compute.publish.token-is-narrow` — the Hugging Face token Fichero asks for is fine-grained,
+- `compute.publish.token-is-narrow` — **[GAP]** (#5240) the Hugging Face token Fichero asks for is fine-grained,
   limited to the person's own repositories, and lives in the one key store. *Test:* a broad
   token is accepted with a warning naming what is wider than needed.
 
 ## Accessibility identifiers
 
-- `compute.run.where` — the target chooser where a workflow is run; `compute.run.where.<id>`
+- `compute.run.where` — **[GAP]** (#5240) the target chooser where a workflow is run; `compute.run.where.<id>`
 - `compute.jobs.list`, `compute.job.row.<id>`, `compute.job.<id>.state`
 - `compute.job.<id>.cancel`, `.resend-failed`, `.show-output`, `.undo`
 - `compute.tune.start`, `compute.tune.recipe`, `compute.tune.base-model`

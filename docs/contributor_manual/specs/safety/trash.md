@@ -57,7 +57,7 @@ This is the Trash the app already promises in its delete dialog and does not hav
 
 ### A. What goes to the Trash
 
-- `safety.trash.the-rule`: a thing goes to the Trash when it is deleted if **a person can name
+- `safety.trash.the-rule` — **[GAP]** (#5243) a thing goes to the Trash when it is deleted if **a person can name
   it and would go looking for it**. Everything else is undo only. The kinds:
 
   | Goes to the Trash | Undo only |
@@ -81,14 +81,14 @@ This is the Trash the app already promises in its delete dialog and does not hav
   Trash. *Data:* a field on each delete action's registration says "trash" or "undo only";
   this is the same field as `safety.undo.every-action-says-how-it-comes-back`. *Test:* a
   guardrail: every delete action declares one of the two.
-- `safety.trash.one-shape-for-every-kind`: every Trash kind is soft-deleted the same way:
+- `safety.trash.one-shape-for-every-kind` — **[GAP]** (#5243) every Trash kind is soft-deleted the same way:
   when, by whom, and **with which step** (the id of the recorded step that trashed it, so a
   group deleted together is put back together). *Data:* three columns on each Trash kind's
   table; documents already have the first two. *Existing data:* rows without the columns are
   live; rows already soft-deleted (documents) keep their who and when and get no step id, so
   each is put back on its own. Nothing is rewritten. *Test:* delete one of each kind; each is
   in the Trash list with who and when.
-- `safety.trash.deleted-runs-join-it`: a deleted workflow run goes to the Trash with its
+- `safety.trash.deleted-runs-join-it` — **[GAP]** (#5243) a deleted workflow run goes to the Trash with its
   events intact; the delete is a recorded action (#4960; the engine half has landed on the
   integration branch as a soft delete with events kept, which is exactly what the Trash
   needs). What is left for this slice: the run appears in the Trash list; Put Back is a
@@ -97,23 +97,23 @@ This is the Trash the app already promises in its delete dialog and does not hav
   *Existing data:* runs already marked deleted appear in the Trash on first open. *Test:*
   delete a run; the activity window no longer lists it; the Trash does; Put Back returns it
   with every event.
-- `safety.trash.no-hard-delete-by-folder`: deleting a folder of workflows, searches or
+- `safety.trash.no-hard-delete-by-folder` — **[GAP]** (#5243) deleting a folder of workflows, searches or
   conversations is the same recorded Trash action as any folder. The unrecorded hard delete is
   removed. *Test:* delete such a folder with contents; all of it is in the Trash under one
   step; Put Back returns all of it.
-- `safety.trash.one-delete-path`: the sidebar, the Library pane, the menu, the keyboard
+- `safety.trash.one-delete-path` — **[GAP]** (#5243) the sidebar, the Library pane, the menu, the keyboard
   (Command-Delete), Shortcuts, the command line and agents all call the same action for a kind.
   *Test:* the availability leg finds one call site per kind.
 
 ### B. Out of the way while it is there
 
-- `safety.trash.every-read-leaves-it-out`: a thing in the Trash appears in no list, count,
+- `safety.trash.every-read-leaves-it-out` — **[GAP]** (#5243) a thing in the Trash appears in no list, count,
   search, graph, dataset, chat context or export. Reads go through one seam that leaves trashed
   rows out unless the caller asks for the Trash by name. *Why a seam:* the defect found twice
   already (#4960, and documents in exports) is a mark that is written and not read. *Data:*
   none new. *Test:* for each Trash kind, a behaviour test per read surface; and a guardrail
   that refuses a query on a Trash kind's table that names neither the seam nor the Trash.
-- `safety.trash.dependants-go-with-their-source`: while a document is in the Trash:
+- `safety.trash.dependants-go-with-their-source` — **[GAP]** (#5243) while a document is in the Trash:
   its **statements** that rest only on it are out of view; a statement that rests on other
   sources too stays, and shows that one of its sources is in the Trash; its **search entries**
   are left out of results; its **segments, artifacts, annotations and notes** are out of view
@@ -126,78 +126,78 @@ This is the Trash the app already promises in its delete dialog and does not hav
   *Test:* trash a document: its only-here statements vanish from the table and the graph, a
   two-source statement stays with a mark, search no longer finds its text; Put Back: all of it
   returns, row for row identical.
-- `safety.trash.curated-work-is-never-hidden-silently`: when a delete will take
+- `safety.trash.curated-work-is-never-hidden-silently` — **[GAP]** (#5243) when a delete will take
   person-curated statements or notes out of view, the short notice after the delete says how
   many. *Test:* the notice for a document with curated statements names the count.
 
 ### C. The Trash screen
 
-- `safety.trash.a-place-in-the-sidebar`: the Trash is a row at the foot of the library's
+- `safety.trash.a-place-in-the-sidebar` — **[GAP]** (#5243) the Trash is a row at the foot of the library's
   sidebar. It opens in the Library like any folder: every view mode, search within it, sorting
   by when deleted and by whom. Things in it can be looked at (Quick Look, the Source view, the
   Reader) and cannot be edited. *Test:* availability; click-around.
-- `safety.trash.put-back`: Put Back returns a thing to where it came from, with everything
+- `safety.trash.put-back` — **[GAP]** (#5243) Put Back returns a thing to where it came from, with everything
   that was deleted with it, as one recorded step that can be undone. If its folder is also in
   the Trash, the app offers to put the folder back too. If its folder is gone for good, it
   returns to the top of the library and the notice says so. *Test:* each of the three cases.
-- `safety.trash.delete-is-not-confirmed`: sending a thing to the Trash does not ask first. It
+- `safety.trash.delete-is-not-confirmed` — **[GAP]** (#5243) sending a thing to the Trash does not ask first. It
   is reversible, and a short notice offers Undo. The only questions asked are before Empty
   Trash and Delete Permanently. The present dialogs for reversible deletes are removed; the
   one exception is a delete that reaches a linked original on disk, which keeps its sentence
   that the original file stays. *Test:* click-around: delete shows no dialog; the notice
   appears; Undo returns it.
-- `safety.trash.it-is-the-librarys-trash`: this is not the Mac's Trash. It lives in the
+- `safety.trash.it-is-the-librarys-trash` — **[GAP]** (#5243) this is not the Mac's Trash. It lives in the
   library, on whatever machine the engine runs, and looks the same from every device. No local
   file path is involved. *Test:* delete from the Mac; the iPad shows it in the Trash.
 
 ### D. Emptying
 
-- `safety.trash.empty-says-what-will-go`: Empty Trash and Delete Permanently first show what
+- `safety.trash.empty-says-what-will-go` — **[GAP]** (#5243) Empty Trash and Delete Permanently first show what
   will be destroyed, in numbers: documents, pages, statements and notes that rest only on them,
   and stored files with their total size. The button says "Delete Permanently". *Test:* the
   sheet's numbers equal what is then removed.
-- `safety.trash.empty-removes-everything-and-only-that`: emptying removes the rows, the
+- `safety.trash.empty-removes-everything-and-only-that` — **[GAP]** (#5243) emptying removes the rows, the
   dependants that rest only on them, the search entries, the derived images, **and the stored
   original files** (today nothing ever removes those). A stored file shared by a live document
   is kept. A statement that rests on other sources too is kept, and says its evidence from the
   removed source is gone. *Data:* storage gains a delete that goes through the storage layer,
   never a file path. *Test:* empty; rows, vectors and bytes are gone; a shared file remains;
   a two-source statement remains with a stated absence.
-- `safety.trash.empty-cannot-be-undone-and-says-so`: emptying is a recorded step that cannot
+- `safety.trash.empty-cannot-be-undone-and-says-so` — **[GAP]** (#5243) emptying is a recorded step that cannot
   be reversed. A snapshot is taken first (`safety-net.md`); if it cannot be taken, emptying is
   refused. The record keeps a note for each thing removed: its name, kind, who, when. No
   content. This is the same shape as the source-model set's purge of a segment, and should be
   one action family with it. *Test:* empty with no room for a snapshot: refused, nothing
   removed.
-- `safety.trash.never-empties-itself`: nothing is removed from the Trash by age. There is no
+- `safety.trash.never-empties-itself` — **[GAP]** (#5243) nothing is removed from the Trash by age. There is no
   setting for it. The Trash shows its size so a person can decide. *Test:* none needed beyond
   the absence of a sweeper; a guardrail refuses one.
 
 ### E. Shared libraries
 
-- `safety.trash.you-see-what-you-could-see`: a person sees in the Trash exactly the things
+- `safety.trash.you-see-what-you-could-see` — **[GAP]** (#5243) a person sees in the Trash exactly the things
   they could see before deletion. The #4917 access rules apply to the Trash list, to looking at
   a trashed thing, and to Put Back: a restriction on a document reaches it in the Trash too. A
   viewer can look and cannot put back. *Test:* deny a viewer on a folder; trash a document in
   it; the viewer's Trash does not list it.
-- `safety.trash.who-may-put-back`: anyone who may edit the place a thing came from may put it
+- `safety.trash.who-may-put-back` — **[GAP]** (#5243) anyone who may edit the place a thing came from may put it
   back, whoever deleted it. *Test:* A deletes, B puts back; the record names both.
-- `safety.trash.who-may-empty`: a person may permanently delete what **they** sent to the
+- `safety.trash.who-may-empty` — **[GAP]** (#5243) a person may permanently delete what **they** sent to the
   Trash. Only the library's owner may empty everything. An AI agent's account may send things
   to the Trash and may never empty or delete permanently. *Data:* who deleted is already
   stored and is now consulted. *Test:* editor B cannot permanently delete A's trashed
   document; the owner can; an agent's attempt is refused.
-- `safety.trash.an-agent-deletes-softly`: for an agent's account and for a workflow run, every
+- `safety.trash.an-agent-deletes-softly` — **[GAP]** (#5243) for an agent's account and for a workflow run, every
   delete of any kind is soft, even of "undo only" kinds, so a batch can be reviewed and put
   back (`run-take-back.md`). *Test:* an agent deletes a statement; it is recoverable from the
   run's take-back.
 
 ### F. From everywhere
 
-- `safety.trash.command-line-and-agents`: list the Trash, put back, and (for a person's
+- `safety.trash.command-line-and-agents` — **[GAP]** (#5243) list the Trash, put back, and (for a person's
   account only) delete permanently, from the command line and the agent tools, through the
   same actions. *Test:* CLI and MCP legs.
-- `safety.trash.shortcuts-ask-first`: the Shortcuts delete action sends to the Trash and
+- `safety.trash.shortcuts-ask-first` — **[GAP]** (#5243) the Shortcuts delete action sends to the Trash and
   needs no confirmation; no Shortcuts action empties the Trash. This answers the open half of
   #3304. *Test:* the intent calls the Trash action.
 

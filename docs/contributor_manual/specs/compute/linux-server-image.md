@@ -128,103 +128,103 @@ All untagged and unbuilt unless stated. "Data" names what the behaviour reads or
 
 ### The image
 
-- `compute.image.one-recipe-two-images` — one Dockerfile builds a **cpu** image (`linux/arm64`
+- `compute.image.one-recipe-two-images` — **[GAP]** (#5241) one Dockerfile builds a **cpu** image (`linux/arm64`
   and `linux/amd64`) and a **gpu** image (`linux/amd64`). The dependency list is the server's
   own `pyproject.toml`; the GPU additions are one named extra in that same file. *Data:*
   `fichero-server/docker/Dockerfile`, `fichero-server/pyproject.toml`. *Existing data:* the
   present Dockerfile is edited in place, not replaced. *Test:* a guardrail fails if the
   Dockerfile installs a package that `pyproject.toml` does not name.
-- `compute.image.same-api` — the image serves the same OpenAPI contract as the Mac engine of
+- `compute.image.same-api` — **[GAP]** (#5241) the image serves the same OpenAPI contract as the Mac engine of
   the same version. *Data:* `fichero-server/tests/contracts/openapi.json`. *Test:* in
   automation, the contract fetched from the running container equals the committed one.
-- `compute.image.kraken-built-in` — Kraken is present when the container starts; no step at
+- `compute.image.kraken-built-in` — **[GAP]** (#5241) Kraken is present when the container starts; no step at
   run time installs it. *Data:* the image's Python environment; `llm/kraken_runtime.py`'s
   "is it installed" answer. *Existing data:* on the Mac nothing changes; Kraken there is still
   installed on request. *Test:* with the network off, the container segments one page.
-- `compute.image.no-weights-no-secrets-no-data` — the published image contains no model
+- `compute.image.no-weights-no-secrets-no-data` — **[GAP]** (#5241) the published image contains no model
   weights, no credential and no research data. *Test:* automation scans the image's layers for
   files over a size limit with model extensions (`.mlmodel`, `.safetensors`, `.gguf`, `.pt`)
   and for the token file name, and fails on any.
-- `compute.image.reports-what-it-can-run` — the health route gains a `capabilities` object:
+- `compute.image.reports-what-it-can-run` — **[GAP]** (#5241) the health route gains a `capabilities` object:
   platform, architecture, GPU present and its memory, and for each provider kind *available*
   or *unavailable, and why* ("MLX needs Apple silicon"). The app shows it on the target's row.
   *Data:* `GET /api/health` (the existing `remote_backend` block is where this joins; VERIFIED
   `remote-backend-acenet.md:127-139`). *Existing data:* the Mac engine reports the same object,
   so one Swift type reads both. *Test:* on the cpu image, `apple` and `omlx` read unavailable
   with a reason, `kraken` and `spacy` read available, `gpu` is false.
-- `compute.image.unavailable-is-refused-not-crashed` — asking the Linux server for an Apple or
+- `compute.image.unavailable-is-refused-not-crashed` — **[GAP]** (#5241) asking the Linux server for an Apple or
   MLX provider returns a typed refusal naming the reason; it never raises an import error and
   never silently uses another model (the project's rule: prefer raise over silent fallback).
   *Data:* the provider resolution in `llm/providers.py`. *Test:* a workflow that names an MLX
   model, sent to the cpu image, fails at the step with that refusal, and the job's state says
   so.
-- `compute.image.loopback-by-default` — started with no settings, the server in the image
+- `compute.image.loopback-by-default` — **[GAP]** (#5241) started with no settings, the server in the image
   listens on `127.0.0.1` only. The Dockerfile bakes in no "listen everywhere" setting.
   *Existing data:* the three `ENV` lines at `Dockerfile:61-63` are removed. *Test:* the
   container's listening sockets, read from inside it, show loopback only.
-- `compute.image.never-a-public-port` — the start command Fichero issues on a Linux machine
+- `compute.image.never-a-public-port` — **[GAP]** (#5241) the start command Fichero issues on a Linux machine
   maps the port to that machine's loopback, never to all interfaces. *Data:* the command text
   produced by the install step (`targets-and-connection.md`). *Test:* a pure test on the
   command builder: the published-port argument always begins `127.0.0.1:`.
-- `compute.image.non-loopback-needs-a-paired-token` — a request arriving through a port
+- `compute.image.non-loopback-needs-a-paired-token` — **[GAP]** (#5241) a request arriving through a port
   mapping carries a paired device's token or is refused `403`; the bootstrap token is not
   accepted from there. Built today (VERIFIED `api/auth.py:732-735`); this id exists so a test
   pins it *for the container case*. *Test:* in automation, a request to the mapped port with
   the bootstrap token is refused; with a paired token it succeeds.
-- `compute.image.runs-offline` — with the network switched off inside the container, the
+- `compute.image.runs-offline` — **[GAP]** (#5241) with the network switched off inside the container, the
   server starts, reports healthy, and runs a job whose models are in the mounted cache.
   *Test:* automation runs the container with no network (`--network none` for the job mode)
   and `HF_HUB_OFFLINE=1`.
-- `compute.image.run-a-package-mode` — started in "run a package" mode with a folder, the
+- `compute.image.run-a-package-mode` — **[GAP]** (#5241) started in "run a package" mode with a folder, the
   image opens no port, runs the package with the one workflow runner, writes a result package
   into the same folder, and exits `0` on success, non-zero with a written reason on failure.
   *Data:* the work package and result package of `transfer-and-results.md`. *Test:* a tiny
   package (one page, Kraken line-finding) in, a result package out, no listening socket at any
   point.
-- `compute.image.runs-as-an-ordinary-user` — the image runs as a non-root user and writes only
+- `compute.image.runs-as-an-ordinary-user` — **[GAP]** (#5241) the image runs as a non-root user and writes only
   under the folders it is given. Built in the present Dockerfile (VERIFIED `:52-55`); Apptainer
   runs a container as the calling user, so the same must hold there. *Test:* under Apptainer in
   automation, with a read-only image and one writable folder, the tiny job succeeds.
-- `compute.image.converts-to-apptainer` — `apptainer build` from the published image yields a
+- `compute.image.converts-to-apptainer` — **[GAP]** (#5241) `apptainer build` from the published image yields a
   single file that runs the same tiny job, with `--nv` adding the GPU where there is one.
   *Test:* automation builds the file from the just-built cpu image and runs the tiny job under
   Apptainer (CITED, S18).
 
 ### Built and tested with no person involved
 
-- `compute.image.ci-builds-both` — on every change under `fichero-server/` or the Dockerfile,
+- `compute.image.ci-builds-both` — **[GAP]** (#5241) on every change under `fichero-server/` or the Dockerfile,
   automation builds the cpu image on a native `arm64` machine and a native `amd64` machine, and
   the gpu image on `amd64`, with no emulation (CITED, S17). *Data:* a new workflow file under
   `.github/workflows/`. *Test:* the workflow itself; a guardrail checks it exists and names
   both architectures.
-- `compute.image.ci-smoke` — for each built image, automation: starts it; polls `/api/health`
+- `compute.image.ci-smoke` — **[GAP]** (#5241) for each built image, automation: starts it; polls `/api/health`
   until healthy or a stated time limit; checks `capabilities`; pairs a client; sends the tiny
   job; checks the result package; stops the container; and fails the build on any step, naming
   the step. *Test:* as stated.
-- `compute.image.ci-fits-the-build-machine` — the gpu image builds within the disk a free build
+- `compute.image.ci-fits-the-build-machine` — **[GAP]** (#5241) the gpu image builds within the disk a free build
   machine offers (about 14 GB; CITED, S17), using the CUDA *runtime* base, not the development
   one. If it cannot, that is reported as a finding with the measured sizes, and the choice of a
   larger build machine or a third image goes to the maintainer. *Test:* the build records the
   final image size as an artefact; a guardrail fails if it grows past a stated budget.
-- `compute.image.gpu-path-is-tested-somewhere-named` — free build machines have no GPU, so the
+- `compute.image.gpu-path-is-tested-somewhere-named` — **[GAP]** (#5241) free build machines have no GPU, so the
   gpu image's GPU paths (vLLM loading a model, one LoRA step) are **not** proven by the
   automation above. The spec for a release names where they were proven (a named machine, a
   date, the image's digest) or says "not proven on a GPU". *Data:* a line in the release
   record. *Test:* a release guardrail refuses a release record with neither.
-- `compute.image.published-only-after-smoke` — an image is published only by the workflow that
+- `compute.image.published-only-after-smoke` — **[GAP]** (#5241) an image is published only by the workflow that
   smoke-tested it, from the same build, and carries build provenance. *Routed:* the where and
   the version number are `harness/release-and-versioning.md`'s.
 
 ### The stand-in on the maintainer's Mac
 
-- `compute.image.local-stand-in` — the cpu image, run under Docker Desktop on an Apple-silicon
+- `compute.image.local-stand-in` — **[GAP]** (#5241) the cpu image, run under Docker Desktop on an Apple-silicon
   Mac, is a complete compute target for the purpose of trying the whole loop. It has no GPU
   that PyTorch can use, and its row says "No GPU" (CITED, S16). *Test:* the click-around leg in
   `targets-and-connection.md` (`compute.target.add-local-container`).
 
 ### No second way to install the engine
 
-- `compute.image.the-image-is-the-only-install` — on a target, the engine is only ever the
+- `compute.image.the-image-is-the-only-install` — **[GAP]** (#5241) on a target, the engine is only ever the
   published image (run by Docker, or as an Apptainer file). Fichero never builds a Python
   environment on a target from a list of packages. *Why:* a cluster's own package builds differ
   from cluster to cluster (CITED, S5) and cannot be tested by the project's automation.

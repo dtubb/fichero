@@ -132,12 +132,12 @@ All untagged and unbuilt unless stated.
 
 ### The list
 
-- `compute.target.one-list` — compute targets live in one list, read and written through one
+- `compute.target.one-list` — **[GAP]** (#5238) compute targets live in one list, read and written through one
   set of routes (`/api/compute/targets`), with `kind` telling them apart. *Data:* one app-wide
   settings value `compute.targets` (JSON, keyed by `target_id`), the same shape of storage the
   clusters use today; a table only when #2573 needs it. *Existing data:* see the next line.
   *Test:* save, list, read, delete for each kind; owner required for save and delete.
-- `compute.target.saved-clusters-carry-over` — on first read after the change, every entry
+- `compute.target.saved-clusters-carry-over` — **[GAP]** (#5238) on first read after the change, every entry
   under `hpc.clusters` becomes a target of kind `slurm-cluster` with the **same id**, its
   `host_alias` kept as the SSH host, `credential_ref` empty (so its row reads "Needs a key"),
   and the old value is left in place until one successful save of the new one, then removed.
@@ -145,59 +145,59 @@ All untagged and unbuilt unless stated.
   no alias is kept (foundation question 14). *Existing data:* converted, never dropped.
   *Test:* a settings table seeded with two old clusters yields two targets with the same ids;
   a second read changes nothing; a malformed old value is reported and left untouched.
-- `compute.target.this-mac-is-a-target` — a target of kind `this-mac` always exists, cannot be
+- `compute.target.this-mac-is-a-target` — **[GAP]** (#5238) a target of kind `this-mac` always exists, cannot be
   removed, and runs a job by the same steps as any other target, with a local folder as the far
   side. *Data:* `<server state dir>/compute/this-mac/`. *Test:* the whole job loop in `pytest`
   with no network and no container.
-- `compute.target.no-secret-in-the-record` — a target record holds the name of a secret and
+- `compute.target.no-secret-in-the-record` — **[GAP]** (#5238) a target record holds the name of a secret and
   never the secret; the routes never return one; the change broadcast never carries one.
   *Test:* save a target with a credential; assert the stored JSON, the route's answer, the
   `compute.updated` event and the server log contain no part of it.
-- `compute.target.lives-in-ai-settings` — targets appear in Settings, AI, in a section titled
+- `compute.target.lives-in-ai-settings` — **[GAP]** (#5238) targets appear in Settings, AI, in a section titled
   "Where work runs", as rows that each carry their own controls, in the way provider rows do
   (`settings.provider-detail-carries-its-own-controls`). *Routed:* the section's place in the
   window is `ai/ai-settings.md`'s. *Test:* availability leg: the section and its Add control are
   reachable.
-- `compute.target.change-is-audited-and-undoable` — adding, changing and removing a target are
+- `compute.target.change-is-audited-and-undoable` — **[GAP]** (#5238) adding, changing and removing a target are
   registered actions with an inverse; "check" and "install" are recorded as non-undoable, by
   name, with the reason. This closes the part of #4907 that concerns these routes. *Test:*
   `scripts/check_undo_coverage.py` is green for every `/api/compute/*` route.
 
 ### Checking
 
-- `compute.connect.check-really-checks` — "Check" reaches the target and reports what answered.
+- `compute.connect.check-really-checks` — **[GAP]** (#5238) "Check" reaches the target and reports what answered.
   `ok` is true only if every step for that kind (the table above) succeeded just now. The
   answer lists each step with *passed*, *failed: reason* or *not tried*. It never returns a
   command it "would" run as if that were a result. *Existing data:* the present dishonest
   `test` route is replaced by this one. *Test:* against the SSH-and-Slurm fixture: all pass; with
   the fixture's scheduler stopped: SSH passes, `sinfo` fails, `ok` is false.
-- `compute.connect.dot-means-checked` — a row is green only when the last check passed **and**
+- `compute.connect.dot-means-checked` — **[GAP]** (#5238) a row is green only when the last check passed **and**
   is recent; otherwise it shows when it last passed, or what failed. Opening Settings does not
   by itself contact a cluster (that would trigger a second-factor prompt). *Test:* pure Swift
   rule over `last_checked` and `last_result`.
-- `compute.connect.version-must-match` — work is refused on a target whose server version is
+- `compute.connect.version-must-match` — **[GAP]** (#5238) work is refused on a target whose server version is
   not this app's engine version, with a message naming both and offering "Update". *Data:* the
   version stamp both sides already carry (`harness/release-and-versioning.md`). *Test:* a fake
   target reporting another version refuses a job before anything is sent.
 
 ### A Linux machine
 
-- `compute.target.add-linux-machine` — adding a Linux machine takes: a name, an SSH host, a
+- `compute.target.add-linux-machine` — **[GAP]** (#5238) adding a Linux machine takes: a name, an SSH host, a
   user. Fichero makes the key, shows the public half and where to put it, waits for "Done",
   then checks. *Test:* click-around against a local SSH container.
-- `compute.connect.install-on-linux-machine` — "Install" pulls the image of this engine
+- `compute.connect.install-on-linux-machine` — **[GAP]** (#5238) "Install" pulls the image of this engine
   version, starts it with the port mapped to `127.0.0.1` on that machine and a data folder
   mounted, reads back a one-time pairing link from the container, pairs, and stores the paired
   token as the target's API credential. If Docker is missing it stops at the first step and
   says "Docker is not installed on *host*"; Fichero installs neither Docker nor Tailscale.
   *Test:* in automation, against a Docker-in-Docker host: ends paired and green; with Docker
   absent: stops with that message and changes nothing.
-- `compute.connect.reach-by-tailnet-or-forward` — if the machine's tailnet name is given and
+- `compute.connect.reach-by-tailnet-or-forward` — **[GAP]** (#5238) if the machine's tailnet name is given and
   answers, Fichero uses `https://<name>` through `tailscale serve`, as the transport rules
   allow; otherwise it opens and keeps an SSH forward to the machine's loopback. It never uses
   `tailscale funnel` and never asks the machine to listen on a public interface. *Test:* pure
   test on the choice; a guardrail greps the install commands for `funnel` and `0.0.0.0`.
-- `compute.target.add-local-container` — "This Mac, in a container (for testing)" is one
+- `compute.target.add-local-container` — **[GAP]** (#5238) "This Mac, in a container (for testing)" is one
   button: it needs Docker Desktop running, fetches the cpu image, starts it, pairs, and ends
   green with "No GPU". If the sandboxed build may not drive Docker (foundation question 9), the
   same sheet instead shows one command with a Copy button and an address field. *Test:* the
@@ -205,39 +205,39 @@ All untagged and unbuilt unless stated.
 
 ### A Slurm cluster
 
-- `compute.secret.fichero-makes-the-key` — for an SSH target Fichero makes an Ed25519 key pair;
+- `compute.secret.fichero-makes-the-key` — **[GAP]** (#5238) for an SSH target Fichero makes an Ed25519 key pair;
   the private half is stored only in the one key store (`ai/provider-keys.md`); the public half
   is shown with Copy, and can be shown again. Removing the target deletes the private half.
   *Existing data:* none; saved clusters have no key and read "Needs a key". *Test:* create,
   read public half twice (same), remove target, assert the secret is gone.
-- `compute.connect.ssh-in-process` — the server connects over SSH itself and does not run the
+- `compute.connect.ssh-in-process` — **[GAP]** (#5238) the server connects over SSH itself and does not run the
   system's `ssh`, so it works inside the app's sandbox. *Existing data:*
   `remote_jobs.build_ssh_command` and the three `*_command` builders stay as the **description**
   of what is run (they are what "show me what will run" displays) but are no longer the way it
   is run. *Test:* in the sandboxed build, a check against the SSH fixture passes.
-- `compute.connect.second-factor-passes-through` — when the far side asks for a second factor,
+- `compute.connect.second-factor-passes-through` — **[GAP]** (#5238) when the far side asks for a second factor,
   Fichero shows the far side's own prompt text and waits for the person; it stores no factor;
   a refusal or a time-out ends the attempt with that reason. *Test:* the SSH fixture configured
   with a keyboard-interactive second step: the prompt text reaches the caller; a wrong answer
   yields a typed failure.
-- `compute.connect.one-connection-reused` — all commands to one cluster go through one open
+- `compute.connect.one-connection-reused` — **[GAP]** (#5238) all commands to one cluster go through one open
   connection, so the person is asked for a second factor once for each working session. When
   it drops, anything that needs it pauses with "Sign in to *name* again"; jobs already on the
   cluster are unaffected. *Test:* ten commands, one authentication on the fixture's log; drop
   the connection mid-poll: job state becomes *waiting for sign-in*, not *failed*.
-- `compute.connect.automation-host-optional` — a cluster target may name an automation host.
+- `compute.connect.automation-host-optional` — **[GAP]** (#5238) a cluster target may name an automation host.
   Then submit, poll and fetch use it with the restricted key and need no person; sessions and
   anything needing a forward still use the ordinary login. *Test:* with the fixture's
   restricted-key account: submit and fetch pass; opening a forward is refused and reported as
   "this cluster's automation path does not allow sessions".
-- `compute.connect.stage-on-the-login-node` — "Install" on a cluster runs on a login node:
+- `compute.connect.stage-on-the-login-node` — **[GAP]** (#5238) "Install" on a cluster runs on a login node:
   fetch the image of this version as `<base>/fichero/images/<version>.sif`; create
   `<base>/fichero/models/` and `<base>/fichero/jobs/`. It starts nothing, and it does no work
   there beyond the fetch. If the cluster refuses the fetch on a login node, Fichero says so and
   offers to upload a `.sif` from the Mac instead (UNVERIFIED whether Alliance login nodes permit
   the fetch; S1). *Test:* on the fixture: the three paths exist afterwards; a second install is
   a no-op.
-- `compute.connect.models-staged-before-a-job` — a model a job needs is fetched into the
+- `compute.connect.models-staged-before-a-job` — **[GAP]** (#5238) a model a job needs is fetched into the
   target's model cache from a login node **before** the job is submitted, never from inside the
   job. The card's licence rule applies to this fetch exactly as to a fetch on the Mac. *Test:*
   a job naming an absent model triggers one staging step first; with the fixture's compute
@@ -245,37 +245,37 @@ All untagged and unbuilt unless stated.
 
 ### Hugging Face
 
-- `compute.target.add-huggingface` — adding Hugging Face takes a fine-grained token. Check
+- `compute.target.add-huggingface` — **[GAP]** (#5238) adding Hugging Face takes a fine-grained token. Check
   reports the account name, whether the token may run jobs and write to the person's own
   repositories, and whether there is credit. The token is a secret in the one key store.
   *Test:* against a recorded API: a read-only token reads "cannot run jobs".
-- `compute.target.huggingface-says-where` — the Hugging Face target's `operator_note` is fixed
+- `compute.target.huggingface-says-where` — **[GAP]** (#5238) the Hugging Face target's `operator_note` is fixed
   text: a company in the United States; material sent is held on its servers. The consent
   sheet shows it. *Test:* pure.
 
 ### Sessions
 
-- `compute.session.is-a-job-with-a-clock` — starting a session submits a job with a time limit
+- `compute.session.is-a-job-with-a-clock` — **[GAP]** (#5238) starting a session submits a job with a time limit
   the person chose (default 3 hours, because short interactive jobs start soonest; CITED, S2).
   The row shows *queued*, *starting*, *ready, time left*, *ended*. *Data:* a job record of kind
   `session` (see `jobs-and-fine-tuning.md`). *Test:* fixture: states in order; the clock counts
   from the scheduler's start time, not the submit time.
-- `compute.session.forward-to-loopback` — a session's model server listens on the compute
+- `compute.session.forward-to-loopback` — **[GAP]** (#5238) a session's model server listens on the compute
   node's loopback. Fichero reaches it by a forward that jumps through the login node to that
   node. If the cluster does not allow that jump, the session is refused with that reason; the
   server is **not** made to listen more widely as a way round it. *Test:* fixture: the
   forward works; the model server's socket is loopback only.
-- `compute.session.ends-cleanly` — when a session ends (time limit, cancel, or the cluster
+- `compute.session.ends-cleanly` — **[GAP]** (#5238) when a session ends (time limit, cancel, or the cluster
   ends it) its provider row disappears, anything using it fails with "the session on *name*
   ended", and the forward is closed. *Test:* cancel mid-request: the caller gets that typed
   error within the poll interval.
-- `compute.session.never-silently-restarted` — Fichero does not start a new session on its own
+- `compute.session.never-silently-restarted` — **[GAP]** (#5238) Fichero does not start a new session on its own
   when one ends. It offers "Start again". A session costs an allocation, and on Hugging Face
   money. *Test:* after end, no job is submitted without a call.
 
 ### Removing
 
-- `compute.target.remove-lists-what-is-there` — removing a target first lists what Fichero put
+- `compute.target.remove-lists-what-is-there` — **[GAP]** (#5238) removing a target first lists what Fichero put
   there (images, cached models, job folders, a running container, running or queued jobs) with
   sizes, and asks what to delete. Queued and running jobs are never cancelled without being
   named. *Test:* fixture with one running job: removal is refused until the job is cancelled
@@ -283,8 +283,8 @@ All untagged and unbuilt unless stated.
 
 ## Accessibility identifiers
 
-- `compute.targets.section` — the "Where work runs" section
-- `compute.targets.add` — the Add… control; `compute.targets.add.kind.<kind>` — each kind
+- `compute.targets.section` — **[GAP]** (#5238) the "Where work runs" section
+- `compute.targets.add` — **[GAP]** (#5238) the Add… control; `compute.targets.add.kind.<kind>` — each kind
 - `compute.target.row.<id>` — a row; `compute.target.row.<id>.status` — its dot and text
 - `compute.target.<id>.check`, `.install`, `.update`, `.remove`, `.copy-public-key`
 - `compute.session.<id>.start`, `.cancel`, `.time-left`

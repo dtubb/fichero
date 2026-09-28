@@ -52,7 +52,7 @@ This supersedes `audit.run-scoped-undo` (#2074, #1831) in the action-layer spec.
 
 ### A. The stamp
 
-- `safety.run.one-stamp`: there is one stamp: the **run id**. A workflow run, an import, an
+- `safety.run.one-stamp` — **[GAP]** (#5245) there is one stamp: the **run id**. A workflow run, an import, an
   AI assistant's session, a data repair, and a landed remote job each get one. It appears in
   exactly two places, for two different reads: on every **record row** the run causes (to take
   the run back), and on every **thing the run makes** (to show "made by this run" without
@@ -61,14 +61,14 @@ This supersedes `audit.run-scoped-undo` (#2074, #1831) in the action-layer spec.
   (see D). *Test:* run a workflow that makes one of each kind; every made row and every record
   row carries the run's id. **The remote-compute set's landing uses this same stamp**; a landed
   job is a run (request in the foundation file).
-- `safety.run.every-write-of-a-run-is-recorded`: everything a run writes goes through a
+- `safety.run.every-write-of-a-run-is-recorded` — **[GAP]** (#5245) everything a run writes goes through a
   recorded action that carries the stamp. A run may use bulk actions (one record row for a
   batch of many things, listing their ids), so recording does not slow a large run to a crawl.
   A run never writes to the library behind the record's back. *Why:* without this, a run
   cannot be listed, so it cannot be taken back. *Existing data:* none to move. *Test:* a
   guardrail over the workflow tools: no write outside an action; load leg: a run over 10,000
   pages stays within the ratchet.
-- `safety.run.the-engine-says-who-made-it`: whether a thing was made by a person or a machine,
+- `safety.run.the-engine-says-who-made-it` — **[GAP]** (#5245) whether a thing was made by a person or a machine,
   by which model, in which run, and who started the run, is set by the engine from the run,
   never claimed by the writer. This is the #4869 rule, and the remote-compute set's
   `compute.land.server-sets-the-maker`. *Test:* a tool that claims "made by a person" inside a
@@ -76,44 +76,44 @@ This supersedes `audit.run-scoped-undo` (#2074, #1831) in the action-layer spec.
 
 ### B. Seeing what a run did
 
-- `safety.run.what-it-did-is-listed`: a run's row in the activity window opens a list of
+- `safety.run.what-it-did-is-listed` — **[GAP]** (#5245) a run's row in the activity window opens a list of
   everything it made and everything it changed, by kind, with counts, each one a link to the
   thing. *Data:* read from the stamp; paged in the database. *Test:* the list equals the rows
   the run wrote.
 
 ### C. Taking it back
 
-- `safety.run.take-back-is-one-step`: Take Back reverses everything the run did, newest first,
+- `safety.run.take-back-is-one-step` — **[GAP]** (#5245) Take Back reverses everything the run did, newest first,
   as **one recorded step** named for the run. Things the run made go out of view the way
   trashed things do (soft, with the take-back's step id), so nothing is destroyed. Things the
   run changed return to the version before the run (`versions-and-restore.md`). *Test:* run,
   take back, compare with the state before the run: identical, row for row.
-- `safety.run.a-persons-later-work-is-kept`: before anything happens, the app shows: how many
+- `safety.run.a-persons-later-work-is-kept` — **[GAP]** (#5245) before anything happens, the app shows: how many
   things will be taken back, and how many will be **kept because a person has changed them
   since**, listed by name. A thing a person has edited, curated, linked, or cited since the run
   is never taken back by a run's take-back. The person confirms once. *Data:* the two locks of
   `undo.md`, asked per thing instead of per step. *Test:* run; a person curates two of its
   statements; take back; the two remain with their curation; the rest are gone; the sheet named
   the two.
-- `safety.run.any-time`: a run can be taken back as long as it is listed, next week or next
+- `safety.run.any-time` — **[GAP]** (#5245) a run can be taken back as long as it is listed, next week or next
   year. It does not depend on a sitting and it is never offered by Command-Z
   (`safety.undo.agents-and-runs-are-not-in-my-stack`). *Test:* take back a run made under an
   earlier sitting.
-- `safety.run.all-or-nothing`: a take-back that fails part way stores nothing. *Test:* force a
+- `safety.run.all-or-nothing` — **[GAP]** (#5245) a take-back that fails part way stores nothing. *Test:* force a
   failure half way; the library is unchanged.
-- `safety.run.put-it-back`: a take-back can be reversed from the same place: the run's work
+- `safety.run.put-it-back` — **[GAP]** (#5245) a take-back can be reversed from the same place: the run's work
   returns, same ids, until the Trash holding it is emptied. *Test:* take back, put back,
   compare with the state after the run.
-- `safety.run.who-may`: the person who started a run may take it back. The library's owner
+- `safety.run.who-may` — **[GAP]** (#5245) the person who started a run may take it back. The library's owner
   may take back any run. The #4917 access rules apply: a run's work inside a folder a person
   may not edit is kept and listed as kept. *Test:* two accounts.
-- `safety.run.a-failed-run-offers-it`: a run that failed or was stopped keeps what it wrote
+- `safety.run.a-failed-run-offers-it` — **[GAP]** (#5245) a run that failed or was stopped keeps what it wrote
   (as today) and its row offers Take Back at once, with the count. *Test:* stop a run half
   way; take back; nothing of it remains.
 
 ### D. Old runs
 
-- `safety.run.old-runs-are-honest`: a run made before this slice can be taken back only as far
+- `safety.run.old-runs-are-honest` — **[GAP]** (#5245) a run made before this slice can be taken back only as far
   as its stamp reaches: its artifacts. The app says so in a sentence: "This run is from before
   Fichero recorded everything a run writes. Its 214 page texts can be taken back. Its
   statements cannot be told apart from others." Nothing is ever attributed to a run by
@@ -122,7 +122,7 @@ This supersedes `audit.run-scoped-undo` (#2074, #1831) in the action-layer spec.
 
 ### E. Running again
 
-- `safety.run.again-never-writes-over`: running a workflow again on the same sources adds its
+- `safety.run.again-never-writes-over` — **[GAP]** (#5245) running a workflow again on the same sources adds its
   output beside what is there: a new pass, new readings, new proposals. It never replaces a
   person's work and never silently replaces an earlier run's. The three present behaviours
   become this one. This is the source-model set's `source.chain.output-never-overwrites` and
@@ -131,7 +131,7 @@ This supersedes `audit.run-scoped-undo` (#2074, #1831) in the action-layer spec.
 
 ### F. Deleting a run is not taking it back
 
-- `safety.run.delete-and-take-back-are-two-verbs`: deleting a run sends the run's row and
+- `safety.run.delete-and-take-back-are-two-verbs` — **[GAP]** (#5245) deleting a run sends the run's row and
   events to the Trash (`trash.md`) and keeps its work. If the run has live work, the notice
   says so and offers Take Back instead. Checkpoints are scratch and may be removed once a run
   is finished; they are never the only copy of anything. *Test:* delete a run with live work;
@@ -139,7 +139,7 @@ This supersedes `audit.run-scoped-undo` (#2074, #1831) in the action-layer spec.
 
 ### G. Imports, assistants, repairs, remote jobs
 
-- `safety.run.an-import-is-a-run`: an import gets a stamp. Take Back on an import sends
+- `safety.run.an-import-is-a-run` — **[GAP]** (#5245) an import gets a stamp. Take Back on an import sends
   everything it brought in to the Trash as one step. Each file is imported whole or not at all:
   its row and its stored bytes are written together, and a failure leaves neither. *Data:*
   the import action becomes atomic per file; stored bytes written before a failed row are
@@ -147,17 +147,17 @@ This supersedes `audit.run-scoped-undo` (#2074, #1831) in the action-layer spec.
   in a library are found by the sweep in `safety-net.md`, listed, and never removed without a
   yes. *Test:* fail an import on file 3 of 5; files 1 and 2 are whole, 3 left nothing, 4 and 5
   were not started; take back the import; all are in the Trash.
-- `safety.run.an-assistant-session-is-a-run`: everything an AI assistant does in one
+- `safety.run.an-assistant-session-is-a-run` — **[GAP]** (#5245) everything an AI assistant does in one
   conversation turn, or one agent session over MCP, carries one stamp, and can be reviewed and
   taken back as one. The assistant's account is a user like any other; its steps are never in
   a person's Command-Z stack. *Test:* an agent session makes five changes; Take Back reverses
   the five; the record names the agent's account and the person who asked.
-- `safety.run.a-repair-is-a-run`: a data repair shipped with an update runs as a run, recorded
+- `safety.run.a-repair-is-a-run` — **[GAP]** (#5245) a data repair shipped with an update runs as a run, recorded
   and stamped, and is taken back the same way. The separate rollback that walks the older
   record is deleted when the last repair that used it has been superseded. *Existing data:*
   past repairs stay as recorded; their old rollback remains until then. *Test:* a repair runs
   through actions; Take Back restores the rows.
-- `safety.run.a-remote-job-is-a-run`: a job that ran on another machine lands as a run with
+- `safety.run.a-remote-job-is-a-run` — **[GAP]** (#5245) a job that ran on another machine lands as a run with
   this stamp and is taken back by this slice's rules. Nothing about take-back is written a
   second time for remote work. *Test:* the remote-compute set's `compute.land.undoable-as-one`
   passes using this slice's route.

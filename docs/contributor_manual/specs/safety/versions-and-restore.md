@@ -55,7 +55,7 @@ Undo is for the last few minutes. History is for last month.
 
 ### A. One shape and one set of rules, a table per kind
 
-- `safety.history.one-shape`: there is one way versions are kept, and it is a set of RULES,
+- `safety.history.one-shape` — **[GAP]** (#5244) there is one way versions are kept, and it is a set of RULES,
   not one table. The rules, the source-model set's: a version row saves the thing as it was
   BEFORE the change; numbers only go up; a restore writes a new version; a write names the
   version it expects and is refused if the thing has moved on. Every version row also carries
@@ -71,14 +71,14 @@ Undo is for the last few minutes. History is for last month.
   each kind in B. *Existing data:* see C. *Test:* a guardrail: every table that stores an
   earlier state of a thing has the shared columns and obeys the four rules, proven by one
   shared test run against each kind.
-- `safety.history.versions-are-ordinary-data`: versions live with the research, not in the
+- `safety.history.versions-are-ordinary-data` — **[GAP]** (#5244) versions live with the research, not in the
   tamper-evident record. So access rules reach them, a purge can reach them, and a snapshot
   carries them. The record refers to a version by number (`the-record.md`). *Test:* deny a
   viewer on a document; its versions are refused too (#4917).
 
 ### B. What keeps history
 
-- `safety.history.the-kinds`: these keep versions: a **segment** (source-model set, built on
+- `safety.history.the-kinds` — **[GAP]** (#5244) these keep versions: a **segment** (source-model set, built on
   its branch); a **text artifact**, meaning a page's transcription or other text output held
   outside segments (not built anywhere yet; needed until every page's text lives in segments,
   because today each edit to one stores the full text twice in the record); a **note**; a **statement**; an **entity**'s name, kind, aliases and
@@ -86,11 +86,11 @@ Undo is for the last few minutes. History is for last month.
   a board, links (they are undo only, and the record shows them); images (their edit settings
   are their history). *Test:* one behaviour test per kind: three committed changes leave three
   versions.
-- `safety.history.a-version-per-committed-change`: a version is written when a change is
+- `safety.history.a-version-per-committed-change` — **[GAP]** (#5244) a version is written when a change is
   committed, not per keystroke. One uninterrupted stay in a text field is one version, by the
   same folding rule as `safety.undo.commits-are-not-per-keystroke`. *Test:* three autosaves in
   one stay leave one new version.
-- `safety.history.a-machine-never-writes-over-a-person`: a workflow or an agent that re-reads
+- `safety.history.a-machine-never-writes-over-a-person` — **[GAP]** (#5244) a workflow or an agent that re-reads
   or re-extracts does not replace a person's version. For segments and readings the
   source-model rule holds (a new pass). For statements and entities, a machine's change to a
   thing a person has curated arrives as a proposal, not a new version. *Data:* the existing
@@ -100,34 +100,34 @@ Undo is for the last few minutes. History is for last month.
 
 ### C. Existing libraries
 
-- `safety.history.history-starts-at-the-first-change`: nothing batch-writes versions into an
+- `safety.history.history-starts-at-the-first-change` — **[GAP]** (#5244) nothing batch-writes versions into an
   existing library. A thing's present content becomes its first version at the moment it is
   next changed, in the same transaction as that change. Until then its history reads "No
   earlier versions." This is the source-model set's "convert on first edit" rule, applied to
   every kind. *Existing data:* untouched until edited; nothing discarded. *Test:* open an old
   library; no table grows; edit a note; it now has two versions, the first equal to what the
   note said before.
-- `safety.history.older-record-copies-stay-readable`: steps recorded before this slice keep
+- `safety.history.older-record-copies-stay-readable` — **[GAP]** (#5244) steps recorded before this slice keep
   the full copies they already hold, and undo of those steps keeps working from them. They are
   not converted. *Test:* undo a pre-existing recorded edit after the upgrade.
 
 ### D. Looking, comparing, returning
 
-- `safety.history.in-the-inspector`: the Inspector shows a History section for the selected
+- `safety.history.in-the-inspector` — **[GAP]** (#5244) the Inspector shows a History section for the selected
   thing, only when the thing is of a kind that keeps history: each version with who, when, and
   a person or machine mark, newest first. *Test:* availability; click-around.
-- `safety.history.compare`: any two versions can be compared side by side with the changes
+- `safety.history.compare` — **[GAP]** (#5244) any two versions can be compared side by side with the changes
   marked; for a transcription, against the page image. *Test:* click-around.
-- `safety.history.restore-is-a-new-version`: returning to version 3 writes a new version whose
+- `safety.history.restore-is-a-new-version` — **[GAP]** (#5244) returning to version 3 writes a new version whose
   content equals version 3. Versions 4 onward remain. Numbers only go up. The restore is one
   recorded step, mine, and Command-Z takes it back. *Data:* as built on the source-model
   branch for segments. *Test:* five versions; restore 3; six versions; content of 6 equals 3;
   undo; content equals 5.
-- `safety.history.restore-obeys-the-locks`: a restore names the version it was made against
+- `safety.history.restore-obeys-the-locks` — **[GAP]** (#5244) a restore names the version it was made against
   and is refused if the thing has moved on since the person opened the history
   (`safety.undo.version-is-the-second-lock`). Merge, split and carry need the same token.
   *Test:* open history; someone else edits; restore is refused with the plain sentence.
-- `safety.history.what-rests-on-it-is-shown`: before returning a transcription to an earlier
+- `safety.history.what-rests-on-it-is-shown` — **[GAP]** (#5244) before returning a transcription to an earlier
   version, the app says what rests on the present one: how many statements and annotations
   quote text that the earlier version does not contain. It does not block. After the restore
   those are marked for review, not deleted. *Test:* restore across a removed sentence; the
@@ -135,15 +135,15 @@ Undo is for the last few minutes. History is for last month.
 
 ### E. History and the other two words
 
-- `safety.history.the-trash-keeps-history`: a thing in the Trash keeps its versions, and Put
+- `safety.history.the-trash-keeps-history` — **[GAP]** (#5244) a thing in the Trash keeps its versions, and Put
   Back returns them. Emptying the Trash removes them with the thing. *Test:* both.
-- `safety.history.a-purge-reaches-versions`: a purge for rights reasons
+- `safety.history.a-purge-reaches-versions` — **[GAP]** (#5244) a purge for rights reasons
   (source-model set, #4953) removes the content of every version of the thing, leaving the
   version rows as stated absences. *Test:* theirs; cited here so the two agree.
 
 ### F. From everywhere
 
-- `safety.history.command-line-and-agents`: list a thing's versions, read one, compare two,
+- `safety.history.command-line-and-agents` — **[GAP]** (#5244) list a thing's versions, read one, compare two,
   restore one, through the same actions, from the command line and the agent tools. An agent's
   restore is a machine-made version under B's rule. *Test:* CLI and MCP legs.
 
