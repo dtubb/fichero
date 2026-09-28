@@ -19,15 +19,30 @@ enum SegmentEdit {
         case update(SegmentUpdateParams)
         case delete(SegmentDeleteParams)
         case merge(SegmentMergeParams)
+        case updateMany(SegmentUpdateManyParams)
 
         func encode(to encoder: any Encoder) throws {
             switch self {
             case .update(let params): try params.encode(to: encoder)
             case .delete(let params): try params.encode(to: encoder)
             case .merge(let params): try params.encode(to: encoder)
+            case .updateMany(let params): try params.encode(to: encoder)
             }
         }
     }
+
+    /// A fact set on every selected segment at once -- the Segment menu (#5157;
+    /// `source.editor.set-kind`, `set-direction`, `set-language-script`).
+    enum Attribute: Equatable {
+        case kind(String)
+        case furniture(Bool)
+        case direction(String)
+        case language(String)
+        case script(String)
+    }
+
+    /// The directions the engine accepts (`language_policy.DIRECTIONS`), in the menu's order.
+    static let directions = ["ltr", "rtl", "ttb", "btt", "alternating", "follows-baseline"]
 
     /// Why nothing is sent. Each is said, never guessed around.
     enum Refusal: Error, Equatable {
@@ -58,6 +73,28 @@ enum SegmentEdit {
         return .success(Call(
             action: "segment.update",
             params: .update(SegmentUpdateParams(segmentId: segment.id, expectedVersion: version, anchor: anchor))
+        ))
+    }
+
+    /// SET one fact on every segment picked: ONE audited `segment.update_many`, so one ⌘Z undoes the
+    /// whole selection's change.
+    static func set(_ attribute: Attribute, on segments: [Segment]) -> Result<Call, Refusal> {
+        guard !segments.isEmpty else { return .failure(.tooFew) }
+        var updates: [SegmentAttributeUpdateParams] = []
+        for segment in segments {
+            guard let version = segment.version else { return .failure(.versionUnknown) }
+            var update = SegmentAttributeUpdateParams(segmentId: segment.id, expectedVersion: version)
+            switch attribute {
+            case .kind(let kind): update.kind = kind
+            case .furniture(let isFurniture): update.isFurniture = isFurniture
+            case .direction(let direction): update.direction = direction
+            case .language(let language): update.language = language
+            case .script(let script): update.script = script
+            }
+            updates.append(update)
+        }
+        return .success(Call(
+            action: "segment.update_many", params: .updateMany(SegmentUpdateManyParams(updates: updates))
         ))
     }
 
@@ -149,6 +186,38 @@ struct SegmentMergeParams: Encodable, Equatable {
     enum CodingKeys: String, CodingKey {
         case segmentIds = "segment_ids", keepId = "keep_id", expectedVersions = "expected_versions"
     }
+}
+
+/// `segment.update_many`: one row's part of a selection-wide attribute change. Only the fact being
+/// set is sent; the others stay absent, which the engine reads as "unchanged".
+struct SegmentAttributeUpdateParams: Encodable, Equatable {
+    let segmentId: String
+    let expectedVersion: Int
+    var kind: String?
+    var isFurniture: Bool?
+    var direction: String?
+    var language: String?
+    var script: String?
+
+    enum CodingKeys: String, CodingKey {
+        case segmentId = "segment_id", expectedVersion = "expected_version", kind
+        case isFurniture = "is_furniture", direction, language, script
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(segmentId, forKey: .segmentId)
+        try container.encode(expectedVersion, forKey: .expectedVersion)
+        try container.encodeIfPresent(kind, forKey: .kind)
+        try container.encodeIfPresent(isFurniture, forKey: .isFurniture)
+        try container.encodeIfPresent(direction, forKey: .direction)
+        try container.encodeIfPresent(language, forKey: .language)
+        try container.encodeIfPresent(script, forKey: .script)
+    }
+}
+
+struct SegmentUpdateManyParams: Encodable, Equatable {
+    let updates: [SegmentAttributeUpdateParams]
 }
 
 /// Sends a `SegmentEdit.Call` through the audited choke point and registers ⌘Z for it by its own

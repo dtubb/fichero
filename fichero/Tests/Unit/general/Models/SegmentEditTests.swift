@@ -68,4 +68,25 @@ struct SegmentEditTests {
             segment("l1", version: 1, rect: [0, 0, 1, 1]), segment("p", version: nil, rect: [0, 0, 1, 1])
         ]) == .failure(.versionUnknown))
     }
+
+    @Test("the Segment menu sets one fact on every selected segment in ONE update_many, each with its version")
+    func setIsOneCallForTheWholeSelection() throws {
+        let call = try SegmentEdit.set(.direction("rtl"), on: [
+            segment("l1", version: 2, rect: [0, 0, 1, 0.1]), segment("l2", version: 5, rect: [0, 0.1, 1, 0.1])
+        ]).get()
+        #expect(call.action == "segment.update_many")
+        let updates = try #require(try json(call)["updates"] as? [[String: Any]])
+        #expect(updates.count == 2)
+        #expect(updates[0]["segment_id"] as? String == "l1" && updates[0]["expected_version"] as? Int == 2)
+        #expect(updates[1]["segment_id"] as? String == "l2" && updates[1]["expected_version"] as? Int == 5)
+        #expect(updates.allSatisfy { $0["direction"] as? String == "rtl" })
+        // Only the fact being set is sent: an absent key is "unchanged", a null would be "clear it".
+        #expect(updates.allSatisfy { Set($0.keys) == ["segment_id", "expected_version", "direction"] })
+    }
+
+    @Test("the Segment menu sends nothing for an empty selection or a segment with no version")
+    func setRefusals() {
+        #expect(SegmentEdit.set(.kind("line"), on: []) == .failure(.tooFew))
+        #expect(SegmentEdit.set(.furniture(true), on: [segment("p", version: nil, rect: [0, 0, 1, 1])]) == .failure(.versionUnknown))
+    }
 }

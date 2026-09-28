@@ -349,6 +349,43 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
     }
 
+    /// #5157 end to end: on the recorded imported Syriac page, two lines picked the way the canvas
+    /// picks them are set right-to-left through the Segment menu's call (`SegmentEdit.set` ->
+    /// `SegmentEditRunner.run`): the engine is asked for ONE segment.update_many carrying both lines,
+    /// each with the version the list said; ⌘Z undoes that one audit row.
+    func testTheSegmentMenuSetsDirectionOnTwoImportedLinesInOneUndoableCall() async throws {
+        let store = try await loadedStore()
+        let shown = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
+        let scope = try XCTUnwrap(SegmentDisplay.selectionScope(artifactId: shown.artifactId, passId: shown.passId))
+        let lines = Array(shown.geometry.boxes.indices.filter { shown.geometry.boxes[$0].level == "line" }.prefix(2))
+        let selection = RegionSelection()
+        selection.selectAll(lines, artifactId: scope, documentId: "doc-0001", in: shown.geometry.boxes)
+        let ids = InspectorPath.selectedSegmentIds(selection: selection, documentId: "doc-0001", store: store)
+        let picked = ids.compactMap { id in store.segments(documentId: "doc-0001").first { $0.id == id } }
+
+        RecordedEngine.invoked = []
+        RecordedEngine.undone = []
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        let runner = SegmentEditRunner(actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store)
+        _ = try await runner.run(
+            try SegmentEdit.set(.direction("rtl"), on: picked).get(), documentId: "doc-0001",
+            actionName: "Set Segment", undoManager: manager
+        )
+        manager.endUndoGrouping()
+
+        XCTAssertEqual(RecordedEngine.invoked.count, 1, "one call for the whole selection")
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        XCTAssertEqual(sent["name"] as? String, "segment.update_many")
+        let updates = try XCTUnwrap((sent["params"] as? [String: Any])?["updates"] as? [[String: Any]])
+        XCTAssertEqual(updates.compactMap { $0["segment_id"] as? String }, ids)
+        XCTAssertTrue(updates.allSatisfy { $0["direction"] as? String == "rtl" && $0["expected_version"] as? Int == 1 })
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
+    }
+
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {
         let expected = try JSONDecoder().decode(
             [ExpectedBox].self,

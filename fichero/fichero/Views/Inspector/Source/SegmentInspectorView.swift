@@ -16,6 +16,9 @@ struct SegmentInspectorView: View {
     @Environment(\.undoManager) private var undoManager
     @State private var level: Level = .selection
     @State private var text: InspectorText?
+    /// The Segment menu's Language… / Script… prompt (#5157).
+    @State private var askingFor: SegmentAttributeMenu.CodeKind?
+    @State private var code = ""
 
     /// What the sections describe: the selection itself, a crumb the person clicked, or the page.
     enum Level: Equatable {
@@ -75,6 +78,34 @@ struct SegmentInspectorView: View {
             await reloadText()
         }
         .onChange(of: selectedIds) { level = .selection }
+        .alert(askingFor == .script ? "Script" : "Language", isPresented: Binding(
+            get: { askingFor != nil }, set: { if !$0 { askingFor = nil } }
+        )) {
+            TextField(askingFor == .script ? "ISO 15924, e.g. Syrc" : "BCP 47, e.g. syc", text: $code)
+            Button("Set") {
+                let value = code.trimmingCharacters(in: .whitespaces)
+                if !value.isEmpty { setAttribute(askingFor == .script ? .script(value) : .language(value)) }
+                askingFor = nil
+            }
+            Button("Cancel", role: .cancel) { askingFor = nil }
+        } message: {
+            Text("Set on the \(selectedIds.count == 1 ? "selected segment" : "\(selectedIds.count) selected segments").")
+        }
+    }
+
+    /// The Segment menu's verb (#5157): one audited `segment.update_many` over the selection, ⌘Z.
+    private func setAttribute(_ attribute: SegmentEdit.Attribute) {
+        guard let segmentService, let actionsService = actionStore?.actionsService else { return }
+        let store = SegmentStore.shared(for: segmentService)
+        let byId = Dictionary(
+            store.segments(documentId: documentId).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }
+        )
+        guard case .success(let call) = SegmentEdit.set(attribute, on: selectedIds.compactMap { byId[$0] }) else { return }
+        let runner = SegmentEditRunner(actionsService: actionsService, store: store)
+        let undoManager = undoManager
+        Task {
+            try? await runner.run(call, documentId: documentId, actionName: "Set Segment", undoManager: undoManager)
+        }
     }
 
     private func reloadText() async {
@@ -103,6 +134,12 @@ struct SegmentInspectorView: View {
                 self.crumb(crumb.label, selected: inspected == crumb.segmentId) { level = .segment(crumb.segmentId) }
             }
             Spacer(minLength: 0)
+            // Verbs on the SELECTION (ruled: the Inspector offers verbs, never typing a reading).
+            SegmentAttributeMenu(apply: { setAttribute($0) }, askForCode: { askingFor = $0; code = "" })
+                .menuStyle(.button)
+                .buttonStyle(.borderless)
+                .fixedSize()
+                .font(.caption)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Path")
