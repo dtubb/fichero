@@ -97,3 +97,24 @@ class TestConvertedByTheEngineIsNotAPersonsWork:
         registry.invoke(db, "pass.choose_working", {"document_id": page.id, "pass_id": pass_row.id},
                         self._person())
         assert page_text_is_derived(db, page.id) is True
+
+    def test_a_result_a_person_corrected_before_the_page_model_makes_it_derived(self, db):
+        """#5222 SACRED: a collaborator's years of hand-fixed results predate the page model. The
+        engine converting the library must not make a later run's text replace them."""
+        from fichero_server.actions.registry import registry
+        from fichero_server.models import Artifact
+
+        page = self._converted_by_the_engine(db)
+        [art] = db.query(Artifact, document_id=page.id)
+        registry.invoke(db, "artifact.update", {"artifact_id": art.id, "patch": {"content": "fixed by hand"}},
+                        self._person())
+        assert page_text_is_derived(db, page.id) is True
+
+    def test_a_result_marked_reviewed_makes_it_derived(self, db):
+        from fichero_server.models import Artifact
+
+        page = self._converted_by_the_engine(db)
+        [art] = db.query(Artifact, document_id=page.id)
+        art.reviewed = True
+        db.save(art)
+        assert page_text_is_derived(db, page.id) is True

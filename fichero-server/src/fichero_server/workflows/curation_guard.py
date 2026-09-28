@@ -312,6 +312,12 @@ def a_person_worked_on_the_page_text(db: Any, document_id: str) -> bool:
 
     if any(row.superseded_at is None for row in db.query(SegmentPassChoice, document_id=document_id)):
         return True
+    # A person's work in the OLDER format (#5222, SACRED): a result they corrected, reviewed or made.
+    from fichero_server.api.routes.document.segment_readings import artifacts_a_person_worked_on
+    from fichero_server.models import Artifact
+
+    if artifacts_a_person_worked_on(db, (a.id for a in db.query(Artifact, document_id=document_id))):
+        return True
     for row in db.query(Segment, document_id=document_id):
         if row.provenance_kind is ProvenanceKind.human:
             return True
