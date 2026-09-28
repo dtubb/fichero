@@ -9,7 +9,7 @@ struct HandService {
     let client: FicheroClient
 
     /// Every hand in the project, withdrawn ones left out.
-    func hands() async throws -> [InspectorHands.Hand] {
+    func hands() async throws -> [InspectorHands.ListedHand] {
         let response = try await client.api.listHandsApiHandsGet()
         switch response {
         case .ok(let okResponse):
@@ -17,7 +17,7 @@ struct HandService {
             // could not be attributed to, so it is not offered.
             return try okResponse.body.json.items.filter { $0.deletedAt == nil }.compactMap { hand in
                 hand.id.map {
-                    InspectorHands.Hand(id: $0, label: hand.label, scribe: hand.scribe, date: hand.date, style: hand.style)
+                    InspectorHands.ListedHand(id: $0, label: hand.label, scribe: hand.scribe, date: hand.date, style: hand.style)
                 }
             }
         case .undocumented(let statusCode, _):

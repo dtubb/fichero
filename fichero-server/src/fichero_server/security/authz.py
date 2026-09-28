@@ -22,6 +22,8 @@ from fichero_server.db.library_paths import nfc_path
 from fichero_server.models.canvas import CanvasItem, CanvasLayout
 from fichero_server.models.editorial import EditorialFact
 from fichero_server.models.hands import HandAttribution
+from fichero_server.models.letterforms import LetterformDescription
+from fichero_server.models.campaigns import Campaign, CampaignMembership, ReadingCampaigns
 from fichero_server.models.hermeneutics import Interpretation
 from fichero_server.models.knowledge import (
     Annotation,
@@ -419,6 +421,14 @@ _DOCUMENT_ID_RESOLVERS: tuple[tuple[type, Callable[[Any, Any], "str | None"]], .
     # person denied the page could withdraw its facts or attributions by naming them.
     (EditorialFact, lambda db, row: _document_id_of_segment(db, row.segment_id)),
     (HandAttribution, lambda db, row: _document_id_of_segment(db, row.segment_id)),
+    (LetterformDescription, lambda db, row: _document_id_of_segment(db, row.segment_id)),
+    # Campaigns of writing (#4935): a campaign is of a document; a membership hangs on a segment; which
+    # campaigns a reading takes in hangs on the reading, which (like every reading) is of a document --
+    # so a `representation_id` alone (reading.take_in, and the older reading actions that name only
+    # it) resolves to its document too, instead of "itself only".
+    (Campaign, lambda db, row: row.document_id),
+    (CampaignMembership, lambda db, row: _document_id_of_segment(db, row.segment_id)),
+    (ReadingCampaigns, lambda db, row: _document_id_of_representation(db, row.representation_id)),
     # #5177: every other kind that belongs to ONE document, found by the guard
     # (`tests/unit/security/test_every_id_param_reaches_its_document.py`). Without these a
     # `representation_id`, `order_id`, `entry_id`, `choice_id`, `annotation_id`, `note_id`,
@@ -484,6 +494,11 @@ def _owning_document(db: Any, target_id: str | None, _depth: int = 0) -> "str | 
 def _document_id_of_segment_match(db: Any, match_id: str) -> str | None:
     match = db.get(SegmentMatch, match_id)
     return match.document_id if match else None
+
+
+def _document_id_of_representation(db: Any, representation_id: str) -> "str | None":
+    reading = db.get(ContentRepresentation, representation_id)
+    return reading.document_id if reading is not None else None
 
 
 def _document_id_of_segment(db: Any, segment_id: str) -> "str | None":

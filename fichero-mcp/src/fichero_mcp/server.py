@@ -59,7 +59,16 @@ def _client() -> FicheroClient:
 
 
 def _agent_client() -> FicheroClient:
-    """Build the dedicated agent-account client for audited MCP mutations."""
+    """Build the dedicated agent-account client for audited MCP mutations.
+
+    Fail closed BEFORE any connection: building a client may dial the engine (to read its
+    certificate), so an agent with no stored session must be refused first. Otherwise the
+    refusal depends on whether an engine happens to be listening.
+    """
+    from fichero_cli import client as client_module
+
+    if not client_module._read_token(as_user="agent"):
+        raise RuntimeError("No stored session for agent; run `fichero auth login agent`.")
     client = FicheroClient(
         base_url=_CONFIG["base_url"],
         library_path=_CONFIG["library_path"],

@@ -125,8 +125,9 @@ READINGS_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.first-line-readings.json"
 def test_a_line_s_readings_with_a_correction_are_recorded_for_the_app(db, client):
     """#5153 (choose which reading counts): the app's Text section reads GET
     /api/segments/{id}/readings. Recorded here for the first line of the imported Syriac page after a
-    person's correction -- two equal readings, neither counting until one is chosen -- through the calls
-    the app makes, so the app's test can choose one over the engine's own answer."""
+    person's correction -- which COUNTS, basis "correction" (#5175: a correction outranks the reading it
+    corrects) -- through the calls the app makes, so the app's test shows why it counts and can choose
+    the file's reading back over the engine's own answer."""
     doc_id = _import(db, SYRIAC)
     body = client.get(f"/api/segments/document/{doc_id}").json()
     real = next(p for p in body["passes"] if not p["provisional"])
@@ -144,9 +145,10 @@ def test_a_line_s_readings_with_a_correction_are_recorded_for_the_app(db, client
     after = client.get(f"/api/segments/{line['id']}/readings").json()
     assert after["count"] == 2
     counting = after["counting"]["transcription"]
-    # Two people's readings of one line, and this library's rule: NOTHING counts until one is chosen
-    # (`source.reading.equal-alternatives`). That is the case the Text section's choose verb is for.
-    assert counting["representation_id"] is None and counting["basis"] == "none"
+    # The person's correction counts over the file's reading it corrects (#5175); choosing the file's
+    # reading back is what the Text section's "Make This Count" is for.
+    correction = next(i for i in after["items"] if i["corrects_representation_id"] == file_reading["id"])
+    assert counting["representation_id"] == correction["id"] and counting["basis"] == "correction"
 
     # Stable ids, the SAME tokens the route recording gives this segment and page.
     stable_route = json.loads(ROUTE_FIXTURE.read_text())
@@ -239,3 +241,50 @@ def test_a_line_s_hand_attribution_is_recorded_for_the_app(db, client):
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         HANDS_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
     assert json.loads(HANDS_FIXTURE.read_text()) == recorded, "the app's hands fixture drifted"
+
+
+EDITORIAL_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.first-line-editorial.json"
+
+
+def test_a_line_s_editorial_facts_are_recorded_for_the_app(db, client):
+    """`source.sure.editorial-facts` / `brackets-are-drawn` (the Inspector's Certainty and Damage
+    section): the app reads GET /api/editorial/segment/{id} -- the facts about the line and its counting
+    reading as the editor prints it. Recorded for the imported Syriac page's first line after a person
+    says its first three letters are unclear (faded) and a lost stretch of two letters stands after the
+    fifth -- through the calls the app makes (POST /api/actions/invoke)."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    line = min((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+               key=lambda s: s["anchor"]["rect"])
+    [reading] = client.get(f"/api/segments/{line['id']}/readings").json()["items"]
+    for params in (
+        {"kind": "unclear", "char_start": 0, "char_end": 3, "reason": "faded", "certainty": 0.8},
+        {"kind": "lost", "char_start": 5, "extent_quantity": 2, "extent_unit": "character", "reason": "a hole"},
+    ):
+        recorded_fact = client.post("/api/actions/invoke", json={"name": "editorial.record", "params": {
+            "segment_id": line["id"], "representation_id": reading["id"], **params}})
+        assert recorded_fact.status_code == 200, recorded_fact.text
+    answer = client.get(f"/api/editorial/segment/{line['id']}").json()
+    text = reading["content"]
+    assert answer["drawn"] == "".join(c + "̣" for c in text[:3]) + text[3:5] + "[.2]" + text[5:]
+    assert answer["drawn_from"] == reading["id"]
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    token = next(s["id"] for s in stable_route["segments"]
+                 if s["kind"] == "line" and s["anchor"]["rect"] == line["anchor"]["rect"])
+    ids = {line["id"]: token, reading["id"]: "rep-0001"}
+    for index, item in enumerate(answer["items"], start=1):
+        ids[item["id"]] = f"fact-{index:04d}"
+
+    def stable(value):
+        if isinstance(value, dict):
+            return {k: ("2026-09-27T12:00:00Z" if k == "created_at" and v else stable(v)) for k, v in value.items()}
+        if isinstance(value, list):
+            return [stable(v) for v in value]
+        return ids.get(value, value) if isinstance(value, str) else value
+
+    recorded = stable(answer)
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        EDITORIAL_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(EDITORIAL_FIXTURE.read_text()) == recorded, "the app's editorial fixture drifted"

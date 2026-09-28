@@ -50,6 +50,11 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
     "carry_ids": (RECORD, ("SegmentCarry",)),
     "fact_id": (RECORD, ("EditorialFact",)),
     "attribution_id": (RECORD, ("HandAttribution",)),
+    # Slice 14 letterforms and campaigns (8b6a8b7bc, de90ff63f): each resolves to its document.
+    "description_id": (RECORD, ("LetterformDescription",)),
+    "restore_id": (RECORD, ("LetterformDescription",)),
+    "campaign_id": (RECORD, ("Campaign",)),
+    "campaign_ids": (RECORD, ("Campaign",)),
     **{name: (RECORD, ("ContentRepresentation",)) for name in (
         "representation_id", "representation_ids", "corrects_representation_id",
         "derived_from_representation_id", "read_id", "written_id",
@@ -83,6 +88,7 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
         "authority_id", "property_id", "linked_structure_node_id", "linked_source_ids",
         "focus_id", "state_id",
     )},
+    "allograph_id": (LIBRARY, "an allograph of the project's letterform list: its DESCRIPTIONS on characters are resolved (description_id)"),
     "hand_id": (LIBRARY, "a hand of the project's hand list: the ATTRIBUTION of a hand to a segment is resolved (attribution_id)"),
     "sign_id": (LIBRARY, "a sign of the project's sign list (slice 14): a sign's INSTANCES are segments, resolved as segments"),
     # --- accounts and configuration --------------------------------------------------------------

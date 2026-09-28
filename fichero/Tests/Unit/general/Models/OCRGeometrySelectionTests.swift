@@ -418,6 +418,18 @@ struct OCRGeometrySelectionTests {
         #expect(OCRGeometrySelection.rankedPasses([imported], segments: []).map(\.id) == ["page-xml"])
     }
 
+    /// #5122: an imported georeference and an imported transcription were one tier, so the newer
+    /// georeference was ranked first and drawn. A georeferencing pass is not ranked at all.
+    @Test("rankedPasses: a georeferencing pass is left out, even imported, newer and chosen")
+    func rankedPassesLeavesOutGeoreferencing() {
+        var georef = realPass(id: "georef", kind: .externalImport, ageInHours: 0)
+        georef.transformation = "polynomial-1"
+        georef.working = true
+        georef.workingBasis = "chosen"
+        let transcription = realPass(id: "page-xml", kind: .externalImport, ageInHours: 50)
+        #expect(OCRGeometrySelection.rankedPasses([georef, transcription], segments: []).map(\.id) == ["page-xml"])
+    }
+
     @Test("rankedPasses: hand-curated, then imported from a file, then machine, then legacy artifact geometry")
     func rankedPassesLadder() {
         let ranked = OCRGeometrySelection.rankedPasses([

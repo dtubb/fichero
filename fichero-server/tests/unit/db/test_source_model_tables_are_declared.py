@@ -12,8 +12,10 @@ import duckdb
 import pytest
 
 from fichero_server.db import Database
+from fichero_server.models.campaigns import Campaign, CampaignMembership, ReadingCampaigns
 from fichero_server.models.editorial import EditorialFact
 from fichero_server.models.hands import Hand, HandAttribution
+from fichero_server.models.letterforms import Allograph, LetterformDescription
 from fichero_server.models.rights import RightsRecord
 from fichero_server.models.signs import DeclaredSign
 
@@ -28,7 +30,9 @@ from fichero_server.models.knowledge import (
     NoteLink,
 )
 
-MODELS = [Hand, HandAttribution, RightsRecord, DeclaredSign, EditorialFact,
+
+MODELS = [Hand, HandAttribution, RightsRecord, DeclaredSign, EditorialFact, Allograph, LetterformDescription,
+          Campaign, CampaignMembership, ReadingCampaigns,
           # #5178: created on first save until declared.
           Rendition, NoteLink, AuthoritySnapshot, LibrarySetting, EntityMergeAudit,
           KnowledgeGraphInclusion, KnowledgePredictionReview, MigrationRunRecord]

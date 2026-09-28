@@ -2048,6 +2048,48 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('campaigns')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for campaigns endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='campaigns')
+        existing_apps['campaigns'] = target_app
+
+    @target_app.command("of-document")
+    def campaigns_of_document_get(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+    ) -> None:
+        """Campaigns Of Document (GET /api/campaigns/document/{document_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/campaigns/document/{document_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("of-reading")
+    def campaigns_of_reading_get(
+        ctx: typer.Context,
+        representation_id: str = typer.Argument(..., help="Path parameter: representation_id."),
+    ) -> None:
+        """Campaigns Of Reading (GET /api/campaigns/reading/{representation_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/campaigns/reading/{representation_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("of-segment")
+    def campaigns_of_segment_get(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+    ) -> None:
+        """Campaign Of Segment (GET /api/campaigns/segment/{segment_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/campaigns/segment/{segment_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('canvas')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for canvas endpoints.', no_args_is_help=True)
@@ -4775,6 +4817,24 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('editorial')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for editorial endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='editorial')
+        existing_apps['editorial'] = target_app
+
+    @target_app.command("facts-of-segment")
+    def editorial_facts_of_segment_get(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+    ) -> None:
+        """Facts Of Segment (GET /api/editorial/segment/{segment_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/editorial/segment/{segment_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('entities')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for entities endpoints.', no_args_is_help=True)
@@ -5423,6 +5483,60 @@ def register_generated_openapi_commands(
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/formats"
             params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    target_app = existing_apps.get('georeference')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for georeference endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='georeference')
+        existing_apps['georeference'] = target_app
+
+    @target_app.command("get-transform")
+    def georeference_get_transform_get(
+        ctx: typer.Context,
+        pass_id: str = typer.Argument(..., help="Path parameter: pass_id."),
+        mask_id: Optional[str] = typer.Option(None, "--mask-id", help="Query parameter: mask_id."),
+    ) -> None:
+        """Get Transform (GET /api/georeference/passes/{pass_id}/transform)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/georeference/passes/{pass_id}/transform"
+            params = {
+                "mask_id": mask_id,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("set-transformation")
+    def georeference_set_transformation_put(
+        ctx: typer.Context,
+        pass_id: str = typer.Argument(..., help="Path parameter: pass_id."),
+        transformation: str = typer.Option(..., "--transformation", help="Request field: transformation."),
+    ) -> None:
+        """Set Transformation (PUT /api/georeference/passes/{pass_id}/transformation)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/georeference/passes/{pass_id}/transformation"
+            params = None
+            payload = _build_json_payload({
+                "transformation": transformation,
+            }, {
+                "transformation": {'type': 'string', 'title': 'Transformation', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-world-shape")
+    def georeference_get_world_shape_get(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+        pass_id: Optional[str] = typer.Option(None, "--pass-id", help="Query parameter: pass_id."),
+    ) -> None:
+        """Get World Shape (GET /api/georeference/segments/{segment_id}/world-shape)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/georeference/segments/{segment_id}/world-shape"
+            params = {
+                "pass_id": pass_id,
+            }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
@@ -8467,6 +8581,67 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/kg/triangulation/recompute"
             params = None
             return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    target_app = existing_apps.get('letterforms')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for letterforms endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='letterforms')
+        existing_apps['letterforms'] = target_app
+
+    @target_app.command("gather")
+    def letterforms_gather_get(
+        ctx: typer.Context,
+        allograph_id: Optional[str] = typer.Option(None, "--allograph-id", help="Query parameter: allograph_id."),
+        character: Optional[str] = typer.Option(None, "--character", help="Query parameter: character."),
+        hand_id: Optional[str] = typer.Option(None, "--hand-id", help="Query parameter: hand_id."),
+    ) -> None:
+        """Gather (GET /api/letterforms)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/letterforms"
+            params = {
+                "allograph_id": allograph_id,
+                "character": character,
+                "hand_id": hand_id,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-allographs")
+    def letterforms_list_allographs_get(
+        ctx: typer.Context,
+        character: Optional[str] = typer.Option(None, "--character", help="Query parameter: character."),
+    ) -> None:
+        """List Allographs (GET /api/letterforms/allographs)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/letterforms/allographs"
+            params = {
+                "character": character,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("features-in-use")
+    def letterforms_features_in_use_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Features In Use (GET /api/letterforms/features)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/letterforms/features"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("description-of-segment")
+    def letterforms_description_of_segment_get(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+    ) -> None:
+        """Description Of Segment (GET /api/letterforms/segment/{segment_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/letterforms/segment/{segment_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('library')
@@ -13214,6 +13389,21 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("list-document-matches")
+    def segments_list_document_matches_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        state: Optional[str] = typer.Option(None, "--state", help="Query parameter: state."),
+    ) -> None:
+        """List Document Matches (GET /api/segments/document/{doc_id}/matches)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/document/{doc_id}/matches"
+            params = {
+                "state": state,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-document-text")
     def segments_get_document_text_get(
         ctx: typer.Context,
@@ -13364,8 +13554,9 @@ def register_generated_openapi_commands(
     @target_app.command("split")
     def segments_split_post(
         ctx: typer.Context,
+        at_offset: Optional[int] = typer.Option(None, "--at-offset", help="Request field: at_offset."),
         expected_version: int = typer.Option(..., "--expected-version", help="Request field: expected_version."),
-        parts: str = typer.Option(..., "--parts", help="Request field: parts."),
+        parts: Optional[str] = typer.Option(None, "--parts", help="Request field: parts."),
         segment_id: str = typer.Option(..., "--segment-id", help="Request field: segment_id."),
     ) -> None:
         """Split Segment (POST /api/segments/split)."""
@@ -13373,12 +13564,14 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/segments/split"
             params = None
             payload = _build_json_payload({
+                "at_offset": at_offset,
                 "expected_version": expected_version,
                 "parts": parts,
                 "segment_id": segment_id,
             }, {
+                "at_offset": {'type': 'integer', 'nullable': True, 'title': 'At Offset', 'x-cli-required': False},
                 "expected_version": {'type': 'integer', 'title': 'Expected Version', 'x-cli-required': True},
-                "parts": {'items': {'$ref': '#/components/schemas/SegmentSplitPart'}, 'type': 'array', 'title': 'Parts', 'x-cli-required': True},
+                "parts": {'items': {'$ref': '#/components/schemas/SegmentSplitPart'}, 'type': 'array', 'title': 'Parts', 'default': [], 'x-cli-required': False},
                 "segment_id": {'type': 'string', 'title': 'Segment Id', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)

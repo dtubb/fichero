@@ -14,14 +14,21 @@ enum InspectorMaking {
         /// The page's working pass -- the one its text and edits come from -- and why (#5156).
         var working = false
         var workingNote: String?
+        /// A georeferencing pass (control points and a mask): listed apart from the text passes, and
+        /// never offered as the page's working TEXT pass (#5122).
+        var georeferencing = false
         var id: String { passId }
     }
 
-    /// One entry per real (non-provisional) pass of the page, imported ones first, then by name.
+    /// One entry per real (non-provisional) pass of the page: text passes first, then georeferencing
+    /// ones; within each, imported ones first, then by name.
     static func entries(passes: [SegmentPassValue], segments: [Segment]) -> [Entry] {
         let byPass = Dictionary(grouping: segments, by: \.passId)
         return passes.filter { !$0.provisional }
-            .sorted { ($0.importFile == nil ? 1 : 0, $0.name) < ($1.importFile == nil ? 1 : 0, $1.name) }
+            .sorted {
+                ($0.isGeoreferencing ? 1 : 0, $0.importFile == nil ? 1 : 0, $0.name)
+                    < ($1.isGeoreferencing ? 1 : 0, $1.importFile == nil ? 1 : 0, $1.name)
+            }
             .map { pass in
                 let title = pass.importFile.map { "Imported from \($0)" } ?? pass.name
                 var parts: [String] = []
@@ -30,7 +37,8 @@ enum InspectorMaking {
                 return Entry(
                     passId: pass.id, title: title, detail: parts.joined(separator: " · "),
                     hasOriginal: pass.hasOriginal, working: pass.working,
-                    workingNote: pass.working ? workingNote(pass.workingBasis) : nil
+                    workingNote: pass.working ? workingNote(pass.workingBasis) : nil,
+                    georeferencing: pass.isGeoreferencing
                 )
             }
     }
@@ -52,6 +60,7 @@ enum InspectorMaking {
         case "tei": "TEI"
         case "hocr": "hOCR"
         case "yolo": "YOLO"
+        case "iiif-georef": "IIIF Georeference"
         default: format
         }
     }

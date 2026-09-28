@@ -9,7 +9,7 @@ struct InspectorHandsSection: View {
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
     @Environment(\.undoManager) private var undoManager
-    @State private var hands: [InspectorHands.Hand] = []
+    @State private var hands: [InspectorHands.ListedHand] = []
     @State private var attributions: [InspectorHands.Attribution] = []
     @State private var naming = false
     @State private var newLabel = ""
@@ -33,7 +33,7 @@ struct InspectorHandsSection: View {
                     }
                     Spacer()
                     Button("Withdraw") {
-                        run("hand.unattribute", HandUnattributeParams(attributionId: row.attributionId), "Withdraw Attribution")
+                        run("hand.unattribute", HandUnattributeRequest(attributionId: row.attributionId), "Withdraw Attribution")
                     }
                         .buttonStyle(.borderless)
                         .font(.caption)
@@ -57,7 +57,7 @@ struct InspectorHandsSection: View {
     private var attributeMenu: some View {
         Menu("Attribute") {
             ForEach(hands) { hand in
-                Button(hand.label) { run("hand.attribute", HandAttributeParams(handId: hand.id, segmentId: segmentId), "Attribute Hand") }
+                Button(hand.label) { run("hand.attribute", HandAttributeRequest(handId: hand.id, segmentId: segmentId), "Attribute Hand") }
             }
             if !hands.isEmpty { Divider() }
             Button("New Hand…") { newLabel = ""; naming = true }
@@ -91,12 +91,12 @@ struct InspectorHandsSection: View {
         guard !label.isEmpty, let actionsService = actionStore?.actionsService else { return }
         let known = Set(hands.map(\.id))
         guard (try? await AuditedAction.run(
-            "hand.create", params: HandCreateParams(label: label), actionName: "New Hand",
+            "hand.create", params: HandCreateRequest(label: label), actionName: "New Hand",
             actionsService: actionsService, undoManager: undoManager, afterChange: { await reload() }
         )) != nil else { return }
         // The hand the create just made: the one with this name that was not in the list before.
         guard let handId = hands.first(where: { !known.contains($0.id) && $0.label == label })?.id else { return }
-        run("hand.attribute", HandAttributeParams(handId: handId, segmentId: segmentId), "Attribute Hand")
+        run("hand.attribute", HandAttributeRequest(handId: handId, segmentId: segmentId), "Attribute Hand")
     }
 }
 

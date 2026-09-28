@@ -287,25 +287,32 @@ Hands and ink
   as two separate facts. **The engine keeps them apart** (the attribution names the hand; its `created_by` and
   `provenance_kind` name who judged -- `test_hands.py::test_the_hand_is_not_who_made_the_record`); the Inspector
   does not show either yet.
-- `source.campaign.ordered` — **[GAP]** (#4935) a source has ordered campaigns; segments belong to one; campaigns can
+- `source.campaign.ordered` — **[PARTIAL]** (#4935) a source has ordered campaigns; segments belong to one; campaigns can
   share characters.
-- `source.campaign.reading-says-which` — **[GAP]** (#4935) a reading can say which campaigns it takes in.
+  **Built engine-side:** `campaign.create` (ordered by `sequence`), `campaign.assign`, which moves a segment into exactly one and undoes (`fichero-server/tests/unit/api/test_campaigns.py::test_campaigns_are_ordered_and_a_segment_belongs_to_one_moves_and_undoes`). Characters are shared by two campaigns' segments overlapping, not by one segment in two. **Missing:** the app shows none of it yet.
+- `source.campaign.reading-says-which` — **[PARTIAL]** (#4935) a reading can say which campaigns it takes in.
+  **Built engine-side:** `reading.take_in`; undo restores the earlier answer (`fichero-server/tests/unit/api/test_campaigns.py::test_a_reading_says_which_campaigns_it_takes_in_and_undo_restores_the_earlier_answer`). **Missing:** the app shows none of it yet.
 
 Sureness and damage
 - `source.sure.three-kinds` — **[GAP]** (#4935) machine confidence, scholarly certainty and the state of the page
   are separate fields, never combined.
-- `source.sure.editorial-facts` — **[GAP]** (#4935) unclear, lost, restored, supplied, superfluous, deleted and
+- `source.sure.editorial-facts` — **[PARTIAL]** (#4935) unclear, lost, restored, supplied, superfluous, deleted and
   added are recorded as facts with extent, reason and author.
-- `source.sure.brackets-are-drawn` — **[GAP]** (#4935) editorial signs are produced from those facts on display
+  **Built engine-side:** `editorial.record` / `withdraw` with extent, reason, place, certainty and author (`fichero-server/tests/unit/api/test_editorial_facts.py::test_a_fact_is_recorded_with_its_extent_reason_and_author_and_drawn_not_stored`, `fichero-server/tests/unit/api/test_editorial_facts.py::test_a_lost_stretch_with_no_text_is_recorded_by_its_extent`). **Missing:** the app; importers mapping a file's own marks (PAGE `unclear`, TEI `unclear`/`supplied`/`gap`).
+- `source.sure.brackets-are-drawn` — **[PARTIAL]** (#4935) editorial signs are produced from those facts on display
   and export; they are never stored in a reading's text.
+  **Built engine-side:** `editorial/leiden.py` draws the signs when read and never changes the text (`fichero-server/tests/unit/models/test_leiden.py::test_nested_facts_draw_inside_out_and_the_text_is_never_changed`, `fichero-server/tests/unit/models/test_leiden.py::test_a_lost_stretch_with_no_text_is_a_gap_of_its_extent`). **Missing:** the app, and exports.
 
 Letterforms
-- `source.letterform.chain` — **[GAP]** (#4935) a character segment can name its character, its allograph and
+- `source.letterform.chain` — **[PARTIAL]** (#4935) a character segment can name its character, its allograph and
   its scribe's form.
-- `source.letterform.features` — **[GAP]** (#4935) a character segment can carry components and features from
+  **Built engine-side:** `letterform.describe` names character, allograph and hand (`fichero-server/tests/unit/api/test_letterforms.py::test_a_mark_names_its_chain_and_features_and_is_gathered_across_hands`). **Missing:** the app shows none of it yet.
+- `source.letterform.features` — **[PARTIAL]** (#4935) a character segment can carry components and features from
   open lists.
-- `source.letterform.compare` — **[GAP]** (#4935) marks of the same character can be gathered and compared
+  **Built engine-side:** components and features from open lists; describing again supersedes and undoes (`fichero-server/tests/unit/api/test_letterforms.py::test_describing_a_mark_again_supersedes_and_undo_and_redo_swap_them_back`). **Missing:** the app shows none of it yet.
+- `source.letterform.compare` — **[PARTIAL]** (#4935) marks of the same character can be gathered and compared
   across hands and sources.
+  **Built engine-side:** `GET /api/letterforms` gathers by character, allograph or hand across sources (`fichero-server/tests/unit/api/test_letterforms.py::test_a_mark_names_its_chain_and_features_and_is_gathered_across_hands`). **Missing:** the app shows none of it yet.
 
 Dates
 - `source.date.on-segment` — **[GAP]** (#4936) a date can hang on any segment, not only on a document.

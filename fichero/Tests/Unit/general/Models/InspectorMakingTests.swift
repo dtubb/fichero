@@ -67,4 +67,20 @@ struct InspectorMakingTests {
         #expect(notes["r"] == "Working · by the project's rule")
         #expect(notes["o"] == .some(nil))
     }
+
+    /// #5122: a georeferencing pass (control points and a mask) is listed APART, after the text passes,
+    /// and is not offered as the page's working text pass. Listed among them, it read as another
+    /// transcription a person could make the page's text.
+    @Test("a georeferencing pass is listed after the text passes, flagged, with its format named")
+    func georeferencingListedApart() {
+        var georef = pass("g", name: "paris.georef.json", file: "paris.georef.json", format: "iiif-georef")
+        georef.transformation = "polynomial-1"
+        let entries = InspectorMaking.entries(
+            passes: [georef, pass("m", name: "Kraken lines")],
+            segments: [segment("c1", kind: "control-point", passId: "g"), segment("k1", kind: "mask", passId: "g")]
+        )
+        #expect(entries.map(\.passId) == ["m", "g"], "an imported georeference is not listed first")
+        #expect(entries.map(\.georeferencing) == [false, true])
+        #expect(entries[1].detail == "IIIF Georeference · 1 control-point, 1 mask")
+    }
 }

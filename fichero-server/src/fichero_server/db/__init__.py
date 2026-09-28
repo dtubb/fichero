@@ -1215,6 +1215,8 @@ class Database(DatabaseEmbeddingMixin):
         from fichero_server.models.source_declarations import LibraryScript
         from fichero_server.models.editorial import EditorialFact
         from fichero_server.models.hands import Hand, HandAttribution
+        from fichero_server.models.letterforms import Allograph, LetterformDescription
+        from fichero_server.models.campaigns import Campaign, CampaignMembership, ReadingCampaigns
         from fichero_server.models.rights import RightsRecord
         from fichero_server.models.signs import DeclaredSign
         from fichero_server.models import (
@@ -1333,6 +1335,11 @@ class Database(DatabaseEmbeddingMixin):
             EditorialFact,
             Hand,
             HandAttribution,
+            Allograph,
+            LetterformDescription,
+            Campaign,
+            CampaignMembership,
+            ReadingCampaigns,
             RightsRecord,
             # Source-model slice 10 (#4930): named reading orders. Registered so
             # the tables arrive at open like every other one; nothing at open

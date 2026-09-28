@@ -25,7 +25,7 @@ enum AuditedAction {
 }
 
 /// `hand.attribute`: this segment's ink is this hand's.
-struct HandAttributeParams: Encodable, Equatable {
+struct HandAttributeRequest: Encodable, Equatable {
     let handId: String
     let segmentId: String
 
@@ -33,13 +33,13 @@ struct HandAttributeParams: Encodable, Equatable {
 }
 
 /// `hand.unattribute`: withdraw one attribution (kept, never deleted).
-struct HandUnattributeParams: Encodable, Equatable {
+struct HandUnattributeRequest: Encodable, Equatable {
     let attributionId: String
 
     enum CodingKeys: String, CodingKey { case attributionId = "attribution_id" }
 }
 
 /// `hand.create`: a new hand in the project's list.
-struct HandCreateParams: Encodable, Equatable {
+struct HandCreateRequest: Encodable, Equatable {
     let label: String
 }

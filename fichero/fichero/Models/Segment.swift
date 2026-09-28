@@ -243,6 +243,8 @@ struct Segment: Codable, Hashable, Identifiable {
     /// hold this box's shape — never interpreted by the draw model, only
     /// carried (`source`: "nothing unrecognised is thrown away").
     var metadata: [String: AnyCodable]?
+    /// A table cell's place -- row, column and spans, as the file said (#5168); nil when not a cell.
+    var cell: Components.Schemas.TableCellPlace?
 
     /// A segment a PERSON drew, rather than a pass measuring one — the
     /// app's one read of the rule the engine already applied
@@ -301,6 +303,12 @@ struct SegmentPassValue: Codable, Hashable, Identifiable {
     /// Whether this is the page's working pass, and why ("chosen" when a person chose it) (#5156).
     var working = false
     var workingBasis: String?
+    /// A georeferencing pass's transformation type (#5122); nil for every other pass. Set means the pass
+    /// holds control points and a mask -- it places the page in the world and has no text.
+    var transformation: String?
+
+    /// A georeferencing pass, ranked apart from the page's text passes (the engine's `georeferences`).
+    var isGeoreferencing: Bool { transformation != nil }
 }
 
 // MARK: - Generated-client mapping
@@ -332,6 +340,7 @@ extension Segment {
         self.sourceArtifactId = generated.sourceArtifactId
         self.boxIndex = generated.boxIndex
         self.pageIndex = generated.pageIndex
+        self.cell = generated.cell
         // Same conversion `ArtifactService.convertToArtifact` already uses
         // for `Artifact.data` — one idiom for "a generated additionalProperties
         // bag becomes `[String: AnyCodable]`", not a second one.
@@ -371,5 +380,6 @@ extension SegmentPassValue {
         self.hasOriginal = generated.hasOriginal ?? false
         self.working = generated.working ?? false
         self.workingBasis = generated.workingBasis
+        self.transformation = generated.transformation
     }
 }

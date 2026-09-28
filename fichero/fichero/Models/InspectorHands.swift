@@ -5,7 +5,7 @@ import Foundation
 /// sure the judgement is, and who judged it -- a person, or the imported file. Rival attributions are
 /// all shown, never merged (`source.hand.attributed`).
 enum InspectorHands {
-    struct Hand: Equatable, Identifiable {
+    struct ListedHand: Equatable, Identifiable {
         let id: String
         let label: String
         let scribe: String?
@@ -32,7 +32,7 @@ enum InspectorHands {
         var id: String { attributionId }
     }
 
-    static func rows(_ attributions: [Attribution], hands: [Hand]) -> [Row] {
+    static func rows(_ attributions: [Attribution], hands: [ListedHand]) -> [Row] {
         let byId = Dictionary(hands.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return attributions.map { attribution in
             let hand = byId[attribution.handId]
