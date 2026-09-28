@@ -1463,6 +1463,66 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         AnchorShapeValue(generated: Components.Schemas.AnchorShape(kind: .point, points: [[0.5, 0.5]]))
     }
 
+    /// THE JOINT of `source.textedit.*` (13b): the bodies the served Reader page's OWN script posted
+    /// through its own `notify` on the imported Syriac page (recorded by
+    /// `test_the_served_page_s_own_messages_are_recorded_for_the_app_s_bridge`, regenerated from the page
+    /// every run) go through the bridge's own parse (`ReaderTextEdit.message(from:)`) and
+    /// `ReaderTextEditRunner` -- exactly what `applyTextEdit` runs -- and become the requests the engine
+    /// takes: a typing run is `representation.create` correcting, and checked against, the reading typed
+    /// over; Keep Mine is the same words against what counts now; Return is `segment.split` at the
+    /// caret, checked against the version read; deleting every word is an empty reading, never a delete. Breaks if the page and the app stop agreeing on a
+    /// message, which each side's own tests cannot see.
+    func testTheServedPagesOwnMessagesBecomeTheRequestsTheEngineTakes() async throws {
+        let store = try await loadedStore()
+        RecordedEngine.readingsReply = try Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-line-readings.json")
+        )
+        let posted = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.page-messages.json")
+        )) as? [[String: Any]])
+        XCTAssertEqual(posted.compactMap { $0["kind"] as? String }, ["readingEdit", "readingEdit", "lineSplit", "readingEdit"])
+        let client = try XCTUnwrap(storeClient)
+        let runner = ReaderTextEditRunner(
+            actionsService: ActionsService(client: client), segmentService: SegmentService(ficheroClient: client),
+            undoManager: nil, refreshPage: { _ in }
+        )
+        RecordedEngine.invoked = []
+        RecordedEngine.invokeResult = #"{"id":"rep-0009"}"#
+        var answers: [String] = []
+        for body in posted {
+            let edit = try XCTUnwrap(ReaderTextEdit.message(from: body), "the app reads every message the page posts")
+            let answer = await runner.apply(edit)
+            answers.append(try XCTUnwrap(answer))
+        }
+
+        let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
+        XCTAssertEqual(
+            sent.compactMap { $0["name"] as? String },
+            ["representation.create", "representation.create", "segment.split", "representation.create"],
+            "no message ever becomes a segment delete: deleting words is a reading"
+        )
+        let params = sent.compactMap { $0["params"] as? [String: Any] }
+        for (index, basis) in [(0, "rep-0001"), (1, "rep-0002")] {
+            XCTAssertEqual(params[index]["document_id"] as? String, "doc-0001")
+            XCTAssertEqual(params[index]["segment_id"] as? String, "seg-0003")
+            XCTAssertEqual(params[index]["content"] as? String, posted[index]["text"] as? String, "the words typed")
+            XCTAssertEqual(params[index]["corrects_representation_id"] as? String, basis)
+            XCTAssertEqual(params[index]["expected_counting_id"] as? String, basis, "checked against what the page read")
+        }
+        let line = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.id == "seg-0003" })
+        XCTAssertEqual(params[2]["segment_id"] as? String, "seg-0003")
+        XCTAssertEqual(params[2]["at_offset"] as? Int, posted[2]["offset"] as? Int, "the caret, in the engine's code points")
+        XCTAssertEqual(params[2]["expected_version"] as? Int, line.version)
+        XCTAssertEqual(params[3]["content"] as? String, "", "every word deleted is an empty reading; the line stays")
+        XCTAssertEqual(params[3]["segment_id"] as? String, "seg-0003")
+        XCTAssertTrue(answers.allSatisfy { $0.hasPrefix("window.fichero?.lineCommitted?.(") }, "the page is answered each time")
+        let first = try XCTUnwrap(answers.first)
+        let told = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: Data(first.dropFirst("window.fichero?.lineCommitted?.(".count).dropLast(2).utf8)
+        ) as? [String: Any])
+        XCTAssertEqual(told["representationId"] as? String, "rep-0009", "the run's reading, for the next run's basis")
+    }
+
     /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the
     /// imported Syriac page's first line -- down to nothing at all -- is a NEW READING without them,
     /// through the calls the Reader's coordinator makes. No segment action is ever sent: the line and

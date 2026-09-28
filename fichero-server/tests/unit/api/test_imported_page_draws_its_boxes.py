@@ -1023,3 +1023,72 @@ def test_an_imported_page_s_polygons_and_baselines_reach_the_app_as_the_file_dre
     assert client.post(f"/api/actions/audit/{first['audit_id']}/undo").status_code == 200
     restored = client.get(f"/api/segments/{line['id']}").json()["segment"]
     assert restored["anchor"]["polygon"] == polygon and restored["baseline"] == line["baseline"]
+
+
+PAGE_MESSAGES_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.page-messages.json"
+
+
+def test_the_served_page_s_own_messages_are_recorded_for_the_app_s_bridge(db, client):
+    """The JOINT of `source.textedit.*` (13b): the served Reader page's OWN script, run in node on the
+    imported Syriac page, posts through its own `notify` into a stand-in `ficheroBridge` -- a run of
+    typing on the first line (`readingEditMessage`), Keep Mine on it after somebody else's correction
+    counts (`keepMineMessage`), Return in the middle of it (`lineSplitMessage`), and every one of its
+    words deleted (`readingEditMessage` again) -- and exactly
+    what it posted is recorded. The app's test feeds each posted body through the bridge's own parse
+    and `ReaderTextEditRunner` (what `applyTextEdit` runs) and asserts the requests. Regenerated from
+    the page every run: a change to the page's messages or to the app's reading of them breaks one of
+    the two, never neither. Breaks if the page and the app stop agreeing on a message."""
+    import shutil
+
+    import pytest
+
+    from tests.unit.api.test_reader_directions import _page_functions
+    from tests.unit.api.test_reader_line_map import _node, _view
+
+    if shutil.which("node") is None:
+        pytest.skip("needs node to run the page's own script")
+    doc_id = _import(db, SYRIAC)
+    payload, html = _view(client, doc_id)
+    page = payload["pages"][0]
+    text, lines = page["content"], page["lines"]
+    route = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in route["passes"] if not p["provisional"])
+    first = min((s for s in route["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+                key=lambda s: s["anchor"]["rect"])
+    mapped = next(line for line in lines if line["segment_id"] == first["id"])
+    file_reading = mapped["representation_id"]
+    theirs = client.post("/api/actions/invoke", json={"name": "representation.create", "params": {
+        "document_id": doc_id, "segment_id": first["id"], "kind": "transcription",
+        "content": text[mapped["char_start"]:mapped["char_end"]] + " (corrected)",
+        "corrects_representation_id": file_reading}}).json()["result"]["id"]
+
+    end = mapped["char_end"]
+    typed = text[:end] + " ܘܐܝܣܚܩ" + text[end:]
+    middle = (mapped["char_start"] + mapped["char_end"]) // 2
+    emptied = text[:mapped["char_start"]] + text[mapped["char_end"]:]
+    notify_start = html.index("function notify(kind, payload)")
+    notify = html[notify_start:html.index("\n}\n", notify_start) + 3]
+    posted = _node(_page_functions(html) + notify + f"""
+const posts = [];
+window.webkit = {{ messageHandlers: {{ ficheroBridge: {{ postMessage: (body) => posts.push(body) }} }} }};
+const lines = {json.dumps(lines)}, pageId = {json.dumps(doc_id)}, segmentId = {json.dumps(first["id"])};
+notify("readingEdit", readingEditMessage({json.dumps(text)}, {json.dumps(typed)}, lines, pageId, segmentId).message);
+const mine = {json.dumps(text[mapped["char_start"]:mapped["char_end"]] + " ܘܐܝܣܚܩ")};
+notify("readingEdit", keepMineMessage(pageId, segmentId,
+    {{ mine, theirs: {{ representationId: {json.dumps(theirs)}, text: "theirs" }} }}));
+notify("lineSplit", lineSplitMessage(lines, pageId, {middle}));
+notify("readingEdit", readingEditMessage({json.dumps(text)}, {json.dumps(emptied)}, lines, pageId, segmentId).message);
+console.log(JSON.stringify(posts));
+""")
+    assert [p["kind"] for p in posted] == ["readingEdit", "readingEdit", "lineSplit", "readingEdit"]
+    assert posted[3]["text"] == "", "every word of the line deleted"
+    assert posted[0]["basedOn"] == file_reading and posted[1]["basedOn"] == theirs
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    token = next(s["id"] for s in stable_route["segments"]
+                 if s["kind"] == "line" and s["anchor"]["rect"] == first["anchor"]["rect"])
+    recorded = _stabilizer({doc_id: stable_route["document_id"], first["id"]: token,
+                            file_reading: "rep-0001", theirs: "rep-0002"})(posted)
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        PAGE_MESSAGES_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(PAGE_MESSAGES_FIXTURE.read_text()) == recorded, "the page's messages changed: re-record and re-run the app's joint test"

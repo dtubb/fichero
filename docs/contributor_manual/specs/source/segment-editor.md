@@ -666,8 +666,9 @@ The editor
   **App half built:** a `readingEdit` that removes words, down to an empty line, only ever becomes
   `representation.create`, never a segment action, and the line stays
   (`ImportedPageDrawsItsBoxesTests.testDeletingWordsIsANewReadingAndNeverTouchesTheSegments`, over the
-  recorded Syriac page). still PARTIAL, not OK, because no test carries the served page's OWN message through the app's bridge (`DocumentKGWebPaneCoordinatorMacOS.applyTextEdit`): each side pins the message shape against the same real page separately, and that joint is the screen path; and a word segment left without a reading is not in the Reader's line
-  map, so it is shown by the Source view, not here.
+  recorded Syriac page). **The joint (2026-09-28):** the served page's OWN script, run in node on the imported Syriac page, posts through its own `notify` (`test_imported_page_draws_its_boxes.py::test_the_served_page_s_own_messages_are_recorded_for_the_app_s_bridge`, regenerated every run, failing on drift), and those exact bodies go through the bridge's own parse and `ReaderTextEditRunner` -- what `applyTextEdit` runs -- to the requests the engine takes (`ImportedPageDrawsItsBoxesTests.testTheServedPagesOwnMessagesBecomeTheRequestsTheEngineTakes`) (every word deleted is an empty `representation.create`, never a segment action). Still PARTIAL for one clause: a word segment left without a reading is not in the Reader's
+  line map, so it would be shown by the Source view -- and nothing yet shows it there AS a segment without
+  a reading, or tests that it does.
 - `source.textedit.lines-move-in-the-order` — **[PARTIAL]** (#5001) cutting and pasting whole lines changes the named
   reading order and nothing on the page; other pasted text is typing, its line breaks
   turned to spaces.
@@ -685,7 +686,7 @@ The editor
   (`fichero-server/tests/unit/api/test_reader_selection.py::test_focus_is_posted_once_per_line_change`,
   `::test_the_apps_selection_names_exactly_those_lines_text`). **Still PARTIAL:** the app's half
   (archive, f5f580761) and a run from the screen; the word-level selection is not built.
-- `source.textedit.a-run-of-keys-is-one-action` — **[PARTIAL]** (#5001) typing in one line commits as one reading, one
+- `source.textedit.a-run-of-keys-is-one-action` — **[OK]** (#5001) typing in one line commits as one reading, one
   audit record and one undo step, on leaving the line, a structural key, loss of focus, Save,
   or two seconds' pause; structural edits are their own action at once.
   **Page half built (2026-09-28):** the page sends one `readingEdit` per run: on leaving the line, a
@@ -697,7 +698,7 @@ The editor
   `::test_words_being_typed_survive_the_page_being_re_read`). **App half built:** one `readingEdit` is
   ONE `representation.create`, one audit row and one ⌘Z step, and the page is told the reading it made
   (`ImportedPageDrawsItsBoxesTests.testARunOfTypingIsOneReadingOneAuditOneUndo`, over the recorded Syriac
-  page); the engine half is `representation.create` itself. still PARTIAL, not OK, because no test carries the served page's OWN message through the app's bridge (`DocumentKGWebPaneCoordinatorMacOS.applyTextEdit`): each side pins the message shape against the same real page separately, and that joint is the screen path.
+  page); the engine half is `representation.create` itself. **The joint (2026-09-28):** the served page's OWN script, run in node on the imported Syriac page, posts through its own `notify` (`test_imported_page_draws_its_boxes.py::test_the_served_page_s_own_messages_are_recorded_for_the_app_s_bridge`, regenerated every run, failing on drift), and those exact bodies go through the bridge's own parse and `ReaderTextEditRunner` -- what `applyTextEdit` runs -- to the requests the engine takes (`ImportedPageDrawsItsBoxesTests.testTheServedPagesOwnMessagesBecomeTheRequestsTheEngineTakes`).
 - `source.textedit.stale-keeps-your-words` — **[PARTIAL]** (#5001) an edit against a version that has moved on is refused
   and the typed words are kept and offered: keep mine, take theirs, compare; out of reach of
   the engine the text is read-only. **The token (decided 2026-09-28 by the lead as a default; the
@@ -725,9 +726,9 @@ The editor
   `ImportedPageDrawsItsBoxesTests.testATypedLineAgainstAReadingThatNoLongerCountsKeepsTheWordsAndNamesWhatCounts`,
   recorded Syriac readings: token sent, 409 answered with the words kept and `rep-0002` named, Keep Mine
   re-sent against it). A line whose text came from its words sends no `basedOn`, so no check.
-  **Not yet:** "out of reach of the engine the text is read-only"; and no test carries the served page's
-  OWN message through the app's bridge (`applyTextEdit`) -- each side pins the message shape against the
-  same real page separately, and that joint is the screen path.
+  **The joint (2026-09-28):** the served page's OWN script, run in node on the imported Syriac page, posts through its own `notify` (`test_imported_page_draws_its_boxes.py::test_the_served_page_s_own_messages_are_recorded_for_the_app_s_bridge`, regenerated every run, failing on drift), and those exact bodies go through the bridge's own parse and `ReaderTextEditRunner` -- what `applyTextEdit` runs -- to the requests the engine takes (`ImportedPageDrawsItsBoxesTests.testTheServedPagesOwnMessagesBecomeTheRequestsTheEngineTakes`): Keep Mine's own message is `representation.create` against what counts now.
+  **Not yet, so PARTIAL:** "out of reach of the engine the text is read-only" -- nothing makes the Reader
+  read-only when the engine cannot be reached.
 - `source.textedit.every-direction` — **[PARTIAL]** (#5001) each block is laid out and edited in its own direction;
   line starts, joins and cuts follow reading order and the baseline; a direction the platform
   cannot lay out is labelled, never reordered.
