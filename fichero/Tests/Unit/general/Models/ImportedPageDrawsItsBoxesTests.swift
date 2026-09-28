@@ -241,9 +241,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             "import_format": "pagexml", "media_type": "application/xml",
             "content_base64": fileBytes.base64EncodedString()
         ])
-        let original = try await XCTUnwrap(
-            SegmentService(ficheroClient: XCTUnwrap(storeClient)).original(passId: entry.passId)
-        )
+        let service = SegmentService(ficheroClient: try XCTUnwrap(storeClient))
+        let fetched = try await service.original(passId: entry.passId)
+        let original = try XCTUnwrap(fetched)
         XCTAssertEqual(original.bytes, fileBytes, "Show Original is the file byte for byte")
         XCTAssertEqual(original.text, String(data: fileBytes, encoding: .utf8), "shown as the file's own text")
     }
