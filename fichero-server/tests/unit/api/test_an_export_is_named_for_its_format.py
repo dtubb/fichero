@@ -44,3 +44,35 @@ def test_hocr_is_hocr_and_yolo_is_txt():
     assert by_name["hocr"].file_extension == ".hocr"
     assert by_name["yolo"].file_extension == ".txt"
     assert {by_name[n].file_extension for n in ("pagexml", "alto", "tei")} == {".page.xml", ".alto.xml", ".tei.xml"}
+
+
+def _export_name(client, doc_id: str, name: str) -> str:
+    response = client.get(f"/api/documents/{doc_id}/export/{name}")
+    assert response.status_code == 200, response.text
+    return response.json()["filename"]
+
+
+def test_an_imported_page_exported_in_its_own_format_carries_the_extension_once(db, client):
+    """An imported page is named after its file (`x.page.xml`): taking only the last suffix off
+    gave `x.page` and a PAGE export of it read `x.page.page.xml` (2026-09-28)."""
+    from tests.unit.api.test_page_text_follows_the_file import SYRIAC, _import as import_file
+
+    doc_id = import_file(db, SYRIAC)
+    assert _export_name(client, doc_id, "pagexml") == "escriptorium_syriac_onb-syr1-0001.page.xml"
+
+
+def test_an_alto_import_exported_as_tei_is_named_tei_not_alto(db, client):
+    from tests.unit.api.test_page_text_follows_the_file import CLM, _import as import_file
+
+    doc_id = import_file(db, CLM)
+    assert _export_name(client, doc_id, "tei") == "escriptorium_latin-mufi_clm13027-38r.tei.xml"
+
+
+def test_an_image_name_keeps_its_stem_and_every_dot_in_it():
+    from fichero_server.page_export import export_stem
+
+    assert export_stem("onb-syr1.0001.jpg", "doc") == "onb-syr1.0001"
+    assert export_stem("folio 3r.tif", "doc") == "folio 3r"
+    assert export_stem("scan.v2.page.xml", "doc") == "scan.v2"            # the sidecar suffix goes, the dots stay
+    assert export_stem("onb-syr1-0001.page.jpg", "doc") == "onb-syr1-0001"  # an image named after its sidecar
+    assert export_stem(None, "doc-123") == "doc-123"

@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from typing import Any
 
-from fichero_server.formats import LossReport, format_named, write_page
+from fichero_server.formats import LossReport, format_named, known_formats, write_page
 from fichero_server.formats.harness import PageOrder, PageSegment, SourcePage
 
 
@@ -273,6 +273,35 @@ def _declared_signs_used(db: Any, segments: list[PageSegment]) -> list[dict[str,
     ]
 
 
+def export_stem(name: str | None, fallback: str) -> str:
+    """The name an export is built on: the page's file name without ITS OWN format extension.
+
+    An imported page is named after the file it came from -- `x.page.xml`, `x.alto.xml` -- so
+    taking only the last suffix off left `x.page` and a PAGE export of it read `x.page.page.xml`.
+    The longest extension any registered format reads or writes is taken off (`.page.xml` before
+    `.xml`); a name no format claims -- an image, `onb-syr1.0001.jpg` -- loses only its last suffix,
+    keeping every dot in its stem.
+    """
+    base = PurePosixPath(name).name if name else ""
+    lower = base.lower()
+    specs = known_formats()
+    known = sorted({ext.lower() for spec in specs for ext in (spec.file_extension, *spec.extensions)},
+                   key=len, reverse=True)
+    for ext in known:
+        if lower.endswith(ext) and len(base) > len(ext):
+            return base[: -len(ext)]
+    stem = PurePosixPath(base).stem
+    # A page image named after its sidecar (`x.page.jpg`, as the corpus's pages are) still carries the
+    # sidecar's infix once its own suffix is gone: that infix goes too, or a PAGE export reads
+    # `x.page.page.xml`. Only the registry's compound infixes (`.page`, `.alto`, `.tei`, `.georef`).
+    infixes = {ext.lower()[: -len(PurePosixPath(ext).suffix)] for spec in specs
+               for ext in (spec.file_extension,) if ext.count(".") > 1}
+    for infix in sorted(infixes, key=len, reverse=True):
+        if stem.lower().endswith(infix) and len(stem) > len(infix):
+            return stem[: -len(infix)]
+    return stem or fallback
+
+
 def export_page(
     db: Any,
     document_id: str,
@@ -289,7 +318,7 @@ def export_page(
         georeference=spec.name in ("iiif-georef", "qgis-points"),
     )
     data, report = write_page(spec.name, page)
-    stem = PurePosixPath(page.image_name or document_id).stem or document_id
+    stem = export_stem(page.image_name, document_id)
     # The format's own export extension, from the registry: a second table here defaulted every
     # unlisted format to `.xml`, so hOCR and YOLO exports were misnamed.
     return PageExport(data=data, filename=f"{stem}{spec.file_extension}", format=spec.name, choices=choices, report=report)
