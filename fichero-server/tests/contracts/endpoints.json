@@ -3836,6 +3836,24 @@
     "georeference": [
       {
         "method": "GET",
+        "path": "/georeference/documents/{doc_id}/geojson",
+        "operation_id": "get_document_geojson_api_georeference_documents__doc_id__geojson_get",
+        "summary": "Get Document Geojson",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [
+          {
+            "name": "kinds",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
         "path": "/georeference/passes/{pass_id}/transform",
         "operation_id": "get_transform_api_georeference_passes__pass_id__transform_get",
         "summary": "Get Transform",
@@ -6325,6 +6343,22 @@
         "query_params": [],
         "request_model": "TypedLinkWrite",
         "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/links/naming",
+        "operation_id": "segments_naming_place_api_links_naming_get",
+        "summary": "Segments Naming Place",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "uri",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "NamingResponse"
       },
       {
         "method": "GET",

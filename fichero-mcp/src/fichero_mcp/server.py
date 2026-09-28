@@ -472,6 +472,16 @@ def fichero_segment_readings(segment_id: str, kind: Optional[str] = None) -> Any
 
 
 @mcp.tool()
+def fichero_segments_naming_place(uri: str) -> Any:
+    """Every segment in the library that names a place, found by the place's gazetteer or
+    authority URI -- Pleiades, Getty TGN, GeoNames, WHG, Wikidata (read-only, writes nothing,
+    never fetches). Any accepted spelling of the URI; each segment with its page, the place
+    entity and the link's certainty. The same answer as ``GET /api/links/naming``."""
+    with _client() as client:
+        return client.request("GET", "/api/links/naming", params={"uri": uri})
+
+
+@mcp.tool()
 def fichero_document_text(
     doc_id: str,
     pass_id: Optional[str] = None,

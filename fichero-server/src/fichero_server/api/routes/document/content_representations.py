@@ -796,7 +796,13 @@ def choose_working_pass(
             f"not {params.document_id}"
         )
 
-    existing = db.query(SegmentPassChoice, document_id=params.document_id)
+    # A choice supersedes the earlier choices OF ITS OWN KIND only (#5122): choosing a
+    # georeferencing pass must not retire a person's choice of the text pass, nor the reverse.
+    from fichero_server.api.routes.document.segment_readings import georeferences
+
+    kind = georeferences(pass_row)
+    existing = [row for row in db.query(SegmentPassChoice, document_id=params.document_id)
+                if georeferences(db.get(SegmentPass, row.pass_id)) == kind]
     live = [row for row in existing if row.superseded_at is None]
     now = utc_now()
     _supersede_choices(db, existing, now)

@@ -108,9 +108,14 @@ class AuthorityRefreshRequest(BaseModel):
     )
 
 
+#: The authorities an entity may be linked to (`knowledge.authorities`): the three with fetchers,
+#: and the gazetteers (maps D2), whose records arrive as recorded snapshots.
+LinkableAuthority = Literal["wikidata", "viaf", "loc", "pleiades", "tgn", "geonames", "whg"]
+
+
 class AuthorityLinkRequest(BaseModel):
     entity_id: str = Field(min_length=1)
-    authority: Literal["wikidata", "viaf", "loc"]
+    authority: LinkableAuthority
     authority_id: str = Field(min_length=1)
 
 
@@ -1288,12 +1293,12 @@ class LinkAuthorityParams(BaseModel):
     """
 
     entity_id: str = Field(min_length=1)
-    authority: Literal["wikidata", "viaf", "loc"]
+    authority: LinkableAuthority
     authority_id: str = Field(min_length=1)
 
 
 def link_authority_impl(
-    db: Database, params: LinkAuthorityParams, actor: str = "human"
+    db: Database, params: LinkAuthorityParams, actor: str = "human", provenance_kind=None,
 ) -> EntityMergeAudit:
     """Confirm + persist one entity-to-authority link. Extracted verbatim
     from the former bare route body (#4829) -- same lookups, same metadata
@@ -1316,6 +1321,14 @@ def link_authority_impl(
     entity = db.get(KnowledgeEntity, params.entity_id)
     if entity is None:
         raise HTTPException(status_code=404, detail=f"Entity not found: {params.entity_id}")
+    from fichero_server.knowledge.authorities import AuthorityIdRefused, normalise
+
+    try:
+        # One spelling of an identifier (maps D2): a URI form is read back to the id; one that
+        # fits no pattern of its authority is refused, never stored as given.
+        params = params.model_copy(update={"authority_id": normalise(params.authority, params.authority_id)})
+    except AuthorityIdRefused as refusal:
+        raise HTTPException(status_code=422, detail=str(refusal)) from refusal
     snapshot = next(
         (row for row in db.query(AuthoritySnapshot)
          if row.authority == params.authority and row.authority_id == params.authority_id),
@@ -1323,13 +1336,16 @@ def link_authority_impl(
     )
     if snapshot is None:
         raise HTTPException(status_code=404, detail="Authority snapshot not found; refresh it first")
-    links = list(entity.metadata.get("authority_links", []))
+    # A chosen link is a `same_as` typed link to the canonical URI (maps D3): maker, certainty,
+    # time, several per entity -- not a dict in metadata, which is migrated on open and not read.
+    from fichero_server.knowledge.authorities import link_entity
+    from fichero_server.models.knowledge import ProvenanceKind
+
     link = {"authority": snapshot.authority, "authority_id": snapshot.authority_id}
-    if link not in links:
-        links.append(link)
-        entity.metadata["authority_links"] = links
-        entity.updated_at = utc_now()
-        db.save(entity)
+    link_entity(db, entity.id, snapshot.authority, snapshot.authority_id,
+                provenance_kind=provenance_kind or ProvenanceKind.human, created_by=actor)
+    entity.updated_at = utc_now()
+    db.save(entity)
     audit = EntityMergeAudit(
         operation_type=EntityMergeOperationType.authority_link,
         source_entity_ids=[],
@@ -1442,13 +1458,15 @@ class EnrichImportResponse(BaseModel):
     claim_ids: list[str] = Field(default_factory=list)
 
 
-def _resolve_wikidata_qid(entity: KnowledgeEntity, explicit_qid: str | None) -> str:
-    """The QID to enrich from: an explicit one, else the linked Wikidata id."""
+def _resolve_wikidata_qid(db: Database, entity: KnowledgeEntity, explicit_qid: str | None) -> str:
+    """The QID to enrich from: an explicit one, else the linked Wikidata id (its `same_as` link)."""
+    from fichero_server.knowledge.authorities import authority_links_of
+
     if explicit_qid:
         return explicit_qid.strip()
-    for link in entity.metadata.get("authority_links", []):
-        if link.get("authority") == "wikidata" and link.get("authority_id"):
-            return str(link["authority_id"])
+    for link in authority_links_of(db, entity.id):
+        if link["authority"] == "wikidata":
+            return link["authority_id"]
     raise HTTPException(
         status_code=422,
         detail="No Wikidata QID: link this entity to a Wikidata authority first, "
@@ -1476,7 +1494,7 @@ async def enrich_preview(
     entity = db.get(KnowledgeEntity, body.entity_id)
     if entity is None:
         raise HTTPException(status_code=404, detail=f"Entity not found: {body.entity_id}")
-    qid = _resolve_wikidata_qid(entity, body.qid)
+    qid = _resolve_wikidata_qid(db, entity, body.qid)
     endpoint = resolve_selected_endpoint(get_app_db())
     try:
         statements = await fetch_statements_sparql(qid, endpoint)
@@ -1771,7 +1789,9 @@ def _action_split_entity(
 def _action_link_authority(
     db: Database, params: LinkAuthorityParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    audit = link_authority_impl(db, params, ctx.actor)
+    from fichero_server.api.routes.document.segments import provenance_kind_from_ctx
+
+    audit = link_authority_impl(db, params, ctx.actor, provenance_kind_from_ctx(ctx))
     spec = ChangeSpec(
         domains=["entity"],
         target_ids=[params.entity_id],

@@ -4915,6 +4915,51 @@
         }
       }
     },
+    "/api/links/naming": {
+      "get": {
+        "tags": [
+          "links"
+        ],
+        "summary": "Segments Naming Place",
+        "description": "`GET /api/links/naming?uri=` -- every segment in the library that `names` a place entity\n`same_as` this URI (`source.geo.gazetteer-query`): one query, never a fetch.",
+        "operationId": "segments_naming_place_api_links_naming_get",
+        "parameters": [
+          {
+            "name": "uri",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "A gazetteer's (or other authority's) URI for the place",
+              "title": "Uri"
+            },
+            "description": "A gazetteer's (or other authority's) URI for the place"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NamingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/links/of/{end_id}": {
       "get": {
         "tags": [
@@ -5225,6 +5270,63 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WorldShape"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/georeference/documents/{doc_id}/geojson": {
+      "get": {
+        "tags": [
+          "georeference"
+        ],
+        "summary": "Get Document Geojson",
+        "description": "`GET /api/georeference/documents/{doc_id}/geojson` -- this image's segments of `kinds`, placed\nin the world through its working georeferencing pass, as an RFC 7946 FeatureCollection\n(`source.geo.geojson-out`). Each Feature is the segment's `world-shape`: its id, its citable\nreference back, the pass and transform version, the error estimate and whether the GCPs are a\nmachine's unchosen ones. A segment that cannot be placed (outside the map, on an image with no\nrecorded alignment) is not a Feature: it is listed, with why, in the foreign member\n`fichero:not_placed` -- never dropped silently, never extrapolated.",
+        "operationId": "get_document_geojson_api_georeference_documents__doc_id__geojson_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "kinds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Comma-separated segment kinds to place",
+              "default": "place",
+              "title": "Kinds"
+            },
+            "description": "Comma-separated segment kinds to place"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Document Geojson Api Georeference Documents  Doc Id  Geojson Get"
                 }
               }
             }
@@ -42548,7 +42650,11 @@
             "enum": [
               "wikidata",
               "viaf",
-              "loc"
+              "loc",
+              "pleiades",
+              "tgn",
+              "geonames",
+              "whg"
             ],
             "title": "Authority"
           },
@@ -61282,6 +61388,79 @@
         "title": "MutationListResponse",
         "description": "Standardized envelope for mutation/triangulation list endpoints."
       },
+      "NamingResponse": {
+        "properties": {
+          "uri": {
+            "type": "string",
+            "title": "Uri"
+          },
+          "authority": {
+            "type": "string",
+            "title": "Authority"
+          },
+          "authority_id": {
+            "type": "string",
+            "title": "Authority Id"
+          },
+          "entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Entity Ids"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/NamingSegment"
+            },
+            "type": "array",
+            "title": "Segments"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uri",
+          "authority",
+          "authority_id",
+          "entity_ids",
+          "segments"
+        ],
+        "title": "NamingResponse",
+        "description": "Every segment naming the place an authority URI identifies (maps D3, #5123)."
+      },
+      "NamingSegment": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "certainty": {
+            "type": "number",
+            "nullable": true,
+            "title": "Certainty"
+          },
+          "link_id": {
+            "type": "string",
+            "title": "Link Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id",
+          "document_id",
+          "entity_id",
+          "link_id"
+        ],
+        "title": "NamingSegment"
+      },
       "NeighborEntity": {
         "properties": {
           "id": {
@@ -75282,6 +75461,26 @@
             "type": "array",
             "title": "Not Used",
             "default": []
+          },
+          "pass_provenance": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pass Provenance"
+          },
+          "working": {
+            "type": "boolean",
+            "title": "Working",
+            "default": false
+          },
+          "pass_basis": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pass Basis"
+          },
+          "unchosen": {
+            "type": "boolean",
+            "title": "Unchosen",
+            "default": false
           }
         },
         "type": "object",
@@ -76690,6 +76889,26 @@
             "type": "string",
             "nullable": true,
             "title": "Reason"
+          },
+          "pass_provenance": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pass Provenance"
+          },
+          "working": {
+            "type": "boolean",
+            "title": "Working",
+            "default": false
+          },
+          "pass_basis": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pass Basis"
+          },
+          "unchosen": {
+            "type": "boolean",
+            "title": "Unchosen",
+            "default": false
           }
         },
         "type": "object",

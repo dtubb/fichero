@@ -33,6 +33,9 @@ SCHEMALESS = {
     "'Still wanted' list in fixtures/PROVENANCE.md (licences refused so far).",
     "yolo": "lines of numbers; nothing to validate but the arithmetic, which "
     "test_hocr_and_yolo.py pins.",
+    "qgis-points": "a CSV whose columns QGIS's georeferencer defines, with no published schema; "
+    "the header is what `sniff` checks, and test_gcp_tables_qgis_points.py pins the numbers "
+    "against the real files read with csv.",
 }
 
 #: Real files by format, identified by their BYTES, not their names.
@@ -140,7 +143,7 @@ class TestTheScriptSaysWhatItDidNotCheck:
         is right: the script reports files, it does not forgive other tools."""
         assert script.main([str(_FIXTURES), "--inputs"]) == 1
         out = capsys.readouterr().out
-        assert "7 valid, 3 INVALID, 1 other version, 0 no schema, 1 unrecognised" in out
+        assert "7 valid, 3 INVALID, 1 other version, 2 no schema, 1 unrecognised" in out
 
 
 class TestTheDefaultIsOurExport:
@@ -151,7 +154,7 @@ class TestTheDefaultIsOurExport:
     def test_the_fixtures_pass_because_every_one_of_our_exports_validates(self, capsys):
         assert script.main([str(_FIXTURES)]) == 0
         out = capsys.readouterr().out
-        assert "11 exported, 0 EXPORT INVALID, 0 UNREADABLE, 0 UNWRITABLE, 1 not exported" in out
+        assert "13 exported, 0 EXPORT INVALID, 0 UNREADABLE, 0 UNWRITABLE, 1 not exported" in out
         assert "3 INVALID" in out  # the inputs, reported as information
 
     def test_one_invalid_export_of_ours_is_a_red(self, tmp_path, monkeypatch):

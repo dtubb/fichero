@@ -488,8 +488,12 @@ Shape and images
 - `source.segment.curved-baseline` — **[OK]** (#4925 closed; `test_segment_pictures.py::TestATiltedLineIsLevelledOnItsBaseline`) a line's baseline can curve; direction can follow it.
 - `source.segment.names-its-image` — **[OK]** (#4919; pinned by `tests/unit/api/test_segments_route.py::TestNamesItsImage::test_every_segment_names_the_results_rendition`) every shape names the image it was measured on; the image
   has a size and a checksum.
-- `source.segment.no-guessing-across-images` — **[GAP]** (#4926) a shape is shown on another image of the page
+- `source.segment.no-guessing-across-images` — **[PARTIAL]** (#4926) a shape is shown on another image of the page
   only through a known alignment; otherwise Fichero says it cannot.
+  **Partly built 2026-09-28 (#5122):** for a segment's place in the world, a shape on another image is
+  carried through a recorded crop and refused with the reason otherwise
+  (`fichero-server/tests/unit/api/test_gcps_on_another_image.py::test_a_label_on_a_turned_image_is_refused_not_guessed`). Drawing a shape on another image in
+  the Source view is not built.
 - `source.segment.picture-by-shape` — **[OK]** (#4925 closed; `test_segment_pictures.py::TestAShapeIsMaskedNotBoxed`) any segment's picture can be had, cut to its shape, from
   a chosen image, at a chosen size; a line's can be straightened.
 

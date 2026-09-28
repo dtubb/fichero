@@ -5492,6 +5492,21 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='georeference')
         existing_apps['georeference'] = target_app
 
+    @target_app.command("get-document-geojson")
+    def georeference_get_document_geojson_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        kinds: Optional[str] = typer.Option(None, "--kinds", help="Query parameter: kinds."),
+    ) -> None:
+        """Get Document Geojson (GET /api/georeference/documents/{doc_id}/geojson)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/georeference/documents/{doc_id}/geojson"
+            params = {
+                "kinds": kinds,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-transform")
     def georeference_get_transform_get(
         ctx: typer.Context,
@@ -7575,7 +7590,7 @@ def register_generated_openapi_commands(
                 "authority_id": authority_id,
                 "entity_id": entity_id,
             }, {
-                "authority": {'type': 'string', 'enum': ['wikidata', 'viaf', 'loc'], 'title': 'Authority', 'x-cli-required': True},
+                "authority": {'type': 'string', 'enum': ['wikidata', 'viaf', 'loc', 'pleiades', 'tgn', 'geonames', 'whg'], 'title': 'Authority', 'x-cli-required': True},
                 "authority_id": {'type': 'string', 'minLength': 1, 'title': 'Authority Id', 'x-cli-required': True},
                 "entity_id": {'type': 'string', 'minLength': 1, 'title': 'Entity Id', 'x-cli-required': True},
             }, required=True)
@@ -8930,6 +8945,20 @@ def register_generated_openapi_commands(
                 "to_kind": {'type': 'string', 'title': 'To Kind', 'default': 'segment', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("segments-naming-place")
+    def links_segments_naming_place_get(
+        ctx: typer.Context,
+        uri: str = typer.Option(..., "--uri", help="Query parameter: uri."),
+    ) -> None:
+        """Segments Naming Place (GET /api/links/naming)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/links/naming"
+            params = {
+                "uri": uri,
+            }
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("of")

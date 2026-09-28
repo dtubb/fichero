@@ -68,6 +68,7 @@ def page_from_library(
     pass_id: str | None = None,
     order_id: str | None = None,
     reading_kind: str = "transcription",
+    georeference: bool = False,
 ) -> tuple[SourcePage, ExportChoices]:
     """The library's page as the one `SourcePage` every format speaks.
 
@@ -86,6 +87,14 @@ def page_from_library(
     document = db.get(Document, document_id)
     if document is None:
         raise ExportRefused(f"document not found: {document_id}")
+    if georeference and pass_id is None:
+        # A georeference exports the image's WORKING georeferencing pass (#5122, maps C3), chosen
+        # among its own kind -- never the text pass, which has no control points.
+        from fichero_server.api.routes.document.georeference import working_georeference
+
+        pass_id, _basis = working_georeference(db, document_id)
+        if pass_id is None:
+            raise ExportRefused(f"document {document_id} is not georeferenced: no pass on it has a transformation")
     try:
         derived = document_text(db, document_id, pass_id=pass_id, order=order_id, kind=reading_kind)
     except LookupError as exc:
@@ -117,6 +126,15 @@ def page_from_library(
         key=_segment_order_key,
     )
     ids = {r.id for r in rows}
+    # A georeferencing pass (#5122, maps C3): each GCP's two ends and the mask it controls, from the
+    # library -- the point anchor, the counted `world-point` reading, the `controls` link.
+    controls: dict[str, str] = {}
+    if pass_row is not None and pass_row.transformation:
+        from fichero_server.models.typed_links import TypedLink
+
+        for link in db.query_in(TypedLink, "from_id", sorted(ids)):
+            if link.link_type == "controls" and link.deleted_at is None and link.to_id in ids:
+                controls[link.from_id] = link.to_id
     segments: list[PageSegment] = []
     for row in rows:
         items = [
@@ -154,6 +172,8 @@ def page_from_library(
                 foreign=dict(row.metadata.get("foreign") or {}),
             )
         )
+        if pass_row is not None and pass_row.transformation:
+            _georeference_ends(db, row, segments[-1], controls)
     choices.segment_count = len(segments)
     if any(r.is_furniture for r in rows):
         choices.notes.append(
@@ -198,7 +218,45 @@ def page_from_library(
         orders=orders,
         signs=_declared_signs_used(db, segments),
     )
+    if pass_row is not None and pass_row.transformation:
+        from fichero_server.models.geo import transformation_to_iiif
+
+        page.transformation = transformation_to_iiif(pass_row.transformation)
     return page, choices
+
+
+def _georeference_ends(db: Any, row: Any, segment: PageSegment, controls: dict[str, str]) -> None:
+    """A GCP's pixel end (its point, in the page's frame) and world end (its counted world point,
+    when it has a place in WGS 84), and the mask it controls -- or nothing, and the writer's loss
+    report says "control points without both ends"."""
+    import json
+
+    from fichero_server.api.routes.document.georeference import NoKnownAlignment, page_frame_points
+    from fichero_server.api.routes.document.segment_readings import counting_by_kind, readings_of_segment
+    from fichero_server.formats.iiif_georef import MASK_LINK
+    from fichero_server.models import ContentRepresentation
+    from fichero_server.models.geo import WORLD_POINT
+
+    if row.id in controls:
+        segment.foreign[MASK_LINK] = controls[row.id]
+    point = next((sh.points[0] for sh in row.anchor.shapes or []
+                  if str(getattr(sh.kind, "value", sh.kind)) == "point" and sh.points), None)
+    if point is not None:
+        try:
+            [segment.point] = page_frame_points(db, row.anchor.rendition_id, [point])
+        except NoKnownAlignment:
+            segment.point = None
+    counted = counting_by_kind(db, row.id, readings_of_segment(db, row.id)).get(WORLD_POINT)
+    reading = db.get(ContentRepresentation, counted.representation_id) if counted and counted.representation_id else None
+    # What the file SAID at import is not what counts now (a person may have declared the CRS since):
+    # the world end written is the counted one, in WGS 84, and it says so.
+    for key in ("gcp:crs", "gcp:axis_order"):
+        segment.foreign.pop(key, None)
+    if reading is not None:
+        world = json.loads(reading.content)
+        if world.get("lon") is not None and world.get("lat") is not None:
+            segment.world = (world["lon"], world["lat"])
+            segment.foreign["gcp:crs"], segment.foreign["gcp:axis_order"] = "EPSG:4326", "lon,lat"
 
 
 def _declared_signs_used(db: Any, segments: list[PageSegment]) -> list[dict[str, Any]]:
@@ -227,9 +285,11 @@ def export_page(
     """One page, validated, with the loss report and the choices that were made."""
     spec = format_named(format_name)  # UnknownFormat names what this build has
     page, choices = page_from_library(
-        db, document_id, pass_id=pass_id, order_id=order_id, reading_kind=reading_kind
+        db, document_id, pass_id=pass_id, order_id=order_id, reading_kind=reading_kind,
+        georeference=spec.name in ("iiif-georef", "qgis-points"),
     )
     data, report = write_page(spec.name, page)
     stem = PurePosixPath(page.image_name or document_id).stem or document_id
-    extension = {"tei": ".tei.xml", "pagexml": ".page.xml", "alto": ".alto.xml"}.get(spec.name, ".xml")
+    extension = {"tei": ".tei.xml", "pagexml": ".page.xml", "alto": ".alto.xml",
+                 "iiif-georef": ".georef.json", "qgis-points": ".points"}.get(spec.name, ".xml")
     return PageExport(data=data, filename=f"{stem}{extension}", format=spec.name, choices=choices, report=report)

@@ -299,10 +299,19 @@ Sureness and damage
 - `source.sure.editorial-facts` — **[PARTIAL]** (#4935) unclear, lost, restored, supplied, superfluous, deleted and
   added are recorded as facts with extent, reason and author.
   **Built engine-side:** `editorial.record` / `withdraw` with extent, reason, place, certainty and author (`fichero-server/tests/unit/api/test_editorial_facts.py::test_a_fact_is_recorded_with_its_extent_reason_and_author_and_drawn_not_stored`, `fichero-server/tests/unit/api/test_editorial_facts.py::test_a_lost_stretch_with_no_text_is_recorded_by_its_extent`). **Missing:** the app; importers mapping a file's own marks (PAGE `unclear`, TEI `unclear`/`supplied`/`gap`).
+  **From a file (2026-09-28, #5179):** `format.import` writes a file's marks as facts on the reading
+  it made -- PAGE `unclear {offset;length}`; TEI `<unclear>`, `<supplied>` (lost -> restored,
+  omitted -> supplied), `<gap>` (a position; illegible -> unclear with no span), `<surplus>`, `<add>`
+  -- `external_import`, `source` "file: <name>", in the import's own action so its undo takes them;
+  what cannot be a fact is named in `not_imported` (`fichero-server/tests/unit/api/test_marks_arrive_as_editorial_facts.py`, the Syriac PAGE page and the DDbDP
+  papyri). Still owed: `<del>` (the reader leaves deleted letters out of the reading, so a deleted
+  fact has nothing to span -- a ruling on whether the reading should hold them), and a screen.
 - `source.sure.brackets-are-drawn` — **[PARTIAL]** (#4935) editorial signs are produced from those facts on display
   and export; they are never stored in a reading's text.
   **Built engine-side:** `editorial/leiden.py` draws the signs when read and never changes the text (`fichero-server/tests/unit/models/test_leiden.py::test_nested_facts_draw_inside_out_and_the_text_is_never_changed`, `fichero-server/tests/unit/models/test_leiden.py::test_a_lost_stretch_with_no_text_is_a_gap_of_its_extent`). **Missing:** the app, and exports.
-
+  **Imported marks draw (2026-09-28, #5179):** the Syriac page's whole-line `unclear` draws an
+  under-dot on each of its 12 code points, and a papyrus's mid-line `<gap quantity="13">` draws
+  `[--- 13 ---]` where it stands; the stored reading carries no sign (`fichero-server/tests/unit/api/test_marks_arrive_as_editorial_facts.py`).
 Letterforms
 - `source.letterform.chain` — **[PARTIAL]** (#4935) a character segment can name its character, its allograph and
   its scribe's form.

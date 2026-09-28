@@ -72,11 +72,12 @@ TEI_HANDS = "tei:hands"
 #: The side of a `<choice>` that is what the page says, as against what an editor made of it.
 AS_WRITTEN = frozenset({"orig", "sic", "abbr"})
 
-def _written_text(element: Any, kept: list | None = None, start: int = 0) -> str:
+def _written_text(element: Any, kept: list | None = None, start: int = 0, marks: list | None = None) -> str:
     """`itertext()`, but a `<choice>` gives its as-written side only (never both, run together).
 
     With `kept`, each choice's OTHER side is appended to it as `_choice_record` makes it, `start`
-    being where this element's text begins in its reading."""
+    being where this element's text begins in its reading. With `marks`, the editor's marks inside
+    (`MARK_TAGS`, #5179) are appended as the walker records them, at the same offsets."""
     parts = [element.text or ""]
     for child in element:
         if not isinstance(child.tag, str):
@@ -94,7 +95,12 @@ def _written_text(element: Any, kept: list | None = None, start: int = 0) -> str
             parts.append((child.tail or "").lstrip())
             continue
         else:
-            parts.append(_written_text(child, kept, start + len(_norm("".join(parts)))))
+            at = start + len(_norm("".join(parts)))
+            parts.append(_written_text(child, kept, at, marks))
+            if marks is not None and _tag(child) in MARK_TAGS:
+                end = start + len(_norm("".join(parts)))
+                attrs = {name: child.get(name) for name in MARK_ATTRS if child.get(name) is not None}
+                marks.append({"tag": _tag(child), "start": at, "end": end, "attrs": attrs})
         parts.append(child.tail or "")
     return "".join(parts)
 
@@ -116,6 +122,13 @@ def _choice_record(at: int, written: Any, other: Any) -> dict:
 
 KNOWN_INLINE = frozenset({"lb", "pb", "w", "seg", "app", "lem", "rdg", "ab", "p", "head", "l",
                           "div", "text", "body", "TEI"})
+
+#: The editor's marks on a stretch of text (#5179): recorded on the line (or region) as
+#: `foreign["tei:marks"]`, each `{tag, start, end, attrs}` in code points of the line's reading, for
+#: the import to write as editorial facts. `<gap>` is empty: its start is its end, a position.
+MARK_TAGS = frozenset({"unclear", "supplied", "gap", "surplus", "add", "del", "delSpan"})
+MARK_ATTRS = ("reason", "cert", "quantity", "unit", "extent", "place", "rend", "spanTo")
+TEI_MARKS = "tei:marks"
 
 #: `<note type=...>` that carries a word segment whose text is not in its line's text (#5083).
 UNPLACED_WORD = "unplaced-word"
@@ -458,11 +471,13 @@ def read_pages(data: bytes) -> list[SourcePage]:
             return
         if tag == "del":
             # Deleted text is not part of the reading; the element is recorded so a loss report
-            # can say it was there.
+            # can say it was there -- and, as a mark (#5179), WHERE and what it said.
             if state["line"] is not None:
                 state["line"].foreign.setdefault("inline", set()).add("del")
             elif state["region"] is not None:
                 state["region"].foreign.setdefault("inline", set()).add("del")
+            at = _mark_at()
+            _mark(element, at, at, text=_norm(_written_text(element)).strip())
             _tail(element)
             return
         if tag == "w":
@@ -499,10 +514,13 @@ def read_pages(data: bytes) -> list[SourcePage]:
             if lem is not None:
                 holder = state["line"] if state["line"] is not None else state["region"]
                 kept: list = []
-                lem_text = _written_text(lem, kept, at)
+                marks: list = []
+                lem_text = _written_text(lem, kept, at, marks)
                 state["buffer"].append(lem_text)
                 if holder is not None and kept:
                     holder.foreign.setdefault("tei-choice", []).extend(kept)
+                if holder is not None and marks:
+                    holder.foreign.setdefault(TEI_MARKS, []).extend(marks)
             line = state["line"]
             for rdg in (c for c in element if _tag(c) == "rdg"):
                 alt = _norm(_written_text(rdg)).strip()
@@ -527,10 +545,25 @@ def read_pages(data: bytes) -> list[SourcePage]:
             state["line"].foreign.setdefault("inline", set()).add(tag)
         elif tag not in KNOWN_INLINE and state["region"] is not None:
             state["region"].foreign.setdefault("inline", set()).add(tag)
+        start = _mark_at() if tag in MARK_TAGS else None
         if element.text:
             state["buffer"].append(element.text)
         _children(element, region, page, skip_text=True)
+        if start is not None:
+            _mark(element, start, _mark_at())
         _tail(element)
+
+    def _mark_at() -> int:
+        """Where the next character of the holder's reading is: the same offset `<choice>` uses."""
+        return len(_norm("".join(state["buffer"])).lstrip())
+
+    def _mark(element: Any, start: int, end: int, **extra: Any) -> None:
+        holder = state["line"] if state["line"] is not None else state["region"]
+        if holder is None:
+            return
+        attrs = {name: element.get(name) for name in MARK_ATTRS if element.get(name) is not None}
+        holder.foreign.setdefault(TEI_MARKS, []).append(
+            {"tag": _tag(element), "start": start, "end": end, "attrs": attrs, **extra})
 
     def _tail(element: Any) -> None:
         if element.tail:

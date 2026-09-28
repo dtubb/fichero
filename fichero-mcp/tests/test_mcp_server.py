@@ -69,6 +69,7 @@ EXPECTED_TOOLS = {
     # Reading the text (#5139): without these an agent saw every shape on a page
     # and could read none of them.
     "fichero_segment_readings",
+    "fichero_segments_naming_place",
     "fichero_document_text",
     "fichero_segments_in_scope",
     "fichero_reading_orders",
