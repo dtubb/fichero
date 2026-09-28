@@ -294,6 +294,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/svo_cleanup.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/svo_quality.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/triangulation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/triples.py
+$(SRCROOT)/../fichero-server/src/fichero_server/knowledge/units.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/wikidata_enrich.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/apple_guided_schemas.py

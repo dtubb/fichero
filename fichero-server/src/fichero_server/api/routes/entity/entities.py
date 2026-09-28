@@ -2403,6 +2403,9 @@ def _action_withdraw_geometry(db: Database, params: EntityWithdrawGeometryParams
 class PlaceAsOfResponse(BaseModel):
     entity_id: str
     as_of: str
+    #: Places described relative to another ("21 leguas de Quito"), each resolved to an AREA with the
+    #: conversion and tolerance used and the anchor it was measured from -- never a point (maps D10).
+    relative: list[dict[str, Any]] = Field(default_factory=list)
     #: Every geometry valid then -- rivals stay rivals, each with its source.
     geometries: list[EvidentialPlace]
     #: Geometries with no date: valid, time unknown -- never counted as valid at `as_of`.
@@ -2419,7 +2422,7 @@ async def place_as_of(
 ) -> PlaceAsOfResponse:
     """The place as of a date (`source.geo.geometry-over-time`): the geometries valid then, or
     none with the reason -- never the nearest. Nothing is fetched."""
-    from fichero_server.knowledge.places import geometries_as_of
+    from fichero_server.knowledge.places import geometries_as_of, relative_as_of
 
     entity = db.get(KnowledgeEntity, entity_id)
     if entity is None:
@@ -2428,7 +2431,8 @@ async def place_as_of(
         answer = geometries_as_of(entity, as_of)
     except ValueError as refusal:
         raise HTTPException(status_code=422, detail=str(refusal)) from refusal
-    return PlaceAsOfResponse(entity_id=entity.id, as_of=as_of, **answer)
+    return PlaceAsOfResponse(entity_id=entity.id, as_of=as_of, **answer,
+                             relative=relative_as_of(db, entity, as_of, unit_conversions(db)))
 
 
 class EntityAdoptBoundaryParams(BaseModel):
@@ -2499,3 +2503,102 @@ async def place_as_linked_places(
         raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
     uris = sorted(link.to_id for link in same_as_links(db, entity.id))
     return feature_collection([place_feature(entity, uris)])
+
+
+
+# ---------------------------------------------------------------------------
+# Relative places and historical units (maps D10): "21 leguas de Quito" stored as written; the
+# library chooses each unit's conversion, and every area is re-worked through it on read.
+# ---------------------------------------------------------------------------
+
+UNIT_CONVERSION_SETTING = "unit_conversion:"
+
+
+def unit_conversions(db: Database) -> dict[str, str]:
+    """The library's chosen conversion per unit ({"legua": "comun"}); units not listed use their default."""
+    from fichero_server.models.knowledge import LibrarySetting
+
+    return {row.id[len(UNIT_CONVERSION_SETTING):]: row.value for row in db.query(LibrarySetting)
+            if row.id.startswith(UNIT_CONVERSION_SETTING)}
+
+
+class EntityAddRelativePlaceParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    entity_id: str
+    #: A `RelativePlace`: anchor, relation as written, bearing, distance as written, number, unit, certainty.
+    relative: dict
+    label: str | None = Field(default=None, max_length=200)
+    when: dict | None = None
+    #: Where it is said: a citation ("Alcedo 1786, II, s.v. Ibarra") and the words.
+    source_field: str | None = Field(default=None, max_length=500)
+    source_excerpt: str | None = Field(default=None, max_length=2000)
+
+
+@action("entity.add_relative_place", EntityAddRelativePlaceParams, domains=["entity"], undoable=True,
+        invert=_invert_add_geometry)
+def _action_add_relative_place(db: Database, params: EntityAddRelativePlaceParams, ctx: ActionContext):
+    """A place described relative to another (`source.geo.relative-place`): stored as written, never
+    as a point; its area is worked out on read. Withdrawn by `entity.withdraw_geometry`."""
+    from fichero_server.knowledge.units import UnknownUnit, unit_named
+    from fichero_server.models.knowledge import (
+        EvidenceBasis, EvidentialDateRange, EvidentialPlace, PlaceGeometryType, RelativePlace,
+    )
+
+    entity = _live_entity(db, params.entity_id)
+    try:
+        relative = RelativePlace.model_validate(params.relative)
+        unit_named(relative.unit)
+    except (ValueError, UnknownUnit) as refusal:
+        raise HTTPException(status_code=422, detail=str(refusal)) from refusal
+    _live_entity(db, relative.anchor_entity_id)
+    place = EvidentialPlace(
+        label=params.label or entity.canonical_name, geometry_type=PlaceGeometryType.region,
+        relative=relative, basis=EvidenceBasis.source_anchored,
+        when=EvidentialDateRange.model_validate(params.when) if params.when else None,
+        source_field=params.source_field, source_excerpt=params.source_excerpt,
+        created_by=ctx.actor or "human",
+    )
+    entity.place_values = [*entity.place_values, place]
+    entity.updated_at = utc_now()
+    db.save(entity)
+    return ({"entity_id": entity.id, "place_id": place.id},
+            _entity_spec(entity.id, before=None, after={"entity_id": entity.id, "place_id": place.id}, emit="entity.updated"))
+
+
+class UnitConversionParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    unit: str
+    #: A conversion key of that unit; None goes back to the unit's default.
+    conversion: str | None = None
+
+
+def _invert_set_conversion(before, after, ctx):
+    return ("units.set_conversion", {"unit": before["unit"], "conversion": before["conversion"]}) if before else None
+
+
+@action("units.set_conversion", UnitConversionParams, domains=["entity"], undoable=True, invert=_invert_set_conversion)
+def _action_set_conversion(db: Database, params: UnitConversionParams, ctx: ActionContext):
+    """Choose which conversion this library uses for a historical unit (`source.geo.historical-units`):
+    every relative place in that unit is re-worked through it on the next read; nothing written is
+    changed."""
+    from fichero_server.knowledge.units import UnknownUnit, unit_named
+    from fichero_server.models.knowledge import LibrarySetting
+
+    try:
+        unit = unit_named(params.unit)
+        if params.conversion is not None:
+            unit.conversion(params.conversion)
+    except (UnknownUnit, KeyError) as refusal:
+        raise HTTPException(status_code=422, detail=str(refusal)) from refusal
+    key = UNIT_CONVERSION_SETTING + unit.key
+    before = {"unit": unit.key, "conversion": unit_conversions(db).get(unit.key)}
+    if params.conversion is None:
+        existing = db.get(LibrarySetting, key)
+        if existing is not None:
+            db.delete(existing)
+    else:
+        db.save(LibrarySetting(id=key, value=params.conversion))
+    after = {"unit": unit.key, "conversion": params.conversion}
+    return after, ChangeSpec(domains=["entity"], target_ids=[key], before=before, after=after, emit_type="entity.updated")

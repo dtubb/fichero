@@ -556,11 +556,33 @@ Places over time and in words
   the column on open (`fichero-server/tests/unit/api/test_a_boundary_from_a_map.py::test_the_map_says_what_it_depicts_apart_from_when_it_was_made`,
   `::test_a_library_from_before_the_column_opens_and_gains_it`). PARTIAL: no screen; per pass, so a
   sheet whose two maps depict different dates needs two passes.
-- `source.geo.relative-place` — **[GAP]** (#5120) a relative description is stored as an anchor
+- `source.geo.relative-place` — **[PARTIAL]** (#5120) a relative description is stored as an anchor
   place, a relation, a distance as written and a certainty, and resolves to an area of
   uncertainty, never a point.
-- `source.geo.historical-units` — **[GAP]** (#5120) a historical distance unit is kept as written
+  **Built 2026-09-28 (maps D10):** `EvidentialPlace.relative` (`RelativePlace`: anchor entity,
+  relation as written, bearing and its half-width, distance as written, number, unit, certainty),
+  written by `entity.add_relative_place` (audited, undoable); the as-of answer's `relative` resolves
+  each on read to a GeoJSON Polygon -- a ring (with its hole) at distance ± tolerance around the
+  anchor's geometry as of the date, or the sector a bearing allows -- naming the conversion, its
+  source, the tolerance and why, and whether the anchor's geometry was dated; never counted among
+  the point geometries. On Alcedo (1786): Ibarra "21 leguas de Quito" and "96 leguas al N de Santa
+  Fe", anchors from Wikidata (`fichero-server/tests/unit/api/test_a_place_relative_to_another.py::test_a_distance_from_an_anchor_is_a_ring_never_a_point`,
+  `::test_a_direction_narrows_the_ring_to_its_sector`, `::test_an_anchor_with_nowhere_to_measure_from_says_so`).
+  PARTIAL: no screen; spherical earth; one anchor geometry is measured from (rivals are counted, not
+  unioned); a polygon anchor is measured from its ring's mean.
+- `source.geo.historical-units` — **[PARTIAL]** (#5120) a historical distance unit is kept as written
   with the conversion used, so the resolved area is recomputed when the conversion changes.
+  **Built 2026-09-28 (maps D10):** `knowledge/units.py` -- legua (legal 5000 varas, común 20000
+  pies, on the 1849 Spanish equivalence of the vara), vara, English statute mile and land league
+  (NIST Handbook 44), verst (1835 Russian law), km, m: public-domain law and government sources only
+  (ruled; no Roman mile). The library chooses a unit's conversion (`units.set_conversion`, audited,
+  undoable); every area re-resolves on the next read and nothing written changes. The tolerance is
+  explicit (ruled): half the spread of the unit's own conversions, else a stated default of ±25%,
+  said in the answer's `conversion.tolerance_basis`
+  (`fichero-server/tests/unit/api/test_a_place_relative_to_another.py::test_choosing_another_conversion_re_resolves_and_rewrites_nothing`,
+  `::test_a_unit_with_one_conversion_carries_the_stated_default_tolerance`,
+  `::test_an_unknown_unit_or_conversion_is_refused`). PARTIAL: no screen; the unit list is small
+  and grows with sources.
 
 Formats
 - `source.geo.iiif-georef-in` — **[PARTIAL]** (#4946, → #5125; the library half → #5122) a IIIF

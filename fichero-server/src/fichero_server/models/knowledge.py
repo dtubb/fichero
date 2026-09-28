@@ -560,6 +560,32 @@ class EvidentialDateRange(BaseModel):
     created_by: str = "extractor"
 
 
+class RelativePlace(BaseModel):
+    """A place described relative to another -- "21 leguas de Quito", "96 leguas al N de Santa Fe"
+    (maps D10, `source.geo.relative-place`). Stored as the source says it: the anchor, the relation,
+    the distance AS WRITTEN with its number and unit, and a certainty. Never a point: it resolves on
+    read to an AREA of uncertainty through the unit's conversion (`knowledge.units`)."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    #: The place it is relative to (an entity whose geometry is the anchor).
+    anchor_entity_id: str
+    #: The relation as written ("de", "al N de").
+    relation_as_written: str | None = None
+    #: A compass bearing FROM the anchor, in degrees (N = 0, E = 90), when the source gives a direction;
+    #: None: a distance in any direction.
+    bearing_deg: float | None = Field(default=None, ge=0.0, lt=360.0)
+    #: How wide the direction is, either side: an eight-point word ("N") is ±22.5°.
+    bearing_halfwidth_deg: float = Field(default=22.5, gt=0.0, le=180.0)
+    #: The distance exactly as written ("21 leguas"), never rewritten.
+    distance_as_written: str = Field(min_length=1)
+    distance_value: float = Field(gt=0.0)
+    #: A key of `knowledge.units.UNITS` ("legua").
+    unit: str
+    #: Scholarly certainty, 0-1 (`source.sure.three-kinds`), or None when not said.
+    certainty: float | None = Field(default=None, ge=0.0, le=1.0)
+
+
 class EvidentialPlace(BaseModel):
     """Spatial evidence for a claim/entity, from points through named sets."""
 
@@ -582,6 +608,8 @@ class EvidentialPlace(BaseModel):
     #: When this geometry held (maps D7, `source.geo.geometry-over-time`): a span, or a point in time
     #: (start == end). None: undated -- listed apart, never taken as valid at a given date.
     when: EvidentialDateRange | None = None
+    #: A place described relative to another (maps D10): no coordinates of its own; resolves on read.
+    relative: RelativePlace | None = None
     #: Declared, not converted (maps D5, `source.geo.crs-declared-on-existing`): every lat/lon this
     #: record has ever held is WGS 84 -- the geocoders and the map speak nothing else -- so a row an
     #: older build wrote reads back saying so. A coordinate in any other CRS is refused here; it goes
