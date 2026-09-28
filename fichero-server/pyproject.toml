@@ -474,4 +474,8 @@ markers = [
     # contention is a flaky test, and a flaky test in a gate teaches people to
     # ignore the gate.
     "timing: asserts a DURATION; run on a quiet machine, exclude with -m 'not timing'",
+    # #5187: a test that SPAWNS an engine and waits for it (30 s health wait, a minute idle) -- sound
+    # on a quiet machine, can fail when the machine is saturated. A gate under contention may retry
+    # or exclude it with -m 'not load_sensitive'; it is never deleted for being slow.
+    "load_sensitive: spawns an engine and waits on it; can fail under heavy load (#5187)",
 ]

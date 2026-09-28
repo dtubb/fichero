@@ -158,10 +158,13 @@ def test_an_unknown_unit_or_conversion_is_refused(db, client):
     quito, _ = _anchor(db, client, "Quito", "quito")
     ibarra = KnowledgeEntity(canonical_name="Ibarra", entity_type=EntityType.location)
     db.save(ibarra)
-    _invoke(client, "entity.add_relative_place", {"entity_id": ibarra.id, "relative": {
+    unit = _invoke(client, "entity.add_relative_place", {"entity_id": ibarra.id, "relative": {
         "anchor_entity_id": quito.id, "distance_as_written": "21 stadia", "distance_value": 21, "unit": "stadion"}},
         expect=422)
-    _invoke(client, "units.set_conversion", {"unit": "legua", "conversion": "de 17 al grado"}, expect=422)
+    assert "unknown unit 'stadion'" in unit["detail"]
+    assert db.get(KnowledgeEntity, ibarra.id).place_values == []              # nothing stored
+    conversion = _invoke(client, "units.set_conversion", {"unit": "legua", "conversion": "de 17 al grado"}, expect=422)
+    assert "no conversion 'de 17 al grado'" in conversion["detail"]
 
 
 def test_an_anchor_with_nowhere_to_measure_from_says_so(db, client):
