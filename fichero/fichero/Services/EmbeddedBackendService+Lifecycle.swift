@@ -196,6 +196,7 @@ extension EmbeddedBackendService {
         try requireServedSocket(transportMode: EngineConfig.transportMode)  // #4400
         do {
             try await waitForBackend(timeout: debugExternalReadinessTimeout)
+            LaunchProfile.milestone("external engine answered")
             if currentEngineOwnership == .ownedEmbedded {
                 let transportMode = lastTransportMode ?? EngineConfig.transportMode
                 backendPID = await Self.ownedDebugEnginePID(transportMode: transportMode)

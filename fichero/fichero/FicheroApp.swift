@@ -12,7 +12,7 @@ import SwiftUI
 // MARK: - App Delegate
 
 /// Custom AppDelegate — the APP-scoped owner of the engine lifecycle (#3945).
-/// The engine is started here in `applicationDidFinishLaunching` and stopped in
+/// The engine is started here in `applicationWillFinishLaunching` and stopped in
 /// `applicationWillTerminate`, NOT from a window's `.task`. Opening or closing a
 /// window is not an engine event; windows read the controller off the delegate
 /// and observe its `EngineSession` phase, they never trigger it.
@@ -25,7 +25,11 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
     /// (`AppState`) halves; `EngineSession` inside it is the sole phase writer.
     let controller = EngineLifecycleController()
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
+    /// The engine connection starts HERE, before any window is built (#5228): the dial, the
+    /// readiness probe and the library opens then run while the window lays out, rather than
+    /// queueing behind it. From `applicationDidFinishLaunching` it began only after the first
+    /// frame, ~1 s later again before `connect()` got the main actor.
+    func applicationWillFinishLaunching(_ notification: Notification) {
         // The unit-test host must never start a real engine (#3902).
         guard !isRunningXCTests() else { return }
         // Neither may the Xcode Previews host (2026-08-08): it launches the
@@ -35,16 +39,22 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
         // fixtures and need no engine. `FicheroApp.init` already skips its
         // side effects for previews; this is the delegate half of that guard.
         guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" else { return }
-        logger.info("App did finish launching — starting engine app-scoped (#3945)")
+        logger.info("App will finish launching — starting engine app-scoped (#3945, #5228)")
+        LaunchProfile.milestone("applicationWillFinishLaunching — engine connect starts")
+        // The engine's async startup lives in the delegate, not in a scene `.task`: `@main
+        // App.init` is synchronous and `.task` is per-scene, so the delegate is the
+        // one app-level hook that fires exactly once, independent of any window.
+        Task { await controller.start() }
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !isRunningXCTests() else { return }
+        guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" else { return }
         LaunchProfile.milestone("applicationDidFinishLaunching")
         // Self-measured main-thread stalls (#4550): FICHERO_STALL_LOG=1 in the
         // scheme makes every ordinary ⌘R a ratchet-grade perf session — no
         // Instruments, no minutes of "modeling data".
         MainThreadStallSampler.startIfEnabled()
-        // The engine's async startup lives here, not in a scene `.task`: `@main
-        // App.init` is synchronous and `.task` is per-scene, so the delegate is the
-        // one app-level hook that fires exactly once, independent of any window.
-        Task { await controller.start() }
     }
 
     /// True once a quit has been accepted, so a second ⌘Q (or a Dock quit while

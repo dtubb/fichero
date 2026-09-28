@@ -3,7 +3,7 @@ import Foundation
 import OpenAPIRuntime
 import OSLog
 
-private let probeLogger = Logger(subsystem: "app.fichero.fichero", category: "EngineReadinessProbe")
+nonisolated private let probeLogger = Logger(subsystem: "app.fichero.fichero", category: "EngineReadinessProbe")
 
 /// #4539: the probe runs on a poll, and logging every green poll at `.info`
 /// buried the console under identical "health=200 registry=200 → ready" lines.
@@ -183,6 +183,7 @@ struct EngineReadinessProbe {
         }
         guard health.status == 200 else {
             let healthCode = health.status.map(String.init) ?? "nil (transport error)"
+            LaunchProfile.milestone("readiness probe", detail: "health \(healthMs) ms → \(healthCode)")
             ProbeTransitionLog.log(
                 "readiness legs: health=\(healthCode) → notResponding (registry not attempted)"
             )
@@ -214,6 +215,7 @@ struct EngineReadinessProbe {
         )
         let registryCode = registryStatus.map(String.init) ?? "nil (transport error)"
         let resultDescription = String(describing: result)
+        LaunchProfile.milestone("readiness probe", detail: "health \(healthMs) ms, registry \(registryMs) ms → \(resultDescription)")
         ProbeTransitionLog.log(
             "readiness legs: health=200 registry=\(registryCode) → \(resultDescription)"
         )
@@ -260,13 +262,13 @@ struct EngineReadinessProbe {
     // MARK: - Transport (fail-closed)
 
     /// One `/api/health` observation: status + the two identity fields.
-    private struct HealthObservation {
+    nonisolated private struct HealthObservation: Sendable {
         let status: Int?
         let nonce: String?
         let pid: Int?
     }
 
-    private struct RegistryObservation {
+    nonisolated private struct RegistryObservation: Sendable {
         let status: Int?
         let body: Data?
     }
@@ -276,14 +278,21 @@ struct EngineReadinessProbe {
     /// transport error is fail-closed — `status: nil` (or the undocumented code),
     /// never a synthesized 200.
     ///
-    /// Deliberately NOT `@MainActor` (stalls.log 2026-08-24: a 12s launch
-    /// stall inside the generated op's request-building, sampled on the main
-    /// thread). The leg is pure transport over immutable lets; a nonisolated
-    /// async func hops off the caller's actor, so `probe()` stays MainActor
-    /// while the network work does not.
+    /// Off the main actor (stalls.log 2026-08-24: a 12s launch stall inside the
+    /// generated op's request-building, sampled on the main thread). The comment
+    /// here used to say so while the code did not: the target's default isolation
+    /// is MainActor, so an unmarked func ran there, and at launch its reply waited
+    /// ~2.8 s behind the first window's layout for an engine that answers in 3 ms
+    /// (#5228). `@concurrent` is what actually leaves; only the Sendable generated
+    /// `Client` crosses.
     private func fetchHealth() async -> HealthObservation {
+        await Self.fetchHealth(api: client.api)
+    }
+
+    @concurrent
+    nonisolated private static func fetchHealth(api: Client) async -> HealthObservation {
         do {
-            let response = try await client.api.healthCheckApiHealthGet(.init())
+            let response = try await api.healthCheckApiHealthGet(.init())
             switch response {
             case .ok(let okResponse):
                 let body = try okResponse.body.json
@@ -311,8 +320,13 @@ struct EngineReadinessProbe {
     /// error is fail-closed (`status: nil`). Off-main (not `@MainActor`) for
     /// the same reason as `fetchHealth` above.
     private func fetchRegistryObservation() async -> RegistryObservation {
+        await Self.fetchRegistryObservation(api: client.api)
+    }
+
+    @concurrent
+    nonisolated private static func fetchRegistryObservation(api: Client) async -> RegistryObservation {
         do {
-            let response = try await client.api.listKnownLibrariesApiRegistryGet(.init())
+            let response = try await api.listKnownLibrariesApiRegistryGet(.init())
             switch response {
             case .ok:
                 return RegistryObservation(status: 200, body: nil)
@@ -332,7 +346,7 @@ struct EngineReadinessProbe {
     /// structured-denial decoder (stale-bootstrap-token / device-expired markers)
     /// can inspect it. Bounded so a hostile/huge error body can't be read without
     /// limit.
-    private static func collectBody(_ payload: UndocumentedPayload, upTo maxBytes: Int = 64 * 1024) async -> Data? {
+    nonisolated private static func collectBody(_ payload: UndocumentedPayload, upTo maxBytes: Int = 64 * 1024) async -> Data? {
         guard let body = payload.body else { return nil }
         return try? await Data(collecting: body, upTo: maxBytes)
     }

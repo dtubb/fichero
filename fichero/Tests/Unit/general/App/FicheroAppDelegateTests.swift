@@ -20,5 +20,18 @@ final class FicheroAppDelegateTests: XCTestCase {
 
         XCTAssertEqual(delegate.controller.backendService.status, .stopped)
     }
+
+    /// The engine connect moved to `applicationWillFinishLaunching` so it runs while the first
+    /// window lays out (#5228). Its test-host guard had to move with it: a test host that dials
+    /// the live engine fights the developer's ⌘R instance over the socket (#3902).
+    func testWillFinishLaunchingNeverStartsTheEngineInTheTestHost() async {
+        let delegate = FicheroAppDelegate()
+
+        delegate.applicationWillFinishLaunching(Notification(name: NSApplication.willFinishLaunchingNotification))
+        delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
+        await Task.yield()
+
+        XCTAssertEqual(delegate.controller.backendService.startAttemptsPassedGuard, 0)
+    }
 }
 #endif
