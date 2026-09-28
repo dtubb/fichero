@@ -185,7 +185,9 @@ extension EmbeddedBackendService {
         terminate: @escaping @Sendable () -> Void = { EmbeddedBackendService.terminateOrphanEngines() }
     ) async {
         await Task.detached(priority: .userInitiated) {
+            LaunchProfile.milestone("orphan engine sweep starts (off-main)")
             terminate()
+            LaunchProfile.milestone("orphan engine sweep finished (off-main)")
         }.value
     }
 
@@ -405,11 +407,14 @@ extension EmbeddedBackendService {
         // could land after our own spawn and SIGTERM the engine we just
         // started. The pgrep+ps round trip is not in the measured launch cost.
         await sweep()
+        LaunchProfile.milestone("orphan engine sweep done")
         // Below here is all about 8765, which a UDS engine never binds. A UDS engine instead checks its socket,
         // AFTER the sweep (which frees a socket an orphan of OURS held): a live engine still answering there is
         // somebody else's -- the installed app's, a dev build's -- and is never given a second.
         guard Self.portPreflightApplies(transportMode: transportMode) else {
-            return try await liveSocketResolution(for: transportMode) ?? .spawnOurs
+            let resolution = try await liveSocketResolution(for: transportMode) ?? .spawnOurs
+            LaunchProfile.milestone("engine socket checked")
+            return resolution
         }
         await Self.waitForPortToClear(8765, timeout: 3.0)
         let holder = await Task.detached(priority: .userInitiated) {

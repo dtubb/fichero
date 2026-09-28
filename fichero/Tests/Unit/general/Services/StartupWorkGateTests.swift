@@ -94,22 +94,23 @@ struct StartupWorkGateTests {
     }
 
     /// #3945: the engine spawn is an APP event, owned by the AppDelegate's
-    /// `applicationDidFinishLaunching`, not a window's `.task`. A window is not an
+    /// `applicationWillFinishLaunching` (moved from DidFinish by #5228 so the engine starts
+    /// before the first window is built), not a window's `.task`. A window is not an
     /// engine, so opening one must not be what starts (or fails to start) it — the
     /// symptom behind #3968, where no window materialised and nothing ever spawned.
     @Test("engine spawn is triggered from the AppDelegate, not a window .task")
     func engineSpawnIsAppScoped() throws {
         let source = try Self.appSource("FicheroApp.swift")
         #expect(
-            source.contains("func applicationDidFinishLaunching"),
+            source.contains("func applicationWillFinishLaunching"),
             "the app-level launch hook must exist to own the spawn"
         )
         try Self.expectEnclosedBy(
             source,
             anchor: "controller.start()",
-            by: "applicationDidFinishLaunching",
+            by: "applicationWillFinishLaunching",
             within: 600,
-            "the engine start must live in applicationDidFinishLaunching (#3945)"
+            "the engine start must live in applicationWillFinishLaunching (#3945, #5228)"
         )
         // The pre-#3945 shape hung the spawn off a window's `.task { await
         // backendService.start() }`. If that call reappears in the App/Scene
@@ -151,7 +152,7 @@ struct StartupWorkGateTests {
         try Self.expectEnclosedBy(
             source,
             anchor: "controller.start()",
-            by: "applicationDidFinishLaunching",
+            by: "applicationWillFinishLaunching",
             within: 600,
             "the AppDelegate retains startup ownership (#3362)"
         )

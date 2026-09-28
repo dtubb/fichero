@@ -2,7 +2,7 @@ import Darwin
 import Foundation
 import OSLog
 
-private let logger = Logger(subsystem: "app.fichero.fichero", category: "LaunchProfile")
+nonisolated private let logger = Logger(subsystem: "app.fichero.fichero", category: "LaunchProfile")
 
 /// The launch timeline (#3946), emitted twice for two different readers:
 ///
@@ -30,7 +30,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "LaunchP
 enum LaunchProfile {
     /// `.pointsOfInterest` is what makes these show up without configuring an
     /// os_signpost instrument by hand.
-    static let signposter = OSSignposter(
+    nonisolated static let signposter = OSSignposter(
         subsystem: "app.fichero.fichero",
         category: .pointsOfInterest
     )
@@ -38,14 +38,14 @@ enum LaunchProfile {
     /// Process start, from `KERN_PROC_PID`. Falls back to first touch — which
     /// makes the first interval read ~0 instead of absurd — and says so loudly,
     /// because a profile that quietly measures the wrong thing is worse than none.
-    static let epoch: Date = {
+    nonisolated static let epoch: Date = {
         if let start = processStartDate() { return start }
         logger.warning("⏱ launch epoch unavailable — times are from first touch, NOT process start")
         return Date()
     }()
 
     /// Milliseconds since the process started.
-    static var elapsedMs: Double { Date().timeIntervalSince(epoch) * 1000 }
+    nonisolated static var elapsedMs: Double { Date().timeIntervalSince(epoch) * 1000 }
 
     /// Record a launch milestone: one line on the absolute timeline, one signpost
     /// event for Instruments.
@@ -58,7 +58,7 @@ enum LaunchProfile {
     /// `name` is a `StaticString` so it can be the signpost's real name (varying
     /// data goes in `detail`); a dynamic name would collapse every milestone into
     /// one indistinguishable lane in Instruments.
-    static func milestone(_ name: StaticString, detail: String = "") {
+    nonisolated static func milestone(_ name: StaticString, detail: String = "") {
         let label = detail.isEmpty ? name.description : "\(name.description) (\(detail))"
         logger.info("⏱ \(label, privacy: .public) @ \(elapsedMs, format: .fixed(precision: 1))ms")
         signposter.emitEvent(name, id: .exclusive, "\(detail, privacy: .public)")
@@ -79,9 +79,9 @@ enum LaunchProfile {
     /// timeline capturable by `nohup app 2>timeline.log` for CI/headless
     /// startup measurement, or for any retrospective read after the fact. Off
     /// by default; zero cost in normal runs.
-    private static let profileToStderr =
+    nonisolated private static let profileToStderr =
         ProcessInfo.processInfo.environment["FICHERO_LAUNCH_PROFILE_STDOUT"] == "1"
-    private static func emitToStderrIfProfiling(_ label: String) {
+    nonisolated private static func emitToStderrIfProfiling(_ label: String) {
         guard profileToStderr else { return }
         FileHandle.standardError.write(
             Data("⏱ \(label) @ \(String(format: "%.1f", elapsedMs))ms\n".utf8)
@@ -145,7 +145,7 @@ enum LaunchProfile {
 
     /// The kernel's start time for this process. Reading our OWN pid is permitted
     /// under the App Sandbox, so this works in every channel.
-    private static func processStartDate() -> Date? {
+    nonisolated private static func processStartDate() -> Date? {
         var info = kinfo_proc()
         var size = MemoryLayout<kinfo_proc>.stride
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()]

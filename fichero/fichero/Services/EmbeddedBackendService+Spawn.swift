@@ -7,6 +7,13 @@ import Security
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "EmbeddedBackend")
 
 #if os(macOS)
+/// Carries a configured, not-yet-started engine `Process` into the one off-main task that starts it
+/// (#5228). `Process` is not Sendable; this one is handed over before `run()` and not touched on the
+/// main actor again until the task has returned.
+private struct UnstartedEngineProcess: @unchecked Sendable {
+    let process: Process
+}
+
 extension EmbeddedBackendService {
     /// The two places the nested engine can live, in the order we look (#3749).
     ///
@@ -34,17 +41,92 @@ extension EmbeddedBackendService {
     // Promoted from `private` to internal: called by spawnAndAdoptEmbeddedEngine
     // in the Lifecycle extension file.
     func launchEmbeddedBackend() async throws {
-        let bundlePath = Bundle.main.bundlePath
-        let backendAppPath = try resolveBackendAppPath(bundlePath: bundlePath)
-        let executablePath = "\(backendAppPath)/Contents/MacOS/Fichero Server"
-        logger.info("Embedded engine: \(backendAppPath)")
+        let executablePath = try resolveEngineExecutablePath()
 
         // Port pre-flight (orphan sweep by the DMG build; a loopback probe under
         // the sandbox) already ran in resolvePortConflict() before we got here —
         // including in DEBUG (#2863). By this point the port is ours to bind.
 
         let (accessMaterial, publicBaseURL) = try await prepareAccessMaterial(executablePath: executablePath)
+        let process = try makeEngineProcess(
+            executablePath: executablePath, accessMaterial: accessMaterial, publicBaseURL: publicBaseURL
+        )
 
+        // Launch the process
+        try process.run()
+        // The gap between "engine spawn requested" and this marker is everything
+        // the app does BEFORE the engine gets to start: the port pre-flight and
+        // the TLS material prep (#3936/#3928). That cost was invisible.
+        LaunchProfile.milestone("engine process launched", detail: "pid \(process.processIdentifier)")
+        recordLaunchedEngine(process)
+    }
+
+    #if !FICHERO_APP_STORE
+    /// Start the engine BEFORE the first window is built, when nothing stands in the way (#5228).
+    ///
+    /// Every step of the ordinary path (`resolvePortConflict` then `launchEmbeddedBackend`) awaits
+    /// off-main work and resumes on the main actor, and the main actor is building the first window
+    /// for ~2 s at launch: a 12 ms orphan sweep resumed after the window, and the engine, whose own
+    /// cold start is ~4 s, began at 3.4 s instead of 0.8 s. Here everything that needs the main
+    /// actor is done first, synchronously (the executable, the CACHED TLS material, the process with
+    /// its environment and termination handler), and ONE off-main task runs the sweep, checks the
+    /// socket and starts the process. The sweep still runs before our spawn and off the main actor
+    /// (#3928, #4690).
+    ///
+    /// Returns false, having started nothing, whenever the ordinary path must decide: a pending
+    /// port-conflict choice, a transport other than the container socket, sharing on without a valid
+    /// address, no cached TLS material yet (the first launch of a version), or a live engine on the
+    /// socket (somebody else's -- the conflict path handles it).
+    func launchEngineAheadOfTheWindow() async throws -> Bool {
+        guard pendingPortConflictResolution == nil,
+              case .uds(let socketPath) = EngineConfig.transportMode else { return false }
+        // The same material `prepareAccessMaterial` would pick, but only from its cache.
+        let publicBaseURL: URL?
+        let tlsArguments: [String]
+        if RemoteAccessConfig.hostingEnabled {
+            guard let url = RemoteAccessConfig.publicBaseURL else { return false }
+            publicBaseURL = url
+            tlsArguments = Self.remoteAccessTLSArguments(publicBaseURL: url)
+        } else {
+            publicBaseURL = nil
+            tlsArguments = Self.localAccessTLSArguments
+        }
+        let executablePath = try resolveEngineExecutablePath()
+        guard let cacheKey = Self.tlsCacheKey(executablePath: executablePath, arguments: tlsArguments),
+              let accessMaterial = Self.cachedTLSMaterial(forKey: cacheKey) else { return false }
+        LaunchProfile.milestone("engine TLS material reused (no subprocess)")
+        let process = try makeEngineProcess(
+            executablePath: executablePath, accessMaterial: accessMaterial, publicBaseURL: publicBaseURL
+        )
+        let unstarted = UnstartedEngineProcess(process: process)
+        let started = try await Task.detached(priority: .userInitiated) { () throws -> Bool in
+            Self.terminateOrphanEngines()
+            LaunchProfile.milestone("orphan engine sweep finished (off-main)")
+            if EngineSocketConflict.isLive(socketPath: socketPath) { return false }
+            try unstarted.process.run()
+            LaunchProfile.milestone("engine process launched", detail: "pid \(unstarted.process.processIdentifier)")
+            return true
+        }.value
+        guard started else { return false }
+        recordLaunchedEngine(process)
+        return true
+    }
+    #endif
+
+    /// The engine executable inside the app bundle (#3749 locations).
+    private func resolveEngineExecutablePath() throws -> String {
+        let backendAppPath = try resolveBackendAppPath(bundlePath: Bundle.main.bundlePath)
+        logger.info("Embedded engine: \(backendAppPath)")
+        return "\(backendAppPath)/Contents/MacOS/Fichero Server"
+    }
+
+    /// The engine process, ready to run: arguments, environment, log, token file, termination
+    /// handler. The one builder both launch paths use, so the engine they start is the same.
+    private func makeEngineProcess(
+        executablePath: String,
+        accessMaterial: RemoteAccessTLSMaterial,
+        publicBaseURL: URL?
+    ) throws -> Process {
         // Persist the SPKI pin for every host the engine binds to. The
         // remote-access cert is also served on loopback, so pins match (#2611).
         try persistSPKIPins(accessMaterial, publicBaseURL: publicBaseURL)
@@ -107,20 +189,15 @@ extension EmbeddedBackendService {
         // it to stop. terminationHandler runs off the main actor, so hop back.
         intentionalStop = false
         process.terminationHandler = makeTerminationHandler()
+        return process
+    }
 
-        // Launch the process
-        try process.run()
-
+    /// Track a started engine: its PID for stop, its `Process` so the termination handler lives.
+    private func recordLaunchedEngine(_ process: Process) {
         let pid = process.processIdentifier
-        // The gap between "engine spawn requested" and this marker is everything
-        // the app does BEFORE the engine gets to start: the port pre-flight and
-        // the TLS material prep (#3936/#3928). That cost was invisible.
-        LaunchProfile.milestone("engine process launched", detail: "pid \(pid)")
         logger.info("Backend process launched successfully (PID: \(pid))")
-
-        // Store PID and process reference
         backendPID = pid
-        logger.info("Tracking embedded backend PID: \(pid)")
+        backendProcess = process
     }
 
     /// Locate the embedded engine bundle (#3749: Contents/Helpers for MAS,
@@ -329,6 +406,7 @@ extension EmbeddedBackendService {
                 }
 
                 logger.error("Engine terminated unexpectedly (\(description, privacy: .public))")
+                LaunchProfile.milestone("engine exited", detail: description)
 
                 let tail = Self.tailEngineLog(lines: 20)
                 if Self.shouldSurfaceUnexpectedExitImmediately(status: self.status, isStarting: self.isStarting) {

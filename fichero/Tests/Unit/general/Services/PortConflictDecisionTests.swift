@@ -188,6 +188,32 @@ struct OrphanSweepPrecedesSpawnDecisionTests {
         #expect(sweepFinished == true)
     }
 
+    /// #5228: the engine starts ahead of the first window ONLY when nothing is left to decide. A
+    /// pending conflict choice (the user's Stop it / Use it) must reach the ordinary path, or the
+    /// fast path would spawn over an engine the user chose to adopt.
+    @Test("the ahead-of-the-window spawn starts nothing while a conflict choice is pending")
+    func aheadOfTheWindowSpawnDefersToAPendingChoice() async throws {
+        let service = EmbeddedBackendService()
+        service.pendingPortConflictResolution = .useIt
+
+        let started = try await service.launchEngineAheadOfTheWindow()
+
+        #expect(!started)
+        #expect(service.backendPID == nil, "nothing may have been spawned")
+    }
+
+    /// #5228: the test host dials no container socket (its transport is not `.uds`), so the fast
+    /// path must start nothing there -- it never spawns a real engine from a test process.
+    @Test("the ahead-of-the-window spawn starts nothing off the container socket")
+    func aheadOfTheWindowSpawnNeedsTheContainerSocket() async throws {
+        let service = EmbeddedBackendService()
+
+        let started = try await service.launchEngineAheadOfTheWindow()
+
+        #expect(!started)
+        #expect(service.backendPID == nil)
+    }
+
     @Test("the sweep runs exactly once per call")
     func sweepInvokedExactlyOnce() async throws {
         let service = EmbeddedBackendService()

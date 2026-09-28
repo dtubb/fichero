@@ -78,7 +78,7 @@ extension EmbeddedBackendService {
         return "\(size)|\(modified.timeIntervalSince1970)"
     }
 
-    private static func cachedTLSMaterial(forKey key: String) -> RemoteAccessTLSMaterial? {
+    static func cachedTLSMaterial(forKey key: String) -> RemoteAccessTLSMaterial? {
         guard let data = UserDefaults.standard.data(forKey: key),
               let paths = try? JSONDecoder().decode(CachedTLSPaths.self, from: data),
               FileManager.default.fileExists(atPath: paths.certificatePath),
@@ -142,10 +142,18 @@ extension EmbeddedBackendService {
 
     // Promoted from `private` to internal: called by launchEmbeddedBackend in
     // the Spawn extension file.
+    /// The TLS-prep arguments for local access; also the cache key's arguments (#5228).
+    static let localAccessTLSArguments = ["--prepare-local-access"]
+
+    /// The TLS-prep arguments when sharing is on; also the cache key's arguments (#5228).
+    static func remoteAccessTLSArguments(publicBaseURL: URL) -> [String] {
+        ["--prepare-remote-access", "--public-base-url", publicBaseURL.absoluteString]
+    }
+
     func prepareLocalAccessTLSMaterial(executablePath: String) async throws -> RemoteAccessTLSMaterial {
         try await prepareTLSMaterial(
             executablePath: executablePath,
-            arguments: ["--prepare-local-access"],
+            arguments: Self.localAccessTLSArguments,
             failureMessage: "Local engine TLS preparation failed."
         )
     }
@@ -158,11 +166,7 @@ extension EmbeddedBackendService {
     ) async throws -> RemoteAccessTLSMaterial {
         try await prepareTLSMaterial(
             executablePath: executablePath,
-            arguments: [
-                "--prepare-remote-access",
-                "--public-base-url",
-                publicBaseURL.absoluteString
-            ],
+            arguments: Self.remoteAccessTLSArguments(publicBaseURL: publicBaseURL),
             failureMessage: "Remote access TLS preparation failed."
         )
     }

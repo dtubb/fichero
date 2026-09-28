@@ -111,6 +111,12 @@ final class EmbeddedBackendService {
     /// Setter widened from `private(set)` to internal: set by start() in the Lifecycle extension.
     var startAttemptsPassedGuard = 0
 
+    /// The spawned engine's `Process`, held for its lifetime (#5269). Its `terminationHandler` is
+    /// what tells a starting launch the engine died; a `Process` only local to the spawn could be
+    /// released with that handler, and a launch whose engine exited at once then polled a dead
+    /// socket for minutes instead of showing why.
+    var backendProcess: Process?
+
     /// Timestamps of recent unexpected engine exits — used to auto-restart a
     /// crashed embedded engine while bailing out of a hot crash loop (#18). A
     /// transient crash self-heals without a manual Retry; one that keeps dying
