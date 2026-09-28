@@ -6,10 +6,8 @@ import os
 import socket
 import subprocess
 import sys
-import time
 from pathlib import Path
 
-import httpx
 import pytest
 
 os.environ.setdefault("FICHERO_FEATURE_TIER", "dev")
@@ -27,17 +25,7 @@ def _free_port() -> int:
         return sock.getsockname()[1]
 
 
-def _wait_healthy(base_url: str, timeout: float = 30.0) -> bool:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        try:
-            response = httpx.get(f"{base_url}/api/health", timeout=2.0)
-            if response.status_code == 200 and response.json().get("status") == "healthy":
-                return True
-        except httpx.HTTPError:
-            pass
-        time.sleep(0.3)
-    return False
+from tests.integration._engine_wait import _share_real_model_cache, _wait_healthy, wait_for_engine  # noqa: E402,F401  (#5187)
 
 
 def path_values(summary: dict) -> dict[str, str]:
@@ -80,27 +68,6 @@ def _reclaim_contents(path: Path) -> None:
     raise RuntimeError("tests/conftest.py not loaded — cannot reclaim live-engine workdir")
 
 
-def _share_real_model_cache(workdir: Path) -> None:
-    """Point the spawned engine's fake HOME at the REAL model cache (#4434).
-
-    The fixture redirects HOME into the workdir (necessary — startup library
-    discovery must stay inside the harness), but the engine's models dir
-    hangs off HOME, so every integration run RE-DOWNLOADED the 2.2 GB
-    e5-large ONNX embedding model into temp and then leaked it. A symlink to
-    the real cache means no download and nothing to leak; if the real cache
-    is absent (fresh CI), the engine downloads into the workdir as before and
-    teardown reclaims it. The models tree is a shared CACHE, not library
-    data — the harness's isolation rule protects Daniel's library, and this
-    shares only what a real engine on this machine would populate anyway.
-    """
-    real_models = Path.home() / "Library" / "Application Support" / "Fichero" / "models"
-    if not real_models.is_dir():
-        return
-    fake_fichero = workdir / "Library" / "Application Support" / "Fichero"
-    fake_fichero.mkdir(parents=True, exist_ok=True)
-    (fake_fichero / "models").symlink_to(real_models)
-
-
 @pytest.fixture(scope="module")
 def cli_live_engine(tmp_path_factory):
     if not VENV_UVICORN.exists():
@@ -137,10 +104,11 @@ def cli_live_engine(tmp_path_factory):
         stderr=log_handle,
     )
     try:
-        if not _wait_healthy(base_url):
+        why = _wait_healthy(base_url, process)
+        if why:
             tail = engine_log.read_text(errors="replace")[-4000:]
             pytest.fail(
-                "spawned engine never became healthy in 30s.\n"
+                f"spawned engine never became healthy: {why}.\n"
                 f"--- engine stderr (tail) ---\n{tail}"
             )
         yield {
