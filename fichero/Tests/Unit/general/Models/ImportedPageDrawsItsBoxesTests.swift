@@ -1345,7 +1345,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
     /// imported Syriac page: the choices are built from what the engine WRITES (a text pass is offered
     /// the text formats, a georeferencing pass only the georeference ones); exporting the pass the
     /// person picked sends its id (`pass_id`) and the engine says it exported that pass; the file is
-    /// named for its format by the engine (hOCR as `.hocr`); and "as imported"
+    /// named for its format by the engine (hOCR as `x.hocr`, the imported file's own `.page` dropped); and "as imported"
     /// is the original file byte for byte (its SHA-256 is the file's). Breaks if a written format is
     /// missing, the wrong pass is exported, or "as imported" is anything but the file.
     func testExportChoicesOfferWhatTheEngineWritesPerPassAndAsImportedIsTheFile() async throws {
@@ -1371,7 +1371,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(RecordedEngine.exportRequest?.path, "/api/documents/doc-0001/export/hocr")
         XCTAssertEqual(RecordedEngine.exportRequest?.query, "pass_id=pass-0002", "the pass the person picked")
         XCTAssertEqual(result.choices.passId, "pass-0002")
-        XCTAssertEqual(result.filename, "escriptorium_syriac_onb-syr1-0001.page.hocr",
+        XCTAssertEqual(result.filename, "escriptorium_syriac_onb-syr1-0001.hocr",
                        "the engine names the file for its format, and the app saves it under that name")
 
         let fetched = try await SegmentService(ficheroClient: client).original(passId: "pass-0002")

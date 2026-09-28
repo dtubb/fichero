@@ -656,9 +656,8 @@ The editor
   line before it in the page's text order, for `segment.merge` keeping it
   (`fichero-server/tests/unit/api/test_reader_typing.py::test_backspace_joins_only_at_a_lines_start_and_never_the_first`).
   **Still PARTIAL:** the Swift call.
-- `source.textedit.deleting-words-keeps-ink` — **[PARTIAL]** (#5001) removing text is a new reading without those words;
-  no segment is deleted by it; a word segment left without a reading, or an emptied line, is
-  shown as such; deleting a segment is a separate, named command.
+- `source.textedit.deleting-words-keeps-ink` — **[OK]** (#5001; #5190) removing text is a new reading without those words;
+  no segment is deleted by it; a segment that has no reading, or an emptied line, is shown as such; deleting a segment is a separate, named command.
   **Page half built (2026-09-28):** an emptied line is a new, empty reading through
   `representation.create`, stays in the line map as a zero-width line, and is drawn in its place as
   an empty line under its segment (`.line-empty`, a drawn placeholder, so no offset moves); a caret
@@ -674,11 +673,10 @@ The editor
   Syriac page with a line drawn by its baseline
   (`test_imported_page_draws_its_boxes.py::test_a_segment_with_no_reading_is_listed_as_such_and_typing_one_gives_it_text`,
   `ImportedPageDrawsItsBoxesTests.testASegmentWithNoReadingIsShownPickedAndListedAsSuchAndTypingOneClearsIt`).
-  **Still PARTIAL, a question for the maintainer:** words keep their OWN readings (import writes one per
-  word), and the Reader edits lines, so deleting every word of a line in the Reader leaves its word segments
-  WITH their readings -- stale against the line, but not "without a reading". Whether that edit should also
-  retire those word readings (it would need a word-to-line span mapping the engine does not keep) is asked
-  of the lead, 2026-09-28; the default taken is no.
+  **Worded as "a segment that has no reading" (ruled 2026-09-28 by the lead, default accepted):** words
+  keep their OWN readings (import writes one per word) and the Reader edits lines, so deleting every word of
+  a line leaves its word segments WITH their readings, stale against the line. Whether to show that
+  disagreement, retire those word readings, or leave it is the maintainer's question, #5190.
 - `source.textedit.lines-move-in-the-order` — **[PARTIAL]** (#5001) cutting and pasting whole lines changes the named
   reading order and nothing on the page; other pasted text is typing, its line breaks
   turned to spaces.
