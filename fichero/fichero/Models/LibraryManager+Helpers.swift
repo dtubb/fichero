@@ -152,7 +152,14 @@ extension LibraryManager {
             guard FileManager.default.fileExists(atPath: url.path) else { continue }
             _ = openLibrary(at: url, makeCurrent: false)
         }
+        // NEVER drop a library the app itself restored (ruled 2026-09-28: the app says what is open).
+        // A saved library missing from the known registry was closed here at launch -- the maintainer's
+        // SCOOP Demo and Istmina Full, whose registry entries had been lost.
+        let saved = Set(getSavedLibraryPaths().map { Self.canonicalLibraryKey(URL(fileURLWithPath: $0)) })
         for id in plan.idsToDrop {
+            if let library = getLibrary(id: id), saved.contains(Self.canonicalLibraryKey(library.url)) {
+                continue
+            }
             // NEVER drop a temporary (unsaved) library (2026-08-25): the
             // engine no longer registers TMPDIR staging packages (the
             // ghost-library fix), so a create-in-flight library is always
