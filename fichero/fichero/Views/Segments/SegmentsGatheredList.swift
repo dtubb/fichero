@@ -9,6 +9,8 @@ struct SegmentsGatheredList: View {
     let open: (SegmentsGathered.Row) -> Void
 
     @Environment(SegmentService.self) private var segmentService: SegmentService?
+    @Environment(ActionStore.self) private var actionStore: ActionStore?
+    @Environment(\.undoManager) private var undoManager
     @State private var answer = SegmentsGathered.Answer()
     @State private var loading = true
 
@@ -21,16 +23,24 @@ struct SegmentsGatheredList: View {
                 )
             } else {
                 List(answer.rows) { row in
-                    Button { open(row) } label: {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(row.title).lineLimit(2)
-                            Text(row.detail).font(.caption).foregroundStyle(.secondary)
+                    HStack(alignment: .firstTextBaseline) {
+                        Button { open(row) } label: {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(row.title).lineLimit(2)
+                                Text(row.detail).font(.caption).foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .buttonStyle(.plain)
+                        .disabled(row.documentId == nil)
+                        .help(row.documentId == nil ? "This segment could not be read" : "Open its page with the segment selected")
+                        if let matchId = row.matchId {
+                            // Reviewing a proposal (#5165): the audited verbs, ⌘Z by their own audit ids.
+                            Button("Accept") { Task { await review("segment.match_accept", matchId, "Accept Match") } }
+                            Button("Reject") { Task { await review("segment.match_reject", matchId, "Reject Match") } }
+                        }
                     }
-                    .buttonStyle(.plain)
-                    .disabled(row.documentId == nil)
-                    .help(row.documentId == nil ? "This segment could not be read" : "Open its page with the segment selected")
+                    .buttonStyle(.borderless)
                 }
                 if let note = SegmentsGathered.withheldNote(answer.withheld) {
                     Divider()
@@ -46,6 +56,15 @@ struct SegmentsGatheredList: View {
         defer { loading = false }
         guard let segmentService else { return }
         answer = await Self.load(gather, segmentService: segmentService)
+    }
+
+    /// Accept or reject one proposed match, then re-read the set (a reviewed match leaves it).
+    private func review(_ action: String, _ matchId: String, _ actionName: String) async {
+        guard let actionsService = actionStore?.actionsService else { return }
+        try? await AuditedAction.run(
+            action, params: SegmentMatchIdRequest(matchId: matchId), actionName: actionName,
+            actionsService: actionsService, undoManager: undoManager, afterChange: { await reload() }
+        )
     }
 
     /// The set, with each segment read so its row can say what it is and which page opens.
@@ -76,6 +95,16 @@ struct SegmentsGatheredList: View {
                 for segment in store.segments(documentId: documentId) { segments[segment.id] = segment }
             }
             return SegmentsGathered.Answer(rows: SegmentsGathered.signRows(found.uses, segments: segments), withheld: found.withheld)
+        case .matches(let documentId):
+            guard let found = try? await segmentService.proposedMatches(documentId: documentId) else {
+                return SegmentsGathered.Answer()
+            }
+            let store = SegmentStore.shared(for: segmentService)
+            await store.load(documentId: documentId)
+            let segments = Dictionary(
+                store.segments(documentId: documentId).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }
+            )
+            return SegmentsGathered.Answer(rows: SegmentsGathered.matchRows(found, documentId: documentId, segments: segments))
         }
     }
 }

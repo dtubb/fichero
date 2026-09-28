@@ -730,3 +730,58 @@ def test_an_imported_table_s_cells_say_their_row_and_column_to_the_app(db, clien
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         TABLE_FIXTURE.write_text(json.dumps(stable, indent=1, ensure_ascii=True) + "\n")
     assert json.loads(TABLE_FIXTURE.read_text()) == stable, "the app's table fixture drifted"
+
+
+MATCHES_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.proposed-matches.json"
+
+
+def test_a_page_s_proposed_matches_are_recorded_and_accept_and_reject_are_the_app_s_exact_calls(db, client):
+    """`source.segment.match-record` (#5165, the Segments pane's "Proposed matches" set): the app reads
+    GET /api/segments/document/{id}/matches?state=proposed. Recorded on the imported Syriac page after
+    two proposals through `segment.match_propose` (the first line is the second; the third is the
+    fourth, 60% sure). Then the app's EXACT verbs -- `segment.match_accept {match_id}` and
+    `segment.match_reject {match_id}` -- are sent: each lands, the proposed list empties, and undoing
+    the accept by its audit id makes it a proposal again. Breaks if proposals are not listed, or the
+    verbs the app sends are refused or change the wrong match."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    lines = sorted((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+                   key=lambda s: s["anchor"]["rect"][1])
+
+    def invoke(name, params):
+        answer = client.post("/api/actions/invoke", json={"name": name, "params": params})
+        assert answer.status_code == 200, answer.text
+        return answer.json()
+
+    first = invoke("segment.match_propose", {"from_segment_id": lines[0]["id"], "to_segment_id": lines[1]["id"]})
+    second = invoke("segment.match_propose", {"from_segment_id": lines[2]["id"], "to_segment_id": lines[3]["id"],
+                                              "certainty": 0.6, "note": "same words, redrawn box"})
+    proposed = client.get(f"/api/segments/document/{doc_id}/matches", params={"state": "proposed"}).json()
+    assert proposed["count"] == 2
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+
+    def token_of(segment):
+        return next(s["id"] for s in stable_route["segments"]
+                    if s["kind"] == segment["kind"] and s["anchor"]["rect"] == segment["anchor"]["rect"])
+
+    ids = {doc_id: stable_route["document_id"]}
+    for line in lines[:4]:
+        ids[line["id"]] = token_of(line)
+    for index, item in enumerate(proposed["items"], start=1):
+        ids[item["id"]] = f"match-{index:04d}"
+    recorded = _stabilizer(ids)(proposed)
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        MATCHES_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(MATCHES_FIXTURE.read_text()) == recorded, "the app's matches fixture drifted"
+
+    # The app's exact verbs, then the accept's undo.
+    accepted = invoke("segment.match_accept", {"match_id": first["result"]["match_id"]})
+    invoke("segment.match_reject", {"match_id": second["result"]["match_id"]})
+    after = client.get(f"/api/segments/document/{doc_id}/matches").json()["items"]
+    assert sorted(m["state"] for m in after) == ["accepted", "rejected"]
+    assert client.get(f"/api/segments/document/{doc_id}/matches", params={"state": "proposed"}).json()["count"] == 0
+    assert client.post(f"/api/actions/audit/{accepted['audit_id']}/undo").status_code == 200
+    again = client.get(f"/api/segments/document/{doc_id}/matches", params={"state": "proposed"}).json()["items"]
+    assert [m["id"] for m in again] == [first["result"]["match_id"]]

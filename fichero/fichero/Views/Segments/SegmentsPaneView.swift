@@ -21,6 +21,8 @@ struct SegmentsPaneView: View {
     @State private var parentId: String?
     /// A gathered row asked to open: its segment is selected once its page is the one shown.
     @State private var pendingSelect: (documentId: String, segmentId: String)?
+    /// How many matches on this page wait for review; the head offers them when there are any (#5165).
+    @State private var proposedMatches = 0
 
     private var segments: [Segment] {
         guard let document, let segmentService else { return [] }
@@ -66,6 +68,7 @@ struct SegmentsPaneView: View {
             guard let document, let segmentService else { return }
             let store = SegmentStore.shared(for: segmentService)
             await store.load(documentId: document.id)
+            proposedMatches = (try? await segmentService.proposedMatches(documentId: document.id).count) ?? 0
             // A gathered row's page has arrived: select its segment in the focused Source view.
             if let pending = pendingSelect, pending.documentId == document.id,
                let selection = windowState?.focusedRegionSelection {
@@ -135,7 +138,14 @@ struct SegmentsPaneView: View {
             },
             selector: { kindSelector },
             controls: { EmptyView() },
-            tools: { EmptyView() }
+            tools: {
+                if proposedMatches > 0, let document {
+                    Button { windowState?.segmentsGather = .matches(documentId: document.id) } label: {
+                        Label("\(proposedMatches) Proposed Matches", systemImage: "arrow.triangle.merge")
+                    }
+                    .help("Review the matches proposed on this page: accept or reject each")
+                }
+            }
         )
     }
 }

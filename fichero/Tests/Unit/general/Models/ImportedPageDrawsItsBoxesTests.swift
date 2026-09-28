@@ -51,6 +51,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         /// What `GET /api/source-settings/resolve` answers (set by the test that asks).
         nonisolated(unsafe) static var settingsReply = Data()
 
+        /// What `GET /api/segments/document/{id}/matches` answers, and the query it was asked (#5165).
+        nonisolated(unsafe) static var matchesReply = Data()
+        nonisolated(unsafe) static var matchesQuery: String?
         /// What `GET /api/segments/{id}/versions` answers (#5163).
         nonisolated(unsafe) static var versionsReply = Data()
         /// What `GET /api/segments/{id}/readings` answers (set by the test that asks).
@@ -117,6 +120,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 actionBody = Self.attributionsReply
             } else if path == "/api/source-settings/resolve" {
                 actionBody = Self.settingsReply
+            } else if path.hasPrefix("/api/segments/document/"), path.hasSuffix("/matches") {
+                Self.matchesQuery = request.url?.query
+                actionBody = Self.matchesReply
             } else if path.hasPrefix("/api/segments/"), path.hasSuffix("/versions") {
                 actionBody = Self.versionsReply
             } else if path.hasPrefix("/api/segments/"), path.hasSuffix("/readings") {
@@ -193,6 +199,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             settingsReply = Data()
             readingsReply = Data()
             versionsReply = Data()
+            matchesReply = Data()
+            matchesQuery = nil
             originalReply = Data()
             editorialReply = Data()
             signsReply = Data()
@@ -1170,6 +1178,50 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(SegmentsPane.rowLabel(plain, at: 0), "Cell, Row 13, Column 1", "no count after a place")
         let steps = SegmentsPane.path(pageTitle: "Page", to: spanning.id, in: segments)
         XCTAssertEqual(steps.map(\.title), ["Page", "Table", "Cell, Rows 3–4, Column 1"])
+    }
+
+    /// `source.segment.match-record` end to end (#5165, the Segments pane's "Proposed matches"), on the
+    /// imported Syriac page with two recorded proposals: the set's own load asks for the page's
+    /// PROPOSED matches, each row names the newer line and says what it was matched to, who proposed it
+    /// and how sure; Accept and Reject send the audited verbs with the match's id -- the exact calls the
+    /// recorder proved the engine takes -- each ⌘Z-able by its own audit id. Breaks if reviewed matches
+    /// are asked for, a row names the wrong segment, or a verb carries the wrong match.
+    func testAPagesProposedMatchesAreListedAndAcceptAndRejectSendTheirVerbs() async throws {
+        let store = try await loadedStore()
+        RecordedEngine.matchesReply = try Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.proposed-matches.json")
+        )
+        let service = SegmentService(ficheroClient: try XCTUnwrap(storeClient))
+        let answer = await SegmentsGatheredList.load(.matches(documentId: "doc-0001"), segmentService: service)
+        XCTAssertEqual(RecordedEngine.matchesQuery, "state=proposed", "only what waits for review")
+        let segments = Dictionary(store.segments(documentId: "doc-0001").map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        XCTAssertEqual(answer.rows.map(\.matchId), ["match-0001", "match-0002"])
+        XCTAssertEqual(answer.rows.map(\.segmentId), ["seg-0010", "seg-0009"], "a row opens the newer segment")
+        XCTAssertEqual(answer.rows.first?.title, SegmentsPane.rowLabel(segments["seg-0010"], at: 0))
+        XCTAssertEqual(
+            answer.rows.first?.detail, "was " + SegmentsPane.rowLabel(segments["seg-0012"], at: 0) + " · proposed by owner"
+        )
+        XCTAssertEqual(answer.rows.last?.detail.hasSuffix(" · proposed by owner · sure 60% · same words, redrawn box"), true)
+
+        let actions = ActionsService(client: try XCTUnwrap(storeClient))
+        RecordedEngine.invoked = []
+        RecordedEngine.undone = []
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        for (verb, row) in [("segment.match_accept", answer.rows[0]), ("segment.match_reject", answer.rows[1])] {
+            manager.beginUndoGrouping()
+            try await AuditedAction.run(
+                verb, params: SegmentMatchIdRequest(matchId: try XCTUnwrap(row.matchId)), actionName: verb,
+                actionsService: actions, undoManager: manager
+            )
+            manager.endUndoGrouping()
+        }
+        let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
+        XCTAssertEqual(sent.compactMap { $0["name"] as? String }, ["segment.match_accept", "segment.match_reject"])
+        XCTAssertEqual(sent.compactMap { ($0["params"] as? [String: Any])?["match_id"] as? String }, ["match-0001", "match-0002"])
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-2"], "⌘Z undoes the reject by its own audit id")
     }
 
     /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the
