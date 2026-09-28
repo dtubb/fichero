@@ -38,7 +38,9 @@ need_rebuild=0
 reason=""
 if [ ! -d "$BUNDLE" ] || [ ! -f "$STAMP" ]; then
   need_rebuild=1; reason="bundle missing"
-elif [ -n "$(find "$SRC" -type f -name '*.py' -newer "$STAMP" -print -quit 2>/dev/null)" ]; then
+# Every shipped source file, not just *.py: the Reader's served page (api/templates/*.html), its
+# scripts and the format schemas are engine code too; a *.py-only check shipped a stale Reader.
+elif [ -n "$(find "$SRC" -type f ! -name '*.pyc' ! -path '*/__pycache__/*' -newer "$STAMP" -print -quit 2>/dev/null)" ]; then
   need_rebuild=1; reason="engine source newer than bundle"
 else
   for watched in "$DEPS" "$RECIPE" "$PLACE_PDFIUM"; do
