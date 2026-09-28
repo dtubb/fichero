@@ -150,3 +150,39 @@ def test_dead_enum_case_is_flagged(mod, tmp_path):
     produced, _ = mod._producers(py)
     cases, _p = mod._enum_cases(sw)
     assert sorted(cases - produced) == ["grouping"]
+
+
+def _swift_files(tmp: Path, files: dict[str, str]) -> Path:
+    root = tmp / "app"
+    root.mkdir(parents=True, exist_ok=True)
+    for name, body in files.items():
+        (root / name).write_text(body)
+    return root
+
+
+def test_a_list_in_the_query_s_own_file_is_credited(mod, tmp_path):
+    """The real case: `OCRGeometrySelection.geometryBearingTypes`, looped over into `getArtifacts`."""
+    root = _swift_files(tmp_path, {"Selection.swift": (
+        'enum Selection {\n    static let geometryBearingTypes = ["text_geometry", "regions"]\n'
+        '    func load() { for type in geometryBearingTypes { svc.getArtifacts(forDocumentId: id, type: type) } }\n}\n')})
+    assert set(mod._consumers(root)) >= {"text_geometry", "regions"}
+
+
+def test_a_list_elsewhere_named_with_its_owner_is_credited(mod, tmp_path):
+    root = _swift_files(tmp_path, {
+        "Types.swift": 'enum Kinds {\n    static let wanted = ["regions"]\n}\n',
+        "Query.swift": 'func load() { for type in Kinds.wanted { svc.getArtifacts(forDocumentId: id, type: type) } }\n'})
+    assert "regions" in mod._consumers(root)
+
+
+def test_a_list_elsewhere_whose_name_is_only_a_word_here_is_not_credited(mod, tmp_path):
+    """2026-09-28: `PageExportChoice.order` (export FORMAT names) was credited to the artifact query in
+    a file whose comment said "in what order", so seven formats were reported as requested artifact
+    types that no server writes. A bare name match is not a reference."""
+    root = _swift_files(tmp_path, {
+        "Export.swift": 'enum PageExportChoice {\n    private static let order = ["pagexml", "yolo"]\n}\n',
+        "Selection.swift": ('// Which passes rank, and in what order.\n'
+                            'func load() { svc.getArtifacts(forDocumentId: id, type: "regions") }\n')})
+    consumed = mod._consumers(root)
+    assert "regions" in consumed
+    assert "yolo" not in consumed and "pagexml" not in consumed

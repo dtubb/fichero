@@ -171,16 +171,22 @@ def _producers(py_root: Path) -> tuple[set[str], list[tuple[str, int, str]]]:
     return found, dynamic
 
 
-def _swift_type_lists(swift_root: Path) -> dict[str, tuple[list[str], str]]:
-    """`static let NAME = ["a", "b"]` -> (values, "file:line").
+_SWIFT_OWNER = re.compile(r"\b(?:enum|struct|class|extension|actor)\s+(?P<owner>[A-Za-z_][A-Za-z0-9_]*)")
+
+
+def _swift_type_lists(swift_root: Path) -> dict[tuple[str, str], tuple[list[str], str, str, str]]:
+    """`static let NAME = ["a", "b"]` -> (values, "file:line", file path, owning type).
 
     A client can ask for a type through a named constant instead of a literal —
     `OCRGeometrySelection.geometryBearingTypes` is exactly that. Reading only
     literals made those reads invisible and reported a live consumer as an
     orphan, which is the wrong direction for this check to be wrong in: a false
     "nothing reads this" invites deleting a feature that works.
+
+    Keyed by (file, name), with the type it is declared in: two files may each have a list called
+    `order`, and only the one the query can actually reach is its source (`_consumers`).
     """
-    out: dict[str, tuple[list[str], str]] = {}
+    out: dict[tuple[str, str], tuple[list[str], str, str, str]] = {}
     for path in sorted(scan_rglob(swift_root, "*.swift")):
         try:
             src = path.read_text(encoding="utf-8")
@@ -190,7 +196,9 @@ def _swift_type_lists(swift_root: Path) -> dict[str, tuple[list[str], str]]:
             values = _SWIFT_STR.findall(m.group("body"))
             if values:
                 line = src[: m.start()].count("\n") + 1
-                out[m.group("name")] = (values, f"{path.as_posix()}:{line}")
+                owners = list(_SWIFT_OWNER.finditer(src[: m.start()]))
+                owner = owners[-1].group("owner") if owners else ""
+                out[(path.as_posix(), m.group("name"))] = (values, f"{path.as_posix()}:{line}", path.as_posix(), owner)
     return out
 
 
@@ -212,9 +220,16 @@ def _consumers(swift_root: Path) -> dict[str, list[str]]:
             for m in _SWIFT_TYPE_ARG.finditer(args):
                 out.setdefault(m.group("val"), []).append(f"{rel}:{line}")
             # `type: someVar` where the loop variable comes from a known list —
-            # credit every value that list can supply.
-            for name, (values, origin) in type_lists.items():
-                if re.search(rf"\b{re.escape(name)}\b", src):
+            # credit every value that list can supply. Only a list the query can REACH: one declared in
+            # this file, or one named with its owner (`Owner.name`). A bare name matched anywhere in the
+            # file credited `PageExportChoice.order` -- export FORMAT names -- to the artifact query in
+            # a file whose comments say "in what order" (2026-09-28): seven types "requested" that no
+            # code asks the artifact lookup for.
+            for (_file, name), (values, origin, list_path, owner) in type_lists.items():
+                reachable = (list_path == rel and re.search(rf"\b{re.escape(name)}\b", src)) or (
+                    owner and re.search(rf"\b{re.escape(owner)}\.{re.escape(name)}\b", src)
+                )
+                if reachable:
                     for value in values:
                         out.setdefault(value, []).append(f"{rel}:{line} (via {origin})")
     return out
