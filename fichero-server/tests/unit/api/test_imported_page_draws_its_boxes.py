@@ -638,3 +638,63 @@ def test_a_line_s_picture_is_recorded_for_the_segments_pane(db, client):
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         PICTURE_FIXTURE.write_text(json.dumps(recorded, indent=1) + "\n")
     assert json.loads(PICTURE_FIXTURE.read_text()) == recorded, "the app's picture fixture drifted"
+
+
+HISTORY_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.first-line-history.json"
+
+
+def test_a_line_s_history_is_recorded_and_restoring_it_is_the_app_s_exact_call(db, client):
+    """`source.segment.versioned-alone` (#5163, the Inspector's Making section at segment level): the
+    app reads GET /api/segments/{id}/versions and the live row (GET /api/segments/{id}, for the version
+    a restore is checked against). Recorded on the imported Syriac page's first line after two changes
+    through the audited actions: moved, then its language set. Then the app's EXACT restore --
+    `segment.restore_version {segment_id, version: 1, expected_version: <live>}` -- is sent: the box
+    goes back, and undoing the restore by its audit id moves it again. Breaks if the history is not
+    recorded per change, or if the restore the app sends is refused or restores the wrong state."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    line = min((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+               key=lambda s: s["anchor"]["rect"])
+    original_rect = line["anchor"]["rect"]
+
+    def invoke(name, params):
+        answer = client.post("/api/actions/invoke", json={"name": name, "params": params})
+        assert answer.status_code == 200, answer.text
+        return answer.json()
+
+    moved = dict(line["anchor"], rect=[original_rect[0] + 0.01, original_rect[1], original_rect[2], original_rect[3]])
+    moved.pop("segment_id", None)
+    invoke("segment.update", {"segment_id": line["id"], "expected_version": line["version"], "anchor": {
+        k: moved.get(k) for k in ("document_id", "page_id", "rendition_id", "space", "rect", "polygon", "rotation",
+                                  "granularity")}})
+    invoke("segment.update_many", {"updates": [
+        {"segment_id": line["id"], "expected_version": line["version"] + 1, "language": "syc"}]})
+    versions = client.get(f"/api/segments/{line['id']}/versions").json()
+    live = client.get(f"/api/segments/{line['id']}").json()
+    assert [v["version"] for v in versions["items"]] == [1, 2], "one version row per change"
+    assert versions["items"][0]["anchor"]["rect"] == original_rect
+    assert live["segment"]["version"] == 3
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    token = next(s["id"] for s in stable_route["segments"]
+                 if s["kind"] == "line" and s["anchor"]["rect"] == original_rect)
+    stable_line = next(s for s in stable_route["segments"] if s["id"] == token)
+    ids = {doc_id: stable_route["document_id"], line["id"]: token, real["id"]: stable_line["pass_id"],
+           line["parent_segment_id"]: stable_line["parent_segment_id"]}
+    for index, item in enumerate(versions["items"], start=1):
+        ids[item["id"]] = f"version-{index:04d}"
+        if item.get("audit_id"):
+            ids[item["audit_id"]] = f"audit-{index:04d}"
+    stable = _stabilizer(ids)
+    recorded = {"versions": stable(versions), "live": stable(live)}
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        HISTORY_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(HISTORY_FIXTURE.read_text()) == recorded, "the app's history fixture drifted"
+
+    # The app's exact restore, then its undo (normalized coordinates: the move was 0.01).
+    restored = invoke("segment.restore_version",
+                      {"segment_id": line["id"], "version": 1, "expected_version": live["segment"]["version"]})
+    assert client.get(f"/api/segments/{line['id']}").json()["segment"]["anchor"]["rect"] == original_rect
+    assert client.post(f"/api/actions/audit/{restored['audit_id']}/undo").status_code == 200
+    assert client.get(f"/api/segments/{line['id']}").json()["segment"]["anchor"]["rect"][0] == original_rect[0] + 0.01

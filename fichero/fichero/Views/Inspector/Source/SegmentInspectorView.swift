@@ -81,6 +81,8 @@ struct SegmentInspectorView: View {
                         InspectorStatementsSection(segmentId: inspected, documentId: documentId)
                         // What applies here, from the library down (5.8).
                         InspectorRightsSection(targetKind: "segment", targetId: inspected, pageId: documentId)
+                        // Its picture, baseline and own history, with Restore (#5163).
+                        InspectorSegmentMakingSection(segmentId: inspected, documentId: documentId)
                     }
                     if level == .page {
                         // Page level: how the page's passes were made (#5149).

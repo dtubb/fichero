@@ -51,6 +51,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         /// What `GET /api/source-settings/resolve` answers (set by the test that asks).
         nonisolated(unsafe) static var settingsReply = Data()
 
+        /// What `GET /api/segments/{id}/versions` answers (#5163).
+        nonisolated(unsafe) static var versionsReply = Data()
         /// What `GET /api/segments/{id}/readings` answers (set by the test that asks).
         nonisolated(unsafe) static var readingsReply = Data()
 
@@ -115,6 +117,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 actionBody = Self.attributionsReply
             } else if path == "/api/source-settings/resolve" {
                 actionBody = Self.settingsReply
+            } else if path.hasPrefix("/api/segments/"), path.hasSuffix("/versions") {
+                actionBody = Self.versionsReply
             } else if path.hasPrefix("/api/segments/"), path.hasSuffix("/readings") {
                 actionBody = Self.readingsReply
             } else if path.hasPrefix("/api/editorial/segment/") {
@@ -188,6 +192,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             attributionsReply = Data()
             settingsReply = Data()
             readingsReply = Data()
+            versionsReply = Data()
             originalReply = Data()
             editorialReply = Data()
             signsReply = Data()
@@ -1083,6 +1088,60 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let resent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.last)) as? [String: Any])
         XCTAssertEqual((resent["params"] as? [String: Any])?["expected_counting_id"] as? String, "rep-0002")
         XCTAssertEqual((resent["params"] as? [String: Any])?["content"] as? String, typed)
+    }
+
+    /// `source.segment.versioned-alone` end to end (#5163, the Inspector's Making section at segment
+    /// level), on the imported Syriac page's first line after two recorded changes (moved, then its
+    /// language set): the Section's calls read the two kept versions and the live row (version 3), say
+    /// what each change did, and Restore sends `segment.restore_version` back to version 1 checked
+    /// against version 3 -- the exact call the recorder proved the engine takes -- with ⌘Z by its own
+    /// audit id. Breaks if a version is misread, the change it names is wrong, or Restore is checked
+    /// against a version the app did not read.
+    func testALinesHistoryShowsWhatEachChangeDidAndRestoreSendsTheCheckedCall() async throws {
+        _ = try await loadedStore()
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-line-history.json")
+        )) as? [String: Any])
+        RecordedEngine.versionsReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["versions"]))
+        RecordedEngine.segmentReplies["seg-0003"] = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["live"]))
+        let service = SegmentService(ficheroClient: try XCTUnwrap(storeClient))
+
+        let versions = try await service.versions(segmentId: "seg-0003")
+        let fetched = try await service.segment(id: "seg-0003")
+        let live = try XCTUnwrap(fetched)
+        XCTAssertEqual(versions.map(\.version), [1, 2])
+        XCTAssertEqual(live.version, 3)
+        let rows = SegmentHistory.rows(versions, live: SegmentHistory.state(of: live))
+        XCTAssertEqual(rows.map(\.version.version), [2, 1], "newest first")
+        XCTAssertEqual(rows.map(\.then), [["language unset → syc"], ["moved or reshaped"]])
+        XCTAssertEqual(SegmentHistory.baselineDescription(live.baseline), "Curved baseline, 3 points")
+        XCTAssertEqual(SegmentHistory.baselineDescription([[0.1, 0.5], [0.9, 0.5]]), "Straight baseline, 2 points")
+        var readAtTwo = live
+        readAtTwo.version = 2
+        XCTAssertNil(SegmentHistory.restore(try XCTUnwrap(versions.last), of: readAtTwo),
+                     "a version is restored only when it is older than the one read")
+
+        let params = try XCTUnwrap(SegmentHistory.restore(XCTUnwrap(versions.first), of: live))
+        RecordedEngine.invoked = []
+        RecordedEngine.undone = []
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        try await AuditedAction.run(
+            "segment.restore_version", params: params, actionName: "Restore Version",
+            actionsService: ActionsService(client: try XCTUnwrap(storeClient)), undoManager: manager
+        )
+        manager.endUndoGrouping()
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        XCTAssertEqual(sent["name"] as? String, "segment.restore_version")
+        let sentParams = try XCTUnwrap(sent["params"] as? [String: Any])
+        XCTAssertEqual(sentParams["segment_id"] as? String, "seg-0003")
+        XCTAssertEqual(sentParams["version"] as? Int, 1)
+        XCTAssertEqual(sentParams["expected_version"] as? Int, 3, "checked against the version the app read")
+        XCTAssertEqual(manager.undoActionName, "Restore Version")
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"], "⌘Z undoes the restore by its own audit id")
     }
 
     /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the
