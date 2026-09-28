@@ -23,7 +23,7 @@ REAL_HOME = os.path.realpath(os.path.expanduser("~"))
 TEMP_ROOTS = tuple({os.path.realpath(tempfile.gettempdir()), "/private/tmp"})
 
 
-#: An engine START names its ASGI app (`uvicorn fichero_server.api.main:app`, the UDS target):
+#: An engine START names its ASGI app (`uvicorn fichero_server.api.tcp_transport:app`, the UDS target):
 #: an import probe (`python -c "import fichero_server.api..."`) or `uvicorn --help` starts nothing.
 _ENGINE_APP = re.compile(r"fichero_server\.api\.[\w.]+:app\b")
 
