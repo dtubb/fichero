@@ -326,8 +326,9 @@ what the loss report named), one for each format that goes both ways:
   (`fichero-cli/tests/test_export_page_command.py`), `fichero_page_export`
   (`fichero-mcp/tests/test_mcp_server.py::test_page_export_builds_the_route_and_returns_the_choices_and_losses`).
   **In**: `POST /api/documents/{doc_id}/import`
-  (`test_import_into_library.py::TestTheImportRoute`), `fichero import page`
-  (`fichero-cli/tests/test_import_page_command.py`), `fichero_page_import`
+  (`test_import_into_library.py::TestTheImportRoute`), `fichero import-page DOC FILE`
+  (`fichero-cli/tests/test_import_page_command.py`; not an `import` group, which shadowed
+  `fichero import <file>`: `::test_file_import_and_page_import_both_resolve`), `fichero_page_import`
   (`test_mcp_server.py::test_page_import_posts_the_file_and_hands_back_what_landed`).
   The CLI mirrors the app's honesty rather than reporting success: the format that was
   **recognised**, a note when the file's name disagreed with its bytes, the count of shapes the

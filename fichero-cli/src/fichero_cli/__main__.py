@@ -69,10 +69,8 @@ app.add_typer(auth_app, name="auth")
 # implementation.
 export_app = typer.Typer(help="Export the library server-side.", no_args_is_help=True)
 app.add_typer(export_app, name="export")
-# `import page` rather than `page import`, to mirror `export page`: the two halves of
-# one round trip should read the same way round.
-import_app = typer.Typer(help="Bring somebody else's work in.", no_args_is_help=True)
-app.add_typer(import_app, name="import")
+# Page import is `import-page`, beside `import-manifest` and `import-iiif`: an `import`
+# GROUP would shadow the top-level `fichero import <file>` command (#4943 regression).
 
 
 def _register_export_commands() -> None:
@@ -187,7 +185,7 @@ def _import_page_lines(data: dict[str, Any], path: Path) -> list[str]:
     return lines
 
 
-@import_app.command("page", help="Import a PAGE XML, ALTO, hOCR, TEI or YOLO file as a new pass.")
+@app.command("import-page", help="Import a PAGE XML, ALTO, hOCR, TEI or YOLO file as a new pass on one page.")
 def import_page_command(
     ctx: typer.Context,
     doc_id: str = typer.Argument(..., help="The page's document id."),
