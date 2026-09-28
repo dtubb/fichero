@@ -473,18 +473,8 @@ struct ReadingPaneView: View {
             // Crumb click = reveal that node in the sidebar, which selects it
             // through the same seam a click uses — the pane follows. The
             // jump-bar child menus read the store's children cache.
-            onCrumb: { crumb in
-                NotificationCenter.default.post(
-                    name: .sidebarRevealDocument,
-                    object: nil,
-                    userInfo: ["documentId": crumb.id]
-                )
-            },
-            crumbChildren: { crumb in
-                (documentStore.outline(for: crumb.id)?.children
-                    ?? documentStore.childrenCache[crumb.id]
-                    ?? []).map(PaneCrumb.init)
-            },
+            onCrumb: { PaneCrumb.reveal($0) },
+            crumbChildren: { PaneCrumb.children(of: $0, in: documentStore) },
             // #4860: THIS pane's own window's library.
             crumbDragPayload: { crumb in
                 paneCrumbDragPayload(crumb, store: documentStore, libraryId: windowState.libraryId)
@@ -502,7 +492,8 @@ struct ReadingPaneView: View {
             controls: {
                 self.readerTableExportControl
             },
-            tools: { EmptyView() }
+            tools: { EmptyView() },
+            switchableRoots: PaneCrumb.otherLibraries(than: windowState.libraryId)
         )
         // The menu bar shows the SAME lens list, reading this publication —
         // one binding rendered twice, never a second switch (R3).

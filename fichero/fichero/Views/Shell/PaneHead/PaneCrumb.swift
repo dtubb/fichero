@@ -42,6 +42,43 @@ extension PaneCrumb {
         )
     }
 
+    static let libraryPrefix = "library:"
+
+    /// A library's root crumb (#5218): navigable -- it shows the library's top level, as its sidebar row does.
+    static func library(_ library: LibraryManager.LibraryReference) -> PaneCrumb {
+        PaneCrumb(
+            id: libraryPrefix + library.id.uuidString, title: library.displayName,
+            icon: "books.vertical.fill", tint: .accentColor
+        )
+    }
+
+    /// The library a library crumb names; nil for a document's crumb.
+    var libraryId: UUID? {
+        id.hasPrefix(Self.libraryPrefix) ? UUID(uuidString: String(id.dropFirst(Self.libraryPrefix.count))) : nil
+    }
+
+    /// Every OTHER open library, listed above the path in the crumb menu to switch to without the sidebar.
+    @MainActor
+    static func otherLibraries(than libraryId: UUID) -> [PaneCrumb] {
+        LibraryManager.shared.openLibraries.filter { $0.id != libraryId }.map(library)
+    }
+
+    /// The ONE way a crumb navigates, like Finder's path control: through the sidebar's reveal seam, which
+    /// selects the row as a click does (so the panes, the Inspector and ⌘[ / ⌘] follow). A library crumb
+    /// selects the library -- its top level, switching the window when it is another library.
+    @MainActor
+    static func reveal(_ crumb: PaneCrumb) {
+        let info: [String: String] = crumb.libraryId.map { ["libraryId": $0.uuidString] } ?? ["documentId": crumb.id]
+        NotificationCenter.default.post(name: .sidebarRevealDocument, object: nil, userInfo: info)
+    }
+
+    /// What a crumb's menu offers to step into: a library's top level, or a node's children.
+    @MainActor
+    static func children(of crumb: PaneCrumb, in store: DocumentStore) -> [PaneCrumb] {
+        if crumb.libraryId != nil { return store.collections.filter { $0.parentId == nil }.map(PaneCrumb.init) }
+        return (store.outline(for: crumb.id)?.children ?? store.childrenCache[crumb.id] ?? []).map(PaneCrumb.init)
+    }
+
     /// The leaf crumb for a multi-selection (Daniel, 2026-08-29): with N>1
     /// items selected a pane head must SAY so — "3 items" — never name one
     /// document as if it were alone. Not navigable: there is no single node
