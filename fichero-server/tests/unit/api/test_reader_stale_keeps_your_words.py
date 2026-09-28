@@ -126,3 +126,16 @@ console.log(JSON.stringify({{
         assert action in got["bar"]
     assert 'data-segment-id="seg&lt;1&gt;"' in got["bar"]                       # escaped
     assert "<del>c</del>" in got["comparing"] and "<ins>&lt;b&gt;</ins>" in got["comparing"]
+
+
+def test_when_nothing_counts_keep_mine_sends_with_no_basis(db, client):
+    """Archive's app half (c28a10f86): `theirs.*` is null when no reading counts now. Keep Mine then
+    carries no basis -- the app sends no token, so it lands -- and Compare shows mine as all new."""
+    _, _, html, _, _ = _stale(db, client)
+    got = _run(html, """
+const stale = { mine: "anno domini", theirs: { representationId: null, text: null } };
+console.log(JSON.stringify({ message: keepMineMessage("p", "s", stale), diff: wordDiff(stale.theirs.text, stale.mine),
+                             bar: staleBarMarkup("s", stale, true).includes("<ins>anno domini</ins>") }));
+""")
+    assert got["message"] == {"pageId": "p", "segmentId": "s", "text": "anno domini", "previous": None, "basedOn": None}
+    assert got["diff"] == [{"op": "ins", "text": "anno domini"}] and got["bar"] is True
