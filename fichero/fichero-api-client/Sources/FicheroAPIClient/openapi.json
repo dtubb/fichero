@@ -71085,6 +71085,46 @@
         "type": "object",
         "title": "SegmentOperationRequest"
       },
+      "SegmentOrderEntryParams": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "order_id": {
+            "type": "string",
+            "title": "Order Id"
+          },
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "position": {
+            "type": "number",
+            "title": "Position"
+          },
+          "parent_entry_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Entry Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version",
+            "default": 1
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "order_id",
+          "segment_id",
+          "position"
+        ],
+        "title": "SegmentOrderEntryParams",
+        "description": "One order entry as `segment.delete` recorded it (`reading_orders.ENTRY_FIELDS`)."
+      },
       "SegmentPass": {
         "properties": {
           "id": {
@@ -71501,6 +71541,13 @@
             },
             "type": "array",
             "title": "Segment Ids"
+          },
+          "order_entries": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentOrderEntryParams"
+            },
+            "type": "array",
+            "title": "Order Entries"
           }
         },
         "additionalProperties": false,

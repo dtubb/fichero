@@ -13651,6 +13651,7 @@ def register_generated_openapi_commands(
     @target_app.command("undelete")
     def segments_undelete_post(
         ctx: typer.Context,
+        order_entries: Optional[str] = typer.Option(None, "--order-entries", help="Request field: order_entries."),
         segment_ids: str = typer.Option(..., "--segment-ids", help="Request field: segment_ids."),
     ) -> None:
         """Undelete Segments (POST /api/segments/undelete)."""
@@ -13658,8 +13659,10 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/segments/undelete"
             params = None
             payload = _build_json_payload({
+                "order_entries": order_entries,
                 "segment_ids": segment_ids,
             }, {
+                "order_entries": {'items': {'$ref': '#/components/schemas/SegmentOrderEntryParams'}, 'type': 'array', 'title': 'Order Entries', 'x-cli-required': False},
                 "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Segment Ids', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
