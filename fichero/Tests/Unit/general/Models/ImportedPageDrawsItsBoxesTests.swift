@@ -1871,6 +1871,46 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertNil(PDFShapeAnnotations.make(for: plain, on: page, userName: "fichero.ocr-box"), "a box stays a square")
     }
 
+    /// A drawn line lands in its region (`source.editor.draw-shapes`), on the recorded Syriac page: a
+    /// baseline drawn at the foot of region 2 is placed in region 2 -- the region holding MOST of it -- and
+    /// the create sends it as the parent (the engine test proves that makes region 2's last line, one undo
+    /// taking both); its path reads Page › Region › Line. A baseline outside every region, or only half in
+    /// one, stays at page level with no guess, and its path says so (Page › Line). Breaks if a line is
+    /// orphaned inside a region, or put in one it barely touches.
+    func testALineDrawnInsideARegionIsCreatedAsThatRegionsLine() async throws {
+        let store = try await loadedStore()
+        let segments = store.segments(documentId: "doc-0001")
+        let regions = segments.filter { $0.kind == "region" }
+            .sorted { (($0.anchor.rect?[1] ?? 0), ($0.anchor.rect?[0] ?? 0)) < (($1.anchor.rect?[1] ?? 0), ($1.anchor.rect?[0] ?? 0)) }
+        let region = regions[1]
+        let rect = try XCTUnwrap(region.anchor.rect)
+        let baseline = [[rect[0] + 0.1 * rect[2], rect[1] + 0.97 * rect[3]], [rect[0] + 0.9 * rect[2], rect[1] + 0.975 * rect[3]]]
+        XCTAssertEqual(SegmentShapes.containingRegion(for: baseline, among: segments)?.id, region.id, "the region it is drawn in")
+        XCTAssertNil(SegmentShapes.containingRegion(for: [[0.001, 0.001], [0.01, 0.001]], among: segments), "outside every region")
+        let straddling = [[rect[0] - 0.6 * rect[2], rect[1] + 0.5 * rect[3]], [rect[0] + 0.3 * rect[2], rect[1] + 0.5 * rect[3]]]
+        XCTAssertNil(SegmentShapes.containingRegion(for: straddling, among: segments), "a third inside is not most of it")
+
+        let call = try SegmentShapes.create(
+            .baseline, points: baseline, documentId: "doc-0001", passId: region.passId, onPass: region, parentSegmentId: region.id
+        ).get()
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(call.params)) as? [String: Any])
+        XCTAssertEqual(sent["parent_segment_id"] as? String, region.id)
+        XCTAssertEqual(sent["kind"] as? String, "line")
+        let pageLevel = try SegmentShapes.create(
+            .baseline, points: baseline, documentId: "doc-0001", passId: region.passId, onPass: region, parentSegmentId: nil
+        ).get()
+        let unparented = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(pageLevel.params)) as? [String: Any])
+        XCTAssertNil(unparented["parent_segment_id"], "no region: no parent sent, never a guessed one")
+
+        var drawn = try XCTUnwrap(segments.first { $0.kind == "line" })
+        drawn.id = "seg-drawn"
+        drawn.parentSegmentId = region.id
+        XCTAssertEqual(InspectorPath.to("seg-drawn", in: segments + [drawn])?.crumbs.map(\.label), ["Region", "Line"])
+        drawn.parentSegmentId = nil
+        XCTAssertEqual(InspectorPath.to("seg-drawn", in: segments + [drawn])?.crumbs.map(\.label), ["Line"],
+                       "at page level, and the path says so")
+    }
+
     /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the
     /// imported Syriac page's first line -- down to nothing at all -- is a NEW READING without them,
     /// through the calls the Reader's coordinator makes. No segment action is ever sent: the line and

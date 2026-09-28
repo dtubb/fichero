@@ -149,9 +149,18 @@ def place_in_page_order(db: Database, order: ReadingOrder, segment: Segment) -> 
     The sort is `_segment_order_key`, IMPORTED. Returns None when the segment is
     already in the order, so a caller can be called twice without checking.
     """
-    entries = entries_in_sequence(db, order.id)
-    if any(row.segment_id == segment.id for row in entries):
+    if any(row.segment_id == segment.id for row in db.query(ReadingOrderEntry, order_id=order.id)):
         return None
+    # A segment with a parent (a line drawn inside a region) is placed among that parent's children, where
+    # page order puts it -- never at the top level beside the regions, which is where it landed before
+    # (2026-09-28). A parent the order does not hold leaves it at the top level, as before.
+    parent_entry = next(
+        (row for row in db.query(ReadingOrderEntry, order_id=order.id)
+         if segment.parent_segment_id and row.segment_id == segment.parent_segment_id),
+        None,
+    )
+    parent_entry_id = parent_entry.id if parent_entry is not None else None
+    entries = entries_in_sequence(db, order.id, parent_entry_id=parent_entry_id)
 
     key = _segment_order_key(segment)
     previous_position: float | None = None
@@ -170,6 +179,7 @@ def place_in_page_order(db: Database, order: ReadingOrder, segment: Segment) -> 
         order_id=order.id,
         segment_id=segment.id,
         position=midpoint(order.id, previous_position, following_position),
+        parent_entry_id=parent_entry_id,
     )
     db.save(entry)
     return entry
@@ -803,13 +813,18 @@ async def list_order_entries(
     how deeply a scholar nested their reading.
     """
     _live_order(db, order_id)
+    # An entry whose segment is deleted is KEPT (an undo restores the segment to exactly its place, a
+    # person's reordering included) and not LISTED: undoing a drawn line left its place showing as a row
+    # for a segment that is gone (2026-09-28).
+    rows = entries_in_sequence(db, order_id, parent_entry_id=parent_entry_id)
+    live = {
+        row.segment_id for row in rows
+        if (segment := db.get(Segment, row.segment_id)) is not None and segment.deleted_at is None
+    }
     return ReadingOrderEntryListResponse(
         order_id=order_id,
         parent_entry_id=parent_entry_id,
-        entries=[
-            ReadingOrderEntryRead(**row.model_dump())
-            for row in entries_in_sequence(db, order_id, parent_entry_id=parent_entry_id)
-        ],
+        entries=[ReadingOrderEntryRead(**row.model_dump()) for row in rows if row.segment_id in live],
     )
 
 

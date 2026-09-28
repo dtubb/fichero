@@ -1053,8 +1053,15 @@ The editor
   the app closes, refuses too few points and sends those calls
   (`ImportedPageDrawsItsBoxesTests.testTheShapeToolsPolygonAndBaselineCreateSegmentsWithUndo`).
   **Escape abandons a drawing in progress** and does nothing else; the next Escape clears as it always did
-  (`WindowState.abandonDrawing`, `ShapeDrawingEscapeTests`). **Not yet:** a point and an open line; a drawn
-  line is not placed in the region it is drawn in; pages whose boxes come from an artifact.
+  (`WindowState.abandonDrawing`, `ShapeDrawingEscapeTests`). **A drawn line lands in its region:** it is
+  created as a line of the region holding MORE THAN HALF of its bounds (the most, then the smallest;
+  `SegmentShapes.containingRegion`), so the Inspector's path reads Region › Line; none holds it, it stays
+  at page level and the path says only Line -- no guessing. The same create places it in the as-written
+  order among that region's lines, where its place on the page puts it (#4930: page order, never
+  append -- a line drawn at the region's foot is its last line), and one ⌘Z removes the line and its
+  entry (`test_imported_page_draws_its_boxes.py::test_a_line_drawn_inside_a_region_is_that_region_s_line_in_its_order_and_one_undo_takes_both`,
+  Syriac; `ImportedPageDrawsItsBoxesTests.testALineDrawnInsideARegionIsCreatedAsThatRegionsLine`).
+  **Not yet:** a point and an open line; pages whose boxes come from an artifact.
 - `source.editor.reshape` — **[PARTIAL]** (#4941) points can be dragged, added and removed; shapes moved and nudged.
   **Built 2026-09-28 (image pages, segment passes):** the overlay draws a segment AS its shapes -- the
   outline its file drew, an open path, a point, the baseline under the ink -- not its box

@@ -66,9 +66,14 @@ extension ZoomableImagePreview {
             Self.logger.notice("Draw \(kind.title, privacy: .public) not sent: the shown boxes are not a segment pass")
             return
         }
-        let onPass = store.segments(documentId: documentId).first { $0.passId == passId }
+        let onThePass = store.segments(documentId: documentId).filter { $0.passId == passId }
+        // A line lands in the region that holds most of it; none, and it stays at page level (no guessing).
+        let region = kind == .baseline ? SegmentShapes.containingRegion(for: points, among: onThePass) : nil
         runSegmentEdit(
-            SegmentShapes.create(kind, points: points, documentId: documentId, passId: passId, onPass: onPass),
+            SegmentShapes.create(
+                kind, points: points, documentId: documentId, passId: passId, onPass: onThePass.first,
+                parentSegmentId: region?.id
+            ),
             documentId: documentId, name: "Draw \(kind.title)"
         )
     }

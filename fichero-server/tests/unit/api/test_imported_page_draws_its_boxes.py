@@ -1309,3 +1309,44 @@ def test_a_pdf_page_given_a_page_file_s_lines_reaches_the_app_with_their_outline
         match = [lid for lid, s in in_file.items() if close(s["polygon"], line["anchor"]["polygon"])]
         assert len(match) == 1, "a PDF page keeps the file's outline"
         assert close(in_file[match[0]]["baseline"], line["baseline"]), "and its baseline"
+
+
+def test_a_line_drawn_inside_a_region_is_that_region_s_line_in_its_order_and_one_undo_takes_both(db, client):
+    """`source.editor.draw-shapes` (a drawn line lands in its region): on the imported Syriac page, the
+    app's exact create for a baseline drawn at the foot of region 2 -- `segment.create` of a line with
+    `parent_segment_id` = that region -- makes region 2's LAST line: its parent is the region, and the
+    page's as-written order places it among region 2's lines where page order puts it (the foot, so last),
+    not at the top level beside the regions, where a drawn line used to land. One undo of the create takes
+    the line and its place. Breaks if a drawn line is orphaned at page level, lands among the regions in
+    the order, or leaves its place behind when undone."""
+    from fichero_server.api.routes.document.reading_orders import as_written_order, entries_in_sequence
+    from fichero_server.models.reading_orders import ReadingOrderEntry
+
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    regions = sorted((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "region"),
+                     key=lambda s: (s["anchor"]["rect"][1], s["anchor"]["rect"][0]))
+    region = regions[1]
+    x, y, w, h = region["anchor"]["rect"]
+    baseline = [[x + 0.1 * w, y + 0.97 * h], [x + 0.5 * w, y + 0.97 * h], [x + 0.9 * w, y + 0.975 * h]]
+    order = as_written_order(db, real["id"])
+    region_entry = next(e for e in db.query(ReadingOrderEntry, order_id=order.id) if e.segment_id == region["id"])
+    lines_before = [e.segment_id for e in entries_in_sequence(db, order.id, parent_entry_id=region_entry.id)]
+
+    made = client.post("/api/actions/invoke", json={"name": "segment.create", "params": {
+        "document_id": doc_id, "pass_id": real["id"], "kind": "line", "baseline": baseline,
+        "parent_segment_id": region["id"],
+        "anchor": {"document_id": doc_id, "shapes": [{"kind": "path", "points": baseline}]}}})
+    assert made.status_code == 200, made.text
+    drawn_id = made.json()["result"]["segment_ids"][0]
+    assert client.get(f"/api/segments/{drawn_id}").json()["segment"]["parent_segment_id"] == region["id"]
+    lines_after = [e.segment_id for e in entries_in_sequence(db, order.id, parent_entry_id=region_entry.id)]
+    assert lines_after == lines_before + [drawn_id], "region 2's last line, in the order"
+    assert drawn_id not in [e.segment_id for e in entries_in_sequence(db, order.id)], "not beside the regions"
+
+    assert client.post(f"/api/actions/audit/{made.json()['audit_id']}/undo").status_code == 200
+    left = {s["id"] for s in client.get(f"/api/segments/document/{doc_id}").json()["segments"]}
+    assert drawn_id not in left
+    listed = client.get(f"/api/reading-orders/{order.id}/entries", params={"parent_entry_id": region_entry.id}).json()
+    assert [e["segment_id"] for e in listed["entries"]] == lines_before, "one undo takes the line and its place"
