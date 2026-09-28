@@ -798,7 +798,7 @@ def _why_omitted(
 DERIVATION_VERSION = 8
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
-DERIVATION_SOURCE_SHA256 = "cb942546b66e6dd0b869cbffb8f127dda7e63d2f46e1d824c1f8765b6adc31d4"
+DERIVATION_SOURCE_SHA256 = "6351a2702a6ef6f58945dfd254e02a63ea2df1f2ded9b8d06dfd6b7500d8d3e4"
 
 
 def derivation_source_digest() -> str:
@@ -924,6 +924,11 @@ def document_text(
     candidates = _pass_candidates(db, document_id)
     if pass_id is not None:
         answer = PassAnswer(pass_id=pass_id, basis=PassBasis.chosen)
+        # A pass NAMED is read whatever its kind: the working-pass rule ranks text passes only, but
+        # a georeferencing pass named by its id (its export, #5122) is still a pass of this page.
+        named = db.get(SegmentPass, pass_id)
+        if named is not None and named.document_id == document_id and named.deleted_at is None and georeferences(named):
+            candidates = [*candidates, *_pass_candidates(db, document_id, georeferencing=True)]
         if not any(row.pass_id == pass_id for row in candidates):
             raise LookupError(f"Pass not found on document {document_id}: {pass_id}")
     else:

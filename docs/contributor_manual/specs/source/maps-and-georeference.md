@@ -496,12 +496,14 @@ Formats
   (`::TestWriting::test_converting_the_earlier_dialect_names_what_it_did_not_write`). A missing
   pixel size is refused rather than invented. **The checker** is written from the extension's
   normative text (https://iiif.io/api/extension/georef/, read 2026-09-27). Each rule quotes its
-  sentence in the code, and each is fired once by `::TestTheChecker`. Not built: a pass from a
-  library, which has no GCPs to give until #5122.
+  sentence in the code, and each is fired once by `::TestTheChecker`. **From a library (2026-09-28, maps C3):** `GET /api/documents/{id}/export/iiif-georef`
+  exports the image's working georeferencing pass -- each GCP's pixel end (in the page's frame) and
+  counted world end, the mask each controls, the pass's transformation -- and it passes the checker;
+  a correction made in the library is in the file (`fichero-server/tests/unit/api/test_a_georeference_exports_from_the_library.py`).
 - `source.geo.iiif-georef-round-trip` — **[OK]** (→ #5125) the two vendored Allmaps files import,
   export and import again with the same GCPs, mask and transformation type, less what the loss
   report names (`fichero-server/tests/unit/formats/test_iiif_georef.py::TestWriting::test_the_round_trip_keeps_gcps_mask_and_transformation`,
-  format to format. Through a library it waits on the GCP model, which `iiif-georef-in` tracks).
+  format to format; and through a library, in and out with the same GCPs and transformation: `fichero-server/tests/unit/api/test_a_georeference_exports_from_the_library.py::test_the_pass_goes_out_as_it_came_in`).
   **Found on the way:** the earlier-dialect file (Delft) **fails the published checker**. It has no
   georef context and uses `pixelCoords`. That is true of the file, and it is why the reader is
   tolerant and the writer strict

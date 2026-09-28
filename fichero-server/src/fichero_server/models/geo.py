@@ -113,6 +113,13 @@ class UnknownTransformation(ValueError):
     """A transformation this library does not know: refused by name, never guessed."""
 
 
+def transformation_to_iiif(name: str) -> dict[str, Any]:
+    """One of `TRANSFORMATIONS` in the georef extension's own spelling (the inverse of below)."""
+    if name.startswith("polynomial-"):
+        return {"type": "polynomial", "options": {"order": int(name.rsplit("-", 1)[1])}}
+    return {"type": {"thin-plate-spline": "thinPlateSpline"}.get(name, name)}
+
+
 def transformation_from_iiif(value: dict[str, Any] | None) -> str:
     """A IIIF georef `transformation` object as one of `TRANSFORMATIONS`; the default when none."""
     if not value:
