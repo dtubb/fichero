@@ -237,6 +237,8 @@ class PassRead(BaseModel):
     import_checksum: str | None = None
     import_format: str | None = None
     has_original: bool = False
+    #: A georeferencing pass's transformation type (#5122); None for any other pass.
+    transformation: str | None = None
 
 
 class SegmentListResponse(BaseModel):
@@ -584,6 +586,11 @@ class SegmentPass(BaseModel):
     #: Where the file's own bytes are kept, relative to the library package (`files/...`), exactly
     #: as imported (#5149): the pass is a reading OF that file, and the file is the evidence.
     import_original: str | None = None
+    #: A georeferencing pass's transformation type (#5122, `source.geo.transformation-type`): one
+    #: of `models.geo.TRANSFORMATIONS`, `polynomial-1` (affine) by default; None for a pass that
+    #: georeferences nothing. The transform itself is WORKED OUT from the pass's GCPs and this,
+    #: never stored as the truth. A typed column: existing libraries gain it on open (reconcile).
+    transformation: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
     #: Soft delete -- a pass is never removed (`segment.pass_delete`'s
     #: inverse, `segment.pass_restore`, clears this).
@@ -1406,6 +1413,7 @@ def pass_read_from_row(
         import_checksum=row.import_checksum,
         import_format=row.import_format,
         has_original=row.import_original is not None,
+        transformation=row.transformation,
         # Readings of their own arrive in slice 8; until then a converted
         # pass's text is the block's own (`source_block`).
         text=(source_block.text or None) if source_block is not None else None,

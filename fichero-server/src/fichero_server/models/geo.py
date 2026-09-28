@@ -101,3 +101,31 @@ def world_point_content(content: str) -> str:
     if not isinstance(raw, dict):
         raise WorldPointRefused("a world-point reading's content is a JSON object")
     return world_point(raw).model_dump_json()
+
+
+#: A georeferencing pass's transformation type (`source.geo.transformation-type`): the words
+#: Allmaps and QGIS share. `polynomial-1` is affine, the default, and what a world file holds.
+TRANSFORMATIONS = ("polynomial-1", "polynomial-2", "polynomial-3", "thin-plate-spline", "helmert", "projective")
+DEFAULT_TRANSFORMATION = "polynomial-1"
+
+
+class UnknownTransformation(ValueError):
+    """A transformation this library does not know: refused by name, never guessed."""
+
+
+def transformation_from_iiif(value: dict[str, Any] | None) -> str:
+    """A IIIF georef `transformation` object as one of `TRANSFORMATIONS`; the default when none."""
+    if not value:
+        return DEFAULT_TRANSFORMATION
+    kind = str(value.get("type") or "")
+    if kind == "polynomial":
+        order = (value.get("options") or {}).get("order", 1)
+        name = f"polynomial-{order}"
+    else:
+        name = {"thinPlateSpline": "thin-plate-spline", "helmert": "helmert", "projective": "projective"}.get(kind, kind)
+    if name not in TRANSFORMATIONS:
+        raise UnknownTransformation(
+            f"the file's transformation {value!r} is not one of {', '.join(TRANSFORMATIONS)}; "
+            "nothing was imported rather than guess one"
+        )
+    return name
