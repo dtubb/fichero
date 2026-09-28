@@ -108,9 +108,14 @@ class AuthorityRefreshRequest(BaseModel):
     )
 
 
+#: The authorities an entity may be linked to (`knowledge.authorities`): the three with fetchers,
+#: and the gazetteers (maps D2), whose records arrive as recorded snapshots.
+LinkableAuthority = Literal["wikidata", "viaf", "loc", "pleiades", "tgn", "geonames", "whg"]
+
+
 class AuthorityLinkRequest(BaseModel):
     entity_id: str = Field(min_length=1)
-    authority: Literal["wikidata", "viaf", "loc"]
+    authority: LinkableAuthority
     authority_id: str = Field(min_length=1)
 
 
@@ -1288,7 +1293,7 @@ class LinkAuthorityParams(BaseModel):
     """
 
     entity_id: str = Field(min_length=1)
-    authority: Literal["wikidata", "viaf", "loc"]
+    authority: LinkableAuthority
     authority_id: str = Field(min_length=1)
 
 
@@ -1316,6 +1321,14 @@ def link_authority_impl(
     entity = db.get(KnowledgeEntity, params.entity_id)
     if entity is None:
         raise HTTPException(status_code=404, detail=f"Entity not found: {params.entity_id}")
+    from fichero_server.knowledge.authorities import AuthorityIdRefused, normalise
+
+    try:
+        # One spelling of an identifier (maps D2): a URI form is read back to the id; one that
+        # fits no pattern of its authority is refused, never stored as given.
+        params = params.model_copy(update={"authority_id": normalise(params.authority, params.authority_id)})
+    except AuthorityIdRefused as refusal:
+        raise HTTPException(status_code=422, detail=str(refusal)) from refusal
     snapshot = next(
         (row for row in db.query(AuthoritySnapshot)
          if row.authority == params.authority and row.authority_id == params.authority_id),

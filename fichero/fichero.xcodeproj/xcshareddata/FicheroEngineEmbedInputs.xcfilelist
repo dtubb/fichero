@@ -272,6 +272,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/integrations/devonthink.py
 $(SRCROOT)/../fichero-server/src/fichero_server/integrations/tinderbox.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/_common.py
+$(SRCROOT)/../fichero-server/src/fichero_server/knowledge/authorities.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/dedupe.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/entity_vectors.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/graph.py

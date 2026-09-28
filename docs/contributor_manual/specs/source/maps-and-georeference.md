@@ -443,9 +443,16 @@ Places and gazetteers
   the survivor), and an end kind it does not know (it stored any string before). The real Syriac
   line l_77, "in the land of Palestine", `names` its place entity with a certainty, seen from both
   ends (`fichero-server/tests/unit/api/test_a_place_segment_names_its_entity.py`). PARTIAL: no screen.
-- `source.geo.gazetteer-authorities` — **[GAP]** (#4933) WHG, Pleiades, Getty TGN and GeoNames are
+- `source.geo.gazetteer-authorities` — **[PARTIAL]** (#4933) WHG, Pleiades, Getty TGN and GeoNames are
   authorities beside Wikidata, each identifier is stored in its canonical URI form, and one that
   does not fit its authority's pattern is refused.
+  **Built 2026-09-28 (maps D2):** `knowledge/authorities.py` is the one table -- Wikidata, VIAF, LoC
+  and the gazetteers Pleiades, TGN, GeoNames, WHG -- with each identifier's pattern and canonical
+  URI; an id given as its URI reads back; anything else is refused. `entity.link_authority` takes
+  the gazetteers and refuses a malformed id before anything is stored
+  (`fichero-server/tests/unit/api/test_gazetteer_authorities.py`, real ids). PARTIAL: WHG's URI
+  form is `https://whgazetteer.org/places/<id>` as its site writes it, unverified against a
+  published canonical form; no screen.
 - `source.geo.gazetteer-candidates` — **[PARTIAL]** (#4933) candidates for an entity come from
   locally cached authority snapshots without fetching, and a chosen one is recorded by an
   audited action. Built for Wikidata, VIAF and LoC by exact name or alias match
