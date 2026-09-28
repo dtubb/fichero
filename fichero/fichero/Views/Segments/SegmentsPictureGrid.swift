@@ -45,7 +45,7 @@ struct SegmentsPictureGrid: View {
             }
             .frame(width: 140, height: 90)
             .clipShape(RoundedRectangle(cornerRadius: 4))
-            Text(SegmentsPane.rowLabel(segments[id], at: index)).font(.caption).lineLimit(2)
+            Text(SegmentsPane.rowLabel(segments[id], at: index)).font(BundledFonts.shared.font(.caption)).lineLimit(2)
                 .frame(width: 140, alignment: .leading)
             if opens(id) {
                 Text("Double-click to open").font(.caption2).foregroundStyle(.tertiary)

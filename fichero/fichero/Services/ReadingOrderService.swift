@@ -20,7 +20,9 @@ final class ReadingOrderService: ReadingOrderTransport {
         switch response {
         case .ok(let okResponse):
             return try okResponse.body.json.orders.map {
-                ReadingOrderSummary(id: $0.id, name: $0.name, kind: $0.kind, passId: $0.passId)
+                ReadingOrderSummary(
+                    id: $0.id, name: $0.name, kind: $0.kind, passId: $0.passId, provenanceKind: $0.provenanceKind
+                )
             }
         case .unprocessableContent:
             throw ReadingOrderError.refused("the engine refused the document id")
@@ -148,6 +150,8 @@ struct ReadingOrderSummary: Equatable, Identifiable {
     let kind: String
     /// The pass it orders; a new order is made over the same one (#5160).
     var passId: String?
+    /// Who made it (`external_import`: the file's own order), so the picker can say where it came from (#5216).
+    var provenanceKind: String?
 }
 
 /// What the store needs from the engine -- a protocol so the store is tested without one.

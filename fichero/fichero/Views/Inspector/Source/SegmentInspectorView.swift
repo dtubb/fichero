@@ -248,7 +248,7 @@ struct InspectorTextSection: View {
                 if let role = reading.pairRole {
                     Text(role).font(.caption.monospaced()).foregroundStyle(.secondary)
                 }
-                Text(reading.content).font(.body).textSelection(.enabled)
+                Text(reading.content).font(BundledFonts.shared.font(.body)).textSelection(.enabled)
             }
             HStack(spacing: 8) {
                 Text(detail(reading, counts: counts)).font(.caption).foregroundStyle(.secondary)

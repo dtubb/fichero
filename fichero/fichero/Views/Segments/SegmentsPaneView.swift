@@ -37,7 +37,8 @@ struct SegmentsPaneView: View {
                 SegmentsGatheredList(gather: gather, open: open)
             } else if let document, lens != .list {
                 SegmentsPictureGrid(
-                    segmentIds: orders?.shown.map(\.segmentId) ?? [],
+                    // With no named order, the pictures come as written, as the list does (#5204).
+                    segmentIds: SegmentsPane.shownOrAsWritten(orders?.shown.map(\.segmentId), segments, under: parentId),
                     segments: Dictionary(segments.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }),
                     isStrip: lens == .strip, selected: picked,
                     pick: { id in pick(id, on: document.id) },

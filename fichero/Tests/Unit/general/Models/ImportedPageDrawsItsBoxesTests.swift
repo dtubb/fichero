@@ -1549,7 +1549,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let store = ReadingOrderStore(transport: service)
 
         try await store.load(documentId: "doc-0001")
-        XCTAssertEqual(store.orders.map(ReadingOrderChoice.title), ["As Written", "Commentary order", "Into the next page (flow)"])
+        XCTAssertEqual(store.orders.map(ReadingOrderChoice.title), ["Order: As in the File", "Commentary order", "Into the next page (flow)"])
         XCTAssertEqual(store.orderId, "order-0001", "the file's own order first")
         try await store.choose("order-0003")
         XCTAssertEqual(store.orderId, "order-0003")

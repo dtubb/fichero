@@ -49,6 +49,23 @@ enum SegmentsPane {
     }
 
     /// Whether a row can be opened: the segment has children on this page.
+    /// One level of a page with no named order, as the page holds it (#5204): the children of `parentId`,
+    /// or with nil the segments whose parent is not on the page, in the order the engine serves them
+    /// (a box's own index, else creation) -- the file's order, never re-sorted here.
+    static func asWritten(_ segments: [Segment], under parentId: String?) -> [String] {
+        let onPage = Set(segments.map(\.id))
+        return segments.filter { segment in
+            guard let parentId else { return segment.parentSegmentId.map { !onPage.contains($0) } ?? true }
+            return segment.parentSegmentId == parentId
+        }.map(\.id)
+    }
+
+    /// The order's level when it has one, else the level as written: the strip and grid show what the list does.
+    static func shownOrAsWritten(_ shown: [String]?, _ segments: [Segment], under parentId: String?) -> [String] {
+        if let shown, !shown.isEmpty { return shown }
+        return asWritten(segments, under: parentId)
+    }
+
     static func hasChildren(_ segmentId: String, in segments: [Segment]) -> Bool {
         segments.contains { $0.parentSegmentId == segmentId }
     }
@@ -84,4 +101,13 @@ enum SegmentsPane {
         }
         return "\(kind) · \(text)"
     }
+}
+
+/// `segment.convert_and_edit` with no edit: the page's boxes become segments and its `as-written` order is
+/// made from their order, one action with ⌘Z. What "Create Named Order" sends when the page has no order to
+/// copy (#5204).
+struct ConvertPageRequest: Encodable, Equatable {
+    let documentId: String
+
+    enum CodingKeys: String, CodingKey { case documentId = "document_id" }
 }
