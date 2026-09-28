@@ -205,4 +205,21 @@ final class EntityStorePartialReconciliationTests: XCTestCase {
     func testAFreshStoreHasNotLoadedTheLibraryScope() {
         XCTAssertFalse(makeStore().didLoadLibraryScope)
     }
+
+    /// #5254: the Entities table rebuilds its rows when `rowsRevision` moves, and only then -- on
+    /// Marshall every click rebuilt tens of thousands of rows. Every container a row reads must move
+    /// it (a missed one leaves a stale table), and reading must not.
+    func testRowsRevisionMovesWhenARowInputChangesAndNotWhenRead() {
+        let store = makeStore()
+        var last = store.rowsRevision
+        store.libraryEntities = [entity("a")]
+        XCTAssertGreaterThan(store.rowsRevision, last); last = store.rowsRevision
+        store.libraryClaimCounts = ["a": 2]
+        XCTAssertGreaterThan(store.rowsRevision, last); last = store.rowsRevision
+        store.entitiesByDocumentId = ["doc": [entity("a")]]
+        XCTAssertGreaterThan(store.rowsRevision, last); last = store.rowsRevision
+        _ = store.libraryEntities.count
+        _ = store.entities(forDocument: "doc")
+        XCTAssertEqual(store.rowsRevision, last, "reading must not look like a change")
+    }
 }

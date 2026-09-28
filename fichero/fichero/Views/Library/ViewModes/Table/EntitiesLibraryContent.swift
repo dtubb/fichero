@@ -65,6 +65,26 @@ struct EntitiesLibraryContent: View {
     /// same `NewEntitySheet` in its editing mode. A tiny Identifiable wrapper is needed
     /// because `KnowledgeEntity.id` is optional, which `.sheet(item:)` cannot key on.
     @State private var entityToEdit: Components.Schemas.KnowledgeEntity?
+    /// The rows, built only when what they are built FROM changes (#5254).
+    @State private var builtItems: [EntitiesTableView.Item] = []
+    @State private var builtRevision = 0
+
+    private struct ItemsKey: Hashable {
+        let store: ObjectIdentifier
+        let rows: Int
+        let folderId: String?
+        let documents: Int
+        let query: String?
+        let filterText: String
+        let filterType: String?
+    }
+
+    private var itemsKey: ItemsKey {
+        ItemsKey(
+            store: ObjectIdentifier(store), rows: store.rowsRevision, folderId: folderId,
+            documents: documents.count, query: trimmedQuery, filterText: filterText, filterType: filterType
+        )
+    }
 
     /// The entity a merge-into sheet would absorb others INTO (#5110).
     @State private var entityToMergeInto: Components.Schemas.KnowledgeEntity?
@@ -88,12 +108,17 @@ struct EntitiesLibraryContent: View {
         // (`LibraryView+BottomActionBar.swift`), so a table pane spends
         // exactly one bar's height, not two.
         EntitiesTableView(
-            items: items,
+            items: builtItems,
+            itemsRevision: builtRevision,
             selection: $selection,
             isLoading: isLoadingCurrentScope,
             emptyMessage: emptyMessage,
             actions: actions
         )
+        .onChange(of: itemsKey, initial: true) {
+            builtItems = items
+            builtRevision &+= 1
+        }
         // A high limit: we filter to the folder client-side, so the library-wide
         // list must be complete enough not to drop the folder's entities (the
         // default page size is small). The store dedups repeat loads.

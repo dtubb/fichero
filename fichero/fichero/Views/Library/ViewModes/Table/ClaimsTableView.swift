@@ -33,6 +33,9 @@ struct ClaimsTableView: View {
     }
 
     let items: [Item]
+    /// Bumped by the host each time it rebuilds `items`, so the sort runs then and on a new sort
+    /// order -- never on a selection change (#5254).
+    var itemsRevision = 0
     @Binding var selection: Set<String>
     let isLoading: Bool
     let emptyMessage: String
@@ -58,9 +61,9 @@ struct ClaimsTableView: View {
         KeyPathComparator(\Item.values.subject, order: .forward)
     ]
 
-    private var sortedItems: [Item] {
-        items.sorted(using: sortOrder)
-    }
+    @State private var sortedItems: [Item] = []
+
+    private func resort() { sortedItems = items.sorted(using: sortOrder) }
 
     var body: some View {
         Group {
@@ -73,6 +76,8 @@ struct ClaimsTableView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onChange(of: itemsRevision, initial: true) { resort() }
+        .onChange(of: sortOrder) { resort() }
     }
 
     private var table: some View {

@@ -17,7 +17,12 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Library
 @MainActor
 @Observable
 final class LibraryClaimsModel {
-    private(set) var claims: [Components.Schemas.KnowledgeClaim] = []
+    private(set) var claims: [Components.Schemas.KnowledgeClaim] = [] {
+        didSet { claimsRevision &+= 1 }
+    }
+    /// Bumped on every change to `claims`, so a table rebuilds its rows only when they changed, not
+    /// on every render (the rainbow cursor on a library with tens of thousands of claims).
+    private(set) var claimsRevision = 0
     private(set) var isLoading = false
     private(set) var loadError: String?
 

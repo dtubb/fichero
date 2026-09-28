@@ -62,11 +62,14 @@ final class EntityStore: ObservableDomainStore {
     // nobody could see. Reconciling it would have made five mutations more
     // expensive to maintain a value with no reader, and would have looked
     // like diligence.
-    var libraryEntities: [Components.Schemas.KnowledgeEntity] = []
-    var libraryClaimCounts: [String: Int] = [:]
+    var libraryEntities: [Components.Schemas.KnowledgeEntity] = [] { didSet { rowsRevision &+= 1 } }
+    var libraryClaimCounts: [String: Int] = [:] { didSet { rowsRevision &+= 1 } }
     var isLoadingLibrary = false
     var libraryLoadError: String?
-    var entitiesByDocumentId: [String: [Components.Schemas.KnowledgeEntity]] = [:]
+    var entitiesByDocumentId: [String: [Components.Schemas.KnowledgeEntity]] = [:] { didSet { rowsRevision &+= 1 } }
+    /// Bumped whenever anything a table row is built from changes, so the Entities table rebuilds its
+    /// rows then -- not on every render and every click (#5254, the rainbow cursor at Marshall scale).
+    private(set) var rowsRevision = 0
     var loadingDocumentIds: Set<String> = []
     var loadErrorsByDocumentId: [String: String] = [:]
 

@@ -89,6 +89,30 @@ struct ClaimsLibraryContent: View {
     /// `EditClaimSheet` (PATCH). A tiny Identifiable wrapper is needed because
     /// `KnowledgeClaim.id` is optional, which `.sheet(item:)` cannot key on.
     @State private var claimToEdit: Components.Schemas.KnowledgeClaim?
+    /// The rows, built only when what they are built FROM changes (#5254): `items` over tens of
+    /// thousands of claims ran in `body`, so every click rebuilt them all on the main thread.
+    @State private var builtItems: [ClaimsTableView.Item] = []
+    @State private var builtRevision = 0
+
+    /// Everything `items` reads. A change to any of it rebuilds the rows; a selection change does not.
+    private struct ItemsKey: Hashable {
+        let scope: ClaimsScope
+        let model: ObjectIdentifier?
+        let claimsRevision: Int?
+        let storeRevision: Int?
+        let documents: Int
+        let query: String?
+        let filterText: String
+        let filterType: String?
+    }
+
+    private var itemsKey: ItemsKey {
+        ItemsKey(
+            scope: scope, model: model.map(ObjectIdentifier.init), claimsRevision: model?.claimsRevision,
+            storeRevision: claimStore?.claimsRevision, documents: documents.count, query: trimmedQuery,
+            filterText: filterText, filterType: filterType
+        )
+    }
 
     /// This view's own library/folder-switch reload keying (below), not
     /// `EditClaimSheet`'s — #4833 moved that sheet's save off
@@ -123,7 +147,8 @@ struct ClaimsLibraryContent: View {
             // (`LibraryView+BottomActionBar.swift`), so a table pane spends
             // exactly one bar's height, not two.
             ClaimsTableView(
-                items: items,
+                items: builtItems,
+                itemsRevision: builtRevision,
                 selection: $selection,
                 isLoading: isLoading,
                 emptyMessage: emptyMessage,
@@ -132,6 +157,10 @@ struct ClaimsLibraryContent: View {
                 onEdit: { claimToEdit = $0 },
                 onRevealSource: revealSource
             )
+        }
+        .onChange(of: itemsKey, initial: true) {
+            builtItems = items
+            builtRevision &+= 1
         }
         // Reload on BOTH the active library AND the folder scope. Keying on
         // `folderId` alone left the library-wide row (folderId == nil) stuck on
@@ -221,7 +250,7 @@ struct ClaimsLibraryContent: View {
     /// #4886: which claims this pane is scoped to right now — an explicit
     /// entity focus wins over the folder, UNLESS the user dismissed it with
     /// "Show All" for this pane. Pure, testable off-view.
-    enum ClaimsScope: Equatable {
+    enum ClaimsScope: Hashable {
         case folder(String?)
         case entity(String)
     }
