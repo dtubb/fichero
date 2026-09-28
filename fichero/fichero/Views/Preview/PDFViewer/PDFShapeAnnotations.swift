@@ -58,6 +58,51 @@ enum PDFShapeAnnotations {
         return out
     }
 
+    /// Edit Segments on a PDF page: the selected box's handles -- a square on every point of its
+    /// shapes, a circle on every side's midpoint (press it to add a point there) -- sized to stay
+    /// `SelectionStyle.handleSide` on screen at `scale`, as on an image.
+    static func handles(for box: OCRGeometryBox, on page: PDFPage, scale: CGFloat, userName: String) -> [PDFAnnotation] {
+        let crop = page.bounds(for: .cropBox)
+        let side = SelectionStyle.handleSide / max(scale, 0.01)
+        var out: [PDFAnnotation] = []
+        for shape in box.shapes {
+            let corners = shape.points.map { ($0, PDFAnnotationSubtype.square) }
+            let sides = SegmentShapes.sideMidpoints(shape.points, shape.target).map { ($0, PDFAnnotationSubtype.circle) }
+            for (point, kind) in corners + sides {
+                guard let center = PDFRegionGeometry.pagePoint(normalized: point, rotation: page.rotation, crop: crop) else { continue }
+                let bounds = CGRect(x: center.x - side / 2, y: center.y - side / 2, width: side, height: side)
+                let handle = PDFAnnotation(bounds: bounds, forType: kind, withProperties: nil)
+                handle.color = .controlAccentColor
+                handle.interiorColor = kind == .square ? .white : .controlAccentColor
+                handle.userName = userName
+                out.append(handle)
+            }
+        }
+        return out
+    }
+
+    /// The shape as it is being dragged: dashed, in the accent colour, over the drawn one until the edit lands.
+    static func live(_ points: [[Double]], closed: Bool, on page: PDFPage, userName: String) -> PDFAnnotation? {
+        let crop = page.bounds(for: .cropBox)
+        let placed = points.compactMap { PDFRegionGeometry.pagePoint(normalized: $0, rotation: page.rotation, crop: crop) }
+        guard placed.count >= 2 else { return nil }
+        let bounds = boundingRect(placed).insetBy(dx: -2, dy: -2)
+        let annotation = PDFAnnotation(bounds: bounds, forType: .ink, withProperties: nil)
+        let path = NSBezierPath()
+        path.move(to: relative(placed[0], to: bounds))
+        placed.dropFirst().forEach { path.line(to: relative($0, to: bounds)) }
+        if closed { path.close() }
+        annotation.add(path)
+        let border = PDFBorder()
+        border.lineWidth = 1.5
+        border.style = .dashed
+        border.dashPattern = [4, 3]
+        annotation.border = border
+        annotation.color = .controlAccentColor
+        annotation.userName = userName
+        return annotation
+    }
+
     private static func boundingRect(_ points: [CGPoint]) -> CGRect {
         let xValues = points.map(\.x), yValues = points.map(\.y)
         let minX = xValues.min() ?? 0, minY = yValues.min() ?? 0

@@ -1,16 +1,5 @@
 import SwiftUI
 
-/// A Reshape in progress (`source.editor.reshape`): which box, what is reshaped, the point being
-/// dragged, and the points as they stand -- committed on release as one `segment.update`.
-struct ReshapeDrag: Equatable {
-    let boxIndex: Int
-    let target: SegmentShapes.Target
-    let pointIndex: Int
-    var points: [[Double]]
-    /// The points before the press, so a press that moves nothing sends nothing.
-    let original: [[Double]]
-}
-
 /// Reshape in Edit Segments: a press on a point of any of the ONE selected segment's shapes -- outline,
 /// baseline, an extra area, path or point -- drags it; a press on a side's midpoint adds a point there
 /// and drags it; ⌥-click removes a point (never below what the shape needs).
@@ -53,17 +42,11 @@ extension RegionInteractionLayer {
         let reach = [Double(SelectionStyle.handleSide) / size.width * visible.width,
                      Double(SelectionStyle.handleSide) / size.height * visible.height]
         let point = [Double(normalized.x), Double(normalized.y)]
-        guard let handle = SegmentShapes.handle(at: point, in: shapes, tolerance: reach),
-              let points = shapes.first(where: { $0.target == handle.target })?.points else { return false }
-        switch handle {
-        case .vertex(let target, let vertex) where option:
-            // ⌥-click removes the point, unless the shape would have too few (then nothing is sent).
-            if let fewer = SegmentShapes.removing(points, index: vertex, target) { onReshapeCommit?(index, target, fewer) }
-        case .vertex(let target, let vertex):
-            reshapeDrag = ReshapeDrag(boxIndex: index, target: target, pointIndex: vertex, points: points, original: points)
-        case .side(let target, let after):
-            let added = SegmentShapes.adding(points, after: after, at: point, target)
-            reshapeDrag = ReshapeDrag(boxIndex: index, target: target, pointIndex: after + 1, points: added, original: points)
+        switch ReshapeDrag.press(at: point, boxIndex: index, shapes: shapes, reach: reach, option: option) {
+        case .none: return false
+        case .refused: break  // ⌥ on a point the shape cannot spare: nothing is sent
+        case .remove(let target, let fewer): onReshapeCommit?(index, target, fewer)
+        case .drag(let drag): reshapeDrag = drag
         }
         return true
     }

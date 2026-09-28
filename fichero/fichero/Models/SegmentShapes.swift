@@ -272,3 +272,42 @@ struct AnchorShapeParams: Encodable, Equatable {
         case kind, points, tStart = "t_start", tEnd = "t_end"
     }
 }
+
+/// A Reshape in progress (`source.editor.reshape`): which box, what is reshaped, the point being
+/// dragged, and the points as they stand -- committed on release as one `segment.update`.
+struct ReshapeDrag: Equatable {
+    let boxIndex: Int
+    let target: SegmentShapes.Target
+    let pointIndex: Int
+    var points: [[Double]]
+    /// The points before the press, so a press that moves nothing sends nothing.
+    let original: [[Double]]
+
+    /// What a press in Edit Segments does to the ONE selected box: nothing (no handle under it), removes
+    /// a point (⌥ on a point), refuses (⌥ on a point the shape cannot spare), or begins a drag -- of the
+    /// point pressed, or of a new point on the side pressed. The image overlay and a PDF page both ask
+    /// here, so the two surfaces reshape by one rule. `reach` is a handle's size on screen, normalized.
+    enum Press: Equatable {
+        case none
+        case remove(SegmentShapes.Target, [[Double]])
+        case refused
+        case drag(ReshapeDrag)
+    }
+
+    static func press(
+        at point: [Double], boxIndex: Int, shapes: [SegmentShapes.Drawn], reach: [Double], option: Bool
+    ) -> Press {
+        guard let handle = SegmentShapes.handle(at: point, in: shapes, tolerance: reach),
+              let points = shapes.first(where: { $0.target == handle.target })?.points else { return .none }
+        switch handle {
+        case .vertex(let target, let vertex) where option:
+            guard let fewer = SegmentShapes.removing(points, index: vertex, target) else { return .refused }
+            return .remove(target, fewer)
+        case .vertex(let target, let vertex):
+            return .drag(ReshapeDrag(boxIndex: boxIndex, target: target, pointIndex: vertex, points: points, original: points))
+        case .side(let target, let after):
+            let added = SegmentShapes.adding(points, after: after, at: point, target)
+            return .drag(ReshapeDrag(boxIndex: boxIndex, target: target, pointIndex: after + 1, points: added, original: points))
+        }
+    }
+}

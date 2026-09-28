@@ -97,6 +97,11 @@ extension PDFPageView.Coordinator {
             annotation.userName = Self.ocrBoxAnnotationName
             page.addAnnotation(annotation)
         }
+        // Edit Segments: the selected box's handles, swept with the boxes.
+        if owner.segmentEditing.isEditing, let selected = owner.segmentEditing.selected {
+            PDFShapeAnnotations.handles(for: selected.box, on: page, scale: view.scaleFactor, userName: Self.ocrBoxAnnotationName)
+                .forEach(page.addAnnotation)
+        }
     }
 
     static let ocrBoxAnnotationName = "fichero.ocr-box"

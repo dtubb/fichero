@@ -130,7 +130,7 @@ Page From…. Every edit below should undo with ⌘Z and redo with ⇧⌘Z.
     you emptied in the Reader is NOT marked: it has an empty reading.
 32. **Shapes on a PDF page.** Import a PAGE or ALTO file onto a PDF page (File ▸ Import Page From…).
     *Should:* each line is drawn as its outline with its baseline under the ink, as on an image page, at
-    any zoom; a line with no reading is dashed. (Reshaping stays on image pages for now.)
+    any zoom; a line with no reading is dashed.
 33. **A drawn line lands in its region.** Edit Segments ▸ Shape ▸ Baseline: draw a line inside a region,
     just under its last line. *Should:* the Inspector's path reads **Page › Region › Line**, and the Order
     list shows it as that region's last line (one drawn between two lines goes between them); ONE ⌘Z
@@ -145,6 +145,10 @@ Page From…. Every edit below should undo with ⌘Z and redo with ⇧⌘Z.
     at once; the Inspector's Language section's **Direction** row shows Top to Bottom and
     where it came from; ⌘Z puts it back, ⇧⌘Z again. **Not Stated** clears it, and the script's own
     direction answers again.
+36. **Reshape on a PDF page.** On that PDF page, turn on Edit Segments (head) and click a line. *Should:*
+    its points show square handles and its sides round ones; drag a baseline point and the line follows
+    (dashed while dragging), then lands; ⌥-click an outline point removes it; ⌘Z puts each back. The
+    Inspector does not follow a PDF selection yet.
 
 **Not built:** the menu-bar Segment menu, comparing two passes side by side, attribute edits
 on a page still read from an artifact (it is converted on first edit, #4924).

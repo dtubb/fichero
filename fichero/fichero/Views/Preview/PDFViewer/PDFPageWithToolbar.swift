@@ -115,7 +115,11 @@ struct PDFPageWithToolbar: View {
     /// hosts outside the preview pane publish nowhere.
     @Environment(PreviewPaneChrome.self) var paneChrome: PreviewPaneChrome?
     /// Sticky markup tool seam (Daniel, 2026-08-30); optional for headless hosts.
-    @Environment(WindowState.self) private var pdfWindowState: WindowState?
+    @Environment(WindowState.self) var pdfWindowState: WindowState?
+    @Environment(ActionStore.self) var pdfActionStore: ActionStore?
+    @Environment(\.undoManager) var pdfUndoManager
+    /// Edit Segments: the selected box's index among the shown pass's boxes (`PDFPageWithToolbar+SegmentEdits`).
+    @State var pdfSelectedBoxIndex: Int?
     /// ON by default (#4418) — same reasoning as the image surface: geometry
     /// that exists but is never drawn is geometry nobody can check a
     /// transcription against.
@@ -481,7 +485,8 @@ struct PDFPageWithToolbar: View {
                 isDrawingRegion: isDrawingRegion,
                 onCreateRegion: { box in persistRegion(box, tool: pendingTool) },
                 displayMode: pageLayout.pdfDisplayMode ?? .singlePage,
-                displayDirection: pageLayout.pdfDisplayDirection
+                displayDirection: pageLayout.pdfDisplayDirection,
+                segmentEditing: pdfSegmentEditing
             )
             .onAppear {
                 localPageIndex = pageIndex
@@ -494,6 +499,7 @@ struct PDFPageWithToolbar: View {
             }
             .onChange(of: effectiveDocumentId) { _, _ in
                 isDrawingRegion = false
+                pdfSelectedBoxIndex = nil  // a selection belongs to its page
                 loadAnnotations()
             }
             .onChange(of: annotationStore.changeToken) { _, _ in

@@ -2002,6 +2002,84 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertNil(PDFShapeAnnotations.make(for: plain, on: page, userName: "fichero.ocr-box"), "a box stays a square")
     }
 
+    /// Reshape on a PDF page (`source.editor.reshape`), end to end on the recorded Syriac line drawn on the
+    /// corpus's real PDF page: the page's own session (`PDFReshapeSession`, what its click and pan call)
+    /// picks the LINE under a click (not the region around it), reads a press on the baseline's second
+    /// point -- placed where the renderer drew it (`PDFRegionGeometry.pagePoint`) -- back to that point,
+    /// drags it 6 page points right and 4 down, and the release commits through the image's own rule:
+    /// ONE `segment.update` of the baseline alone, checked against the version read, ⌘Z by its audit id.
+    /// ⌥ on a baseline point is refused (a baseline keeps two), on an outline corner removes it. Breaks if a
+    /// PDF press lands on another point than the one drawn, or a PDF reshape sends anything the image's
+    /// would not.
+    func testReshapingALinesBaselineOnAPDFPageSendsTheImagesUpdateAndUndoes() async throws {
+        let store = try await loadedStore()
+        let selected = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
+        let line = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.id == "seg-0003" })
+        let index = try XCTUnwrap(line.boxIndex)
+        let box = selected.geometry.boxes[index]
+        let pdf = try XCTUnwrap(PDFDocument(url: fixtures().appendingPathComponent("dialogo_lengua_page_18.pdf")))
+        let page = try XCTUnwrap(pdf.page(at: 0))
+        let crop = page.bounds(for: .cropBox)
+        // Zoomed to 4×: a handle reaches 1.5 page points, so a press means the point under it.
+        var session = PDFReshapeSession(page: page)
+
+        // A click inside the line picks the line, the smallest box around it.
+        let middle = [box.bbox[0] + box.bbox[2] / 2, box.bbox[1] + box.bbox[3] / 2]
+        XCTAssertEqual(PDFReshapeSession.pick(middle, in: selected.geometry.boxes)?.id, box.id)
+        XCTAssertNil(PDFReshapeSession.pick([0.001, 0.001], in: [box]), "blank page picks nothing")
+
+        let baseline = try XCTUnwrap(line.baseline)
+        let drawnAt = try XCTUnwrap(PDFRegionGeometry.pagePoint(normalized: baseline[1], rotation: page.rotation, crop: crop))
+        assertClose(session.normalized(drawnAt).map { [$0] }, [baseline[1]], "a press reads back the point drawn there")
+        guard case .drag = session.press(at: drawnAt, on: box, boxIndex: index, scale: 4, option: false) else {
+            return XCTFail("a press on a baseline point begins a drag")
+        }
+        let movedTo = CGPoint(x: drawnAt.x + 6, y: drawnAt.y - 4)
+        session.drag(to: movedTo)
+        let done = try XCTUnwrap(session.release())
+        XCTAssertEqual(done.target, .baseline)
+        XCTAssertEqual(done.boxIndex, index)
+        let expected = SegmentShapes.moving(baseline, index: 1, to: try XCTUnwrap(session.normalized(movedTo)))
+        assertClose(done.points, expected)
+
+        RecordedEngine.invoked = []
+        RecordedEngine.undone = []
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        _ = try await SegmentEditRunner(actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store).run(
+            try SegmentShapes.reshape(line, done.target, to: done.points).get(), documentId: "doc-0001",
+            actionName: "Reshape Baseline", undoManager: manager
+        )
+        manager.endUndoGrouping()
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        XCTAssertEqual(sent["name"] as? String, "segment.update")
+        let params = try XCTUnwrap(sent["params"] as? [String: Any])
+        XCTAssertEqual(params["segment_id"] as? String, line.id)
+        XCTAssertEqual(params["expected_version"] as? Int, line.version)
+        XCTAssertNil(params["anchor"], "the baseline alone")
+        assertClose(params["baseline"], expected)
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
+
+        // ⌥: a baseline point cannot be spared; an outline corner can.
+        XCTAssertEqual(session.press(at: drawnAt, on: box, boxIndex: index, scale: 4, option: true), .refused)
+        let polygon = try XCTUnwrap(line.anchor.polygon)
+        let corner = try XCTUnwrap(PDFRegionGeometry.pagePoint(normalized: polygon[0], rotation: page.rotation, crop: crop))
+        guard case .remove(.polygon, let fewer) = session.press(at: corner, on: box, boxIndex: index, scale: 4, option: true) else {
+            return XCTFail("⌥ on an outline corner removes it")
+        }
+        XCTAssertEqual(fewer, Array(polygon.dropFirst()))
+
+        // The mapping back from a page point, on a page turned every way: the inverse of the drawing's.
+        for rotation in [0, 90, 180, 270] {
+            let there = try XCTUnwrap(PDFRegionGeometry.pagePoint(normalized: [0.2, 0.7], rotation: rotation, crop: crop))
+            assertClose(PDFRegionGeometry.normalizedPoint(fromPagePoint: there, rotation: rotation, crop: crop).map { [$0] },
+                        [[0.2, 0.7]], "rotation \(rotation)")
+        }
+    }
+
     /// A drawn line lands in its region (`source.editor.draw-shapes`), on the recorded Syriac page: a
     /// baseline drawn at the foot of region 2 is placed in region 2 -- the region holding MOST of it -- and
     /// the create sends it as the parent (the engine test proves that makes region 2's last line, one undo
