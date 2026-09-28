@@ -150,9 +150,20 @@ struct EngineReadinessProbe {
     /// the socket is up and identifies the responder; the authenticated registry
     /// call proves the token works. Skips the registry call once health or
     /// identity has already decided the outcome.
+    nonisolated static func ms(_ duration: Duration) -> Int {
+        Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
+    }
+
     @MainActor
     func probe() async -> EngineReadiness {
+        // Each leg timed (#5257): a launch waited ~6 s here for an engine that answers both legs in
+        // ~4 ms warm, and the log said only "ready". The ms says whether the wait is the socket or the engine.
+        let clock = ContinuousClock()
+        let healthStart = clock.now
         let health = await fetchHealth()
+        let healthMs = Self.ms(clock.now - healthStart)
+        // Only a SLOW leg is logged, apart from the transition log: its message must not vary per poll.
+        if healthMs > 100 { probeLogger.info("readiness: health took \(healthMs) ms") }
         // A 401/403 on health means the engine IS reachable and answering — it is
         // rejecting our credentials, NOT missing. Surfacing that as `.authRejected`
         // (instead of the old `.notResponding`) lets the launch path say "engine
@@ -190,7 +201,10 @@ struct EngineReadinessProbe {
             )
             return .identityMismatch(pid: health.pid)
         }
+        let registryStart = clock.now
         let registryStatus = await fetchRegistryObservation().status
+        let registryMs = Self.ms(clock.now - registryStart)
+        if registryMs > 100 { probeLogger.info("readiness: registry took \(registryMs) ms") }
         let result = Self.classify(
             healthStatus: 200,
             healthNonce: health.nonce,
