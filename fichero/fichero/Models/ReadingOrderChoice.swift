@@ -73,13 +73,23 @@ enum ReadingOrderChoice {
             .map(\.id)
     }
 
-    /// How an order is listed in the picker: its name, and what kind of claim it makes.
+    /// How an order is listed in the picker: its name, and what kind of claim it makes. The page's own
+    /// order says where it came from (#5216): the file's, or the layout's (a recogniser's boxes, in the
+    /// order it found them).
     static func title(_ order: ReadingOrderSummary) -> String {
         switch order.kind {
-        case "as-written": "As Written"
+        case "as-written": order.provenanceKind == "external_import" ? "Order: As in the File" : "Layout Order"
         case "flow": "\(order.name) (flow)"
         default: order.name
         }
+    }
+
+    /// The picker's tooltip for an order: what the title's words mean.
+    static func help(_ order: ReadingOrderSummary?) -> String {
+        guard let order, order.kind == "as-written" else { return "Which reading order the list shows" }
+        return order.provenanceKind == "external_import"
+            ? "The reading order the imported file gives, kept as it came"
+            : "The order the layout found the segments in; no file gave one"
     }
 }
 

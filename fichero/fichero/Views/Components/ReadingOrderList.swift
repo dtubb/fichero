@@ -75,6 +75,10 @@ struct ReadingOrderList: View {
                 if let refusal = store.lastRefusal {
                     Text(refusal).font(.caption).foregroundStyle(.secondary).padding(4)
                 }
+            } else if let store, store.documentId == documentId, store.orders.isEmpty, !hidesWhenEmpty,
+                      !asWritten.isEmpty {
+                // No named order is no reason to show nothing: the page's segments, as written (#5204).
+                unordered(asWritten)
             } else if !hidesWhenEmpty {
                 ContentUnavailableView(
                     "No Reading Order", systemImage: "list.number",
@@ -93,6 +97,8 @@ struct ReadingOrderList: View {
         }
         .task(id: "\(documentId)/\(parentSegmentId ?? "")") {
             if store == nil, let service { store = ReadingOrderStore(transport: service) }
+            // The as-written fallback reads the page's segments; loading is a no-op once loaded.
+            if let segmentService { await SegmentStore.shared(for: segmentService).load(documentId: documentId) }
             if store?.documentId != documentId { try? await store?.load(documentId: documentId) }
             await store?.show(childrenOf: parentSegmentId)
             // Next in a flow crossed onto this page: select the segment it went to.
@@ -100,6 +106,68 @@ struct ReadingOrderList: View {
                 selection = pending.segmentId
                 windowState?.pendingSegmentSelection = nil
             }
+        }
+    }
+
+    /// Why Create Named Order did not happen; nil after it did.
+    @State private var createNote: String?
+
+    /// The level shown, as the page holds it, for a page with no named order.
+    private var asWritten: [String] {
+        guard let segmentService else { return [] }
+        let segments = SegmentStore.shared(for: segmentService).segments(documentId: documentId)
+        return SegmentsPane.asWritten(segments, under: parentSegmentId)
+    }
+
+    /// A page with no named order: its segments as written, selectable like the order's rows, and the one
+    /// verb that gives it an order. No move keys: there is no order to move in.
+    private func unordered(_ ids: [String]) -> some View {
+        VStack(spacing: 0) {
+            List(selection: $selection) {
+                ForEach(Array(ids.enumerated()), id: \.element) { index, segmentId in
+                    row(segmentId, at: index).tag(segmentId)
+                }
+            }
+            Divider()
+            HStack(spacing: 8) {
+                Text("Layout order. This page has no named order yet.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .help("The segments in the order the layout found them; no file gave an order")
+                Spacer()
+                Button("Create Named Order") { Task { await createNamedOrder() } }
+                    .accessibilityIdentifier("readingOrder.createNamedOrder")
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            if let createNote {
+                Text(createNote).font(.caption).foregroundStyle(.secondary).padding(4)
+            }
+        }
+    }
+
+    /// The page's boxes become segments and its `as-written` order is made from them: one action, ⌘Z
+    /// puts the page back as it was. The order and the segments are re-read after it and after each undo.
+    private func createNamedOrder() async {
+        guard let actionsService = actionStore?.actionsService, let store else {
+            createNote = "This window cannot make an order."
+            return
+        }
+        let documentId = documentId
+        let segmentService = segmentService
+        do {
+            try await AuditedAction.run(
+                "segment.convert_and_edit", params: ConvertPageRequest(documentId: documentId),
+                actionName: "Create Named Order", actionsService: actionsService, undoManager: undoManager,
+                afterChange: {
+                    if let segmentService {
+                        await SegmentStore.shared(for: segmentService).load(documentId: documentId, force: true)
+                    }
+                    try? await store.load(documentId: documentId)
+                }
+            )
+            createNote = nil
+        } catch {
+            createNote = "The order could not be made: \(error.localizedDescription)"
         }
     }
 

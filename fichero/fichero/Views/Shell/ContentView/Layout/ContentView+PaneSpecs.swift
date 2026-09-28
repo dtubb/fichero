@@ -84,7 +84,8 @@ extension ContentView {
     private func segmentsPane(splitKey: String, modelSplit: PaneModelSplitHook?, fixedWidth: CGFloat?) -> AnyView {
         AnyView(
             adaptiveSplittablePane(storageKey: splitKey, modelSplit: modelSplit) {
-                SegmentsPaneView(document: previewDocument)
+                // A folder's segments are those of the page the Preview shows for it (#5204).
+                FolderPageShown(document: previewDocument) { SegmentsPaneView(document: $0) }
             }
             .frame(width: fixedWidth)
             .frame(maxWidth: fixedWidth == nil ? .infinity : nil)

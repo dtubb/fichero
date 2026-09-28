@@ -54,7 +54,9 @@ extension DocumentInspector {
     private func contentTab(for doc: Document) -> some View {
         // Source section = a Content / Outline mode toggle (#3440). The native
         // document Outline is a hierarchy mode within Source, not a new tab.
-        withInspectorBar(doc) { SourceSectionView(document: doc) }
+        // A selected folder's Source is the page the Preview shows for it (Order, Text, Language...),
+        // as the Segments pane and the Reader are (#5204).
+        withInspectorBar(doc) { FolderPageShown(document: doc) { SourceSectionView(document: $0 ?? doc) } }
     }
 
     @ViewBuilder

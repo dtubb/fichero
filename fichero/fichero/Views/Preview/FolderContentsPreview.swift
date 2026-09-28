@@ -47,9 +47,54 @@ struct FolderContentsPreview: View {
             // Previewable children only: subfolders are a selection, not a
             // preview, and a workflow mirror has no source file — routing one
             // here surfaced the Quick Look error state (Daniel, 2026-08-10).
-            firstItem = await documentStore.children(of: folderId)
-                .first { $0.docType != .folder && !$0.isWorkflowNode }
+            firstItem = Self.pageShown(in: await documentStore.children(of: folderId))
             loaded = true
         }
     }
+
+    /// The item this preview shows for a folder: its first child that is not a folder or a workflow
+    /// mirror. The ONE rule, so the panes that follow the Preview (Segments, Reader) show the same page
+    /// (#5204, #5205).
+    static func pageShown(in children: [Document]) -> Document? {
+        children.first { $0.docType != .folder && !$0.isWorkflowNode }
+    }
+
+    /// What a pane following the Preview is handed (`FolderPageShown`): the folder's page once found for
+    /// THIS folder, else the document itself.
+    static func shown(_ document: Document?, isFolder: Bool, found: (folderId: String, page: Document?)?) -> Document? {
+        guard isFolder, let document, let found, found.folderId == document.id, let page = found.page else { return document }
+        return page
+    }
+
+    /// Whether the Preview shows a folder through one of its items: a PLAIN folder. A folder that is an
+    /// image or a PDF is shown as itself (`EditorView.folderPreviewRoute`).
+    static func previewsAnItem(_ folder: Document) -> Bool {
+        folder.docType == .folder && folder.fileType != .image && folder.fileType != .pdf
+    }
+}
+
+/// A pane that follows the Preview: given a folder, it shows the page the Preview shows for that folder
+/// (`FolderContentsPreview.pageShown`), not the folder (#5204, #5205). A folder with no such item stays
+/// the folder, so a folder of folders still reads as itself (the Reader's folder proxy, 2026-09-05).
+/// Anything that is not a folder passes through.
+struct FolderPageShown<Content: View>: View {
+    let document: Document?
+    /// False passes the folder through: the Reader's open-folder fallback has no Preview page to follow.
+    var resolves = true
+    @ViewBuilder let content: (Document?) -> Content
+
+    @Environment(DocumentStore.self) private var documentStore: DocumentStore?
+    /// The page found, keyed by its folder so a page found for one folder is never shown for the next.
+    @State private var found: (folderId: String, page: Document?)?
+
+    private var isFolder: Bool { resolves && document.map(FolderContentsPreview.previewsAnItem) == true }
+
+    var body: some View {
+        content(FolderContentsPreview.shown(document, isFolder: isFolder, found: found))
+            .task(id: isFolder ? document?.id : nil) {
+                guard isFolder, let document, let documentStore else { return }
+                found = (document.id, FolderContentsPreview.pageShown(in: await documentStore.children(of: document.id)))
+            }
+    }
+
 }

@@ -44,7 +44,7 @@ struct ReadingOrderPicker: View {
                     Text(shown.map(ReadingOrderChoice.title) ?? "Order")
                 }
                 .fixedSize()
-                .help("Which reading order the list shows")
+                .help(ReadingOrderChoice.help(shown))
                 Spacer(minLength: 4)
                 Button { Task { await step(forward: false) } } label: {
                     Label("Previous in Order", systemImage: "chevron.up")
