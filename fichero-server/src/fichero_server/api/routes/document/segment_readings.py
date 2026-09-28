@@ -779,7 +779,8 @@ def _why_omitted(
 #: 3: the stored line map carried each line's direction (#5147); since #5171 the Reader resolves
 #: it at render, and the map stores none again -- 3 stays, a bump is never undone.
 #: 4: a line with no direction of its own (digits) takes its neighbours' (#5172).
-DERIVATION_VERSION = 4
+#: 5: the stored line map carries each line's counting reading, `representation_id` (#5154).
+DERIVATION_VERSION = 5
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
 DERIVATION_SOURCE_SHA256 = "edcebc5ace0161c726dc2d735d8c0ca41f62e92207390e7668cfbcf6f6e5d491"

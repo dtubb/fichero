@@ -167,8 +167,14 @@ def line_map(db: Any, derived: Any) -> list[dict[str, Any]]:
                 line_id = parent.id
         if lines and lines[-1]["segment_id"] == line_id:
             lines[-1]["char_end"] = span.end
+            lines[-1]["representation_id"] = None   # read from its words: no ONE reading to correct
         else:
-            lines.append({"segment_id": line_id, "char_start": span.start, "char_end": span.end})
+            lines.append({
+                "segment_id": line_id, "char_start": span.start, "char_end": span.end,
+                # The counting reading the line's text came from (#5154): what a correction typed
+                # in the Reader corrects (`basedOn`). None when the text came from its words.
+                "representation_id": span.representation_id if span.segment_id == line_id else None,
+            })
     return lines
 
 

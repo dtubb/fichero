@@ -927,7 +927,7 @@ function commitPendingEdit() {
     if (!body) return true;
     const before = pageTexts.get(pageId) ?? "";
     const lines = pageLineMaps.get(pageId);
-    const edit = editedLine(before, body.textContent, lines, segmentId);
+    const edit = readingEditMessage(before, body.textContent, lines, pageId, segmentId);
     if (!edit) return true;
     if (edit.refused) {
         body.outerHTML = pageBodyMarkup({ content: before, lines });
@@ -936,7 +936,7 @@ function commitPendingEdit() {
     }
     pageTexts.set(pageId, body.textContent);
     pageLineMaps.set(pageId, shiftLines(lines, segmentId, edit.delta));
-    notify("readingEdit", { pageId, segmentId, text: edit.text, previous: edit.previous });
+    notify("readingEdit", edit.message);
     return true;
 }
 
@@ -1341,6 +1341,19 @@ function editedLine(before, now, lines, segmentId) {
         text: now.slice(line.char_start, end),
         previous: before.slice(line.char_start, line.char_end),
         delta,
+    };
+}
+
+// The `readingEdit` message for an edit, or {refused}. `basedOn` is the reading the person was
+// correcting -- the line's counting reading from the map -- so the app records the new one as its
+// correction (`corrects_representation_id`); null when the line's text came from its words.
+function readingEditMessage(before, now, lines, pageId, segmentId) {
+    const edit = editedLine(before, now, lines, segmentId);
+    if (!edit || edit.refused) return edit;
+    const line = lines.find((item) => item.segment_id === segmentId);
+    return {
+        message: { pageId, segmentId, text: edit.text, previous: edit.previous, basedOn: line.representation_id ?? null },
+        delta: edit.delta,
     };
 }
 
@@ -2413,6 +2426,15 @@ window.fichero = {
     // the caller reloads then.
     refreshPage(pageId) {
         return refreshPage(pageId);
+    },
+
+    // The app's answer to readingEdit / lineSplit / lineJoin (#5154). The app then asks for the
+    // page again (`refreshPage`); a refusal re-reads it too, so the page never keeps words the
+    // library did not take. The reason is logged for the console, not invented into the page.
+    lineCommitted(answer) {
+        if (!answer || answer.ok) return true;
+        console.warn("[fichero] edit not taken:", answer.reason || "no reason given", answer);
+        return answer.pageId ? refreshPage(answer.pageId) : false;
     },
 
     // Live per-page write (#4357): patch this page's text in place.

@@ -132,3 +132,27 @@ console.log(JSON.stringify(editedLine({json.dumps(text)}, {json.dumps(now)}, {js
     assert after["content"] == now
     moved = next(line for line in after["lines"] if line["segment_id"] == third["segment_id"])
     assert after["content"][moved["char_start"]:moved["char_end"]] == edit["text"]
+
+
+def test_the_edit_message_names_the_reading_it_corrects(db, client):
+    """`basedOn` is the line's COUNTING reading -- the one whose text the person saw and changed --
+    so the app records the new reading as a correction of it (`corrects_representation_id`), not
+    as an unrelated rival. Taken from the derived text's own spans, not from the map it is tested
+    against."""
+    from fichero_server.api.routes.document.segment_readings import document_text
+
+    doc_id, page, html = _page(db, client)
+    lines, text = page["lines"], page["content"]
+    third = lines[2]
+    counted = {s.segment_id: s.representation_id for s in document_text(db, doc_id).spans}
+    assert counted[third["segment_id"]] is not None
+    now = text[:third["char_end"]] + "!" + text[third["char_end"]:]
+    got = _run(html, f"""
+console.log(JSON.stringify(readingEditMessage({json.dumps(text)}, {json.dumps(now)}, {json.dumps(lines)}, "p", {json.dumps(third["segment_id"])})));
+""")
+    assert got["message"] == {
+        "pageId": "p", "segmentId": third["segment_id"],
+        "text": text[third["char_start"]:third["char_end"]] + "!",
+        "previous": text[third["char_start"]:third["char_end"]],
+        "basedOn": counted[third["segment_id"]],
+    }
