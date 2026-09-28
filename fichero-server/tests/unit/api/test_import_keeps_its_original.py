@@ -8,6 +8,7 @@ and served back as it arrived.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 
 import fichero_server.api.main  # noqa: F401  (registers every action)
@@ -31,8 +32,11 @@ def test_the_pass_names_its_file_and_the_file_comes_back_byte_for_byte(db, clien
 
     original = client.get(f"/api/segments/passes/{made['id']}/original")
     assert original.status_code == 200, original.text
-    assert original.content == data
-    assert original.headers["content-type"].startswith("application/xml")
+    body = original.json()
+    assert base64.b64decode(body["content_base64"]) == data              # byte for byte
+    assert body["media_type"] == "application/xml"
+    assert body["file_name"] == SYRIAC.name and body["import_format"] == "pagexml"
+    assert body["import_checksum"] == hashlib.sha256(data).hexdigest()
 
 
 def test_a_pass_not_made_from_a_file_has_no_original(db, client):
