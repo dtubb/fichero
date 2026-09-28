@@ -345,6 +345,8 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
             Image(systemName: crumb.icon)
                 .foregroundStyle(crumb.tint)
             Text(crumb.title)
+                .lineLimit(1)
+                .truncationMode(.middle)  // Finder's rule, as the leaf crumb already does (2026-09-28)
                 .foregroundStyle(isLeaf ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
         }
             .font(.callout)

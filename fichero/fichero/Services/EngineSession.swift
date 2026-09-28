@@ -111,8 +111,8 @@ final class EngineSession {
 
     /// Another Fichero engine answers on the container socket (`EngineSocketConflict`): the same
     /// in-window decision as a held port, worded for what it is.
-    func markSocketConflict(pid: Int?, version: String?) {
-        conflict = .socket(pid: pid, version: version)
+    func markSocketConflict(pid: Int?, version: String?, owner: String? = nil) {
+        conflict = .socket(pid: pid, version: version, owner: owner)
         phase = .portConflict(pid: pid)
     }
 

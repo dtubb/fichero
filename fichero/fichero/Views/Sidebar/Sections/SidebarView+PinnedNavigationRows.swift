@@ -12,6 +12,7 @@ extension SidebarView {
                 .foregroundStyle(.orange)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
+                    // not a name: a banner's heading ("Couldn't load …"), read from its start
                     .font(.caption)
                     .fontWeight(.semibold)
                 Text(message)

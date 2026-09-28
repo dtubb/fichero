@@ -14,5 +14,23 @@
             <cocoa class="FicheroDescribeWindowCommand"/>
             <result type="text" description="JSON: {panes, selection, pages: [{id, boxes: [{segment, kind, frame, selected}]}]}."/>
         </command>
+
+        <command name="select page" code="FTSTselp" description="Open a page (a document id) in the Library, as a click opens it.">
+            <cocoa class="FicheroSelectPageCommand"/>
+            <direct-parameter description="The page's document id." type="text"/>
+            <result type="boolean" description="Whether the request was accepted."/>
+        </command>
+
+        <command name="select segment" code="FTSTsels" description="Open a segment's page and select the segment -- the one selection the Source view, the Reader and the Inspector share.">
+            <cocoa class="FicheroSelectSegmentCommand"/>
+            <direct-parameter description="The segment id (a merged or split one is followed to its live segment)." type="text"/>
+            <result type="boolean" description="Whether the segment resolved and the request was accepted."/>
+        </command>
+
+        <command name="show pane" code="FTSTshpn" description="Show a pane of a kind (library, preview, reading, inspector, chat, segments), adding it when absent.">
+            <cocoa class="FicheroShowPaneCommand"/>
+            <direct-parameter description="The pane kind." type="text"/>
+            <result type="boolean" description="Whether the request was accepted."/>
+        </command>
     </suite>
 </dictionary>

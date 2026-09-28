@@ -220,8 +220,9 @@ very engine spawn those tests exist to exercise.
   `EngineSocketConflictTests` against a real listening socket. The other engine's pid comes from its
   `/api/health` `engine_pid` (7c00a47ed): named in the window, and Stop it is offered with it outside
   the App Store build (SIGTERM, then the spawn waits for the socket to fall silent -- an engine started
-  over a live one refuses to start, 7c00a47ed, bugs lane). **Still PARTIAL:** the owning app
-  (`engine_owner`), which joins after the contract regen; the tests have not run.
+  over a live one refuses to start, 7c00a47ed, bugs lane). The owning app (`engine_owner`) is named too:
+  "from Fichero.app in /Applications", or "started from a script". **Still PARTIAL:** the tests have
+  not run.
 - `engine.orphan-sweep-precedes-spawn-decision` — **[PARTIAL]** (#4896) the sweep that
   terminates orphaned engines COMPLETES before the app decides to spawn its own. Built:
   `resolvePortConflict()` (`EmbeddedBackendService+Ports.swift`) awaits the detached sweep's

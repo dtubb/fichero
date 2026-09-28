@@ -60,6 +60,9 @@ struct SidebarRowLabelCore: View, Equatable {
         if !iconOnly {
             Text(name)
                 .lineLimit(1)
+                // Finder's rule (Daniel, 2026-09-28): a name that does not fit loses its MIDDLE, so the
+                // distinguishing tail -- "…09-27b", a page number -- stays visible.
+                .truncationMode(.middle)
                 // Stated explicitly, never inherited (#4371's mechanism
                 // stands): the native emphasized source-list selection
                 // forces white-and-bold. The COLOURS follow Finder
