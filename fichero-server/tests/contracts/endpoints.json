@@ -9114,7 +9114,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "PassOriginalResponse"
       },
       {
         "method": "POST",

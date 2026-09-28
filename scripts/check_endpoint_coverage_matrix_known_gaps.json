@@ -102,7 +102,6 @@
   "GET /api/search/metrics": "wire into Search statistics view when needed (stats() calls /api/search/stats, a different endpoint) (reason carried from check_ui_wiring's swiftui allowlist, #5105)",
   "GET /api/search/modes": "wire into search toolbar RAG mode picker when needed (reason carried from check_ui_wiring's swiftui allowlist, #5105)",
   "GET /api/segments/document/{document_id}/text": "no Swift call for the /api/segments/* family (20 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
-  "GET /api/segments/passes/{pass_id}/original": "#5149: the imported file kept byte for byte (c254941e6); the Inspector's Making section ('Show original') is its Swift caller, next in archive's queue",
   "GET /api/segments/{segment_id}/picture": "no Swift call for the /api/segments/* family (20 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "GET /api/segments/{segment_id}/reference": "no Swift call for the /api/segments/* family (20 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "GET /api/segments/{segment_id}/versions": "no Swift call for the /api/segments/* family (20 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",

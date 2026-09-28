@@ -3235,7 +3235,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PassOriginalResponse"
+                }
               }
             }
           },
@@ -61939,6 +61941,45 @@
         ],
         "title": "ParquetExportResponse"
       },
+      "PassOriginalResponse": {
+        "properties": {
+          "pass_id": {
+            "type": "string",
+            "title": "Pass Id"
+          },
+          "file_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "File Name"
+          },
+          "import_format": {
+            "type": "string",
+            "nullable": true,
+            "title": "Import Format"
+          },
+          "import_checksum": {
+            "type": "string",
+            "nullable": true,
+            "title": "Import Checksum"
+          },
+          "media_type": {
+            "type": "string",
+            "title": "Media Type"
+          },
+          "content_base64": {
+            "type": "string",
+            "title": "Content Base64"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pass_id",
+          "media_type",
+          "content_base64"
+        ],
+        "title": "PassOriginalResponse",
+        "description": "The file an imported pass was read from (#5149). `content_base64` is its bytes exactly as they\narrived -- base64, so a file in any encoding comes back byte for byte; the app decodes it to show."
+      },
       "PassRead": {
         "properties": {
           "id": {
@@ -69376,6 +69417,11 @@
             "type": "object",
             "title": "Metadata",
             "default": {}
+          },
+          "version": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Version"
           }
         },
         "type": "object",
