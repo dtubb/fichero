@@ -315,6 +315,12 @@ async def table_extract(
     # Use text output for CSV/markdown, json for structured
     default_format = "text" if output_style in ("csv", "markdown") else "json"
 
+    # #5026: the page's own reading and boxes go with the image -- a table's columns are in the
+    # x positions of its lines, which a model gets wrong from pixels alone.
+    from fichero_server.tool_context import with_page_context
+
+    context = with_page_context(context, documents, files, state.get("library_path", ""))
+
     return await process_vision(
         files=files,
         documents=documents,

@@ -498,25 +498,41 @@ Shape and images
   a chosen image, at a chosen size; a line's can be straightened.
 
 Giving a tool a piece of a page (#5026)
-- `source.tool.scope-is-a-segment-selection` — **[GAP]** (#5026) what a tool is given is a set of
+- `source.tool.scope-is-a-segment-selection` — **[PARTIAL]** (#5026) what a tool is given is a set of
   segments, not a size word: a page, a page with its boxes, a region, a line, a word and a
   character stretch of one reading are all "some segments", and any anchor is expressible as a
   scope. There is no second list of sizes beside `granularity`.
+  **Built 2026-09-28 (bugs lane, slice 1):** `fichero_server/tool_context.py::tool_context(db, page, segment_ids)`
+  takes a page or any set of segments (a region brings the lines inside it) and gives one compact
+  line per segment, `id | x y w h | maker | text`
+  (`fichero-server/tests/unit/workflows/test_a_tool_is_given_the_pages_reading.py::test_the_whole_page_is_every_line_with_its_box_and_maker`,
+  `::test_a_region_brings_only_the_lines_inside_it`). **Still PARTIAL:** only Extract Table uses it
+  (`::test_extract_table_sends_the_lines_with_the_picture`), on the whole page; no caller passes a
+  selection yet, and a character stretch as a scope is open question (2).
 - `source.tool.picture-is-optional-and-separate` — **[GAP]** (#5026) whether the picture comes with
   the text is a choice made on its own, not implied by the scope. A job on one character or one
   word gets the picture cut to the shape (`segment_picture(..., mask=...)`, which already does
   this, `source.segment.picture-by-shape`), not its box.
-- `source.tool.text-follows-the-working-pass` — **[GAP]** (#5026) the text a tool is given comes from
+- `source.tool.text-follows-the-working-pass` — **[PARTIAL]** (#5026) the text a tool is given comes from
   the working pass (`source.pass.working`), marked by its maker, a person's corrected line
   outranking a machine's; the builder never invents a second answer to "which reading counts".
+  **Built 2026-09-28 (slice 1):** the lines are `document_text`'s own spans, so the counting reading
+  of the working pass in reading order; a person's correction is what the tool reads, marked
+  `person` (`fichero-server/tests/unit/workflows/test_a_tool_is_given_the_pages_reading.py::test_a_persons_correction_is_what_the_tool_reads_and_is_marked_as_a_persons`).
+  The maker mark (open question 3) is `provenance_kind` written as person / agent / machine /
+  file / unrecorded. **Still PARTIAL:** the other vision tools are not wired to it yet.
 - `source.tool.results-name-their-segments` — **[GAP]** (#5026) a tool's result names the segment
   ids it was read from (a table cell names its lines), so the output is anchored instead of
   free text that must be matched back; this is what `Tables and forms` means by a table becoming
   cell segments, and it changes what a tool RETURNS.
-- `source.tool.budget-reports-itself` — **[GAP]** (#5026) a whole page at word granularity is
+- `source.tool.budget-reports-itself` — **[PARTIAL]** (#5026) a whole page at word granularity is
   large; the builder states how much it is sending and, if it must send less, what it left out.
   It never truncates silently: a tool that quietly did a smaller job than it was asked to is worse
   than one that refused.
+  **Built 2026-09-28 (slice 1), the first half:** the builder states what it sends (lines,
+  characters, the pass) in the engine log and in the prompt, and a page with no reading says the tool
+  works from the picture alone (`fichero-server/tests/unit/workflows/test_a_tool_is_given_the_pages_reading.py::test_a_page_with_no_reading_says_the_tool_works_from_the_picture`).
+  It sends everything; there is no limit yet (open question 1), so nothing is left out.
 
 Structure
 - `source.segment.one-primitive` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestOnePrimitiveOpenKinds::test_region_line_word_picture_all_segments_unknown_kind_roundtrips_kind_raw_kept`) every level of the ladder, and every non-text thing, is a
