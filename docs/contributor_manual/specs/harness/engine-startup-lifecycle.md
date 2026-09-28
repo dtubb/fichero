@@ -209,6 +209,17 @@ very engine spawn those tests exist to exercise.
   `PortConflictDecisionTests` ("foreign holder + no decision → surface the portConflict phase,
   never adopt or spawn", "portConflict is a non-ready phase with a PID-bearing diagnosis (renders
   the connection view, not blank)").
+- `engine.live-socket-is-a-user-decision` — **[PARTIAL]** (#3111's socket half, 2026-09-28) another
+  Fichero engine already ANSWERING on the container socket -- the installed app's, a dev build's --
+  is the same in-window decision as a held port (Use it / Quit; Stop it once its pid is known), worded
+  "Another Fichero Is Running" with its version when its health says it. The app never spawns a
+  second engine over a live socket, so never rebinds the path or rewrites `.api-key` under it (the
+  2026-09-28 401s: the installed build started beside a dev build). A socket FILE with nothing
+  listening is not live and the spawn goes ahead. `EngineSocketConflict` (pure decision + AF_UNIX
+  liveness), `resolveLiveSocket` in the pre-flight after the orphan sweep; pinned by
+  `EngineSocketConflictTests` against a real listening socket. **Still PARTIAL:** the other engine's
+  pid and owning app, which need the engine's health to carry them (bugs2), and the engine's own
+  refusal to start on a live socket (bugs2).
 - `engine.orphan-sweep-precedes-spawn-decision` — **[PARTIAL]** (#4896) the sweep that
   terminates orphaned engines COMPLETES before the app decides to spawn its own. Built:
   `resolvePortConflict()` (`EmbeddedBackendService+Ports.swift`) awaits the detached sweep's

@@ -26,7 +26,8 @@ extension BackendConnectionView {
             phase: appState.engine.phase,
             ownership: engineProcessOwnership,
             accessError: failureAccessError,
-            authBroken: appState.authBroken
+            authBroken: appState.authBroken,
+            conflict: appState.engine.conflict
         )
     }
 

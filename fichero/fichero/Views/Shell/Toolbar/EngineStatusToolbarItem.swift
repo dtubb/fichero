@@ -128,7 +128,8 @@ struct EngineStatusToolbarItem: View {
             phase: phase,
             ownership: ConnectionPresentation.EngineOwnership.current(),
             accessError: appState.backendAccessError,
-            authBroken: appState.authBroken
+            authBroken: appState.authBroken,
+            conflict: appState.engine.conflict
         ).title
     }
 }
