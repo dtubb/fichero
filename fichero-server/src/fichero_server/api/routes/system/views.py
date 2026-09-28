@@ -647,13 +647,16 @@ def _with_directions(
     pass_ids = {row.pass_id for row in rows.values()}
     shapes = [row for row in db.query_in(Segment, "pass_id", sorted(pass_ids)) if row.deleted_at is None]
     vertical = _lines_are_vertical(shapes, page)
+    from fichero_server.llm.language_policy import stated_direction_source
+
+    source = stated_direction_source(lambda i: db.get(Document, i), page)   # #5172: the file/folder above
     directions: list[str | None] = []
     neutral: list[bool] = []
     blocks: list[str | None] = []
     for line in lines:
         row = rows.get(str(line["segment_id"]))
         text = content[int(line["char_start"]):int(line["char_end"])]
-        direction, level = _direction_of(row, page, text, vertical) if row is not None else (None, None)
+        direction, level = _direction_of(row, page, text, vertical, source) if row is not None else (None, None)
         directions.append(direction)
         neutral.append(row is not None and _has_no_direction_of_its_own(text, level))
         blocks.append(row.parent_segment_id if row is not None else None)
