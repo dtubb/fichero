@@ -635,20 +635,28 @@ def _with_directions(
     shapes: two queries per page, no readings read."""
     if not lines:
         return lines
-    from fichero_server.api.routes.document.segment_readings import _direction_of, _lines_are_vertical
+    from fichero_server.api.routes.document.segment_readings import (
+        _direction_of,
+        _has_no_direction_of_its_own,
+        _lines_are_vertical,
+        settle_neutral_directions,
+    )
 
     rows = {row.id: row for row in db.query_in(Segment, "id", [str(line["segment_id"]) for line in lines])}
     page = db.get(Document, page_id)
     pass_ids = {row.pass_id for row in rows.values()}
     shapes = [row for row in db.query_in(Segment, "pass_id", sorted(pass_ids)) if row.deleted_at is None]
     vertical = _lines_are_vertical(shapes, page)
-    out = []
+    directions: list[str | None] = []
+    neutral: list[bool] = []
     for line in lines:
         row = rows.get(str(line["segment_id"]))
         text = content[int(line["char_start"]):int(line["char_end"])]
-        direction = _direction_of(row, page, text, vertical)[0] if row is not None else None
-        out.append({**line, "direction": direction})
-    return out
+        direction, level = _direction_of(row, page, text, vertical) if row is not None else (None, None)
+        directions.append(direction)
+        neutral.append(row is not None and _has_no_direction_of_its_own(text, level))
+    settled = settle_neutral_directions(directions, neutral)
+    return [{**line, "direction": direction} for line, direction in zip(lines, settled)]
 
 
 #: How the reader should obtain the document's flat transcript. A closed set,

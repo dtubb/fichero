@@ -47,6 +47,7 @@ from fichero_server.llm.language_policy import (
     DIRECTION_ALTERNATING,
     DIRECTION_FOLLOWS_BASELINE,
     STATUS_UNKNOWN,
+    first_strong_direction,
     resolve_direction,
 )
 from fichero_server.models import Artifact, ContentRepresentation, Document
@@ -777,10 +778,11 @@ def _why_omitted(
 #: once. 1: before stamping. 2: text once (#5148) and direction from line shapes (#5147).
 #: 3: the stored line map carried each line's direction (#5147); since #5171 the Reader resolves
 #: it at render, and the map stores none again -- 3 stays, a bump is never undone.
-DERIVATION_VERSION = 3
+#: 4: a line with no direction of its own (digits) takes its neighbours' (#5172).
+DERIVATION_VERSION = 4
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
-DERIVATION_SOURCE_SHA256 = "42e44a29b34e1f954e25534ee32c001271adca664d46c7db1bcdfb75afc77868"
+DERIVATION_SOURCE_SHA256 = "edcebc5ace0161c726dc2d735d8c0ca41f62e92207390e7668cfbcf6f6e5d491"
 
 
 def derivation_source_digest() -> str:
@@ -791,6 +793,7 @@ def derivation_source_digest() -> str:
     functions = (
         document_text, _text_bearing_rows, _readings_for_live_rows, _document_readings,
         _segment_order_key, _direction_of, _lines_are_vertical,
+        _has_no_direction_of_its_own, settle_neutral_directions,
     )
     return hashlib.sha256("\n".join(inspect.getsource(f) for f in functions).encode()).hexdigest()
 
@@ -805,6 +808,28 @@ def _direction_of(
         segment=row, document=document, text=text, lines_are_vertical=lines_are_vertical
     )
     return (resolved.language if resolved.status != STATUS_UNKNOWN else None), resolved.level
+
+
+def _has_no_direction_of_its_own(text: str | None, level: str | None) -> bool:
+    """A text nothing stated a direction for and that has no strongly directional character: a
+    folio number, a year, a line of punctuation (#5172). The cascade can only ASSUME `ltr` for it."""
+    return level is None and bool((text or "").strip()) and first_strong_direction(text) is None
+
+
+def settle_neutral_directions(directions: list[str | None], neutral: list[bool]) -> list[str | None]:
+    """Each neutral line takes the direction of the line before it on the page, else the line after
+    (#5172: `1773` on a Persian page, `2` and `1` on an Aljamiado page came out `ltr`, so the page
+    was reported as having English lines). Digits have no direction of their own (Unicode bidi:
+    EN/AN are weak); the page around them has one. A page of nothing but neutrals keeps its
+    assumption. Shared by the derivation and the Reader's render, so the two cannot disagree."""
+    out = list(directions)
+    for index, is_neutral in enumerate(neutral):
+        if not is_neutral:
+            continue
+        before = next((out[i] for i in range(index - 1, -1, -1) if not neutral[i]), None)
+        after = next((directions[i] for i in range(index + 1, len(directions)) if not neutral[i]), None)
+        out[index] = before or after or directions[index]
+    return out
 
 
 def _lines_are_vertical(rows: list[Segment], document: Any) -> bool | None:
@@ -958,6 +983,7 @@ def document_text(
     # carries, IN ORDER -- the same order `blocks` groups by; built alongside `spans`
     # rather than re-walked from them, so the two can never read the page differently.
     span_directions: list[tuple[str | None, str | None, str | None, DerivedTextSpan]] = []
+    span_neutral: list[bool] = []   # #5172: a span with no direction of its own
     cursor = 0
     page_readings = _readings_for_live_rows(
         db, rows, document_id, artifact_memo, readings=document_readings
@@ -995,6 +1021,7 @@ def document_text(
             direction, direction_level = _direction_of(row, document, None, vertical)
             spans.append(span)
             span_directions.append((row.parent_segment_id, direction, direction_level, span))
+            span_neutral.append(False)
             continue
         text = next(
             item.content for item in items if item.id == counted.representation_id
@@ -1011,10 +1038,13 @@ def document_text(
         )
         spans.append(span)
         span_directions.append((row.parent_segment_id, direction, direction_level, span))
+        span_neutral.append(_has_no_direction_of_its_own(text, direction_level))
         cursor += 1  # the separator below
 
     joined = " ".join(pieces)
 
+    settled = settle_neutral_directions([d for _r, d, _l, _s in span_directions], span_neutral)
+    span_directions = [(r, d, l, sp) for (r, _d, l, sp), d in zip(span_directions, settled)]
     blocks: list[TextBlock] = []
     for region_id, direction, direction_level, span in span_directions:
         non_orientable = direction in _NON_ORIENTABLE
