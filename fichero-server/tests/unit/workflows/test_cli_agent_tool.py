@@ -1,4 +1,5 @@
 import asyncio
+import signal
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -67,7 +68,7 @@ async def test_cli_agent_timeout_kills_process():
     llm_config = LLMConfig(provider="openai", model="gpt-4o-mini")
 
     proc = Mock()
-    proc.kill = Mock()
+    proc.pid = 4242
     proc.communicate = AsyncMock(return_value=(b"", b""))
 
     async def _fake_wait_for(coro, timeout):
@@ -77,9 +78,11 @@ async def test_cli_agent_timeout_kills_process():
 
     with patch("fichero_server.workflows.tools.cli_agent.asyncio.create_subprocess_exec", new=AsyncMock(return_value=proc)):
         with patch("fichero_server.workflows.tools.cli_agent.asyncio.wait_for", side_effect=_fake_wait_for):
-            result = await cli_agent(inputs, state, llm_config)
+            with patch("fichero_server.workflows.tools.cli_agent.os.killpg") as killpg:
+                result = await cli_agent(inputs, state, llm_config)
 
-    proc.kill.assert_called_once()
+    # The whole process GROUP, not just the CLI (#5186: a grandchild kept the pipe open).
+    killpg.assert_called_once_with(4242, signal.SIGKILL)
     assert result["exit_code"] == 124
     assert "timed out" in result["error"]
 
