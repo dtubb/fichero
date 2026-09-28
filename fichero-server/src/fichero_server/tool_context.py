@@ -18,7 +18,10 @@ from dataclasses import dataclass, field
 from typing import Any
 
 #: How a reading's `provenance_kind` is written in a line. A person's line outranks a machine's
-#: (the trust order the ruling settled); the mark lets the model see which is which.
+#: (the trust order the ruling settled); the mark lets the model see which is which. Read from the
+#: SERVER-SET `provenance_kind`, never `created_by`: a reading written in a run carries the name of
+#: the person who started the run there, which would pass a machine's line off as a person's
+#: (#4868/#4869). A row that recorded nothing is never called a person's.
 MAKER = {
     "human": "person",
     "agent": "agent",

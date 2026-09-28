@@ -126,3 +126,37 @@ def test_extract_table_sends_the_lines_with_the_picture(db, test_package, monkey
 
 def test_with_nothing_to_look_up_the_context_is_left_as_it_was():
     assert with_page_context("wired", [], ["x.jpg"], "") == "wired"
+
+
+def test_a_machine_reading_is_marked_machine_though_a_person_started_the_run(db):
+    """The maker is the SERVER-SET `provenance_kind`, not `created_by`: a reading a workflow wrote
+    carries the name of the person who started the run in `created_by`, so reading the maker from
+    it would pass a machine's line off as a person's -- the #4868/#4869 defect. A reading written
+    inside a run is `workflow`, and the tool is told `machine`."""
+    from fichero_server.actions.registry import ActionContext, registry
+
+    doc_id = _import(db, SYRIAC)
+    first_id, _box, _maker, first_text = _parse(tool_context(db, doc_id).text)[0]
+    imported = next(r for r in db.query(ContentRepresentation, segment_id=first_id))
+    run = ActionContext(actor="daniel", run_id="run-htr-1", is_bootstrap=True)
+    made = registry.invoke(db, "representation.create", {
+        "document_id": doc_id, "segment_id": first_id, "kind": "transcription",
+        "content": first_text + " (machine)", "corrects_representation_id": imported.id}, run)
+    written = db.get(ContentRepresentation, made.result["id"])
+    assert (written.created_by, getattr(written.provenance_kind, "value", None)) == ("daniel", "workflow")
+    row = next(r for r in _parse(tool_context(db, doc_id).text) if r[0] == first_id)
+    assert (row[2], row[3]) == ("machine", first_text + " (machine)")   # read, and marked a machine's
+    from fichero_server.tool_context import _maker
+    assert _maker(written) == "machine"
+
+
+def test_a_reading_that_never_recorded_its_maker_is_never_called_a_persons():
+    """Rows written before provenance was recorded: a tool or model named means machine; nothing
+    at all means `unrecorded` -- never a trusting `person`."""
+    from types import SimpleNamespace
+
+    from fichero_server.tool_context import _maker
+
+    assert _maker(SimpleNamespace(provenance_kind=None, producer_tool="transcribe", producer_model=None)) == "machine"
+    assert _maker(SimpleNamespace(provenance_kind=None, producer_tool=None, producer_model=None)) == "unrecorded"
+    assert _maker(SimpleNamespace(provenance_kind="unknown", producer_tool=None, producer_model=None)) == "unrecorded"
