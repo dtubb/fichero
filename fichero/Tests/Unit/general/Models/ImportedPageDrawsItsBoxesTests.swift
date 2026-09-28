@@ -30,6 +30,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 || path.hasPrefix("/api/actions/") || path.hasPrefix("/api/segments/passes/")
                 || (path.hasPrefix("/api/segments/") && path.hasSuffix("/readings"))
                 || path == "/api/source-settings/resolve" || path.hasPrefix("/api/hands")
+                || path.hasPrefix("/api/editorial/")
         }
 
         /// What `GET /api/hands` and `GET /api/hands/segment/{id}` answer (set by the test that asks).
@@ -44,6 +45,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
 
         /// What `GET /api/segments/passes/{id}/original` answers (set by the test that asks).
         nonisolated(unsafe) static var originalReply = Data()
+
+        /// What `GET /api/editorial/segment/{id}` answers (set by the test that asks).
+        nonisolated(unsafe) static var editorialReply = Data()
 
         private static func actionReply(auditId: String) -> Data {
             Data(#"{"ok":true,"result":{},"audit_id":"\#(auditId)","changed_domains":["segment"]}"#.utf8)
@@ -67,6 +71,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 actionBody = Self.settingsReply
             } else if path.hasPrefix("/api/segments/"), path.hasSuffix("/readings") {
                 actionBody = Self.readingsReply
+            } else if path.hasPrefix("/api/editorial/segment/") {
+                actionBody = Self.editorialReply
             } else if path.hasPrefix("/api/segments/passes/"), path.hasSuffix("/original") {
                 actionBody = Self.originalReply
             } else if path == "/api/actions/invoke" {
@@ -104,6 +110,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             settingsReply = Data()
             readingsReply = Data()
             originalReply = Data()
+            editorialReply = Data()
         }
 
         /// URLSession hands a protocol its body as a stream, not as `httpBody`.
@@ -541,6 +548,57 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let mergeParams = try XCTUnwrap(sent[2]["params"] as? [String: Any])
         XCTAssertEqual(mergeParams["segment_ids"] as? [String], [first.id, second.id])
         XCTAssertEqual(mergeParams["keep_id"] as? String, first.id)
+    }
+
+    /// `source.sure.editorial-facts` / `brackets-are-drawn` end to end: the imported Syriac page's first
+    /// line with a person's facts on it (its first three letters unclear, faded; two letters lost after
+    /// the fifth), read through `EditorialService` over the engine's recorded answer. The section shows
+    /// the text as the editor prints it -- under-dots and "[.2]", drawn by the engine, not in the
+    /// reading -- and each fact's words; Withdraw sends `editorial.withdraw` for that fact and ⌘Z undoes
+    /// it; Mark Unclear sends `editorial.record` over the whole counting reading.
+    func testTheCertaintyAndDamageSectionShowsTheFactsDrawnAndWithdrawsOneUndoably() async throws {
+        _ = try await loadedStore()
+        RecordedEngine.editorialReply = try Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-line-editorial.json")
+        )
+        let answer = try await EditorialService(client: try XCTUnwrap(storeClient)).facts(segmentId: "seg-0003")
+        XCTAssertEqual(answer.facts.map(\.id), ["fact-0001", "fact-0002"])
+        let drawn = try XCTUnwrap(answer.drawn)
+        // Three under-dotted letters, two plain ones, then the lost stretch drawn at its place.
+        XCTAssertTrue(drawn.hasPrefix("\u{0710}\u{0323}\u{0712}\u{0323}\u{072A}\u{0323}\u{0717}\u{0721}[.2] "), drawn)
+        let rows = InspectorEditorial.rows(answer.facts)
+        XCTAssertEqual(rows.map(\.detail), [
+            "letters 1–3 · faded · by owner · sure 80%", "after letter 5 · 2 characters · a hole · by owner"
+        ])
+
+        let actions = ActionsService(client: try XCTUnwrap(storeClient))
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        try await AuditedAction.run(
+            "editorial.withdraw", params: EditorialFactRequest(factId: rows[0].factId), actionName: "Withdraw Editorial Fact",
+            actionsService: actions, undoManager: manager
+        )
+        manager.endUndoGrouping()
+        let reading = InspectorText.Reading(
+            id: "rep-0001", kind: "transcription", content: "ܐܒܪܗܡ", maker: "external_import",
+            author: nil, guideline: nil, pairId: nil, pairRole: nil
+        )
+        try await AuditedAction.run(
+            "editorial.record", params: try XCTUnwrap(InspectorEditorial.record(.unclear, segmentId: "seg-0003", reading: reading)),
+            actionName: "Mark Unclear", actionsService: actions, undoManager: nil
+        )
+
+        let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
+        XCTAssertEqual(sent.compactMap { $0["name"] as? String }, ["editorial.withdraw", "editorial.record"])
+        XCTAssertEqual(sent[0]["params"] as? [String: String], ["fact_id": "fact-0001"])
+        let marked = try XCTUnwrap(sent[1]["params"] as? [String: Any])
+        XCTAssertEqual(marked["representation_id"] as? String, "rep-0001")
+        XCTAssertEqual(marked["char_start"] as? Int, 0)
+        XCTAssertEqual(marked["char_end"] as? Int, 5)
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"], "⌘Z withdraws the withdrawal by its own audit row")
     }
 
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {

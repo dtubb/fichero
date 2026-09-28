@@ -85,9 +85,12 @@ struct InspectorText: Equatable {
 
     /// The text of the reading that counts for `kind`, or nil when none does -- what the Reader shows
     /// on the line, and so what its caret offsets count in (#5154).
-    func countingContent(ofKind kind: String) -> String? {
+    func countingContent(ofKind kind: String) -> String? { countingReading(ofKind: kind)?.content }
+
+    /// The reading that counts for `kind`, or nil when none does.
+    func countingReading(ofKind kind: String) -> Reading? {
         guard let id = counting[kind]?.readingId else { return nil }
-        return readings.first { $0.id == id }?.content
+        return readings.first { $0.id == id }
     }
 
     /// The other half of a written / read pair, shown beside it as a pair.
