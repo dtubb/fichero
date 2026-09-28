@@ -52,12 +52,24 @@ enum SegmentsPane {
         return steps
     }
 
+    /// The kinds that carry a reading of their own. A region or a table does not (its words are its
+    /// lines'), so it is never marked "No reading".
+    static let readingKinds: Set<String> = ["line", "word", "character", "glyph"]
+
+    /// A segment left WITHOUT a reading (`source.textedit.deleting-words-keeps-ink`): one of the reading
+    /// kinds with no counting transcription at all -- a line drawn by its baseline, a word a segmenter
+    /// found. Shown as such, never hidden. An EMPTIED line is not this: it has a reading, an empty one.
+    static func lacksReading(_ segment: Segment) -> Bool {
+        segment.text == nil && readingKinds.contains(segment.kind.lowercased())
+    }
+
     /// A row's words: its kind, then its reading when it has one ("Line · ܐܒܪܗܡ…").
     static func rowLabel(_ segment: Segment?, at index: Int) -> String {
         let kind = segment.map(InspectorPath.name(of:)) ?? "Segment"
         guard let text = segment?.text?.trimmingCharacters(in: .whitespaces), !text.isEmpty else {
             // A cell is named by its place already; a count after it would read as another number.
-            return segment?.cell != nil ? kind : "\(kind) \(index + 1)"
+            let named = segment?.cell != nil ? kind : "\(kind) \(index + 1)"
+            return segment.map(lacksReading) == true ? named + " · No reading" : named
         }
         return "\(kind) · \(text)"
     }

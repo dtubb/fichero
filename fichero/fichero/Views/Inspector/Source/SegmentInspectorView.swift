@@ -60,6 +60,10 @@ struct SegmentInspectorView: View {
                     }
                     if let text, !text.readings.isEmpty {
                         InspectorTextSection(text: text) { reading in choose(reading, in: text) }
+                    } else if text != nil, let inspected,
+                              let segment = segments.first(where: { $0.id == inspected }), SegmentsPane.lacksReading(segment) {
+                        // Left without a reading: said, and typing one offered (deleting-words-keeps-ink).
+                        InspectorNoReadingSection(segmentId: inspected, documentId: documentId) { await reloadText() }
                     }
                     if !language.isEmpty {
                         InspectorLanguageSection(rows: language)

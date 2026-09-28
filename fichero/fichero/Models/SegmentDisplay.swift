@@ -230,7 +230,8 @@ enum SegmentDisplay {
                     charEnd: segment.anchor.charEnd,
                     provider: segment.isHandCurated ? "user" : nil,
                     source: segment.isHandCurated ? "manual" : nil,
-                    shapes: SegmentShapes.drawn(for: segment)
+                    shapes: SegmentShapes.drawn(for: segment),
+                    noReading: SegmentsPane.lacksReading(segment)
                 )
             }
         return OCRGeometry(

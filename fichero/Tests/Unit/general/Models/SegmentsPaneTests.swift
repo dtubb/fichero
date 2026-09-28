@@ -35,6 +35,7 @@ struct SegmentsPaneTests {
         #expect(SegmentsPane.rowLabel(segment("l1", kind: "line", text: " ܐܒ "), at: 0) == "Line · ܐܒ")
         #expect(SegmentsPane.rowLabel(segment("r1", kind: "region"), at: 2) == "Region 3")
         #expect(SegmentsPane.rowLabel(nil, at: 0) == "Segment 1")
+        #expect(SegmentsPane.rowLabel(segment("l2", kind: "line"), at: 1) == "Line 2 · No reading", "a line with no reading says so")
     }
 }
 

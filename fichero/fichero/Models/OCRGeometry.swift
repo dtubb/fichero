@@ -34,6 +34,8 @@ struct OCRGeometryBox: Codable, Hashable, Identifiable {
     /// What the segment draws as, beyond its box: polygon, path, point, baseline (`SegmentShapes`).
     /// Empty for a box and for artifact geometry; not part of the artifact wire format.
     var shapes: [SegmentShapes.Drawn] = []
+    /// A segment left without a reading (`SegmentsPane.lacksReading`): drawn dashed and hollow, never hidden.
+    var noReading = false
 
     /// A box a person drew, rather than a pass measuring one.
     var isHandDrawn: Bool { provider?.lowercased() == "user" || source?.lowercased() == "manual" }

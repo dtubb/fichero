@@ -18,6 +18,8 @@ struct DocumentOverlay: Equatable {
         /// The segment's own shapes (polygon, path, point, baseline), drawn instead of the box when
         /// present (`SegmentShapes`).
         var shapes: [SegmentShapes.Drawn] = []
+        /// No reading: drawn dashed and hollow, so what has no text yet can be seen and picked.
+        var noReading = false
     }
 
     var boxes: [Box] = []
