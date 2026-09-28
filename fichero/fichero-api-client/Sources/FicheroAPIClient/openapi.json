@@ -3364,6 +3364,61 @@
         }
       }
     },
+    "/api/segments/document/{doc_id}/matches": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "List Document Matches",
+        "description": "The matches recorded on one page (`source.segment.match-record`, #5165): what a person\nreviews -- accepts, rejects, or carries readings and marks across. Before this, a match could\nbe proposed, accepted and rejected, and nothing could LIST them, so a proposal nobody had the\nid of could never be reviewed. Oldest first.",
+        "operationId": "list_document_matches_api_segments_document__doc_id__matches_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "proposed, accepted or rejected; all when omitted",
+              "title": "State"
+            },
+            "description": "proposed, accepted or rejected; all when omitted"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentMatchListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segments/matches/{match_id}/accept": {
       "post": {
         "tags": [
@@ -5002,6 +5057,191 @@
         }
       }
     },
+    "/api/georeference/passes/{pass_id}/transformation": {
+      "put": {
+        "tags": [
+          "georeference"
+        ],
+        "summary": "Set Transformation",
+        "description": "`PUT /api/georeference/passes/{pass_id}/transformation` -- choose the type; 422 with the\nnumber of GCPs it needs when the pass has too few.",
+        "operationId": "set_transformation_api_georeference_passes__pass_id__transformation_put",
+        "parameters": [
+          {
+            "name": "pass_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pass Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransformationBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Set Transformation Api Georeference Passes  Pass Id  Transformation Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/georeference/passes/{pass_id}/transform": {
+      "get": {
+        "tags": [
+          "georeference"
+        ],
+        "summary": "Get Transform",
+        "description": "`GET /api/georeference/passes/{pass_id}/transform` -- worked out now, with residuals.",
+        "operationId": "get_transform_api_georeference_passes__pass_id__transform_get",
+        "parameters": [
+          {
+            "name": "pass_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pass Id"
+            }
+          },
+          {
+            "name": "mask_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Which map on the sheet, when it has several",
+              "title": "Mask Id"
+            },
+            "description": "Which map on the sheet, when it has several"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkedOutTransform"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/georeference/segments/{segment_id}/world-shape": {
+      "get": {
+        "tags": [
+          "georeference"
+        ],
+        "summary": "Get World Shape",
+        "description": "`GET /api/georeference/segments/{segment_id}/world-shape` -- worked out now.",
+        "operationId": "get_world_shape_api_georeference_segments__segment_id__world_shape_get",
+        "parameters": [
+          {
+            "name": "segment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Segment Id"
+            }
+          },
+          {
+            "name": "pass_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "The georeferencing pass, when the image has several",
+              "title": "Pass Id"
+            },
+            "description": "The georeferencing pass, when the image has several"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorldShape"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/signs": {
       "post": {
         "tags": [
@@ -5704,6 +5944,346 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AttributionListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/editorial/segment/{segment_id}": {
+      "get": {
+        "tags": [
+          "editorial"
+        ],
+        "summary": "Facts Of Segment",
+        "description": "A segment's live editorial facts, and its counting reading drawn with them.",
+        "operationId": "facts_of_segment_api_editorial_segment__segment_id__get",
+        "parameters": [
+          {
+            "name": "segment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Segment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditorialListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/letterforms/allographs": {
+      "get": {
+        "tags": [
+          "letterforms"
+        ],
+        "summary": "List Allographs",
+        "operationId": "list_allographs_api_letterforms_allographs_get",
+        "parameters": [
+          {
+            "name": "character",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Character"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AllographListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/letterforms/segment/{segment_id}": {
+      "get": {
+        "tags": [
+          "letterforms"
+        ],
+        "summary": "Description Of Segment",
+        "operationId": "description_of_segment_api_letterforms_segment__segment_id__get",
+        "parameters": [
+          {
+            "name": "segment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Segment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DescriptionListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/letterforms/features": {
+      "get": {
+        "tags": [
+          "letterforms"
+        ],
+        "summary": "Features In Use",
+        "operationId": "features_in_use_api_letterforms_features_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/letterforms": {
+      "get": {
+        "tags": [
+          "letterforms"
+        ],
+        "summary": "Gather",
+        "description": "Every live mark of a character, an allograph or a hand, across sources (`.compare`). At least\none of the three is named: gathering every mark in a library is not a comparison.",
+        "operationId": "gather_api_letterforms_get",
+        "parameters": [
+          {
+            "name": "character",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Character"
+            }
+          },
+          {
+            "name": "allograph_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Allograph Id"
+            }
+          },
+          {
+            "name": "hand_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Hand Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DescriptionListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/campaigns/document/{document_id}": {
+      "get": {
+        "tags": [
+          "campaigns"
+        ],
+        "summary": "Campaigns Of Document",
+        "description": "A source's campaigns in their order: first laid down first.",
+        "operationId": "campaigns_of_document_api_campaigns_document__document_id__get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/campaigns/segment/{segment_id}": {
+      "get": {
+        "tags": [
+          "campaigns"
+        ],
+        "summary": "Campaign Of Segment",
+        "operationId": "campaign_of_segment_api_campaigns_segment__segment_id__get",
+        "parameters": [
+          {
+            "name": "segment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Segment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentCampaignResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/campaigns/reading/{representation_id}": {
+      "get": {
+        "tags": [
+          "campaigns"
+        ],
+        "summary": "Campaigns Of Reading",
+        "operationId": "campaigns_of_reading_api_campaigns_reading__representation_id__get",
+        "parameters": [
+          {
+            "name": "representation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Representation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingCampaignsResponse"
                 }
               }
             }
@@ -40039,6 +40619,70 @@
         "title": "AlignTranscriptResponse",
         "description": "Outcome of forced transcript\u2194Kraken-baseline alignment.\n\n``aligned`` is the honest bottom line: an exact line-count match saved a new\n``aligned_transcript`` artifact (returned with geometry); a mismatch saved\nnothing and the counts say why, so the UI can tell the user \"28 transcript\nlines, 31 baselines \u2014 not aligned\" instead of showing wrong text."
       },
+      "Allograph": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "character": {
+            "type": "string",
+            "title": "Character"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "title": "Notes"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind",
+            "default": "unknown"
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "withdrawn_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Withdrawn At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "character",
+          "name"
+        ],
+        "title": "Allograph",
+        "description": "A recognised form of a character, in the project's list."
+      },
+      "AllographListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Allograph"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "AllographListResponse"
+      },
       "AnchorBasis": {
         "type": "string",
         "enum": [
@@ -42842,6 +43486,85 @@
         ],
         "title": "CacheStatsResponse",
         "description": "Response with cache statistics."
+      },
+      "Campaign": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "sequence": {
+            "type": "integer",
+            "title": "Sequence",
+            "default": 1
+          },
+          "hand_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Hand Id"
+          },
+          "date": {
+            "type": "string",
+            "nullable": true,
+            "title": "Date"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "title": "Notes"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind",
+            "default": "unknown"
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "withdrawn_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Withdrawn At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "name"
+        ],
+        "title": "Campaign",
+        "description": "One campaign of writing on a source."
+      },
+      "CampaignListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Campaign"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "CampaignListResponse"
       },
       "CancelResponse": {
         "properties": {
@@ -46963,6 +47686,45 @@
         "title": "ContradictionListResponse",
         "description": "Standardized envelope for GET /api/kg-claim-analysis/{claim_id}/contradictions."
       },
+      "ControlPointResidual": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "pixel": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Pixel"
+          },
+          "world": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "World"
+          },
+          "residual_m": {
+            "type": "number",
+            "title": "Residual M"
+          },
+          "residual_px": {
+            "type": "number",
+            "title": "Residual Px"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id",
+          "pixel",
+          "world",
+          "residual_m",
+          "residual_px"
+        ],
+        "title": "ControlPointResidual"
+      },
       "ConversationCreateRequest": {
         "properties": {
           "title": {
@@ -47233,6 +47995,7 @@
         "enum": [
           "chosen",
           "newest-human",
+          "correction",
           "newest-machine-unchosen",
           "none"
         ],
@@ -48302,6 +49065,22 @@
         ],
         "title": "DerivedTextSpan",
         "description": "Where one segment's reading sits in the derived text.\n\nThe spans are the point of the whole answer: text with no way back to the\nline and the reading it came from is a wall of words, and every later\nfeature -- a mark on a phrase, a search hit, an export -- needs the way\nback."
+      },
+      "DescriptionListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LetterformDescription"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "DescriptionListResponse"
       },
       "DetectLanguageRequest": {
         "properties": {
@@ -49974,6 +50753,140 @@
         ],
         "title": "EdgeDef",
         "description": "Definition of an edge connecting two nodes via their ports.\n\nEdges define data flow between nodes. Each edge connects\nan output port on the source node to an input port on the target node."
+      },
+      "EditorialFact": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/EditorialFactKind"
+          },
+          "representation_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Representation Id"
+          },
+          "char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char End"
+          },
+          "extent": {
+            "type": "string",
+            "nullable": true,
+            "title": "Extent"
+          },
+          "extent_quantity": {
+            "type": "number",
+            "nullable": true,
+            "title": "Extent Quantity"
+          },
+          "extent_unit": {
+            "type": "string",
+            "nullable": true,
+            "title": "Extent Unit"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          },
+          "place": {
+            "type": "string",
+            "nullable": true,
+            "title": "Place"
+          },
+          "certainty": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Certainty"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind",
+            "default": "unknown"
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Created By"
+          },
+          "source": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "withdrawn_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Withdrawn At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id",
+          "kind"
+        ],
+        "title": "EditorialFact",
+        "description": "One fact about one stretch of one segment's text (`source.sure.editorial-facts`)."
+      },
+      "EditorialFactKind": {
+        "type": "string",
+        "enum": [
+          "unclear",
+          "lost",
+          "restored",
+          "supplied",
+          "superfluous",
+          "deleted",
+          "added"
+        ],
+        "title": "EditorialFactKind",
+        "description": "What an editor can say about a stretch of text. An open list is a question for the maintainer;\nthese are the spec's seven."
+      },
+      "EditorialListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EditorialFact"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "drawn": {
+            "type": "string",
+            "nullable": true,
+            "title": "Drawn"
+          },
+          "drawn_from": {
+            "type": "string",
+            "nullable": true,
+            "title": "Drawn From"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "EditorialListResponse"
       },
       "EffectiveAttributesResponse": {
         "properties": {
@@ -52401,6 +53314,23 @@
         ],
         "title": "ExtractTextResponse",
         "description": "Response from text extraction."
+      },
+      "FeatureListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "FeatureListResponse"
       },
       "FileType": {
         "type": "string",
@@ -56748,6 +57678,89 @@
         "type": "object",
         "title": "LanguageTierCounts",
         "description": "LOOVE tier counts for exemplar characters."
+      },
+      "LetterFeature": {
+        "properties": {
+          "component": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Component"
+          },
+          "feature": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Feature"
+          }
+        },
+        "type": "object",
+        "required": [
+          "component",
+          "feature"
+        ],
+        "title": "LetterFeature",
+        "description": "One component and what it is like: \"ascender\" -> \"wedged\". Both open words."
+      },
+      "LetterformDescription": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "character": {
+            "type": "string",
+            "title": "Character"
+          },
+          "allograph_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Allograph Id"
+          },
+          "hand_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Hand Id"
+          },
+          "features": {
+            "items": {
+              "$ref": "#/components/schemas/LetterFeature"
+            },
+            "type": "array",
+            "title": "Features"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind",
+            "default": "unknown"
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "withdrawn_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Withdrawn At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id",
+          "character"
+        ],
+        "title": "LetterformDescription",
+        "description": "This very mark, described: its chain and its features (`source.letterform.chain`, `.features`)."
       },
       "LibraryAuthzSnapshot": {
         "properties": {
@@ -62056,6 +63069,21 @@
             "type": "boolean",
             "title": "Has Original",
             "default": false
+          },
+          "transformation": {
+            "type": "string",
+            "nullable": true,
+            "title": "Transformation"
+          },
+          "working": {
+            "type": "boolean",
+            "title": "Working",
+            "default": false
+          },
+          "working_basis": {
+            "type": "string",
+            "nullable": true,
+            "title": "Working Basis"
           }
         },
         "type": "object",
@@ -64221,6 +65249,27 @@
         ],
         "title": "ReadableSentence",
         "description": "One clickable sentence of an entity's readable entry."
+      },
+      "ReadingCampaignsResponse": {
+        "properties": {
+          "representation_id": {
+            "type": "string",
+            "title": "Representation Id"
+          },
+          "campaign_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Campaign Ids",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "representation_id"
+        ],
+        "title": "ReadingCampaignsResponse"
       },
       "ReadingChoiceBody": {
         "properties": {
@@ -68860,6 +69909,23 @@
         "title": "SegmentAttributeUpdate",
         "description": "One row's part of a selection-wide edit.\n\nATTRIBUTES ONLY \u2014 kind, furniture and the cascade's facts. Not a shape and not a\nparent: moving five lines' boxes at once is not a selection verb anyone has\nspecified, and a bulk path for shapes would be a second place to get anchors,\nbboxes and tiles right."
       },
+      "SegmentCampaignResponse": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "campaign": {
+            "$ref": "#/components/schemas/Campaign",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id"
+        ],
+        "title": "SegmentCampaignResponse"
+      },
       "SegmentCarryParams": {
         "properties": {
           "match_id": {
@@ -69113,6 +70179,96 @@
         ],
         "title": "SegmentListResponse"
       },
+      "SegmentMatch": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "from_segment_id": {
+            "type": "string",
+            "title": "From Segment Id"
+          },
+          "to_segment_id": {
+            "type": "string",
+            "title": "To Segment Id"
+          },
+          "state": {
+            "type": "string",
+            "title": "State",
+            "default": "proposed"
+          },
+          "proposed_by_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind"
+          },
+          "proposed_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Proposed By"
+          },
+          "accepted_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Accepted By"
+          },
+          "accepted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Accepted At"
+          },
+          "certainty": {
+            "type": "number",
+            "nullable": true,
+            "title": "Certainty"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Note"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "from_segment_id",
+          "to_segment_id",
+          "proposed_by_kind"
+        ],
+        "title": "SegmentMatch",
+        "description": "\"This new segment is that old one\" -- a record of its own, never an\nid reassignment (`source.segment.match-record`). Many to many is\nallowed (one old line became two)."
+      },
+      "SegmentMatchListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentMatch"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "SegmentMatchListResponse",
+        "description": "A page's segment matches (#5165), `{items, count}` -- never a bare array."
+      },
       "SegmentMatchProposeParams": {
         "properties": {
           "from_segment_id": {
@@ -69273,6 +70429,11 @@
             "nullable": true,
             "title": "Import Original"
           },
+          "transformation": {
+            "type": "string",
+            "nullable": true,
+            "title": "Transformation"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -69412,6 +70573,10 @@
             "nullable": true,
             "title": "Page Index"
           },
+          "cell": {
+            "$ref": "#/components/schemas/TableCellPlace",
+            "nullable": true
+          },
           "metadata": {
             "additionalProperties": true,
             "type": "object",
@@ -69524,7 +70689,13 @@
               "$ref": "#/components/schemas/SegmentSplitPart"
             },
             "type": "array",
-            "title": "Parts"
+            "title": "Parts",
+            "default": []
+          },
+          "at_offset": {
+            "type": "integer",
+            "nullable": true,
+            "title": "At Offset"
           },
           "expected_version": {
             "type": "integer",
@@ -69535,7 +70706,6 @@
         "type": "object",
         "required": [
           "segment_id",
-          "parts",
           "expected_version"
         ],
         "title": "SegmentSplitParams"
@@ -71485,6 +72655,35 @@
         "title": "SyncObjectModel",
         "description": "One syncable object in a manifest (typed for OpenAPI codegen)."
       },
+      "TableCellPlace": {
+        "properties": {
+          "row": {
+            "type": "integer",
+            "title": "Row"
+          },
+          "column": {
+            "type": "integer",
+            "title": "Column"
+          },
+          "row_span": {
+            "type": "integer",
+            "title": "Row Span",
+            "default": 1
+          },
+          "column_span": {
+            "type": "integer",
+            "title": "Column Span",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "row",
+          "column"
+        ],
+        "title": "TableCellPlace",
+        "description": "A table cell's place (#5168, `source.segment.table-cells`): 1 for a span not stated."
+      },
       "TaskCreateRequest": {
         "properties": {
           "plan_id": {
@@ -72490,6 +73689,20 @@
         ],
         "title": "TrainingStatus",
         "description": "Training job status."
+      },
+      "TransformationBody": {
+        "properties": {
+          "transformation": {
+            "type": "string",
+            "title": "Transformation"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "transformation"
+        ],
+        "title": "TransformationBody"
       },
       "TransliterationRequest": {
         "properties": {
@@ -74025,6 +75238,64 @@
         ],
         "title": "WordExportResponse"
       },
+      "WorkedOutTransform": {
+        "properties": {
+          "pass_id": {
+            "type": "string",
+            "title": "Pass Id"
+          },
+          "mask_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Mask Id"
+          },
+          "transformation": {
+            "type": "string",
+            "title": "Transformation"
+          },
+          "gcp_set_version": {
+            "type": "string",
+            "title": "Gcp Set Version"
+          },
+          "gcps": {
+            "items": {
+              "$ref": "#/components/schemas/ControlPointResidual"
+            },
+            "type": "array",
+            "title": "Gcps"
+          },
+          "rms_m": {
+            "type": "number",
+            "title": "Rms M"
+          },
+          "rms_px": {
+            "type": "number",
+            "title": "Rms Px"
+          },
+          "not_used": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Not Used",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "pass_id",
+          "transformation",
+          "gcp_set_version",
+          "gcps",
+          "rms_m",
+          "rms_px"
+        ],
+        "title": "WorkedOutTransform",
+        "description": "A georeferencing pass's transform as worked out now. Never stored as the truth: a caller\nthat caches it keys the cache on `gcp_set_version`, which changes when any GCP does."
+      },
       "WorkflowCodeExportResponse": {
         "properties": {
           "workflow_id": {
@@ -75371,6 +76642,66 @@
         },
         "type": "object",
         "title": "WorkspacePatchRequest"
+      },
+      "WorldShape": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "pass_id": {
+            "type": "string",
+            "title": "Pass Id"
+          },
+          "mask_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Mask Id"
+          },
+          "transformation": {
+            "type": "string",
+            "title": "Transformation"
+          },
+          "gcp_set_version": {
+            "type": "string",
+            "title": "Gcp Set Version"
+          },
+          "crs": {
+            "type": "string",
+            "title": "Crs",
+            "default": "EPSG:4326"
+          },
+          "geometry": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Geometry"
+          },
+          "error_m": {
+            "type": "number",
+            "title": "Error M"
+          },
+          "outside_the_map": {
+            "type": "boolean",
+            "title": "Outside The Map",
+            "default": false
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id",
+          "pass_id",
+          "transformation",
+          "gcp_set_version",
+          "error_m"
+        ],
+        "title": "WorldShape",
+        "description": "A segment's place in the world, WORKED OUT through a georeferencing pass and never stored\nas the segment's truth (`source.geo.world-shape`). `outside_the_map` instead of a shape when\nany of it lies outside the map's mask (`source.geo.outside-the-mask`): never extrapolated."
       },
       "XlsxIngestRequest": {
         "properties": {
