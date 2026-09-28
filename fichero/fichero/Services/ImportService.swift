@@ -86,7 +86,29 @@ class ImportService {
 
         logger.info("Starting import of \(urls.count) files")
 
-        for (index, url) in urls.enumerated() {
+        // #5220: loose files dropped TOGETHER go to the engine as ONE set, so a layout file (ALTO, PAGE,
+        // hOCR, TEI, .box, a .txt beside its image) pairs with its image and becomes its pass -- one at a
+        // time the engine never saw them together and every .xml landed as a document beside its image.
+        // Link/move only: a copy drop still uploads per file (the batch upload route is not wired yet).
+        var perItem = urls
+        let looseFiles = mode == .copy ? [] : urls.filter { !Self.isDirectory($0) }
+        if looseFiles.count >= 2 {
+            do {
+                let batch = try await ingestFilesTogether(
+                    looseFiles, mode: mode, parentId: parentId, extractText: extractText, autoEmbed: autoEmbed
+                )
+                imported += batch.documents
+                errors += batch.failures
+                perItem = urls.filter { Self.isDirectory($0) }
+            } catch {
+                if error.isCancellationError { throw error }
+                logger.error("Batch import of \(looseFiles.count) files failed: \(error.localizedDescription)")
+                errors += looseFiles.map { ImportError(url: $0, error: error) }
+                perItem = urls.filter { Self.isDirectory($0) }
+            }
+        }
+
+        for (index, url) in perItem.enumerated() {
             do {
                 // Update progress
                 onProgress?(index + 1, urls.count)
@@ -142,6 +164,55 @@ class ImportService {
         // at every call site, and the only record of it — `lastError` — was
         // read by no view.
         return ImportOutcome(documents: imported, failures: errors, attempted: urls.count)
+    }
+
+    nonisolated static func isDirectory(_ url: URL) -> Bool {
+        var isDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) && isDirectory.boolValue
+    }
+
+    /// `POST /api/ingest/files` (#5220): the dropped files as ONE set, each parent folder granted first (the
+    /// engine reads them in place). A layout file the engine could not pair or import comes back by name and
+    /// is reported as that file's failure, never dropped silently.
+    private func ingestFilesTogether(
+        _ urls: [URL],
+        mode: IngestMode,
+        parentId: String?,
+        extractText: Bool?,
+        autoEmbed: Bool?
+    ) async throws -> (documents: [Document], failures: [ImportError]) {
+        for url in urls { try? await FolderAccessManager.shared.grantAccessForImport(url) }
+        let response = try await client.api.ingestFilesApiIngestFilesPost(
+            body: .json(.init(
+                paths: urls.map(\.path),
+                parentId: parentId,
+                mode: mode == .move ? .move : .link,
+                extractText: extractText,
+                autoEmbed: autoEmbed
+            ))
+        )
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            let documents = try body.documents.map { try convertToDocument($0) }
+            let byName = Dictionary(urls.map { ($0.lastPathComponent, $0) }, uniquingKeysWith: { first, _ in first })
+            let reasons = (body.notImported?.additionalProperties ?? [:])
+            let failures = reasons.map { name, why in
+                ImportError(
+                    url: byName[name] ?? URL(fileURLWithPath: name),
+                    error: ImportServiceError.serverError("\(name) did not become a pass: \(why)")
+                )
+            }
+            if let passes = body.importedAsPasses, !passes.isEmpty {
+                logger.info("Paired as passes: \(passes.joined(separator: ", "))")
+            }
+            return (documents, failures)
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ImportServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, _):
+            throw ImportServiceError.unexpectedResponse(statusCode)
+        }
     }
 
     /// A folder import needs the sandboxed engine granted access BEFORE the
