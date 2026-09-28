@@ -459,9 +459,20 @@ Places and gazetteers
   (`fichero-server/tests/unit/security/test_external_authority_reconciliation.py`, its tests
   "refresh is opt-in and cache-only matching" and "authority link is persisted and refresh
   failure is loud"; cited by file because they are `async def` and the pipeline's test index
-  reads only `def`); **missing**: gazetteer
-  authorities, a confidence and a match method on each candidate, candidates kept after the
-  choice, and rejected candidates remembered so they are not offered again.
+  reads only `def`).
+  **Built 2026-09-28 (maps D4):** gazetteer records are candidates like any other (Pleiades's Lutetia
+  is found for "Paris" through its alias); each candidate says how it was found (`found_by`: the
+  entity's name is the record's label, or a name meets an alias) with the `confidence` that method
+  earns -- a rank of the method, not a measured probability -- and its `uri`, `snapshot_id` and
+  `state`. The chosen one stays offered as `chosen`; choosing rejects its namesakes at the same
+  authority (other gazetteers stay proposed); a rejection is a `different_from` typed link with its
+  maker, never offered again until withdrawn; choosing a rejected one withdraws the rejection
+  (`fichero-server/tests/unit/api/test_gazetteer_candidates.py::test_each_candidate_says_how_it_was_found_and_how_sure`,
+  `::test_choosing_one_keeps_it_and_rejects_its_namesakes_at_that_authority`,
+  `::test_a_person_rejects_a_candidate_and_it_stays_rejected_until_withdrawn`,
+  `::test_choosing_what_was_rejected_withdraws_the_rejection`). PARTIAL: no screen, and a
+  gazetteer's records have no refresh yet -- only Wikidata, VIAF and LoC are fetched; Pleiades,
+  TGN, GeoNames and WHG records arrive as recorded snapshots.
 - `source.geo.gazetteer-typed-record` — **[PARTIAL]** (#4933) a chosen gazetteer link is a typed,
   queryable record with maker, certainty and time, not a dict in entity metadata, and several
   chosen links to different gazetteers are allowed.
@@ -478,10 +489,18 @@ Places and gazetteers
   an entity `same_as` the URI, by any accepted spelling of it, with the certainty of each link; a
   withdrawn link drops out; nothing is fetched (`fichero-server/tests/unit/api/test_gazetteer_links_and_query.py::test_every_segment_naming_the_place_by_any_spelling_of_its_uri`).
   The MCP tool `fichero_segments_naming_place` is the route, and answers the same (`fichero-server/tests/unit/api/test_the_naming_query_everywhere.py`); the command line's `links naming` is generated from the route on the contract sync. PARTIAL: no screen.
-- `source.geo.gazetteer-offline` — **[GAP]** (#4933) reading or querying places never fetches;
+- `source.geo.gazetteer-offline` — **[PARTIAL]** (#4933) reading or querying places never fetches;
   only an explicit refresh behind the external-authority switch goes to the network.
-- `source.geo.geocoder-is-not-identity` — **[GAP]** (#4933) a geocoder hit is labelled a machine
+  **Pinned 2026-09-28 (maps D4):** candidates, a choice and the naming query all answer with every
+  socket refused, and the refresh is refused while the switch is off
+  (`fichero-server/tests/unit/api/test_gazetteer_candidates.py::test_reading_choosing_and_querying_places_never_touch_the_network`).
+  PARTIAL: no screen.
+- `source.geo.geocoder-is-not-identity` — **[PARTIAL]** (#4933) a geocoder hit is labelled a machine
   guess of coordinates and never becomes a gazetteer link without a person's choice.
+  **Pinned 2026-09-28 (maps D4):** a geocoded point lands `inferred`, made by `geocoder`, naming which
+  geocoder answered, and makes no link to any authority; the entity's candidates stay a person's
+  to choose (`fichero-server/tests/unit/api/test_gazetteer_candidates.py::test_a_geocoder_hit_is_a_labelled_guess_and_never_a_gazetteer_link`).
+  PARTIAL: no screen.
 
 Places over time and in words
 - `source.geo.names-over-time` — **[GAP]** (#5120) a place entity holds several names, each with

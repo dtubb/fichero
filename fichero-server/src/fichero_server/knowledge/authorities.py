@@ -97,15 +97,18 @@ def authority_of_uri(uri: str) -> tuple[str, str] | None:
 # ---------------------------------------------------------------------------
 
 SAME_AS = "same_as"
+#: A person's rejection of a candidate (maps D4): remembered, so it is not offered again.
+DIFFERENT_FROM = "different_from"
 #: Where a library's malformed earlier entries are kept, named with why, after the migration.
 REFUSED_KEY = "authority_links_refused"
 
 
-def same_as_links(db, entity_id: str) -> list:
+def same_as_links(db, entity_id: str, link_type: str = SAME_AS) -> list:
+    """The entity's live links of `link_type` to an outside URI (`same_as`: chosen; `different_from`: rejected)."""
     from fichero_server.models.typed_links import TypedLink
 
     return [link for link in db.query(TypedLink, from_id=entity_id)
-            if link.link_type == SAME_AS and link.to_kind == "uri" and link.deleted_at is None]
+            if link.link_type == link_type and link.to_kind == "uri" and link.deleted_at is None]
 
 
 def authority_links_of(db, entity_id: str) -> list[dict[str, str]]:
@@ -119,15 +122,16 @@ def authority_links_of(db, entity_id: str) -> list[dict[str, str]]:
 
 
 def link_entity(db, entity_id: str, authority: str, identifier: str, *, provenance_kind, created_by,
-                certainty: float | None = None, note: str | None = None):
-    """The entity's `same_as` link to the authority's canonical URI; the live one when it exists already."""
+                certainty: float | None = None, note: str | None = None, link_type: str = SAME_AS):
+    """The entity's `same_as` (or `different_from`) link to the authority's canonical URI; the live
+    one when it exists already."""
     from fichero_server.models.typed_links import TypedLink
 
     uri = canonical_uri(authority, identifier)
-    existing = next((link for link in same_as_links(db, entity_id) if link.to_id == uri), None)
+    existing = next((link for link in same_as_links(db, entity_id, link_type) if link.to_id == uri), None)
     if existing is not None:
         return existing
-    link = TypedLink(from_kind="entity", from_id=entity_id, to_kind="uri", to_id=uri, link_type=SAME_AS,
+    link = TypedLink(from_kind="entity", from_id=entity_id, to_kind="uri", to_id=uri, link_type=link_type,
                      directed=False, provenance_kind=provenance_kind, created_by=created_by,
                      certainty=certainty, note=note)
     db.save(link)
