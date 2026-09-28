@@ -114,8 +114,6 @@ struct RegionInteractionLayer: View {
     @State private var shiftHeld = false
     /// Live Reshape: the box, what is reshaped, the point being dragged, and the points as they are now.
     @State var reshapeDrag: ReshapeDrag?
-    /// The points of a polygon or baseline being drawn, in the order clicked.
-    @State var drawingPoints: [[Double]] = []
 
     var body: some View {
         GeometryReader { geo in

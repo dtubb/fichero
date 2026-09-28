@@ -1170,3 +1170,56 @@ def test_reshaping_an_anchors_path_and_point_shapes_is_the_app_s_exact_update(db
     assert after["baseline"] == path, "a shape reshape leaves the baseline alone"
     assert client.post(f"/api/actions/audit/{update.json()['audit_id']}/undo").status_code == 200
     assert client.get(f"/api/segments/{segment_id}").json()["segment"]["anchor"]["shapes"][0]["points"] == path
+
+
+FLOWS_ONTO_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.flows-onto-next-page.json"
+
+
+def test_a_flow_that_could_continue_onto_the_next_page_is_recorded_and_continuing_it_is_the_app_s_exact_calls(db, client):
+    """"Continue a Flow Here" (#5160 residue; `source.segment.flow`): a flow made on one imported Syriac
+    page is offered on the NEXT imported page by the route the picker calls (GET
+    /api/reading-orders/flows/onto/{page}); the answer is recorded for the app. Then the app's EXACT
+    continuation -- `POST /api/reading-orders/{flow}/place {segment_id, at_end: true}` for each of the
+    page's segments, in the page's order -- lands, and the flow then runs from the first page onto this
+    one, which is no longer offered. Breaks if the flow is not offered, the places do not land at the
+    end in order, or a continued flow is offered again."""
+    from fichero_server.models import DocType, Document
+
+    first_page = _import(db, SYRIAC)
+    next_page = _import(db, SYRIAC)
+    # Two pages of ONE source, in order: a flow is offered onto a later page of its own source.
+    source = Document(name="Syriac manuscript", doc_type=DocType.file)
+    db.save(source)
+    for order, page_id in enumerate((first_page, next_page), start=1):
+        page = db.get(Document, page_id)
+        page.parent_id, page.doc_type, page.sort_order = source.id, DocType.page, order
+        db.save(page)
+    route = client.get(f"/api/segments/document/{first_page}").json()
+    real = next(p for p in route["passes"] if not p["provisional"])
+    flow = client.post("/api/actions/invoke", json={"name": "reading_order.create", "params": {
+        "document_id": first_page, "pass_id": real["id"], "name": "Into the next page", "kind": "flow",
+        "seed_from_pass": True}}).json()["result"]["order_id"]
+    offered = client.get(f"/api/reading-orders/flows/onto/{next_page}").json()
+    assert [f["order"]["id"] for f in offered["flows"]] == [flow]
+
+    here = client.get(f"/api/segments/document/{next_page}").json()
+    here_pass = next(p for p in here["passes"] if not p["provisional"])
+    in_order = sorted((s for s in here["segments"] if s["pass_id"] == here_pass["id"]), key=lambda s: s["box_index"])
+    before = len(client.get(f"/api/reading-orders/{flow}/entries").json()["entries"])
+    for segment in in_order:
+        placed = client.post(f"/api/reading-orders/{flow}/place", json={"segment_id": segment["id"], "at_end": True})
+        assert placed.status_code == 200, placed.text
+    entries = client.get(f"/api/reading-orders/{flow}/entries").json()["entries"]
+    assert [e["segment_id"] for e in entries[before:]] == [s["id"] for s in in_order], "at the end, in the page's order"
+    assert client.get(f"/api/reading-orders/flows/onto/{next_page}").json()["flows"] == [], "not offered again"
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    ids = {first_page: stable_route["document_id"], next_page: "doc-0002", flow: "order-0003", source.id: "source-0001",
+           real["id"]: next(p["id"] for p in stable_route["passes"] if not p["provisional"])}
+    by_rect = {repr(s["anchor"]["rect"]): s["id"] for s in stable_route["segments"]}
+    for segment in route["segments"]:
+        ids.setdefault(segment["id"], by_rect.get(repr(segment["anchor"]["rect"]), segment["id"]))
+    recorded = _stabilizer(ids)(offered)
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        FLOWS_ONTO_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(FLOWS_ONTO_FIXTURE.read_text()) == recorded, "the app's flows-onto fixture drifted"

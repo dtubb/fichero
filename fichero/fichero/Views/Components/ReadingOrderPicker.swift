@@ -16,8 +16,10 @@ struct ReadingOrderPicker: View {
     @Environment(\.undoManager) private var undoManager
     @State private var naming: ReadingOrderChoice.NewKind?
     @State private var name = ""
-    /// Why the last step or create did nothing; cleared by the next that works.
-    @State private var note: String?
+    /// Why the last step or create did nothing, or what a continuation did; cleared by the next.
+    @State var note: String?
+    /// Flows from earlier pages (or the project) this page could continue (#5160 residue).
+    @State var flowsOnto = ReadingOrderChoice.FlowsOnto()
 
     private var shown: ReadingOrderSummary? { store.orders.first { $0.id == store.orderId } }
 
@@ -37,6 +39,7 @@ struct ReadingOrderPicker: View {
                     Divider()
                     Button("New Order…") { name = ""; naming = .named }
                     Button("New Flow…") { name = ""; naming = .flow }
+                    continueFlowMenu
                 } label: {
                     Text(shown.map(ReadingOrderChoice.title) ?? "Order")
                 }
@@ -58,6 +61,7 @@ struct ReadingOrderPicker: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
+        .task(id: documentId) { await loadFlowsOnto() }
         .alert(naming?.title ?? "", isPresented: Binding(get: { naming != nil }, set: { if !$0 { naming = nil } })) {
             TextField("Name", text: $name)
             Button("Create") {
@@ -123,6 +127,63 @@ struct ReadingOrderPicker: View {
         } catch {
             note = "No neighbour: \(error.localizedDescription)"
         }
+    }
+}
+
+/// Continue a Flow Here (#5160 residue, `source.segment.flow`): a flow ending on an earlier page of this
+/// source -- or on a source sharing a project -- takes this page's segments at its end, in the page's
+/// order, one `reading_order.place` each, grouped as ONE ⌘Z.
+extension ReadingOrderPicker {
+    @ViewBuilder
+    var continueFlowMenu: some View {
+        Divider()
+        Menu("Continue a Flow Here") {
+            if flowsOnto.flows.isEmpty {
+                Text("No flow ends before this page").foregroundStyle(.secondary)
+            }
+            ForEach(flowsOnto.flows) { candidate in
+                Button(candidate.title) { Task { await continueFlow(candidate) } }
+            }
+            if let withheld = SegmentsGathered.withheldNote(flowsOnto.withheld) {
+                Text(withheld).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    func loadFlowsOnto() async {
+        guard let service else { return }
+        flowsOnto = (try? await service.flowsOnto(documentId: documentId)) ?? ReadingOrderChoice.FlowsOnto()
+    }
+
+    private func continueFlow(_ candidate: ReadingOrderChoice.ContinuableFlow) async {
+        guard let service, let segmentService, let actionsService = actionStore?.actionsService else { return }
+        let store = SegmentStore.shared(for: segmentService)
+        guard let shown = SegmentDisplay.selected(for: documentId, store: store) else {
+            note = "This page has no segments to continue the flow with."
+            return
+        }
+        let ids = ReadingOrderChoice.continuation(of: store.segments(documentId: documentId), onPass: shown.passId)
+        let undoManager = undoManager
+        undoManager?.beginUndoGrouping()
+        defer {
+            undoManager?.endUndoGrouping()
+            undoManager?.setActionName("Continue Flow")
+        }
+        var placed = 0
+        do {
+            for id in ids {
+                let auditId = try await service.placeAtEnd(orderId: candidate.order.id, segmentId: id)
+                ActionUndo.register(
+                    auditId: auditId, actionName: "Continue Flow", undoManager: undoManager,
+                    performUndo: { try await actionsService.undoAction(auditId: $0).auditId }
+                )
+                placed += 1
+            }
+            note = "Continued “\(candidate.order.name)” onto this page: \(placed) segment\(placed == 1 ? "" : "s")."
+        } catch {
+            note = "The flow was continued with \(placed) of \(ids.count) segments: \(error.localizedDescription)"
+        }
+        await loadFlowsOnto()
     }
 }
 

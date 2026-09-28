@@ -467,6 +467,8 @@ extension ZoomableImagePreview {
 
     /// Esc: everything ephemeral goes — add mode, marquees, selection.
     func clearEphemeralRegionState() {
+        // Escape during a polygon or baseline drawing abandons just the drawing, nothing else.
+        if windowState?.abandonDrawing() == true { return }
         isAddingRegion = false
         windowState?.previewMarquees.clear()
         regionSelection.clear()

@@ -49,6 +49,30 @@ enum ReadingOrderChoice {
         forward ? neighbours.next : neighbours.previous
     }
 
+    /// A flow this page could continue: which, where it ends, and how it relates to this page.
+    struct ContinuableFlow: Equatable, Identifiable {
+        let order: ReadingOrderSummary
+        let lastPageId: String?
+        /// "earlier page" (of this source) or "same project".
+        let relation: String
+        var id: String { order.id }
+        var title: String { "\(order.name) (\(relation))" }
+    }
+
+    struct FlowsOnto: Equatable {
+        var flows: [ContinuableFlow] = []
+        /// Flows on pages this reader may not read, left out and counted.
+        var withheld = 0
+    }
+
+    /// What continuing a flow here places at its end: the page's segments on the shown pass, in the
+    /// page's own order (the order the canvas numbers them), each once.
+    static func continuation(of segments: [Segment], onPass passId: String) -> [String] {
+        segments.filter { $0.passId == passId && !$0.provisional }
+            .sorted { ($0.boxIndex ?? .max, $0.id) < ($1.boxIndex ?? .max, $1.id) }
+            .map(\.id)
+    }
+
     /// How an order is listed in the picker: its name, and what kind of claim it makes.
     static func title(_ order: ReadingOrderSummary) -> String {
         switch order.kind {

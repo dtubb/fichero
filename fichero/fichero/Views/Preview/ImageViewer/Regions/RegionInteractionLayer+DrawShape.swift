@@ -2,9 +2,16 @@ import SwiftUI
 
 /// The Shape tool's polygon and baseline in Edit Segments (`source.editor.draw-shapes`): each click adds
 /// a point; for a polygon a click on the first point closes it, and for either a double-click finishes.
-/// The finished points go to the host (`onDrawShapeCommit`), which makes the segment with ⌘Z. A box is
+/// Escape abandons it (`WindowState.abandonDrawing`). The finished points go to the host
+/// (`onDrawShapeCommit`), which makes the segment with ⌘Z. A box is
 /// still the band's drag, unchanged: this takes no event while the tool draws boxes.
 extension RegionInteractionLayer {
+    /// The drawing so far, kept on the window so Escape can abandon it (`WindowState.abandonDrawing`).
+    var drawingPoints: [[Double]] {
+        get { windowState?.drawingPoints ?? [] }
+        nonmutating set { windowState?.drawingPoints = newValue }
+    }
+
     /// True when the event belongs to a polygon or baseline drawing (so nothing else acts on it).
     func handleDrawShape(_ event: PreviewPointerEvent, in size: CGSize) -> Bool {
         guard onDrawShapeCommit != nil, drawsSegments, isAddingRegion, drawKind != .box else {

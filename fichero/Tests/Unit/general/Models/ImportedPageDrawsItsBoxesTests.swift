@@ -84,6 +84,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         /// What `POST /api/locations/resolve` answers, and the body it was sent (#5164).
         nonisolated(unsafe) static var resolveReply = Data()
         nonisolated(unsafe) static var resolveRequests: [Data] = []
+        /// What `GET /api/reading-orders/flows/onto/{page}` answers (#5160 residue).
+        nonisolated(unsafe) static var flowsOntoReply = Data()
         /// What `GET /api/reading-orders/{id}/neighbours` answers, and the query it was asked (#5160).
         nonisolated(unsafe) static var neighboursReply = Data()
         nonisolated(unsafe) static var neighboursQuery: String?
@@ -151,6 +153,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 actionBody = Self.rightsReply
             } else if path.hasPrefix("/api/segments/"), path.hasSuffix("/statements") {
                 actionBody = Self.statementsReply
+            } else if path.hasPrefix("/api/reading-orders/flows/onto/") {
+                actionBody = Self.flowsOntoReply
             } else if path.hasPrefix("/api/reading-orders/document/") {
                 actionBody = Self.ordersReply
             } else if path == "/api/formats" {
@@ -229,6 +233,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             statementsReply = Data()
             ordersReply = Data()
             neighboursReply = Data()
+            flowsOntoReply = Data()
             resolveReply = Data()
             formatsReply = Data()
             exportReply = Data()
@@ -1333,7 +1338,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
     /// imported Syriac page: the choices are built from what the engine WRITES (a text pass is offered
     /// the text formats, a georeferencing pass only the georeference ones); exporting the pass the
     /// person picked sends its id (`pass_id`) and the engine says it exported that pass; the file is
-    /// named for its format even where the engine's name is not (hOCR as `.hocr`); and "as imported"
+    /// named for its format by the engine (hOCR as `.hocr`); and "as imported"
     /// is the original file byte for byte (its SHA-256 is the file's). Breaks if a written format is
     /// missing, the wrong pass is exported, or "as imported" is anything but the file.
     func testExportChoicesOfferWhatTheEngineWritesPerPassAndAsImportedIsTheFile() async throws {
@@ -1359,10 +1364,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(RecordedEngine.exportRequest?.path, "/api/documents/doc-0001/export/hocr")
         XCTAssertEqual(RecordedEngine.exportRequest?.query, "pass_id=pass-0002", "the pass the person picked")
         XCTAssertEqual(result.choices.passId, "pass-0002")
-        XCTAssertEqual(PageExportChoice.filename(engine: result.filename, format: hocr),
-                       "escriptorium_syriac_onb-syr1-0001.page.hocr", "named for what it is")
-        let pagexml = try XCTUnwrap(formats.first { $0.name == "pagexml" })
-        XCTAssertEqual(PageExportChoice.filename(engine: "a.page.xml", format: pagexml), "a.page.xml", "the engine's name kept")
+        XCTAssertEqual(result.filename, "escriptorium_syriac_onb-syr1-0001.page.hocr",
+                       "the engine names the file for its format, and the app saves it under that name")
 
         let fetched = try await SegmentService(ficheroClient: client).original(passId: "pass-0002")
         let original = try XCTUnwrap(fetched)
@@ -1675,6 +1678,40 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         assertClose(shapes[0]["points"], movedPath)
         assertClose(shapes[1]["points"], [[0.9, 0.62]], "the other shape as it was")
         assertClose(anchor["polygon"], try XCTUnwrap(line.anchor.polygon), "the outline carried")
+    }
+
+    /// "Continue a Flow Here" end to end (#5160 residue, `source.segment.flow`), over the recorded answer
+    /// for the second of two pages of one Syriac source, with a flow made on the first: the picker is
+    /// offered that flow as ending on an earlier page; continuing it places THIS page's segments at the
+    /// flow's end, in the page's own order, one `POST …/place {segment_id, at_end: true}` each -- the exact
+    /// calls the recorder proved land and stop the flow being offered again. Breaks if the flow is not
+    /// offered, a segment is placed out of order or twice, or a place is not at the end.
+    func testAFlowFromAnEarlierPageIsOfferedAndContinuingItPlacesThisPagesSegmentsAtTheEnd() async throws {
+        let store = try await loadedStore()
+        RecordedEngine.flowsOntoReply = try Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.flows-onto-next-page.json")
+        )
+        let service = ReadingOrderService(ficheroClient: try XCTUnwrap(storeClient))
+        let offered = try await service.flowsOnto(documentId: "doc-0002")
+        XCTAssertEqual(offered.flows.map(\.title), ["Into the next page (earlier page)"])
+        XCTAssertEqual(offered.flows.first?.lastPageId, "doc-0001")
+        XCTAssertEqual(offered.withheld, 0)
+
+        let shown = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
+        let segments = store.segments(documentId: "doc-0001")
+        let ids = ReadingOrderChoice.continuation(of: segments, onPass: shown.passId)
+        XCTAssertEqual(ids.count, 16)
+        XCTAssertEqual(ids, segments.filter { $0.passId == shown.passId }
+            .sorted { ($0.boxIndex ?? 0) < ($1.boxIndex ?? 0) }.map(\.id), "the page's own order")
+        XCTAssertEqual(Set(ids).count, ids.count, "each segment once")
+
+        RecordedEngine.placed = []
+        for id in ids.prefix(2) {
+            _ = try await service.placeAtEnd(orderId: "order-0003", segmentId: id)
+        }
+        let sent = try RecordedEngine.placed.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
+        XCTAssertEqual(sent.compactMap { $0["segment_id"] as? String }, Array(ids.prefix(2)))
+        XCTAssertEqual(sent.compactMap { $0["at_end"] as? Bool }, [true, true], "at the flow's end")
     }
 
     /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the

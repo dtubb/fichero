@@ -49,15 +49,4 @@ enum PageExportChoice {
             .filter { $0.writes && georeferenceFormats.contains($0.name) == georeferencing }
             .sorted { (order.firstIndex(of: $0.name) ?? order.count, $0.name) < (order.firstIndex(of: $1.name) ?? order.count, $1.name) }
     }
-
-    /// The file's name: the engine's, when its extension is one the format declares; otherwise the
-    /// engine's name with its last extension replaced by the format's own (the engine names an hOCR or
-    /// YOLO file `.xml`, which neither is).
-    static func filename(engine: String, format: Format) -> String {
-        let lower = engine.lowercased()
-        if format.extensions.contains(where: { lower.hasSuffix($0.lowercased()) }) { return engine }
-        guard let usual = format.extensions.first else { return engine }
-        let stem = (engine as NSString).deletingPathExtension
-        return (stem.isEmpty ? "page" : stem) + usual
-    }
 }
