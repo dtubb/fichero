@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import action_context
 from fichero_server.api.library_header import require_library_path
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import get_library_database, get_library_database_for_write, readable_rows
 from fichero_server.db import Database
 from fichero_server.core.naturalsort import natural_key
 from fichero_server.models.knowledge import Milestone
@@ -135,10 +135,11 @@ async def create_bookmark(
 async def list_bookmarks(
     parent_id: str | None = Query(None, description="Filter by parent bookmark container"),
     db: Database = Depends(get_library_database),
+    readable=Depends(readable_rows),
 ) -> DocumentListResponse:
     """List bookmark nodes."""
-    items = list_bookmarks_impl(db, parent_id=parent_id)
-    return DocumentListResponse(items=items, count=len(items))
+    items, withheld = readable(list_bookmarks_impl(db, parent_id=parent_id))
+    return DocumentListResponse(items=items, count=len(items), withheld=withheld)
 
 
 @router.get("/{bookmark_id}/resolve", response_model=Document)

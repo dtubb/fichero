@@ -1644,6 +1644,26 @@ def readable_documents(request: Request | None, library_path: str | None, scope:
     return [doc_id for doc_id in scope if authz.can_read(user, library_path, doc_id)]
 
 
+def readable_rows(
+    request: Request,
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+):
+    """A dependency for every route that lists DOCUMENT rows (#5180): `keep(rows)` answers the
+    rows this caller may read, in order, and how many were left out. A per-document deny reaches a
+    listing as it reaches a read; a list is filtered and counted, never refused wholesale (#5135).
+
+    ponytail: one `can_read` per row -- free when multi-user is off or the caller has no override
+    (authz answers before any lookup); an ancestor walk per row otherwise. Batch the walk if a
+    large library with overrides shows it."""
+
+    def keep(rows: list) -> tuple[list, int]:
+        allowed = set(readable_documents(request, x_fichero_library_path, [row.id for row in rows]))
+        kept = [row for row in rows if row.id in allowed]
+        return kept, len(rows) - len(kept)
+
+    return keep
+
+
 # Health check endpoint
 @app.get("/api/clients", response_model=client_presence.ConnectedClientsResponse)
 async def connected_clients():

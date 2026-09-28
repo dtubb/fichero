@@ -26,7 +26,7 @@ import fichero_server.api.main as api_main
 from fichero_server.models import Artifact, ContentRepresentation, DocType, Document, Rendition
 from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.hands import Hand, HandAttribution
-from fichero_server.models.knowledge import Annotation, DocumentCitation, Note, ProvenanceKind
+from fichero_server.models.knowledge import Annotation, Note, ProvenanceKind, SourceMetadata
 from fichero_server.models.reading_orders import ReadingOrder
 from fichero_server.models.signs import DeclaredSign
 from fichero_server.models.typed_links import TypedLink
@@ -79,6 +79,7 @@ NOT_ON_A_PAGE = {
 #: `*_ids` lists: a list route filters and counts; it is never a blanket 403.
 FILTERED_LISTS = {
     "document_ids": "test_a_list_of_documents_leaves_out_the_denied_one",
+    "ids": "test_every_listing_of_documents_leaves_out_a_denied_one",
 }
 
 #: GET routes that take an id and do not read the library through the library dependency, with why.
@@ -105,7 +106,9 @@ APP_LEVEL = {
 
 
 def _is_id(name: str) -> bool:
-    return name == "id" or name.endswith("_id") or name.endswith("_ids")
+    # `ids` too: `GET /api/documents?ids=` is a list of documents by a name `*_ids` does not match,
+    # and it was missed by this guard until #5180's follow-up.
+    return name in ("id", "ids") or name.endswith("_id") or name.endswith("_ids")
 
 
 def _depends_on(route: APIRoute) -> set[str]:
@@ -139,7 +142,7 @@ def problems(routes, on_a_page, not_on_a_page, filtered_lists, app_level) -> lis
         if path not in app_level and not checked:
             found.append(f"{path} takes an id but never reaches the library read check")
         for name in path_ids + query_ids:
-            if name.endswith("_ids"):
+            if name == "ids" or name.endswith("_ids"):
                 if name not in filtered_lists:
                     found.append(f"{path} takes the list {name!r}: filter it (readable_documents) and declare it")
             elif name not in on_a_page and name not in not_on_a_page:
@@ -198,17 +201,9 @@ def _page_records(db, doc) -> dict[str, str]:
             "bookmark_id": bookmark.id, "interpretation_id": interpretation.id}
 
 
-#: Swept-shaped routes the sweep leaves out, with why.
-UNREACHABLE = {
-    # `/document/{document_id}` is registered first and takes `<id>.bib` as its id, so this route is
-    # never reached (it answers 404 for every document, denied or not). Reported with #5180.
-    "/api/citations/document/{document_id}.bib": "shadowed by /api/citations/document/{document_id}",
-}
-
-
 def _swept_routes() -> list[str]:
     return sorted(path for path, path_ids, _q, _c in get_routes()
-                  if path_ids and all(name in ON_A_PAGE for name in path_ids) and path not in UNREACHABLE)
+                  if path_ids and all(name in ON_A_PAGE for name in path_ids))
 
 
 def _url(path: str, ids: dict[str, str]) -> str:
@@ -255,13 +250,11 @@ def test_a_second_id_on_a_denied_page_is_refused_after_an_allowed_first(denied_a
 
 def test_a_list_of_documents_leaves_out_the_denied_one(denied_and_allowed, db):
     client, headers, denied, allowed = denied_and_allowed
-    for doc, title in ((denied, "A Secret Letter"), (allowed, "An Open Letter")):
-        doc.metadata = {**(doc.metadata or {}), "title": title}
-        db.save(doc)
-        db.save(DocumentCitation(source_document_id=doc.id, target_citation_text=title))
+    _cite(db, denied, "A Secret Letter"), _cite(db, allowed, "An Open Letter")
     bib = client.get("/api/citations/export", params={"document_ids": [denied.id, allowed.id]}, headers=headers)
     assert bib.status_code == 200
-    assert "Secret" not in bib.text and bib.headers["X-Fichero-Withheld-Documents"] == "1"
+    assert "Secret" not in bib.text and "Open Letter" in bib.text
+    assert bib.headers["X-Fichero-Withheld-Documents"] == "1"
     segments = client.get("/api/segments", params={"document_ids": f"{denied.id},{allowed.id}"}, headers=headers)
     assert segments.status_code == 200 and segments.json()["withheld_documents"] == 1
 
@@ -297,3 +290,46 @@ def test_a_bookmark_to_a_denied_page_does_not_hand_it_over(denied_and_allowed, d
                         prototype_key="bookmark")
         db.save(bookmark)
         assert client.get(f"/api/bookmarks/{bookmark.id}/resolve", headers=headers).status_code == expected
+
+
+def _cite(db, doc, title):
+    doc.source_metadata = SourceMetadata(title=title).model_dump(mode="json")   # the field stores a dict
+    db.save(doc)
+
+
+def test_the_bibtex_download_of_one_document_answers(denied_and_allowed, db):
+    """`/document/{id}.bib` was registered after `/document/{id}`, which took `<id>.bib` as an id:
+    every download answered 404. It answers now -- and a denied page's is refused like any read."""
+    client, headers, denied, allowed = denied_and_allowed
+    _cite(db, denied, "A Secret Letter"), _cite(db, allowed, "An Open Letter")
+    bib = client.get(f"/api/citations/document/{allowed.id}.bib", headers=headers)
+    assert bib.status_code == 200 and "Open Letter" in bib.text and bib.text.lstrip().startswith("@")
+    assert client.get(f"/api/citations/document/{denied.id}.bib", headers=headers).status_code == 403
+    styled = client.get(f"/api/citations/document/{allowed.id}", headers=headers)   # its neighbour still answers
+    assert styled.status_code == 200 and styled.json()["document_id"] == allowed.id
+
+
+def test_every_listing_of_documents_leaves_out_a_denied_one(denied_and_allowed, multiuser_client, app_db, users, db):
+    """`GET /api/documents` listed a denied document (#5180 follow-up), and so did every list of
+    document rows: roots, a folder's children, a page's ancestors, bookmarks, trash."""
+    client, headers, denied, allowed = denied_and_allowed
+    folder = Document(name="letters", doc_type=DocType.folder)
+    db.save(folder)
+    inside_denied = Document(name="secret child", doc_type=DocType.file, parent_id=folder.id)
+    inside_allowed = Document(name="open child", doc_type=DocType.file, parent_id=folder.id)
+    db.save(inside_denied), db.save(inside_allowed)
+    _override(app_db, users.editor, multiuser_client[2], inside_denied.id, "deny")
+
+    def names(url, **params):
+        response = client.get(url, params=params, headers=headers)
+        assert response.status_code == 200, (url, response.text[:200])
+        body = response.json()
+        return {item["name"] for item in body["items"]}, body["withheld"]
+
+    listed, withheld = names("/api/documents")
+    assert "denied.jpg" not in listed and "secret child" not in listed and "allowed.jpg" in listed
+    assert withheld == 2
+    assert names("/api/documents", ids=f"{denied.id},{allowed.id}") == ({"allowed.jpg"}, 1)
+    roots, withheld = names("/api/documents/roots")
+    assert "denied.jpg" not in roots and "allowed.jpg" in roots and withheld == 1
+    assert names(f"/api/documents/{folder.id}/children") == ({"open child"}, 1)

@@ -83,6 +83,26 @@ def _metadata_for_document(db: Database, document_id: str):
     return None
 
 
+# Registered BEFORE `/document/{document_id}`: that route takes `<id>.bib` as a document id, and
+# while it came first this one was never reached -- every `.bib` download answered 404 (#5180).
+@router.get(
+    "/document/{document_id}.bib",
+    response_class=PlainTextResponse,
+    summary="Download a single document's BibTeX entry as text",
+)
+async def cite_document_bibtex(
+    document_id: str,
+    db: Database = Depends(get_library_database),
+) -> str:
+    meta = _metadata_for_document(db, document_id)
+    if meta is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No SourceMetadata found for document {document_id}",
+        )
+    return _render("bibtex", meta)
+
+
 @router.get(
     "/document/{document_id}",
     response_model=CitationResponse,
@@ -107,24 +127,6 @@ async def cite_document(
         text=_render(style, meta),
         document_id=document_id,
     )
-
-
-@router.get(
-    "/document/{document_id}.bib",
-    response_class=PlainTextResponse,
-    summary="Download a single document's BibTeX entry as text",
-)
-async def cite_document_bibtex(
-    document_id: str,
-    db: Database = Depends(get_library_database),
-) -> str:
-    meta = _metadata_for_document(db, document_id)
-    if meta is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No SourceMetadata found for document {document_id}",
-        )
-    return _render("bibtex", meta)
 
 
 @router.get(
