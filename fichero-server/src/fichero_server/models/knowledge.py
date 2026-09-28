@@ -623,10 +623,28 @@ class EvidentialPlace(BaseModel):
     source_excerpt: str | None = None
     #: A geometry ADOPTED from a map (maps D8, `source.geo.boundary-from-map`): the boundary segment
     #: it was worked out from and the georeferencing pass (so, the transformation) that placed it.
-    source_segment_id: str | None = None
-    source_pass_id: str | None = None
+    adopted_from_segment_id: str | None = Field(default=None, description=(
+        "The boundary Segment (a real `Segment` record id) whose worked-out world shape this "
+        "geometry was adopted from (`entity.adopt_boundary`). NOT the claims' legacy "
+        "`source_segment_id`, which names an entry in a segmentation artifact."))
+    adopted_from_pass_id: str | None = Field(default=None, description=(
+        "The georeferencing SegmentPass whose transformation placed the adopted shape."))
     rationale: str | None = None
     created_by: str = "extractor"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _adopted_from_earlier_names(cls, data):
+        """The two fields were first written (maps D8, 68100f206) as `source_segment_id` and
+        `source_pass_id` -- the first a name the claims' legacy artifact field already uses for
+        something else. A place stored under those names reads back under the new ones."""
+        if isinstance(data, dict) and ("source_segment_id" in data or "source_pass_id" in data):
+            data = dict(data)
+            for old, new in (("source_segment_id", "adopted_from_segment_id"), ("source_pass_id", "adopted_from_pass_id")):
+                if old in data:
+                    value = data.pop(old)
+                    data.setdefault(new, value)
+        return data
 
 
 class AttributionStep(BaseModel):

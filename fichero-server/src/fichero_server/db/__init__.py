@@ -971,6 +971,17 @@ class EmbedOutcome:
         return self.reason in self.INFRASTRUCTURE_REASONS
 
 
+
+def _opening_caller() -> str:
+    """The first frame outside the database layer: who asked for this transaction."""
+    import traceback
+
+    for frame in reversed(traceback.extract_stack(limit=16)[:-2]):
+        path = frame.filename.replace("\\", "/")
+        if "/fichero_server/db/" not in path and "/contextlib.py" not in path:
+            return f"{path.rsplit('/fichero_server/', 1)[-1]}:{frame.lineno} {frame.name}"
+    return "unknown"
+
 class Database(DatabaseEmbeddingMixin):
     """Simple Pythonic wrapper for DuckDB + LanceDB."""
 
@@ -1000,6 +1011,10 @@ class Database(DatabaseEmbeddingMixin):
         self._lock = threading.RLock()
         self._transaction_gate = threading.RLock()
         self._tx_state = threading.local()
+        #: The transaction open on this connection now, if any: (monotonic start, thread name, the
+        #: caller that opened it). Transactions are serialised by the gate, so there is at most one.
+        #: Read by whatever has to wait for it (a snapshot, #5185) to say WHO it is waiting for.
+        self._open_transaction: tuple[float, str, str] | None = None
         # Dedicated READ connection for latency-critical GET paths (#4523).
         # conn.cursor() is a second DuckDB connection over the same database
         # instance: it reads last-COMMITTED state under MVCC and never queues
@@ -1631,6 +1646,15 @@ class Database(DatabaseEmbeddingMixin):
                         time.sleep(delay)
                 raise RuntimeError("DuckDB execution retry loop exited unexpectedly")
 
+    def open_transaction(self) -> str | None:
+        """The transaction open on this connection, in words, or None: which thread, what opened it,
+        for how long. What a snapshot refused as busy names (#5185)."""
+        held = self._open_transaction
+        if held is None:
+            return None
+        started, thread, caller = held
+        return f"a transaction opened by {caller} on thread {thread!r}, open {time.monotonic() - started:.1f}s"
+
     @property
     def in_transaction(self) -> bool:
         return getattr(self._tx_state, "depth", 0) > 0
@@ -1682,6 +1706,7 @@ class Database(DatabaseEmbeddingMixin):
                 with self._lock:
                     self.conn.execute("BEGIN TRANSACTION")
             self._tx_state.started = True
+            self._open_transaction = (time.monotonic(), threading.current_thread().name, _opening_caller())
         except Exception:
             self._transaction_gate.release()
             raise
@@ -1743,6 +1768,7 @@ class Database(DatabaseEmbeddingMixin):
                 self._tx_state.started = False
                 self._tx_state.rollback_only = False
                 if started:
+                    self._open_transaction = None
                     self._transaction_gate.release()
                 for hook in hooks:
                     hook()

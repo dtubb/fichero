@@ -97,3 +97,61 @@ def test_the_route_answers_409_with_the_reason_not_500(busy_library, monkeypatch
     assert response.json()["detail"]["reason"] == "library_busy"
     other.execute("COMMIT")
     assert db.get(Document, "doc-1").name == "the write"
+
+
+
+def _managed_job(db, hold: threading.Event, started: threading.Event):
+    """The engine's own unit of work on another thread (an audited action, a background job): a
+    transaction on the SHARED connection, holding its gate from BEGIN to COMMIT."""
+    def run():
+        with db.transaction():
+            doc = db.get(Document, "doc-2")
+            doc.name = "written by the job"
+            db.save(doc)
+            started.set()
+            hold.wait(10)
+    job = threading.Thread(target=run, name="background-job")
+    job.start()
+    started.wait(5)
+    return job
+
+
+def test_a_managed_transaction_is_waited_for_not_checkpointed_inside(busy_library):
+    """The sibling the live engine found (#5185 follow-up): holding only the connection's statement
+    lock let the snapshot's CHECKPOINT run INSIDE another thread's open transaction -- "the current
+    transaction has transaction local changes", a 500. The snapshot now waits for the job's gate."""
+    db, path, other = busy_library
+    other.execute("COMMIT")                                   # only the managed job is writing now
+    db.save(Document(id="doc-2", name="before", page_content="y"))
+    hold, started = threading.Event(), threading.Event()
+    job = _managed_job(db, hold, started)
+    threading.Timer(0.3, hold.set).start()
+    snapshot = storage_snapshots.snapshot_library(str(path), reason="during the job")
+    job.join()
+    root = storage_snapshots.settings.snapshots_dir / snapshot.duckdb_path / "fichero.duckdb"
+    conn = connect_utc(str(root), read_only=True)
+    try:
+        name = conn.execute(f"SELECT name FROM {db._table_name(Document)} WHERE id = 'doc-2'").fetchone()[0]
+    finally:
+        conn.close()
+    assert name == "written by the job"                       # the job committed, then the copy
+    assert db.get(Document, "doc-2").name == "written by the job"
+
+
+def test_a_managed_transaction_held_past_the_wait_is_named_in_the_refusal(busy_library, monkeypatch):
+    db, path, other = busy_library
+    other.execute("COMMIT")
+    db.save(Document(id="doc-2", name="before", page_content="y"))
+    monkeypatch.setattr(storage_snapshots, "SNAPSHOT_WRITE_WAIT_S", 0.3)
+    hold, started = threading.Event(), threading.Event()
+    job = _managed_job(db, hold, started)
+    try:
+        with pytest.raises(SnapshotBusy) as refused:
+            storage_snapshots.snapshot_library(str(path), reason="held too long")
+    finally:
+        hold.set()
+        job.join()
+    message = str(refused.value)
+    # WHO: the thread and the code that opened the transaction -- the evidence a busy snapshot needs.
+    assert "'background-job'" in message and "test_a_snapshot_waits_for_a_write.py:" in message and "open" in message
+    assert db.get(Document, "doc-2").name == "written by the job"         # the job's write stands

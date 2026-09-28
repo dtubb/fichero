@@ -67,7 +67,7 @@ def test_a_boundary_drawn_on_the_map_becomes_the_places_dated_geometry(db, clien
     adopted = _invoke(client, "entity.adopt_boundary", {"entity_id": grounds.id, "segment_id": boundary})
     [place] = db.get(KnowledgeEntity, grounds.id).place_values
     assert place.geojson == shape["geometry"] and place.geometry_type.value == "region"
-    assert (place.source_segment_id, place.source_pass_id, place.source_document_id) == (boundary, georef.id, doc_id)
+    assert (place.adopted_from_segment_id, place.adopted_from_pass_id, place.source_document_id) == (boundary, georef.id, doc_id)
     assert place.precision_m == shape["error_m"] and place.basis.value == "source_anchored"
     assert (place.when.start, place.when.end) == ("1889-05-06", "1889-10-31") and adopted["result"]["dated"] is True
     # As of a date: there in 1889, not before or after -- the map's date, not the print's nor today's.
@@ -127,3 +127,32 @@ def test_a_library_from_before_the_column_opens_and_gains_it(tmp_path):
     back.depicts = EvidentialDateRange(start="1889", end="1889", basis="asserted")
     second.save(back)
     assert second.get(SegmentPass, row.id).depicts.start == "1889"
+
+
+
+def test_a_place_stored_under_the_first_names_reads_back_under_the_new_ones(tmp_path):
+    """D8 first stored the segment and pass as `source_segment_id` / `source_pass_id`; the first is
+    the claims' legacy ARTIFACT-entry field's name, so it was renamed (a Segment record id must not
+    share it). A place written under the old names -- the file as that build left it -- reads back
+    under the new ones, the values intact."""
+    import duckdb
+
+    from fichero_server.db import Database
+    from fichero_server.models.knowledge import EvidentialPlace
+
+    path = tmp_path / "d8.duckdb"
+    first = Database(path)
+    entity = KnowledgeEntity(canonical_name="grounds", entity_type=EntityType.location,
+                             place_values=[EvidentialPlace(label="grounds", basis="source_anchored",
+                                                           adopted_from_segment_id="seg-1", adopted_from_pass_id="pass-1")])
+    first.save(entity)
+    table = first._table_name(KnowledgeEntity)
+    first.close()
+    conn = duckdb.connect(str(path))
+    [raw] = json.loads(conn.execute(f"SELECT place_values FROM {table} WHERE id = ?", [entity.id]).fetchone()[0])
+    raw["source_segment_id"], raw["source_pass_id"] = raw.pop("adopted_from_segment_id"), raw.pop("adopted_from_pass_id")
+    conn.execute(f"UPDATE {table} SET place_values = ? WHERE id = ?", [json.dumps([raw]), entity.id])
+    conn.close()
+    [place] = Database(path).get(KnowledgeEntity, entity.id).place_values
+    assert (place.adopted_from_segment_id, place.adopted_from_pass_id) == ("seg-1", "pass-1")
+    assert "source_segment_id" not in place.model_dump()
