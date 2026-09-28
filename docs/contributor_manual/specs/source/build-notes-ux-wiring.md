@@ -133,7 +133,8 @@ Page From…. Every edit below should undo with ⌘Z and redo with ⇧⌘Z.
     any zoom; a line with no reading is dashed. (Reshaping stays on image pages for now.)
 33. **A drawn line lands in its region.** Edit Segments ▸ Shape ▸ Baseline: draw a line inside a region,
     just under its last line. *Should:* the Inspector's path reads **Page › Region › Line**, and the Order
-    list shows it as that region's last line; ONE ⌘Z removes it from both. Draw one on blank margin
+    list shows it as that region's last line (one drawn between two lines goes between them); ONE ⌘Z
+    removes it from both, and ⇧⌘Z puts it back in the same place. Draw one on blank margin
     outside every region: the path reads **Page › Line**, and it is not put in any region.
 34. **A direction reaches the Reader at once** (#5171). With the Reader open beside the Source view,
     select a line and use the Segment menu (or the Inspector) to set **Right to Left**. *Should:* the

@@ -1345,8 +1345,64 @@ def test_a_line_drawn_inside_a_region_is_that_region_s_line_in_its_order_and_one
     assert lines_after == lines_before + [drawn_id], "region 2's last line, in the order"
     assert drawn_id not in [e.segment_id for e in entries_in_sequence(db, order.id)], "not beside the regions"
 
-    assert client.post(f"/api/actions/audit/{made.json()['audit_id']}/undo").status_code == 200
+    placed = next(e for e in db.query(ReadingOrderEntry, order_id=order.id) if e.segment_id == drawn_id)
+    export = lambda: client.get(f"/api/documents/{doc_id}/export/pagexml", params={"pass_id": real["id"]}).json()["content"]  # noqa: E731
+    assert drawn_id in export(), "the export names the drawn line while it is there"
+
+    undo = client.post(f"/api/actions/audit/{made.json()['audit_id']}/undo")
+    assert undo.status_code == 200, undo.text
     left = {s["id"] for s in client.get(f"/api/segments/document/{doc_id}").json()["segments"]}
     assert drawn_id not in left
+    # The undo takes the place out of the ORDER itself, not only out of one route's listing: every reader
+    # of the order (export, flows, neighbours, the next/previous walk, the Reader's line map) reads this table.
+    assert db.query(ReadingOrderEntry, segment_id=drawn_id) == [], "no row left for a segment that is gone"
     listed = client.get(f"/api/reading-orders/{order.id}/entries", params={"parent_entry_id": region_entry.id}).json()
     assert [e["segment_id"] for e in listed["entries"]] == lines_before, "one undo takes the line and its place"
+    assert drawn_id not in export(), "nor does the PAGE export name it"
+
+    redo = client.post(f"/api/actions/audit/{undo.json()['audit_id']}/undo")
+    assert redo.status_code == 200, redo.text
+    back = db.query(ReadingOrderEntry, segment_id=drawn_id)
+    assert [(e.id, e.order_id, e.position, e.parent_entry_id) for e in back] == [
+        (placed.id, placed.order_id, placed.position, placed.parent_entry_id)], "redo puts the entry back where it was"
+    assert [e.segment_id for e in entries_in_sequence(db, order.id, parent_entry_id=region_entry.id)] == lines_before + [drawn_id]
+
+
+def test_a_deleted_region_leaves_the_order_and_its_undo_puts_it_back_in_its_place(db, client):
+    """The same class for `segment.delete` itself: deleting region 2 of the imported Syriac page takes its
+    entry out of the as-written order -- the PAGE export's `<ReadingOrder>` no longer names it -- and one
+    undo writes the SAME entry back (id, position, level), so its lines' entries, nested under it, are in
+    the walk again. Breaks if a delete leaves a ghost row every reader of the order would meet, or its undo
+    brings the region back at another place or none."""
+    from fichero_server.api.routes.document.reading_orders import as_written_order, entries_in_sequence
+    from fichero_server.models.reading_orders import ReadingOrderEntry
+
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    order = as_written_order(db, real["id"])
+    top = entries_in_sequence(db, order.id)
+    entry = top[1]
+    region = client.get(f"/api/segments/{entry.segment_id}").json()["segment"]
+    lines = [e.segment_id for e in entries_in_sequence(db, order.id, parent_entry_id=entry.id)]
+    assert lines, "region 2 has lines in the order"
+
+    def reading_order_refs() -> list[str]:
+        content = client.get(f"/api/documents/{doc_id}/export/pagexml", params={"pass_id": real["id"]}).json()["content"]
+        tree = etree.fromstring(content.encode("utf-8"))
+        return [el.get("regionRef") for el in tree.iter() if el.get("regionRef")]
+
+    refs_before = reading_order_refs()
+    deleted = client.post("/api/actions/invoke", json={"name": "segment.delete", "params": {
+        "segment_ids": [region["id"]], "expected_versions": {region["id"]: region["version"]}}})
+    assert deleted.status_code == 200, deleted.text
+    assert db.query(ReadingOrderEntry, segment_id=region["id"]) == []
+    assert region["id"] not in [e.segment_id for e in entries_in_sequence(db, order.id)]
+    assert len(reading_order_refs()) == len(refs_before) - 1, "<ReadingOrder> names one region fewer"
+
+    undo = client.post(f"/api/actions/audit/{deleted.json()['audit_id']}/undo")
+    assert undo.status_code == 200, undo.text
+    assert [(e.id, e.position, e.parent_entry_id) for e in entries_in_sequence(db, order.id)] == [
+        (e.id, e.position, e.parent_entry_id) for e in top], "back at its own place, the same row"
+    assert [e.segment_id for e in entries_in_sequence(db, order.id, parent_entry_id=entry.id)] == lines
+    assert reading_order_refs() == refs_before

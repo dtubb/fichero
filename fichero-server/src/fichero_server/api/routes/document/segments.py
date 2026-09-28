@@ -1387,7 +1387,10 @@ def _invert_segment_delete(before, after, ctx: ActionContext):
     versions = after.get("versions")
     if not versions:
         return None
-    return ("segment.undelete", {"segment_ids": list(versions.keys())})
+    params: dict = {"segment_ids": list(versions.keys())}
+    if after.get("order_entries"):
+        params["order_entries"] = after["order_entries"]
+    return ("segment.undelete", params)
 
 
 @action(
@@ -1445,18 +1448,34 @@ def _action_segment_delete(db: Database, params: SegmentDeleteParams, ctx: Actio
         ))
         document_ids.add(row.document_id)
         pass_ids.add(row.pass_id)
+    from fichero_server.api.routes.document.reading_orders import remove_segment_entries
+
+    order_entries = remove_segment_entries(db, list(params.segment_ids))
     spec = ChangeSpec(
         audit_id=audit_id,
         domains=["segment"],
         target_ids=list(params.segment_ids),
         before=before_versions,
-        after={"segment_ids": params.segment_ids, "versions": after_versions},
+        after={"segment_ids": params.segment_ids, "versions": after_versions, "order_entries": order_entries},
         emit_type="segment.deleted",
         segment_ids=list(params.segment_ids),
         pass_ids=list(pass_ids),
         document_ids=list(document_ids),
     )
     return {"segment_ids": params.segment_ids}, spec
+
+
+class SegmentOrderEntryParams(BaseModel):
+    """One order entry as `segment.delete` recorded it (`reading_orders.ENTRY_FIELDS`)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    order_id: str
+    segment_id: str
+    position: float
+    parent_entry_id: Optional[str] = None
+    version: int = 1
 
 
 class SegmentUndeleteParams(BaseModel):
@@ -1472,6 +1491,10 @@ class SegmentUndeleteParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     segment_ids: list[str]
+    #: The order entries the delete took out (`remove_segment_entries`), written back where they were.
+    #: Only entries OF these segments are accepted: an undelete puts back a segment's own places, never
+    #: anyone else's.
+    order_entries: list[SegmentOrderEntryParams] = Field(default_factory=list)
 
 
 def _invert_segment_undelete(before, after, ctx: ActionContext):
@@ -1522,6 +1545,12 @@ def _action_segment_undelete(db: Database, params: SegmentUndeleteParams, ctx: A
         ))
         document_ids.add(row.document_id)
         pass_ids.add(row.pass_id)
+    strangers = [entry.segment_id for entry in params.order_entries if entry.segment_id not in rows]
+    if strangers:
+        raise HTTPException(status_code=422, detail=f"order_entries name segments not being restored: {strangers}")
+    from fichero_server.api.routes.document.reading_orders import restore_segment_entries
+
+    restore_segment_entries(db, [entry.model_dump() for entry in params.order_entries])
     spec = ChangeSpec(
         audit_id=audit_id,
         domains=["segment"],
