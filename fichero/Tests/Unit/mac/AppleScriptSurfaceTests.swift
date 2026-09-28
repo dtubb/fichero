@@ -62,6 +62,24 @@ final class AppleScriptSurfaceTests: XCTestCase {
         }
     }
 
+    /// The Debug dictionary (#5193): `FicheroDebug.sdef` includes the whole user dictionary by XInclude
+    /// -- so the two never drift -- and adds the Debug-only test suite, whose `describe window` binds a
+    /// class this (Debug) build has. Info.plist names it through a build setting, so Release keeps
+    /// Fichero.sdef. Breaks if the include stops resolving (a Debug app with no user verbs) or the
+    /// verb names a class that is not there.
+    func testTheDebugDictionaryIncludesTheUserOneAndAddsDescribeWindow() throws {
+        let url = try AppSource.root().appendingPathComponent("FicheroDebug.sdef")
+        let resolved = try XMLDocument(contentsOf: url, options: [.documentXInclude])
+        let suites = try resolved.nodes(forXPath: "/dictionary/suite/@name").compactMap(\.stringValue)
+        XCTAssertEqual(suites, ["Standard Suite", "Fichero Suite", "Fichero Test Suite"])
+        let binding = try resolved.nodes(forXPath: "//command[@name='describe window']/cocoa/@class").first?.stringValue
+        XCTAssertEqual(binding, "FicheroDescribeWindowCommand")
+        XCTAssertNotNil(NSClassFromString("FicheroDescribeWindowCommand"), "the Debug build has the class the verb binds")
+        let plist = try String(contentsOf: AppSource.root().appendingPathComponent("Info.plist"), encoding: .utf8)
+        XCTAssertTrue(plist.range(of: "<string>$(FICHERO_SCRIPTING_DEFINITION)</string>") != nil,
+                      "the dictionary is chosen per configuration, never one file for both")
+    }
+
     /// The smoke's named-view step depends on the miss being LOUD and
     /// self-describing — a capture that cannot find its view must say what it
     /// could see, or every miss becomes an undebuggable blank.

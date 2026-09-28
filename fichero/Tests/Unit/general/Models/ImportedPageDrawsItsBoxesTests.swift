@@ -428,6 +428,14 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let lineElement = try XCTUnwrap(elements.first { $0.accessibilityIdentifier() == "SegmentBox-" + lineId })
         XCTAssertEqual(lineElement.accessibilityLabel(), "Line")
         XCTAssertFalse(lineElement.accessibilityFrameInParentSpace().isEmpty, "with the frame it is drawn at")
+
+        // #5193: `describe window` reads the same drawn elements -- the page on screen and its boxes.
+        let described = WindowDescription.describe(root)
+        XCTAssertEqual(described.pages.map(\.id), ["doc-0001"], "one page on screen, by its id")
+        XCTAssertEqual(described.pages.first?.boxes.map(\.segment).sorted(), pageSegments.map(\.id).sorted())
+        XCTAssertEqual(described.selection, [], "nothing selected")
+        let json = WindowDescription.json(described)
+        XCTAssertTrue(json.hasPrefix("{\"pages\":[{\"boxes\":["), json)
     }
 
     /// #5192 on a PDF page: the recorded Syriac segments drawn on the corpus's real PDF page are named to

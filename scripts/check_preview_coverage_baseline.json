@@ -159,7 +159,6 @@
   "Preview/ImageEditor/ImageEditorView.swift": "declares a View, no #Preview",
   "Preview/ImageEditor/ImageMarqueeOverlay.swift": "declares a View, no #Preview",
   "Preview/ImageViewer/AnnotationMarkRendering.swift": "declares a View, no #Preview",
-  "Preview/ImageViewer/BoundingBoxOverlay.swift": "declares a View, no #Preview",
   "Preview/ImageViewer/InlineNoteEditor.swift": "declares a View, no #Preview",
   "Preview/ImageViewer/MagnifierPanel.swift": "declares a View, no #Preview",
   "Preview/ImageViewer/NavigatorMiniMap.swift": "declares a View, no #Preview",

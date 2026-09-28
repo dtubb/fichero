@@ -217,9 +217,11 @@ very engine spawn those tests exist to exercise.
   2026-09-28 401s: the installed build started beside a dev build). A socket FILE with nothing
   listening is not live and the spawn goes ahead. `EngineSocketConflict` (pure decision + AF_UNIX
   liveness), `resolveLiveSocket` in the pre-flight after the orphan sweep; pinned by
-  `EngineSocketConflictTests` against a real listening socket. **Still PARTIAL:** the other engine's
-  pid and owning app, which need the engine's health to carry them (bugs2), and the engine's own
-  refusal to start on a live socket (bugs2).
+  `EngineSocketConflictTests` against a real listening socket. The other engine's pid comes from its
+  `/api/health` `engine_pid` (7c00a47ed): named in the window, and Stop it is offered with it outside
+  the App Store build (SIGTERM, then the spawn waits for the socket to fall silent -- an engine started
+  over a live one refuses to start, 7c00a47ed, bugs lane). **Still PARTIAL:** the owning app
+  (`engine_owner`), which joins after the contract regen; the tests have not run.
 - `engine.orphan-sweep-precedes-spawn-decision` — **[PARTIAL]** (#4896) the sweep that
   terminates orphaned engines COMPLETES before the app decides to spawn its own. Built:
   `resolvePortConflict()` (`EmbeddedBackendService+Ports.swift`) awaits the detached sweep's

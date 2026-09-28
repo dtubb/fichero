@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE dictionary SYSTEM "file://localhost/System/Library/DTDs/sdef.dtd">
+<!--
+  The DEBUG scripting dictionary (#5193, ui-testing-strategy.md "Driving the running app from outside"):
+  the whole user dictionary, included from Fichero.sdef so the two never drift, plus the Debug-only
+  test suite. Info.plist names it through FICHERO_SCRIPTING_DEFINITION: FicheroDebug.sdef in Debug,
+  Fichero.sdef in Release, so a Release build's dictionary never offers these verbs.
+-->
+<dictionary title="Fichero Terminology (Debug)" xmlns:xi="http://www.w3.org/2003/XInclude">
+    <xi:include href="Fichero.sdef" xpointer="xpointer(/dictionary/suite)"/>
+
+    <suite name="Fichero Test Suite" code="FTST" description="Debug-only verbs for driving and reading the running app from outside.">
+        <command name="describe window" code="FTSTdesw" description="Describe what the key window draws: the panes shown, the selection, and for each page on screen the segment boxes drawn, with their frames, as JSON.">
+            <cocoa class="FicheroDescribeWindowCommand"/>
+            <result type="text" description="JSON: {panes, selection, pages: [{id, boxes: [{segment, kind, frame, selected}]}]}."/>
+        </command>
+    </suite>
+</dictionary>

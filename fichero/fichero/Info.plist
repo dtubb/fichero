@@ -39,7 +39,7 @@
 		<string>_fichero._tcp</string>
 	</array>
 	<key>OSAScriptingDefinition</key>
-	<string>Fichero.sdef</string>
+	<string>$(FICHERO_SCRIPTING_DEFINITION)</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>

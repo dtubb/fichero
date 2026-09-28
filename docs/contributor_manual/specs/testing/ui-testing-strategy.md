@@ -177,9 +177,10 @@ the engine holds.**
     dictionary ships in Release.
 - **App Intents exist:** `Intents/FicheroActionIntents.swift`, `FicheroAppEntities.swift`,
   `FicheroShortcuts.swift`.
-- **Drawn boxes have NO identity today.** `Views/Preview/ImageViewer/BoundingBoxOverlay.swift` draws
-  them in a `ForEach` keyed by offset, with no accessibility element or identifier. No channel,
-  whichever is chosen, can currently say which segments a page drew.
+- **Drawn boxes had NO identity** (as found 2026-09-28). No accessibility element or identifier, so
+  no channel could say which segments a page drew. (The `ForEach` keyed by offset first cited here,
+  `BoundingBoxOverlay.swift`, had no callers and is deleted; the boxes are drawn by
+  `DocumentOverlayView`, where `drawn-boxes-are-elements` now puts the elements.)
 
 **The options.** Each is judged on whether it can observe the DRAWN boxes, whether it can be kept out
 of Release, its security story, and its cost.
@@ -221,11 +222,29 @@ The regression check this enables is the one that was missing: import a page thr
 working pass.
 
 **Behaviours.**
-- `ui-testing.drawn-boxes-are-elements` [GAP] (#5192): every box drawn on a page is an accessibility
+- `ui-testing.drawn-boxes-are-elements` [PARTIAL] (#5192): every box drawn on a page is an accessibility
   element identified `SegmentBox-<segmentId>` with its frame; none is drawn without one, and none
   exists undrawn.
-- `ui-testing.describe-window` [GAP] (#5193): a Debug-only `describe window` verb reports panes,
+  **Built 2026-09-28 (f794976dc), tests not yet run:** the image overlay that draws the boxes
+  (`DocumentOverlayView.accessibilityChildren`) and a PDF page's view (`PinchOwningPDFView`) each name
+  every box drawn in view `SegmentBox-<segmentId>`, labelled by kind, with its drawn frame and selected
+  state (`SegmentBoxAccessibility`). Pinned by
+  `ImportedPageDrawsItsBoxesTests.testTheRealPreviewInTheLibraryWindowsTreeDrawsTheImportedPagesRegionsAndLines`
+  (the real Preview in the window's environment: exactly the recorded page's 4 regions and 12 lines,
+  read from the accessibility tree) and `…testAPDFPagesDrawnSegmentBoxesAreAccessibilityElements`. OK
+  once those run green.
+- `ui-testing.describe-window` [PARTIAL] (#5193): a Debug-only `describe window` verb reports panes,
   selection and, per page on screen, the drawn segment ids and frames, read from the drawn elements.
+  **Built 2026-09-28, tests not yet run:** `WindowDescription.describe` walks the key window's views and
+  accessibility elements -- panes by their `pane.<kind>` identifiers; each page by its drawing view
+  (`SegmentPage-<id>` on the image overlay, the PDF view's page id); each page's `SegmentBox-<id>` elements
+  with kind, screen frame and selected state -- as JSON. The verb is `describe window` in the Debug-only
+  "Fichero Test Suite" of `FicheroDebug.sdef`, which XIncludes `Fichero.sdef`; Info.plist names the
+  dictionary through `FICHERO_SCRIPTING_DEFINITION` (Debug: FicheroDebug.sdef; Release, Dev/Alpha/Beta
+  Embedded: Fichero.sdef), and `FicheroDescribeWindowCommand` is `#if DEBUG`. Pinned by the hosted
+  real-Preview test (`describe` finds doc-0001 and its 16 boxes) and
+  `AppleScriptSurfaceTests.testTheDebugDictionaryIncludesTheUserOneAndAddsDescribeWindow`. Not yet: run
+  from `osascript` against a built Debug app.
 - `ui-testing.drive-below-a-document` [GAP] (#5194): Debug-only `select page`, `select segment` and
   `show pane` verbs, each answering whether the request was accepted, in the style of the existing
   verbs.

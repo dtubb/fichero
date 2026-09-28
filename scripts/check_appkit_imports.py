@@ -103,6 +103,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+SupportTypes.swift": "#2101 — AppKit via #if canImport (drag support types); split from DocumentInspectorEntitiesTab",
     "Views/Reader/Knowledge/DocumentKGWebPane.swift": "WKWebView host via NSViewRepresentable / UIViewRepresentable, #if canImport (#2101)",
     "Services/FolderAccessManager.swift": "NSOpenPanel to grant security-scoped folder access; macOS-only by nature",
+    "Services/WindowDescription.swift": "2026-09-28 -- describe window (#5193): reads what the window DRAWS from its NSViews and NSAccessibilityElements, beside the screenshot verb (FicheroUICapture) it sits with; the Debug-only NSScriptCommand is here too",
     "Services/FicheroUICapture.swift": "#4535/#4536 — macOS-only window capture (CGWindowList + NSApplication), gated by #if os(macOS); no SwiftUI equivalent",
     "Views/Reader/Page/AnnotatableTextView.swift": "#2458 — NSTextView bridge for selectable highlighted text spans; #2101",
     "Views/Preview/ImageEditor/ImageEditorModel.swift": "imports UIKit behind #if canImport but names no UIKit symbol — the import looks removable; confirm with the iOS build, then drop this entry (#2101)",

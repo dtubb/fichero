@@ -83,10 +83,10 @@ struct EngineSocketConflictTests {
         let other = try FakeLiveSocket()
         let service = EmbeddedBackendService()
         await #expect(throws: BackendError.self) {
-            _ = try await service.resolveLiveSocket(other.path, holderPID: nil)
+            _ = try await service.resolveLiveSocket(other.path, mayStop: false)
         }
         other.die()
-        let afterDeath = try await service.resolveLiveSocket(other.path, holderPID: nil)
+        let afterDeath = try await service.resolveLiveSocket(other.path, mayStop: false)
         #expect(afterDeath == nil, "the other engine gone: the pre-flight lets the spawn go ahead")
     }
 

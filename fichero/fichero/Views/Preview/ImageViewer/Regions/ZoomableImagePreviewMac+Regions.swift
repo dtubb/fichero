@@ -60,7 +60,8 @@ extension ZoomableImagePreview {
             marquees: currentMarquees,
             pickedMarquee: windowState?.previewMarquees.selectedIndex,
             isEditing: windowState?.isEditingSegments == true,
-            isFocusedPane: windowState?.focusedRegionSelection === regionSelection
+            isFocusedPane: windowState?.focusedRegionSelection === regionSelection,
+            documentId: documentId
         )
     }
 
