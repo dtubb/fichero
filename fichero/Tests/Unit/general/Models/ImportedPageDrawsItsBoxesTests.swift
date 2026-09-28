@@ -37,6 +37,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 || (path.hasPrefix("/api/segments/") && path.hasSuffix("/statements"))
                 || path.hasPrefix("/api/reading-orders/")
                 || path.split(separator: "/").count == 3 && path.hasPrefix("/api/segments/")
+                || (path.hasPrefix("/api/segments/") && path.hasSuffix("/picture"))
         }
 
         /// What `GET /api/hands` and `GET /api/hands/segment/{id}` answer (set by the test that asks).
@@ -80,6 +81,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         /// What `GET /api/hands/{id}/attributions` answers, and `GET /api/segments/{id}` per id.
         nonisolated(unsafe) static var everythingReply = Data()
         nonisolated(unsafe) static var segmentReplies: [String: Data] = [:]
+        /// What `GET /api/segments/{id}/picture` answers: the engine's PNG bytes, as image/png.
+        nonisolated(unsafe) static var pictureReply = Data()
 
         private static func actionReply(auditId: String) -> Data {
             Data(#"{"ok":true,"result":{},"audit_id":"\#(auditId)","changed_domains":["segment"]}"#.utf8)
@@ -95,7 +98,10 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             // recording it made the highlight test parse empty data when a store reloaded.
             if isAnnotation, request.httpMethod == "POST" { Self.annotationRequests.append(Self.bodyOf(request)) }
             var actionBody: Data?
-            if path.hasPrefix("/api/hands/"), path.hasSuffix("/attributions") {
+            let isPicture = path.hasPrefix("/api/segments/") && path.hasSuffix("/picture")
+            if isPicture {
+                actionBody = Self.pictureReply
+            } else if path.hasPrefix("/api/hands/"), path.hasSuffix("/attributions") {
                 actionBody = Self.everythingReply
             } else if path.split(separator: "/").count == 3, path.hasPrefix("/api/segments/") {
                 actionBody = Self.segmentReplies[String(path.split(separator: "/").last ?? "")]
@@ -149,7 +155,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             guard let url = request.url,
                   let response = HTTPURLResponse(
                       url: url, statusCode: isAnnotation ? 422 : 200, httpVersion: "HTTP/1.1",
-                      headerFields: ["Content-Type": "application/json"]
+                      headerFields: ["Content-Type": isPicture ? "image/png" : "application/json"]
                   ) else {
                 client?.urlProtocol(self, didFailWithError: URLError(.badURL))
                 return
@@ -190,6 +196,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             placed = []
             everythingReply = Data()
             segmentReplies = [:]
+            pictureReply = Data()
         }
 
         /// URLSession hands a protocol its body as a stream, not as `httpBody`.
@@ -947,6 +954,26 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(answer.rows.first?.detail, "once")
         XCTAssertTrue(answer.rows.allSatisfy { $0.documentId == "doc-mufi" }, "each opens the page it is on")
         XCTAssertEqual(answer.withheld, 0)
+    }
+
+    /// `source.segments-pane.views` end to end (#4942): a strip or grid cell's picture is the engine's
+    /// own cut of the segment, read through `SegmentPictureService` as PNG. Recorded on the imported
+    /// Syriac page's first line: the corpus has no scan, so the page image is a stand-in at the file's
+    /// proportions with the file's lines inked, and the bytes are the engine's real cut of that line.
+    func testAStripCellsPictureIsTheEnginesCutOfTheLine() async throws {
+        _ = try await loadedStore()
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-line-picture.json")
+        )) as? [String: Any])
+        let png = try XCTUnwrap(Data(base64Encoded: try XCTUnwrap(recorded["png_base64"] as? String)))
+        RecordedEngine.pictureReply = png
+        let fetched = try await SegmentPictureService(client: try XCTUnwrap(storeClient))
+            .picture(segmentId: try XCTUnwrap(recorded["segment_id"] as? String), size: 120)
+        let bytes = try XCTUnwrap(fetched, "a picture, not nil")
+        XCTAssertEqual(bytes, png, "the engine's bytes, untouched")
+        let image = try XCTUnwrap(PlatformImage(data: bytes))
+        XCTAssertEqual(max(image.size.width, image.size.height), 120, accuracy: 1, "the size asked for")
+        XCTAssertGreaterThan(image.size.width, image.size.height, "a line is wider than it is tall")
     }
 
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {

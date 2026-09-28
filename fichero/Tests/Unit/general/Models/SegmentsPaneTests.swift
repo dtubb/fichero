@@ -37,3 +37,13 @@ struct SegmentsPaneTests {
         #expect(SegmentsPane.rowLabel(nil, at: 0) == "Segment 1")
     }
 }
+
+/// The three ways the pane shows a level (`source.segments-pane.views`): a list, a strip, a grid.
+struct SegmentsPaneLensTests {
+    @Test("list, strip and grid, each with its own name and symbol")
+    func threeLenses() {
+        #expect(SegmentsPane.Lens.allCases == [.list, .strip, .grid])
+        #expect(SegmentsPane.Lens.allCases.map(\.title) == ["List", "Strip", "Grid"])
+        #expect(Set(SegmentsPane.Lens.allCases.map(\.icon)).count == 3)
+    }
+}

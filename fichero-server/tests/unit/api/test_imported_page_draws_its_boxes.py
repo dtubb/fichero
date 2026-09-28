@@ -584,3 +584,57 @@ def test_everything_in_a_hand_is_recorded_for_the_segments_pane(db, client):
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         HAND_GATHER_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
     assert json.loads(HAND_GATHER_FIXTURE.read_text()) == recorded, "the app's everything-in-hand fixture drifted"
+
+
+PICTURE_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.first-line-picture.json"
+
+
+def test_a_line_s_picture_is_recorded_for_the_segments_pane(db, client):
+    """`source.segments-pane.views` (the Segments pane's strip and grid, #4942): each cell reads GET
+    /api/segments/{id}/picture. The corpus ships the PAGE file but not its scan, so the page image here
+    is a STAND-IN at the file's own proportions (1969x2365, scaled) with every line of the file inked
+    grey where the file puts it. The picture is the engine's real cut of the real first line's box.
+    Recorded as base64 PNG, with the ids the route recording gives, so the app's test decodes the
+    engine's own bytes."""
+    import base64
+    import io
+
+    from PIL import Image, ImageDraw
+
+    from fichero_server.actions.registry import registry
+    from fichero_server.models import DocType, Document, FileType, Status
+    from tests.unit.api.test_page_text_follows_the_file import BOOT
+
+    width, height = 394, 473  # 1969x2365 scaled by 1/5
+    scan = Image.new("RGB", (width, height), (250, 247, 240))
+    path = Path(db.path.parent) / "syriac-stand-in.png"
+    scan.save(path)
+    doc = Document(name="syriac", doc_type=DocType.file, file_type=FileType.image, path=str(path),
+                   status=Status.completed)
+    db.save(doc)
+    registry.invoke(db, "format.import", {"document_id": doc.id, "path": str(SYRIAC)}, BOOT)
+    body = client.get(f"/api/segments/document/{doc.id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    lines = sorted((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+                   key=lambda s: s["anchor"]["rect"])
+    draw = ImageDraw.Draw(scan)
+    for line in lines:
+        x, y, w, h = line["anchor"]["rect"]
+        draw.rectangle([x * width, y * height, (x + w) * width, (y + h) * height], fill=(90, 80, 70))
+    scan.save(path)
+
+    first = lines[0]
+    picture = client.get(f"/api/segments/{first['id']}/picture", params={"size": 120})
+    assert picture.status_code == 200, picture.text
+    assert picture.headers["content-type"] == "image/png"
+    cut = Image.open(io.BytesIO(picture.content)).convert("RGB")
+    assert max(cut.size) == 120, cut.size
+    assert cut.getpixel((cut.width // 2, cut.height // 2)) == (90, 80, 70), "the cut is the line, not the page"
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    token = next(s["id"] for s in stable_route["segments"]
+                 if s["kind"] == "line" and s["anchor"]["rect"] == first["anchor"]["rect"])
+    recorded = {"segment_id": token, "size": 120, "png_base64": base64.b64encode(picture.content).decode()}
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        PICTURE_FIXTURE.write_text(json.dumps(recorded, indent=1) + "\n")
+    assert json.loads(PICTURE_FIXTURE.read_text()) == recorded, "the app's picture fixture drifted"

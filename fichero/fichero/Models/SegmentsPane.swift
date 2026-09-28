@@ -6,13 +6,27 @@ import Foundation
 /// this is what the pane adds -- where it is in the page, and which rows open to their children.
 /// Pure: the rules live where a test can reach them.
 enum SegmentsPane {
-    /// How the pane shows its segments. The list first; a strip and a grid of pictures follow
+    /// How the pane shows its segments: a list, or a strip or a grid of their pictures
     /// (`source.segments-pane.views`).
     enum Lens: String, CaseIterable, Identifiable, Hashable {
-        case list
+        case list, strip, grid
         var id: String { rawValue }
-        var title: String { "List" }
-        var icon: String { "list.bullet" }
+
+        var title: String {
+            switch self {
+            case .list: "List"
+            case .strip: "Strip"
+            case .grid: "Grid"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .list: "list.bullet"
+            case .strip: "rectangle.split.3x1"
+            case .grid: "square.grid.2x2"
+            }
+        }
     }
 
     /// One step of the path from the page down to the level shown.
