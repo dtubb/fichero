@@ -1765,6 +1765,61 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(saidToPage, [ReaderTextEdit.engineStateScript(reachable: true)], "told once, when it answers")
     }
 
+    /// `source.textedit.deleting-words-keeps-ink`, its last clause, end to end on the imported Syriac page
+    /// (the engine's recorded answers, before and after): a line drawn by its baseline has NO reading, and
+    /// is still drawn -- hollow and dashed, by its shapes -- and still picked by a click, listed in the
+    /// Segments pane as "No reading", and offered "Type a Reading" in the Inspector; an EMPTIED line (an
+    /// empty reading) is not marked. Typing one sends `representation.create` on that segment, and once
+    /// the engine has it the mark is gone. Breaks if a reading-less segment is hidden, unclickable, or
+    /// confused with an emptied one.
+    func testASegmentWithNoReadingIsShownPickedAndListedAsSuchAndTypingOneClearsIt() async throws {
+        let store = try await loadedStore()
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.no-reading.json")
+        )) as? [String: Any])
+        RecordedEngine.body = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["before"]))
+        await store.load(documentId: "doc-0001", force: true)
+        let segments = store.segments(documentId: "doc-0001")
+        let drawn = try XCTUnwrap(segments.first { $0.id == "seg-drawn-0001" })
+        let emptied = try XCTUnwrap(segments.first { $0.id == "seg-0012" })
+        XCTAssertTrue(SegmentsPane.lacksReading(drawn))
+        XCTAssertFalse(SegmentsPane.lacksReading(emptied), "an emptied line has a reading: an empty one")
+
+        let selected = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store), "the page still draws")
+        let box = selected.geometry.boxes[try XCTUnwrap(drawn.boxIndex)]
+        XCTAssertTrue(box.noReading, "drawn hollow and dashed, never hidden")
+        XCTAssertFalse(box.shapes.isEmpty, "as its baseline, not a guessed box")
+        XCTAssertFalse(selected.geometry.boxes[try XCTUnwrap(emptied.boxIndex)].noReading)
+        let center = CGPoint(x: (box.bbox[0] + box.bbox[2] / 2) * 1000, y: (box.bbox[1] + box.bbox[3] / 2) * 1000)
+        let picked = RegionHitTesting.pick(
+            at: center, boxes: [box.bbox], in: CGSize(width: 1000, height: 1000), visible: CGRect(x: 0, y: 0, width: 1, height: 1)
+        )
+        XCTAssertEqual(picked, 0, "a click on it picks it")
+        XCTAssertTrue(SegmentsPane.rowLabel(drawn, at: 16).hasSuffix(" · No reading"), "listed with the mark")
+        XCTAssertFalse(SegmentsPane.rowLabel(emptied, at: 3).hasSuffix(" · No reading"))
+
+        RecordedEngine.invoked = []
+        try await AuditedAction.run(
+            "representation.create",
+            params: NewReadingParams(documentId: "doc-0001", segmentId: drawn.id, kind: "transcription",
+                                     content: "ܫܠܡܐ", correctsRepresentationId: nil),
+            actionName: "Type a Reading", actionsService: ActionsService(client: try XCTUnwrap(storeClient)), undoManager: nil
+        )
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        let params = try XCTUnwrap(sent["params"] as? [String: Any])
+        XCTAssertEqual(params["segment_id"] as? String, "seg-drawn-0001")
+        XCTAssertEqual(params["content"] as? String, "ܫܠܡܐ")
+        XCTAssertNil(params["corrects_representation_id"], "nothing to correct: it had no reading")
+
+        RecordedEngine.body = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["after"]))
+        await store.load(documentId: "doc-0001", force: true)
+        let typed = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.id == "seg-drawn-0001" })
+        XCTAssertFalse(SegmentsPane.lacksReading(typed), "the mark goes once it has a reading")
+        XCTAssertEqual(SegmentsPane.rowLabel(typed, at: 16), "Line · ܫܠܡܐ")
+        let redrawn = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
+        XCTAssertFalse(redrawn.geometry.boxes[try XCTUnwrap(typed.boxIndex)].noReading)
+    }
+
     /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the
     /// imported Syriac page's first line -- down to nothing at all -- is a NEW READING without them,
     /// through the calls the Reader's coordinator makes. No segment action is ever sent: the line and

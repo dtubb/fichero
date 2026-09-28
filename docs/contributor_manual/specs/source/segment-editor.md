@@ -666,9 +666,19 @@ The editor
   **App half built:** a `readingEdit` that removes words, down to an empty line, only ever becomes
   `representation.create`, never a segment action, and the line stays
   (`ImportedPageDrawsItsBoxesTests.testDeletingWordsIsANewReadingAndNeverTouchesTheSegments`, over the
-  recorded Syriac page). **The joint (2026-09-28):** the served page's OWN script, run in node on the imported Syriac page, posts through its own `notify` (`test_imported_page_draws_its_boxes.py::test_the_served_page_s_own_messages_are_recorded_for_the_app_s_bridge`, regenerated every run, failing on drift), and those exact bodies go through the bridge's own parse and `ReaderTextEditRunner` -- what `applyTextEdit` runs -- to the requests the engine takes (`ImportedPageDrawsItsBoxesTests.testTheServedPagesOwnMessagesBecomeTheRequestsTheEngineTakes`) (every word deleted is an empty `representation.create`, never a segment action). Still PARTIAL for one clause: a word segment left without a reading is not in the Reader's
-  line map, so it would be shown by the Source view -- and nothing yet shows it there AS a segment without
-  a reading, or tests that it does.
+  recorded Syriac page). **The joint (2026-09-28):** the served page's OWN script, run in node on the imported Syriac page, posts through its own `notify` (`test_imported_page_draws_its_boxes.py::test_the_served_page_s_own_messages_are_recorded_for_the_app_s_bridge`, regenerated every run, failing on drift), and those exact bodies go through the bridge's own parse and `ReaderTextEditRunner` -- what `applyTextEdit` runs -- to the requests the engine takes (`ImportedPageDrawsItsBoxesTests.testTheServedPagesOwnMessagesBecomeTheRequestsTheEngineTakes`) (every word deleted is an empty `representation.create`, never a segment action). **A segment with no reading, shown as such (built 2026-09-28):** a line, word or
+  character with no counting transcription (`SegmentsPane.lacksReading`) is drawn hollow and dashed on the
+  image, never hidden, and still picked by a click; the Segments pane lists it "Line 17 · No reading"; the
+  Inspector's Text says "No reading" and offers **Type a Reading…** (`representation.create`, ⌘Z), after
+  which the mark goes. An emptied line is not marked: it has a reading, an empty one. Pinned on the imported
+  Syriac page with a line drawn by its baseline
+  (`test_imported_page_draws_its_boxes.py::test_a_segment_with_no_reading_is_listed_as_such_and_typing_one_gives_it_text`,
+  `ImportedPageDrawsItsBoxesTests.testASegmentWithNoReadingIsShownPickedAndListedAsSuchAndTypingOneClearsIt`).
+  **Still PARTIAL, a question for the maintainer:** words keep their OWN readings (import writes one per
+  word), and the Reader edits lines, so deleting every word of a line in the Reader leaves its word segments
+  WITH their readings -- stale against the line, but not "without a reading". Whether that edit should also
+  retire those word readings (it would need a word-to-line span mapping the engine does not keep) is asked
+  of the lead, 2026-09-28; the default taken is no.
 - `source.textedit.lines-move-in-the-order` — **[PARTIAL]** (#5001) cutting and pasting whole lines changes the named
   reading order and nothing on the page; other pasted text is typing, its line breaks
   turned to spaces.

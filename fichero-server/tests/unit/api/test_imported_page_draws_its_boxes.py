@@ -1223,3 +1223,54 @@ def test_a_flow_that_could_continue_onto_the_next_page_is_recorded_and_continuin
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         FLOWS_ONTO_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
     assert json.loads(FLOWS_ONTO_FIXTURE.read_text()) == recorded, "the app's flows-onto fixture drifted"
+
+
+NO_READING_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.no-reading.json"
+
+
+def test_a_segment_with_no_reading_is_listed_as_such_and_typing_one_gives_it_text(db, client):
+    """`source.textedit.deleting-words-keeps-ink`, its last clause: a segment left without a reading is
+    SHOWN as such, never hidden. On the imported Syriac page a line is drawn by its baseline (the Shape
+    tool's call) and has no reading: the canvas's call lists it with `text: null` -- which is what the
+    app marks "No reading" -- beside the file's lines, whose text stands; an EMPTIED line is different,
+    an empty reading (`text: ""`), not no reading. Then the app's exact "Type a Reading" --
+    `representation.create` on that segment -- gives it text in the same call. Both answers are recorded
+    for the app. Breaks if a reading-less segment drops out of the list, or reads as an empty one."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    lines = sorted((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+                   key=lambda s: s["anchor"]["rect"][1])
+    baseline = [[0.2, 0.9], [0.5, 0.9], [0.8, 0.91]]
+    drawn = client.post("/api/actions/invoke", json={"name": "segment.create", "params": {
+        "document_id": doc_id, "pass_id": real["id"], "kind": "line", "baseline": baseline,
+        "anchor": {"document_id": doc_id, "shapes": [{"kind": "path", "points": baseline}]}}}).json()
+    drawn_id = drawn["result"]["segment_ids"][0]
+    emptied = client.post("/api/actions/invoke", json={"name": "representation.create", "params": {
+        "document_id": doc_id, "segment_id": lines[0]["id"], "kind": "transcription", "content": ""}})
+    assert emptied.status_code == 200, emptied.text
+
+    before = client.get(f"/api/segments/document/{doc_id}").json()
+    by_id = {s["id"]: s for s in before["segments"]}
+    assert by_id[drawn_id]["text"] is None, "no reading: listed, with no text"
+    assert by_id[lines[0]["id"]]["text"] == "", "an emptied line is an empty reading, not no reading"
+    assert all(by_id[s["id"]]["text"] for s in lines[1:]), "the file's lines keep their words"
+
+    typed = client.post("/api/actions/invoke", json={"name": "representation.create", "params": {
+        "document_id": doc_id, "segment_id": drawn_id, "kind": "transcription", "content": "ܫܠܡܐ"}})
+    assert typed.status_code == 200, typed.text
+    after = client.get(f"/api/segments/document/{doc_id}").json()
+    assert {s["id"]: s for s in after["segments"]}[drawn_id]["text"] == "ܫܠܡܐ", "typing one gives it text"
+
+    reduce = lambda answer: dict(answer, segments=[s for s in answer["segments"] if s["pass_id"] == real["id"]])  # noqa: E731
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    ids = {drawn_id: "seg-drawn-0001"}
+    ids.update({s["id"]: t["id"] for s in body["segments"] for t in stable_route["segments"]
+                if s["anchor"]["rect"] == t["anchor"]["rect"] and s["kind"] == t["kind"]})
+    ids.update({doc_id: stable_route["document_id"], real["id"]:
+                next(p["id"] for p in stable_route["passes"] if not p["provisional"])})
+    stable = _stabilizer(ids)
+    recorded = {"before": stable(reduce(before)), "after": stable(reduce(after))}
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        NO_READING_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(NO_READING_FIXTURE.read_text()) == recorded, "the app's no-reading fixture drifted"

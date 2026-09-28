@@ -124,6 +124,10 @@ Page From…. Every edit below should undo with ⌘Z and redo with ⇧⌘Z.
     reach, the text goes read-only, and nothing typed is lost. Start the engine again: within a few
     seconds editing comes back and the held words are saved (a line someone changed meanwhile comes back
     with Keep Mine / Take Theirs / Compare).
+31. **No reading** (13b). Edit Segments ▸ Shape ▸ Baseline: draw a line. *Should:* it is drawn hollow and
+    dashed, a click picks it, the Segments pane lists it "Line N · No reading", and the Inspector's Text
+    says "No reading" with **Type a Reading…**; type one and the mark goes (⌘Z brings it back). A line
+    you emptied in the Reader is NOT marked: it has an empty reading.
 
 **Not built:** the menu-bar Segment menu, comparing two passes side by side, attribute edits
 on a page still read from an artifact (it is converted on first edit, #4924).
