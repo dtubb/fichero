@@ -12,12 +12,13 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import action_context
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.library_header import optional_library_path
+from fichero_server.api.main import get_library_database, get_library_database_for_write, readable_documents
 from fichero_server.api.routes.document.segments import provenance_kind_from_ctx
 from fichero_server.core.timeutil import utc_now
 from fichero_server.db import Database
@@ -225,6 +226,8 @@ class SignInstanceListResponse(BaseModel):
     items: list[SignInstance]
     #: Occurrences across every item, so a caller need not add them up.
     total: int
+    #: Readings left out because this caller may not read their page (#5180): counted, never silent.
+    withheld: int = 0
 
 
 def sign_instances(db: Database, sign: DeclaredSign) -> list[SignInstance]:
@@ -243,12 +246,20 @@ def sign_instances(db: Database, sign: DeclaredSign) -> list[SignInstance]:
 
 @router.get("/{sign_id}/instances", response_model=SignInstanceListResponse)
 async def list_sign_instances(
-    sign_id: str, db: Database = Depends(get_library_database)
+    sign_id: str,
+    request: Request,
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    db: Database = Depends(get_library_database),
 ) -> SignInstanceListResponse:
     sign = db.get(DeclaredSign, sign_id)
     if sign is None:
         raise HTTPException(status_code=404, detail=f"Sign not found: {sign_id}")
-    items = sign_instances(db, sign)
+    every = sign_instances(db, sign)
+    # A sign is library-level; its instances are on pages. One on a page this caller may not read
+    # is left out and counted (#5180), as a list route does with a scope (#5135).
+    readable = set(readable_documents(request, x_fichero_library_path, sorted({i.document_id for i in every})))
+    items = [i for i in every if i.document_id in readable]
     return SignInstanceListResponse(
-        sign_id=sign.id, code_point=sign.code_point, items=items, total=sum(i.count for i in items)
+        sign_id=sign.id, code_point=sign.code_point, items=items, total=sum(i.count for i in items),
+        withheld=len(every) - len(items),
     )
