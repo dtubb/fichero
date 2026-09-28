@@ -1166,6 +1166,69 @@ function pageBodyMarkup(page) {
     return `<div class="transcript-page-body"${attr}>${inner}</div>`;
 }
 
+// After a line move or ⌘Z (#5170) the app asks for THIS page again and it is patched in place: the rest
+// of the transcript is untouched, so scroll survives, and the caret goes back onto the line it
+// was on, at the same place in it (it was a page reload, losing both).
+// `pagePayloadFromView` reads the page's fresh text and map out of the served view itself (the
+// same `documentData` this page was built from), so there is no second route to keep in step.
+function pagePayloadFromView(html, pageId) {
+    const match = /const documentData = (\{.*?\});\n/s.exec(html);
+    if (!match) return null;
+    const pages = JSON.parse(match[1]).pages || [];
+    return pages.find((page) => page.id === pageId) || null;
+}
+
+// Where the caret goes: the same distance into the same line, in the page's NEW offsets. Null
+// when the line is gone from the map (a move that removed it is not a move).
+function caretAfterMove(oldLines, newLines, segmentId, oldOffset) {
+    const before = (oldLines || []).find((line) => line.segment_id === segmentId);
+    const after = (newLines || []).find((line) => line.segment_id === segmentId);
+    if (!after) return null;
+    const into = before ? Math.max(0, oldOffset - before.char_start) : 0;
+    return Math.min(after.char_start + into, after.char_end);
+}
+
+function bodyOffset(body, focusNode, focusOffset) {
+    let offset = 0;
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+        if (node === focusNode) return offset + focusOffset;
+        offset += node.nodeValue.length;
+    }
+    return 0;
+}
+
+async function refreshPage(pageId) {
+    const article = document.querySelector(`article[data-page-id="${CSS.escape(pageId)}"]`);
+    const body = article && article.querySelector(".transcript-page-body");
+    if (!body) return false;
+    const response = await fetch(`/view/document/${encodeURIComponent(pageId)}`, { headers: sourceHeaders() });
+    if (!response.ok) return false;
+    const fresh = pagePayloadFromView(await response.text(), pageId);
+    if (!fresh) return false;
+    const at = lineAtCaret();
+    const selection = window.getSelection();
+    const oldOffset = at && at.pageId === pageId ? bodyOffset(body, selection.focusNode, selection.focusOffset) : null;
+    const oldLines = pageLineMaps.get(pageId);
+    body.outerHTML = pageBodyMarkup({ content: fresh.content, lines: fresh.lines });
+    pageLineMaps.set(pageId, fresh.lines || []);
+    const entry = (documentData.pages || []).find((page) => page.id === pageId);
+    if (entry) { entry.content = fresh.content; entry.lines = fresh.lines; }
+    const offset = oldOffset === null ? null : caretAfterMove(oldLines, fresh.lines, at.segmentId, oldOffset);
+    const newBody = article.querySelector(".transcript-page-body");
+    if (offset !== null && newBody) {
+        let rest = offset;
+        const walker = document.createTreeWalker(newBody, NodeFilter.SHOW_TEXT);
+        let node;
+        while ((node = walker.nextNode())) {
+            if (rest <= node.nodeValue.length) { selection.collapse(node, rest); break; }
+            rest -= node.nodeValue.length;
+        }
+    }
+    return true;
+}
+
 function transcriptPageMarkup(page) {
     if (page.id) pageLineMaps.set(page.id, page.lines || []);
     const placeholder = page.hasContent
@@ -2199,6 +2262,13 @@ window.fichero = {
         const numbers = Array.isArray(pageNumbers) ? pageNumbers : [];
         state.busyPages = new Set(numbers.map(Number).filter(Number.isFinite));
         applyBusyPages();
+    },
+
+    // After a line move or its ⌘Z (#5170): re-read this one page and patch it in place,
+    // keeping scroll and the caret's line. Resolves false when the page is not here to patch --
+    // the caller reloads then.
+    refreshPage(pageId) {
+        return refreshPage(pageId);
     },
 
     // Live per-page write (#4357): patch this page's text in place.

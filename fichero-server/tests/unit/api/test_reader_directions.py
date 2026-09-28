@@ -1,10 +1,13 @@
-"""The Reader lays a page out in its own direction (#5147, Reader half).
+"""The Reader lays a page out in its own direction (#5147, Reader half), and a line move patches
+the page in place with the caret still on the moved line (#5170).
 
 WHY: the engine resolves every line's direction (rtl from the letters, ttb from the shape of the
 lines), but the Reader drew every page left to right in rows -- an Arabic folio read backwards
 line-end first, a Chinese page of columns came out as rows, and a Latin folio number on a Syriac
-page was laid out as if it were Syriac. If this regresses, a right-to-left or vertical page
-renders as if it were English.
+page was laid out as if it were Syriac. And after ⌥⌘↑/↓ or its ⌘Z the app reloaded the whole
+page, losing scroll and caret, so moving several lines meant finding the line again after every
+key. If this regresses, a right-to-left or vertical page renders as if it were English, or the
+caret jumps away after a move.
 
 What each file SAYS is read with plain lxml; the page's functions are cut from the SERVED HTML and
 run in node (a source scan would pass with them broken).
@@ -129,3 +132,28 @@ def test_a_page_of_columns_is_laid_out_in_columns(db, client):
     payload, html = _view(client, doc_id)
     assert _body(html, payload["pages"][0]).startswith('<div class="transcript-page-body" data-direction="ttb">')
     assert 'data-direction="ttb"] {\n            writing-mode: vertical-rl;' in html
+
+
+@needs_node
+@pytest.mark.parametrize("path", [ARABIC, CHINESE], ids=["rtl", "vertical"])
+def test_after_a_move_the_caret_is_on_the_moved_line(db, client, path):
+    """The page re-reads itself from the served view and puts the caret back the same distance
+    into the moved line, in the NEW offsets -- in an rtl page and in a page of columns."""
+    from tests.unit.api.test_text_follows_the_order import _move_last_line_of_a_block_to_its_start
+
+    doc_id = _import(db, path)
+    before = _view(client, doc_id)[0]["pages"][0]
+    _audit, moved, _first = _move_last_line_of_a_block_to_its_start(db, client, doc_id)
+    old = next(line for line in before["lines"] if line["segment_id"] == moved)
+    old_offset = old["char_start"] + (old["char_end"] - old["char_start"]) // 2
+    _, html_after = _view(client, doc_id)
+    got = _node(_page_functions(html_after) + f"""
+const fresh = pagePayloadFromView({json.dumps(html_after)}, {json.dumps(before["id"])});
+const offset = caretAfterMove({json.dumps(before["lines"])}, fresh.lines, {json.dumps(moved)}, {old_offset});
+const line = fresh.lines.find((l) => l.segment_id === {json.dumps(moved)});
+console.log(JSON.stringify({{ on: segmentAtOffset(fresh.lines, offset), into: offset - line.char_start,
+                              moved: fresh.lines.findIndex((l) => l.segment_id === {json.dumps(moved)}) }}));
+""")
+    assert got["on"] == moved
+    assert got["into"] == old_offset - old["char_start"]
+    assert got["moved"] != next(i for i, l in enumerate(before["lines"]) if l["segment_id"] == moved)
