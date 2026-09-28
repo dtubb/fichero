@@ -644,7 +644,10 @@ def _interchange_plan(folder: Path, recursive: bool):
     return plan_pairs(files)
 
 
-def _import_paired_layout(db: Database, docs: list[Document], plan, ctx: "ActionContext") -> dict:
+def _import_paired_layout(
+    db: Database, docs: list[Document], plan, ctx: "ActionContext",
+    by_source: "dict[str, Document] | None" = None,
+) -> dict:
     """Write each paired layout file as a pass on its image's document (#5132).
 
     Through `format.import`, the audited action the one-file menu import uses, so a pass
@@ -652,7 +655,9 @@ def _import_paired_layout(db: Database, docs: list[Document], plan, ctx: "Action
     re-import recognised. A pair that fails is reported BY NAME with the engine's reason
     and the folder goes on -- one bad file must not undo the rest.
     """
-    by_source = {
+    # An UPLOADED set (`POST /api/documents/import-batch`) records no source path -- the temp
+    # folder is never provenance -- so its caller hands the image -> document map in.
+    by_source = by_source if by_source is not None else {
         str(Path(d.metadata.get("source_path")).resolve()): d
         for d in docs
         if isinstance(d.metadata, dict) and d.metadata.get("source_path")

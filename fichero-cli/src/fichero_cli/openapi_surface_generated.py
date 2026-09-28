@@ -4172,6 +4172,25 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, files=files)
         invoke(ctx, op_call)
 
+    @target_app.command("import-files-together")
+    def documents_import_files_together_post(
+        ctx: typer.Context,
+        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Query parameter: parent_id."),
+        field: Optional[list[str]] = typer.Option(None, "--field", help="Repeatable multipart field as key=value."),
+        upload: Optional[list[str]] = typer.Option(None, "--upload", help="Repeatable multipart upload as field=/path/to/file."),
+    ) -> None:
+        """Import Files Together (POST /api/documents/import-batch)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/documents/import-batch"
+            params = {
+                "parent_id": parent_id,
+            }
+            files = _build_multipart_payload(field, upload)
+            if files is None:
+                raise typer.BadParameter("Provide at least one --field or --upload value.")
+            return client.request("POST", endpoint_path, params=params, files=files)
+        invoke(ctx, op_call)
+
     @target_app.command("backfill-pdf-pages")
     def documents_backfill_pdf_pages_post(
         ctx: typer.Context,
