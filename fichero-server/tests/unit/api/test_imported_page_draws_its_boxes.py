@@ -446,10 +446,14 @@ def test_what_rights_apply_to_a_line_is_recorded_for_the_app(db, client):
     line = min((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
                key=lambda s: s["anchor"]["rect"])
     record_ids = []
+    # A restriction names ACCOUNTS by id, and must name whoever sets it (#4953's enforcement refuses one
+    # that would lock its setter out); the owner's id is recorded as "owner", as before.
+    from fichero_server.security import authz
+    owner_id = authz.resolve_user("owner").id
     for params in (
         {"target_kind": "library", "labels": ["TK Attribution"], "holders": ["Österreichische Nationalbibliothek"]},
         {"target_kind": "document", "target_id": doc_id, "model_use": "local", "conditions": "agreement 2026-07"},
-        {"target_kind": "segment", "target_id": line["id"], "restricted": True, "readers": ["owner"]},
+        {"target_kind": "segment", "target_id": line["id"], "restricted": True, "readers": [owner_id]},
     ):
         answer = client.post("/api/actions/invoke", json={"name": "rights.set", "params": params})
         assert answer.status_code == 200, answer.text
@@ -462,7 +466,7 @@ def test_what_rights_apply_to_a_line_is_recorded_for_the_app(db, client):
     stable_route = json.loads(ROUTE_FIXTURE.read_text())
     token = next(s["id"] for s in stable_route["segments"]
                  if s["kind"] == "line" and s["anchor"]["rect"] == line["anchor"]["rect"])
-    ids = {doc_id: stable_route["document_id"], line["id"]: token}
+    ids = {doc_id: stable_route["document_id"], line["id"]: token, owner_id: "owner"}
     for index, record_id in enumerate(record_ids, start=1):
         ids[record_id] = f"rights-{index:04d}"
     recorded = _stabilizer(ids)(effective)
@@ -901,3 +905,190 @@ def test_a_citable_reference_resolves_to_its_page_and_follows_a_merge_for_the_ur
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         RESOLVE_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
     assert json.loads(RESOLVE_FIXTURE.read_text()) == recorded, "the app's reference fixture drifted"
+
+
+EXPORT_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.export-choices.json"
+
+
+def test_export_choices_are_recorded_as_edited_and_as_imported_for_the_making_section(db, client):
+    """`source.format.export-choices`, `first-four`, `everywhere` (#5162, Inspector › Making's per-pass
+    Export): the app lists what this build WRITES (GET /api/formats), exports one pass by its id in a
+    chosen format -- the exact call, GET /api/documents/{id}/export/{format}?pass_id=… -- and saves the
+    pass AS IMPORTED from its original (GET /api/segments/passes/{id}/original), whose bytes are the
+    file's own, byte for byte. Recorded for the app. Breaks if a written format is not listed, the
+    pass the person chose is not the one exported, or "as imported" is not the file as it arrived."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+
+    formats = client.get("/api/formats").json()
+    written = {f["name"] for f in formats["items"] if f["writes"]}
+    assert {"pagexml", "alto", "tei", "hocr"} <= written
+    exported = client.get(f"/api/documents/{doc_id}/export/hocr", params={"pass_id": real["id"]})
+    assert exported.status_code == 200, exported.text
+    assert exported.json()["choices"]["pass_id"] == real["id"], "the pass chosen is the pass exported"
+    original = client.get(f"/api/segments/passes/{real['id']}/original").json()
+    import base64
+    assert base64.b64decode(original["content_base64"]) == SYRIAC.read_bytes(), "as imported, byte for byte"
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    ids = {doc_id: stable_route["document_id"],
+           real["id"]: next(p["id"] for p in stable_route["passes"] if not p["provisional"])}
+    by_rect = {repr(seg["anchor"]["rect"]): seg["id"] for seg in stable_route["segments"]}
+    for segment in body["segments"]:
+        ids.setdefault(segment["id"], by_rect.get(repr(segment["anchor"]["rect"]), segment["id"]))
+    stable = _stabilizer(ids)
+    answer = stable(exported.json())
+    for raw, token in ids.items():  # the file names its segments inside its text, too
+        answer["content"] = answer["content"].replace(raw, token)
+    recorded = {"formats": formats, "export": answer, "original": stable(original),
+                "original_sha256": __import__("hashlib").sha256(SYRIAC.read_bytes()).hexdigest()}
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        EXPORT_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(EXPORT_FIXTURE.read_text()) == recorded, "the app's export fixture drifted"
+
+
+def _file_shapes(path: Path) -> dict[str, dict]:
+    """Each TextLine's polygon and baseline as the PAGE file drew them, normalized to the page."""
+    root = etree.parse(str(path)).getroot()
+    page = next(el for el in root.iter() if isinstance(el.tag, str) and etree.QName(el).localname == "Page")
+    width, height = float(page.get("imageWidth")), float(page.get("imageHeight"))
+
+    def points(el):
+        return [[float(x) / width, float(y) / height] for x, y in (p.split(",") for p in el.get("points").split())]
+
+    shapes = {}
+    for line in (el for el in root.iter() if isinstance(el.tag, str) and etree.QName(el).localname == "TextLine"):
+        children = {etree.QName(c).localname: c for c in line if isinstance(c.tag, str)}
+        shapes[line.get("id")] = {"polygon": points(children["Coords"]),
+                                  "baseline": points(children["Baseline"]) if "Baseline" in children else None}
+    return shapes
+
+
+def test_an_imported_page_s_polygons_and_baselines_reach_the_app_as_the_file_drew_them_and_reshape_lands(db, client):
+    """`source.segment.shape-kinds`, `curved-baseline`, `source.editor.reshape` (the overlay draws each
+    shape as itself; Edit Segments reshapes it): every line of the imported Syriac PAGE page reaches the
+    canvas's call (GET /api/segments/document/{id}) with the polygon and the baseline its file drew --
+    checked point for point against the file with lxml -- and the recorded route the app plays back
+    says the same. Then the app's EXACT reshapes land: `segment.update` with the polygon a vertex added
+    and the rect its bounds, then with the baseline a point removed, each checked against the version
+    read, each undone by its audit id. Breaks if a shape is lost or rounded on the way, or the edit the
+    app sends is refused or does not write what was drawn."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    lines = [s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"]
+    in_file = _file_shapes(SYRIAC)
+    assert len(lines) == len(in_file) == 12
+
+    def close(a, b):
+        return a is not None and b is not None and len(a) == len(b) and all(
+            abs(p[0] - q[0]) < 1e-9 and abs(p[1] - q[1]) < 1e-9 for p, q in zip(a, b))
+
+    for line in lines:
+        match = [lid for lid, s in in_file.items() if close(s["polygon"], line["anchor"]["polygon"])]
+        assert len(match) == 1, f"line {line['id']}'s polygon is not the file's"
+        assert close(in_file[match[0]]["baseline"], line["baseline"]), "the baseline is the file's"
+    recorded = {s["id"]: s for s in json.loads(ROUTE_FIXTURE.read_text())["segments"]}
+    for line in lines:
+        twin = next(s for s in recorded.values() if s["anchor"]["rect"] == line["anchor"]["rect"])
+        assert twin["anchor"]["polygon"] == line["anchor"]["polygon"] and twin["baseline"] == line["baseline"]
+
+    line = min(lines, key=lambda s: s["anchor"]["rect"])
+    polygon = line["anchor"]["polygon"]
+    a, b = polygon[0], polygon[1]
+    reshaped = polygon[:1] + [[(a[0] + b[0]) / 2, (a[1] + b[1]) / 2 - 0.01]] + polygon[1:]
+    xs, ys = [p[0] for p in reshaped], [p[1] for p in reshaped]
+    rect = [min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)]
+    anchor = {k: line["anchor"].get(k) for k in ("document_id", "page_id", "rendition_id", "space", "rotation", "granularity")}
+
+    def invoke(name, params):
+        answer = client.post("/api/actions/invoke", json={"name": name, "params": params})
+        assert answer.status_code == 200, answer.text
+        return answer.json()
+
+    first = invoke("segment.update", {"segment_id": line["id"], "expected_version": line["version"],
+                                      "anchor": dict(anchor, polygon=reshaped, rect=rect)})
+    after = client.get(f"/api/segments/{line['id']}").json()["segment"]
+    assert after["anchor"]["polygon"] == reshaped, "the vertex added is stored"
+    assert after["baseline"] == line["baseline"], "a polygon reshape leaves the baseline alone"
+    fewer = line["baseline"][:1] + line["baseline"][2:]
+    second = invoke("segment.update", {"segment_id": line["id"], "expected_version": after["version"], "baseline": fewer})
+    assert client.get(f"/api/segments/{line['id']}").json()["segment"]["baseline"] == fewer, "a point removed"
+    stale = client.post("/api/actions/invoke", json={"name": "segment.update", "params": {
+        "segment_id": line["id"], "expected_version": line["version"], "baseline": line["baseline"]}})
+    assert stale.status_code == 409, "a reshape against a version somebody changed is refused"
+    # ⌘Z twice, newest first: the baseline comes back, then the polygon.
+    assert client.post(f"/api/actions/audit/{second['audit_id']}/undo").status_code == 200
+    assert client.post(f"/api/actions/audit/{first['audit_id']}/undo").status_code == 200
+    restored = client.get(f"/api/segments/{line['id']}").json()["segment"]
+    assert restored["anchor"]["polygon"] == polygon and restored["baseline"] == line["baseline"]
+
+
+PAGE_MESSAGES_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.page-messages.json"
+
+
+def test_the_served_page_s_own_messages_are_recorded_for_the_app_s_bridge(db, client):
+    """The JOINT of `source.textedit.*` (13b): the served Reader page's OWN script, run in node on the
+    imported Syriac page, posts through its own `notify` into a stand-in `ficheroBridge` -- a run of
+    typing on the first line (`readingEditMessage`), Keep Mine on it after somebody else's correction
+    counts (`keepMineMessage`), Return in the middle of it (`lineSplitMessage`), and every one of its
+    words deleted (`readingEditMessage` again) -- and exactly
+    what it posted is recorded. The app's test feeds each posted body through the bridge's own parse
+    and `ReaderTextEditRunner` (what `applyTextEdit` runs) and asserts the requests. Regenerated from
+    the page every run: a change to the page's messages or to the app's reading of them breaks one of
+    the two, never neither. Breaks if the page and the app stop agreeing on a message."""
+    import shutil
+
+    import pytest
+
+    from tests.unit.api.test_reader_directions import _page_functions
+    from tests.unit.api.test_reader_line_map import _node, _view
+
+    if shutil.which("node") is None:
+        pytest.skip("needs node to run the page's own script")
+    doc_id = _import(db, SYRIAC)
+    payload, html = _view(client, doc_id)
+    page = payload["pages"][0]
+    text, lines = page["content"], page["lines"]
+    route = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in route["passes"] if not p["provisional"])
+    first = min((s for s in route["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+                key=lambda s: s["anchor"]["rect"])
+    mapped = next(line for line in lines if line["segment_id"] == first["id"])
+    file_reading = mapped["representation_id"]
+    theirs = client.post("/api/actions/invoke", json={"name": "representation.create", "params": {
+        "document_id": doc_id, "segment_id": first["id"], "kind": "transcription",
+        "content": text[mapped["char_start"]:mapped["char_end"]] + " (corrected)",
+        "corrects_representation_id": file_reading}}).json()["result"]["id"]
+
+    end = mapped["char_end"]
+    typed = text[:end] + " ܘܐܝܣܚܩ" + text[end:]
+    middle = (mapped["char_start"] + mapped["char_end"]) // 2
+    emptied = text[:mapped["char_start"]] + text[mapped["char_end"]:]
+    notify_start = html.index("function notify(kind, payload)")
+    notify = html[notify_start:html.index("\n}\n", notify_start) + 3]
+    posted = _node(_page_functions(html) + notify + f"""
+const posts = [];
+window.webkit = {{ messageHandlers: {{ ficheroBridge: {{ postMessage: (body) => posts.push(body) }} }} }};
+const lines = {json.dumps(lines)}, pageId = {json.dumps(doc_id)}, segmentId = {json.dumps(first["id"])};
+notify("readingEdit", readingEditMessage({json.dumps(text)}, {json.dumps(typed)}, lines, pageId, segmentId).message);
+const mine = {json.dumps(text[mapped["char_start"]:mapped["char_end"]] + " ܘܐܝܣܚܩ")};
+notify("readingEdit", keepMineMessage(pageId, segmentId,
+    {{ mine, theirs: {{ representationId: {json.dumps(theirs)}, text: "theirs" }} }}));
+notify("lineSplit", lineSplitMessage(lines, pageId, {middle}));
+notify("readingEdit", readingEditMessage({json.dumps(text)}, {json.dumps(emptied)}, lines, pageId, segmentId).message);
+console.log(JSON.stringify(posts));
+""")
+    assert [p["kind"] for p in posted] == ["readingEdit", "readingEdit", "lineSplit", "readingEdit"]
+    assert posted[3]["text"] == "", "every word of the line deleted"
+    assert posted[0]["basedOn"] == file_reading and posted[1]["basedOn"] == theirs
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    token = next(s["id"] for s in stable_route["segments"]
+                 if s["kind"] == "line" and s["anchor"]["rect"] == first["anchor"]["rect"])
+    recorded = _stabilizer({doc_id: stable_route["document_id"], first["id"]: token,
+                            file_reading: "rep-0001", theirs: "rep-0002"})(posted)
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        PAGE_MESSAGES_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(PAGE_MESSAGES_FIXTURE.read_text()) == recorded, "the page's messages changed: re-record and re-run the app's joint test"

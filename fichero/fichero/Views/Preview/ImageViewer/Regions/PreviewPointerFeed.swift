@@ -16,6 +16,8 @@ struct PreviewPointerEvent: Sendable {
     let point: CGPoint
     let shift: Bool
     let clickCount: Int
+    /// ⌥ held: removes a shape's point under the pointer in Edit Segments (Reshape).
+    var option = false
 }
 
 /// The seam through which AppKit hands the region layer its clicks and

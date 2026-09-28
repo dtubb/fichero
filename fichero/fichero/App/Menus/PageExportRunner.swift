@@ -63,7 +63,17 @@ enum PageExportRunner {
         /// is told which.
         static func summary(format: Format, passName: String?, passBasis: String?,
                             orderName: String?, readingKind: String?, segmentCount: Int) -> String {
-            var parts = ["Exported as \(format.menuTitle)"]
+            summary(formatTitle: format.menuTitle, stated: PageExportChoice.Stated(
+                passName: passName, passBasis: passBasis, orderName: orderName,
+                readingKind: readingKind, segmentCount: segmentCount
+            ))
+        }
+
+        /// The same, for a format named by the engine (Inspector › Making's per-pass Export, #5162).
+        static func summary(formatTitle: String, stated: PageExportChoice.Stated) -> String {
+            let passName = stated.passName, passBasis = stated.passBasis
+            let orderName = stated.orderName, readingKind = stated.readingKind, segmentCount = stated.segmentCount
+            var parts = ["Exported as \(formatTitle)"]
             if let passName, !passName.isEmpty {
                 parts.append(passBasis.map { "pass \(passName) (\($0))" } ?? "pass \(passName)")
             }
@@ -127,6 +137,63 @@ enum PageExportRunner {
         } catch {
             logger.error("Failed to export page: \(error.localizedDescription)")
             ExportPresentation.showError(error, title: "Page Export Failed")
+        }
+        #endif
+    }
+
+    /// One PASS in a format the engine writes (Inspector › Making, #5162): the export first (a read),
+    /// then the save panel under the engine's own name, then the same report.
+    @MainActor
+    static func exportPass(
+        documentId: String, passId: String, format: PageExportChoice.Format, library: LibraryManager.LibraryReference
+    ) async {
+        #if !os(macOS)
+        logger.info("Page export is macOS-only; a document picker is needed on iOS.")
+        #else
+        do {
+            let result = try await library.documentService.exportPage(
+                documentId: documentId, format: format.name, passId: passId
+            )
+            let suggested = PageExportChoice.filename(engine: result.filename, format: format)
+            guard let url = await ExportPresentation.savePanel(suggestedName: suggested, contentType: nil) else { return }
+            try Data(result.content.utf8).write(to: url, options: .atomic)
+            let choices = result.choices
+            showReport(
+                summary: Text.summary(formatTitle: format.title, stated: PageExportChoice.Stated(
+                    passName: choices.passName, passBasis: choices.passBasis, orderName: choices.orderName,
+                    readingKind: choices.readingKind, segmentCount: Int(choices.segmentCount)
+                )),
+                losses: Text.losses(result.losses.map { (what: $0.what, why: $0.why, count: Int($0.count)) }),
+                url: url
+            )
+        } catch {
+            logger.error("Failed to export pass: \(error.localizedDescription)")
+            ExportPresentation.showError(error, title: "Page Export Failed")
+        }
+        #endif
+    }
+
+    /// A pass AS IMPORTED (#5162): its original file, byte for byte, under its own name. Nothing the
+    /// library made of it -- corrections, reorderings -- is in it; that is what Export is for.
+    @MainActor
+    static func saveOriginal(passId: String, library: LibraryManager.LibraryReference) async {
+        #if !os(macOS)
+        logger.info("Saving an original is macOS-only; a document picker is needed on iOS.")
+        #else
+        do {
+            guard let original = try await library.segmentService.original(passId: passId) else {
+                ExportPresentation.showError(
+                    DocumentServiceError.serverError("The original file is not kept for this pass."), title: "Save Original Failed"
+                )
+                return
+            }
+            guard let url = await ExportPresentation.savePanel(
+                suggestedName: original.fileName ?? "original", contentType: nil
+            ) else { return }
+            try original.bytes.write(to: url, options: .atomic)
+        } catch {
+            logger.error("Failed to save the original: \(error.localizedDescription)")
+            ExportPresentation.showError(error, title: "Save Original Failed")
         }
         #endif
     }

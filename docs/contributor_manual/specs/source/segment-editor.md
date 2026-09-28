@@ -663,9 +663,12 @@ The editor
   `representation.create`, stays in the line map as a zero-width line, and is drawn in its place as
   an empty line under its segment (`.line-empty`, a drawn placeholder, so no offset moves); a caret
   there is on that line (`fichero-server/tests/unit/api/test_reader_runs_and_empty_lines.py::test_a_line_whose_words_are_all_deleted_stays_on_the_page`).
-  PARTIAL: the Swift half (a `readingEdit` only ever becomes `representation.create`) is archive's;
-  a word segment left without a reading is not in the Reader's line map, so it is shown by the
-  Source view, not here.
+  **App half built:** a `readingEdit` that removes words, down to an empty line, only ever becomes
+  `representation.create`, never a segment action, and the line stays
+  (`ImportedPageDrawsItsBoxesTests.testDeletingWordsIsANewReadingAndNeverTouchesTheSegments`, over the
+  recorded Syriac page). **The joint (2026-09-28):** the served page's OWN script, run in node on the imported Syriac page, posts through its own `notify` (`test_imported_page_draws_its_boxes.py::test_the_served_page_s_own_messages_are_recorded_for_the_app_s_bridge`, regenerated every run, failing on drift), and those exact bodies go through the bridge's own parse and `ReaderTextEditRunner` -- what `applyTextEdit` runs -- to the requests the engine takes (`ImportedPageDrawsItsBoxesTests.testTheServedPagesOwnMessagesBecomeTheRequestsTheEngineTakes`) (every word deleted is an empty `representation.create`, never a segment action). Still PARTIAL for one clause: a word segment left without a reading is not in the Reader's
+  line map, so it would be shown by the Source view -- and nothing yet shows it there AS a segment without
+  a reading, or tests that it does.
 - `source.textedit.lines-move-in-the-order` — **[PARTIAL]** (#5001) cutting and pasting whole lines changes the named
   reading order and nothing on the page; other pasted text is typing, its line breaks
   turned to spaces.
@@ -683,7 +686,7 @@ The editor
   (`fichero-server/tests/unit/api/test_reader_selection.py::test_focus_is_posted_once_per_line_change`,
   `::test_the_apps_selection_names_exactly_those_lines_text`). **Still PARTIAL:** the app's half
   (archive, f5f580761) and a run from the screen; the word-level selection is not built.
-- `source.textedit.a-run-of-keys-is-one-action` — **[PARTIAL]** (#5001) typing in one line commits as one reading, one
+- `source.textedit.a-run-of-keys-is-one-action` — **[OK]** (#5001) typing in one line commits as one reading, one
   audit record and one undo step, on leaving the line, a structural key, loss of focus, Save,
   or two seconds' pause; structural edits are their own action at once.
   **Page half built (2026-09-28):** the page sends one `readingEdit` per run: on leaving the line, a
@@ -692,8 +695,10 @@ The editor
   commit made (`lineCommitted.representationId`); words typed while the page is re-read are kept
   on their line and sent with their run (`fichero-server/tests/unit/api/test_reader_runs_and_empty_lines.py::test_a_pause_of_two_seconds_ends_the_run_and_the_next_key_starts_another`,
   `::test_the_next_run_is_based_on_the_reading_the_last_one_made`,
-  `::test_words_being_typed_survive_the_page_being_re_read`). PARTIAL: one audit record and one
-  ⌘Z step per run are the Swift half (archive).
+  `::test_words_being_typed_survive_the_page_being_re_read`). **App half built:** one `readingEdit` is
+  ONE `representation.create`, one audit row and one ⌘Z step, and the page is told the reading it made
+  (`ImportedPageDrawsItsBoxesTests.testARunOfTypingIsOneReadingOneAuditOneUndo`, over the recorded Syriac
+  page); the engine half is `representation.create` itself. **The joint (2026-09-28):** the served page's OWN script, run in node on the imported Syriac page, posts through its own `notify` (`test_imported_page_draws_its_boxes.py::test_the_served_page_s_own_messages_are_recorded_for_the_app_s_bridge`, regenerated every run, failing on drift), and those exact bodies go through the bridge's own parse and `ReaderTextEditRunner` -- what `applyTextEdit` runs -- to the requests the engine takes (`ImportedPageDrawsItsBoxesTests.testTheServedPagesOwnMessagesBecomeTheRequestsTheEngineTakes`).
 - `source.textedit.stale-keeps-your-words` — **[PARTIAL]** (#5001) an edit against a version that has moved on is refused
   and the typed words are kept and offered: keep mine, take theirs, compare; out of reach of
   the engine the text is read-only. **The token (decided 2026-09-28 by the lead as a default; the
@@ -721,8 +726,9 @@ The editor
   `ImportedPageDrawsItsBoxesTests.testATypedLineAgainstAReadingThatNoLongerCountsKeepsTheWordsAndNamesWhatCounts`,
   recorded Syriac readings: token sent, 409 answered with the words kept and `rep-0002` named, Keep Mine
   re-sent against it). A line whose text came from its words sends no `basedOn`, so no check.
-  **Not yet:** "out of reach of the engine the text is read-only"; both halves above are built and each
-  is tested on its side, and the maintainer's run of the Reader is the end-to-end check.
+  **The joint (2026-09-28):** the served page's OWN script, run in node on the imported Syriac page, posts through its own `notify` (`test_imported_page_draws_its_boxes.py::test_the_served_page_s_own_messages_are_recorded_for_the_app_s_bridge`, regenerated every run, failing on drift), and those exact bodies go through the bridge's own parse and `ReaderTextEditRunner` -- what `applyTextEdit` runs -- to the requests the engine takes (`ImportedPageDrawsItsBoxesTests.testTheServedPagesOwnMessagesBecomeTheRequestsTheEngineTakes`): Keep Mine's own message is `representation.create` against what counts now.
+  **Not yet, so PARTIAL:** "out of reach of the engine the text is read-only" -- nothing makes the Reader
+  read-only when the engine cannot be reached.
 - `source.textedit.every-direction` — **[PARTIAL]** (#5001) each block is laid out and edited in its own direction;
   line starts, joins and cuts follow reading order and the baseline; a direction the platform
   cannot lay out is labelled, never reordered.
@@ -1016,7 +1022,22 @@ The editor
   loupe and magnifier are viewing aids, not layers. Nothing yet turns the image itself off, and no
   setting carries workspace defaults.
 - `source.editor.draw-shapes` — **[GAP]** (#4941) box, polygon, point, line and baseline can be drawn.
-- `source.editor.reshape` — **[GAP]** (#4941) points can be dragged, added and removed; shapes moved and nudged.
+- `source.editor.reshape` — **[PARTIAL]** (#4941) points can be dragged, added and removed; shapes moved and nudged.
+  **Built 2026-09-28 (image pages, segment passes):** the overlay draws a segment AS its shapes -- the
+  outline its file drew, an open path, a point, the baseline under the ink -- not its box
+  (`SegmentShapes.drawn`, `DocumentOverlayView`/`ShapeDrawing`), with the Mac selection look. In Edit Segments
+  the ONE selected segment shows a square handle per point of its outline and baseline and a round one per
+  side: drag a point, press a side to add one and drag it, ⌥-click to remove one (never below three for an
+  outline, two for a baseline). Each is one `segment.update` -- the polygon with the rect it bounds, or the
+  baseline alone -- checked against the version read, ⌘Z by its audit id; an outline rewrite on a segment
+  with extra shapes is refused, since the anchor sent would drop them. Pinned: the engine gets every
+  Syriac PAGE line's polygon and baseline point for point from the file (lxml) and takes the app's exact
+  reshapes and two ⌘Z (`test_imported_page_draws_its_boxes.py::test_an_imported_page_s_polygons_and_baselines_reach_the_app_as_the_file_drew_them_and_reshape_lands`);
+  the app draws them and sends those calls (`ImportedPageDrawsItsBoxesTests.testALinesOutlineAndBaselineAreDrawnAsThemselvesAndReshapeSendsTheCheckedUpdate`,
+  `…testReshapingALinesOutlineSendsTheCheckedUpdateAndUndoes`, `…testReshapingABaselineSendsItAloneAndTheRefusalsHold`).
+  Two successive edits of one segment undo twice (`test_segment_undo_twice.py`; the engine refused the second
+  ⌘Z before). **Not yet:** open paths and points are drawn but not reshaped; nudging with keys; PDF pages (the
+  `PDFAnnotation` renderer still draws boxes); a pass with an artifact behind it (its boxes carry no shapes).
 - `source.editor.propose-shape` — **[GAP]** (#4941) a click asks the engine to propose a shape, which can then be
   adjusted.
 - `source.editor.cut` — **[GAP]** (#4941) a scissors stroke splits one or many lines at once.

@@ -180,6 +180,17 @@ final class DocumentOverlayView: NSView {
 
     private func drawBoxes(in dirtyRect: NSRect, imageRect: CGRect, scale: CGFloat, line: CGFloat) {
         for (box, rect) in overlay.boxes(in: dirtyRect, imageRect: imageRect) {
+            // A segment with its own shapes is drawn AS them -- the outline its file drew, the baseline
+            // under its ink -- never as the box around them (#5163's residue).
+            if !box.shapes.isEmpty, !(box.showsText && !box.text.isEmpty) {
+                ShapeDrawing.draw(box.shapes, imageRect: imageRect, scale: scale, look: .init(
+                    line: line,
+                    stroke: SelectionStyle.boxBase.withAlphaComponent(OCRBoxConfidence.strokeOpacity(box.confidence)),
+                    wash: SelectionStyle.boxBase.withAlphaComponent(SelectionStyle.boxWashAlpha),
+                    dashed: OCRBoxConfidence.isUncertain(box.confidence)
+                ))
+                continue
+            }
             let path = NSBezierPath(rect: rect)
             if box.showsText, !box.text.isEmpty {
                 // A theme-matched plate so the word reads, translucent so the scan stays checkable.
@@ -227,7 +238,18 @@ final class DocumentOverlayView: NSView {
            let rect = DocumentBoxMapping.rect(normalized: bbox, imageRect: imageRect), rect.intersects(dirtyRect) {
             outline(rect)
         }
-        for rect in selected {
+        for (index, rect) in selected.enumerated() {
+            let shapes = overlay.selectedShapes.indices.contains(index) ? overlay.selectedShapes[index] : []
+            if !shapes.isEmpty {
+                // Outlined as itself; in Edit Segments, a handle per point and one per side (Reshape).
+                ShapeDrawing.draw(shapes, imageRect: imageRect, scale: scale, look: .init(
+                    line: line * 1.5, stroke: stroke, wash: wash, dashed: false
+                ))
+                if overlay.isEditing {
+                    ShapeDrawing.drawHandles(shapes, imageRect: imageRect, scale: scale, line: line, stroke: stroke)
+                }
+                continue
+            }
             outline(rect)
             guard overlay.isEditing else { continue }  // handles only in Edit Segments
             for handle in SelectionStyle.handleRects(around: rect, side: SelectionStyle.handleSide / scale) {
@@ -245,6 +267,96 @@ final class DocumentOverlayView: NSView {
 /// A recognised word drawn IN its box, the size of the word it stands for (2026-09-01): the largest
 /// size that fits the box in BOTH axes, never truncated. In DOCUMENT space, so it is page ink and
 /// scales with the page like the pixels under it.
+/// A segment's own shapes as paths in the image view's document space (`SegmentShapes.Drawn`): a
+/// polygon closed and washed, a path open, a point a dot, the baseline a heavier line under the ink.
+/// Every length is in SCREEN points, divided by the magnification, as the boxes' are.
+enum ShapeDrawing {
+    /// How the shapes are stroked and washed: a box's look, or the selection's.
+    struct Look {
+        let line: CGFloat
+        let stroke: NSColor
+        let wash: NSColor
+        let dashed: Bool
+    }
+
+    static func draw(_ shapes: [SegmentShapes.Drawn], imageRect: CGRect, scale: CGFloat, look: Look) {
+        let (line, stroke, wash, dashed) = (look.line, look.stroke, look.wash, look.dashed)
+        for shape in shapes {
+            let points = shape.points.compactMap { DocumentBoxMapping.point(normalized: $0, imageRect: imageRect) }
+            switch shape {
+            case .polygon:
+                guard let path = path(through: points, closed: true) else { continue }
+                wash.setFill()
+                path.fill()
+                stroke.setStroke()
+                path.lineWidth = line
+                if dashed { path.setLineDash([3 / scale, 2 / scale], count: 2, phase: 0) }
+                path.stroke()
+            case .path:
+                guard let path = path(through: points, closed: false) else { continue }
+                stroke.setStroke()
+                path.lineWidth = line
+                path.stroke()
+            case .baseline:
+                guard let path = path(through: points, closed: false) else { continue }
+                stroke.setStroke()
+                path.lineWidth = line * 2
+                path.lineCapStyle = .round
+                path.stroke()
+            case .point:
+                guard let point = points.first else { continue }
+                let radius = 3 / scale
+                let dot = NSBezierPath(ovalIn: CGRect(x: point.x - radius, y: point.y - radius,
+                                                      width: radius * 2, height: radius * 2))
+                stroke.setFill()
+                dot.fill()
+            }
+        }
+    }
+
+    /// Reshape's handles: a square on every point of the outline and the baseline, as Preview draws a
+    /// shape's handles, and a small round one on each side's midpoint, where a point can be added.
+    static func drawHandles(
+        _ shapes: [SegmentShapes.Drawn], imageRect: CGRect, scale: CGFloat, line: CGFloat, stroke: NSColor
+    ) {
+        let side = SelectionStyle.handleSide / scale
+        for shape in shapes {
+            let target: SegmentShapes.Target
+            switch shape {
+            case .polygon: target = .polygon
+            case .baseline: target = .baseline
+            case .path, .point: continue  // not reshaped here yet
+            }
+            for normalized in shape.points {
+                guard let point = DocumentBoxMapping.point(normalized: normalized, imageRect: imageRect) else { continue }
+                let square = NSBezierPath(rect: CGRect(x: point.x - side / 2, y: point.y - side / 2, width: side, height: side))
+                SelectionStyle.handleFill.setFill()
+                square.fill()
+                stroke.setStroke()
+                square.lineWidth = line
+                square.stroke()
+            }
+            for normalized in SegmentShapes.sideMidpoints(shape.points, target) {
+                guard let point = DocumentBoxMapping.point(normalized: normalized, imageRect: imageRect) else { continue }
+                let radius = side / 3
+                let dot = NSBezierPath(ovalIn: CGRect(x: point.x - radius, y: point.y - radius,
+                                                      width: radius * 2, height: radius * 2))
+                stroke.setFill()
+                dot.fill()
+            }
+        }
+    }
+
+    private static func path(through points: [CGPoint], closed: Bool) -> NSBezierPath? {
+        guard let first = points.first, points.count >= 2 else { return nil }
+        let path = NSBezierPath()
+        path.move(to: first)
+        points.dropFirst().forEach { path.line(to: $0) }
+        if closed { path.close() }
+        return path
+    }
+}
+
 enum InlineWords {
     static let plateAlpha: CGFloat = 0.6
     /// Leaves a hairline of plate above and below the cap height.

@@ -1,4 +1,5 @@
 @testable import Fichero
+import CryptoKit
 import FicheroAPIClient
 import XCTest
 
@@ -27,21 +28,13 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         /// The `result` an invoke answers with (the engine's is per action; `{}` unless a test says).
         nonisolated(unsafe) static var invokeResult = "{}"
 
+        /// EVERY request to the test host is answered here, never only a list of paths: a path left
+        /// off a list went to the real network (the versions and resolve calls, 2026-09-28), so a
+        /// passing run depended on an engine happening to be up. A path with no branch below gets the
+        /// recorded route's answer, which the test asserting on it will not mistake for its own.
         // swiftlint:disable:next static_over_final_class
         override class func canInit(with request: URLRequest) -> Bool {
-            guard request.url?.host == "127.0.0.1", let path = request.url?.path else { return false }
-            return path.hasPrefix("/api/segments/document/") || path == "/api/annotations"
-                || path.hasPrefix("/api/actions/") || path.hasPrefix("/api/segments/passes/")
-                || (path.hasPrefix("/api/segments/") && path.hasSuffix("/readings"))
-                || path == "/api/source-settings/resolve" || path.hasPrefix("/api/hands")
-                || path.hasPrefix("/api/editorial/") || path.hasPrefix("/api/signs")
-                || path.hasPrefix("/api/letterforms") || path.hasPrefix("/api/links/")
-                || (path.hasPrefix("/api/segments/") && path.hasSuffix("/reference"))
-                || path == "/api/rights/effective"
-                || (path.hasPrefix("/api/segments/") && path.hasSuffix("/statements"))
-                || path.hasPrefix("/api/reading-orders/")
-                || path.split(separator: "/").count == 3 && path.hasPrefix("/api/segments/")
-                || (path.hasPrefix("/api/segments/") && path.hasSuffix("/picture"))
+            request.url?.host == "127.0.0.1"
         }
 
         /// What `GET /api/hands` and `GET /api/hands/segment/{id}` answer (set by the test that asks).
@@ -83,6 +76,11 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         /// What the reading-order routes answer: the page's orders, the top level, one region's
         /// children (for `parent_entry_id` = `childrenOf`); every place POST is recorded.
         nonisolated(unsafe) static var ordersReply = Data()
+        /// What `GET /api/formats` and `GET /api/documents/{id}/export/{format}` answer, and the
+        /// export's path and query (#5162).
+        nonisolated(unsafe) static var formatsReply = Data()
+        nonisolated(unsafe) static var exportReply = Data()
+        nonisolated(unsafe) static var exportRequest: (path: String, query: String?)?
         /// What `POST /api/locations/resolve` answers, and the body it was sent (#5164).
         nonisolated(unsafe) static var resolveReply = Data()
         nonisolated(unsafe) static var resolveRequests: [Data] = []
@@ -155,6 +153,11 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 actionBody = Self.statementsReply
             } else if path.hasPrefix("/api/reading-orders/document/") {
                 actionBody = Self.ordersReply
+            } else if path == "/api/formats" {
+                actionBody = Self.formatsReply
+            } else if path.hasPrefix("/api/documents/"), path.split(separator: "/").dropLast().last == "export" {
+                Self.exportRequest = (path, request.url?.query)
+                actionBody = Self.exportReply
             } else if path == "/api/locations/resolve" {
                 Self.resolveRequests.append(Self.bodyOf(request))
                 actionBody = Self.resolveReply
@@ -227,6 +230,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             ordersReply = Data()
             neighboursReply = Data()
             resolveReply = Data()
+            formatsReply = Data()
+            exportReply = Data()
+            exportRequest = nil
             resolveRequests = []
             neighboursQuery = nil
             topEntriesReply = Data()
@@ -1321,6 +1327,200 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let followed = try await reference.resolve(with: locations)
         XCTAssertEqual(followed, ReadingOrderChoice.Landing(documentId: "doc-0001", segmentId: "seg-0010"),
                        "an old reference opens the line that absorbed it")
+    }
+
+    /// `source.format.export-choices` end to end (#5162, Inspector › Making's per-pass Export), on the
+    /// imported Syriac page: the choices are built from what the engine WRITES (a text pass is offered
+    /// the text formats, a georeferencing pass only the georeference ones); exporting the pass the
+    /// person picked sends its id (`pass_id`) and the engine says it exported that pass; the file is
+    /// named for its format even where the engine's name is not (hOCR as `.hocr`); and "as imported"
+    /// is the original file byte for byte (its SHA-256 is the file's). Breaks if a written format is
+    /// missing, the wrong pass is exported, or "as imported" is anything but the file.
+    func testExportChoicesOfferWhatTheEngineWritesPerPassAndAsImportedIsTheFile() async throws {
+        _ = try await loadedStore()
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.export-choices.json")
+        )) as? [String: Any])
+        RecordedEngine.formatsReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["formats"]))
+        RecordedEngine.exportReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["export"]))
+        RecordedEngine.originalReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["original"]))
+        let client = try XCTUnwrap(storeClient)
+
+        let formats = try await DocumentService(ficheroClient: client).formats()
+        XCTAssertEqual(PageExportChoice.offers(formats, georeferencing: false).map(\.title),
+                       ["PAGE XML", "ALTO", "TEI", "hOCR", "YOLO"])
+        XCTAssertEqual(PageExportChoice.offers(formats, georeferencing: true).map(\.title),
+                       ["IIIF Georeference", "QGIS Points"])
+
+        let hocr = try XCTUnwrap(formats.first { $0.name == "hocr" })
+        let result = try await DocumentService(ficheroClient: client).exportPage(
+            documentId: "doc-0001", format: hocr.name, passId: "pass-0002"
+        )
+        XCTAssertEqual(RecordedEngine.exportRequest?.path, "/api/documents/doc-0001/export/hocr")
+        XCTAssertEqual(RecordedEngine.exportRequest?.query, "pass_id=pass-0002", "the pass the person picked")
+        XCTAssertEqual(result.choices.passId, "pass-0002")
+        XCTAssertEqual(PageExportChoice.filename(engine: result.filename, format: hocr),
+                       "escriptorium_syriac_onb-syr1-0001.page.hocr", "named for what it is")
+        let pagexml = try XCTUnwrap(formats.first { $0.name == "pagexml" })
+        XCTAssertEqual(PageExportChoice.filename(engine: "a.page.xml", format: pagexml), "a.page.xml", "the engine's name kept")
+
+        let fetched = try await SegmentService(ficheroClient: client).original(passId: "pass-0002")
+        let original = try XCTUnwrap(fetched)
+        XCTAssertEqual(original.fileName, "escriptorium_syriac_onb-syr1-0001.page.xml")
+        let digest = SHA256.hash(data: original.bytes).map { String(format: "%02x", $0) }.joined()
+        XCTAssertEqual(digest, recorded["original_sha256"] as? String, "as imported: the file, byte for byte")
+    }
+
+    /// `source.segment.shape-kinds`, `curved-baseline`, `source.editor.reshape` end to end, on the
+    /// imported Syriac page's recorded route (whose polygons and baselines the engine test pins to the
+    /// PAGE file with lxml): the boxes the canvas draws carry each line's outline and baseline, so the
+    /// overlay draws them as themselves; in Edit Segments a press on a side's midpoint adds a point
+    /// (`SegmentShapes.handle`), and Reshape sends `segment.update` with the new polygon and the rect it
+    /// bounds, checked against the version read -- the exact call the engine test proved lands -- with
+    /// ⌘Z by its audit id; ⌥-click removes a baseline point, and never below two. Breaks if a shape is
+    /// dropped on the way to the overlay, a point lands elsewhere than pressed, or the edit sent is not
+    /// the one the engine takes.
+    func testALinesOutlineAndBaselineAreDrawnAsThemselvesAndReshapeSendsTheCheckedUpdate() async throws {
+        let store = try await loadedStore()
+        let selected = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
+        let segments = store.segments(documentId: "doc-0001")
+        let lines = segments.filter { $0.kind == "line" && $0.passId == selected.passId }
+        XCTAssertEqual(lines.count, 12)
+        for line in lines {
+            let box = try XCTUnwrap(line.boxIndex.map { selected.geometry.boxes[$0] })
+            XCTAssertEqual(box.shapes, [.polygon(try XCTUnwrap(line.anchor.polygon)), .baseline(try XCTUnwrap(line.baseline))],
+                           "the line is drawn as its outline and its baseline, not its box")
+        }
+
+    }
+
+    /// Reshape's outline half, on the same recorded line: a press on a side's midpoint adds a point,
+    /// dragged, and the edit sent is the polygon with the rect it bounds, checked against the version
+    /// read, ⌘Z by its audit id (the engine test proves this exact call lands and undoes).
+    func testReshapingALinesOutlineSendsTheCheckedUpdateAndUndoes() async throws {
+        let store = try await loadedStore()
+        let selected = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
+        let line = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.id == "seg-0003" })
+        let box = selected.geometry.boxes[try XCTUnwrap(line.boxIndex)]
+        let polygon = try XCTUnwrap(SegmentShapes.points(of: line, .polygon))
+        let side = SegmentShapes.sideMidpoints(polygon, .polygon)[0]
+        let reach = [0.004, 0.004]
+        XCTAssertEqual(SegmentShapes.handle(at: side, in: box.shapes, tolerance: reach), .side(.polygon, 0))
+        XCTAssertEqual(SegmentShapes.handle(at: polygon[2], in: box.shapes, tolerance: reach), .vertex(.polygon, 2))
+        let added = SegmentShapes.moving(
+            SegmentShapes.adding(polygon, after: 0, at: side, .polygon), index: 1, to: [side[0], side[1] - 0.01]
+        )
+        XCTAssertEqual(added.count, polygon.count + 1)
+        XCTAssertEqual(added[1], [side[0], side[1] - 0.01], "the new point is where it was dragged")
+
+        let call = try SegmentShapes.reshape(line, .polygon, to: added).get()
+        RecordedEngine.invoked = []
+        RecordedEngine.undone = []
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        try await SegmentEditRunner(actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store).run(
+            call, documentId: "doc-0001", actionName: "Reshape Segment", undoManager: manager
+        )
+        manager.endUndoGrouping()
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        XCTAssertEqual(sent["name"] as? String, "segment.update")
+        let params = try XCTUnwrap(sent["params"] as? [String: Any])
+        XCTAssertEqual(params["expected_version"] as? Int, line.version, "checked against the version read")
+        let anchor = try XCTUnwrap(params["anchor"] as? [String: Any])
+        XCTAssertEqual(anchor["polygon"] as? [[Double]], added)
+        XCTAssertEqual(anchor["rect"] as? [Double], SegmentShapes.bounds(added), "the box is the outline's bounds")
+        XCTAssertNil(params["baseline"], "an outline reshape leaves the baseline alone")
+        XCTAssertEqual(manager.undoActionName, "Reshape Segment")
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"], "⌘Z undoes the reshape by its own audit id")
+    }
+
+    /// Reshape's baseline half and its refusals: ⌥-click removes a baseline point and the edit is the
+    /// baseline alone; a baseline keeps two points; an outline rewrite on a segment with extra shapes is
+    /// refused, since the anchor sent would drop them.
+    func testReshapingABaselineSendsItAloneAndTheRefusalsHold() async throws {
+        let store = try await loadedStore()
+        let line = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.id == "seg-0003" })
+        let polygon = try XCTUnwrap(SegmentShapes.points(of: line, .polygon))
+        let added = SegmentShapes.adding(polygon, after: 0, at: SegmentShapes.sideMidpoints(polygon, .polygon)[0], .polygon)
+        let baseline = try XCTUnwrap(SegmentShapes.points(of: line, .baseline))
+        let fewer = try XCTUnwrap(SegmentShapes.removing(baseline, index: 1, .baseline))
+        guard case .baseline(let request) = try SegmentShapes.reshape(line, .baseline, to: fewer).get().params else {
+            return XCTFail("a baseline reshape sends the baseline alone")
+        }
+        XCTAssertEqual(request, SegmentBaselineRequest(segmentId: line.id, expectedVersion: try XCTUnwrap(line.version), baseline: fewer))
+        XCTAssertNil(SegmentShapes.removing(fewer, index: 0, .baseline), "a baseline keeps two points")
+        var withShapes = line
+        withShapes.anchor.shapes = [try makePointShape()]
+        XCTAssertEqual(SegmentShapes.reshape(withShapes, .polygon, to: added), .failure(.hasExtraShapes),
+                       "an anchor rewrite would drop the extra shapes, so it is refused")
+    }
+
+    /// One point shape, for the refusal above (the recorded page has no extra shapes).
+    private func makePointShape() throws -> AnchorShapeValue {
+        AnchorShapeValue(generated: Components.Schemas.AnchorShape(kind: .point, points: [[0.5, 0.5]]))
+    }
+
+    /// THE JOINT of `source.textedit.*` (13b): the bodies the served Reader page's OWN script posted
+    /// through its own `notify` on the imported Syriac page (recorded by
+    /// `test_the_served_page_s_own_messages_are_recorded_for_the_app_s_bridge`, regenerated from the page
+    /// every run) go through the bridge's own parse (`ReaderTextEdit.message(from:)`) and
+    /// `ReaderTextEditRunner` -- exactly what `applyTextEdit` runs -- and become the requests the engine
+    /// takes: a typing run is `representation.create` correcting, and checked against, the reading typed
+    /// over; Keep Mine is the same words against what counts now; Return is `segment.split` at the
+    /// caret, checked against the version read; deleting every word is an empty reading, never a delete. Breaks if the page and the app stop agreeing on a
+    /// message, which each side's own tests cannot see.
+    func testTheServedPagesOwnMessagesBecomeTheRequestsTheEngineTakes() async throws {
+        let store = try await loadedStore()
+        RecordedEngine.readingsReply = try Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-line-readings.json")
+        )
+        let posted = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.page-messages.json")
+        )) as? [[String: Any]])
+        XCTAssertEqual(posted.compactMap { $0["kind"] as? String }, ["readingEdit", "readingEdit", "lineSplit", "readingEdit"])
+        let client = try XCTUnwrap(storeClient)
+        let runner = ReaderTextEditRunner(
+            actionsService: ActionsService(client: client), segmentService: SegmentService(ficheroClient: client),
+            undoManager: nil, refreshPage: { _ in }
+        )
+        RecordedEngine.invoked = []
+        RecordedEngine.invokeResult = #"{"id":"rep-0009"}"#
+        var answers: [String] = []
+        for body in posted {
+            let edit = try XCTUnwrap(ReaderTextEdit.message(from: body), "the app reads every message the page posts")
+            let answer = await runner.apply(edit)
+            answers.append(try XCTUnwrap(answer))
+        }
+
+        let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
+        XCTAssertEqual(
+            sent.compactMap { $0["name"] as? String },
+            ["representation.create", "representation.create", "segment.split", "representation.create"],
+            "no message ever becomes a segment delete: deleting words is a reading"
+        )
+        let params = sent.compactMap { $0["params"] as? [String: Any] }
+        for (index, basis) in [(0, "rep-0001"), (1, "rep-0002")] {
+            XCTAssertEqual(params[index]["document_id"] as? String, "doc-0001")
+            XCTAssertEqual(params[index]["segment_id"] as? String, "seg-0003")
+            XCTAssertEqual(params[index]["content"] as? String, posted[index]["text"] as? String, "the words typed")
+            XCTAssertEqual(params[index]["corrects_representation_id"] as? String, basis)
+            XCTAssertEqual(params[index]["expected_counting_id"] as? String, basis, "checked against what the page read")
+        }
+        let line = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.id == "seg-0003" })
+        XCTAssertEqual(params[2]["segment_id"] as? String, "seg-0003")
+        XCTAssertEqual(params[2]["at_offset"] as? Int, posted[2]["offset"] as? Int, "the caret, in the engine's code points")
+        XCTAssertEqual(params[2]["expected_version"] as? Int, line.version)
+        XCTAssertEqual(params[3]["content"] as? String, "", "every word deleted is an empty reading; the line stays")
+        XCTAssertEqual(params[3]["segment_id"] as? String, "seg-0003")
+        XCTAssertTrue(answers.allSatisfy { $0.hasPrefix("window.fichero?.lineCommitted?.(") }, "the page is answered each time")
+        let first = try XCTUnwrap(answers.first)
+        let told = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: Data(first.dropFirst("window.fichero?.lineCommitted?.(".count).dropLast(2).utf8)
+        ) as? [String: Any])
+        XCTAssertEqual(told["representationId"] as? String, "rep-0009", "the run's reading, for the next run's basis")
     }
 
     /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the

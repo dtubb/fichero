@@ -1282,6 +1282,21 @@ def _stale_changed_fields(db: Database, segment_id: str, expected_version: int, 
     return changed_fields(candidates[0], current_row)
 
 
+def _unchanged_since(db: Database, segment_id: str, expected_version: int, current_row: Segment) -> bool:
+    """Whether the row holds EXACTLY what it held at `expected_version`, though its number moved on.
+
+    For a RESTORE only -- the undo path. Each update's inverse restores `version - 1` checked against
+    the version the update made. Undo two edits of one segment, newest first: undoing the newer one is
+    itself a restore, which bumps the number while putting back the older edit's result. The older
+    edit's undo then met a number it did not expect and was refused (409), so the second ⌘Z of any
+    two successive edits of one segment -- two moves, a reshape then a baseline -- failed (found
+    2026-09-28 pinning Reshape's undo). A number that moved while the CONTENT is what the caller
+    saw is not somebody else's work; content that differs still is, and is still refused.
+    """
+    snapshots = db.query(SegmentVersion, segment_id=segment_id, version=expected_version)
+    return bool(snapshots) and not changed_fields(snapshots[0], current_row)
+
+
 def _require_expected_version(expected_versions: dict[str, int], segment_id: str) -> int:
     """#4957 review 3, item 2: the SAME "expected_versions is missing
     segment_id" 422 was hand-copied in `merge`/`unmerge`/`carry`/`unsplit`
@@ -1922,7 +1937,9 @@ def _action_segment_restore_version(db: Database, params: SegmentRestoreVersionP
         raise HTTPException(status_code=404, detail=f"Segment not found: {params.segment_id}")
     if row.deleted_at is not None:
         raise _as_http_error(SegmentDeleted(params.segment_id))
-    if row.version != params.expected_version:
+    if row.version != params.expected_version and not _unchanged_since(
+        db, params.segment_id, params.expected_version, row
+    ):
         raise _as_http_error(SegmentStale(
             params.segment_id, params.expected_version, row.version,
             _stale_changed_fields(db, params.segment_id, params.expected_version, row),
@@ -2017,11 +2034,14 @@ class SegmentRestoreVersionsParams(BaseModel):
     restores: list[SegmentVersionRestore] = Field(min_length=1)
 
 
-def _live_current_row(db: Database, segment_id: str, expected_version: int) -> Segment:
+def _live_current_row(
+    db: Database, segment_id: str, expected_version: int, *, restoring: bool = False
+) -> Segment:
     """The row, refused unless it is real, live and at the version the caller saw.
 
     The same four refusals as the single-row actions, in the same order, so a bulk
-    edit cannot be a way around any of them.
+    edit cannot be a way around any of them. `restoring` (the undo path only) also takes a row
+    whose number moved while its content is what the caller saw (`_unchanged_since`).
     """
     _assert_not_provisional_http(segment_id, what="segment_id")
     row = db.get(Segment, segment_id)
@@ -2029,7 +2049,7 @@ def _live_current_row(db: Database, segment_id: str, expected_version: int) -> S
         raise HTTPException(status_code=404, detail=f"Segment not found: {segment_id}")
     if row.deleted_at is not None:
         raise _as_http_error(SegmentDeleted(segment_id))
-    if row.version != expected_version:
+    if row.version != expected_version and not (restoring and _unchanged_since(db, segment_id, expected_version, row)):
         raise _as_http_error(SegmentStale(
             segment_id, expected_version, row.version,
             _stale_changed_fields(db, segment_id, expected_version, row),
@@ -2150,7 +2170,7 @@ def _action_segment_restore_versions(
     _refuse_repeated_ids([item.segment_id for item in params.restores])
     pairs = []
     for item in params.restores:
-        row = _live_current_row(db, item.segment_id, item.expected_version)
+        row = _live_current_row(db, item.segment_id, item.expected_version, restoring=True)
         candidates = db.query(SegmentVersion, segment_id=item.segment_id, version=item.version)
         if not candidates:
             raise HTTPException(

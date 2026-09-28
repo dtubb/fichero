@@ -69,9 +69,9 @@ private struct ReaderToolbarClusterPreview: View {
         ReaderToolbarCluster(
             isExpanded: $expanded, collapsedIcon: "textformat.size", collapsedHelp: "Show zoom controls"
         ) {
-            Button { } label: { Image(systemName: "minus.magnifyingglass") }.accessibilityLabel("Zoom Out")
+            Button { } label: { Image(systemName: "minus.magnifyingglass") }.accessibilityLabel("Zoom Out").help("Zoom Out")
             Text("100%").font(.caption).monospacedDigit()
-            Button { } label: { Image(systemName: "plus.magnifyingglass") }.accessibilityLabel("Zoom In")
+            Button { } label: { Image(systemName: "plus.magnifyingglass") }.accessibilityLabel("Zoom In").help("Zoom In")
         }
         .padding()
     }

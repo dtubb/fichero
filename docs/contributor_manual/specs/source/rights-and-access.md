@@ -100,9 +100,15 @@ against their sources before approval.)
 
 ## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
 
-- `source.rights.one-check` — **[GAP]** (#4953) a rights record is enforced by the existing permission layer (a
+- `source.rights.one-check` — **[PARTIAL]** (#4953) a rights record is enforced by the existing permission layer (a
   grant or deny on a segment id, inherited the way it already is); there is no second check.
-  (Recommended; blocked on the maintainer with the rest of this slice.)
+  **Built, engine side (2026-09-28):** `authz._allowed` ends in `_rights_refuse`, so a restricting record refuses
+  every account it does not name -- owner and editor included (ruled 2026-09-20) -- for reads and writes, on its
+  target and everything under it; two restrictions on the chain need both names; a withdrawn one restricts
+  nothing; a library with no restricting record costs one query and behaves as before; a lookup error refuses.
+  `rights.set` refuses a restriction that does not name the person setting it, out loud, rather than lock them
+  out or silently add them (`fichero-server/tests/unit/security/test_rights_enforcement.py`, 11 tests, 8 failing
+  on the code before). **Not built:** the app saying WHY something is refused (a restricted page reads as denied).
 - `source.rights.record` — **[PARTIAL]** (#4953) a rights and consent record can be attached to a project, a source
   or any segment, with labels from an open list. **Built, engine side:** `RightsRecord` (`models/rights.py`)
   with holders, consent (what, by whom, when), conditions (capped: it enters the audit chain), open labels,

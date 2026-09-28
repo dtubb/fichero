@@ -42,12 +42,15 @@ extension DocumentService {
     /// about is a loss that looks like a clean export.
     func exportPage(
         documentId: String,
-        format: String
+        format: String,
+        passId: String? = nil
     ) async throws -> Components.Schemas.PageExportResponse {
         logger.info("Exporting page \(documentId) as \(format)")
 
+        // `passId` nil: the engine's choice (the working pass, or the working georeference), stated
+        // back in `choices`. Set: the pass the person picked in Inspector › Making (#5162).
         let response = try await client.api.exportDocumentPageApiDocumentsDocIdExportFormatNameGet(
-            .init(path: .init(docId: documentId, formatName: format))
+            .init(path: .init(docId: documentId, formatName: format), query: .init(passId: passId))
         )
 
         switch response {
@@ -69,6 +72,20 @@ extension DocumentService {
             // this branch is for, and silently succeeding on one would be worse than saying so.
             let detail = await Self.errorDetail(from: payload.body)
             throw DocumentServiceError.serverError(detail ?? "The engine answered \(statusCode).")
+        }
+    }
+
+    /// The interchange formats this build reads and writes (`GET /api/formats`, #5162): what the
+    /// export choices are built from, so a format the engine gains appears without an app change.
+    func formats() async throws -> [PageExportChoice.Format] {
+        let response = try await client.api.listFormatsApiFormatsGet()
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items.map {
+                PageExportChoice.Format(name: $0.name, extensions: $0.extensions, writes: $0.writes)
+            }
+        case .undocumented(let statusCode, _):
+            throw DocumentServiceError.serverError("The engine answered \(statusCode) for its formats.")
         }
     }
 

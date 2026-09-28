@@ -27,6 +27,18 @@ extension ZoomableImagePreview {
         return true
     }
 
+    /// RESHAPE one box's outline or baseline (by its index in the shown boxes): `segment.update`, checked
+    /// against the version read, ⌘Z. A segment's shapes are on a segment pass, so this is the only path.
+    func reshapeSegment(index: Int, _ target: SegmentShapes.Target, to points: [[Double]]) {
+        guard let passId = shownArtifactlessPassId, let documentId, let store = segmentEditStore,
+              let segment = store.segments(documentId: documentId)
+                .first(where: { $0.passId == passId && $0.boxIndex == index }) else { return }
+        runSegmentEdit(
+            SegmentShapes.reshape(segment, target, to: points), documentId: documentId,
+            name: target == .polygon ? "Reshape Segment" : "Reshape Baseline"
+        )
+    }
+
     /// DELETE the selected boxes on an artifact-less pass. True when handled here.
     func deleteSelectedSegments() -> Bool {
         guard shownArtifactlessPassId != nil, let documentId else { return false }
