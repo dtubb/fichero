@@ -456,6 +456,7 @@ def _candidate(item: ReadingRead) -> ReadingCandidate:
         created_at=item.created_at,
         retracted=item.retracted,
         provisional=item.provisional,
+        corrects_representation_id=item.corrects_representation_id,
     )
 
 
@@ -781,7 +782,8 @@ def _why_omitted(
 #: 4: a line with no direction of its own (digits) takes its neighbours' (#5172).
 #: 5: the stored line map carries each line's counting reading, `representation_id` (#5154).
 #: 6: a line with no letters takes its BLOCK's direction, else its page's (#5172, as ruled).
-DERIVATION_VERSION = 6
+#: 7: a person's correction outranks the reading it corrects (#5175).
+DERIVATION_VERSION = 7
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
 DERIVATION_SOURCE_SHA256 = "cb942546b66e6dd0b869cbffb8f127dda7e63d2f46e1d824c1f8765b6adc31d4"
