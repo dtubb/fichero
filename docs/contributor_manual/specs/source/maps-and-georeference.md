@@ -415,7 +415,7 @@ The coordinate reference system
   **Built 2026-09-28 (#5122):** a `world-point` write names its CRS (EPSG code, WKT2 or `unknown`)
   and axis order, or is refused
   (`fichero-server/tests/unit/api/test_a_control_point_has_a_place_on_the_earth.py::test_no_crs_is_refused_and_another_crs_is_held_unconverted`).
-  PARTIAL: only world points exist yet; `GeoPoint`/`EvidentialPlace` are `crs-declared-on-existing`.
+  PARTIAL: `GeoPoint`/`EvidentialPlace` declare EPSG:4326 (`crs-declared-on-existing`, built); a write naming no CRS there is taken as WGS 84, the only CRS they have ever held.
 - `source.geo.crs-stored-as-wgs84` — **[PARTIAL]** (#4933; ruled on #5124) a coordinate is converted to
   WGS 84 (EPSG:4326) and stored in it, recording the CRS it arrived in and the conversion used.
   **Built for EPSG:4326 (2026-09-28, #5122):** stored lon/lat with `crs_in`, `axis_order_in`,
@@ -430,8 +430,14 @@ The coordinate reference system
   held with its numbers as entered, lon/lat null, `crs: unknown` and the reason
   (`fichero-server/tests/unit/api/test_a_control_point_has_a_place_on_the_earth.py::test_no_crs_is_refused_and_another_crs_is_held_unconverted`).
   PARTIAL: "declare the CRS later and it is converted" waits on `proj-at-build`; exports do not yet exist to refuse it.
-- `source.geo.crs-declared-on-existing` — **[GAP]** (#4933) existing `GeoPoint` and
+- `source.geo.crs-declared-on-existing` — **[PARTIAL]** (#4933) existing `GeoPoint` and
   `EvidentialPlace` coordinates are declared EPSG:4326 by an additive schema change.
+  **Built 2026-09-28 (maps D5):** both carry `crs`, fixed to `EPSG:4326` and defaulting to it, so a
+  row an older build wrote (no `crs` key) reads back declaring WGS 84 with no number touched; the
+  claim route answers it and refuses a claim point naming any other CRS (422), and the geocoder's
+  points say it (`fichero-server/tests/unit/api/test_existing_coordinates_declare_wgs84.py::test_a_claim_an_older_build_wrote_reads_back_as_wgs84`,
+  `::test_the_claim_route_says_the_crs_and_refuses_another`, `::test_the_geocoder_writes_wgs84_and_says_so`).
+  PARTIAL: no screen shows it.
 - `source.geo.proj-at-build` — **[GAP]** (#4933) CRS conversion uses PROJ shipped with the app at
   build time and never downloads code at run time.
 

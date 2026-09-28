@@ -16,7 +16,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from typing import Any
+from typing import Any, Literal
 
 
 def _new_id() -> str:
@@ -498,6 +498,11 @@ class GeoPoint(BaseModel):
         description="Radius of locational uncertainty in metres (None = exact).",
     )
     place_name: str | None = None
+    #: Declared, not converted (maps D5, `source.geo.crs-declared-on-existing`): every lat/lon this
+    #: record has ever held is WGS 84 -- the geocoders and the map speak nothing else -- so a row an
+    #: older build wrote reads back saying so. A coordinate in any other CRS is refused here; it goes
+    #: through the world-point path, which records the CRS it arrived in (`models.geo`).
+    crs: Literal["EPSG:4326"] = "EPSG:4326"
 
 
 class EvidenceBasis(str, Enum):
@@ -570,6 +575,11 @@ class EvidentialPlace(BaseModel):
     # image-anchor type. The name now says which kind it is.
     geo_bbox: list[float] | None = None
     geojson: dict | None = None
+    #: Declared, not converted (maps D5, `source.geo.crs-declared-on-existing`): every lat/lon this
+    #: record has ever held is WGS 84 -- the geocoders and the map speak nothing else -- so a row an
+    #: older build wrote reads back saying so. A coordinate in any other CRS is refused here; it goes
+    #: through the world-point path, which records the CRS it arrived in (`models.geo`).
+    crs: Literal["EPSG:4326"] = "EPSG:4326"
     basis: EvidenceBasis
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     source_document_id: str | None = None
