@@ -189,7 +189,7 @@ struct SelectAllVisibleSurfaceTests {
     func everyPaneClaimsFocus() throws {
         // Preview and reading carried no focus gesture, so the hint never left
         // .content and ⌘A over a clicked preview still went to the library.
-        let spec = try code(at: "Views/Shell/ContentView/Layout/PaneSpec.swift")
+        let spec = try code(at: "Views/Shell/ContentView/Layout/ContentView+PaneSpecs.swift")  // the builder moved here
         for pane in [".content", ".chat", ".preview", ".reading"] {
             #expect(spec.contains("focusedPane = \(pane); paneFocusHint = \(pane)"),
                     "the \(pane) pane does not claim focus on click")

@@ -22,6 +22,17 @@ import Testing
 ///      search with a latch; claims now use the same one.
 @MainActor
 struct ClaimSourceLandingTests {
+    /// Every `ContentView+*.swift`, joined: the handlers these scans pin move between those files as
+    /// they are split (StateEvents → EventHandlers / SelectionAndDetailEvents), and a path per scan
+    /// broke four of them at the last split without anything behaving differently.
+    static func contentViewSources() throws -> String {
+        let dir = try AppSource.root().appendingPathComponent("Views/Shell/ContentView")
+        let files = try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("ContentView+") && $0.pathExtension == "swift" }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        return try files.map { try String(contentsOf: $0, encoding: .utf8) }.joined(separator: "\n")
+    }
+
 
     // MARK: - The latch
 
@@ -78,11 +89,7 @@ struct ClaimSourceLandingTests {
         #expect(source.contains("ReaderPassageAnchor.kindKey"))
         #expect(source.contains("ReaderPassageAnchor.searchPassageKind"))
 
-        let handler = try String(
-            contentsOf: AppSource.root()
-                .appendingPathComponent("Views/Shell/ContentView/ContentView+StateEvents.swift"),
-            encoding: .utf8
-        )
+        let handler = try Self.contentViewSources()
         let body = try #require(
             handler.components(separatedBy: "func handleOpenClaimSource() {")
                 .dropFirst().first
@@ -142,11 +149,7 @@ struct ClaimSourceLandingTests {
     /// (navigational) request may still do those.
     @Test("a knowledge-surface reveal never writes sidebar mode or selection")
     func knowledgeSurfaceRevealNeverWritesSidebarModeOrSelection() throws {
-        let handler = try String(
-            contentsOf: AppSource.root()
-                .appendingPathComponent("Views/Shell/ContentView/ContentView+StateEvents.swift"),
-            encoding: .utf8
-        )
+        let handler = try Self.contentViewSources()
         let body = try #require(
             handler.components(separatedBy: "func handleOpenClaimSource() {")
                 .dropFirst().first
@@ -169,11 +172,7 @@ struct ClaimSourceLandingTests {
     /// about which location they resolved.
     @Test("both highlight channels are posted from the one resolved request")
     func bothHighlightChannelsShareTheOneResolve() throws {
-        let handler = try String(
-            contentsOf: AppSource.root()
-                .appendingPathComponent("Views/Shell/ContentView/ContentView+StateEvents.swift"),
-            encoding: .utf8
-        )
+        let handler = try Self.contentViewSources()
         let body = try #require(
             handler.components(separatedBy: "func handleOpenClaimSource() {")
                 .dropFirst().first
@@ -242,11 +241,7 @@ struct ClaimSourceLandingTests {
     /// before any early-return.
     @Test("a real sidebar or browser selection change clears the reveal")
     func realSelectionChangeClearsTheReveal() throws {
-        let source = try String(
-            contentsOf: AppSource.root()
-                .appendingPathComponent("Views/Shell/ContentView/ContentView+StateEvents.swift"),
-            encoding: .utf8
-        )
+        let source = try Self.contentViewSources()
         for signature in [
             "func handleSidebarSelectionChange(_ newFolderId: String?) {",
             "func handleBrowserSelectionChange(_ newSelection: Set<String>) {"
@@ -262,11 +257,7 @@ struct ClaimSourceLandingTests {
     /// merely showed, never selected.
     @Test("a knowledge-surface reveal never reaches the workflow run selection")
     func revealNeverReachesWorkflowRunSelection() throws {
-        let source = try String(
-            contentsOf: AppSource.root()
-                .appendingPathComponent("Views/Shell/ContentView/ContentView+StateEvents.swift"),
-            encoding: .utf8
-        )
+        let source = try Self.contentViewSources()
         let body = try #require(
             source.components(separatedBy: "var effectiveWorkflowRunSelection: [String] {")
                 .dropFirst().first
