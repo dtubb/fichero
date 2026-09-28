@@ -19,6 +19,36 @@ from fichero_server.models import Artifact, DocType, Document, Segment
 
 router = APIRouter(prefix="/view", tags=["views"])
 
+
+# #5210 / #5206: fallback fonts for scripts macOS lacks (MUFI, Syriac, Mongolian, Coptic,
+# Cherokee), bundled under resources/fonts (SIL OFL 1.1; see PROVENANCE.md there). The
+# Reader's page names them in @font-face; its web view fetches them through the app's
+# fichero-server:// scheme, so they reach a Reader over the socket or a remote engine alike.
+# An explicit allowlist: this route can never be asked for any other file.
+BUNDLED_FONTS: dict[str, str] = {
+    "JunicodeVF-Roman.woff2": "font/woff2",
+    "NotoSansSyriac-VF.ttf": "font/ttf",
+    "NotoSansMongolian-Regular.ttf": "font/ttf",
+    "NotoSansCoptic-Regular.ttf": "font/ttf",
+    "NotoSansCherokee-VF.ttf": "font/ttf",
+}
+_FONTS_DIR = Path(__file__).resolve().parents[3] / "resources" / "fonts"
+
+
+@router.get("/fonts/{name}")
+def bundled_font(name: str):
+    """A bundled fallback font, by its exact file name, or 404."""
+    from fastapi.responses import FileResponse
+
+    media_type = BUNDLED_FONTS.get(name)
+    if media_type is None:
+        raise HTTPException(status_code=404, detail="No such bundled font")
+    return FileResponse(
+        _FONTS_DIR / name,
+        media_type=media_type,
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
+
 _TEMPLATES = None
 _GLOBAL_KG_LIMIT = 250
 

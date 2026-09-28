@@ -437,6 +437,17 @@ $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/tran
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/translate_deepl.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/translate_review.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/translate_reviewed_transcription.json
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/JunicodeVF-Roman.woff2
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/NotoSansCherokee-VF.ttf
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/NotoSansCoptic-Regular.ttf
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/NotoSansMongolian-Regular.ttf
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/NotoSansSyriac-VF.ttf
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/OFL-Junicode.txt
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/OFL-NotoSans-cherokee.txt
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/OFL-NotoSans-coptic.txt
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/OFL-NotoSans-mongolian.txt
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/OFL-NotoSans-syriac.txt
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/PROVENANCE.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/model_prices.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/narrative_v1.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/narrative_v2.md
