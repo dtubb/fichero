@@ -67091,6 +67091,11 @@
             "type": "object",
             "nullable": true,
             "title": "Script Meta"
+          },
+          "expected_counting_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Expected Counting Id"
           }
         },
         "additionalProperties": false,
