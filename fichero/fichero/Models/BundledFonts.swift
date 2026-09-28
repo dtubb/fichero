@@ -5,7 +5,7 @@ import SwiftUI
 
 /// The fonts the engine bundles for scripts the system lacks (#5210, #5206): Junicode for MUFI's
 /// private-use letters, Noto Sans for Syriac, Mongolian, Coptic and Cherokee. They are the SAME files the
-/// Reader's `@font-face` names, fetched from the engine's `GET /view/fonts/{name}`, so the app vendors
+/// Reader's `@font-face` names, listed by the engine's `GET /api/fonts` and fetched from each entry's `url`, so the app vendors
 /// nothing of its own and a remote engine serves them too.
 ///
 /// Registering a font with the process does NOT put it in the system's fallback (U+F1AC stays a box), so
@@ -18,11 +18,16 @@ import SwiftUI
 final class BundledFonts {
     static let shared = BundledFonts()
 
-    /// The engine's allowlist (`views.py` `BUNDLED_FONTS`), in cascade order.
-    static let names = [
-        "JunicodeVF-Roman.woff2", "NotoSansSyriac-VF.ttf", "NotoSansMongolian-Regular.ttf",
-        "NotoSansCoptic-Regular.ttf", "NotoSansCherokee-VF.ttf"
-    ]
+    /// One entry of the engine's `GET /api/fonts` list (fonts.py `BundledFont`), in fallback order.
+    struct Listed: Decodable, Equatable {
+        let family: String
+        let url: String
+    }
+
+    /// The engine's list, decoded; empty when it is not a list of fonts (an older engine has no route).
+    nonisolated static func listed(from data: Data) -> [Listed] {
+        (try? JSONDecoder().decode([Listed].self, from: data)) ?? []
+    }
 
     /// The faces fetched so far; empty until an engine has answered.
     private(set) var cascade: [CTFontDescriptor] = [] {
@@ -38,10 +43,10 @@ final class BundledFonts {
     /// left out (an older engine has no route): the text still draws, with the system's fonts.
     func load(from client: FicheroClient) async {
         guard cascade.isEmpty else { return }
+        guard let (status, listData) = try? await client.requestData(path: "/api/fonts"), status == 200 else { return }
         var found: [CTFontDescriptor] = []
-        for name in Self.names {
-            guard let (status, data) = try? await client.requestData(path: "/view/fonts/\(name)"),
-                  status == 200 else { continue }
+        for font in Self.listed(from: listData) {
+            guard let (status, data) = try? await client.requestData(path: font.url), status == 200 else { continue }
             found += Self.descriptors(in: data)
         }
         cascade = found

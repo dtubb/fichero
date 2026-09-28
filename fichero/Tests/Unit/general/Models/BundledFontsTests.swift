@@ -14,10 +14,13 @@ final class BundledFontsTests: XCTestCase {
     private func cascade() throws -> [CTFontDescriptor] {
         let fonts = try AppSource.root().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("fichero-server/src/fichero_server/resources/fonts")
-        let faces = try BundledFonts.names.flatMap { name in
+        let otf = try FileManager.default.contentsOfDirectory(atPath: fonts.path).filter { $0.hasSuffix(".otf") }.sorted()
+        let files = otf.filter { $0.hasPrefix("Junicode") } + otf.filter { !$0.hasPrefix("Junicode") }
+        XCTAssertFalse(files.isEmpty, "the engine bundles its fonts under resources/fonts")
+        let faces = try files.flatMap { name in
             BundledFonts.descriptors(in: try Data(contentsOf: fonts.appendingPathComponent(name)))
         }
-        XCTAssertEqual(faces.count, BundledFonts.names.count, "every file the engine serves loads as a face, the woff2 too")
+        XCTAssertEqual(faces.count, files.count, "every font file the engine serves loads as a face")
         return faces
     }
 
@@ -29,20 +32,31 @@ final class BundledFontsTests: XCTestCase {
     func testAMufiLetterFindsJunicodeThroughTheCascade() throws {
         let base = BundledFonts.systemDescriptor(.body)
         let font = BundledFonts.ctFont(base: base, size: 0, cascade: try cascade())
-        XCTAssertEqual(family(of: "\u{F1AC}", in: font), "Junicode VF", "MUFI U+F1AC must not fall to LastResort (⍰)")
+        XCTAssertEqual(family(of: "\u{F1AC}", in: font), "Junicode", "MUFI U+F1AC must not fall to LastResort (⍰)")
         XCTAssertNotEqual(
-            family(of: "\u{F1AC}", in: BundledFonts.ctFont(base: base, size: 0, cascade: [])), "Junicode VF",
+            family(of: "\u{F1AC}", in: BundledFonts.ctFont(base: base, size: 0, cascade: [])), "Junicode",
             "without the cascade the system has no MUFI font: this is the defect the cascade fixes"
         )
     }
 
     func testTheSystemsOwnScriptsKeepTheirFonts() throws {
         let font = BundledFonts.ctFont(base: BundledFonts.systemDescriptor(.body), size: 0, cascade: try cascade())
-        XCTAssertNotEqual(family(of: "登", in: font), "Junicode VF", "Chinese keeps the system's font")
-        XCTAssertNotEqual(family(of: "a", in: font), "Junicode VF", "Latin keeps the system font")
+        XCTAssertNotEqual(family(of: "登", in: font), "Junicode", "Chinese keeps the system's font")
+        XCTAssertNotEqual(family(of: "a", in: font), "Junicode", "Latin keeps the system font")
     }
 
     func testWithNoEngineTheFontIsTheSystemsStyle() {
         XCTAssertEqual(BundledFonts.font(.body, cascade: []), Font.system(.body), "no faces fetched: nothing changes")
+    }
+
+    /// The app reads the engine's own list (`GET /api/fonts`, fonts.py `BundledFont`), never a hard-coded one:
+    /// the list names each font's url, so a font the engine adds reaches the app with no app change.
+    func testTheEnginesFontListIsReadInItsOrder() {
+        let body = #"[{"family":"Junicode","url":"/api/fonts/Junicode-Regular.otf","format":"opentype","covers":"MUFI","licence_url":"/api/fonts/OFL-Junicode.txt"},{"family":"Noto Sans Syriac","url":"/api/fonts/NotoSansSyriac-Regular.otf","format":"opentype","covers":"Syriac","licence_url":"/api/fonts/OFL-NotoSansSyriac.txt"}]"#
+        XCTAssertEqual(
+            BundledFonts.listed(from: Data(body.utf8)).map(\.url),
+            ["/api/fonts/Junicode-Regular.otf", "/api/fonts/NotoSansSyriac-Regular.otf"]
+        )
+        XCTAssertEqual(BundledFonts.listed(from: Data("{\"detail\":\"Not Found\"}".utf8)), [], "an older engine: no fonts, no crash")
     }
 }
