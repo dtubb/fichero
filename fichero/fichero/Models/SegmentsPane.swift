@@ -92,14 +92,18 @@ enum SegmentsPane {
     }
 
     /// A row's words: its kind, then its reading when it has one ("Line · ܐܒܪܗܡ…").
-    static func rowLabel(_ segment: Segment?, at index: Int) -> String {
+    /// `direction` is the segment's resolved one (#5199): its words are an isolate in it, so a Syriac line
+    /// reads right to left after the Latin kind and never reorders it. A caption stays one row, so a
+    /// vertical line's words are isolated as written rather than stacked.
+    static func rowLabel(_ segment: Segment?, at index: Int, direction: String? = nil) -> String {
         let kind = segment.map(InspectorPath.name(of:)) ?? "Segment"
         guard let text = segment?.text?.trimmingCharacters(in: .whitespaces), !text.isEmpty else {
             // A cell is named by its place already; a count after it would read as another number.
             let named = segment?.cell != nil ? kind : "\(kind) \(index + 1)"
             return segment.map(lacksReading) == true ? named + " · No reading" : named
         }
-        return "\(kind) · \(text)"
+        let horizontal = direction == "ttb" || direction == "btt" ? nil : direction
+        return "\(kind) · \(SegmentLabel.layout(text, direction: horizontal).text)"
     }
 }
 

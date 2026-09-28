@@ -1086,6 +1086,22 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
 
   Pinned by `BoxResizeTests`. **Still PARTIAL:** the PDF page, and a run on screen.
 
+- `source.editor.labels-in-their-direction` — **[PARTIAL]** (#5199) a label drawn for a segment -- the hover
+  label on the image, the Segments pane's rows and strip and grid captions -- is laid out in the segment's
+  RESOLVED direction, the engine's cascade as the page text serves it per block, never guessed from its
+  characters. `ttb` is a column beside the line; `rtl` runs right to left; every label is a Unicode
+  isolate, so a mixed line resolves on its own and never reorders its neighbours.
+  **Built 2026-09-28:** the page's line directions load with its segments (`SegmentStore`, from
+  `GET /api/segments/document/{id}/text`). A word takes its line's direction. The hover label stacks a
+  column's graphemes beside it. Rows and captions isolate the words in the line's direction; they stay one
+  row, so a vertical line's caption is an isolate as written. Pinned on the engine's recorded answers for
+  the real Chinese-vertical and Syriac pages (`SegmentLabelTests`, recorded by
+  `test_reader_directions.py::test_the_page_text_s_directions_are_recorded_for_the_app_s_labels`).
+  **Still PARTIAL:**
+  - the text fitted into boxes on the image (`InlineWordText`), which is not direction-aware;
+  - Mongolian, whose rotated letters want the text turned, not stacked;
+  - the Inspector's own direction for Han, which waits on the resolve route measuring the page's lines
+    (#5202, engine).
 - `source.editor.selection-shared` — **[PARTIAL]** (#4941) selecting a segment in the Source view, Reader or Inspector
   selects it in the others.
   **Two of the three pairs exist, by two different mechanisms** (read on disk 2026-09-27), and

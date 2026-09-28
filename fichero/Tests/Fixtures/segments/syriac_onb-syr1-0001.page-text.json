@@ -1,0 +1,188 @@
+{
+ "text": "\u071a\u0728\u072a\u0718\u0722 \u0725\u0720 \u071a\u071d\u0720\u0717\u00a0\u0715\u0721\u072a\u0722 \u071d\u072b\u0718\u0725\u00a0\u0721\u072b\u071d\u071a\u0710\u00a0\u0721\u072b\u072a\u071d\u0722\u0722 \u0720\u0721\u071f\u072c\u0712 \u071f\u072c\u0712\u0710 \u0715\u0710\u0718\u0722\u0713\u0720\u071d\u0718\u0722 \u070f\u0729\u0715: \u0729\u0715\u0721\u0710\u071d\u072c \u00a0\u0710\u0718\u0722\u0713\u0720\u071d\u0718\u0722\u00a0\u0715\u0721\u072c\u071d \u0715\u0721\u0720\u0720 \u0725\u0712\u072a\u0710\u071d\u072c \u0712\u0710\u072a\u0725\u0710 \u0715\u0726\u0720\u0723\u071b\u071d\u0722\u0710 \u0700 \u071f\u072c\u0712\u0710 \u0715\u071d\u0720\u071d\u0715\u0718\u072c\u0717 \u0715\u071d\u072b\u0718\u0725 \u0721\u072b\u071d\u071a\u0710 \u0712\u072a\u0717 \u0715\u0715\u0718\u071d\u0715 \u0712\u072a\u0717 \u0715\u0710\u0712\u072a\u0717\u0721. \u0710\u0712\u072a\u0717\u0721 \u0710\u0718\u0720\u0715 \u0720\u0710\u071d\u0723\u071a\u0729. \u0710\u071d\u0723\u071a\u0729 \u0710\u0718\u0720\u0715 \u0720\u071d\u0725\u0729\u0718\u0712. \u071d\u0725\u0729\u0718\u0712 \u0710\u0718\u0720\u0715 \u0720\u071d\u0717\u0718\u0715\u0710 \u0718\u0720\u0710\u071a\u0308\u0718\u0717\u071d. \u071d\u0717\u0718\u0715\u0710 \u0710\u0718\u0720\u0715 \u0720\u0726\u072a\u0728. \u0718\u0720\u0719\u072a\u071a \u0721\u0323\u0722 \u072c\u0721\u072a \u0726\u072a\u0728 \u0710\u0718\u0720\u0715 \u0720\u071a\u0728\u072a\u0718\u0722. 1v",
+ "spans": [
+  {
+   "segment_id": "seg-0",
+   "representation_id": "rep-1",
+   "start": 0,
+   "end": 5
+  },
+  {
+   "segment_id": "seg-2",
+   "representation_id": "rep-3",
+   "start": 6,
+   "end": 18
+  },
+  {
+   "segment_id": "seg-4",
+   "representation_id": "rep-5",
+   "start": 19,
+   "end": 36
+  },
+  {
+   "segment_id": "seg-6",
+   "representation_id": "rep-7",
+   "start": 37,
+   "end": 47
+  },
+  {
+   "segment_id": "seg-8",
+   "representation_id": "rep-9",
+   "start": 48,
+   "end": 69
+  },
+  {
+   "segment_id": "seg-10",
+   "representation_id": "rep-11",
+   "start": 70,
+   "end": 96
+  },
+  {
+   "segment_id": "seg-12",
+   "representation_id": "rep-13",
+   "start": 97,
+   "end": 113
+  },
+  {
+   "segment_id": "seg-14",
+   "representation_id": "rep-15",
+   "start": 114,
+   "end": 161
+  },
+  {
+   "segment_id": "seg-16",
+   "representation_id": "rep-17",
+   "start": 162,
+   "end": 205
+  },
+  {
+   "segment_id": "seg-18",
+   "representation_id": "rep-19",
+   "start": 206,
+   "end": 258
+  },
+  {
+   "segment_id": "seg-20",
+   "representation_id": "rep-21",
+   "start": 259,
+   "end": 275
+  },
+  {
+   "segment_id": "seg-22",
+   "representation_id": "rep-23",
+   "start": 276,
+   "end": 278
+  }
+ ],
+ "pass_id": "pass",
+ "pass_basis": "imported",
+ "kind": "transcription",
+ "order": null,
+ "omitted": [],
+ "blocks": [
+  {
+   "region_segment_id": "seg-24",
+   "direction": "rtl",
+   "direction_level": null,
+   "spans": [
+    {
+     "segment_id": "seg-0",
+     "representation_id": "rep-1",
+     "start": 0,
+     "end": 5
+    }
+   ],
+   "text": "\u071a\u0728\u072a\u0718\u0722"
+  },
+  {
+   "region_segment_id": "seg-25",
+   "direction": "rtl",
+   "direction_level": null,
+   "spans": [
+    {
+     "segment_id": "seg-2",
+     "representation_id": "rep-3",
+     "start": 6,
+     "end": 18
+    },
+    {
+     "segment_id": "seg-4",
+     "representation_id": "rep-5",
+     "start": 19,
+     "end": 36
+    },
+    {
+     "segment_id": "seg-6",
+     "representation_id": "rep-7",
+     "start": 37,
+     "end": 47
+    },
+    {
+     "segment_id": "seg-8",
+     "representation_id": "rep-9",
+     "start": 48,
+     "end": 69
+    },
+    {
+     "segment_id": "seg-10",
+     "representation_id": "rep-11",
+     "start": 70,
+     "end": 96
+    },
+    {
+     "segment_id": "seg-12",
+     "representation_id": "rep-13",
+     "start": 97,
+     "end": 113
+    }
+   ],
+   "text": "\u0725\u0720 \u071a\u071d\u0720\u0717\u00a0\u0715\u0721\u072a\u0722 \u071d\u072b\u0718\u0725\u00a0\u0721\u072b\u071d\u071a\u0710\u00a0\u0721\u072b\u072a\u071d\u0722\u0722 \u0720\u0721\u071f\u072c\u0712 \u071f\u072c\u0712\u0710 \u0715\u0710\u0718\u0722\u0713\u0720\u071d\u0718\u0722 \u070f\u0729\u0715: \u0729\u0715\u0721\u0710\u071d\u072c \u00a0\u0710\u0718\u0722\u0713\u0720\u071d\u0718\u0722\u00a0\u0715\u0721\u072c\u071d \u0715\u0721\u0720\u0720 \u0725\u0712\u072a\u0710\u071d\u072c \u0712\u0710\u072a\u0725\u0710 \u0715\u0726\u0720\u0723\u071b\u071d\u0722\u0710 \u0700"
+  },
+  {
+   "region_segment_id": "seg-26",
+   "direction": "rtl",
+   "direction_level": null,
+   "spans": [
+    {
+     "segment_id": "seg-14",
+     "representation_id": "rep-15",
+     "start": 114,
+     "end": 161
+    },
+    {
+     "segment_id": "seg-16",
+     "representation_id": "rep-17",
+     "start": 162,
+     "end": 205
+    },
+    {
+     "segment_id": "seg-18",
+     "representation_id": "rep-19",
+     "start": 206,
+     "end": 258
+    },
+    {
+     "segment_id": "seg-20",
+     "representation_id": "rep-21",
+     "start": 259,
+     "end": 275
+    }
+   ],
+   "text": "\u071f\u072c\u0712\u0710 \u0715\u071d\u0720\u071d\u0715\u0718\u072c\u0717 \u0715\u071d\u072b\u0718\u0725 \u0721\u072b\u071d\u071a\u0710 \u0712\u072a\u0717 \u0715\u0715\u0718\u071d\u0715 \u0712\u072a\u0717 \u0715\u0710\u0712\u072a\u0717\u0721. \u0710\u0712\u072a\u0717\u0721 \u0710\u0718\u0720\u0715 \u0720\u0710\u071d\u0723\u071a\u0729. \u0710\u071d\u0723\u071a\u0729 \u0710\u0718\u0720\u0715 \u0720\u071d\u0725\u0729\u0718\u0712. \u071d\u0725\u0729\u0718\u0712 \u0710\u0718\u0720\u0715 \u0720\u071d\u0717\u0718\u0715\u0710 \u0718\u0720\u0710\u071a\u0308\u0718\u0717\u071d. \u071d\u0717\u0718\u0715\u0710 \u0710\u0718\u0720\u0715 \u0720\u0726\u072a\u0728. \u0718\u0720\u0719\u072a\u071a \u0721\u0323\u0722 \u072c\u0721\u072a \u0726\u072a\u0728 \u0710\u0718\u0720\u0715 \u0720\u071a\u0728\u072a\u0718\u0722."
+  },
+  {
+   "region_segment_id": "seg-27",
+   "direction": "ltr",
+   "direction_level": null,
+   "spans": [
+    {
+     "segment_id": "seg-22",
+     "representation_id": "rep-23",
+     "start": 276,
+     "end": 278
+    }
+   ],
+   "text": "1v"
+  }
+ ]
+}

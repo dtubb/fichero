@@ -21,6 +21,8 @@ import Observation
 final class SegmentStore {
     private(set) var segmentsByDocument: [String: [Segment]] = [:]
     private(set) var passesByDocument: [String: [SegmentPassValue]] = [:]
+    /// Each page's resolved line directions (segment id -> direction), for the on-image labels (#5199).
+    private(set) var directionsByDocument: [String: [String: String]] = [:]
     private(set) var loadingDocumentIds: Set<String> = []
     private(set) var loadErrorsByDocumentId: [String: String] = [:]
     /// Per-document generation, bumped when rows CHANGE UNDER a surface: a patch from a
@@ -74,6 +76,8 @@ final class SegmentStore {
             let result = try await service.listDocumentSegments(documentId: documentId)
             passesByDocument[documentId] = result.passes
             segmentsByDocument[documentId] = result.segments
+            // Best effort: a page whose text cannot be read still draws, its labels isolated but unoriented.
+            directionsByDocument[documentId] = (try? await service.lineDirections(documentId: documentId)) ?? [:]
             if force { revisions[documentId, default: 0] += 1 }
         } catch {
             if error.isCancellationError { return }
@@ -83,6 +87,21 @@ final class SegmentStore {
 
     func segments(documentId: String) -> [Segment] {
         segmentsByDocument[documentId] ?? []
+    }
+
+    /// A segment's resolved direction: its own line's, else the nearest ancestor's with one (a word is
+    /// written in its line's direction). Nil when the page text named none.
+    func direction(of segmentId: String, documentId: String) -> String? {
+        let directions = directionsByDocument[documentId] ?? [:]
+        let byId = Dictionary(segments(documentId: documentId).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var cursor: String? = segmentId
+        var hops = 0
+        while let id = cursor, hops < 16 {
+            if let direction = directions[id] { return direction }
+            cursor = byId[id]?.parentSegmentId
+            hops += 1
+        }
+        return nil
     }
 
     func passes(documentId: String) -> [SegmentPassValue] {

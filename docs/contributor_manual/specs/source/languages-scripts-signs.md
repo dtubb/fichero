@@ -313,6 +313,36 @@ Signs
 - `source.font.find-and-add` — **[GAP]** (#4939) fonts for a script can be searched for in open collections and
   added to a project in one step, with their licence shown.
 - `source.font.missing-is-said` — **[GAP]** (#4939) a missing font is reported; no unexplained empty boxes.
+- `source.fonts.bundled` — **[PARTIAL]** (#5210, #5206) Fichero ships open fonts for scripts macOS lacks, and
+  EVERY surface draws with the same files.
+  - The fonts are Junicode (MUFI's private-use letters) and Noto Sans Syriac, Mongolian, Coptic and
+    Cherokee. Each is SIL OFL 1.1, never a non-commercial licence, and has its licence and provenance
+    beside it.
+  - A system font keeps first place for what it can draw; a bundled font is only a fallback.
+
+  **Built 2026-09-28:**
+  - the engine vendors and serves the files (`GET /view/fonts/{name}`, an allowlist; d9e26da4c);
+  - the Reader names them in `@font-face` after the system fonts;
+  - the app fetches the SAME files from that route and adds them as a CASCADE after the system font
+    (`BundledFonts`, d810f1ef6). Registering with the process alone does not reach the system's fallback,
+    so this is how U+F1AC finds Junicode in the Inspector, the Segments rows and captions, the on-image
+    labels and the Inspector's editor.
+
+  Pinned by `BundledFontsTests` (from the engine's own files) and the engine's route tests. **Still
+  PARTIAL:** the PDF page's annotations, and a look in the app on the clm13027 page.
+- `source.fonts.per-script` — **[GAP]** (#5210) a person can choose the font a script is shown in, and the
+  choice CASCADES like language and direction.
+  - It is a `font` fact, a family name from the bundled fonts or the project's own, set at the project,
+    a folder or document, or a segment. It is keyed by script (e.g. `Syrc` → "Noto Sans Syriac" or a
+    project's Estrangela).
+  - It is resolved by the same rungs as direction, and says which rung answered
+    (`source.lang.says-where-from`). With none set, the system's font leads and the bundled fonts follow.
+  - The resolved font is applied everywhere a reading is drawn: the Reader (its `@font-face` stack, the
+    chosen family first), the Inspector, the Segments rows and captions, the on-image labels and every
+    home of the line editor (`line-editor.md`).
+  - Set in the Inspector's Language & Script section and in Settings for the project, through
+    `source_setting.set` (a node or the project) or `segment.update` (a segment), audited, with ⌘Z.
+  - The engine half (the fact, its rungs, and serving the project's own font files) goes to the bugs lane.
 - `source.input.palette` — **[GAP]** (#4939) a searchable palette of a script's characters and the project's
   signs inserts into a reading.
 

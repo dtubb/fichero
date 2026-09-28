@@ -64,7 +64,11 @@ extension ZoomableImagePreview {
                         geometry: ocrGeometry,
                         visible: geometry.visible,
                         drawsBoxes: false,  // drawn inside the scroll view now (#5020, #5142)
-                        drawsInlineText: false
+                        drawsInlineText: false,
+                        labelDirection: { box in
+                            guard let id = box.segmentId, let documentId, let segmentService else { return nil }
+                            return SegmentStore.shared(for: segmentService).direction(of: id, documentId: documentId)
+                        }
                     )
                 }
                 // Regions as first-class (2026-08-29): the INTERACTIVE layer

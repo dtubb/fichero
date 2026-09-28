@@ -32,7 +32,9 @@ struct SegmentsPaneTests {
 
     @Test("a row reads as its kind and its words, or its kind and place when it has none")
     func rowLabels() {
-        #expect(SegmentsPane.rowLabel(segment("l1", kind: "line", text: " ܐܒ "), at: 0) == "Line · ܐܒ")
+        // The words are an isolate (#5199): FSI...PDI with no direction resolved, RLI...PDI for an rtl line.
+        #expect(SegmentsPane.rowLabel(segment("l1", kind: "line", text: " ܐܒ "), at: 0) == "Line · \u{2068}ܐܒ\u{2069}")
+        #expect(SegmentsPane.rowLabel(segment("l1", kind: "line", text: "ܐܒ"), at: 0, direction: "rtl") == "Line · \u{2067}ܐܒ\u{2069}")
         #expect(SegmentsPane.rowLabel(segment("r1", kind: "region"), at: 2) == "Region 3")
         #expect(SegmentsPane.rowLabel(nil, at: 0) == "Segment 1")
         #expect(SegmentsPane.rowLabel(segment("l2", kind: "line"), at: 1) == "Line 2 · No reading", "a line with no reading says so")

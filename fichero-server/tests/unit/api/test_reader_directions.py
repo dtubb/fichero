@@ -16,6 +16,7 @@ run in node (a source scan would pass with them broken).
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import unicodedata
@@ -307,3 +308,53 @@ def test_each_manuscript_line_is_its_own_line_and_the_text_is_unchanged(db, clie
     assert body.count('<span class="line-break">') == joined, "one break per boundary, no more"
     assert html_module.unescape(re.sub(r"<[^>]+>", "", body)) == page["content"], "not one character moved"
     assert ".line-break::after" in html and 'content: "\\A"' in html, "the served page draws the break"
+
+
+APP_FIXTURES = next(p for p in Path(__file__).resolve().parents if (p / "fichero" / "Tests").is_dir()) \
+    / "fichero" / "Tests" / "Fixtures" / "segments"
+
+
+def _stable_text(answer: dict) -> dict:
+    """The /text answer with its random ids replaced by tokens in order of appearance, so the recorded
+    fixture only drifts when the ANSWER does."""
+    tokens: dict[str, str] = {}
+
+    def token(value, prefix):
+        if value is None:
+            return None
+        return tokens.setdefault(value, f"{prefix}{len(tokens)}")
+
+    for span in answer["spans"]:
+        span["segment_id"] = token(span["segment_id"], "seg-")
+        span["representation_id"] = token(span["representation_id"], "rep-")
+    for block in answer.get("blocks") or []:
+        block["region_segment_id"] = token(block["region_segment_id"], "seg-")
+        for span in block["spans"]:
+            span["segment_id"] = token(span["segment_id"], "seg-")
+            span["representation_id"] = token(span["representation_id"], "rep-")
+    answer["pass_id"] = "pass" if answer.get("pass_id") else None
+    for omitted in answer.get("omitted") or []:
+        omitted["segment_id"] = token(omitted.get("segment_id"), "seg-")
+    return answer
+
+
+@pytest.mark.parametrize("path, fixture", [
+    (CHINESE, "calfa_chinese-vertical_chi1087-0065.page-text.json"),
+    (SYRIAC, "syriac_onb-syr1-0001.page-text.json"),
+])
+def test_the_page_text_s_directions_are_recorded_for_the_app_s_labels(db, client, path, fixture):
+    """#5199: the app's on-image labels lay a line out in its RESOLVED direction, from the page text's
+    blocks (`GET /api/segments/document/{id}/text`), never guessed from the characters. Recorded here, from
+    the real imported pages, so the app's test reads the engine's exact answer: the Chinese page's lines
+    are columns (ttb), the Syriac page's lines rtl with its Latin folio number ltr. Regenerated with
+    FICHERO_UPDATE_FIXTURES=1; failing on drift otherwise."""
+    doc_id = _import(db, path)
+    answer = client.get(f"/api/segments/document/{doc_id}/text")
+    assert answer.status_code == 200, answer.text
+    recorded = _stable_text(answer.json())
+    directions = {block["direction"] for block in recorded["blocks"] or []}
+    assert directions == ({"ttb"} if path == CHINESE else {"rtl", "ltr"}), directions
+    target = APP_FIXTURES / fixture
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        target.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(target.read_text()) == recorded, "the app's page-text fixture drifted"
