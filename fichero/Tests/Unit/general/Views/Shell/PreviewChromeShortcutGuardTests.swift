@@ -137,7 +137,7 @@ struct PreviewMarkupRowOrderGuardTests {
             "noteButton",
             "previewMarkupStar",
             "previewMarkupCheck",
-            "editVerbs",
+            "editVerbs"
         ]
         var previous = source.startIndex
         for name in ordered {
@@ -269,7 +269,7 @@ struct PreviewWhatToShowMenuGuardTests {
             ), encoding: .utf8
         )
         for title in [
-            "Show Annotations", "Show Word Bounding Boxes", "Show Regions", "Show Text Inline",
+            "Show Annotations", "Show Word Bounding Boxes", "Show Regions", "Show Text Inline"
         ] {
             #expect(toolbar.contains("Toggle(\"\(title)\", isOn:"), "missing \(title)")
         }
@@ -325,7 +325,7 @@ struct JoinIsTheOneNameGuardTests {
         "Views/Shell/PaneHead/PreviewMarkupToolsRow.swift",
         "Views/Inspector/Artifacts/ArtifactPanel+Regions.swift",
         "Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Regions.swift",
-        "Views/Reader/ReaderToolbar.swift",
+        "Views/Reader/ReaderToolbar.swift"
     ]
 
     @Test("no visible string still says Combine")

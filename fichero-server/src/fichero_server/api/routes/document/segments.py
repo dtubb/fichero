@@ -748,25 +748,44 @@ async def list_document_segments(
 
     passes = [pass_read for pass_read, _ in by_pass]
     segments = [segment for _, pass_segments in by_pass for segment in pass_segments]
-    _mark_working_pass(db, doc_id, passes)
+    _mark_working_pass(db, doc_id, passes, segments)
 
     return SegmentListResponse(document_id=doc_id, passes=passes, segments=segments)
 
 
-def _mark_working_pass(db: Database, doc_id: str, passes: list[PassRead]) -> None:
-    """Say which pass is the page's working pass, and why (#5156) -- the same answer `document_text`
-    uses (`resolve_working_pass`), worked out once per page, never per row."""
+def _mark_working_pass(db: Database, doc_id: str, passes: list[PassRead], segments: list[SegmentRead]) -> None:
+    """Say which pass is the page's working pass, and why (#5156) -- by the rule `document_text` uses
+    (`resolve_working_pass`), worked out once per page, never per row.
+
+    The PROVISIONAL passes the seam serves (an artifact's boxes, not yet converted) are candidates
+    too, judged the same way. They are what the canvas draws on an unconverted page, and conversion
+    must change nothing you can see: before this, the pass on screen read "not working" until its
+    first edit converted it, then "working · newest-machine-unchosen" -- the same boxes, a different
+    answer (test_segment_conversion_action, found by the gate)."""
+    from datetime import datetime, timezone
+
     from fichero_server.api.routes.document.segment_readings import (
+        TEXT_LAYER_ARTIFACT_TYPE,
+        PassCandidate,
         SegmentPassChoice,
         _pass_candidates,
         project_record_rule,
         resolve_working_pass,
     )
 
+    human_passes = {s.pass_id for s in segments if s.provisional and s.provenance_kind == ProvenanceKind.human}
+    provisional = [
+        PassCandidate(
+            pass_id=p.id, provenance_kind=p.provenance_kind, has_human_segment=p.id in human_passes,
+            from_text_layer=p.artifact_type == TEXT_LAYER_ARTIFACT_TYPE,
+            created_at=p.created_at or datetime.min.replace(tzinfo=timezone.utc),
+        )
+        for p in passes if p.provisional
+    ]
     answer = resolve_working_pass(
         project_record_rule(db),
         list(db.query(SegmentPassChoice, document_id=doc_id)),
-        _pass_candidates(db, doc_id),
+        _pass_candidates(db, doc_id) + provisional,
     )
     for pass_read in passes:
         if pass_read.id == answer.pass_id:

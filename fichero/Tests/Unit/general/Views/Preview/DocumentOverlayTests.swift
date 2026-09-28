@@ -1,5 +1,5 @@
-@testable import Fichero
 import CoreGraphics
+@testable import Fichero
 import Testing
 
 /// #5142: a scroll of a dense page redraws only the strip it exposes. What breaks without it: every
@@ -11,7 +11,7 @@ struct DocumentOverlayTests {
         DocumentOverlay(boxes: [
             .init(bbox: [0.1, 0.1, 0.1, 0.1], confidence: 1),     // near the TOP of the page
             .init(bbox: [0.1, 0.8, 0.1, 0.1], confidence: 0.3),   // near the BOTTOM
-            .init(bbox: [0, 0, 0, 0], confidence: nil),           // a placeholder: never drawn
+            .init(bbox: [0, 0, 0, 0], confidence: nil)           // a placeholder: never drawn
         ], selected: [[0.1, 0.8, 0.1, 0.1]])
     }
 

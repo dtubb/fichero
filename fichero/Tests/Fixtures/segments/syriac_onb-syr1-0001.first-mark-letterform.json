@@ -1,0 +1,58 @@
+{
+ "description": {
+  "items": [
+   {
+    "id": "desc-0001",
+    "segment_id": "seg-mark",
+    "character": "\u0710",
+    "allograph_id": "allograph-0001",
+    "hand_id": "hand-0001",
+    "features": [
+     {
+      "component": "stem",
+      "feature": "wedged"
+     },
+     {
+      "component": "foot",
+      "feature": "curved"
+     }
+    ],
+    "provenance_kind": "human",
+    "created_by": "owner",
+    "created_at": "2026-09-27T12:00:00Z",
+    "withdrawn_at": null
+   }
+  ]
+ },
+ "allographs": {
+  "items": [
+   {
+    "id": "allograph-0001",
+    "character": "\u0710",
+    "name": "Estrangela alaph",
+    "notes": null,
+    "provenance_kind": "human",
+    "created_by": "owner",
+    "created_at": "2026-09-27T12:00:00Z",
+    "withdrawn_at": null
+   }
+  ]
+ },
+ "hands": {
+  "items": [
+   {
+    "id": "hand-0001",
+    "label": "hand B",
+    "scribe": null,
+    "date": null,
+    "place": null,
+    "style": null,
+    "notes": null,
+    "provenance_kind": "human",
+    "created_by": "owner",
+    "created_at": "2026-09-27T12:00:00Z",
+    "deleted_at": null
+   }
+  ]
+ }
+}

@@ -50,6 +50,23 @@ Page From…. Every edit below should undo with ⌘Z and redo with ⇧⌘Z.
     then move off the line. *Should:* a new reading, correcting the old (see 6); Return mid-line splits
     the line and its box (the engine records the box cut as an estimate); Backspace at a line's start joins it
     to the line before; each one ⌘Z.
+16. **Signs** (5.6). On the MUFI page (Clm 13027), declare U+F1AC as a sign (command line or MCP:
+    `sign.declare`), then select a line that uses it. *Should:* Signs names the sign, "U+F1AC · MUFI
+    F1AC · 1 here · 50 in the project". A character segment with a described letterform shows
+    "ܐ › Estrangela alaph › hand B" and its features.
+17. **Links** (5.7, #5164). Select two lines (first, then second) ▸ Links ▸ **Link** ▸ Continues.
+    Then inspect the first line. *Should:* "Is continued by Line · ‹the second line's words›"; the
+    second line reads "Continues Line · ‹the first›". **Withdraw**; ⌘Z. **Copy Reference** puts
+    `fichero:segment/…` on the clipboard. **Not built:** opening a `fichero:segment` link (#5164).
+18. **Rights** (5.8). Select a line ▸ Rights ▸ **Set** ▸ Local Models Only; then Add Label…
+    ("TK Attribution"). *Should:* "Models: Local models only", "Labels: TK Attribution", and a record
+    "On this segment"; at Page level the page's own records; **Withdraw**; ⌘Z. Records only tighten: a
+    page rule of "No Models" wins over a line's "Local or Cloud". **Not built:** restricting to named
+    readers from the app (it cannot list accounts yet); enforcement stays on its branch.
+19. **Said about this** (5.7). On a page with claims, anchor one to a line (`claim.patch` with a
+    `source_anchor` naming the line's `segment_id`, from MCP or the command line), then select that line. *Should:* "Said About This" lists the
+    claim ("anchored here", its excerpt) and the entities mentioned on the line; clicking one opens it
+    in the knowledge views. Hidden on a line nothing is said about.
 15. **A georeference beside a transcription** (#5122). On a page with an imported transcription AND an
     imported IIIF georeference: *Should:* the Source view draws the transcription's lines, never the
     control points; Making lists the georeference under **Georeferencing**.
@@ -89,6 +106,10 @@ against the engine on every Python run). When the lead's run is green, the rows'
 | Q6 | `source.editor.marks` (on the selection) | 81ba748a1 | `…AHighlightOnTwoSelectedLines…` |
 | #5154 | `source.textedit.typing-is-a-new-reading`, `return-splits-the-line`, `backspace-joins-in-reading-order` (app half; page half bugs2 6857c8ae6, ba90038e6) | 02cd36aa2, fd9793f60 | `…ReadersEditSplitAndJoinMessagesBecomeTheirActions` |
 | 5.5 | `source.sure.editorial-facts`, `brackets-are-drawn` (shown, marked, withdrawn) | b75cac9ef, abe343ae9, fd3e57f96 | `…CertaintyAndDamageSectionShowsTheFactsDrawn…` |
+| 5.6 | `source.sign.declared`, `list-authority`, `gather-instances` (a count); `source.letterform.chain`, `features` (read-only, inside Signs) | 46cf7efa1 | `…SignsSectionNamesTheMUFISign…` (real MUFI page), `…SignsSectionReadsACharactersLetterform…` |
+| #5164 | `source.link.typed`, `both-ways` (read from each end), `source.segment.citable` (Copy Reference) | 13494cbb7 | `…LinksSectionReadsALinkFromThisEnd…` |
+| 5.8 | `source.rights.record`, `tighten-only` (shown in words, records placed), `who-acts` (the engine's refusal said) | b01d0cdf4 | `…RightsSectionSaysWhatApplies…` |
+| 5.7 | `source.statement.on-segment`, `both-ways` (from the segment: claims and mentions whose anchor names it, each opening its claim or entity) | f95b6e43a, (this commit) | `…WhatIsSaidAboutALineListsItsClaimAndMention…` |
 | #5122 | a georeferencing pass is never drawn as the page's boxes; Making lists it apart | 8b9e51c37 | unit only: `SegmentDisplayTests.aGeoreferenceIsNotDrawnAsThePagesBoxes` (no real georef+transcription page recorded yet) |
 
 Engine defects found on the way, filed: #5176 (the Syriac page resolved to "English, left to right"
@@ -96,9 +117,11 @@ by fallback; fixed by bugs2, 844b6d3bc); #5179 (a file's own editorial marks are
 Fixed in-lane: a page's first working-pass choice could not be undone (a1d41dcdb); a mid-line lost
 stretch could not be placed (abe343ae9).
 
-**Engine only, no screen yet:** letterforms (`source.letterform.*`, 8b6a8b7bc) and campaigns
-(`source.campaign.*`, de90ff63f). Their actions are reachable from MCP and the command line; the
-Inspector spec has no section for either yet.
+**Engine only, no screen yet:** campaigns (`source.campaign.*`, de90ff63f); their actions are reachable
+from MCP and the command line. Letterforms are SHOWN, read-only, inside the Signs section (see the
+table), and cannot yet be described from the app.
+
+**Question for the maintainer:** letterforms: inside Signs, or their own section?
 
 ## The headline
 

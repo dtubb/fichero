@@ -71,10 +71,21 @@ struct SegmentInspectorView: View {
                         InspectorEditorialSection(
                             segmentId: inspected, reading: text?.countingReading(ofKind: "transcription")
                         )
+                        // Declared signs, and a character's letterform (5.6).
+                        InspectorSignsSection(
+                            segmentId: inspected, reading: text?.countingContent(ofKind: "transcription")
+                        )
+                        // Typed links, both ways, and the segment's reference (5.7).
+                        InspectorLinksSection(segmentId: inspected, documentId: documentId, selectedIds: selectedIds)
+                        // What is said about it: claims and mentions whose anchor names it (5.7).
+                        InspectorStatementsSection(segmentId: inspected, documentId: documentId)
+                        // What applies here, from the library down (5.8).
+                        InspectorRightsSection(targetKind: "segment", targetId: inspected, pageId: documentId)
                     }
                     if level == .page {
                         // Page level: how the page's passes were made (#5149).
                         InspectorMakingSection(documentId: documentId)
+                        InspectorRightsSection(targetKind: "document", targetId: documentId, pageId: documentId)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

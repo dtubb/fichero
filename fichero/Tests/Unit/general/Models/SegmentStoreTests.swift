@@ -316,7 +316,7 @@ final class SegmentStoreTests: XCTestCase {
     ) throws -> ChangeEvent {
         let payload: [String: Any] = [
             "type": type, "document_ids": documentIds, "segment_ids": segmentIds,
-            "actor": "historian",
+            "actor": "historian"
         ]
         return try JSONDecoder().decode(
             ChangeEvent.self, from: try JSONSerialization.data(withJSONObject: payload)
@@ -383,7 +383,7 @@ final class SegmentStoreTests: XCTestCase {
             segments: [
                 Self.segmentJSON(id: "seg-1", documentId: "doc-1", passId: "pass-1", boxIndex: 0, text: "one"),
                 Self.segmentJSON(id: "seg-2", documentId: "doc-1", passId: "pass-1", boxIndex: 1, text: "two"),
-                Self.segmentJSON(id: "seg-3", documentId: "doc-1", passId: "pass-1", boxIndex: 2, text: "three"),
+                Self.segmentJSON(id: "seg-3", documentId: "doc-1", passId: "pass-1", boxIndex: 2, text: "three")
             ]
         )
         await store.load(documentId: "doc-1")
@@ -445,7 +445,7 @@ final class SegmentStoreTests: XCTestCase {
             passes: [Self.passJSON(id: "pass-1", documentId: "doc-1")],
             segments: [
                 Self.segmentJSON(id: "seg-1", documentId: "doc-1", passId: "pass-1", boxIndex: 0, text: "one"),
-                Self.segmentJSON(id: "seg-2", documentId: "doc-1", passId: "pass-1", boxIndex: 1, text: "two"),
+                Self.segmentJSON(id: "seg-2", documentId: "doc-1", passId: "pass-1", boxIndex: 1, text: "two")
             ]
         )
         await store.load(documentId: "doc-1")

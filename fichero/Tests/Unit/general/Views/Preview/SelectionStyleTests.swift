@@ -1,8 +1,8 @@
 #if canImport(AppKit)
 import AppKit
+@testable import Fichero
 import Foundation
 import Testing
-@testable import Fichero
 
 /// The maintainer, 2026-09-27: a selection on the page must look like a Mac selection -- the system's
 /// accent and selection colours, dimmed when its pane or window is not the one in front, a crisp line,

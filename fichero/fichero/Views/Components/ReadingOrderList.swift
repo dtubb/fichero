@@ -88,8 +88,8 @@ struct ReadingOrderList: View {
     private func keyRow(_ store: ReadingOrderStore) -> some View {
         HStack(spacing: 8) {
             stepButton("arrow.up.to.line", "Move to Start", .toStart, key: .pageUp, store)
-            stepButton("arrow.up", "Move Up", .up, key: .upArrow, store)
-            stepButton("arrow.down", "Move Down", .down, key: .downArrow, store)
+            stepButton("arrow.up", "Move Up", .upward, key: .upArrow, store)
+            stepButton("arrow.down", "Move Down", .downward, key: .downArrow, store)
             stepButton("arrow.down.to.line", "Move to End", .toEnd, key: .pageDown, store)
             Spacer()
         }

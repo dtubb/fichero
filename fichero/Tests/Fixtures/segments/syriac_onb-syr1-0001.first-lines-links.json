@@ -1,0 +1,208 @@
+{
+ "of_first": {
+  "end_id": "seg-0003",
+  "links": [
+   {
+    "id": "link-0001",
+    "link_type": "continues",
+    "label": "Is continued by",
+    "directed": true,
+    "other_kind": "segment",
+    "other_id": "seg-0004",
+    "inbound": true,
+    "certainty": 0.9,
+    "note": "the sentence runs on"
+   }
+  ]
+ },
+ "of_second": {
+  "end_id": "seg-0004",
+  "links": [
+   {
+    "id": "link-0001",
+    "link_type": "continues",
+    "label": "Continues",
+    "directed": true,
+    "other_kind": "segment",
+    "other_id": "seg-0003",
+    "inbound": false,
+    "certainty": 0.9,
+    "note": "the sentence runs on"
+   }
+  ]
+ },
+ "types": {
+  "types": [
+   {
+    "key": "answers",
+    "label": "Answers",
+    "inverse_label": "Is answered by",
+    "builtin": true
+   },
+   {
+    "key": "captions",
+    "label": "Captions",
+    "inverse_label": "Is captioned by",
+    "builtin": true
+   },
+   {
+    "key": "caused_by",
+    "label": "Caused by",
+    "inverse_label": "Is caused by of",
+    "builtin": true
+   },
+   {
+    "key": "cites",
+    "label": "Cites",
+    "inverse_label": "Is cites of",
+    "builtin": true
+   },
+   {
+    "key": "comments_on",
+    "label": "Comments on",
+    "inverse_label": "Is commented on by",
+    "builtin": true
+   },
+   {
+    "key": "continues",
+    "label": "Continues",
+    "inverse_label": "Is continued by",
+    "builtin": true
+   },
+   {
+    "key": "contradicts",
+    "label": "Contradicts",
+    "inverse_label": "Is contradicts of",
+    "builtin": true
+   },
+   {
+    "key": "controls",
+    "label": "Controls",
+    "inverse_label": "Is controlled by",
+    "builtin": true
+   },
+   {
+    "key": "corroborates",
+    "label": "Corroborates",
+    "inverse_label": "Is corroborates of",
+    "builtin": true
+   },
+   {
+    "key": "derives_from",
+    "label": "Derives from",
+    "inverse_label": "Is derives from of",
+    "builtin": true
+   },
+   {
+    "key": "duplicate_of",
+    "label": "Duplicate of",
+    "inverse_label": "Is duplicate of of",
+    "builtin": true
+   },
+   {
+    "key": "expands",
+    "label": "Expands",
+    "inverse_label": "Is expanded by",
+    "builtin": true
+   },
+   {
+    "key": "follows",
+    "label": "Follows",
+    "inverse_label": "Is follows of",
+    "builtin": true
+   },
+   {
+    "key": "free",
+    "label": "Related",
+    "inverse_label": "Related",
+    "builtin": true
+   },
+   {
+    "key": "glosses",
+    "label": "Glosses",
+    "inverse_label": "Is glossed by",
+    "builtin": true
+   },
+   {
+    "key": "interprets",
+    "label": "Interprets",
+    "inverse_label": "Is interpreted by",
+    "builtin": true
+   },
+   {
+    "key": "labels",
+    "label": "Labels",
+    "inverse_label": "Is labelled by",
+    "builtin": true
+   },
+   {
+    "key": "marks",
+    "label": "Marks",
+    "inverse_label": "Is marked by",
+    "builtin": true
+   },
+   {
+    "key": "names",
+    "label": "Names",
+    "inverse_label": "Is named by",
+    "builtin": true
+   },
+   {
+    "key": "next_logical",
+    "label": "Next",
+    "inverse_label": "Previous",
+    "builtin": true
+   },
+   {
+    "key": "quotes",
+    "label": "Quotes",
+    "inverse_label": "Is quoted by",
+    "builtin": true
+   },
+   {
+    "key": "refines",
+    "label": "Refines",
+    "inverse_label": "Is refines of",
+    "builtin": true
+   },
+   {
+    "key": "related_to",
+    "label": "Related to",
+    "inverse_label": "Is related to of",
+    "builtin": true
+   },
+   {
+    "key": "reorders",
+    "label": "Reorders",
+    "inverse_label": "Is reordered by",
+    "builtin": true
+   },
+   {
+    "key": "same_as",
+    "label": "Same as",
+    "inverse_label": "Same as",
+    "builtin": true
+   },
+   {
+    "key": "supports",
+    "label": "Supports",
+    "inverse_label": "Is supports of",
+    "builtin": true
+   },
+   {
+    "key": "translates",
+    "label": "Translates",
+    "inverse_label": "Is translated by",
+    "builtin": true
+   }
+  ],
+  "aliases": {
+   "references": "cites",
+   "derived_from": "derives_from"
+  }
+ },
+ "reference": {
+  "reference": "fichero:segment/library-0001/doc-0001/seg-0003",
+  "segment_id": "seg-0003"
+ }
+}

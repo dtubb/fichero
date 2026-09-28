@@ -18,8 +18,8 @@ final class ReadingOrderService: ReadingOrderTransport {
             path: .init(documentId: documentId)
         )
         switch response {
-        case .ok(let ok):
-            return try ok.body.json.orders.map {
+        case .ok(let okResponse):
+            return try okResponse.body.json.orders.map {
                 ReadingOrderSummary(id: $0.id, name: $0.name, kind: $0.kind)
             }
         case .unprocessableContent:
@@ -36,8 +36,8 @@ final class ReadingOrderService: ReadingOrderTransport {
             query: .init(parentEntryId: parentEntryId)
         )
         switch response {
-        case .ok(let ok):
-            return try ok.body.json.entries.map {
+        case .ok(let okResponse):
+            return try okResponse.body.json.entries.map {
                 ReadingOrderMove.Entry(
                     entryId: $0.id, segmentId: $0.segmentId, version: $0.version, parentEntryId: $0.parentEntryId
                 )
@@ -61,8 +61,8 @@ final class ReadingOrderService: ReadingOrderTransport {
             ))
         )
         switch response {
-        case .ok(let ok):
-            return try ok.body.json.auditId
+        case .ok(let okResponse):
+            return try okResponse.body.json.auditId
         case .unprocessableContent:
             throw ReadingOrderError.refused("the engine refused the move")
         case .undocumented(let status, _):

@@ -1,0 +1,326 @@
+{
+ "signs": {
+  "items": [
+   {
+    "id": "sign-0001",
+    "name": "MUFI abbreviation sign",
+    "picture_segment_id": "seg-mufi-0001",
+    "code_point": "U+F1AC",
+    "list_references": [
+     {
+      "authority": "MUFI",
+      "number": "F1AC"
+     }
+    ],
+    "variant_of": null,
+    "variant": null,
+    "notes": null,
+    "provenance_kind": "human",
+    "created_by": "owner",
+    "created_at": "2026-09-27T12:00:00Z",
+    "deleted_at": null
+   }
+  ]
+ },
+ "instances": {
+  "sign_id": "sign-0001",
+  "code_point": "U+F1AC",
+  "items": [
+   {
+    "representation_id": "rep-0001",
+    "segment_id": "seg-mufi-0001",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0002",
+    "segment_id": "seg-mufi-0002",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0003",
+    "segment_id": "seg-mufi-0003",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0004",
+    "segment_id": "seg-mufi-0004",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0005",
+    "segment_id": "seg-mufi-0005",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0006",
+    "segment_id": "seg-mufi-0006",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0007",
+    "segment_id": "seg-mufi-0007",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0008",
+    "segment_id": "seg-mufi-0008",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0009",
+    "segment_id": "seg-mufi-0009",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0010",
+    "segment_id": "seg-mufi-0010",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0011",
+    "segment_id": "seg-mufi-0011",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0012",
+    "segment_id": "seg-mufi-0012",
+    "document_id": "doc-mufi",
+    "count": 2
+   },
+   {
+    "representation_id": "rep-0013",
+    "segment_id": "seg-mufi-0013",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0014",
+    "segment_id": "seg-mufi-0014",
+    "document_id": "doc-mufi",
+    "count": 2
+   },
+   {
+    "representation_id": "rep-0015",
+    "segment_id": "seg-mufi-0015",
+    "document_id": "doc-mufi",
+    "count": 2
+   },
+   {
+    "representation_id": "rep-0016",
+    "segment_id": "seg-mufi-0016",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0017",
+    "segment_id": "seg-mufi-0017",
+    "document_id": "doc-mufi",
+    "count": 2
+   },
+   {
+    "representation_id": "rep-0018",
+    "segment_id": "seg-mufi-0018",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0019",
+    "segment_id": "seg-mufi-0019",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0020",
+    "segment_id": "seg-mufi-0020",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0021",
+    "segment_id": "seg-mufi-0021",
+    "document_id": "doc-mufi",
+    "count": 2
+   },
+   {
+    "representation_id": "rep-0022",
+    "segment_id": "seg-mufi-0022",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0023",
+    "segment_id": "seg-mufi-0023",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0024",
+    "segment_id": "seg-mufi-0024",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0025",
+    "segment_id": "seg-mufi-0025",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0026",
+    "segment_id": "seg-mufi-0026",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0027",
+    "segment_id": "seg-mufi-0027",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0028",
+    "segment_id": "seg-mufi-0028",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0029",
+    "segment_id": "seg-mufi-0029",
+    "document_id": "doc-mufi",
+    "count": 2
+   },
+   {
+    "representation_id": "rep-0030",
+    "segment_id": "seg-mufi-0030",
+    "document_id": "doc-mufi",
+    "count": 4
+   },
+   {
+    "representation_id": "rep-0031",
+    "segment_id": "seg-mufi-0031",
+    "document_id": "doc-mufi",
+    "count": 2
+   },
+   {
+    "representation_id": "rep-0032",
+    "segment_id": "seg-mufi-0032",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0033",
+    "segment_id": "seg-mufi-0033",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0034",
+    "segment_id": "seg-mufi-0034",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0035",
+    "segment_id": "seg-mufi-0035",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0036",
+    "segment_id": "seg-mufi-0036",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0037",
+    "segment_id": "seg-mufi-0037",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0038",
+    "segment_id": "seg-mufi-0038",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0039",
+    "segment_id": "seg-mufi-0039",
+    "document_id": "doc-mufi",
+    "count": 1
+   },
+   {
+    "representation_id": "rep-0040",
+    "segment_id": "seg-mufi-0040",
+    "document_id": "doc-mufi",
+    "count": 1
+   }
+  ],
+  "total": 50
+ },
+ "readings": {
+  "items": [
+   {
+    "id": "rep-0001",
+    "provisional": false,
+    "document_id": "doc-mufi",
+    "segment_id": "seg-mufi-0001",
+    "kind": "transcription",
+    "content": "\u204b \ua753c\u033eatur \uf1ac \u204b O\ua751te\u0303t au\u0303t membo\u0365n disputato\u0303e paulis\ua751",
+    "language": null,
+    "script": null,
+    "level": null,
+    "provenance_kind": "external_import",
+    "created_by": "historian",
+    "machine_confidence": null,
+    "char_confidences": null,
+    "char_positions": null,
+    "read_from_rendition_id": null,
+    "guideline": null,
+    "corrects_representation_id": null,
+    "derived_from_representation_id": null,
+    "derived_from_artifact_id": null,
+    "pair_id": null,
+    "pair_role": null,
+    "retracted": false,
+    "source_anchor": {
+     "document_id": "doc-mufi",
+     "page_id": null,
+     "rendition_id": null,
+     "space": "normalized",
+     "rect": null,
+     "polygon": null,
+     "rotation": 0.0,
+     "shapes": null,
+     "media_ref": null,
+     "char_start": null,
+     "char_end": null,
+     "granularity": "word",
+     "refines": null,
+     "segment_id": null,
+     "representation_id": null
+    },
+    "created_at": "2026-09-27T12:00:00Z"
+   }
+  ],
+  "count": 1,
+  "counting": {
+   "transcription": {
+    "representation_id": "rep-0001",
+    "basis": "newest-machine-unchosen",
+    "labelled_machine": true
+   }
+  }
+ }
+}

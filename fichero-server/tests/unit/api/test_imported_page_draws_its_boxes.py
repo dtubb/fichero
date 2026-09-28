@@ -288,3 +288,227 @@ def test_a_line_s_editorial_facts_are_recorded_for_the_app(db, client):
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         EDITORIAL_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
     assert json.loads(EDITORIAL_FIXTURE.read_text()) == recorded, "the app's editorial fixture drifted"
+
+
+MUFI_PAGE = Path(__file__).resolve().parents[1] / "formats" / "fixtures" / "corpus" / "escriptorium_latin-mufi_clm13027-38r.alto.xml"
+SIGNS_FIXTURE = FIXTURES / "mufi_clm13027-38r.signs.json"
+
+
+def _stabilizer(ids: dict):
+    def stable(value):
+        if isinstance(value, dict):
+            return {k: ("2026-09-27T12:00:00Z" if k == "created_at" and v else stable(v)) for k, v in value.items()}
+        if isinstance(value, list):
+            return [stable(v) for v in value]
+        return ids.get(value, value) if isinstance(value, str) else value
+    return stable
+
+
+def test_a_declared_sign_on_the_mufi_page_is_recorded_for_the_app(db, client):
+    """`source.sign.declared`, `list-authority`, `gather-instances` (the Inspector's Signs section, 5.6):
+    the app reads GET /api/signs (the project's sign list), GET /api/signs/{id}/instances (every use of
+    one sign) and the inspected line's readings. Recorded on the real MUFI page (Clm 13027 fol. 38r,
+    eScriptorium's ALTO), which carries U+F1AC, after a person declares the sign from a line that uses
+    it -- through the calls the app makes."""
+    doc_id = _import(db, MUFI_PAGE)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    from fichero_server.models import ContentRepresentation
+
+    # The sign lives in the readings (the file's strings): the first segment on the page, top-left
+    # first, whose reading uses it.
+    using = {r.segment_id for r in db.all(ContentRepresentation)
+             if r.document_id == doc_id and "\uf1ac" in (r.content or "")}
+    line = min((s for s in body["segments"] if s["id"] in using), key=lambda s: s["anchor"]["rect"])
+    declared = client.post("/api/actions/invoke", json={"name": "sign.declare", "params": {
+        "name": "MUFI abbreviation sign", "picture_segment_id": line["id"], "code_point": "U+F1AC",
+        "list_references": [{"authority": "MUFI", "number": "F1AC"}]}})
+    assert declared.status_code == 200, declared.text
+    sign_id = declared.json()["result"]["sign_id"]
+    signs = client.get("/api/signs").json()
+    instances = client.get(f"/api/signs/{sign_id}/instances").json()
+    readings = client.get(f"/api/segments/{line['id']}/readings").json()
+    assert [s["id"] for s in signs["items"]] == [sign_id]
+    assert instances["total"] >= 50, instances["total"]  # the page uses it 50 times
+
+    ids = {doc_id: "doc-mufi", line["id"]: "seg-mufi-0001", sign_id: "sign-0001"}
+    # Numbered by where each segment is on the page (ids are random; places are not).
+    rect_of = {s["id"]: s["anchor"]["rect"] for s in body["segments"]}
+    placed = sorted(instances["items"], key=lambda i: (rect_of.get(i.get("segment_id"), [2.0]), i["count"]))
+    for index, item in enumerate(placed, start=1):
+        ids.setdefault(item["representation_id"], f"rep-{index:04d}")
+        if item.get("segment_id"):
+            ids.setdefault(item["segment_id"], f"seg-mufi-{index:04d}")
+    stable = _stabilizer(ids)
+    instances["items"] = placed
+    recorded = {"signs": stable(signs), "instances": stable(instances), "readings": stable(readings)}
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        SIGNS_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(SIGNS_FIXTURE.read_text()) == recorded, "the app's signs fixture drifted"
+
+
+LETTERFORM_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.first-mark-letterform.json"
+
+
+def test_a_described_letterform_is_recorded_for_the_app(db, client):
+    """`source.letterform.chain`, `features` (shown read-only inside the Signs section, 5.6, ruled
+    2026-09-28 pending the maintainer): the app reads GET /api/letterforms/segment/{id}, GET
+    /api/letterforms/allographs and GET /api/hands. Recorded for one letter's box on the imported
+    Syriac page's first line, described as the Estrangela alaph of hand B with a wedged stem."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    line = min((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+               key=lambda s: s["anchor"]["rect"])
+    x, y, w, h = line["anchor"]["rect"]
+
+    def invoke(name, params):
+        answer = client.post("/api/actions/invoke", json={"name": name, "params": params})
+        assert answer.status_code == 200, answer.text
+        return answer.json()["result"]
+
+    mark_id = invoke("segment.create", {
+        "document_id": doc_id, "pass_id": real["id"], "kind": "character",
+        "anchor": {"document_id": doc_id, "rect": [x + w - w / 20, y, w / 20, h]},
+    })["segment_ids"][0]
+    allograph_id = invoke("allograph.create", {"character": "ܐ", "name": "Estrangela alaph"})["allograph_id"]
+    hand_id = invoke("hand.create", {"label": "hand B"})["hand_id"]
+    invoke("letterform.describe", {
+        "segment_id": mark_id, "character": "ܐ", "allograph_id": allograph_id, "hand_id": hand_id,
+        "features": [{"component": "stem", "feature": "wedged"}, {"component": "foot", "feature": "curved"}],
+    })
+    description = client.get(f"/api/letterforms/segment/{mark_id}").json()
+    allographs = client.get("/api/letterforms/allographs").json()
+    hands = client.get("/api/hands").json()
+    assert [d["allograph_id"] for d in description["items"]] == [allograph_id]
+
+    ids = {mark_id: "seg-mark", allograph_id: "allograph-0001", hand_id: "hand-0001"}
+    for item in description["items"]:
+        ids[item["id"]] = "desc-0001"
+    stable = _stabilizer(ids)
+    recorded = {"description": stable(description), "allographs": stable(allographs), "hands": stable(hands)}
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        LETTERFORM_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(LETTERFORM_FIXTURE.read_text()) == recorded, "the app's letterform fixture drifted"
+
+
+LINKS_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.first-lines-links.json"
+
+
+def test_a_link_between_two_lines_is_recorded_from_both_ends_for_the_app(db, client):
+    """`source.link.typed`, `both-ways`, `source.segment.citable` (the Inspector's Links section, 5.7):
+    the app reads GET /api/links/of/{id} for the inspected segment, GET /api/links/types for the Link
+    menu, and GET /api/segments/{id}/reference for Copy Reference. Recorded on the imported Syriac
+    page after a person says its second line CONTINUES its first -- read from each end, so the sentence
+    runs the right way from each."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    first, second = sorted((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+                           key=lambda s: s["anchor"]["rect"])[:2]
+    created = client.post("/api/actions/invoke", json={"name": "typed_link.create", "params": {
+        "from_id": second["id"], "to_id": first["id"], "link_type": "continues", "certainty": 0.9,
+        "note": "the sentence runs on"}})
+    assert created.status_code == 200, created.text
+    of_first = client.get(f"/api/links/of/{first['id']}").json()
+    of_second = client.get(f"/api/links/of/{second['id']}").json()
+    types = client.get("/api/links/types").json()
+    reference = client.get(f"/api/segments/{first['id']}/reference").json()
+    assert [(l["label"], l["inbound"]) for l in of_first["links"]] == [("Is continued by", True)]
+    assert [(l["label"], l["inbound"]) for l in of_second["links"]] == [("Continues", False)]
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    token = {s["anchor"]["rect"].__repr__(): s["id"] for s in stable_route["segments"]}
+    ids = {doc_id: stable_route["document_id"], first["id"]: token[repr(first["anchor"]["rect"])],
+           second["id"]: token[repr(second["anchor"]["rect"])], of_first["links"][0]["id"]: "link-0001"}
+    library_uuid = reference["reference"].split("/")[1]
+    ids[reference["reference"]] = reference["reference"].replace(library_uuid, "library-0001").replace(
+        doc_id, stable_route["document_id"]).replace(first["id"], ids[first["id"]])
+    stable = _stabilizer(ids)
+    recorded = {"of_first": stable(of_first), "of_second": stable(of_second), "types": stable(types),
+                "reference": stable(reference)}
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        LINKS_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(LINKS_FIXTURE.read_text()) == recorded, "the app's links fixture drifted"
+
+
+RIGHTS_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.first-line-rights.json"
+
+
+def test_what_rights_apply_to_a_line_is_recorded_for_the_app(db, client):
+    """`source.rights.record`, `tighten-only` (the Inspector's Rights section, 5.8): the app reads GET
+    /api/rights/effective for the inspected segment -- what applies, worked out from the library down,
+    with the records that added up to it. Recorded on the imported Syriac page after three records at
+    three levels: a community label on the library, local models only for the page, and the first line
+    restricted to one named reader -- through the calls the app makes."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    line = min((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+               key=lambda s: s["anchor"]["rect"])
+    record_ids = []
+    for params in (
+        {"target_kind": "library", "labels": ["TK Attribution"], "holders": ["Österreichische Nationalbibliothek"]},
+        {"target_kind": "document", "target_id": doc_id, "model_use": "local", "conditions": "agreement 2026-07"},
+        {"target_kind": "segment", "target_id": line["id"], "restricted": True, "readers": ["owner"]},
+    ):
+        answer = client.post("/api/actions/invoke", json={"name": "rights.set", "params": params})
+        assert answer.status_code == 200, answer.text
+        record_ids.append(answer.json()["result"]["record_id"])
+    effective = client.get("/api/rights/effective",
+                           params={"target_kind": "segment", "target_id": line["id"]}).json()
+    assert effective["restricted"] is True and effective["model_use"] == "local"
+    assert [r["id"] for r in effective["records"]] == record_ids  # library first
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    token = next(s["id"] for s in stable_route["segments"]
+                 if s["kind"] == "line" and s["anchor"]["rect"] == line["anchor"]["rect"])
+    ids = {doc_id: stable_route["document_id"], line["id"]: token}
+    for index, record_id in enumerate(record_ids, start=1):
+        ids[record_id] = f"rights-{index:04d}"
+    recorded = _stabilizer(ids)(effective)
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        RIGHTS_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(RIGHTS_FIXTURE.read_text()) == recorded, "the app's rights fixture drifted"
+
+
+STATEMENTS_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.first-line-statements.json"
+
+
+def test_what_is_said_about_a_line_is_recorded_for_the_app(db, client):
+    """`source.statement.on-segment`, `both-ways` (the Inspector's 5.7, statements half): the app reads
+    GET /api/segments/{id}/statements. Recorded for the imported Syriac page's first line after a claim
+    is anchored to it (claim.create, then claim.patch of its anchor -- the calls the app makes) and an
+    entity's supporting source names it (seeded, as an extraction would write it)."""
+    from fichero_server.models.anchors import SourceAnchor
+    from fichero_server.models.knowledge import EntityType, KnowledgeEntity, SourceSupport
+
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    line = min((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+               key=lambda s: s["anchor"]["rect"])
+    created = client.post("/api/actions/invoke", json={"name": "claim.create", "params": {
+        "text": "Abraham begat Isaac", "source_document_id": doc_id, "source_excerpt": "ܐܒܪܗܡ ܐܘܠܕ"}})
+    assert created.status_code == 200, created.text
+    claim_id = created.json()["result"]["id"]
+    patched = client.post("/api/actions/invoke", json={"name": "claim.patch", "params": {
+        "claim_id": claim_id,
+        "patch": {"source_anchor": {"document_id": doc_id, "segment_id": line["id"], "rect": line["anchor"]["rect"]}},
+    }})
+    assert patched.status_code == 200, patched.text
+    entity = KnowledgeEntity(
+        canonical_name="Abraham", entity_type=EntityType.person, source_document_ids=[doc_id],
+        source_supports=[SourceSupport(source_document_id=doc_id, source_excerpt="ܐܒܪܗܡ",
+                                       source_anchor=SourceAnchor(document_id=doc_id, segment_id=line["id"]))])
+    db.save(entity)
+    said = client.get(f"/api/segments/{line['id']}/statements").json()
+    assert [c["claim_id"] for c in said["claims"]] == [claim_id]
+    assert [m["entity_id"] for m in said["mentions"]] == [entity.id]
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    token = next(s["id"] for s in stable_route["segments"]
+                 if s["kind"] == "line" and s["anchor"]["rect"] == line["anchor"]["rect"])
+    recorded = _stabilizer({line["id"]: token, claim_id: "claim-0001", entity.id: "entity-0001"})(said)
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        STATEMENTS_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(STATEMENTS_FIXTURE.read_text()) == recorded, "the app's statements fixture drifted"

@@ -233,7 +233,7 @@ struct SegmentDisplayTests {
             // the seam RE-DERIVES them from provenanceKind. `isHandDrawn` must agree
             // either way, or curation styling changes the day the seam is wired.
             todaysBox(text: "tercero", bbox: [0.1, 0.3, 0.3, 0.05],
-                      provider: "user", source: "manual"),
+                      provider: "user", source: "manual")
         ]
 
         let asSegments = today.enumerated().map { index, box in
@@ -274,7 +274,7 @@ struct SegmentDisplayTests {
                 from: [
                     segment(id: "seg-0", boxIndex: 0, rect: [0.1, 0.1, 0.2, 0.05], text: "hola"),
                     segment(id: "seg-1", boxIndex: 1, rect: nil, text: "shapeless"),
-                    segment(id: "seg-2", boxIndex: 2, rect: [0.4, 0.1, 0.2, 0.05], text: "mundo"),
+                    segment(id: "seg-2", boxIndex: 2, rect: [0.4, 0.1, 0.2, 0.05], text: "mundo")
                 ],
                 provider: "kraken", model: nil, renditionId: nil
             )
@@ -313,11 +313,11 @@ struct SegmentDisplayTests {
         // changing the boxes.
         let passes = [
             pass(id: "ladder", artifactId: "art-ladder", type: "text_geometry", createdAt: 200),
-            pass(id: "clicked", artifactId: "art-clicked", type: "transcription", createdAt: 0),
+            pass(id: "clicked", artifactId: "art-clicked", type: "transcription", createdAt: 0)
         ]
         let segments = [
             segment(id: "l-0", passId: "ladder", boxIndex: 0, rect: [0, 0, 1, 1], text: "ladder"),
-            segment(id: "c-0", passId: "clicked", boxIndex: 0, rect: [0, 0, 1, 1], text: "clicked"),
+            segment(id: "c-0", passId: "clicked", boxIndex: 0, rect: [0, 0, 1, 1], text: "clicked")
         ]
 
         let withoutFocus = SegmentDisplay.geometry(passes: passes, segments: segments)
@@ -351,13 +351,13 @@ struct SegmentDisplayTests {
         // would be a regression dressed as obedience.
         let passes = [
             pass(id: "clicked", artifactId: "art-clicked"),
-            pass(id: "ladder", artifactId: "art-ladder", type: "text_geometry"),
+            pass(id: "ladder", artifactId: "art-ladder", type: "text_geometry")
         ]
         let segments = [
             // `clicked` has a duplicate boxIndex, so its whole pass is refused.
             segment(id: "c-0", passId: "clicked", boxIndex: 0, rect: [0, 0, 1, 1], text: "dup-a"),
             segment(id: "c-1", passId: "clicked", boxIndex: 0, rect: [0, 0, 1, 1], text: "dup-b"),
-            segment(id: "l-0", passId: "ladder", boxIndex: 0, rect: [0, 0, 1, 1], text: "ladder"),
+            segment(id: "l-0", passId: "ladder", boxIndex: 0, rect: [0, 0, 1, 1], text: "ladder")
         ]
 
         let geometry = SegmentDisplay.geometry(
@@ -374,11 +374,11 @@ struct SegmentDisplayTests {
         // verbs at rows whose boxes are not on screen (2026-08-29).
         let passes = [
             pass(id: "ladder", artifactId: "art-ladder", type: "text_geometry", createdAt: 200),
-            pass(id: "clicked", artifactId: "art-clicked", createdAt: 0),
+            pass(id: "clicked", artifactId: "art-clicked", createdAt: 0)
         ]
         let segments = [
             segment(id: "l-0", passId: "ladder", boxIndex: 0, rect: [0, 0, 1, 1], text: "ladder"),
-            segment(id: "c-0", passId: "clicked", boxIndex: 0, rect: [0, 0, 1, 1], text: "clicked"),
+            segment(id: "c-0", passId: "clicked", boxIndex: 0, rect: [0, 0, 1, 1], text: "clicked")
         ]
 
         let ladder = SegmentDisplay.winningPass(passes: passes, segments: segments)

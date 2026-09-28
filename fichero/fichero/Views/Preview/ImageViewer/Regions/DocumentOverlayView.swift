@@ -29,10 +29,16 @@ final class DocumentOverlayView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         // Re-registered on every move, so neither centre holds this view twice. Selector-based
-        // observers need no removal when the view goes (macOS 10.11 and later).
-        NotificationCenter.default.removeObserver(self)
-        NSWorkspace.shared.notificationCenter.removeObserver(self)
+        // observers need no removal when the view goes (macOS 10.11 and later). Removed BY NAME:
+        // only this view's own look observers, never anything else registered for it.
         let center = NotificationCenter.default
+        for name in [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification,
+                     NSColor.systemColorsDidChangeNotification] {
+            center.removeObserver(self, name: name, object: nil)
+        }
+        NSWorkspace.shared.notificationCenter.removeObserver(
+            self, name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil
+        )
         for name in [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification] {
             center.addObserver(self, selector: #selector(systemLookChanged), name: name, object: window)
         }
@@ -154,7 +160,14 @@ final class DocumentOverlayView: NSView {
         let line = SelectionStyle.lineWidth(increaseContrast: contrast) / scale
         let emphasized = overlay.isFocusedPane && (window?.isKeyWindow ?? false)
 
-        // Washes first, BEHIND the boxes.
+        drawWashes(in: dirtyRect, imageRect: imageRect, scale: scale, emphasized: emphasized)  // BEHIND the boxes
+        drawMarks(in: dirtyRect, imageRect: imageRect, scale: scale)
+        drawBoxes(in: dirtyRect, imageRect: imageRect, scale: scale, line: line)
+        drawMarquees(in: dirtyRect, imageRect: imageRect, scale: scale)
+        drawSelection(in: dirtyRect, imageRect: imageRect, scale: scale, line: line, emphasized: emphasized)
+    }
+
+    private func drawWashes(in dirtyRect: NSRect, imageRect: CGRect, scale: CGFloat, emphasized: Bool) {
         NSColor.systemYellow.withAlphaComponent(0.22).setFill()
         for rect in DocumentOverlay.rects(overlay.entryWashes, in: dirtyRect, imageRect: imageRect) {
             NSBezierPath(roundedRect: rect, xRadius: 3 / scale, yRadius: 3 / scale).fill()
@@ -163,9 +176,9 @@ final class DocumentOverlayView: NSView {
         for rect in DocumentOverlay.rects(overlay.linkedWashes, in: dirtyRect, imageRect: imageRect) {
             NSBezierPath(roundedRect: rect, xRadius: 2 / scale, yRadius: 2 / scale).fill()
         }
+    }
 
-        drawMarks(in: dirtyRect, imageRect: imageRect, scale: scale)
-
+    private func drawBoxes(in dirtyRect: NSRect, imageRect: CGRect, scale: CGFloat, line: CGFloat) {
         for (box, rect) in overlay.boxes(in: dirtyRect, imageRect: imageRect) {
             let path = NSBezierPath(rect: rect)
             if box.showsText, !box.text.isEmpty {
@@ -184,9 +197,13 @@ final class DocumentOverlayView: NSView {
             }
             path.stroke()
         }
+    }
 
-        drawMarquees(in: dirtyRect, imageRect: imageRect, scale: scale)
-
+    /// The hover, the Inspector's selected annotation, and the selected boxes (with their handles
+    /// while editing) -- all in the selection's own style.
+    private func drawSelection(
+        in dirtyRect: NSRect, imageRect: CGRect, scale: CGFloat, line: CGFloat, emphasized: Bool
+    ) {
         let selected = overlay.selected(in: dirtyRect, imageRect: imageRect)
         if let hovered, hovered.intersects(dirtyRect), !selected.contains(hovered) {
             let path = NSBezierPath(rect: hovered)
@@ -194,13 +211,10 @@ final class DocumentOverlayView: NSView {
             path.lineWidth = line
             path.stroke()
         }
-
         let stroke = SelectionStyle.stroke(emphasized: emphasized)
         let wash = SelectionStyle.washBase(emphasized: emphasized)
             .withAlphaComponent(SelectionStyle.washAlpha(emphasized: emphasized))
-        // The Inspector's selected annotation: the same selection look as a selected box.
-        if let bbox = overlay.selectedMark,
-           let rect = DocumentBoxMapping.rect(normalized: bbox, imageRect: imageRect), rect.intersects(dirtyRect) {
+        let outline = { (rect: CGRect) in
             let path = NSBezierPath(rect: rect)
             wash.setFill()
             path.fill()
@@ -208,13 +222,13 @@ final class DocumentOverlayView: NSView {
             path.lineWidth = line
             path.stroke()
         }
+        // The Inspector's selected annotation: the same selection look as a selected box.
+        if let bbox = overlay.selectedMark,
+           let rect = DocumentBoxMapping.rect(normalized: bbox, imageRect: imageRect), rect.intersects(dirtyRect) {
+            outline(rect)
+        }
         for rect in selected {
-            let path = NSBezierPath(rect: rect)
-            wash.setFill()
-            path.fill()
-            stroke.setStroke()
-            path.lineWidth = line
-            path.stroke()
+            outline(rect)
             guard overlay.isEditing else { continue }  // handles only in Edit Segments
             for handle in SelectionStyle.handleRects(around: rect, side: SelectionStyle.handleSide / scale) {
                 let square = NSBezierPath(rect: handle)
@@ -255,7 +269,7 @@ enum InlineWords {
             (string as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: points)]).width
         }
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: size), .foregroundColor: NSColor.labelColor,
+            .font: NSFont.systemFont(ofSize: size), .foregroundColor: NSColor.labelColor
         ]
         let measured = (text as NSString).size(withAttributes: attributes)
         let origin = CGPoint(x: rect.minX, y: rect.midY - measured.height / 2)

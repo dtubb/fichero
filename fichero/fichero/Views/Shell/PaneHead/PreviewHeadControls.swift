@@ -112,18 +112,18 @@ struct PreviewHeadLensControls: View {
     @ViewBuilder
     private var editSegmentsToggle: some View {
         if chrome.canEditSegments, let windowState {
-            let on = windowState.isEditingSegments
+            let isEditing = windowState.isEditingSegments
             Button {
                 windowState.isEditingSegments.toggle()
             } label: {
                 Image(systemName: "rectangle.and.pencil.and.ellipsis")
             }
             .buttonStyle(.borderless)
-            .foregroundStyle(on ? Color.accentColor : Color.secondary)
-            .help(on ? "Stop editing segments -- the page is for reading"
+            .foregroundStyle(isEditing ? Color.accentColor : Color.secondary)
+            .help(isEditing ? "Stop editing segments -- the page is for reading"
                      : "Edit Segments -- draw, move, join and delete segments on this page")
             .accessibilityLabel("Edit Segments")
-            .accessibilityValue(on ? "On" : "Off")
+            .accessibilityValue(isEditing ? "On" : "Off")
             .accessibilityIdentifier("previewHeadEditSegments")
         }
     }

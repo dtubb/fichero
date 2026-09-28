@@ -30,7 +30,11 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 || path.hasPrefix("/api/actions/") || path.hasPrefix("/api/segments/passes/")
                 || (path.hasPrefix("/api/segments/") && path.hasSuffix("/readings"))
                 || path == "/api/source-settings/resolve" || path.hasPrefix("/api/hands")
-                || path.hasPrefix("/api/editorial/")
+                || path.hasPrefix("/api/editorial/") || path.hasPrefix("/api/signs")
+                || path.hasPrefix("/api/letterforms") || path.hasPrefix("/api/links/")
+                || (path.hasPrefix("/api/segments/") && path.hasSuffix("/reference"))
+                || path == "/api/rights/effective"
+                || (path.hasPrefix("/api/segments/") && path.hasSuffix("/statements"))
         }
 
         /// What `GET /api/hands` and `GET /api/hands/segment/{id}` answer (set by the test that asks).
@@ -48,6 +52,22 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
 
         /// What `GET /api/editorial/segment/{id}` answers (set by the test that asks).
         nonisolated(unsafe) static var editorialReply = Data()
+
+        /// What `/api/signs`, `/api/signs/{id}/instances`, `/api/letterforms/segment/{id}` and
+        /// `/api/letterforms/allographs` answer (set by the test that asks).
+        nonisolated(unsafe) static var signsReply = Data()
+        nonisolated(unsafe) static var instancesReply = Data()
+        nonisolated(unsafe) static var letterformReply = Data()
+        nonisolated(unsafe) static var allographsReply = Data()
+
+        /// What `/api/links/of/{id}`, `/api/links/types` and `/api/segments/{id}/reference` answer.
+        nonisolated(unsafe) static var linksReply = Data()
+        nonisolated(unsafe) static var linkTypesReply = Data()
+        nonisolated(unsafe) static var referenceReply = Data()
+        /// What `GET /api/rights/effective` answers.
+        nonisolated(unsafe) static var rightsReply = Data()
+        /// What `GET /api/segments/{id}/statements` answers.
+        nonisolated(unsafe) static var statementsReply = Data()
 
         private static func actionReply(auditId: String) -> Data {
             Data(#"{"ok":true,"result":{},"audit_id":"\#(auditId)","changed_domains":["segment"]}"#.utf8)
@@ -73,6 +93,24 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 actionBody = Self.readingsReply
             } else if path.hasPrefix("/api/editorial/segment/") {
                 actionBody = Self.editorialReply
+            } else if path == "/api/signs" {
+                actionBody = Self.signsReply
+            } else if path.hasPrefix("/api/signs/"), path.hasSuffix("/instances") {
+                actionBody = Self.instancesReply
+            } else if path.hasPrefix("/api/letterforms/segment/") {
+                actionBody = Self.letterformReply
+            } else if path == "/api/letterforms/allographs" {
+                actionBody = Self.allographsReply
+            } else if path.hasPrefix("/api/links/of/") {
+                actionBody = Self.linksReply
+            } else if path == "/api/links/types" {
+                actionBody = Self.linkTypesReply
+            } else if path.hasPrefix("/api/segments/"), path.hasSuffix("/reference") {
+                actionBody = Self.referenceReply
+            } else if path == "/api/rights/effective" {
+                actionBody = Self.rightsReply
+            } else if path.hasPrefix("/api/segments/"), path.hasSuffix("/statements") {
+                actionBody = Self.statementsReply
             } else if path.hasPrefix("/api/segments/passes/"), path.hasSuffix("/original") {
                 actionBody = Self.originalReply
             } else if path == "/api/actions/invoke" {
@@ -111,6 +149,15 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             readingsReply = Data()
             originalReply = Data()
             editorialReply = Data()
+            signsReply = Data()
+            instancesReply = Data()
+            letterformReply = Data()
+            allographsReply = Data()
+            linksReply = Data()
+            linkTypesReply = Data()
+            referenceReply = Data()
+            rightsReply = Data()
+            statementsReply = Data()
         }
 
         /// URLSession hands a protocol its body as a stream, not as `httpBody`.
@@ -599,6 +646,178 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         manager.undo()
         for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(RecordedEngine.undone, ["audit-1"], "⌘Z withdraws the withdrawal by its own audit row")
+    }
+
+    /// `source.sign.declared`, `list-authority`, `gather-instances` end to end on the real MUFI page
+    /// (Clm 13027 fol. 38r): a sign declared from its first line that uses U+F1AC, read through
+    /// `SignService` over the engine's recorded answers. The line's Signs row names the sign, its code
+    /// point and list number, that it is used once here and 50 times on the page, and that it was
+    /// declared from this line.
+    func testTheSignsSectionNamesTheMUFISignTheLineUsesAndHowOften() async throws {
+        _ = try await loadedStore()
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("mufi_clm13027-38r.signs.json")
+        )) as? [String: Any])
+        RecordedEngine.signsReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["signs"]))
+        RecordedEngine.instancesReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["instances"]))
+        let readings = try XCTUnwrap(recorded["readings"] as? [String: Any])
+        let line = try XCTUnwrap((readings["items"] as? [[String: Any]])?.first?["content"] as? String)
+
+        let service = SignService(client: try XCTUnwrap(storeClient))
+        let signs = try await service.signs()
+        let total = try await service.totalUses(signId: "sign-0001")
+        XCTAssertEqual(total, 50, "every use on the page, by one query")
+        let rows = InspectorSigns.rows(
+            signs: signs, segmentId: "seg-mufi-0001", reading: line, usedInProject: ["sign-0001": total]
+        )
+        XCTAssertEqual(rows.map(\.title), ["MUFI abbreviation sign"])
+        XCTAssertEqual(rows.first?.detail, "U+F1AC · MUFI F1AC · 1 here · 50 in the project · declared from this segment")
+        XCTAssertEqual(rows.first?.glyph, "\u{F1AC}")
+        XCTAssertEqual(InspectorSigns.rows(signs: signs, segmentId: "seg-other", reading: "no sign").count, 0)
+    }
+
+    /// `source.letterform.chain`, `features` end to end: one letter's box on the imported Syriac page,
+    /// described as the Estrangela alaph of hand B with a wedged stem and a curved foot, read through
+    /// `SignService` and `HandService` over the engine's recorded answers -- the chain in names, never
+    /// ids.
+    func testTheSignsSectionReadsACharactersLetterformInWords() async throws {
+        _ = try await loadedStore()
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-mark-letterform.json")
+        )) as? [String: Any])
+        RecordedEngine.letterformReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["description"]))
+        RecordedEngine.allographsReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["allographs"]))
+        RecordedEngine.handsReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["hands"]))
+        let client = try XCTUnwrap(storeClient)
+
+        let forms = try await SignService(client: client).letterforms(segmentId: "seg-mark")
+        let allographs = try await SignService(client: client).allographNames()
+        let hands = try await HandService(client: client).hands()
+        let lines = InspectorSigns.lines(
+            forms, allographs: allographs,
+            hands: Dictionary(uniqueKeysWithValues: hands.map { ($0.id, $0.label) })
+        )
+        XCTAssertEqual(lines.map(\.chain), ["\u{0710} › Estrangela alaph › hand B"])
+        XCTAssertEqual(lines.map(\.detail), ["stem wedged · foot curved · by owner"])
+    }
+
+    /// `source.link.typed`, `both-ways`, `source.segment.citable` end to end (5.7, #5164): on the
+    /// imported Syriac page, its second line CONTINUES its first (the engine's recorded answers). Read
+    /// through `LinkService` from the FIRST line, the section says "Is continued by Line · <the second
+    /// line's words>", sure 90%, with its note; Link on the two lines picked sends typed_link.create
+    /// first to second; Withdraw sends typed_link.delete and ⌘Z undoes it; Copy Reference reads the
+    /// line's `fichero:segment/…`.
+    func testTheLinksSectionReadsALinkFromThisEndLinksTwoLinesAndCopiesTheReference() async throws {
+        let store = try await loadedStore()
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-lines-links.json")
+        )) as? [String: Any])
+        RecordedEngine.linksReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["of_first"]))
+        RecordedEngine.linkTypesReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["types"]))
+        RecordedEngine.referenceReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["reference"]))
+        let service = LinkService(client: try XCTUnwrap(storeClient))
+
+        let links = try await service.links(of: "seg-0003")
+        let rows = InspectorLinks.rows(links, segments: store.segments(documentId: "doc-0001"))
+        let second = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.id == "seg-0004" })
+        XCTAssertEqual(rows.map(\.sentence), ["Is continued by"])
+        XCTAssertEqual(rows.first?.other, "Line · " + String(try XCTUnwrap(second.text).prefix(40)) + "…")
+        XCTAssertEqual(rows.first?.detail, "sure 90% · the sentence runs on")
+        let types = try await service.types()
+        XCTAssertTrue(types.map(\.key).starts(with: ["answers"]), "the library's types, as the menu offers them")
+        let reference = try await service.reference(segmentId: "seg-0003")
+        XCTAssertEqual(reference, "fichero:segment/library-0001/doc-0001/seg-0003")
+
+        let actions = ActionsService(client: try XCTUnwrap(storeClient))
+        let pair = try XCTUnwrap(InspectorLinks.pair(["seg-0004", "seg-0003"]))
+        try await AuditedAction.run(
+            "typed_link.create", params: TypedLinkCreateRequest(fromId: pair.from, toId: pair.to, linkType: "continues"),
+            actionName: "Link Segments", actionsService: actions, undoManager: nil
+        )
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        try await AuditedAction.run(
+            "typed_link.delete", params: TypedLinkIdRequest(linkId: try XCTUnwrap(rows.first).linkId),
+            actionName: "Withdraw Link", actionsService: actions, undoManager: manager
+        )
+        manager.endUndoGrouping()
+        let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
+        XCTAssertEqual(sent.compactMap { $0["name"] as? String }, ["typed_link.create", "typed_link.delete"])
+        XCTAssertEqual(sent[0]["params"] as? [String: String],
+                       ["from_id": "seg-0004", "to_id": "seg-0003", "link_type": "continues"])
+        XCTAssertEqual(sent[1]["params"] as? [String: String], ["link_id": "link-0001"])
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-2"], "⌘Z restores the withdrawn link by its own audit row")
+    }
+
+    /// `source.rights.record`, `tighten-only` end to end (5.8): the imported Syriac page's first line,
+    /// with a label on the library, local models only for the page, and the line restricted to one
+    /// reader (the engine's recorded answer). Read through `RightsService`, the section says what
+    /// applies and places each record; Set ▸ No Models sends rights.set on the line; Withdraw sends
+    /// rights.withdraw for the line's own record, and ⌘Z undoes it.
+    func testTheRightsSectionSaysWhatAppliesAndWhereEachRecordSits() async throws {
+        _ = try await loadedStore()
+        RecordedEngine.rightsReply = try Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-line-rights.json")
+        )
+        let answer = try await RightsService(client: try XCTUnwrap(storeClient))
+            .effective(targetKind: "segment", targetId: "seg-0003")
+        XCTAssertEqual(InspectorRights.effect(answer).map(\.value), ["Only owner", "Local models only", "TK Attribution"])
+        let rows = InspectorRights.rows(answer.records, targetKind: "segment", targetId: "seg-0003", pageId: "doc-0001")
+        XCTAssertEqual(rows.map(\.place), ["On the library", "On this page", "On this segment"])
+        XCTAssertEqual(rows.map(\.detail), [
+            "labels: TK Attribution · held by Österreichische Nationalbibliothek · by owner",
+            "local models only · agreement 2026-07 · by owner",
+            "restricted to owner · by owner"
+        ])
+
+        let actions = ActionsService(client: try XCTUnwrap(storeClient))
+        try await AuditedAction.run(
+            "rights.set", params: RightsSetRequest(targetKind: "segment", targetId: "seg-0003", modelUse: "none"),
+            actionName: "Set Model Rule", actionsService: actions, undoManager: nil
+        )
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        try await AuditedAction.run(
+            "rights.withdraw", params: RightsRecordIdRequest(recordId: rows[2].recordId),
+            actionName: "Withdraw Rights Record", actionsService: actions, undoManager: manager
+        )
+        manager.endUndoGrouping()
+        let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
+        XCTAssertEqual(sent.compactMap { $0["name"] as? String }, ["rights.set", "rights.withdraw"])
+        XCTAssertEqual(sent[0]["params"] as? [String: String],
+                       ["target_kind": "segment", "target_id": "seg-0003", "model_use": "none"])
+        XCTAssertEqual(sent[1]["params"] as? [String: String], ["record_id": "rights-0003"])
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-2"])
+    }
+
+    /// `source.statement.on-segment`, `both-ways` end to end (5.7, statements): the imported Syriac
+    /// page's first line, with a claim anchored to it and an entity mentioned on it (the engine's
+    /// recorded answer). Read through `StatementService`, the section lists the claim -- saying it is
+    /// anchored here, with its excerpt -- then the mention; opening each focuses THAT claim or entity in
+    /// the one focus the knowledge views follow.
+    func testWhatIsSaidAboutALineListsItsClaimAndMentionAndOpensEach() async throws {
+        _ = try await loadedStore()
+        RecordedEngine.statementsReply = try Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-line-statements.json")
+        )
+        let answer = try await StatementService(client: try XCTUnwrap(storeClient)).statements(segmentId: "seg-0003")
+        let rows = InspectorStatements.rows(answer)
+        XCTAssertEqual(rows.map(\.title), ["Abraham begat Isaac", "Abraham"])
+        XCTAssertEqual(rows.map(\.isClaim), [true, false])
+        XCTAssertEqual(rows.first?.detail, "unreviewed · confidence 50% · anchored here · “ܐܒܪܗܡ ܐܘܠܕ”")
+
+        let focus = KGFocusState()
+        focus.focusClaim(claimId: rows[0].targetId, entityId: nil, sourceDocumentId: "doc-0001")
+        XCTAssertEqual(focus.focusedClaimId, "claim-0001")
+        focus.focusEntity(entityId: rows[1].targetId, sourceDocumentId: "doc-0001")
+        XCTAssertEqual(focus.focusedEntityId, "entity-0001")
+        XCTAssertNil(focus.focusedClaimId, "opening an entity is not opening a claim")
     }
 
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {
