@@ -151,7 +151,113 @@ Each XCUITest cites a spec behavior id; the identifier in the SwiftUI view is th
   failure (stop discarding the evidence needed to debug it). Implemented (`FicheroUISession.swift`,
   `UITestEngineHarness.swift`) but has no pinning test guarding the behavior.
 
+## Driving the running app from outside (added 2026-09-28; DRAFT)
+
+**Why.** An agent must be able to test what a person SEES, not what a store holds. On 2026-09-28,
+72 of 72 end-to-end tests were green while the app showed an imported page with no boxes: the
+engine tests proved the segments exist, and `ImportedPageDrawsItsBoxesTests` proved the Swift store
+gets them. Nothing looked at the window. The requirement this section serves: **a check can say
+"page X draws N boxes", with the ids, read from the drawn view hierarchy, and compare it with what
+the engine holds.**
+
+**What exists (grounded, this worktree).**
+- **An AppleScript dictionary is already the agent loop (#4535):** `fichero/fichero/Fichero.sdef`,
+  `Services/AppleScriptCommands.swift`, `Services/AppleScriptRunCommands.swift`.
+  - The verbs include `open library`, `select document`, `show panel` (library, inspector, kg,
+    activity), workflow run/stop/status, and `screenshot`.
+  - `screenshot` (`Services/FicheroUICapture.swift`) renders the key window, or a view named by its
+    accessibility identifier, offscreen with `bitmapImageRepForCachingDisplay(in:)` +
+    `cacheDisplay(in:to:)`. That needs no screen-recording permission.
+  - `scripts/ux_smoke.py` drives the verbs through `osascript` against the built app and the
+    spawn-per-run engine. Its window check is "a non-trivial PNG", which a window with no boxes
+    passes.
+  - `Tests/Unit/mac/AppleScriptSurfaceTests.swift` pins that the verbs are declared and every bound
+    Cocoa class exists.
+  - `NSAppleScriptEnabled` and `OSAScriptingDefinition` are unconditional in `Info.plist`, so the
+    dictionary ships in Release.
+- **App Intents exist:** `Intents/FicheroActionIntents.swift`, `FicheroAppEntities.swift`,
+  `FicheroShortcuts.swift`.
+- **Drawn boxes have NO identity today.** `Views/Preview/ImageViewer/BoundingBoxOverlay.swift` draws
+  them in a `ForEach` keyed by offset, with no accessibility element or identifier. No channel,
+  whichever is chosen, can currently say which segments a page drew.
+
+**The options.** Each is judged on whether it can observe the DRAWN boxes, whether it can be kept out
+of Release, its security story, and its cost.
+
+| | (a) AppleScript / OSA (sdef + `NSScriptCommand`) | (b) App Intents / Shortcuts | (c) Debug-only control socket speaking MCP | (d) XCUITest (`XCUIAutomation`) |
+|---|---|---|---|---|
+| **Observes the window?** | Yes, if the verb reads the view hierarchy: it runs in-process, on the main actor, beside the views. It can walk the drawn per-box elements and render any view offscreen. | Only what `perform()` returns (`ReturnsValue`). It runs in-process, so it could read views, but the framework is built for user actions, not structured inspection. | Yes, in-process, the same as (a). | Yes: it reads the **accessibility tree**, which is the drawn UI. That is the right observation model. |
+| **Debug-only?** | Yes. The test verbs' classes go under `#if DEBUG`, and a Debug-only sdef suite is selected per configuration through the `OSAScriptingDefinition` build setting. The user-facing verbs are unchanged. | Yes (`#if DEBUG` intents), but App Shortcuts metadata is extracted at build time, and running an intent from a shell needs a Shortcut by name (`shortcuts run`). | Yes: `#if DEBUG`, compiled out. | It's a test bundle, so it never ships. |
+| **Security** | Apple events are gated by TCC Automation consent **on the sender** (one prompt per sending app). A hardened sender needs `com.apple.security.automation.apple-events`. Nothing listens on a port. | Runs through Shortcuts, under the user's permissions. | A new listener, even in Debug. It needs a socket in the app's container, owner-only, compiled out of Release, and a guard that it is. | None at runtime (test-only). |
+| **Works for an agent in a shell?** | Yes, via `osascript`, in the logged-in session. No synthesized events, so it works when the screen is locked, unlike `CGEvent`-driven tools. | Awkward: it goes through the Shortcuts app's library. | Yes. Agents already speak MCP. | Poorly: it needs an unlocked Aqua GUI session, the runner owns the app's launch, and it's slow. It is the leg this strategy caps THIN. |
+| **Cost** | **Low: extend what exists.** New verbs follow the existing command pattern, and the tests and smoke exist. | Medium, and it bends a user feature into a test channel. | **High:** a Swift MCP server (a new dependency, or a hand-rolled JSON-RPC over UDS) that duplicates (a)'s verbs, plus a new attack surface to guard. | Already paid; kept thin by ruling 2. |
+
+**Recommendation: (a), extended.** This iterates, never replaces: #4535 already made the AppleScript
+dictionary the agent and test loop, with a smoke and pinning tests. What it lacks is the ability to
+READ what is drawn and to reach below a document. The agent's MCP reach is a thin `fichero-mcp` tool
+that runs `osascript` (the "via MCP/CLI" half of #4535's title), so there's one app channel and no
+second listener.
+- (c) is rejected because it duplicates (a) with a new listener to secure.
+- (b) is rejected because it bends a user feature into a test channel.
+- (d) stays the thin XCUITest layer. It benefits from the same prerequisite (per-box accessibility
+  elements) and needs no change of its own.
+
+**The prerequisite, whichever option is chosen:** every drawn box is an accessibility element with a
+data-ID identifier, `SegmentBox-<segmentId>`, and its frame. This follows this strategy's
+identifier contract (`ui-testing.identifier-contract`). "What the window shows" then has one meaning
+for AppleScript, XCUITest and VoiceOver alike, and an element exists only if its view was drawn.
+
+**The new verbs (Debug-only suite).**
+- `select page <document id>`
+- `select segment <segment id>`: selects it in the Source view, the Reader and the Inspector (one
+  selection).
+- `show pane <name>`: the panes model (`modes-to-panes.md`), beside today's `show panel`.
+- `describe window`: returns JSON with the panes shown; the selection; and, for each page on screen,
+  its id and the segment ids whose boxes are DRAWN, with their frames. All of it is read from the
+  drawn elements, never from a store.
+
+The regression check this enables is the one that was missing: import a page through the engine,
+`select page`, `describe window`, and the drawn ids equal the engine's segment ids for that page's
+working pass.
+
+**Behaviours.**
+- `ui-testing.drawn-boxes-are-elements` [GAP] (#5192): every box drawn on a page is an accessibility
+  element identified `SegmentBox-<segmentId>` with its frame; none is drawn without one, and none
+  exists undrawn.
+- `ui-testing.describe-window` [GAP] (#5193): a Debug-only `describe window` verb reports panes,
+  selection and, per page on screen, the drawn segment ids and frames, read from the drawn elements.
+- `ui-testing.drive-below-a-document` [GAP] (#5194): Debug-only `select page`, `select segment` and
+  `show pane` verbs, each answering whether the request was accepted, in the style of the existing
+  verbs.
+- `ui-testing.test-verbs-never-in-release` [GAP] (#5195): a Release build contains neither the test
+  suite in its sdef nor the test verbs' command classes, and a guard over the built Release app fails
+  if either appears.
+- `ui-testing.window-matches-engine` [GAP] (#5196): the scripted smoke asserts, for an imported page,
+  that the drawn box ids equal the engine's segment ids for its working pass. This is the check that
+  would have failed on 2026-09-28.
+
+**Open questions.**
+1. The user-facing dictionary ships in Release today with write verbs (`import file`, `run workflow`).
+   Do those go through the one audited action layer, and should a scriptable write stay in Release at
+   all? It's a product decision, recorded here and not changed by this section.
+2. Does `cacheDisplay` render the Metal-backed parts of the page (the image under the boxes)? The
+   capture code calls which views are findable "empirical". `describe window` does not depend on
+   pixels, but a screenshot attached to a failure would.
+
 ## Sources
+
+Apple: [XCUIAutomation](https://developer.apple.com/documentation/xcuiautomation) and WWDC25 s344
+([Record, replay, and review](https://developer.apple.com/videos/play/wwdc2025/344/));
+[App Intents](https://developer.apple.com/documentation/appintents),
+[ReturnsValue](https://developer.apple.com/documentation/appintents/returnsvalue),
+[App Shortcuts](https://developer.apple.com/documentation/appintents/app-shortcuts),
+[Run shortcuts from the command line](https://support.apple.com/guide/shortcuts-mac/run-shortcuts-from-the-command-line-apd455c82f02/mac);
+[NSScriptCommand](https://developer.apple.com/documentation/foundation/nsscriptcommand) and the
+Cocoa Scripting Guide
+([Scriptable Cocoa applications](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ScriptableCocoaApplications/));
+[com.apple.security.automation.apple-events](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.automation.apple-events);
+[NSView.cacheDisplay(in:to:)](https://developer.apple.com/documentation/appkit/nsview/cachedisplay(in:to:));
+[accessibilityIdentifier(_:)](https://developer.apple.com/documentation/swiftui/view/accessibilityidentifier(_:)).
 
 WWDC 2025 s344 "Record, replay, and review: UI automation with Xcode"; WWDC 2024 s10179 / WWDC 2026
 s267 (Swift Testing); Apple docs: ImageRenderer, Previews in Xcode, performAccessibilityAudit,
