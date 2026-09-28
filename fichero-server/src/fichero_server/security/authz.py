@@ -19,20 +19,39 @@ from typing import Any, Callable
 
 from fichero_server.db.app import get_app_db
 from fichero_server.db.library_paths import nfc_path
+from fichero_server.models.canvas import CanvasItem, CanvasLayout
 from fichero_server.models.editorial import EditorialFact
 from fichero_server.models.hands import HandAttribution
 from fichero_server.models.letterforms import LetterformDescription
 from fichero_server.models.campaigns import Campaign, CampaignMembership, ReadingCampaigns
+from fichero_server.models.hermeneutics import Interpretation
+from fichero_server.models.knowledge import (
+    Annotation,
+    DocumentCitation,
+    KnowledgeGraphInclusion,
+    LibraryItemLink,
+    Note,
+    ProjectInclusion,
+    ReferenceProvenance,
+)
+from fichero_server.models.reading_orders import ReadingOrder, ReadingOrderEntry
+from fichero_server.models.readings import ReadingChoice
+from fichero_server.models.typed_links import TypedLink
 from fichero_server.models import (
     AccountUser,
+    AgentNote,
     Artifact,
     ContentRepresentation,
     Document,
+    DocumentNote,
+    ImageEditChain,
+    Rendition,
     Segment,
     SegmentCarry,
     SegmentForwarding,
     SegmentMatch,
     SegmentPass,
+    SegmentPassChoice,
     SegmentVersion,
 )
 from fichero_server.security.multiuser import multiuser_enabled as _multiuser_enabled
@@ -408,9 +427,63 @@ _DOCUMENT_ID_RESOLVERS: tuple[tuple[type, Callable[[Any, Any], "str | None"]], .
     # it) resolves to its document too, instead of "itself only".
     (Campaign, lambda db, row: row.document_id),
     (CampaignMembership, lambda db, row: _document_id_of_segment(db, row.segment_id)),
-    (ContentRepresentation, lambda db, row: row.document_id),
     (ReadingCampaigns, lambda db, row: _document_id_of_representation(db, row.representation_id)),
+    # #5177: every other kind that belongs to ONE document, found by the guard
+    # (`tests/unit/security/test_every_id_param_reaches_its_document.py`). Without these a
+    # `representation_id`, `order_id`, `entry_id`, `choice_id`, `annotation_id`, `note_id`,
+    # `link_id` ... was checked as itself only, and a deny on the page never reached it.
+    (ContentRepresentation, lambda db, row: row.document_id),
+    (ReadingOrder, lambda db, row: row.document_id),
+    (ReadingOrderEntry, lambda db, row: _document_id_of_order(db, row.order_id)),
+    (ReadingChoice, lambda db, row: row.document_id),
+    (SegmentPassChoice, lambda db, row: row.document_id),
+    (Rendition, lambda db, row: row.document_id),
+    (DocumentNote, lambda db, row: row.document_id),
+    (AgentNote, lambda db, row: row.source_anchor.page_id or row.source_anchor.document_id or NO_DOCUMENT),
+    (ImageEditChain, lambda db, row: row.document_id),
+    (ReferenceProvenance, lambda db, row: row.document_id),
+    (DocumentCitation, lambda db, row: row.source_document_id),
+    # Records that MAY be anchored to a document (or a folder, itself a Document row) and may
+    # instead be library-level: `NO_DOCUMENT` says the second, which is "itself only" -- never
+    # the fail-closed "a kind matched and its document is unknown".
+    (Annotation, lambda db, row: row.document_id or row.page_id or row.folder_id or NO_DOCUMENT),
+    (Interpretation, lambda db, row: row.document_id or NO_DOCUMENT),
+    (Note, lambda db, row: row.page_id or row.folder_id or NO_DOCUMENT),
+    (CanvasItem, lambda db, row: row.folder_id),
+    (CanvasLayout, lambda db, row: row.folder_id),
+    # A link between two things belongs to the documents of its ends: the FROM end's, else the
+    # TO end's; a link between library-level things is library-level.
+    (TypedLink, lambda db, row: _owning_document(db, row.from_id) or _owning_document(db, row.to_id) or NO_DOCUMENT),
+    (LibraryItemLink, lambda db, row: _owning_document(db, row.target_id) or NO_DOCUMENT),
+    (ProjectInclusion, lambda db, row: _owning_document(db, row.target_id) or NO_DOCUMENT),
+    # Declared with #5178; including a document in the knowledge graph is a fact about that document.
+    (KnowledgeGraphInclusion, lambda db, row: _owning_document(db, row.target_id) or NO_DOCUMENT),
 )
+
+#: A resolver's answer for a row that belongs to NO document (a library-level annotation or note,
+#: a link between two entities): checked as itself only, like an id of no known kind.
+NO_DOCUMENT = "\x00library"
+
+
+def _document_id_of_order(db: Any, order_id: str) -> "str | None":
+    order = db.get(ReadingOrder, order_id)
+    return order.document_id if order is not None else None
+
+
+def _owning_document(db: Any, target_id: str | None, _depth: int = 0) -> "str | None":
+    """The document `target_id` is, or belongs to; None when it is neither (an entity, a claim)."""
+    if not target_id or _depth > 3:
+        return None
+    if db.get(Document, target_id) is not None:
+        return target_id
+    for model, get_document_id in _DOCUMENT_ID_RESOLVERS:
+        if model in (TypedLink, LibraryItemLink, ProjectInclusion, KnowledgeGraphInclusion):
+            continue  # a link's end is never another link: no chains to follow
+        row = db.get(model, target_id)
+        if row is not None:
+            document_id = get_document_id(db, row)
+            return None if document_id == NO_DOCUMENT else document_id
+    return None
 
 
 def _document_id_of_segment_match(db: Any, match_id: str) -> str | None:
@@ -450,6 +523,8 @@ def _resolve_owning_document_id(db: Any, target_id: str) -> str | None:
         if row is None:
             continue
         document_id = get_document_id(db, row)
+        if document_id == NO_DOCUMENT:
+            return None
         if not document_id or db.get(Document, document_id) is None:
             raise AuthzResolutionError(target_id)
         return document_id

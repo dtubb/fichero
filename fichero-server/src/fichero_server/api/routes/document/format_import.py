@@ -82,25 +82,6 @@ class UnrecognisedImportFile(ValueError):
         )
 
 
-class GeoreferencingNotYetImportable(ValueError):
-    """Raised for a file whose segments carry WORLD positions (IIIF Georeference GCPs).
-
-    The format reads (`formats/iiif_georef.py`) and round-trips format to format, but a
-    library has nowhere to put a ground control point's world end until the GCP model
-    lands (#5122). Importing anyway would keep the pixel end and drop the place on the
-    earth, which is the half that makes it a control point. So: refused, by name. Before
-    this, the same file was refused as having shapes "outside the page", which was true
-    of nothing in it.
-    """
-
-    def __init__(self, filename: str, count: int) -> None:
-        super().__init__(
-            f"{filename} is a georeferencing file with {count} ground control point(s). "
-            "Fichero reads and exports this format, but cannot yet keep a control point's "
-            "world position in a library (#5122), so nothing was imported."
-        )
-
-
 class ShapesOutsideThePage(ValueError):
     """Raised when a file's shapes lie outside the page size it declares.
 
@@ -356,6 +337,17 @@ def _anchor_for(
     """
     problems: list[str] = []
 
+    point = getattr(segment, "point", None)
+    if point is not None and segment.rect is None and segment.polygon is None:
+        # A POINT (a ground control point, #5122): one place, not an area. Outside the page it
+        # cannot be drawn, so it is refused like any other shape that leaves the page.
+        if not (0.0 <= point[0] <= 1.0 and 0.0 <= point[1] <= 1.0):
+            return None, f"point {[round(v, 4) for v in point]} lies outside the page the file declares"
+        return SourceAnchor(
+            document_id=document_id, granularity=segment.kind,
+            shapes=[{"kind": "point", "points": [list(point)]}],
+        ), None
+
     if segment.rect is None and segment.polygon is None:
         # A TEXT-ONLY segment: the file states no place for it at all (an EpiDoc edition, a TEI
         # line whose `<lb>` names no zone). It is not a shape outside the page -- there is no
@@ -589,9 +581,20 @@ def write_page_into_library(
     # with other work on it, so the honest claim is only that doing the same work once
     # is not worse. An import either happens or does not, so the check still runs
     # before the first write.
-    worlded = sum(1 for _ref, segment in order if segment.world is not None)
-    if worlded:
-        raise _as_http_error(GeoreferencingNotYetImportable(source_name, worlded))
+    # A georeferencing file (#5122): its GCPs keep BOTH ends -- the pixel end as a point segment,
+    # the world end as a `world-point` reading -- and the pass says its transformation. Refused by
+    # name before the model existed.
+    georeferencing = any(segment.world is not None for _ref, segment in order)
+    transformation = None
+    if georeferencing:
+        from fichero_server.models.geo import transformation_from_iiif
+
+        try:
+            transformation = transformation_from_iiif(page.transformation)
+        except ValueError as refusal:
+            raise _as_http_error(refusal) from refusal
+        pass_row.transformation = transformation
+        db.save(pass_row)
 
     anchors: dict[str, tuple[SourceAnchor | None, str | None]] = {
         ref: _anchor_for(document_id, segment, page.image_size)
@@ -670,8 +673,38 @@ def write_page_into_library(
                     created_by=ctx.actor or None,
                 )
             )
+    # A GCP's world end (#5122): a `world-point` reading, WGS 84 lon/lat as the georef extension
+    # writes it, through the one checker every world point goes through (`models.geo`).
+    if georeferencing:
+        from fichero_server.models.geo import WORLD_POINT, world_point
+
+        for ref, segment in order:
+            if segment.world is None:
+                continue
+            readings.append(ContentRepresentation(
+                document_id=document_id, segment_id=ids_by_ref[ref], kind=WORLD_POINT,
+                content=world_point({"coordinates": list(segment.world), "crs": "EPSG:4326",
+                                     "axis_order": "lon,lat"}).model_dump_json(),
+                source_anchor=SourceAnchor(document_id=document_id, granularity=segment.kind),
+                provenance_kind=imported, created_by=ctx.actor or None,
+            ))
     if readings:
         db.save_many(readings)
+
+    # Each GCP CONTROLS its mask (#5122): a typed link, because a sheet with two maps has two masks
+    # and a GCP belongs to one by what the file says, not by lying inside it.
+    if georeferencing:
+        from fichero_server.formats.iiif_georef import MASK_LINK
+        from fichero_server.models.typed_links import TypedLink
+
+        links = [
+            TypedLink(from_id=ids_by_ref[ref], to_id=ids_by_ref[segment.foreign[MASK_LINK]],
+                      link_type="controls", provenance_kind=imported, created_by=ctx.actor or None)
+            for ref, segment in order
+            if segment.foreign.get(MASK_LINK) in ids_by_ref
+        ]
+        if links:
+            db.save_many(links)
 
     # The hands the file names (an EpiDoc `<handShift>`), as project hands attributed to these
     # segments with the file as their source (slice 14, #4935).
@@ -766,7 +799,7 @@ def _as_http_error(exc: Exception) -> HTTPException:
         # 409: the library already holds this, which is a state rather than a bad
         # request -- the caller did nothing wrong and nothing was written.
         return HTTPException(status_code=409, detail=str(exc))
-    if isinstance(exc, (ShapesOutsideThePage, GeoreferencingNotYetImportable)):
+    if isinstance(exc, ShapesOutsideThePage):
         return HTTPException(status_code=422, detail=str(exc))
     if isinstance(exc, (UnrecognisedImportFile, UnknownFormat)):
         return HTTPException(status_code=422, detail=str(exc))

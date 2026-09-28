@@ -1681,6 +1681,7 @@ from fichero_server.api.routes.document import segments as _segments_route_modul
 #: with ONE field replaced by a `legacy:` id.
 _ROUTE_ID_CHECKS: dict[tuple[str, str], list[tuple[str, Any]]] = {
     ("GET", "/segments/document/{doc_id}"): [],  # read-only seam, no provisional refusal here
+    ("GET", "/segments/document/{doc_id}/matches"): [],  # read-only list of a page's matches (#5165)
     ("GET", "/segments"): [],  # read-only scoped listing: real rows only, no provisional id to refuse
     ("PATCH", "/segments"): [
         ("updates[].segment_id", lambda doc_id, pass_id: (

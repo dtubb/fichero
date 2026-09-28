@@ -263,6 +263,13 @@
             unicode-bidi: isolate;
         }
 
+        /* The Source view's selected lines (#5155): a CSS Custom Highlight over text ranges, so
+           no line is wrapped in an element and the caret never moves. The system selection
+           colour, quietly. */
+        ::highlight(fichero-selected-lines) {
+            background-color: color-mix(in srgb, Highlight 28%, transparent);
+        }
+
         /* Table representations (2026-08-29): a real table in the page's own
            idiom, inside its own horizontal scroller — a wide ledger scrolls
            HERE, never the page body (#4385's rule applied to tables). */
@@ -903,10 +910,129 @@ function reportTextSelection() {
     });
 }
 document.addEventListener("mouseup", () => setTimeout(reportTextSelection, 0));
+// Editing glue (#5154); the rules are the pure functions beside the line map.
+// Set on the element, not in the markup, so a page's markup stays its text and nothing else.
+function makeEditable(article) {
+    const body = article.querySelector(".transcript-page-body");
+    const lines = pageLineMaps.get(article.dataset.pageId);
+    if (body && Array.isArray(lines) && lines.length) {
+        body.setAttribute("contenteditable", "plaintext-only");
+        body.spellcheck = false;
+    }
+}
+
+let pendingEdit = null;   // {pageId, segmentId} of the line being typed in
+
+// Send the typed line as a new reading (or refuse and put the page text back). Returns true when
+// nothing is left pending.
+function commitPendingEdit() {
+    if (!pendingEdit) return true;
+    const { pageId, segmentId } = pendingEdit;
+    pendingEdit = null;
+    const article = document.querySelector(`article[data-page-id="${CSS.escape(pageId)}"]`);
+    const body = article && article.querySelector(".transcript-page-body");
+    if (!body) return true;
+    const before = pageTexts.get(pageId) ?? "";
+    const lines = pageLineMaps.get(pageId);
+    const edit = readingEditMessage(before, body.textContent, lines, pageId, segmentId);
+    if (!edit) return true;
+    if (edit.refused) {
+        body.outerHTML = pageBodyMarkup({ content: before, lines });
+        makeEditable(article);
+        return false;
+    }
+    pageTexts.set(pageId, body.textContent);
+    pageLineMaps.set(pageId, shiftLines(lines, segmentId, edit.delta));
+    notify("readingEdit", edit.message);
+    return true;
+}
+
+document.addEventListener("beforeinput", () => {
+    const at = lineAtCaret();
+    if (!at) return;
+    if (pendingEdit && (pendingEdit.pageId !== at.pageId || pendingEdit.segmentId !== at.segmentId)) {
+        commitPendingEdit();
+    }
+    if (!pendingEdit) pendingEdit = at;
+});
+document.addEventListener("selectionchange", () => {
+    if (!pendingEdit) return;
+    const at = lineAtCaret();
+    if (!at || at.pageId !== pendingEdit.pageId || at.segmentId !== pendingEdit.segmentId) commitPendingEdit();
+});
+document.addEventListener("focusout", () => commitPendingEdit());
+
+let focusedLine = null;
+document.addEventListener("selectionchange", () => {
+    const at = lineAtCaret();
+    const message = lineFocusMessage(focusedLine, at);
+    if (at) focusedLine = at;
+    if (message) notify("lineFocused", message);
+});
+
+// The DOM Range covering body offsets [start, end), across however many text nodes (a direction
+// run is its own node).
+function rangeInBody(body, start, end) {
+    const range = document.createRange();
+    let offset = 0, startSet = false;
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+        const length = node.nodeValue.length;
+        if (!startSet && start <= offset + length) { range.setStart(node, start - offset); startSet = true; }
+        if (startSet && end <= offset + length) { range.setEnd(node, end - offset); return range; }
+        offset += length;
+    }
+    return startSet ? range : null;
+}
+
+function scrollParent(element) {
+    for (let el = element; el; el = el.parentElement) {
+        const style = getComputedStyle(el);
+        if (/(auto|scroll)/.test(style.overflowY) && el.scrollHeight > el.clientHeight) return el;
+    }
+    return document.scrollingElement;
+}
+
+let shownLineIds = [];
+function applyShownLines() {
+    if (!(window.CSS && CSS.highlights && window.Highlight)) return;   // no API: nothing drawn
+    const ranges = [];
+    for (const span of selectedLineSpans(pageLineMaps, shownLineIds)) {
+        const body = document.querySelector(`article[data-page-id="${CSS.escape(span.pageId)}"] .transcript-page-body`);
+        const range = body && rangeInBody(body, span.start, span.end);
+        if (range) ranges.push(range);
+    }
+    if (ranges.length) CSS.highlights.set("fichero-selected-lines", new Highlight(...ranges));
+    else CSS.highlights.delete("fichero-selected-lines");
+    return ranges;
+}
+
 document.addEventListener("keydown", (event) => {
+    const plain = !event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey;
+    if (plain && (event.key === "Enter" || event.key === "Backspace")) {
+        const caret = caretInBody();
+        if (!caret || !caret.collapsed || !caret.body.isContentEditable) return;
+        const lines = pageLineMaps.get(caret.pageId);
+        const message = event.key === "Enter"
+            ? lineSplitMessage(lines, caret.pageId, caret.offset)
+            : lineJoinMessage(lines, caret.pageId, caret.offset);
+        if (!message) return;   // an ordinary Backspace
+        event.preventDefault();
+        if (!commitPendingEdit()) return;
+        // The typed text shifted the map; resolve against it once more.
+        const fresh = pageLineMaps.get(caret.pageId);
+        const again = caretInBody();
+        const final = event.key === "Enter"
+            ? lineSplitMessage(fresh, caret.pageId, again ? again.offset : caret.offset)
+            : lineJoinMessage(fresh, caret.pageId, again ? again.offset : caret.offset);
+        if (final) notify(event.key === "Enter" ? "lineSplit" : "lineJoin", final);
+        return;
+    }
     const message = LINE_MOVE_STEPS[event.key] ? lineMoveMessage(event, lineAtCaret()) : null;
     if (!message) return;
     event.preventDefault();
+    commitPendingEdit();
     notify("lineMove", message);
 });
 document.addEventListener("keyup", (event) => {
@@ -1088,8 +1214,9 @@ function segmentAtOffset(lines, offset) {
     return found.segment_id;
 }
 
-// {pageId, segmentId} for the caret (the selection's focus), or null outside a page body.
-function lineAtCaret() {
+// {pageId, body, offset, collapsed} for the caret (the selection's focus) in the page body's
+// text, or null outside a page body.
+function caretInBody() {
     const selection = window.getSelection();
     const focus = selection && selection.focusNode;
     if (!focus) return null;
@@ -1105,9 +1232,15 @@ function lineAtCaret() {
         if (focus.nodeType !== Node.TEXT_NODE && focus.contains(node)) break;
         offset += node.nodeValue.length;
     }
-    const pageId = article.dataset.pageId;
-    const segmentId = segmentAtOffset(pageLineMaps.get(pageId), offset);
-    return segmentId ? { pageId, segmentId } : null;
+    return { pageId: article.dataset.pageId, body, offset, collapsed: selection.isCollapsed };
+}
+
+// {pageId, segmentId} for the caret, or null outside a page body or off every line.
+function lineAtCaret() {
+    const caret = caretInBody();
+    if (!caret) return null;
+    const segmentId = segmentAtOffset(pageLineMaps.get(caret.pageId), caret.offset);
+    return segmentId ? { pageId: caret.pageId, segmentId } : null;
 }
 window.ficheroLineAtCaret = lineAtCaret;
 
@@ -1213,10 +1346,14 @@ async function refreshPage(pageId) {
     const oldLines = pageLineMaps.get(pageId);
     body.outerHTML = pageBodyMarkup({ content: fresh.content, lines: fresh.lines });
     pageLineMaps.set(pageId, fresh.lines || []);
+    pageTexts.set(pageId, String(fresh.content ?? ""));
+    pendingEdit = null;
     const entry = (documentData.pages || []).find((page) => page.id === pageId);
     if (entry) { entry.content = fresh.content; entry.lines = fresh.lines; }
     const offset = oldOffset === null ? null : caretAfterMove(oldLines, fresh.lines, at.segmentId, oldOffset);
     const newBody = article.querySelector(".transcript-page-body");
+    makeEditable(article);
+    applyShownLines();
     if (offset !== null && newBody) {
         let rest = offset;
         const walker = document.createTreeWalker(newBody, NodeFilter.SHOW_TEXT);
@@ -1229,8 +1366,103 @@ async function refreshPage(pageId) {
     return true;
 }
 
+// Typing in the Reader (#5154). A page with a line map is editable; what a person types is a
+// new READING of the line the caret is on, sent when the caret leaves that line (or the page
+// loses focus, or before a split or join) -- never per keystroke. Return splits the caret's line,
+// Backspace at a line's start joins it to the line before. Swift makes the call and asks for the
+// page again (`refreshPage`).
+//
+// The page text as the server sent it, per page: what an edit is measured against.
+const pageTexts = new Map();
+
+// The one line an edit changed, or why not. `before`/`now` are the page body's whole text before
+// and after; `segmentId` is the line the caret was on when typing began. Everything outside that
+// line must be byte-for-byte what it was: an edit that reached another line (a paste over two
+// lines, a selection across the separator) is REFUSED, not guessed at.
+function editedLine(before, now, lines, segmentId) {
+    if (before === now) return null;
+    const line = (lines || []).find((item) => item.segment_id === segmentId);
+    if (!line) return { refused: "off every line" };
+    const delta = now.length - before.length;
+    const end = line.char_end + delta;
+    if (end < line.char_start
+        || now.slice(0, line.char_start) !== before.slice(0, line.char_start)
+        || now.slice(end) !== before.slice(line.char_end)) {
+        return { refused: "the edit reached another line" };
+    }
+    return {
+        segmentId,
+        text: now.slice(line.char_start, end),
+        previous: before.slice(line.char_start, line.char_end),
+        delta,
+    };
+}
+
+// The `readingEdit` message for an edit, or {refused}. `basedOn` is the reading the person was
+// correcting -- the line's counting reading from the map -- so the app records the new one as its
+// correction (`corrects_representation_id`); null when the line's text came from its words.
+function readingEditMessage(before, now, lines, pageId, segmentId) {
+    const edit = editedLine(before, now, lines, segmentId);
+    if (!edit || edit.refused) return edit;
+    const line = lines.find((item) => item.segment_id === segmentId);
+    return {
+        message: { pageId, segmentId, text: edit.text, previous: edit.previous, basedOn: line.representation_id ?? null },
+        delta: edit.delta,
+    };
+}
+
+// The map after an edit of `delta` characters in one line: that line grows, later lines move.
+function shiftLines(lines, segmentId, delta) {
+    let after = false;
+    return (lines || []).map((line) => {
+        if (after) return { ...line, char_start: line.char_start + delta, char_end: line.char_end + delta };
+        if (line.segment_id !== segmentId) return line;
+        after = true;
+        return { ...line, char_end: line.char_end + delta };
+    });
+}
+
+// Return at `offset` (in the page body): split that line at the caret's place in its own text.
+function lineSplitMessage(lines, pageId, offset) {
+    const segmentId = segmentAtOffset(lines, offset);
+    const line = segmentId && lines.find((item) => item.segment_id === segmentId);
+    if (!line) return null;
+    const at = Math.max(0, Math.min(offset - line.char_start, line.char_end - line.char_start));
+    return { pageId, segmentId, offset: at };
+}
+
+// Backspace at `offset`: only at the very start of a line that has one before it does it join;
+// anywhere else it is an ordinary Backspace (null).
+function lineJoinMessage(lines, pageId, offset) {
+    const index = (lines || []).findIndex((line) => line.char_start === offset);
+    if (index <= 0) return null;
+    return { pageId, segmentId: lines[index].segment_id, intoSegmentId: lines[index - 1].segment_id };
+}
+
+// One selection across the Source view, the Reader and the Inspector (#5155).
+// `lineFocused` {pageId, segmentId} when the caret comes onto a different line -- once per change,
+// never per key. Null when nothing changed or the caret is off every line.
+function lineFocusMessage(previous, at) {
+    if (!at) return null;
+    if (previous && previous.pageId === at.pageId && previous.segmentId === at.segmentId) return null;
+    return { pageId: at.pageId, segmentId: at.segmentId };
+}
+
+// The page-body offsets of the lines the app says are selected: [{pageId, start, end}], in page
+// order. Lines the Reader does not show are skipped, not an error (another page's selection).
+function selectedLineSpans(maps, segmentIds) {
+    const wanted = new Set(Array.isArray(segmentIds) ? segmentIds : []);
+    const spans = [];
+    for (const [pageId, lines] of maps) {
+        for (const line of lines || []) {
+            if (wanted.has(line.segment_id)) spans.push({ pageId, start: line.char_start, end: line.char_end });
+        }
+    }
+    return spans;
+}
+
 function transcriptPageMarkup(page) {
-    if (page.id) pageLineMaps.set(page.id, page.lines || []);
+    if (page.id) { pageLineMaps.set(page.id, page.lines || []); pageTexts.set(page.id, String(page.content ?? "")); }
     const placeholder = page.hasContent
         ? ""
         : `<div class="page-placeholder">No transcription yet</div>`;
@@ -1403,6 +1635,7 @@ function renderTranscript() {
             if (pageId) { notify("pageRevealRequested", { pageId }); }
         });
     });
+    panel.querySelectorAll("article[data-page-id]").forEach(makeEditable);
     applyActivePageHighlight();
     applyBusyPages();
 }
@@ -2269,6 +2502,30 @@ window.fichero = {
     // the caller reloads then.
     refreshPage(pageId) {
         return refreshPage(pageId);
+    },
+
+    // The Source view's selection, shown on the Reader's lines (#5155). [] clears. Never moves the
+    // caret; scrolls the first line into view only when it is off screen.
+    showLines(segmentIds) {
+        shownLineIds = Array.isArray(segmentIds) ? segmentIds.slice() : [];
+        const ranges = applyShownLines() || [];
+        if (!ranges.length) return;
+        const rect = ranges[0].getBoundingClientRect();
+        const container = scrollParent(ranges[0].startContainer.parentElement);
+        const box = container === document.scrollingElement
+            ? { top: 0, bottom: window.innerHeight } : container.getBoundingClientRect();
+        if (rect.top < box.top || rect.bottom > box.bottom) {
+            container.scrollTop += rect.top - box.top - (box.bottom - box.top) / 3;
+        }
+    },
+
+    // The app's answer to readingEdit / lineSplit / lineJoin (#5154). The app then asks for the
+    // page again (`refreshPage`); a refusal re-reads it too, so the page never keeps words the
+    // library did not take. The reason is logged for the console, not invented into the page.
+    lineCommitted(answer) {
+        if (!answer || answer.ok) return true;
+        console.warn("[fichero] edit not taken:", answer.reason || "no reason given", answer);
+        return answer.pageId ? refreshPage(answer.pageId) : false;
     },
 
     // Live per-page write (#4357): patch this page's text in place.

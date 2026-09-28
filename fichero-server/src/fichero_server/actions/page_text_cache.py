@@ -146,9 +146,9 @@ def _sha(text: str) -> str:
 
 def line_map(db: Any, derived: Any) -> list[dict[str, Any]]:
     """The derived text's spans folded to LINES: a word's span joins its line's, because a line is
-    what an order moves and what a caret on it names. Each line carries its block's resolved
-    `direction` (#5147 Reader half): the Reader lays an `rtl` run right to left and a `ttb` page in
-    columns from this, without deriving anything at render time."""
+    what an order moves and what a caret on it names. No direction is stored here: the Reader
+    resolves each line's at render (`views._with_directions`), because a direction setting changes
+    no text and so would never refresh a stored one (#5171)."""
     from fichero_server.models import Segment
 
     if not derived.spans:
@@ -157,10 +157,6 @@ def line_map(db: Any, derived: Any) -> list[dict[str, Any]]:
     segments = {row.id: row for row in db.query_in(Segment, "id", ids)}
     parent_ids = sorted({row.parent_segment_id for row in segments.values() if row.parent_segment_id})
     parents = {row.id: row for row in db.query_in(Segment, "id", parent_ids)} if parent_ids else {}
-    direction = {
-        (span.segment_id, span.start): block.direction
-        for block in getattr(derived, "blocks", None) or [] for span in block.spans
-    }
     lines: list[dict[str, Any]] = []
     for span in derived.spans:
         segment = segments.get(span.segment_id)
@@ -171,9 +167,14 @@ def line_map(db: Any, derived: Any) -> list[dict[str, Any]]:
                 line_id = parent.id
         if lines and lines[-1]["segment_id"] == line_id:
             lines[-1]["char_end"] = span.end
+            lines[-1]["representation_id"] = None   # read from its words: no ONE reading to correct
         else:
-            lines.append({"segment_id": line_id, "char_start": span.start, "char_end": span.end,
-                          "direction": direction.get((span.segment_id, span.start))})
+            lines.append({
+                "segment_id": line_id, "char_start": span.start, "char_end": span.end,
+                # The counting reading the line's text came from (#5154): what a correction typed
+                # in the Reader corrects (`basedOn`). None when the text came from its words.
+                "representation_id": span.representation_id if span.segment_id == line_id else None,
+            })
     return lines
 
 

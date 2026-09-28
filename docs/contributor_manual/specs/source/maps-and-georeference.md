@@ -317,44 +317,99 @@ fields.
 ## Behaviors
 
 Control points and the transform
-- `source.geo.gcp-is-a-segment` — **[GAP]** (#4933) a ground control point is a point segment on
+- `source.geo.gcp-is-a-segment` — **[PARTIAL]** (#4933) a ground control point is a point segment on
   one image, in a pass, with a maker and certainty, whose reading is a world point with a CRS.
-- `source.geo.gcp-corrected-alone` — **[GAP]** (#4933) moving, retyping or withdrawing one GCP is
+  **Built 2026-09-28 (#5122):** a `control-point` segment with a point anchor; its world end is a
+  `world-point` reading (maker, history, corrections, undo as any reading), stored in WGS 84
+  (`fichero-server/tests/unit/api/test_a_control_point_has_a_place_on_the_earth.py::test_the_files_first_gcp_is_stored_in_wgs84_with_what_it_arrived_as`;
+  from a file: `fichero-server/tests/unit/api/test_a_georeferencing_file_imports_as_a_pass.py`). Certainty per GCP is not
+  recorded yet, and no screen shows one.
+- `source.geo.gcp-corrected-alone` — **[PARTIAL]** (#4933) moving, retyping or withdrawing one GCP is
   one audited, undoable action that changes that GCP's record and no other.
-- `source.geo.georef-is-a-pass` — **[GAP]** (#4933) a map's GCPs, mask and transformation type
+  **Built 2026-09-28 (#5122), with no new action:** move = `segment.update`, retype = a
+  `world-point` reading that corrects the old one and counts (#5175), withdraw = `segment.delete`;
+  each is one audited action that changes that GCP alone and undoes through the audit trail
+  (`fichero-server/tests/unit/api/test_one_control_point_is_corrected_alone.py`, on the real
+  Allmaps Paris plan). PARTIAL: no screen makes these calls yet.
+- `source.geo.georef-is-a-pass` — **[PARTIAL]** (#4933) a map's GCPs, mask and transformation type
   form one georeferencing pass; two georeferencings of one sheet are two passes, and the
   working-pass rule chooses between them.
-- `source.geo.mask` — **[GAP]** (#4933) the part of an image that is the map is an area segment in
+  **Built 2026-09-28 (#5122):** a georeference file imports as ONE pass holding its GCPs, masks and
+  transformation (`fichero-server/tests/unit/api/test_a_georeferencing_file_imports_as_a_pass.py`). PARTIAL: two
+  georeferencings of one sheet are two passes by construction, but the working-pass rule has not
+  been exercised on georeferencing passes, and no screen shows them.
+- `source.geo.mask` — **[PARTIAL]** (#4933) the part of an image that is the map is an area segment in
   the pass, and a sheet with several maps has several masks each with its own GCPs.
-- `source.geo.transform-is-derived` — **[GAP]** (#4933) the transform is worked out from the
+  **Built 2026-09-28 (#5122):** the mask is a `mask` area segment and each GCP `controls` its mask
+  by a typed link (`fichero-server/tests/unit/api/test_a_georeferencing_file_imports_as_a_pass.py`). PARTIAL: a sheet with two
+  masks is read format-side (`test_iiif_georef.py`) but not yet imported through a library in a test.
+- `source.geo.transform-is-derived` — **[PARTIAL]** (#4933) the transform is worked out from the
   pass's GCPs and transformation type; a stored copy names the GCP-set version it came from and
   is discarded when that changes.
-- `source.geo.transformation-type` — **[GAP]** (#4933) the transformation type is an explicit
+  **Built 2026-09-28 (#5122):** `GET /api/georeference/passes/{pass_id}/transform` works the
+  transform out on every read from the pass's usable GCPs and type -- nothing is stored -- and
+  names the GCP set it came from (`gcp_set_version`, which a corrected GCP changes) so a caller's
+  cache can tell (`fichero-server/tests/unit/api/test_the_transform_is_worked_out_from_the_gcps.py::test_affine_misses_by_a_little_and_a_gcp_typed_wrong_misses_by_most`).
+  PARTIAL: no screen draws it.
+- `source.geo.transformation-type` — **[PARTIAL]** (#4933) the transformation type is an explicit
   choice on the pass, defaulting to affine, and too few GCPs for the chosen type is refused with
   the number needed.
-- `source.geo.residuals` — **[GAP]** (#4933) every GCP reports its residual under the current
+  **Partly built 2026-09-28 (#5122):** a typed `SegmentPass.transformation` (polynomial-1..3,
+  thin-plate-spline, helmert, projective; polynomial-1 when a file states none; an unknown one
+  refused by name), shown on `PassRead`, existing libraries gain the column on open
+  (`fichero-server/tests/unit/api/test_a_georeferencing_file_imports_as_a_pass.py::test_an_existing_library_gains_the_transformation_column_on_open`).
+  **Choosing it (2026-09-28):** `georef.set_transformation`, audited and undoable, through
+`PUT /api/georeference/passes/{pass_id}/transformation`; an unknown type, or one any mask's GCPs
+are too few for, is refused with the number needed
+(`fichero-server/tests/unit/api/test_the_transform_is_worked_out_from_the_gcps.py::test_too_few_gcps_is_refused_with_the_number_needed_and_the_choice_undoes`).
+PARTIAL: no screen offers the choice.
+- `source.geo.residuals` — **[PARTIAL]** (#4933) every GCP reports its residual under the current
   transform in pixels and metres, so a wrong one can be found.
+  **Built 2026-09-28 (#5122):** every usable GCP reports `residual_m` (a local plane about the GCPs)
+  and `residual_px` (the inverse fit), with RMS; a GCP retyped ~700 m off is the worst by more than
+  ten times the honest RMS (`fichero-server/tests/unit/api/test_the_transform_is_worked_out_from_the_gcps.py::test_affine_misses_by_a_little_and_a_gcp_typed_wrong_misses_by_most`);
+  a thin-plate spline is exact at its GCPs, by construction (`::test_the_files_thin_plate_spline_is_exact_at_its_gcps`).
+  PARTIAL: no screen shows them.
 - `source.geo.machine-gcps-unchosen` — **[GAP]** (#4933) GCPs a machine proposes arrive in a
   machine pass and are labelled unchosen until a person chooses them.
 - `source.geo.gcp-other-image` — **[GAP]** (#4933) GCPs measured on one image apply to another
   image of the page only through a recorded alignment, and otherwise Fichero says they do not.
 
 A segment's place in the world
-- `source.geo.world-shape` — **[GAP]** (#4933) on a georeferenced image any segment's world shape
+- `source.geo.world-shape` — **[PARTIAL]** (#4933) on a georeferenced image any segment's world shape
   is answered with its CRS, the pass and transform version used and an error estimate, and is
   never stored as the segment's truth.
-- `source.geo.outside-the-mask` — **[GAP]** (#4933) a segment outside the map's mask is answered
+  **Built 2026-09-28 (#5122):** `GET /api/georeference/segments/{segment_id}/world-shape` answers
+  an RFC 7946 geometry in EPSG:4326 with the pass, transformation, `gcp_set_version` and the fit's
+  RMS as `error_m`, worked out on every read (`fichero-server/tests/unit/api/test_a_segments_place_in_the_world.py::test_a_label_at_a_gcps_pixel_is_at_that_gcps_place`,
+  `::test_a_corrected_gcp_moves_the_answer`). PARTIAL: with several georeferencing passes on one
+  image the caller must name one (the working-pass rule is not applied to them yet); no screen.
+- `source.geo.outside-the-mask` — **[PARTIAL]** (#4933) a segment outside the map's mask is answered
   "outside the map", never extrapolated.
-
+  **Built 2026-09-28 (#5122):** a segment not wholly inside any mask is answered
+  `outside_the_map: true` with no geometry (`fichero-server/tests/unit/api/test_a_segments_place_in_the_world.py::test_the_margin_is_outside_the_map_not_extrapolated`).
+  PARTIAL: no screen shows it.
 The coordinate reference system
-- `source.geo.crs-explicit` — **[GAP]** (#4933) every coordinate arrives with its CRS as an EPSG
+- `source.geo.crs-explicit` — **[PARTIAL]** (#4933) every coordinate arrives with its CRS as an EPSG
   code or WKT2, and a write that names no CRS is refused (or held as unknown, below).
-- `source.geo.crs-stored-as-wgs84` — **[GAP]** (#4933; ruled on #5124) a coordinate is converted to
+  **Built 2026-09-28 (#5122):** a `world-point` write names its CRS (EPSG code, WKT2 or `unknown`)
+  and axis order, or is refused
+  (`fichero-server/tests/unit/api/test_a_control_point_has_a_place_on_the_earth.py::test_no_crs_is_refused_and_another_crs_is_held_unconverted`).
+  PARTIAL: only world points exist yet; `GeoPoint`/`EvidentialPlace` are `crs-declared-on-existing`.
+- `source.geo.crs-stored-as-wgs84` — **[PARTIAL]** (#4933; ruled on #5124) a coordinate is converted to
   WGS 84 (EPSG:4326) and stored in it, recording the CRS it arrived in and the conversion used.
+  **Built for EPSG:4326 (2026-09-28, #5122):** stored lon/lat with `crs_in`, `axis_order_in`,
+  `as_entered` and `conversion` recorded; lat,lon turned round
+  (`fichero-server/tests/unit/api/test_a_control_point_has_a_place_on_the_earth.py::test_latitude_first_is_turned_round_not_misread`).
+  PARTIAL: converting any other CRS waits on `proj-at-build`.
 - `source.geo.crs-exchange-default` — **[GAP]** (#4933) EPSG:4326 is the exchange default and the
   axis order written is recorded, never assumed.
-- `source.geo.crs-unknown` — **[GAP]** (#4933) data imported without a CRS is marked unknown and
+- `source.geo.crs-unknown` — **[PARTIAL]** (#4933) data imported without a CRS is marked unknown and
   cannot be overlaid or exported as geographic data until a person declares one.
+  **Built 2026-09-28 (#5122):** a world point with no CRS, or one that cannot be converted yet, is
+  held with its numbers as entered, lon/lat null, `crs: unknown` and the reason
+  (`fichero-server/tests/unit/api/test_a_control_point_has_a_place_on_the_earth.py::test_no_crs_is_refused_and_another_crs_is_held_unconverted`).
+  PARTIAL: "declare the CRS later and it is converted" waits on `proj-at-build`; exports do not yet exist to refuse it.
 - `source.geo.crs-declared-on-existing` — **[GAP]** (#4933) existing `GeoPoint` and
   `EvidentialPlace` coordinates are declared EPSG:4326 by an additive schema change.
 - `source.geo.proj-at-build` — **[GAP]** (#4933) CRS conversion uses PROJ shipped with the app at
@@ -412,12 +467,10 @@ Formats
   the page's. Pinned on both real files:
   `fichero-server/tests/unit/formats/test_iiif_georef.py::TestReadingThePublishedDialect::test_the_gcps_are_point_segments_with_both_ends`,
   `::TestReadingTheEarlierDialect::test_pixel_coords_are_read_and_the_size_comes_from_the_svg`.
-  **Not built: into a library.** Nothing in a library can yet hold a GCP's world end, so the import
-  is **refused by name** (422, citing #5122) instead of keeping the pixel end and dropping the place
-  on the earth
-  (`fichero-server/tests/unit/formats/test_import_into_library.py::TestAGeoreferencingFileIsRefusedByName::test_it_is_refused_with_the_reason_and_nothing_is_written`).
-  Before that refusal existed, the same file was refused as having shapes "outside the page", which
-  was true of nothing in it.
+  **Into a library (2026-09-28, #5122):** built. `format.import` writes the pass, the GCPs with
+  both ends, the masks and their links, and the transformation
+  (`fichero-server/tests/unit/api/test_a_georeferencing_file_imports_as_a_pass.py`, both real files). Still PARTIAL: not
+  yet run from the app's import on a screen.
 - `source.geo.iiif-georef-out` — **[PARTIAL]** (#4946, → #5125; the library half → #5122) a
   georeferencing pass exports as a georef/1 annotation that passes the vendored checker, with a loss
   report naming what it could not carry.

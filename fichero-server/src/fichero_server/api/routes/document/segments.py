@@ -2899,11 +2899,58 @@ class SegmentSplitPart(BaseModel):
     reading_span: Optional[list[int]] = None
 
 
+def estimated_cut(rect: list[float], fraction: float, direction: str | None) -> list[list[float]]:
+    """Two rects from one, cut at `fraction` of the text along the line's direction: the FIRST is
+    the text before the cut. `rtl` text starts at the right edge, `ttb` at the top."""
+    x, y, w, h = rect
+    if direction == "ttb":
+        return [[x, y, w, h * fraction], [x, y + h * fraction, w, h * (1 - fraction)]]
+    if direction == "rtl":
+        return [[x + w * (1 - fraction), y, w * fraction, h], [x, y, w * (1 - fraction), h]]
+    return [[x, y, w * fraction, h], [x + w * fraction, y, w * (1 - fraction), h]]
+
+
+def _parts_cut_at(db: Database, original: Segment, offset: int) -> list["SegmentSplitPart"]:
+    """`at_offset` made into the two parts `segment.split` takes (#5154): reading spans at the
+    character, boxes cut in proportion along the line's resolved direction. An estimate, because
+    nothing records where a character sits on the image; `cut: estimated` says so on both rows."""
+    from fichero_server.api.routes.document.segment_readings import _direction_of, _lines_are_vertical
+
+    counted = _counting_readings(db, original.id)
+    _rid, text = counted.get("transcription") or next(iter(counted.values()), (None, ""))
+    if not 0 < offset < len(text):
+        raise HTTPException(status_code=422, detail=f"at_offset {offset} is not inside the line's {len(text)} characters")
+    anchor = original.anchor
+    if anchor is None or not anchor.rect:
+        raise HTTPException(status_code=422, detail="the line has no box to cut")
+    document = db.get(Document, original.document_id)
+    shapes = [row for row in db.query(Segment, pass_id=original.pass_id) if row.deleted_at is None]
+    direction, _level = _direction_of(original, document, text, _lines_are_vertical(shapes, document))
+    rects = estimated_cut(list(anchor.rect), offset / len(text), direction)
+    return [
+        SegmentSplitPart(
+            anchor=SourceAnchor(
+                document_id=anchor.document_id, page_id=anchor.page_id,
+                rendition_id=anchor.rendition_id, space=anchor.space, rect=rect,
+                rotation=anchor.rotation, granularity=anchor.granularity,
+            ),
+            reading_span=span,
+        )
+        for rect, span in zip(rects, ([0, offset], [offset, len(text)]))
+    ]
+
+
 class SegmentSplitParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     segment_id: str
-    parts: list[SegmentSplitPart]
+    parts: list[SegmentSplitPart] = []
+    #: Return in the Reader (#5154): split at this character of the line's counting reading,
+    #: INSTEAD of giving `parts`. Nothing knows where a character sits on the image, so the box is
+    #: cut in proportion (characters before / all characters) along the line's direction --
+    #: left to right, right to left, or top to bottom -- and both parts are marked
+    #: `metadata.cut = "estimated"`, for a person to reshape.
+    at_offset: Optional[int] = None
     #: Compare-and-set on the segment being split (#4957 follow-up 1) --
     #: the new parts are brand-new rows with nothing to compare yet, so
     #: only the one EXISTING id needs a token, the same shape
@@ -2957,12 +3004,17 @@ def _invert_split(before, after, ctx: ActionContext):
     redo_via_own_invert=True,
 )
 def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
-    if len(params.parts) < 2:
-        raise HTTPException(status_code=422, detail="split needs two or more parts")
     _assert_not_provisional_http(params.segment_id, what="segment_id")
     original = db.get(Segment, params.segment_id)
     if not original:
         raise HTTPException(status_code=404, detail=f"Segment not found: {params.segment_id}")
+    estimated = params.at_offset is not None
+    if estimated:
+        if params.parts:
+            raise HTTPException(status_code=422, detail="give parts or at_offset, not both")
+        params = params.model_copy(update={"parts": _parts_cut_at(db, original, params.at_offset)})
+    if len(params.parts) < 2:
+        raise HTTPException(status_code=422, detail="split needs two or more parts")
     reason = segment_liveness_reason(db, params.segment_id)
     if reason is not None:
         raise _as_http_error(SegmentNotLive(params.segment_id, reason))
@@ -3006,6 +3058,8 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     snapshot_segment_version(db, original, deleted=False, actor=ctx.actor, audit_id=audit_id)
 
     first_part, *rest_parts = params.parts
+    if estimated:
+        original.metadata = {**(original.metadata or {}), "cut": "estimated"}
     original.anchor = first_part.anchor
     original.baseline = first_part.baseline
     bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(original.anchor)
@@ -3035,6 +3089,8 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
         )
         if isinstance(original_box_index, int):
             row.metadata = {**row.metadata, "box_index": original_box_index}
+        if estimated:
+            row.metadata = {**row.metadata, "cut": "estimated"}
         new_rows.append(row)
         new_ids.append(row.id)
     if new_rows:
@@ -3704,6 +3760,28 @@ async def propose_match(
     result = registry.invoke(db, "segment.match_propose", params.model_dump(mode="json"), ctx)
     match = db.get(SegmentMatch, result.result["match_id"])
     return match.model_dump(mode="json") if match else result.result
+
+
+class SegmentMatchListResponse(BaseModel):
+    """A page's segment matches (#5165), `{items, count}` -- never a bare array."""
+
+    items: list[SegmentMatch]
+    count: int
+
+
+@router.get("/document/{doc_id}/matches", response_model=SegmentMatchListResponse)
+async def list_document_matches(
+    doc_id: str,
+    state: Optional[str] = Query(None, description="proposed, accepted or rejected; all when omitted"),
+    db: Database = Depends(get_library_database),
+) -> SegmentMatchListResponse:
+    """The matches recorded on one page (`source.segment.match-record`, #5165): what a person
+    reviews -- accepts, rejects, or carries readings and marks across. Before this, a match could
+    be proposed, accepted and rejected, and nothing could LIST them, so a proposal nobody had the
+    id of could never be reviewed. Oldest first."""
+    rows = [row for row in db.query(SegmentMatch, document_id=doc_id) if state is None or row.state == state]
+    rows.sort(key=lambda row: (row.created_at, row.id))
+    return SegmentMatchListResponse(items=rows, count=len(rows))
 
 
 @router.post("/matches/{match_id}/accept")

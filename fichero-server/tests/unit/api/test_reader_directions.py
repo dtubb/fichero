@@ -157,3 +157,24 @@ console.log(JSON.stringify({{ on: segmentAtOffset(fresh.lines, offset), into: of
     assert got["on"] == moved
     assert got["into"] == old_offset - old["char_start"]
     assert got["moved"] != next(i for i, l in enumerate(before["lines"]) if l["segment_id"] == moved)
+
+
+GENJI = CORPUS / "digitalgenji_japanese-vertical_kouigenji-01.tei.xml"
+
+
+@needs_node
+def test_a_direction_set_on_the_page_reaches_the_reader_at_once(db, client):
+    """#5171: the Genji states no writing mode (lxml), so it reads `ltr` until a person says
+    `ttb`. Saying so changes no text, so nothing refreshed the stored map and the Reader kept
+    drawing rows. The direction is resolved at render; the next view is columns."""
+    root = etree.parse(str(GENJI)).getroot()
+    assert not any("vertical" in (el.get("rend") or "") + (el.get("style") or "")
+                   for el in root.iter() if isinstance(el.tag, str))
+    doc_id = _import(db, GENJI)
+    payload, html = _view(client, doc_id)
+    assert _body(html, payload["pages"][0]).startswith('<div class="transcript-page-body">')
+    registry.invoke(db, "source_setting.set",
+                    {"level": "node", "key": "direction", "value": "ttb", "target_id": doc_id}, BOOT)
+    payload, html = _view(client, doc_id)
+    assert {line["direction"] for line in payload["pages"][0]["lines"]} == {"ttb"}
+    assert _body(html, payload["pages"][0]).startswith('<div class="transcript-page-body" data-direction="ttb">')

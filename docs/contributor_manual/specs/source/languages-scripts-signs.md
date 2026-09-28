@@ -232,6 +232,10 @@ Direction
   right-to-left page runs its lines top-to-bottom, a vertical page runs its columns right-to-left,
   and PAGE XML carries `readingDirection` and `textLineOrder` as separate attributes for exactly
   that reason.
+  **Added 2026-09-28 (#5172):** a segment with no strongly directional character and nothing
+  stated (a folio number, a year) takes its block's direction, else its page's, rather than an
+  assumed `ltr` (`fichero-server/tests/unit/api/test_a_line_without_letters_takes_its_pages_direction.py::test_a_digit_only_line_takes_its_pages_direction`,
+  `::test_the_block_first_then_the_page`).
 - `source.dir.logical-order-stored` — **[OK]** (→ #4938) stored text is in reading order; mixed
   direction in a line follows the Unicode bidirectional rules on display. Nothing in the engine
   reorders a string: a mixed-direction reading round trips byte for byte and resolving a direction
@@ -240,11 +244,15 @@ Direction
   right-to-left line read from PAGE XML is not reordered on the way in
   (`tests/unit/formats/test_pagexml_read.py`). Bidi is a DISPLAY rule, and the test that matters is
   the one asserting the engine does nothing.
-- `source.dir.reader-lays-out` — **[GAP]** (#4938) the Reader lays text out in its direction, and
+- `source.dir.reader-lays-out` — **[PARTIAL]** (#4938) the Reader lays text out in its direction, and
   falls back to reading order plus the shape on the image where it cannot. **App work, and honestly
   untested** — `test_direction_cascade.py` says so in its own header rather than implying coverage.
   It is also blocked on #5087: the Reader can lay out a line's direction and cannot lay out the
   order the lines run in, which is the other half of the page.
+  **Built 2026-09-28 (bugs lane):** the served Reader page lays out `rtl`, `ttb` and mixed pages as
+  `source.textedit.every-direction` records, on real files (the direction matrix in
+  `acceptance-2026-09-27.md`: 11 of 13 cases passed, the two failures fixed as #5171 and #5172).
+  **Still PARTIAL:** the order lines/columns run in (#5087, #5173) and a look on the screen.
 
 Signs
 - `source.sign.declared` — **[PARTIAL]** (#4939) a sign with no character can be declared with a name and a picture

@@ -65,6 +65,9 @@ BUILTIN_READING_KINDS: tuple[tuple[str, str], ...] = (
     ("as_read_aloud", "As read aloud"),
     ("description", "Description"),
     ("coordinate", "Coordinate"),
+    # A place on the earth (#5122): a ground control point's world end, stored in WGS 84 with the
+    # CRS it arrived in (`models/geo.py`). Its content is checked on write.
+    ("world-point", "World point"),
     ("music", "Music"),
     ("drawing", "Drawing"),
 )
@@ -301,6 +304,10 @@ class CountingBasis(str, Enum):
     chosen = "chosen"
     #: Nobody chose; this is the newest reading a person made.
     newest_human = "newest-human"
+    #: Nobody chose; a person CORRECTED another reading and this is the correction (#5175). It
+    #: outranks the reading it corrects, and a correction of it outranks it in turn -- the
+    #: person's judgement over that reading. Independent readings stay equal alternatives.
+    correction = "correction"
     #: Nobody chose; this is the newest reading and a machine made it. In a
     #: strict project it is SHOWN, LABELLED, and is not the record.
     newest_machine_unchosen = "newest-machine-unchosen"
@@ -332,6 +339,8 @@ class ReadingCandidate(BaseModel):
     retracted: bool = False
     #: True for a `legacy-reading:` candidate read out of an artifact.
     provisional: bool = False
+    #: The reading this one explicitly corrects (#5175), if any.
+    corrects_representation_id: str | None = None
 
     @property
     def by_a_person(self) -> bool:
@@ -411,6 +420,29 @@ def resolve_counting(
                 basis=CountingBasis.chosen,
                 labelled_machine=not chosen.by_a_person,
             )
+
+    # A PERSON'S correction retires the reading it corrects (#5175). Without this a person
+    # correcting an imported line made the file's reading and theirs equal alternatives, and in a
+    # strict project nothing counted: the line's text vanished. A chain retires every link but the
+    # last; a withdrawn correction (retracted, ⌘Z) retires nothing, so the corrected reading is
+    # back. A machine's "correction" retires nothing: a machine's reading is never the record
+    # over a reading it disagrees with.
+    corrected = {
+        row.corrects_representation_id for row in usable
+        if row.by_a_person and row.corrects_representation_id in by_id
+    }
+    if corrected:
+        usable = [row for row in usable if row.representation_id not in corrected]
+        answer = _uncorrected_answer(project_rule, usable)
+        counted = by_id.get(answer.representation_id or "")
+        if counted is not None and counted.by_a_person and counted.corrects_representation_id in by_id:
+            answer = answer.model_copy(update={"basis": CountingBasis.correction})
+        return answer
+    return _uncorrected_answer(project_rule, usable)
+
+
+def _uncorrected_answer(project_rule: ProjectRecordRule, usable: list[ReadingCandidate]) -> CountingAnswer:
+    """`resolve_counting`'s rules 2 and 3, over readings no person has corrected."""
 
     people = _newest_first([row for row in usable if row.by_a_person])
     machines = _newest_first([row for row in usable if not row.by_a_person])

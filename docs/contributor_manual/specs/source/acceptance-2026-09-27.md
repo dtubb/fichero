@@ -260,6 +260,11 @@ The caret and move checks are logical offsets and do not depend on direction. Th
 selection put back with `selection.collapse`) was not run in a browser here. Nothing in the
 engine or in node exercises it, so it needs one look in the app.
 
+**Fixed after the run:** #5171 in a156fd9fd (the Reader resolves each line's direction at render, so the Genji
+set to `ttb` is columns at once), and #5172 in b01e0eb47 and e7b608a01 (a line with no letters takes its block's direction, else its
+page's, and the Reader's map says which: the Persian `1773` is `rtl` from its block, the Aljamiado `2`
+and `1` and the Vienna Syriac `2` are `rtl` from the page; `1v` and the English notes stay `ltr`).
+
 In the repo, `test_reader_directions.py` pins the rtl page, the Syriac folio isolate, the page of
 columns and the caret after a move (rtl and vertical) on the vendored fixture pages. All six tests
 fail on the code before 2eba3a6dd and 8e891c1ec.
