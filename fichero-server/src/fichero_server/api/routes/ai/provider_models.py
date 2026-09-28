@@ -7,6 +7,8 @@ Included by providers.py via router.include_router().
 
 from __future__ import annotations
 
+import asyncio
+
 import logging
 from typing import Optional
 
@@ -911,7 +913,7 @@ async def list_models_for_provider(
         try:
             api_base = _configured_api_base("omlx", "http://localhost:8000/v1")
             headers = {}
-            api_key = get_api_key("omlx")
+            api_key = await asyncio.to_thread(get_api_key, "omlx")
             if api_key:
                 headers["Authorization"] = f"Bearer {api_key}"
             # The installed models are already listed from the STORE (disk)

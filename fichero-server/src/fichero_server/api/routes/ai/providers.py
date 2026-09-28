@@ -125,7 +125,7 @@ def get_app_database() -> AppDatabase:
 
 
 @router.get("/catalog", response_model=ProviderCatalogListResponse)
-async def list_provider_catalog() -> ProviderCatalogListResponse:
+def list_provider_catalog() -> ProviderCatalogListResponse:
     """List all available providers from the catalog, sorted by sort_order."""
     result = []
     for info in list_catalog_providers():
@@ -158,7 +158,7 @@ async def list_provider_catalog() -> ProviderCatalogListResponse:
     "/catalog/{provider_type}",
     response_model=ProviderCatalogResponse,
 )
-async def get_catalog_provider(provider_type: str) -> ProviderCatalogResponse:
+def get_catalog_provider(provider_type: str) -> ProviderCatalogResponse:
     """Get info about a specific provider type."""
     info = get_provider_info(provider_type)
     if not info:
@@ -245,7 +245,7 @@ def always_present_local_providers(configured: list[Provider]) -> list[Provider]
 
 
 @router.get("", response_model=ProviderListResponse)
-async def list_providers(
+def list_providers(
     app_db: AppDatabase = Depends(get_app_database),
 ) -> ProviderListResponse:
     """List the user's providers, with the on-device runtimes always present."""
@@ -362,7 +362,7 @@ def _broadcast_provider_change(verb: str) -> None:
 
 
 @router.post("")
-async def create_provider(
+def create_provider(
     request: ProviderCreate,
     _owner: None = Depends(_require_owner_or_bootstrap),
     app_db: AppDatabase = Depends(get_app_database),
@@ -589,7 +589,7 @@ def _synthetic_local_provider(provider_id: str) -> ProviderResponse | None:
 
 
 @router.get("/{provider_id}", response_model=ProviderResponse)
-async def get_provider(
+def get_provider(
     provider_id: str,
     app_db: AppDatabase = Depends(get_app_database),
 ) -> ProviderResponse:
@@ -646,7 +646,7 @@ def update_provider_impl(
 
 
 @router.patch("/{provider_id}", response_model=ProviderResponse)
-async def update_provider(
+def update_provider(
     provider_id: str,
     request: ProviderUpdate,
     _owner: None = Depends(_require_owner_or_bootstrap),

@@ -272,7 +272,8 @@ def test_a_slow_keychain_write_does_not_stall_the_engine(monkeypatch):
 
     from fichero_server.api.routes.auth.accounts import _require_owner_or_bootstrap
 
-    monkeypatch.setattr(routes, "set_provider_api_key_impl", lambda *_: time.sleep(1.0))
+    # Any slow synchronous step in the handler (a keychain read, a validation) stands in here.
+    monkeypatch.setattr(routes, "check_provider_api_key", lambda *_: time.sleep(1.0))
     monkeypatch.setattr(routes, "supply_api_key", lambda *_: None)
     app = FastAPI()
     app.include_router(routes.router)
@@ -302,3 +303,23 @@ def test_a_slow_keychain_write_does_not_stall_the_engine(monkeypatch):
     ping_s, key_s = asyncio.run(run())
     assert key_s >= 0.9, key_s
     assert ping_s < 0.5, f"another request waited {ping_s:.2f}s behind a slow keychain write"
+
+
+def test_a_supplied_key_is_held_in_memory_and_never_written_to_the_keychain(monkeypatch):
+    """Maintainer, 2026-09-28: the app owns its keychain item; the engine writing it back on every
+    connect was a second lifetime, a risk to the user's keychain, and (as an async def) a stall of
+    the whole engine (#5257). The supply route checks the key and holds it; nothing else."""
+    from types import SimpleNamespace
+
+    writes, held = [], []
+    monkeypatch.setattr(routes, "set_api_key", lambda *a: writes.append(a) or True)
+    monkeypatch.setattr(routes, "keychain_available", lambda: True)
+    monkeypatch.setattr(routes, "get_provider_info", lambda _name: SimpleNamespace(is_local=False))
+    monkeypatch.setattr(routes, "validate_provider_config", lambda **_: None)
+    monkeypatch.setattr(routes, "supply_api_key", lambda provider, key: held.append((provider, key)))
+
+    response = routes.set_provider_api_key("openai", routes.APIKeyRequest(api_key="sk-test"), None)
+
+    assert response.status == "stored"
+    assert held == [("openai", "sk-test")]
+    assert writes == [], "the supplied key was written to the keychain"

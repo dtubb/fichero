@@ -6,6 +6,8 @@ Included by providers.py via router.include_router().
 
 from __future__ import annotations
 
+import asyncio
+
 import logging
 import time
 from typing import Optional
@@ -81,16 +83,9 @@ class APIKeyRequest(BaseModel):
     api_key: str
 
 
-def set_provider_api_key_impl(provider_type: str, api_key: str) -> None:
-    """Validate + store an API key in the keychain.
-
-    Extracted from the ``set_provider_api_key`` route so the route and the
-    ``provider.set_api_key`` action share the exact same guards + keychain write
-    (iterate-not-replace). Raises ``HTTPException`` exactly as the route did.
-    """
-    if not keychain_available():
-        raise HTTPException(status_code=503, detail="Keychain not available")
-
+def check_provider_api_key(provider_type: str, api_key: str) -> None:
+    """The guards a key must pass, with NO keychain write (#5257): the provider exists, is not
+    local, and the key's format is valid. Raises ``HTTPException`` exactly as the write path does."""
     info = get_provider_info(provider_type)
     if not info:
         raise HTTPException(
@@ -102,7 +97,6 @@ def set_provider_api_key_impl(provider_type: str, api_key: str) -> None:
             status_code=400, detail="Local providers don't need API keys"
         )
 
-    # Validate API key format before storing
     try:
         validate_provider_config(
             provider_type=provider_type,
@@ -110,6 +104,17 @@ def set_provider_api_key_impl(provider_type: str, api_key: str) -> None:
         )
     except ProviderValidationError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+def set_provider_api_key_impl(provider_type: str, api_key: str) -> None:
+    """Validate + store an API key in the keychain -- the ENGINE-OWNED path (the audited
+    ``provider.set_api_key`` action, e.g. from the CLI). An owning app's supplied key never comes
+    here (#5257): the app owns its keychain item, and the engine writing a second copy was both a
+    second lifetime and, inside the supply route, a stall of the whole engine.
+    """
+    if not keychain_available():
+        raise HTTPException(status_code=503, detail="Keychain not available")
+    check_provider_api_key(provider_type, api_key)
 
     logger.info(f"Saving API key for {provider_type}")
     success = set_api_key(provider_type, api_key)
@@ -138,22 +143,16 @@ def set_provider_api_key(  # plain def (#5257): FastAPI runs it off the event lo
     request: APIKeyRequest,
     _owner: None = Depends(_require_owner_or_bootstrap),
 ) -> APIKeyStoredResponse:
-    """Accept a provider API key from an owning app (#4534).
+    """Accept a provider API key from an owning app (#4534): checked, then held in MEMORY for this
+    process's lifetime. NEVER written to the keychain (maintainer, 2026-09-28): the app owns that item,
+    and a second copy written by the engine is a second lifetime and a risk to the user's keychain.
 
-    A plain ``def``, not ``async def`` (#5257): the keychain write below shells out to
-    ``security`` (up to 10 s a call), and inside ``async def`` that blocked the whole
-    engine -- every connect sends each provider's key, and a launch's health and
-    library opens waited 20-30 s behind them. FastAPI runs a plain ``def`` in its
-    thread pool, so a slow keychain delays only this request.
-
-    Held in MEMORY for this process's lifetime, not written to a keychain: the
-    app owns the item, and a second persisted copy here would be a second
-    lifetime and a second thing to go stale. `set_provider_api_key_impl` still
-    runs so an engine that no app has taken ownership from keeps working —
-    the cutover is the app starting to supply, not a flag day.
+    A plain ``def`` (#5257): FastAPI runs it off the event loop, so nothing here can stall the engine.
     """
+    # Checked, then held in memory ONLY (maintainer, 2026-09-28: never write the app's key back to
+    # the keychain). The app owns the keychain item; this process holds the key for its lifetime.
+    check_provider_api_key(provider_type, request.api_key)
     supply_api_key(provider_type, request.api_key)
-    set_provider_api_key_impl(provider_type, request.api_key)
     # A key landing flips the provider's `available` flag — tell every
     # window so provider-derived caches (Run Workflow submenu) drop (#4276).
     from fichero_server.api.routes.ai.providers import _broadcast_provider_change
@@ -418,7 +417,7 @@ async def test_provider_connection(
                     )
 
         elif provider_type == "openai":
-            api_key = get_api_key("openai")
+            api_key = await asyncio.to_thread(get_api_key, "openai")
             if not api_key:
                 return ConnectionTestResponse(
                     success=False,
@@ -463,7 +462,7 @@ async def test_provider_connection(
             # class of false positive as the #4816 bug, just narrower. Real
             # probe now: the models-list endpoint, same headers used by the
             # live catalog fetch (provider_models.py:_live_anthropic_models).
-            api_key = get_api_key("anthropic")
+            api_key = await asyncio.to_thread(get_api_key, "anthropic")
             if not api_key:
                 return ConnectionTestResponse(
                     success=False,
@@ -504,7 +503,7 @@ async def test_provider_connection(
                     )
 
         elif provider_type == "huggingface":
-            api_key = get_api_key("huggingface")
+            api_key = await asyncio.to_thread(get_api_key, "huggingface")
             headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
             async with httpx.AsyncClient() as client:
                 response = await client.get(
@@ -540,7 +539,7 @@ async def test_provider_connection(
                     )
 
         elif provider_type == "google":
-            api_key = get_api_key("google")
+            api_key = await asyncio.to_thread(get_api_key, "google")
             if not api_key:
                 return ConnectionTestResponse(
                     success=False,
@@ -583,7 +582,7 @@ async def test_provider_connection(
                     )
 
         elif provider_type == "groq":
-            api_key = get_api_key("groq")
+            api_key = await asyncio.to_thread(get_api_key, "groq")
             if not api_key:
                 return ConnectionTestResponse(
                     success=False,
@@ -622,7 +621,7 @@ async def test_provider_connection(
                     )
 
         elif provider_type == "deepl":
-            api_key = get_api_key("deepl")
+            api_key = await asyncio.to_thread(get_api_key, "deepl")
             if not api_key:
                 return ConnectionTestResponse(
                     success=False,
@@ -679,7 +678,7 @@ async def test_provider_connection(
             # dead OpenRouter key, nine green checks. `/key` is OpenRouter's
             # own cheap authenticated GET -- it echoes back the key's status
             # instead of a models list.
-            api_key = get_api_key("openrouter")
+            api_key = await asyncio.to_thread(get_api_key, "openrouter")
             if not api_key:
                 return ConnectionTestResponse(
                     success=False,
@@ -720,7 +719,7 @@ async def test_provider_connection(
                     )
 
         elif provider_type in _BEARER_PROBE_TARGETS:
-            api_key = get_api_key(provider_type)
+            api_key = await asyncio.to_thread(get_api_key, provider_type)
             if not api_key:
                 return ConnectionTestResponse(
                     success=False,
@@ -741,7 +740,7 @@ async def test_provider_connection(
             # rather than faked as a pass (#4816 keys.untested-provider-
             # reports-not-verified) -- a saved key still counts as configured
             # for a local provider, which needs none.
-            api_key = get_api_key(provider_type)
+            api_key = await asyncio.to_thread(get_api_key, provider_type)
             if info.is_local:
                 return ConnectionTestResponse(
                     success=True,

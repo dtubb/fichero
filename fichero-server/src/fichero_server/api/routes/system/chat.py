@@ -1292,7 +1292,7 @@ def get_app_database() -> AppDatabase:
 
 
 @router.get("/providers", response_model=ChatProviderListResponse)
-async def list_providers(
+def list_providers(
     app_db: AppDatabase = Depends(get_app_database),
 ) -> ChatProviderListResponse:
     """List available LLM providers and their models from user configuration.
