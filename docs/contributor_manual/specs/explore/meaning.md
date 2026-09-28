@@ -20,10 +20,11 @@ so that like sits by like".
 Two engine pieces serve every behaviour here: **nearest neighbours of an item**, and
 **group-and-label a set**. They are built once. The map is one more user of them.
 
-Lives in: a Library listing (more like this, grouped results), and a new case of the canvas's
-existing **Arrange by** (`Views/Library/ViewModes/Canvas/Engine/CanvasArrangement.swift`), drawn
-by the existing Canvas (2D) and Space (3D). No new renderer and no new pane kind (RULED in
-#5030: both existing spatial views, one set of positions; search results first).
+Lives in: a Library listing (more like this, grouped results), and a NEW Library view mode of
+its own, **Meaning**, which draws a set as points with like beside like. It is NOT an
+arrangement of the Canvas or the Space (RULED 2026-09-20: those are the researcher's hand-made
+spatial workspace; exploring is a different thing). An earlier note on #5030 proposed using the
+two spatial views; this ruling supersedes it.
 
 ## Prior art
 
@@ -38,11 +39,10 @@ computed locally.
 ## What exists (detail in `agent-work/dh-layer/what-exists.md`)
 
 Vectors for passages, entities and claims in three LanceDB tables, each stamped with its model.
-A related-documents route (`GET /documents/{id}/related`) and similar-entity lookups. The
-canvas's four channels, with animated re-arranging and "a saved position always wins". A search
+A related-documents route (`GET /documents/{id}/related`) and similar-entity lookups. A search
 response that says which leg found each hit. **No projection, grouping, labelling, outlier or
-near-duplicate code exists.** scikit-learn is in the staged bundle only as a dependency of
-other packages; this family must DECLARE it.
+near-duplicate code exists, and no view mode that draws points.** scikit-learn is in the staged
+bundle only as a dependency of other packages; this family must DECLARE it (#5038).
 
 ## Behaviors
 
@@ -76,30 +76,29 @@ Groups
   saved search or smart folder, through the existing saved-search action.
 
 The map by meaning
-- `explore.meaning.arrange-by-meaning` — **[GAP]** (#5036) the Canvas and the Space offer
-  "Arrange by: Meaning". The projection gives two numbers or three; 2D takes two, 3D takes
-  three, from ONE computed layout. It is a new case of the existing arrangement enum and
-  nowhere else, so it animates, and both views agree.
+- `explore.meaning.view-mode` — **[GAP]** (#5036) the Library offers a "Meaning" view mode for any
+  set of documents, pages or entries: each item is a point, placed by a projection of its
+  vector so that like sits by like. It is its own view mode, mounted from the one dispatch
+  switch, with the Library's ordinary chrome. It is not the Canvas or the Space, stores no
+  positions in them, and cannot be rearranged by hand: the picture is computed.
 - `explore.meaning.search-results-first` — **[GAP]** (#5036) for a search result (tens to a few
   hundred items) the layout is computed on the spot, in about a second, and nothing is cached.
-- `explore.meaning.pinned-cards-do-not-move` — **[PARTIAL]** (#5036) a card the researcher placed
-  by hand keeps its place when the arrangement changes. The rule is built
-  (`CanvasSceneState.resolve`); it is unproven for an arrangement that comes from the engine.
-- `explore.meaning.colour-by-any-field` — **[PARTIAL]** (#5036) on the map, colour says group,
-  date, hand, language, kind, or which search leg found the item (semantic, keyword, graph),
-  using the existing colour channel. The channel is built (`CanvasTint.swift`); none of these
-  producers is.
+- `explore.meaning.points-on-one-surface` — **[GAP]** (#5036) all points are drawn on one drawing
+  surface; the view never builds one view per point. A point shows its title and thumbnail on
+  hover or when zoomed close.
+- `explore.meaning.colour-by-any-field` — **[GAP]** (#5036) colour says a chosen field: group,
+  date, hand, language, kind, or which search leg found the item (semantic, keyword, graph).
+  Changing the colour moves nothing. A legend names every colour.
 - `explore.meaning.labels-change-with-zoom` — **[GAP]** (#5030) group labels sit on the map; a
   wide view shows a few broad labels, a close view shows finer ones.
-- `explore.meaning.lasso-is-the-ordinary-selection` — **[PARTIAL]** (#5036) dragging round points
-  selects them, and that selection is the Library's own, so run-workflow, tag, export and open
-  all work on it. Marquee selection is built in the canvas; unproven on a projected layout.
-- `explore.meaning.search-within-the-map` — **[PARTIAL]** (#5036) a search while the map is open
-  highlights the hits in place rather than re-arranging. The highlight channel is built
-  (`CanvasEmphasis.swift`) and fed by search today.
+- `explore.meaning.lasso-is-the-ordinary-selection` — **[GAP]** (#5036) clicking a point, or
+  dragging round several, selects them, and that selection is the Library's own, so the Source
+  view, Reader and Inspector follow, and run-workflow, tag, export and open all work on it.
+- `explore.meaning.search-within-the-map` — **[GAP]** (#5036) a search while the map is open
+  highlights the hits in place and dims the rest, rather than re-making the map.
 - `explore.meaning.folder-and-project-layout-is-cached` — **[GAP]** (#5030) for a folder or a
-  project the layout is computed in the background, kept, and reused. The map says when it was
-  made and with what, and how many items have been added since.
+  project the layout is computed in the background, kept as a worked-out thing, and reused. The
+  map says when it was made and with what, and how many items have been added since.
 - `explore.meaning.new-items-do-not-reshuffle` — **[GAP]** (#5030) adding items places them into
   the existing map near their neighbours; the whole map is remade only when the researcher
   asks. (A map that reshuffles destroys the spatial memory that makes it worth having.)
@@ -108,7 +107,7 @@ The map by meaning
   and that a different method or seed gives a different picture. The seed is fixed and shown,
   so the same set and settings give the same map.
 - `explore.meaning.large-sets-aggregate` — **[GAP]** (#5030) above a stated size the map draws
-  density and group labels, and individual cards only where zoomed in.
+  density and group labels, and individual points only where zoomed in.
 
 Finding the odd and the same
 - `explore.meaning.odd-ones-out` — **[GAP]** (#5030) a set can be listed by how unlike its
@@ -134,22 +133,37 @@ Methods
 - `explore.meaning.dependency-is-declared` — **[GAP]** (#5038) scikit-learn is declared by the
   engine itself, not borrowed from another package's dependencies.
 
-## How it is drawn
+## How it is drawn (decided per kind; RULED 2026-09-20)
 
-Native, in the existing Canvas and Space. WebGL in a WebKit view is held in reserve for a
-whole-project map, and only if measuring shows the native renderer cannot draw it as
-aggregates. See `explore.md` and question 3.
+Listings (more like this, grouped results, odd ones out, near-duplicates) are the ordinary
+native Library list.
+
+The Meaning view mode has two honest routes:
+
+- **Native**: points drawn on one SwiftUI drawing surface, with zoom, pan, hover and lasso
+  written by hand. No extra process. Right for a search result or a folder: hundreds to a few
+  thousand points. **Recommended for slice 4 (#5036).**
+- **HTML in the view mode**, with a bundled WebGL scatterplot library (regl-scatterplot or
+  deck.gl are the candidates), never fetched. Draws a hundred thousand points, with lasso and
+  zoom-dependent labels already solved, and the same drawing serves the published page. Costs
+  **about 500 MB for its WebKit process** as measured on the 16 GB M1 the app is tested on
+  (#4999, #4997), plus a message bridge for selection. **Recommended for a whole-project map,
+  and only if measuring the native drawing at that size shows it cannot keep up.** The rules of
+  `explore.panes.html-view-mode-rules` apply: one such view alive at a time, released on leaving.
+
+Both draw the same data from the engine (`explore.panes.one-data-shape`), so starting native
+does not close the other door.
 
 ## Test matrix (legs this family touches)
 
 Backend (neighbours, grouping, projection: deterministic for a fixed seed, evidence ids on every
-point, a group for the ungrouped); pure Swift (the new arrangement case; pinned cards win);
-availability; MCP and CLI (neighbours, group a set); click-around (choose a point, the Source
-view follows); load (a few hundred in about a second; thousands in the background, cancellable,
-the machine stays useful).
+point, a group for the ungrouped); pure Swift (hit-testing and lasso on the point surface; the
+colour legend; aggregation above the stated size); availability (the Meaning view mode is offered
+for sets that have vectors, and says so for sets that do not); MCP and CLI (neighbours, group a
+set, project a set); click-around (choose a point, the Source view follows); load (a few hundred
+in about a second; thousands in the background, cancellable, the machine stays useful).
 
 ## Open questions for the creative director
 
-Question 3 (native or WebGL for a whole project), 6 (what is a "point": a page, an entry, a
-passage?), 13 (UMAP test: worth doing at all?). Full text in
-`agent-work/dh-layer/questions-for-the-maintainer.md`.
+Not blocking: what a "point" is (a page, an entry, a passage); whether the UMAP test is worth
+doing at all. Full text in `agent-work/dh-layer/questions-for-the-maintainer.md`.

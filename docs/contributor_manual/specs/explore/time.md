@@ -17,7 +17,8 @@ timeline that draws "about 1790" as a dot on 1 January 1790 is lying.
 Lives in: the Library's existing Timeline and Calendar view modes
 (`Views/Library/ViewModes/Dataset/`), the knowledge-graph timeline
 (`Views/Library/ViewModes/Graph/KGTimelineView.swift`, Swift Charts) promoted from the Reader
-to a Library view mode for claims and entities, and two new view modes (storylines, arcs). "As
+to a Library view mode for claims and entities, and two new view modes of their own
+(storylines, arcs). None of these is an arrangement of the Canvas or the Space. "As
 of" is a control shared with `networks.md` and `place.md`.
 
 ## Prior art
@@ -42,7 +43,7 @@ line opens its evidence.
   reachable only in the Reader for one document, capped at 500 claims, which already draws
   asserted dates solid and inferred dates hollow.
 - Calendar mode: no zoom from day to century (#4599).
-- The canvas animates moves (`CanvasMoveAnimation.swift`). Nothing animates through time.
+- Nothing animates through time.
 - #5008: a DATE was extracted as a sentence's subject. Time must be WHEN, never an entity in
   the subject slot; this family depends on that being fixed.
 
@@ -65,7 +66,7 @@ Honest dates
   all of them, tied together, not only the first.
 - `explore.time.relative-dates` — **[GAP]** (#5032) "three days after the fire" is held as a date
   relative to another event and drawn from that event, moving if the event's date is corrected.
-  Needs a model change; PROPOSED, not yet ruled (question 8).
+  Needs a model change; PROPOSED, not yet ruled (see the questions file).
 - `explore.time.calendar-is-kept` — **[PARTIAL]** (#5032) a date written in another calendar
   keeps what was written beside its converted span. Built for document dates; not for claims.
 - `explore.time.when-is-not-an-entity` — **[BROKEN]** (#5008) a date is never the subject of a
@@ -93,8 +94,9 @@ As of, and animation
   storylines) has one "as of" control: a moment or a window on the time axis. What did not yet
   hold, or no longer held, is not drawn; what MAY have held (uncertain span) is drawn as
   uncertain.
-- `explore.time.as-of-is-shared-when-linked` — **[GAP]** (#5032, waits on #4881) linked panes
-  share one "as of".
+- `explore.time.as-of-is-shared-when-linked` — **[GAP]** (#5032, #4881; BLOCKED on the
+  pane-linking design session) a linked group of view modes shares one "as of". Not to be
+  built before that design exists.
 - `explore.time.play` — **[GAP]** (#5032) "as of" can be played forward and back at a chosen
   speed, and stopped on any frame; marks move, appear and fade rather than jump. Stopping always
   leaves a view that can be selected from. Motion respects the system's Reduce Motion setting
@@ -121,10 +123,21 @@ Storylines and arcs
   (born, moved, married, tried, died), as a Reader rendition of that person. Gaps are shown as
   gaps.
 
-## How it is drawn
+## How it is drawn (decided per kind; RULED 2026-09-20)
 
-Native. Timelines and bins in Swift Charts (already used by the knowledge-graph timeline);
-storylines, arcs and the life course as native drawings, sized for a diary year or a volume.
+- **Timeline, bins, life course: native.** Swift Charts already draws the knowledge-graph
+  timeline; binning keeps any set small enough for it. Nothing here needs the web.
+- **Storylines and arcs: HTML is a fair first choice; native if the memory cost is judged too
+  high.** For HTML: the storyline layout (ordering lines so that they cross as little as
+  possible) is a hard problem with open, tested solutions in the web libraries, and arcs are a
+  few lines of D3; the sets are small (a year, a volume); these are the views most likely to
+  be published, and the published HTML drawing has to be written anyway, so it would be written
+  once. Against: about 500 MB for its WebKit process, as measured on the 16 GB M1 the app is tested on (#4999, #4997), for as long as the view mode is open, and a message bridge for
+  selection. For native: no extra process, the Pencil, animation that is the app's own. Against:
+  the layout must be written by hand, or computed by the engine and only drawn natively, which
+  is the middle road if memory decides it. The rules of `explore.panes.html-view-mode-rules`
+  apply either way, and both routes draw the same data.
+
 Published saved views are drawn by HTML from the same data (`experiments-and-sharing.md`).
 
 ## Test matrix (legs this family touches)
@@ -136,6 +149,6 @@ load (a project's claims bin without a cap and without pegging the machine).
 
 ## Open questions for the creative director
 
-Question 8 (relative dates and claim calendars: extend the claim model now, or later?), 9 (what
-"together" means by default in a storyline). Full text in
-`agent-work/dh-layer/questions-for-the-maintainer.md`.
+Not blocking: relative dates and claim calendars (extend the claim model now, or later?); what
+"together" means by default in a storyline; HTML or native for storylines and arcs (a
+recommendation is given above; the memory cost is the deciding fact). Full text in `agent-work/dh-layer/questions-for-the-maintainer.md`.

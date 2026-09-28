@@ -116,11 +116,19 @@ Out
   is the linked-open-data form of the same network. It is built; claim authorship is absent
   from it today (`export/exporter.md`'s design note), which publishing needs.
 
-## How it is drawn
+## How it is drawn (decided per kind; RULED 2026-09-20)
 
-Native, growing the existing force-directed view. A WebGL drawing (sigma.js and graphology,
-bundled) is held in reserve for a whole-project network, only if measuring shows the native view
-cannot serve it as aggregates, and only after the export route has been tried in practice.
+The network is its own Library view mode, never an arrangement of the Canvas or the Space.
+
+- **First, no drawing at all: export** (#5034) and open it in Gephi or Retina.
+- **A neighbourhood, a folder, a diary year: native**, growing the existing force-directed
+  view. It is already built, costs no extra process, and its selection is the app's own.
+- **A whole project: HTML in the view mode** (sigma.js and graphology, bundled, never fetched)
+  is the recommended route IF a whole-project network is wanted inside the app at all. This is
+  where a native drawing is weakest and the WebGL libraries strongest. It costs
+  about 500 MB for its WebKit process, as measured on the 16 GB M1 the app is tested on (#4999, #4997),
+  and obeys `explore.panes.html-view-mode-rules`. Decide after the export route has been used
+  in practice: Gephi may simply be the right tool at that size.
 
 ## Test matrix (legs this family touches)
 
@@ -132,5 +140,4 @@ aggregates, the machine stays useful).
 
 ## Open questions for the creative director
 
-Question 11 (the default edge rule). Full text in
-`agent-work/dh-layer/questions-for-the-maintainer.md`.
+Not blocking: the default rule for a network's edges. Full text in `agent-work/dh-layer/questions-for-the-maintainer.md`.
