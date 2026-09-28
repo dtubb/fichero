@@ -94,6 +94,12 @@ class DatabaseManager:
         self._lock = threading.Lock()
         logger.info("DatabaseManager initialized")
 
+    def open_database(self, cache_key: str) -> "Database | None":
+        """The package's open Database for a key from `_cache_key`, or None -- a dict read, no lock
+        and no path resolution, for a caller that looks its library up on every short statement
+        (the workflow NodeCache, #5189). A None means "not open now": call `get_database`."""
+        return self._databases.get(cache_key)
+
     def get_database(
         self, package_path: str | Path, *, create: bool = False
     ) -> "Database":
@@ -385,32 +391,41 @@ class DatabaseManager:
                 if gated:
                     with contextlib.ExitStack() as locks:
                         # Every managed connection's write lock, held across BOTH the
-                        # checkpoint and the copy. Normally there is exactly one.
+                        # checkpoint and the copy. Normally there is exactly one. BOUNDED like the
+                        # gate: a statement holding the lock past the deadline (a slow write through
+                        # the shared connection -- the NodeCache now writes there, #5189) is a
+                        # refusal by name, never a hang.
+                        locked = True
                         for database in managed:
-                            locks.enter_context(database._lock)
-                        try:
-                            for database in managed:
-                                database.conn.execute("CHECKPOINT")
-                        except Exception as exc:  # noqa: BLE001 -- only the busy case is retried
-                            if "other write transactions" not in str(exc):
-                                raise
-                            busy = exc
-                        else:
-                            if managed:
-                                logger.info(
-                                    "Checkpointed %d connection(s) and copied %s under one lock",
-                                    len(managed), package_str,
-                                )
-                            shutil.copy2(src, destination)
-                            return destination
+                            if not database._lock.acquire(timeout=max(0.0, deadline - time.monotonic())):
+                                locked = False
+                                busy = "a statement held the connection's lock"
+                                break
+                            locks.callback(database._lock.release)
+                        if locked:
+                            try:
+                                for database in managed:
+                                    database.conn.execute("CHECKPOINT")
+                            except Exception as exc:  # noqa: BLE001 -- only the busy case is retried
+                                if "other write transactions" not in str(exc):
+                                    raise
+                                busy = exc
+                            else:
+                                if managed:
+                                    logger.info(
+                                        "Checkpointed %d connection(s) and copied %s under one lock",
+                                        len(managed), package_str,
+                                    )
+                                shutil.copy2(src, destination)
+                                return destination
             if time.monotonic() >= deadline:
                 holders = [held for database in managed if (held := database.open_transaction())]
                 if holders:
                     holder = f"; holding it: {'; '.join(holders)}"
                 else:
                     writing = _threads_in_a_database_call()
-                    holder = ("; no managed transaction is open (a write on a connection the manager "
-                              "does not own); in a database call now: " + ("; ".join(writing) or "no thread"))
+                    holder = ("; no managed transaction is open; in a database call now: "
+                              + ("; ".join(writing) or "no thread"))
                 raise DatabaseBusy(
                     f"a write transaction stayed open for more than {wait:g}s, so {package_str} could "
                     f"not be checkpointed for a consistent copy{holder} ({busy})"

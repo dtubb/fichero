@@ -23,8 +23,6 @@ from fichero_server.core.timeutil import ensure_utc
 from pathlib import Path
 from typing import Any
 
-from fichero_server.core.duckdb_session import connect_utc
-
 from fichero_server.workflows.activity_types import CacheEntry
 
 logger = logging.getLogger(__name__)
@@ -97,26 +95,50 @@ class NodeCache:
 
     def __init__(self, db_path: str | Path):
         """
-        Initialize cache with DuckDB connection.
-
         Args:
-            db_path: Path to the library's DuckDB file
+            db_path: Path to the library's DuckDB file (``<library>.fichero/fichero.duckdb``), or
+                a standalone DuckDB file (tests).
         """
         self.db_path = Path(db_path)
-        # ponytail: not a managed shared conn (#2508). This is NodeCache's OWN
-        # raw duckdb connection to the library file — it is NOT the package's
-        # managed Database connection, so it is not guarded by Database._lock
-        # and the locked execute()/execute_fetchall() helpers do not apply.
-        # Within one process duckdb shares the underlying instance across
-        # connect() calls, so writes here are visible to the managed Database
-        # via MVCC. Folding NodeCache onto the shared Database (pass a Database
-        # instead of db_path) is a separate architectural decision (lead review).
-        self.conn = connect_utc(str(self.db_path))
+        # ON THE LIBRARY'S MANAGED CONNECTION (#5189). NodeCache predates the single shared
+        # connection (#2508) and kept a raw connection of its own to the library file; its writes
+        # then held the library's database from outside every lock the engine owns, so a snapshot
+        # could only poll for a gap, and one long write refused it (a 409 in a live run). Nothing
+        # needed the separate connection: every statement here is one short read or write. So a
+        # library's cache resolves its managed `Database` on each use (a closed and reopened
+        # library is found again) and runs through its locked helpers -- a snapshot, which holds
+        # that connection's gate and lock, now simply orders before or after a cache write.
+        # A standalone file (not a library's `fichero.duckdb`) gets a Database of its own.
+        self._own = None
+        if self.db_path.name != "fichero.duckdb":
+            from fichero_server.db import Database
+
+            self._own = Database(self.db_path)
+        else:
+            from fichero_server.db.manager import DatabaseManager
+
+            # Resolved once: `get_database` normalises the path on every call (~29 us, more than
+            # the lookup itself); the open instance is then a dict read per statement.
+            self._key = DatabaseManager._cache_key(self.db_path.parent)
         self._ensure_schema()
+
+    @property
+    def _db(self):
+        if self._own is not None:
+            return self._own
+        from fichero_server.db.manager import db_manager
+
+        return db_manager.open_database(self._key) or db_manager.get_database(self.db_path.parent)
+
+    @property
+    def conn(self):
+        """The underlying connection, for READS in tests and diagnostics; writes go through the
+        locked helpers."""
+        return self._db.conn
 
     def _ensure_schema(self) -> None:
         """Create cache table if it doesn't exist."""
-        self.conn.execute("""
+        self._db.execute("""
             CREATE TABLE IF NOT EXISTS node_cache (
                 cache_key TEXT PRIMARY KEY,
                 workflow_id TEXT NOT NULL,
@@ -129,11 +151,11 @@ class NodeCache:
         """)
 
         # Create indexes for efficient querying
-        self.conn.execute("""
+        self._db.execute("""
             CREATE INDEX IF NOT EXISTS idx_cache_workflow
             ON node_cache(workflow_id)
         """)
-        self.conn.execute("""
+        self._db.execute("""
             CREATE INDEX IF NOT EXISTS idx_cache_workflow_node
             ON node_cache(workflow_id, node_id)
         """)
@@ -149,11 +171,11 @@ class NodeCache:
             CacheEntry with cached result, or None if not found
         """
         try:
-            result = self.conn.execute(
+            result = self._db.execute_fetchone(
                 """SELECT cache_key, workflow_id, node_id, tool, file_path, created_at, result_json
                    FROM node_cache WHERE cache_key = ?""",
                 [cache_key],
-            ).fetchone()
+            )
 
             if result:
                 logger.debug(f"Cache hit: {cache_key[:16]}...")
@@ -197,7 +219,7 @@ class NodeCache:
         try:
             result_json = json.dumps(result)
 
-            self.conn.execute(
+            self._db.execute(
                 """
                 INSERT OR REPLACE INTO node_cache
                 (cache_key, workflow_id, node_id, tool, file_path, created_at, result_json)
@@ -229,10 +251,10 @@ class NodeCache:
         Returns:
             Number of entries deleted
         """
-        result = self.conn.execute(
+        result = self._db.execute_fetchall(
             "DELETE FROM node_cache WHERE workflow_id = ? RETURNING cache_key",
             [workflow_id],
-        ).fetchall()
+        )
 
         count = len(result)
         logger.info(f"Cleared {count} cache entries for workflow {workflow_id}")
@@ -249,10 +271,10 @@ class NodeCache:
         Returns:
             Number of entries deleted
         """
-        result = self.conn.execute(
+        result = self._db.execute_fetchall(
             "DELETE FROM node_cache WHERE workflow_id = ? AND node_id = ? RETURNING cache_key",
             [workflow_id, node_id],
-        ).fetchall()
+        )
 
         count = len(result)
         logger.info(f"Cleared {count} cache entries for node {node_id}")
@@ -265,9 +287,9 @@ class NodeCache:
         Returns:
             Number of entries deleted
         """
-        result = self.conn.execute(
+        result = self._db.execute_fetchall(
             "DELETE FROM node_cache RETURNING cache_key"
-        ).fetchall()
+        )
 
         count = len(result)
         logger.info(f"Cleared entire cache: {count} entries")
@@ -284,7 +306,7 @@ class NodeCache:
             Dict with cache statistics
         """
         if workflow_id:
-            result = self.conn.execute(
+            result = self._db.execute_fetchone(
                 """
                 SELECT
                     COUNT(*) as total_entries,
@@ -296,9 +318,9 @@ class NodeCache:
                 WHERE workflow_id = ?
             """,
                 [workflow_id],
-            ).fetchone()
+            )
         else:
-            result = self.conn.execute("""
+            result = self._db.execute_fetchone("""
                 SELECT
                     COUNT(*) as total_entries,
                     COUNT(DISTINCT workflow_id) as workflows_cached,
@@ -306,7 +328,7 @@ class NodeCache:
                     MIN(created_at) as oldest_entry,
                     MAX(created_at) as newest_entry
                 FROM node_cache
-            """).fetchone()
+            """)
 
         return {
             "total_entries": result[0],
@@ -317,8 +339,10 @@ class NodeCache:
         }
 
     def close(self) -> None:
-        """Close database connection."""
-        self.conn.close()
+        """Close a standalone cache's own database. A library's cache shares the library's managed
+        connection and closes nothing -- the library owns it."""
+        if self._own is not None:
+            self._own.close()
 
 
 def compute_cache_key(
