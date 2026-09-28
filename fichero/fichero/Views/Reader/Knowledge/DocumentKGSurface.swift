@@ -27,6 +27,8 @@ struct DocumentKGSurface: View {
     var scrollSync: DocumentScrollSyncState
     /// Zoom level forwarded to the WebKit pane. 1.0 = 100%. (#2316)
     var zoom: Double = 1.0
+    /// A pinch moved the zoom (#5203); forwarded to the WebKit pane.
+    var onPinchZoom: ((Double) -> Void)?
     /// Active tab driven by the parent pane. When omitted the surface manages
     /// tab state internally (backward-compat for non-split usages).
     /// `= nil` is load-bearing: KnowledgeSurface call site omits these args.
@@ -158,6 +160,7 @@ struct DocumentKGSurface: View {
                     onPageSelected: onPageSelected,
                     scrollSync: scrollSync,
                     zoom: zoom,
+                    onPinchZoom: onPinchZoom,
                     searchQuery: searchQuery,
                     searchSelectionIndex: searchSelectionIndex,
                     onSearchMatchCount: onSearchMatchCount,

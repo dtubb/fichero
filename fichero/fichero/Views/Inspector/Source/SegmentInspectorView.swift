@@ -4,8 +4,9 @@ import SwiftUI
 /// -- Page › block › line › word, where clicking a crumb inspects that level -- then the same sections
 /// at every level, a section with nothing to say hidden. Slice 1 has two: Text and Order.
 ///
-/// The Inspector never types a reading or draws a shape; its verbs act on the selection (ruled).
-/// It has no selection of its own: it shows the focused pane's.
+/// The Inspector draws no shape; its verbs act on the selection (ruled). It types a reading only as the
+/// Reader does -- Type a Reading… for a segment with none, Edit… for the one that counts (#5201), both the
+/// Reader's own `representation.create`. It has no selection of its own: it shows the focused pane's.
 struct SegmentInspectorView: View {
     let documentId: String
     /// The focused pane's selection, as segment ids, in the order picked.
@@ -20,6 +21,12 @@ struct SegmentInspectorView: View {
     /// The Segment menu's Language… / Script… prompt (#5157).
     @State private var askingFor: SegmentAttributeMenu.CodeKind?
     @State private var code = ""
+    /// Edit… (#5201): the words being edited, with the reading they correct; nil when not editing.
+    @State private var editing: (reading: InspectorText.Reading, words: String)?
+    /// Why the last Edit… did not land.
+    @State private var editNote: String?
+    /// The inspected segment's resolved direction (the engine's cascade), which the editor lays out in.
+    @State private var direction: String?
 
     /// What the sections describe: the selection itself, a crumb the person clicked, or the page.
     enum Level: Equatable {
@@ -59,7 +66,24 @@ struct SegmentInspectorView: View {
                         Text(countsLine).font(.caption).foregroundStyle(.secondary)
                     }
                     if let text, !text.readings.isEmpty {
-                        InspectorTextSection(text: text) { reading in choose(reading, in: text) }
+                        InspectorTextSection(
+                            text: text, onChoose: { reading in choose(reading, in: text) },
+                            onEdit: inspected == nil ? nil : { reading in
+                                editing = (reading, reading.content)
+                                editNote = nil
+                            }
+                        )
+                        if let editing {
+                            InspectorReadingEditor(
+                                text: Binding(get: { editing.words }, set: { self.editing?.words = $0 }),
+                                layout: InspectorReadingEdit.layout(direction: direction),
+                                save: { Task { await saveEdit() } },
+                                cancel: { self.editing = nil }
+                            )
+                        }
+                        if let editNote {
+                            Text(editNote).font(.caption).foregroundStyle(.secondary)
+                        }
                     } else if text != nil, let inspected,
                               let segment = segments.first(where: { $0.id == inspected }), SegmentsPane.lacksReading(segment) {
                         // Left without a reading: said, and typing one offered (deleting-words-keeps-ink).
@@ -104,6 +128,8 @@ struct SegmentInspectorView: View {
         }
         .task(id: inspected) {
             text = nil
+            editing = nil
+            editNote = nil
             await reloadText()
         }
         .onChange(of: selectedIds) { level = .selection }
@@ -143,6 +169,28 @@ struct SegmentInspectorView: View {
         text = try? await segmentService.readings(segmentId: inspected)
         let settings = (try? await segmentService.resolvedSettings(segmentId: inspected)) ?? []
         language = InspectorLanguage.rows(settings)
+        direction = settings.first { $0.key == "direction" }?.value
+    }
+
+    /// Edit… saved (#5201): the Reader's typed-line message through the Reader's runner -- one
+    /// `representation.create` correcting the reading shown, refused when another counts now, ⌘Z.
+    private func saveEdit() async {
+        guard let editing, let inspected, let segmentService, let actionsService = actionStore?.actionsService else { return }
+        let words = editing.words.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard words != editing.reading.content else { self.editing = nil; return }
+        let runner = ReaderTextEditRunner(
+            actionsService: actionsService, segmentService: segmentService, undoManager: undoManager,
+            refreshPage: { _ in await reloadText() }
+        )
+        let answer = await runner.apply(InspectorReadingEdit.message(
+            documentId: documentId, segmentId: inspected, text: words, editing: editing.reading
+        ))
+        if let problem = answer?.problem {
+            editNote = InspectorReadingEdit.note(for: problem)
+            if problem == ReaderTextEditRunner.staleProblem { await reloadText() }
+        } else {
+            self.editing = nil
+        }
     }
 
     /// "Make This Count" (#5153): the audited `reading.choose`, ⌘Z by its own audit id.
@@ -220,6 +268,8 @@ struct InspectorTextSection: View {
     let text: InspectorText
     /// "Make This Count" on a reading that does not count; nil shows no verb (a preview, a reader).
     var onChoose: ((InspectorText.Reading) -> Void)?
+    /// "Edit…" on the reading that counts (#5201); nil shows no verb.
+    var onEdit: ((InspectorText.Reading) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -257,6 +307,12 @@ struct InspectorTextSection: View {
                         .buttonStyle(.borderless)
                         .font(.caption)
                         .help("Choose this reading as the one that counts for \(reading.kind)")
+                }
+                if counts, reading.kind == "transcription", let onEdit {
+                    Button("Edit\u{2026}") { onEdit(reading) }
+                        .buttonStyle(.borderless)
+                        .font(.caption)
+                        .help("Correct this reading; saved as your correction of it, as typing in the Reader is")
                 }
             }
         }

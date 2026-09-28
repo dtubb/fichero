@@ -20,10 +20,31 @@ import AppKit
 /// reading surface renders nothing (#1641). Clamping every incoming size to a
 /// finite, non-negative value keeps WebContent alive without changing layout.
 final class GuardedWKWebView: WKWebView {
+    /// A trackpad pinch, as a magnification delta (#5203). WebKit's own `magnification` scales the page
+    /// WITHOUT reflowing it, so a pinch pushed the text past the column and the pane scrolled sideways;
+    /// the pinch goes to the host's zoom instead, which is `pageZoom` and reflows.
+    var onPinch: ((CGFloat) -> Void)?
+
     override func setFrameSize(_ newSize: NSSize) {
         let width = (newSize.width.isFinite && newSize.width > 0) ? newSize.width : 0
         let height = (newSize.height.isFinite && newSize.height > 0) ? newSize.height : 0
         super.setFrameSize(NSSize(width: width, height: height))
+    }
+
+    override func magnify(with event: NSEvent) {
+        guard let onPinch else { return super.magnify(with: event) }
+        onPinch(event.magnification)
+    }
+}
+
+/// The Reader's zoom (#5203): ONE value, `pageZoom`, which enlarges the text and reflows it to the column
+/// (for vertical text, to the column's height). The toolbar, ⌘+ / ⌘− and a pinch all move it.
+enum ReaderZoom {
+    static let range: ClosedRange<Double> = 0.5...3.0
+
+    /// A pinch's magnification delta applied to the zoom, kept in range.
+    static func pinched(_ zoom: Double, by magnification: Double) -> Double {
+        min(range.upperBound, max(range.lowerBound, zoom * (1 + magnification)))
     }
 }
 
@@ -55,6 +76,8 @@ struct DocumentKGWebPane: NSViewRepresentable {
     var scrollSync: DocumentScrollSyncState
     /// Zoom level applied via WKWebView.pageZoom. 1.0 = 100%. (#2316)
     var zoom: Double = 1.0
+    /// A pinch moved the zoom (#5203): the host sets `zoom`, so a pinch reflows as the toolbar does.
+    var onPinchZoom: ((Double) -> Void)?
     /// In-reader find (#4338): the live query ("" = cleared), the 0-based
     /// current match to select, and the match-count report back to the bar.
     var searchQuery: String = ""
@@ -134,8 +157,8 @@ struct DocumentKGWebPane: NSViewRepresentable {
         let webView = GuardedWKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.underPageBackgroundColor = .clear
-        // Enable trackpad pinch-to-zoom (#2316).
-        webView.allowsMagnification = true
+        // Pinch-to-zoom (#2316) goes to `pageZoom`, which reflows, never WebKit's magnification (#5203).
+        webView.allowsMagnification = false
         // No focus ring (Daniel, 2026-09-01). Same stray blue line as the
         // transcript's scroll view: WebKit's own scroll view draws a ring when
         // the graph pane takes key focus, and it lands as a rule across the
@@ -162,6 +185,9 @@ struct DocumentKGWebPane: NSViewRepresentable {
         context.coordinator.injectContext(into: webView)
         context.coordinator.loadIfNeeded(webView)
         context.coordinator.syncSelection(into: webView)
+        // A pinch moves the host's zoom, from the zoom shown now.
+        let zoom = zoom
+        webView.onPinch = onPinchZoom.map { report in { magnification in report(ReaderZoom.pinched(zoom, by: magnification)) } }
         // Apply programmatic zoom from toolbar controls.
         if webView.pageZoom != zoom {
             webView.pageZoom = zoom
@@ -213,6 +239,8 @@ struct DocumentKGWebPane: UIViewRepresentable {
     var onPageSelected: (Int) -> Void = { _ in }
     var scrollSync: DocumentScrollSyncState
     var zoom: Double = 1.0
+    /// A pinch moved the zoom (#5203) -- see the macOS pane; iOS pinches the web view's own scroll view.
+    var onPinchZoom: ((Double) -> Void)?
     /// In-reader find (#4338) — see the macOS pane.
     var searchQuery: String = ""
     var searchSelectionIndex: Int = -1
