@@ -78,6 +78,16 @@ against the engine on every Python run). When the lead's run is green, the rows'
 | Q6 | `source.editor.marks` (on the selection) | 81ba748a1 | `…AHighlightOnTwoSelectedLines…` |
 | #5154 | `source.textedit.typing-is-a-new-reading`, `return-splits-the-line`, `backspace-joins-in-reading-order` -- APP HALF ONLY | 02cd36aa2 | `…SplitAndJoinMessages…` (the page's half is the bugs lane's) |
 
+**Engine only, no screen yet** (nothing below is visible in the app; each is reachable through
+`POST /api/actions/invoke`, and so from MCP and the command line):
+
+| Behaviours | Engine | Commit | Test |
+|---|---|---|---|
+| `source.sure.editorial-facts`, `brackets-are-drawn` | `editorial.*`, `GET /api/editorial/segment/{id}` | b75cac9ef | `test_editorial_facts.py`, `test_leiden.py` |
+| `source.letterform.chain`, `features`, `compare` | `allograph.*`, `letterform.*`, `GET /api/letterforms` | 8b6a8b7bc | `test_letterforms.py` |
+| `source.campaign.ordered`, `reading-says-which` | `campaign.*`, `reading.take_in` | de90ff63f | `test_campaigns.py` |
+| `source.geo.*`: control points, type, residuals, world shape, mask, CRS (14 → [PARTIAL]) | `georef.*`, `GET /api/georef/pass/{id}`, `/segment/{id}/world` | (this commit) | `test_georeference.py`, on the Allmaps Paris file's own points |
+
 Engine defects found on the way, filed: #5176 (the Syriac page resolves to "English, left to right"
 by fallback); fixed in-lane: a page's first working-pass choice could not be undone (a1d41dcdb).
 
