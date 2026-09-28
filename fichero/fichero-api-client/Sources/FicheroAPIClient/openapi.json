@@ -4361,6 +4361,49 @@
         }
       }
     },
+    "/api/segments/{segment_id}/statements": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Segment Statements",
+        "description": "From a segment, what is said about it (`source.statement.both-ways`).",
+        "operationId": "segment_statements_api_segments__segment_id__statements_get",
+        "parameters": [
+          {
+            "name": "segment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Segment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentStatementsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/source-settings/resolve": {
       "get": {
         "tags": [
@@ -45976,6 +46019,44 @@
         ],
         "title": "ClaimMergeRequest"
       },
+      "ClaimOnSegment": {
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "title": "Claim Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "curation_state": {
+            "type": "string",
+            "title": "Curation State"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "via": {
+            "type": "string",
+            "title": "Via"
+          },
+          "excerpt": {
+            "type": "string",
+            "nullable": true,
+            "title": "Excerpt"
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim_id",
+          "text",
+          "curation_state",
+          "confidence",
+          "via"
+        ],
+        "title": "ClaimOnSegment"
+      },
       "ClaimPatchRequest": {
         "properties": {
           "text": {
@@ -60044,6 +60125,34 @@
         ],
         "title": "MarkdownFolderExportResponse"
       },
+      "MentionOnSegment": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type"
+          },
+          "excerpt": {
+            "type": "string",
+            "nullable": true,
+            "title": "Excerpt"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "name",
+          "entity_type"
+        ],
+        "title": "MentionOnSegment"
+      },
       "MetadataPatchRequest": {
         "properties": {
           "metadata": {
@@ -70920,6 +71029,35 @@
           "anchor"
         ],
         "title": "SegmentSplitPart"
+      },
+      "SegmentStatementsResponse": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimOnSegment"
+            },
+            "type": "array",
+            "title": "Claims"
+          },
+          "mentions": {
+            "items": {
+              "$ref": "#/components/schemas/MentionOnSegment"
+            },
+            "type": "array",
+            "title": "Mentions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id",
+          "claims",
+          "mentions"
+        ],
+        "title": "SegmentStatementsResponse"
       },
       "SegmentUndeleteParams": {
         "properties": {

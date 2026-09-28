@@ -81,6 +81,9 @@ SOURCE_LINK_TYPES: tuple[tuple[str, str, str], ...] = (
     ("continues", "Continues", "Is continued by"),
     ("translates", "Translates", "Is translated by"),
     ("same_as", "Same as", "Same as"),
+    # A person's "this entity is NOT that gazetteer place" (maps D4, `source.geo.gazetteer-candidates`):
+    # owl:differentFrom, so a rejected candidate is remembered, with its maker, and not offered again.
+    ("different_from", "Different from", "Different from"),
     ("names", "Names", "Is named by"),
     ("interprets", "Interprets", "Is interpreted by"),
     # A ground control point controls the mask it georeferences (#5122): a sheet with two maps has

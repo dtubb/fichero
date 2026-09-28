@@ -421,3 +421,24 @@ def test_tool_load_failure_raises_loudly() -> None:
         "a failing tool import was swallowed — that is exactly how zoom and "
         "consistency_check disappeared silently (#3951)"
     )
+
+
+def test_format_modules_load_on_first_use_not_at_app_import() -> None:
+    """The import route imports `fichero_server.formats` at app start. Loading every
+    format there put seven format modules on the start-up path (859 modules against a
+    budget of 851, 2026-09-28). They load when the registry is first READ, and all of
+    them are then there -- a lazy registry that forgot one would lose a format silently."""
+    out = _run(
+        """
+        import sys
+        import fichero_server.api.main  # noqa: F401
+        loaded = sorted(m for m in sys.modules if m.startswith("fichero_server.formats."))
+        print(",".join(loaded))
+        from fichero_server.formats import known_formats
+        print(",".join(spec.name for spec in known_formats()))
+        """
+    )
+    at_import, after_use = out.splitlines()
+    assert at_import == "fichero_server.formats.harness", at_import
+    assert set(after_use.split(",")) >= {
+        "alto", "hocr", "iiif-georef", "pagexml", "qgis-points", "tei", "yolo"}, after_use
