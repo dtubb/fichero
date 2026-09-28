@@ -31,7 +31,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 || (path.hasPrefix("/api/segments/") && path.hasSuffix("/readings"))
                 || path == "/api/source-settings/resolve" || path.hasPrefix("/api/hands")
                 || path.hasPrefix("/api/editorial/") || path.hasPrefix("/api/signs")
-                || path.hasPrefix("/api/letterforms")
+                || path.hasPrefix("/api/letterforms") || path.hasPrefix("/api/links/")
+                || (path.hasPrefix("/api/segments/") && path.hasSuffix("/reference"))
         }
 
         /// What `GET /api/hands` and `GET /api/hands/segment/{id}` answer (set by the test that asks).
@@ -56,6 +57,11 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         nonisolated(unsafe) static var instancesReply = Data()
         nonisolated(unsafe) static var letterformReply = Data()
         nonisolated(unsafe) static var allographsReply = Data()
+
+        /// What `/api/links/of/{id}`, `/api/links/types` and `/api/segments/{id}/reference` answer.
+        nonisolated(unsafe) static var linksReply = Data()
+        nonisolated(unsafe) static var linkTypesReply = Data()
+        nonisolated(unsafe) static var referenceReply = Data()
 
         private static func actionReply(auditId: String) -> Data {
             Data(#"{"ok":true,"result":{},"audit_id":"\#(auditId)","changed_domains":["segment"]}"#.utf8)
@@ -89,6 +95,12 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 actionBody = Self.letterformReply
             } else if path == "/api/letterforms/allographs" {
                 actionBody = Self.allographsReply
+            } else if path.hasPrefix("/api/links/of/") {
+                actionBody = Self.linksReply
+            } else if path == "/api/links/types" {
+                actionBody = Self.linkTypesReply
+            } else if path.hasPrefix("/api/segments/"), path.hasSuffix("/reference") {
+                actionBody = Self.referenceReply
             } else if path.hasPrefix("/api/segments/passes/"), path.hasSuffix("/original") {
                 actionBody = Self.originalReply
             } else if path == "/api/actions/invoke" {
@@ -131,6 +143,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             instancesReply = Data()
             letterformReply = Data()
             allographsReply = Data()
+            linksReply = Data()
+            linkTypesReply = Data()
+            referenceReply = Data()
         }
 
         /// URLSession hands a protocol its body as a stream, not as `httpBody`.
@@ -672,6 +687,57 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         )
         XCTAssertEqual(lines.map(\.chain), ["\u{0710} › Estrangela alaph › hand B"])
         XCTAssertEqual(lines.map(\.detail), ["stem wedged · foot curved · by owner"])
+    }
+
+    /// `source.link.typed`, `both-ways`, `source.segment.citable` end to end (5.7, #5164): on the
+    /// imported Syriac page, its second line CONTINUES its first (the engine's recorded answers). Read
+    /// through `LinkService` from the FIRST line, the section says "Is continued by Line · <the second
+    /// line's words>", sure 90%, with its note; Link on the two lines picked sends typed_link.create
+    /// first to second; Withdraw sends typed_link.delete and ⌘Z undoes it; Copy Reference reads the
+    /// line's `fichero:segment/…`.
+    func testTheLinksSectionReadsALinkFromThisEndLinksTwoLinesAndCopiesTheReference() async throws {
+        let store = try await loadedStore()
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-lines-links.json")
+        )) as? [String: Any])
+        RecordedEngine.linksReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["of_first"]))
+        RecordedEngine.linkTypesReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["types"]))
+        RecordedEngine.referenceReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["reference"]))
+        let service = LinkService(client: try XCTUnwrap(storeClient))
+
+        let links = try await service.links(of: "seg-0003")
+        let rows = InspectorLinks.rows(links, segments: store.segments(documentId: "doc-0001"))
+        let second = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.id == "seg-0004" })
+        XCTAssertEqual(rows.map(\.sentence), ["Is continued by"])
+        XCTAssertEqual(rows.first?.other, "Line · " + String(try XCTUnwrap(second.text).prefix(40)) + "…")
+        XCTAssertEqual(rows.first?.detail, "sure 90% · the sentence runs on")
+        let types = try await service.types()
+        XCTAssertTrue(types.map(\.key).starts(with: ["answers"]), "the library's types, as the menu offers them")
+        let reference = try await service.reference(segmentId: "seg-0003")
+        XCTAssertEqual(reference, "fichero:segment/library-0001/doc-0001/seg-0003")
+
+        let actions = ActionsService(client: try XCTUnwrap(storeClient))
+        let pair = try XCTUnwrap(InspectorLinks.pair(["seg-0004", "seg-0003"]))
+        try await AuditedAction.run(
+            "typed_link.create", params: TypedLinkCreateRequest(fromId: pair.from, toId: pair.to, linkType: "continues"),
+            actionName: "Link Segments", actionsService: actions, undoManager: nil
+        )
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        try await AuditedAction.run(
+            "typed_link.delete", params: TypedLinkIdRequest(linkId: try XCTUnwrap(rows.first).linkId),
+            actionName: "Withdraw Link", actionsService: actions, undoManager: manager
+        )
+        manager.endUndoGrouping()
+        let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
+        XCTAssertEqual(sent.compactMap { $0["name"] as? String }, ["typed_link.create", "typed_link.delete"])
+        XCTAssertEqual(sent[0]["params"] as? [String: String],
+                       ["from_id": "seg-0004", "to_id": "seg-0003", "link_type": "continues"])
+        XCTAssertEqual(sent[1]["params"] as? [String: String], ["link_id": "link-0001"])
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-2"], "⌘Z restores the withdrawn link by its own audit row")
     }
 
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {

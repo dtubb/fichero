@@ -54,6 +54,10 @@ Page From…. Every edit below should undo with ⌘Z and redo with ⇧⌘Z.
     `sign.declare`), then select a line that uses it. *Should:* Signs names the sign, "U+F1AC · MUFI
     F1AC · 1 here · 50 in the project". A character segment with a described letterform shows
     "ܐ › Estrangela alaph › hand B" and its features.
+17. **Links** (5.7, #5164). Select two lines (first, then second) ▸ Links ▸ **Link** ▸ Continues.
+    Then inspect the first line. *Should:* "Is continued by Line · ‹the second line's words›"; the
+    second line reads "Continues Line · ‹the first›". **Withdraw**; ⌘Z. **Copy Reference** puts
+    `fichero:segment/…` on the clipboard. **Not built:** opening a `fichero:segment` link (#5164).
 15. **A georeference beside a transcription** (#5122). On a page with an imported transcription AND an
     imported IIIF georeference: *Should:* the Source view draws the transcription's lines, never the
     control points; Making lists the georeference under **Georeferencing**.
@@ -93,7 +97,8 @@ against the engine on every Python run). When the lead's run is green, the rows'
 | Q6 | `source.editor.marks` (on the selection) | 81ba748a1 | `…AHighlightOnTwoSelectedLines…` |
 | #5154 | `source.textedit.typing-is-a-new-reading`, `return-splits-the-line`, `backspace-joins-in-reading-order` (app half; page half bugs2 6857c8ae6, ba90038e6) | 02cd36aa2, fd9793f60 | `…ReadersEditSplitAndJoinMessagesBecomeTheirActions` |
 | 5.5 | `source.sure.editorial-facts`, `brackets-are-drawn` (shown, marked, withdrawn) | b75cac9ef, abe343ae9, fd3e57f96 | `…CertaintyAndDamageSectionShowsTheFactsDrawn…` |
-| 5.6 | `source.sign.declared`, `list-authority`, `gather-instances` (a count); `source.letterform.chain`, `features` (read-only, inside Signs) | (this commit) | `…SignsSectionNamesTheMUFISign…` (real MUFI page), `…SignsSectionReadsACharactersLetterform…` |
+| 5.6 | `source.sign.declared`, `list-authority`, `gather-instances` (a count); `source.letterform.chain`, `features` (read-only, inside Signs) | 46cf7efa1 | `…SignsSectionNamesTheMUFISign…` (real MUFI page), `…SignsSectionReadsACharactersLetterform…` |
+| #5164 | `source.link.typed`, `both-ways` (read from each end), `source.segment.citable` (Copy Reference) | (this commit) | `…LinksSectionReadsALinkFromThisEnd…` |
 | #5122 | a georeferencing pass is never drawn as the page's boxes; Making lists it apart | 8b9e51c37 | unit only: `SegmentDisplayTests.aGeoreferenceIsNotDrawnAsThePagesBoxes` (no real georef+transcription page recorded yet) |
 
 Engine defects found on the way, filed: #5176 (the Syriac page resolved to "English, left to right"

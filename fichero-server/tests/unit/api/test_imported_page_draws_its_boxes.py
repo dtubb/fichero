@@ -389,3 +389,43 @@ def test_a_described_letterform_is_recorded_for_the_app(db, client):
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         LETTERFORM_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
     assert json.loads(LETTERFORM_FIXTURE.read_text()) == recorded, "the app's letterform fixture drifted"
+
+
+LINKS_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.first-lines-links.json"
+
+
+def test_a_link_between_two_lines_is_recorded_from_both_ends_for_the_app(db, client):
+    """`source.link.typed`, `both-ways`, `source.segment.citable` (the Inspector's Links section, 5.7):
+    the app reads GET /api/links/of/{id} for the inspected segment, GET /api/links/types for the Link
+    menu, and GET /api/segments/{id}/reference for Copy Reference. Recorded on the imported Syriac
+    page after a person says its second line CONTINUES its first -- read from each end, so the sentence
+    runs the right way from each."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    first, second = sorted((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+                           key=lambda s: s["anchor"]["rect"])[:2]
+    created = client.post("/api/actions/invoke", json={"name": "typed_link.create", "params": {
+        "from_id": second["id"], "to_id": first["id"], "link_type": "continues", "certainty": 0.9,
+        "note": "the sentence runs on"}})
+    assert created.status_code == 200, created.text
+    of_first = client.get(f"/api/links/of/{first['id']}").json()
+    of_second = client.get(f"/api/links/of/{second['id']}").json()
+    types = client.get("/api/links/types").json()
+    reference = client.get(f"/api/segments/{first['id']}/reference").json()
+    assert [(l["label"], l["inbound"]) for l in of_first["links"]] == [("Is continued by", True)]
+    assert [(l["label"], l["inbound"]) for l in of_second["links"]] == [("Continues", False)]
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    token = {s["anchor"]["rect"].__repr__(): s["id"] for s in stable_route["segments"]}
+    ids = {doc_id: stable_route["document_id"], first["id"]: token[repr(first["anchor"]["rect"])],
+           second["id"]: token[repr(second["anchor"]["rect"])], of_first["links"][0]["id"]: "link-0001"}
+    library_uuid = reference["reference"].split("/")[1]
+    ids[reference["reference"]] = reference["reference"].replace(library_uuid, "library-0001").replace(
+        doc_id, stable_route["document_id"]).replace(first["id"], ids[first["id"]])
+    stable = _stabilizer(ids)
+    recorded = {"of_first": stable(of_first), "of_second": stable(of_second), "types": stable(types),
+                "reference": stable(reference)}
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        LINKS_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(LINKS_FIXTURE.read_text()) == recorded, "the app's links fixture drifted"

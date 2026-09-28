@@ -75,6 +75,8 @@ struct SegmentInspectorView: View {
                         InspectorSignsSection(
                             segmentId: inspected, reading: text?.countingContent(ofKind: "transcription")
                         )
+                        // Typed links, both ways, and the segment's reference (5.7).
+                        InspectorLinksSection(segmentId: inspected, documentId: documentId, selectedIds: selectedIds)
                     }
                     if level == .page {
                         // Page level: how the page's passes were made (#5149).
