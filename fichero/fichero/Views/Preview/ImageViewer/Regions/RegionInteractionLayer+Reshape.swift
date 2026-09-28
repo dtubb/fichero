@@ -17,6 +17,7 @@ extension RegionInteractionLayer {
     /// The pointer, for Reshape first: true when Reshape took the event (a press on a handle, or the
     /// drag and release of one it began), so nothing else acts on it.
     func handleReshape(_ event: PreviewPointerEvent, in size: CGSize) -> Bool {
+        if handleResize(event, in: size) { return true }
         switch event.phase {
         case .pressed:
             let began = event.clickCount == 1 && isEditing && beginReshape(at: event.point, option: event.option, in: size)
@@ -68,9 +69,53 @@ extension RegionInteractionLayer {
         onReshapeCommit?(drag.boxIndex, drag.target, drag.points)
     }
 
+    /// Resize by the eight handles (#5215): a press on one of the ONE selected box's handles in Edit
+    /// Segments drags that corner or edge; the release is one move to the new box (`onMoveCommit`, which
+    /// sends `segment.update` with the version read and ⌘Z, the shapes scaled with it). Asked BEFORE a
+    /// shape's point handles: a point lying exactly on a frame handle yields to the frame.
+    func handleResize(_ event: PreviewPointerEvent, in size: CGSize) -> Bool {
+        let point = [Double(event.point.x), Double(event.point.y)]
+        switch event.phase {
+        case .pressed:
+            guard event.clickCount == 1, isEditing, !event.option, size.width > 0, size.height > 0,
+                  let index = singleSelectedIndex else { return false }
+            let bbox = allBoxes[index].bbox
+            let reach = [Double(SelectionStyle.handleSide) / size.width * visible.width,
+                         Double(SelectionStyle.handleSide) / size.height * visible.height]
+            guard let handle = BoxResize.handle(at: point, of: bbox, reach: reach) else { return false }
+            resizeDrag = BoxResize.Drag(index: index, handle: handle, bbox: bbox)
+            return true
+        case .dragged:
+            guard let drag = resizeDrag, allBoxes.indices.contains(drag.index) else { return false }
+            resizeDrag?.bbox = BoxResize.resized(allBoxes[drag.index].bbox, handle: drag.handle, to: point)
+            return true
+        case .released:
+            guard let drag = resizeDrag else { return false }
+            resizeDrag = nil
+            if allBoxes.indices.contains(drag.index), drag.bbox != allBoxes[drag.index].bbox {
+                onMoveCommit(drag.index, drag.bbox)
+            }
+            return true
+        }
+    }
+
+    /// The one selected box, by its position in the full list.
+    private var singleSelectedIndex: Int? {
+        guard let artifactId, selection.artifactId == artifactId else { return nil }
+        let picked = selection.resolvedIndices(in: allBoxes)
+        guard picked.count == 1, let index = picked.first, allBoxes.indices.contains(index) else { return nil }
+        return index
+    }
+
     /// The shape as it is being reshaped, over the drawn one until the edit lands.
     @ViewBuilder
     func liveReshape(in size: CGSize) -> some View {
+        if let drag = resizeDrag, let rect = BoundingBoxGeometry.viewRect(normalized: drag.bbox, in: size, visible: visible) {
+            Rectangle()
+                .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1.5, dash: [4]))
+                .frame(width: rect.width, height: rect.height)
+                .offset(x: rect.minX, y: rect.minY)
+        }
         if let drag = reshapeDrag {
             Path { path in
                 let points = drag.points.compactMap { viewPoint($0, in: size) }

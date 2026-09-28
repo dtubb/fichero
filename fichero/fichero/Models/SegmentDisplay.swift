@@ -198,6 +198,7 @@ enum SegmentDisplay {
                 """)
             return nil
         }
+        let tones = RegionColours.tones(of: segments)
         let boxes: [OCRGeometryBox] = segments
             .sorted { ($0.boxIndex ?? 0) < ($1.boxIndex ?? 0) }
             .map { segment in
@@ -232,7 +233,9 @@ enum SegmentDisplay {
                     source: segment.isHandCurated ? "manual" : nil,
                     shapes: SegmentShapes.drawn(for: segment),
                     noReading: SegmentsPane.lacksReading(segment),
-                    segmentId: segment.id
+                    segmentId: segment.id,
+                    regionId: tones[segment.id]?.regionId,
+                    alternateTint: tones[segment.id]?.alternate ?? false
                 )
             }
         return OCRGeometry(

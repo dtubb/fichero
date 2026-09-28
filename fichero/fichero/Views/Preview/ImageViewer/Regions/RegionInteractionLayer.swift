@@ -114,6 +114,8 @@ struct RegionInteractionLayer: View {
     @State private var shiftHeld = false
     /// Live Reshape: the box, what is reshaped, the point being dragged, and the points as they are now.
     @State var reshapeDrag: ReshapeDrag?
+    /// Live Resize (#5215): the box, the handle pressed, and the box as it is now.
+    @State var resizeDrag: BoxResize.Drag?
 
     var body: some View {
         GeometryReader { geo in
