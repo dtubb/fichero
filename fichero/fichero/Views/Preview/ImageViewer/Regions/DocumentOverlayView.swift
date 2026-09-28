@@ -24,6 +24,23 @@ final class DocumentOverlayView: NSView {
     override var isFlipped: Bool { false }  // the image view's own space: y grows upward
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
+    // MARK: - Every drawn box is an accessibility element (#5192)
+
+    /// One element per box DRAWN -- in the visible part of the view, from a segment -- identified
+    /// `SegmentBox-<segmentId>`, with its frame, its kind, and whether it is selected. What AppleScript,
+    /// XCUITest and VoiceOver see is what the window drew: none without a box, no box without one.
+    override func accessibilityChildren() -> [Any]? {
+        guard let imageRect else { return [] }
+        let selected = Set(overlay.selected)
+        return overlay.boxes(in: visibleRect, imageRect: imageRect).compactMap { box, rect in
+            box.segmentId.map { id in
+                SegmentBoxAccessibility.element(
+                    segmentId: id, kind: box.kind, frame: rect, in: self, selected: selected.contains(box.bbox)
+                )
+            }
+        }
+    }
+
     // MARK: - Redraw when the system's look changes
 
     override func viewDidMoveToWindow() {
@@ -311,6 +328,24 @@ enum InlineWords {
         let measured = (text as NSString).size(withAttributes: attributes)
         let origin = CGPoint(x: rect.minX, y: rect.midY - measured.height / 2)
         (text as NSString).draw(at: origin, withAttributes: attributes)
+    }
+}
+/// A drawn segment box as an accessibility element (#5192): the image overlay and a PDF page make
+/// them the same way, so a test or a script asks both surfaces one question.
+enum SegmentBoxAccessibility {
+    static let identifierPrefix = "SegmentBox-"
+
+    static func element(
+        segmentId: String, kind: String, frame: CGRect, in parent: NSView, selected: Bool
+    ) -> NSAccessibilityElement {
+        let element = NSAccessibilityElement()
+        element.setAccessibilityRole(.group)
+        element.setAccessibilityIdentifier(identifierPrefix + segmentId)
+        element.setAccessibilityLabel(kind.capitalized)
+        element.setAccessibilityParent(parent)
+        element.setAccessibilityFrameInParentSpace(frame)
+        element.setAccessibilitySelected(selected)
+        return element
     }
 }
 #endif

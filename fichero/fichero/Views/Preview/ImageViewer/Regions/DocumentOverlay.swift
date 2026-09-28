@@ -20,6 +20,9 @@ struct DocumentOverlay: Equatable {
         var shapes: [SegmentShapes.Drawn] = []
         /// No reading: drawn dashed and hollow, so what has no text yet can be seen and picked.
         var noReading = false
+        /// The segment drawn, and its kind: what the box is called as an accessibility element (#5192).
+        var segmentId: String?
+        var kind = ""
     }
 
     var boxes: [Box] = []

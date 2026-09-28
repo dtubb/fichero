@@ -231,7 +231,8 @@ enum SegmentDisplay {
                     provider: segment.isHandCurated ? "user" : nil,
                     source: segment.isHandCurated ? "manual" : nil,
                     shapes: SegmentShapes.drawn(for: segment),
-                    noReading: SegmentsPane.lacksReading(segment)
+                    noReading: SegmentsPane.lacksReading(segment),
+                    segmentId: segment.id
                 )
             }
         return OCRGeometry(

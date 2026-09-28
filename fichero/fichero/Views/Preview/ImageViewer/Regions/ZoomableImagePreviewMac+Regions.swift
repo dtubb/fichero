@@ -44,7 +44,8 @@ extension ZoomableImagePreview {
             boxes: shown.map {
                 .init(bbox: $0.box.bbox, confidence: $0.box.confidence, text: $0.box.text,
                       showsText: inlineTextEnabled && OCRBoxConfidence.drawsInlineText($0.box.confidence),
-                      shapes: $0.box.shapes, noReading: $0.box.noReading)
+                      shapes: $0.box.shapes, noReading: $0.box.noReading,
+                      segmentId: $0.box.segmentId, kind: $0.box.level)
             },
             selected: selected,
             selectedShapes: selectedIndices.map { all[$0].shapes },

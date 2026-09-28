@@ -36,6 +36,9 @@ struct OCRGeometryBox: Codable, Hashable, Identifiable {
     var shapes: [SegmentShapes.Drawn] = []
     /// A segment left without a reading (`SegmentsPane.lacksReading`): drawn dashed and hollow, never hidden.
     var noReading = false
+    /// The segment this box draws, when it comes from a segment pass (`SegmentDisplay.geometry`): the id a
+    /// drawn box is known by from outside the app (`SegmentBox-<id>`, #5192). Not part of the artifact wire format.
+    var segmentId: String?
 
     /// A box a person drew, rather than a pass measuring one.
     var isHandDrawn: Bool { provider?.lowercased() == "user" || source?.lowercased() == "manual" }
