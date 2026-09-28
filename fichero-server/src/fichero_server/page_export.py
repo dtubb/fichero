@@ -290,6 +290,6 @@ def export_page(
     )
     data, report = write_page(spec.name, page)
     stem = PurePosixPath(page.image_name or document_id).stem or document_id
-    extension = {"tei": ".tei.xml", "pagexml": ".page.xml", "alto": ".alto.xml",
-                 "iiif-georef": ".georef.json", "qgis-points": ".points"}.get(spec.name, ".xml")
-    return PageExport(data=data, filename=f"{stem}{extension}", format=spec.name, choices=choices, report=report)
+    # The format's own export extension, from the registry: a second table here defaulted every
+    # unlisted format to `.xml`, so hOCR and YOLO exports were misnamed.
+    return PageExport(data=data, filename=f"{stem}{spec.file_extension}", format=spec.name, choices=choices, report=report)

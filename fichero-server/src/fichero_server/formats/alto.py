@@ -667,6 +667,7 @@ register(
     FormatSpec(
         name="alto",
         extensions=(".xml",),
+        export_extension=".alto.xml",
         read=read,
         write=write,
         schema=ALTO_WRITTEN_SCHEMA,
