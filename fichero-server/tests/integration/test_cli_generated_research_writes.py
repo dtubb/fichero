@@ -416,6 +416,9 @@ def test_generated_research_validation_and_ai_no_500_bar_current_main(
         "--framework-ids",
         json.dumps(["missing-framework"]),
     )
-    assert ai_route.exit_code == 1
-    assert "-> 400:" in ai_route.output
+    # The route behind this command (/suggestions, a permanent-501 stub with no caller) was deleted in
+    # the endpoint cleanup of 2026-07-27, so the generated CLI no longer offers it: a usage error,
+    # never a 500 from a half-built AI route.
+    assert ai_route.exit_code == 2
+    assert "No such command 'suggest-interpretations'" in ai_route.output
     assert "-> 500:" not in ai_route.output

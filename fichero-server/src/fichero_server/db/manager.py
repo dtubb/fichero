@@ -37,6 +37,35 @@ class LibraryNotFoundError(FileNotFoundError):
         )
 
 
+def _threads_in_a_database_call() -> list[str]:
+    """Other threads executing a DuckDB statement right now, as "thread: engine frame" -- the
+    evidence a busy refusal carries when the writer is a connection the manager does not own
+    (#5185): which code, on which thread, is writing at that moment."""
+    import sys
+    import threading
+    import traceback
+
+    names = {thread.ident: thread.name for thread in threading.enumerate()}
+    out = []
+    for ident, frame in sys._current_frames().items():
+        if ident == threading.get_ident():
+            continue
+        stack = traceback.extract_stack(frame)
+        if not stack or "execute" not in (stack[-1].line or ""):
+            continue
+        ours = [f for f in stack if "/fichero_server/" in f.filename.replace("\\", "/")]
+        where = ours[-1] if ours else stack[-1]
+        path = where.filename.replace("\\", "/").rsplit("/fichero_server/", 1)[-1]
+        out.append(f"{names.get(ident, ident)}: {path}:{where.lineno} {where.name}")
+    return out
+
+
+class DatabaseBusy(RuntimeError):
+    """A consistent copy of a library's database could not be taken in time: another connection
+    held a write transaction open past the wait (#5185). Named, so a caller refuses with the reason
+    instead of a 500 -- and nothing was copied."""
+
+
 class DatabaseManager:
     """Manages Database instances for package documents — ONE per package,
     shared across all threads (#2508).
@@ -289,6 +318,7 @@ class DatabaseManager:
         dest: str | Path,
         *,
         source: str | Path | None = None,
+        wait: float = 10.0,
     ) -> Path:
         """A CONSISTENT copy of this library's database file.
 
@@ -321,24 +351,72 @@ class DatabaseManager:
         destination = Path(dest)
         package_str = self._cache_key(package_path)
 
-        with self._lock:
-            managed = [
-                self._databases[key] for key in list(self._databases) if key == package_str
-            ]
+        import time
+
+        # A WRITE IN FLIGHT ON ANOTHER CONNECTION TO THE SAME DATABASE (#5185): a cursor's open
+        # transaction, which `Database._lock` does not cover. DuckDB then refuses CHECKPOINT ("there
+        # are other write transactions active"), and that surfaced as a 500 from the snapshot route.
+        # FORCE CHECKPOINT is NOT the answer: it aborts those transactions -- the write is lost. So
+        # WAIT for them: retry, releasing every lock between tries (a writer that needs one to
+        # finish must be able to take it), and copy only once a checkpoint succeeded, still under
+        # the locks. Bounded: past `wait` seconds the copy is REFUSED by name (`DatabaseBusy`),
+        # never taken half-flushed.
+        # The ENGINE'S OWN transactions come first: an audited action on another thread holds its
+        # connection's `_transaction_gate` from BEGIN to COMMIT and takes `_lock` only per statement,
+        # so holding `_lock` alone let this CHECKPOINT run on the shared connection INSIDE that
+        # transaction ("the current transaction has transaction local changes" -- a 500, and a
+        # checkpoint issued inside someone else's unit of work). Each gate is waited for, bounded
+        # by the same deadline, and held across the checkpoint and the copy.
+        deadline = time.monotonic() + wait
+        pause = 0.02
+        busy: Exception | str = "a managed transaction did not finish"
+        while True:
+            with self._lock:
+                managed = [
+                    self._databases[key] for key in list(self._databases) if key == package_str
+                ]
             with contextlib.ExitStack() as stack:
-                # Every managed connection's write lock, held across BOTH the
-                # checkpoint and the copy. Normally there is exactly one.
+                gated = True
                 for database in managed:
-                    stack.enter_context(database._lock)
-                for database in managed:
-                    database.conn.execute("CHECKPOINT")
-                if managed:
-                    logger.info(
-                        "Checkpointed %d connection(s) and copied %s under one lock",
-                        len(managed), package_str,
-                    )
-                shutil.copy2(src, destination)
-        return destination
+                    if not database._transaction_gate.acquire(timeout=max(0.0, deadline - time.monotonic())):
+                        gated = False
+                        break
+                    stack.callback(database._transaction_gate.release)
+                if gated:
+                    with contextlib.ExitStack() as locks:
+                        # Every managed connection's write lock, held across BOTH the
+                        # checkpoint and the copy. Normally there is exactly one.
+                        for database in managed:
+                            locks.enter_context(database._lock)
+                        try:
+                            for database in managed:
+                                database.conn.execute("CHECKPOINT")
+                        except Exception as exc:  # noqa: BLE001 -- only the busy case is retried
+                            if "other write transactions" not in str(exc):
+                                raise
+                            busy = exc
+                        else:
+                            if managed:
+                                logger.info(
+                                    "Checkpointed %d connection(s) and copied %s under one lock",
+                                    len(managed), package_str,
+                                )
+                            shutil.copy2(src, destination)
+                            return destination
+            if time.monotonic() >= deadline:
+                holders = [held for database in managed if (held := database.open_transaction())]
+                if holders:
+                    holder = f"; holding it: {'; '.join(holders)}"
+                else:
+                    writing = _threads_in_a_database_call()
+                    holder = ("; no managed transaction is open (a write on a connection the manager "
+                              "does not own); in a database call now: " + ("; ".join(writing) or "no thread"))
+                raise DatabaseBusy(
+                    f"a write transaction stayed open for more than {wait:g}s, so {package_str} could "
+                    f"not be checkpointed for a consistent copy{holder} ({busy})"
+                )
+            time.sleep(pause)
+            pause = min(pause * 2, 0.5)
 
     def close_current_thread(self) -> None:
         """No-op under the single-connection model (#2508).

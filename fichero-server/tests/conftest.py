@@ -103,6 +103,10 @@ os.environ.setdefault("FICHERO_DISABLE_AUTH", "1")
 # does not include the production default BAAI/bge-m3 yet. Real-model tests use
 # the prior supported model unless a verifier explicitly overrides it.
 os.environ.setdefault("FICHERO_EMBED_MODEL", "intfloat/multilingual-e5-large")
+# #5188: tests never fetch a model. FastEmbed reads HF_HUB_OFFLINE as local-files-only (Hugging
+# Face AND its fallback download), so an uncached model fails to load and embedding is skipped
+# with a logged reason; a cached one still loads. Engines spawned by fixtures inherit it.
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
 # #2235: fail loudly if any unregistered type crosses the LangGraph msgpack
 # boundary (today just warns; future versions will hard-block).
 os.environ.setdefault("LANGGRAPH_STRICT_MSGPACK", "true")

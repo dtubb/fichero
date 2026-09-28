@@ -208,7 +208,7 @@ def snapshot_library(
 
             duckdb_copy_path = duckdb_file_dir / "fichero.duckdb"
             db_manager.copy_database_file(
-                library_path_p, duckdb_copy_path, source=db_path
+                library_path_p, duckdb_copy_path, source=db_path, wait=SNAPSHOT_WRITE_WAIT_S
             )
             duckdb_size = duckdb_copy_path.stat().st_size
 
@@ -268,6 +268,11 @@ def snapshot_library(
                 duckdb_copy_path,
             )
         except Exception as e:
+            _discard(snapshot_root)
+            from fichero_server.db.manager import DatabaseBusy
+
+            if isinstance(e, DatabaseBusy):
+                raise SnapshotBusy(f"the library is being written to; no snapshot was taken: {e}") from e
             raise RuntimeError(f"DuckDB snapshot failed: {e}") from e
     else:
         logger.warning(f"No DuckDB found at {db_path}, skipping export")
@@ -286,6 +291,7 @@ def snapshot_library(
             lance_size += _dir_size(target_dir)
             logger.info("Copied %s embeddings to %s", dirname, target_dir)
         except Exception as e:
+            _discard(snapshot_root)
             raise RuntimeError(f"LanceDB copy failed: {e}") from e
     if not copied_embeddings:
         logger.info("No LanceDB directory found, skipping vector export")
@@ -734,6 +740,22 @@ def _enforce_retention(
                 logger.warning(f"Failed to delete retained snapshot {s.id}: {e}")
 
     return deleted
+
+
+#: How long a snapshot waits for another connection's write transaction to finish before refusing
+#: (#5185). Long enough for an ordinary write; short enough that a request is answered.
+SNAPSHOT_WRITE_WAIT_S = 10.0
+
+
+class SnapshotBusy(RuntimeError):
+    """The library was mid-write for longer than a snapshot waits (#5185): no snapshot was taken,
+    nothing partial was left behind, and the write goes on. Try again when it has finished."""
+
+
+def _discard(snapshot_root: Path) -> None:
+    """A snapshot that failed part-way leaves NOTHING: a half-copied directory with no record is
+    not a snapshot, and one found later could be mistaken for one."""
+    shutil.rmtree(snapshot_root, ignore_errors=True)
 
 
 class SnapshotRefused(RuntimeError):

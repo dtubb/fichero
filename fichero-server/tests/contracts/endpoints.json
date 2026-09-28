@@ -8044,6 +8044,18 @@
       },
       {
         "method": "GET",
+        "path": "/reading-orders/flows/onto/{document_id}",
+        "operation_id": "flows_onto_page_api_reading_orders_flows_onto__document_id__get",
+        "summary": "Flows Onto Page",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "FlowCandidatesResponse"
+      },
+      {
+        "method": "GET",
         "path": "/reading-orders/{order_id}/entries",
         "operation_id": "list_order_entries_api_reading_orders__order_id__entries_get",
         "summary": "List Order Entries",

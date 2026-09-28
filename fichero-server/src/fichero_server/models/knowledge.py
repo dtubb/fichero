@@ -560,6 +560,32 @@ class EvidentialDateRange(BaseModel):
     created_by: str = "extractor"
 
 
+class RelativePlace(BaseModel):
+    """A place described relative to another -- "21 leguas de Quito", "96 leguas al N de Santa Fe"
+    (maps D10, `source.geo.relative-place`). Stored as the source says it: the anchor, the relation,
+    the distance AS WRITTEN with its number and unit, and a certainty. Never a point: it resolves on
+    read to an AREA of uncertainty through the unit's conversion (`knowledge.units`)."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    #: The place it is relative to (an entity whose geometry is the anchor).
+    anchor_entity_id: str
+    #: The relation as written ("de", "al N de").
+    relation_as_written: str | None = None
+    #: A compass bearing FROM the anchor, in degrees (N = 0, E = 90), when the source gives a direction;
+    #: None: a distance in any direction.
+    bearing_deg: float | None = Field(default=None, ge=0.0, lt=360.0)
+    #: How wide the direction is, either side: an eight-point word ("N") is ±22.5°.
+    bearing_halfwidth_deg: float = Field(default=22.5, gt=0.0, le=180.0)
+    #: The distance exactly as written ("21 leguas"), never rewritten.
+    distance_as_written: str = Field(min_length=1)
+    distance_value: float = Field(gt=0.0)
+    #: A key of `knowledge.units.UNITS` ("legua").
+    unit: str
+    #: Scholarly certainty, 0-1 (`source.sure.three-kinds`), or None when not said.
+    certainty: float | None = Field(default=None, ge=0.0, le=1.0)
+
+
 class EvidentialPlace(BaseModel):
     """Spatial evidence for a claim/entity, from points through named sets."""
 
@@ -582,6 +608,8 @@ class EvidentialPlace(BaseModel):
     #: When this geometry held (maps D7, `source.geo.geometry-over-time`): a span, or a point in time
     #: (start == end). None: undated -- listed apart, never taken as valid at a given date.
     when: EvidentialDateRange | None = None
+    #: A place described relative to another (maps D10): no coordinates of its own; resolves on read.
+    relative: RelativePlace | None = None
     #: Declared, not converted (maps D5, `source.geo.crs-declared-on-existing`): every lat/lon this
     #: record has ever held is WGS 84 -- the geocoders and the map speak nothing else -- so a row an
     #: older build wrote reads back saying so. A coordinate in any other CRS is refused here; it goes
@@ -595,10 +623,28 @@ class EvidentialPlace(BaseModel):
     source_excerpt: str | None = None
     #: A geometry ADOPTED from a map (maps D8, `source.geo.boundary-from-map`): the boundary segment
     #: it was worked out from and the georeferencing pass (so, the transformation) that placed it.
-    source_segment_id: str | None = None
-    source_pass_id: str | None = None
+    adopted_from_segment_id: str | None = Field(default=None, description=(
+        "The boundary Segment (a real `Segment` record id) whose worked-out world shape this "
+        "geometry was adopted from (`entity.adopt_boundary`). NOT the claims' legacy "
+        "`source_segment_id`, which names an entry in a segmentation artifact."))
+    adopted_from_pass_id: str | None = Field(default=None, description=(
+        "The georeferencing SegmentPass whose transformation placed the adopted shape."))
     rationale: str | None = None
     created_by: str = "extractor"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _adopted_from_earlier_names(cls, data):
+        """The two fields were first written (maps D8, 68100f206) as `source_segment_id` and
+        `source_pass_id` -- the first a name the claims' legacy artifact field already uses for
+        something else. A place stored under those names reads back under the new ones."""
+        if isinstance(data, dict) and ("source_segment_id" in data or "source_pass_id" in data):
+            data = dict(data)
+            for old, new in (("source_segment_id", "adopted_from_segment_id"), ("source_pass_id", "adopted_from_pass_id")):
+                if old in data:
+                    value = data.pop(old)
+                    data.setdefault(new, value)
+        return data
 
 
 class AttributionStep(BaseModel):

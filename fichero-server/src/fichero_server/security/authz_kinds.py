@@ -103,6 +103,9 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
     "server_id": (LIBRARY, _CONFIG),
     "external_id": (LIBRARY, "an item's id in ANOTHER application (Bookends, Tinderbox): nothing in this library"),
     "mutation_id": (LIBRARY, _KG),
+    # maps D6/D7 (9205a2f25): a name or a dated geometry ON a place entity -- part of that KG record.
+    "name_id": (LIBRARY, _KG),
+    "place_id": (LIBRARY, _KG),
     "prediction_id": (LIBRARY, _KG),
     **{name: (LIBRARY, _RESEARCH) for name in ("project_id", "plan_id", "task_id", "step_id", "checklist_id", "workspace_id")},
     "conversation_id": (LIBRARY, "a chat conversation: library-level, not document content"),
