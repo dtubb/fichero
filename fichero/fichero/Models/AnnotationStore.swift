@@ -83,7 +83,8 @@ final class AnnotationStore: ObservableDomainStore {
         color: String? = nil,
         rating: Int? = nil,
         tags: [String] = [],
-        linkedClaimIds: [String] = []
+        linkedClaimIds: [String] = [],
+        targets: [String] = []
     ) async -> DocumentAnnotation? {
         let result = await annotationService.addNote(
             scope: scope,
@@ -98,7 +99,8 @@ final class AnnotationStore: ObservableDomainStore {
             color: color,
             rating: rating,
             tags: tags,
-            linkedClaimIds: linkedClaimIds
+            linkedClaimIds: linkedClaimIds,
+            targets: targets
         )
         if let result { annotations.insert(result, at: 0) }
         return result

@@ -13,39 +13,63 @@ import XCTest
 /// HTTP transport is stubbed. The boxes must be the file's 4 regions and 12 lines, as lxml read them.
 @MainActor
 final class ImportedPageDrawsItsBoxesTests: XCTestCase {
-    /// Answers the segments list with the recorded engine answer; nothing else is served.
+    /// Answers the segments list with the recorded engine answer, and RECORDS what the app sends to
+    /// create an annotation (answered 422: the request is what is under test, not the reply).
     private final class RecordedEngine: URLProtocol {
         nonisolated(unsafe) static var body = Data()
+        nonisolated(unsafe) static var annotationRequests: [Data] = []
 
         // swiftlint:disable:next static_over_final_class
         override class func canInit(with request: URLRequest) -> Bool {
-            request.url?.host == "127.0.0.1" && request.url?.path.hasPrefix("/api/segments/document/") == true
+            guard request.url?.host == "127.0.0.1", let path = request.url?.path else { return false }
+            return path.hasPrefix("/api/segments/document/") || path == "/api/annotations"
         }
 
         // swiftlint:disable:next static_over_final_class
         override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
         override func startLoading() {
+            let isAnnotation = request.url?.path == "/api/annotations"
+            if isAnnotation { Self.annotationRequests.append(Self.bodyOf(request)) }
             guard let url = request.url,
                   let response = HTTPURLResponse(
-                      url: url, statusCode: 200, httpVersion: "HTTP/1.1",
+                      url: url, statusCode: isAnnotation ? 422 : 200, httpVersion: "HTTP/1.1",
                       headerFields: ["Content-Type": "application/json"]
                   ) else {
                 client?.urlProtocol(self, didFailWithError: URLError(.badURL))
                 return
             }
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            client?.urlProtocol(self, didLoad: Self.body)
+            client?.urlProtocol(self, didLoad: isAnnotation ? Data("{}".utf8) : Self.body)
             client?.urlProtocolDidFinishLoading(self)
         }
 
         override func stopLoading() {}
+
+        /// URLSession hands a protocol its body as a stream, not as `httpBody`.
+        private static func bodyOf(_ request: URLRequest) -> Data {
+            if let body = request.httpBody { return body }
+            guard let stream = request.httpBodyStream else { return Data() }
+            stream.open()
+            defer { stream.close() }
+            var data = Data()
+            var buffer = [UInt8](repeating: 0, count: 4096)
+            while stream.hasBytesAvailable {
+                let read = stream.read(&buffer, maxLength: buffer.count)
+                guard read > 0 else { break }
+                data.append(buffer, count: read)
+            }
+            return data
+        }
     }
 
     private struct ExpectedBox: Decodable {
         let level: String
         let bbox: [Double]
     }
+
+    /// The client `loadedStore` built, so a test's other services talk to the same recorded engine.
+    private var storeClient: FicheroClient?
 
     private func fixtures() throws -> URL {
         try AppSource.sibling("Tests").appendingPathComponent("Fixtures/segments")
@@ -62,6 +86,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             libraryPath: "/tmp/ImportedPageDrawsItsBoxesTests.fichero",
             session: URLSession(configuration: configuration)
         )
+        storeClient = client
         let store = SegmentStore(service: SegmentService(ficheroClient: client))
         await store.load(documentId: "doc-0001")
         return store
@@ -91,6 +116,42 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(ids, [clicked.id])
         let path = try XCTUnwrap(InspectorPath.to(clicked.id, in: segments))
         XCTAssertEqual(path.crumbs.map(\.kind), ["region", "line"])
+    }
+
+    /// Q6 end to end: a Highlight made on the selection -- two lines picked on the imported page --
+    /// SENDS those lines' segment ids as `targets`, through the calls the Preview's Highlight makes
+    /// (`MarkTargets.selectedSegments` -> `segmentIds(in:)` -> `AnnotationStore.addNote`).
+    func testAHighlightOnTwoSelectedLinesSendsTheirSegmentIds() async throws {
+        let store = try await loadedStore()
+        let selected = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
+        let scope = try XCTUnwrap(SegmentDisplay.selectionScope(artifactId: selected.artifactId, passId: selected.passId))
+        let boxes = selected.geometry.boxes
+        let lines = boxes.indices.filter { boxes[$0].level == "line" }.prefix(2)
+        XCTAssertEqual(lines.count, 2)
+        let selection = RegionSelection()
+        selection.selectAll(Array(lines), artifactId: scope, documentId: "doc-0001", in: boxes)
+
+        let picked = MarkTargets.selectedSegments(selection: selection, documentId: "doc-0001", store: store)
+        XCTAssertEqual(picked.count, 2)
+        let annotations = AnnotationStore(annotationService: AnnotationService(ficheroClient: storeClient))
+        RecordedEngine.annotationRequests = []
+        for segment in picked {
+            _ = await annotations.addNote(
+                scope: .document("doc-0001"), text: "", bbox: segment.rect, kind: .highlight,
+                targets: MarkTargets.segmentIds(in: segment.rect, selected: picked)
+            )
+        }
+
+        let sent = try RecordedEngine.annotationRequests.map {
+            try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any])
+        }
+        XCTAssertEqual(sent.count, 2)
+        let targetIds = sent.map { request in
+            ((request["targets"] as? [[String: Any]]) ?? []).compactMap { $0["segment_id"] as? String }
+        }
+        // Each strip names exactly the line it is drawn over, and together they are the two picked.
+        XCTAssertEqual(targetIds.map(\.count), [1, 1])
+        XCTAssertEqual(Set(targetIds.flatMap { $0 }), Set(picked.map(\.id)))
     }
 
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {

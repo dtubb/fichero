@@ -261,7 +261,8 @@
     },
     "file_position": 11,
     "source_id": "eSc_line_c0d78145"
-   }
+   },
+   "version": 1
   },
   {
    "id": "seg-0004",
@@ -499,7 +500,8 @@
     },
     "file_position": 12,
     "source_id": "eSc_line_918faf52"
-   }
+   },
+   "version": 1
   },
   {
    "id": "seg-0005",
@@ -785,7 +787,8 @@
     },
     "file_position": 10,
     "source_id": "eSc_line_330f655c"
-   }
+   },
+   "version": 1
   },
   {
    "id": "seg-0006",
@@ -859,7 +862,8 @@
     },
     "file_position": 13,
     "source_id": "l"
-   }
+   },
+   "version": 1
   },
   {
    "id": "seg-0007",
@@ -933,7 +937,8 @@
     },
     "file_position": 1,
     "source_id": "l_23"
-   }
+   },
+   "version": 1
   },
   {
    "id": "seg-0008",
@@ -1007,7 +1012,8 @@
     },
     "file_position": 7,
     "source_id": "l_73"
-   }
+   },
+   "version": 1
   },
   {
    "id": "seg-0009",
@@ -1081,7 +1087,8 @@
     },
     "file_position": 6,
     "source_id": "l_69"
-   }
+   },
+   "version": 1
   },
   {
    "id": "seg-0010",
@@ -1155,7 +1162,8 @@
     },
     "file_position": 4,
     "source_id": "l_61"
-   }
+   },
+   "version": 1
   },
   {
    "id": "seg-0011",
@@ -1229,7 +1237,8 @@
     },
     "file_position": 5,
     "source_id": "l_65"
-   }
+   },
+   "version": 1
   },
   {
    "id": "seg-0012",
@@ -1303,7 +1312,8 @@
     },
     "file_position": 3,
     "source_id": "l_57"
-   }
+   },
+   "version": 1
   },
   {
    "id": "seg-0013",
@@ -1377,7 +1387,8 @@
     },
     "file_position": 8,
     "source_id": "l_77"
-   }
+   },
+   "version": 1
   },
   {
    "id": "seg-0014",
@@ -1451,7 +1462,8 @@
     },
     "file_position": 15,
     "source_id": "l_56"
-   }
+   },
+   "version": 1
   },
   {
    "id": "seg-0015",
@@ -1516,7 +1528,8 @@
     },
     "file_position": 0,
     "source_id": "r_24"
-   }
+   },
+   "version": 1
   },
   {
    "id": "seg-0016",
@@ -1597,7 +1610,8 @@
     },
     "file_position": 9,
     "source_id": "eSc_textblock_6cdad480"
-   }
+   },
+   "version": 1
   },
   {
    "id": "seg-0017",
@@ -1662,7 +1676,8 @@
     },
     "file_position": 2,
     "source_id": "r"
-   }
+   },
+   "version": 1
   },
   {
    "id": "seg-0018",
@@ -1727,7 +1742,8 @@
     },
     "file_position": 14,
     "source_id": "r_57"
-   }
+   },
+   "version": 1
   }
  ]
 }

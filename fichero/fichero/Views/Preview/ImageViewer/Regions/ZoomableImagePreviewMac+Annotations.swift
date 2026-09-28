@@ -149,6 +149,15 @@ extension ZoomableImagePreview {
         }
     }
 
+    /// The picked boxes as segments (id and box), for the marks made on them to name (Q6). Empty for
+    /// a selection that is not the shown geometry's -- the Reader's linked words carry no segment.
+    func selectedMarkSegments(documentId: String) -> [(id: String, rect: [Double])] {
+        guard let segmentService else { return [] }
+        return MarkTargets.selectedSegments(
+            selection: regionSelection, documentId: documentId, store: SegmentStore.shared(for: segmentService)
+        )
+    }
+
     /// The selection as one strip per LINE — the shape a highlight or a check
     /// takes over picked words. Same word-snap grammar `promoteSelectedWords`
     /// uses, so a multi-line pick yields per-line bands rather than one
@@ -190,11 +199,13 @@ extension ZoomableImagePreview {
         let color: String? = kind == .highlight ? style?.persistedColor : nil
         let tags = windowState?.takePendingMarkupTags() ?? []
         let drawnOn = displayedRenditionId
+        let selected = selectedMarkSegments(documentId: documentId)
         Task {
             for strip in strips {
                 _ = await annotationStore.addNote(
                     scope: .document(documentId), text: "", bbox: strip,
-                    renditionId: drawnOn, kind: kind, color: color, tags: tags
+                    renditionId: drawnOn, kind: kind, color: color, tags: tags,
+                    targets: MarkTargets.segmentIds(in: strip, selected: selected)
                 )
             }
         }
@@ -212,6 +223,7 @@ extension ZoomableImagePreview {
         guard !strips.isEmpty else { return false }
         let tags = windowState?.takePendingMarkupTags() ?? []
         let drawnOn = displayedRenditionId
+        let selected = selectedMarkSegments(documentId: documentId)
         Task {
             for bbox in strips {
                 let existing = annotationStore.annotations.first { annotation in
@@ -226,13 +238,15 @@ extension ZoomableImagePreview {
                     guard let next else { continue }  // ✓✓✓ → clear
                     _ = await annotationStore.addNote(
                         scope: .document(documentId), text: "",
-                        bbox: bbox, renditionId: drawnOn, kind: .rating, rating: next
+                        bbox: bbox, renditionId: drawnOn, kind: .rating, rating: next,
+                        targets: MarkTargets.segmentIds(in: bbox, selected: selected)
                     )
                 } else {
                     _ = await annotationStore.addNote(
                         scope: .document(documentId), text: "",
                         bbox: bbox, renditionId: drawnOn, kind: .rating,
-                        rating: AnnotationCheckCycle.next(nil) ?? 1, tags: tags
+                        rating: AnnotationCheckCycle.next(nil) ?? 1, tags: tags,
+                        targets: MarkTargets.segmentIds(in: bbox, selected: selected)
                     )
                 }
             }
