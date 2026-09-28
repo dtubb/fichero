@@ -375,6 +375,13 @@ PARTIAL: no screen offers the choice.
   ten times the honest RMS (`fichero-server/tests/unit/api/test_the_transform_is_worked_out_from_the_gcps.py::test_affine_misses_by_a_little_and_a_gcp_typed_wrong_misses_by_most`);
   a thin-plate spline is exact at its GCPs, by construction (`::test_the_files_thin_plate_spline_is_exact_at_its_gcps`).
   PARTIAL: no screen shows them.
+  **What a residual can and cannot say (2026-09-28, found twice on the real Paris plan):** with as
+  few GCPs as a transformation's parameters allow for, least squares spreads one bad point's error
+  across the others. Under affine with Paris's four points, a GCP typed 1 deg off got the SMALLEST
+  residual (archive, 76ba75156's finding), and a GCP 0.01 deg off was the worst for only one of the
+  four choices (eec2c16ac); leaving one out in turn did not find it either. Under helmert the moved
+  point was the worst for all four. So a high RMS says the SET is wrong; which point is wrong needs
+  redundancy (more GCPs than parameters), and the answer must not be read as naming it before then.
 - `source.geo.machine-gcps-unchosen` — **[PARTIAL]** (#4933) GCPs a machine proposes arrive in a
   machine pass and are labelled unchosen until a person chooses them.
   **Built 2026-09-28 (#5122, maps C1):** the transform and every world shape say whose pass it is,
