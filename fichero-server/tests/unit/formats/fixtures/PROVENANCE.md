@@ -185,3 +185,11 @@ coordinates, not the pixels. Unmodified; the git blob hashes below are upstream'
 
 **Still wanted:** a Georeference Annotation from a second producer (Mapwarper, QGIS), so one
 producer's reading of the format is not the only one tested.
+
+**A Tesseract box file** (#5174, read-only format `tesseract-box`). Not in `corpus/`: that directory
+holds files our writer must export back out, and this format is read only. Copied unmodified from
+`~/Fichero Test Corpus/Cree - handwritten syllabics (Tesseract box files, no XML)/`.
+
+| File | Source | Licence | sha256 | What it exercises |
+|---|---|---|---|---|
+| `zenodo_cree_syllabics_02ad26d9.box` | Handwritten Cree Syllabics, `https://doi.org/10.5281/zenodo.6915296` (`02ad26d9dee18fabb436e3042b23d94a.box`) | **CC-BY-4.0** — Zenodo record 6915296, licence field | `1bd01aa38537` | One page of Canadian Aboriginal Syllabics as 327 character boxes, `glyph left bottom right top page`, pixels from the BOTTOM-left, page 0 throughout. Its image (not vendored, 1.1 MB) is a 1560 x 2067 grayscale PNG, read from the PNG header; the tests give the page that size, as ingest records it. |

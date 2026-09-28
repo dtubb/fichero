@@ -232,6 +232,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/formats/harness.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/hocr.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/iiif_georef.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/pagexml.py
+$(SRCROOT)/../fichero-server/src/fichero_server/formats/plain_text.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/qgis_points.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/PROVENANCE.md
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/alto-4-2.xsd
@@ -246,6 +247,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/tei_all_xml.xsd
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/xlink.xsd
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/xml.xsd
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/tei.py
+$(SRCROOT)/../fichero-server/src/fichero_server/formats/tesseract_box.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/validation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/yolo.py
 $(SRCROOT)/../fichero-server/src/fichero_server/histdate.py
