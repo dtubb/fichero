@@ -607,8 +607,13 @@ def resolve_language(
     policy: LanguagePolicy | None = None,
     detect: bool = True,
     script: str | None = None,
+    guess_english: bool = True,
 ) -> LanguageResolution:
     """Resolve the language to use for one document, or one segment of one.
+
+    `guess_english=False` (#5231): what a person is SHOWN (the Inspector) never falls back to
+    English; with nothing stated and no text it says "not determined". The default keeps the
+    legacy fallback for the tools that must pick a language to run at all.
 
     `script` (#5176): the script the text's letters are in, when the caller knows it. Where the
     legacy path would fall back to English, a text whose script is known is answered "not
@@ -738,6 +743,13 @@ def resolve_language(
                 status=UNKNOWN,
                 source=NEVER_DETERMINED,
                 basis=f"not determined: nothing states a language and none was detected; its letters are {script}",
+            )
+        if not guess_english:
+            return LanguageResolution(
+                language=None,
+                status=UNKNOWN,
+                source=NEVER_DETERMINED,
+                basis="not determined: nothing states a language, and there is no text to tell from",
             )
         return LanguageResolution(
             language="English",

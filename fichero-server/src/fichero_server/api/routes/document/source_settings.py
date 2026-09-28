@@ -419,6 +419,7 @@ async def resolve_source_settings(
     language = resolve_language(
         document=document, segment=segment, detect=False,
         script=script.language if script.source == SOURCE_DETECTED else None,
+        guess_english=False,
     )
     from fichero_server.api.routes.document.segment_readings import _lines_are_vertical, direction_rungs
 

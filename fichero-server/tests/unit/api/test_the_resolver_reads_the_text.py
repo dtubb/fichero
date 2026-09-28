@@ -71,3 +71,14 @@ def test_a_stated_script_still_wins_over_the_letters(db, client):
     line = _view(client, doc_id)[0]["pages"][0]["lines"][1]["segment_id"]
     got = _resolve(client, line)
     assert got["script"]["value"] == "Syre" and got["script"]["source"] != "detected"
+
+
+def test_a_line_with_no_text_and_nothing_stated_is_not_determined_never_english():
+    """#5231: a hand-drawn line with no reading showed "Language: English · a fallback". What the
+    Inspector shows never guesses English; the legacy fallback stays only for tools that must run."""
+    from fichero_server.llm.language_policy import resolve_language
+
+    shown = resolve_language(detect=False, guess_english=False)
+    assert shown.language is None and shown.status == "unknown", shown
+    assert "English" not in str(shown), shown
+    assert resolve_language(detect=False).language == "English"  # the tools' legacy default, unchanged
