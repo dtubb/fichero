@@ -76,6 +76,29 @@ struct InspectorPath: Equatable {
         )
     }
 
+    /// The INVERSE (#5155, one selection across the three surfaces): make `segmentIds` the Source
+    /// view's selection on this page -- a row picked in the Order list, the Reader's caret line.
+    /// Written in the shown pass's scope and box indices, so the boxes light and the Inspector (which
+    /// reads the same selection back through `selectedSegmentIds`) inspects them. Ids of another pass
+    /// than the one shown are left out: they are not on screen to be selected. Answers the ids selected.
+    @MainActor
+    @discardableResult
+    static func select(
+        segmentIds: [String], into selection: RegionSelection, documentId: String, store: SegmentStore
+    ) -> [String] {
+        guard let shown = SegmentDisplay.selected(for: documentId, store: store),
+              let scope = SegmentDisplay.selectionScope(artifactId: shown.artifactId, passId: shown.passId)
+        else { return [] }
+        let byId = Dictionary(
+            store.segments(documentId: documentId).filter { $0.passId == shown.passId }.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let picked = segmentIds.compactMap { id in byId[id].flatMap { seg in seg.boxIndex.map { (id, $0) } } }
+        guard !picked.isEmpty else { return [] }
+        selection.selectAll(picked.map(\.1), artifactId: scope, documentId: documentId, in: shown.geometry.boxes)
+        return picked.map(\.0)
+    }
+
     /// The Source view's selection -- indices into the boxes of the pass its scope names (the pass's
     /// artifact, or the pass itself when it has none: `SegmentDisplay.selectionScope`) -- as segment
     /// ids, in the order picked. A box index is the segment's `boxIndex` in that pass

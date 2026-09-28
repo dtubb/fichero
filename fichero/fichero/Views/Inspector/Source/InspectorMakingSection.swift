@@ -6,6 +6,8 @@ struct InspectorMakingSection: View {
     let documentId: String
 
     @Environment(SegmentService.self) private var segmentService: SegmentService?
+    @Environment(ActionStore.self) private var actionStore: ActionStore?
+    @Environment(\.undoManager) private var undoManager
     @State private var shown: PassOriginal?
     @State private var failure: String?
 
@@ -26,6 +28,14 @@ struct InspectorMakingSection: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(entry.title).font(.body).textSelection(.enabled)
                         Text(entry.detail).font(.caption).foregroundStyle(.secondary)
+                        if let note = entry.workingNote {
+                            Text(note).font(.caption.weight(.semibold))
+                        } else {
+                            Button("Make Working") { Task { await makeWorking(entry.passId) } }
+                                .buttonStyle(.borderless)
+                                .font(.caption)
+                                .help("Make this the pass the page's text and edits come from, and the one drawn")
+                        }
                         if entry.hasOriginal {
                             Button("Show Original") { Task { await show(entry.passId) } }
                                 .buttonStyle(.borderless)
@@ -41,6 +51,20 @@ struct InspectorMakingSection: View {
             .sheet(item: $shown) { original in
                 PassOriginalSheet(original: original)
             }
+        }
+    }
+
+    /// "Make Working" (#5156): the audited `pass.choose_working`, with ⌘Z.
+    private func makeWorking(_ passId: String) async {
+        guard let segmentService, let actionsService = actionStore?.actionsService else { return }
+        do {
+            try await WorkingPassChoice.run(
+                documentId: documentId, passId: passId, actionsService: actionsService,
+                store: SegmentStore.shared(for: segmentService), undoManager: undoManager
+            )
+            failure = nil
+        } catch {
+            failure = "The working pass could not be changed: \(error.localizedDescription)"
         }
     }
 

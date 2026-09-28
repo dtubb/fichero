@@ -767,6 +767,11 @@ class PassChooseWorkingParams(BaseModel):
             {"document_id": after["document_id"], "pass_id": before["pass_id"]},
         )
         if after and before and before.get("pass_id")
+        # The FIRST choice on a page had no earlier one to go back to, and its undo used to fail
+        # ("Action did not yield an inverse to apply") -- so ⌘Z on a person's first choice did
+        # nothing (#5156). Its inverse is to retire the choice: the page goes back to its rule.
+        else ("pass.clear_working", {"document_id": after["document_id"], "choice_id": after["choice_id"]})
+        if after
         else None
     ),
 )
@@ -820,6 +825,53 @@ def choose_working_pass(
         emit_type="pass.working_chosen",
         document_ids=[params.document_id],
         pass_ids=[params.pass_id],
+    )
+
+
+class PassClearWorkingParams(BaseModel):
+    """`pass.clear_working` -- retire a person's choice of working pass; the rule decides again."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: str
+    choice_id: str
+
+
+@action(
+    "pass.clear_working",
+    PassClearWorkingParams,
+    domains=["segment"],
+    undoable=True,
+    invert=lambda before, after, ctx: (
+        ("pass.choose_working", {"document_id": after["document_id"], "pass_id": before["pass_id"]})
+        if after and before and before.get("pass_id")
+        else None
+    ),
+)
+def clear_working_pass(
+    db: Database,
+    params: PassClearWorkingParams,
+    ctx: ActionContext,
+) -> tuple[dict, ChangeSpec]:
+    """Retire one choice of working pass (#5156): the undo of a page's FIRST choice, which has no
+    earlier choice to restore. The row is stamped superseded, never deleted; the page's working pass is
+    then whatever the project's rule picks."""
+    _assert_a_person(ctx, "a working pass")
+    choice = db.get(SegmentPassChoice, params.choice_id)
+    if choice is None or choice.document_id != params.document_id:
+        raise LookupError(f"Working-pass choice not found on document {params.document_id}: {params.choice_id}")
+    if choice.superseded_at is None:
+        _supersede_choices(db, [choice], utc_now())
+    before = {"choice_id": choice.id, "pass_id": choice.pass_id}
+    after = {"document_id": params.document_id, "cleared_choice_id": choice.id}
+    return after, ChangeSpec(
+        domains=["segment"],
+        target_ids=[choice.id],
+        before=before,
+        after=after,
+        emit_type="pass.working_chosen",
+        document_ids=[params.document_id],
+        pass_ids=[choice.pass_id],
     )
 
 

@@ -239,6 +239,12 @@ class PassRead(BaseModel):
     has_original: bool = False
     #: A georeferencing pass's transformation type (#5122); None for any other pass.
     transformation: str | None = None
+    #: Whether this is the page's WORKING pass -- the one its text and edits come from -- and why
+    #: (#5156; `PassBasis`: "chosen" when a person chose it, else the rule that picked it). The app
+    #: shows it, draws a CHOSEN working pass first, and offers the choice. Only the working pass has a
+    #: basis.
+    working: bool = False
+    working_basis: str | None = None
 
 
 class SegmentListResponse(BaseModel):

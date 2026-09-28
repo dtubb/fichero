@@ -28,7 +28,19 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             guard request.url?.host == "127.0.0.1", let path = request.url?.path else { return false }
             return path.hasPrefix("/api/segments/document/") || path == "/api/annotations"
                 || path.hasPrefix("/api/actions/") || path.hasPrefix("/api/segments/passes/")
+                || (path.hasPrefix("/api/segments/") && path.hasSuffix("/readings"))
+                || path == "/api/source-settings/resolve" || path.hasPrefix("/api/hands")
         }
+
+        /// What `GET /api/hands` and `GET /api/hands/segment/{id}` answer (set by the test that asks).
+        nonisolated(unsafe) static var handsReply = Data()
+        nonisolated(unsafe) static var attributionsReply = Data()
+
+        /// What `GET /api/source-settings/resolve` answers (set by the test that asks).
+        nonisolated(unsafe) static var settingsReply = Data()
+
+        /// What `GET /api/segments/{id}/readings` answers (set by the test that asks).
+        nonisolated(unsafe) static var readingsReply = Data()
 
         /// What `GET /api/segments/passes/{id}/original` answers (set by the test that asks).
         nonisolated(unsafe) static var originalReply = Data()
@@ -45,7 +57,15 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             let isAnnotation = path == "/api/annotations"
             if isAnnotation { Self.annotationRequests.append(Self.bodyOf(request)) }
             var actionBody: Data?
-            if path.hasPrefix("/api/segments/passes/"), path.hasSuffix("/original") {
+            if path == "/api/hands" {
+                actionBody = Self.handsReply
+            } else if path.hasPrefix("/api/hands/segment/") {
+                actionBody = Self.attributionsReply
+            } else if path == "/api/source-settings/resolve" {
+                actionBody = Self.settingsReply
+            } else if path.hasPrefix("/api/segments/"), path.hasSuffix("/readings") {
+                actionBody = Self.readingsReply
+            } else if path.hasPrefix("/api/segments/passes/"), path.hasSuffix("/original") {
                 actionBody = Self.originalReply
             } else if path == "/api/actions/invoke" {
                 Self.invoked.append(Self.bodyOf(request))
@@ -246,6 +266,234 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         )
         XCTAssertEqual(original.bytes, fileBytes, "Show Original is the file byte for byte")
         XCTAssertEqual(original.text, String(data: fileBytes, encoding: .utf8), "shown as the file's own text")
+    }
+
+    /// #5153 end to end: on the imported Syriac page's first line -- the file's reading and a
+    /// person's correction, neither counting (the engine's recorded answer) -- the Text section reads
+    /// both through `SegmentService.readings`, says nothing counts, and "Make This Count" on the
+    /// correction sends `reading.choose` with its id; ⌘Z undoes that choice by its own audit id.
+    func testChoosingTheCorrectionOnAnImportedLineSendsReadingChooseAndUndoes() async throws {
+        _ = try await loadedStore()
+        RecordedEngine.readingsReply = try Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-line-readings.json")
+        )
+        let service = SegmentService(ficheroClient: try XCTUnwrap(storeClient))
+        let text = try await XCTUnwrap(service.readings(segmentId: "seg-0003"))
+        XCTAssertEqual(text.readings.map(\.id), ["rep-0001", "rep-0002"])
+        XCTAssertEqual(text.counting["transcription"]?.why, .noneCounts)
+        XCTAssertEqual(text.readings[1].correctsId, "rep-0001", "the correction says what it corrects")
+
+        let params = try XCTUnwrap(ReadingChoice.choose(text.readings[1], of: "seg-0003", in: text))
+        RecordedEngine.invoked = []
+        RecordedEngine.undone = []
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        let auditId = try await ReadingChoice.run(
+            params, actionsService: ActionsService(client: try XCTUnwrap(storeClient)), undoManager: manager,
+            afterChange: {}
+        )
+        manager.endUndoGrouping()
+
+        XCTAssertEqual(auditId, "audit-1")
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        XCTAssertEqual(sent["name"] as? String, "reading.choose")
+        XCTAssertEqual(sent["params"] as? [String: String],
+                       ["segment_id": "seg-0003", "kind": "transcription", "representation_id": "rep-0002"])
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
+    }
+
+    /// #5155 end to end: one selection across the surfaces. On the recorded imported Syriac page, a
+    /// line named by the Reader's caret (the page's `lineFocused` message) or picked in the Order list
+    /// becomes the Source view's selection -- its box lights -- and the Inspector's own resolution
+    /// reads back exactly that line; an id not on the shown pass selects nothing.
+    func testALineNamedByTheReaderIsTheSourceViewsSelectionAndTheInspectors() async throws {
+        let store = try await loadedStore()
+        let shown = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
+        let line = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.kind == "line" })
+        let focus = try XCTUnwrap(ReaderLineSelection.focus(from: ["pageId": "doc-0001", "segmentId": line.id]))
+
+        let selection = RegionSelection()
+        let selected = InspectorPath.select(
+            segmentIds: [focus.segmentId], into: selection, documentId: focus.pageId, store: store
+        )
+        XCTAssertEqual(selected, [line.id])
+        XCTAssertEqual(selection.resolvedIndices(in: shown.geometry.boxes), [try XCTUnwrap(line.boxIndex)], "its box lights")
+        XCTAssertEqual(
+            InspectorPath.selectedSegmentIds(selection: selection, documentId: "doc-0001", store: store), [line.id],
+            "the Inspector inspects the same line"
+        )
+
+        let nothing = RegionSelection()
+        XCTAssertTrue(InspectorPath.select(segmentIds: ["not-on-this-page"], into: nothing, documentId: "doc-0001", store: store).isEmpty)
+        XCTAssertTrue(nothing.isEmpty)
+    }
+
+    /// #5156 end to end: the imported page's Making entry says its pass is the working one and why
+    /// (the engine's recorded answer), and "Make Working" sends `pass.choose_working` through the
+    /// calls the Making section makes (`WorkingPassChoice.run`), re-reading the page; ⌘Z undoes that
+    /// audit row. (The recorded page has one pass, so the verb is driven for it directly: the UI
+    /// offers it only on a pass that is not working.)
+    func testMakeWorkingSendsPassChooseWorkingAndUndoes() async throws {
+        let store = try await loadedStore()
+        let entry = try XCTUnwrap(InspectorMaking.entries(
+            passes: store.passes(documentId: "doc-0001"), segments: store.segments(documentId: "doc-0001")
+        ).first)
+        XCTAssertTrue(entry.working)
+        XCTAssertEqual(entry.workingNote, "Working · by the project's rule")
+
+        RecordedEngine.invoked = []
+        RecordedEngine.undone = []
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        let auditId = try await WorkingPassChoice.run(
+            documentId: "doc-0001", passId: entry.passId,
+            actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store, undoManager: manager
+        )
+        manager.endUndoGrouping()
+        XCTAssertEqual(auditId, "audit-1")
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        XCTAssertEqual(sent["name"] as? String, "pass.choose_working")
+        XCTAssertEqual(sent["params"] as? [String: String], ["document_id": "doc-0001", "pass_id": entry.passId])
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
+    }
+
+    /// #5157 end to end: on the recorded imported Syriac page, two lines picked the way the canvas
+    /// picks them are set right-to-left through the Segment menu's call (`SegmentEdit.set` ->
+    /// `SegmentEditRunner.run`): the engine is asked for ONE segment.update_many carrying both lines,
+    /// each with the version the list said; ⌘Z undoes that one audit row.
+    func testTheSegmentMenuSetsDirectionOnTwoImportedLinesInOneUndoableCall() async throws {
+        let store = try await loadedStore()
+        let shown = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
+        let scope = try XCTUnwrap(SegmentDisplay.selectionScope(artifactId: shown.artifactId, passId: shown.passId))
+        let lines = Array(shown.geometry.boxes.indices.filter { shown.geometry.boxes[$0].level == "line" }.prefix(2))
+        let selection = RegionSelection()
+        selection.selectAll(lines, artifactId: scope, documentId: "doc-0001", in: shown.geometry.boxes)
+        let ids = InspectorPath.selectedSegmentIds(selection: selection, documentId: "doc-0001", store: store)
+        let picked = ids.compactMap { id in store.segments(documentId: "doc-0001").first { $0.id == id } }
+
+        RecordedEngine.invoked = []
+        RecordedEngine.undone = []
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        let runner = SegmentEditRunner(actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store)
+        _ = try await runner.run(
+            try SegmentEdit.set(.direction("rtl"), on: picked).get(), documentId: "doc-0001",
+            actionName: "Set Segment", undoManager: manager
+        )
+        manager.endUndoGrouping()
+
+        XCTAssertEqual(RecordedEngine.invoked.count, 1, "one call for the whole selection")
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        XCTAssertEqual(sent["name"] as? String, "segment.update_many")
+        let updates = try XCTUnwrap((sent["params"] as? [String: Any])?["updates"] as? [[String: Any]])
+        XCTAssertEqual(updates.compactMap { $0["segment_id"] as? String }, ids)
+        XCTAssertTrue(updates.allSatisfy { $0["direction"] as? String == "rtl" && $0["expected_version"] as? Int == 1 })
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
+    }
+
+    /// #5158 end to end: the imported Syriac page's first line, through `SegmentService.resolvedSettings`
+    /// over the engine's recorded answer. What the section shows is exactly what the engine says --
+    /// including that "English" is only a FALLBACK and the script is not determined (#5176: the engine
+    /// does not yet read the line's own Syriac text). A fallback is never shown as a fact.
+    func testTheLanguageSectionShowsTheEnginesAnswerAndWhereEachFactCameFrom() async throws {
+        _ = try await loadedStore()
+        RecordedEngine.settingsReply = try Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-line-settings.json")
+        )
+        let settings = try await SegmentService(ficheroClient: try XCTUnwrap(storeClient))
+            .resolvedSettings(segmentId: "seg-0003")
+        let rows = Dictionary(uniqueKeysWithValues: InspectorLanguage.rows(settings).map { ($0.key, $0) })
+        XCTAssertEqual(rows["language"]?.value, "English")
+        XCTAssertEqual(rows["language"]?.origin, "a fallback")
+        XCTAssertEqual(rows["script"]?.value, "Not determined")
+        XCTAssertEqual(rows["direction"]?.value, "Left to Right")
+        XCTAssertEqual(rows["direction"]?.origin, "from the script")
+        XCTAssertEqual(rows["encoding"]?.value, "Not determined")
+    }
+
+    /// #5161 end to end: the imported Syriac page's first line, attributed to hand B by a person (the
+    /// engine's recorded answers for GET /api/hands and /api/hands/segment/{id}), read through
+    /// `HandService`: the ink and the record on separate lines; "Withdraw" sends hand.unattribute for
+    /// that attribution through `AuditedAction.run`, and ⌘Z undoes it.
+    func testTheHandsSectionShowsTheAttributionAndWithdrawsItUndoably() async throws {
+        _ = try await loadedStore()
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-line-hands.json")
+        )) as? [String: Any])
+        RecordedEngine.handsReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["hands"]))
+        RecordedEngine.attributionsReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["attributions"]))
+        let service = HandService(client: try XCTUnwrap(storeClient))
+        let rows = InspectorHands.rows(
+            try await service.attributions(segmentId: "seg-0003"), hands: try await service.hands()
+        )
+        XCTAssertEqual(rows.map(\.ink), ["hand B (Estrangela)"])
+        XCTAssertEqual(rows.map(\.record), ["judged by owner · sure 80%"])
+
+        RecordedEngine.invoked = []
+        RecordedEngine.undone = []
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        let result = try await AuditedAction.run(
+            "hand.unattribute", params: HandUnattributeParams(attributionId: rows[0].attributionId),
+            actionName: "Withdraw Attribution", actionsService: ActionsService(client: try XCTUnwrap(storeClient)),
+            undoManager: manager
+        )
+        manager.endUndoGrouping()
+        XCTAssertEqual(result.auditId, "audit-1")
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        XCTAssertEqual(sent["name"] as? String, "hand.unattribute")
+        XCTAssertEqual(sent["params"] as? [String: String], ["attribution_id": "attr-0001"])
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
+    }
+
+    /// #5154 end to end, the app's half: on the recorded imported Syriac page, the page's `lineSplit`
+    /// for the first line becomes ONE segment.split -- the line's version, two parts, the reading cut
+    /// at the caret -- and `lineJoin` for its neighbour ONE segment.merge keeping the line before, both
+    /// through the calls the Reader's coordinator makes (`ReaderTextEdit` -> `AuditedAction` /
+    /// `SegmentEditRunner`). (Engine half: test_reader_typing_requests.py sends these shapes.)
+    func testTheReadersSplitAndJoinMessagesBecomeSegmentSplitAndMerge() async throws {
+        let store = try await loadedStore()
+        let lines = store.segments(documentId: "doc-0001").filter { $0.kind == "line" }
+            .sorted { ($0.boxIndex ?? 0) < ($1.boxIndex ?? 0) }
+        let first = try XCTUnwrap(lines.first)
+        let second = try XCTUnwrap(lines.dropFirst().first)
+        let actions = ActionsService(client: try XCTUnwrap(storeClient))
+        RecordedEngine.invoked = []
+
+        let split = try XCTUnwrap(ReaderTextEdit.message(from: [
+            "kind": "lineSplit", "pageId": "doc-0001", "segmentId": first.id, "offset": 3, "text": "ܐܒܓܕܗܘ"
+        ]))
+        try await AuditedAction.run(
+            "segment.split", params: try ReaderTextEdit.split(split, of: first).get(), actionName: "Split Line",
+            actionsService: actions, undoManager: nil
+        )
+        let join = try XCTUnwrap(ReaderTextEdit.message(from: [
+            "kind": "lineJoin", "pageId": "doc-0001", "segmentId": second.id, "previousSegmentId": first.id
+        ]))
+        try await SegmentEditRunner(actionsService: actions, store: store)
+            .run(try ReaderTextEdit.join(join, segments: lines).get(), documentId: "doc-0001", actionName: "Join Lines", undoManager: nil)
+
+        let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
+        XCTAssertEqual(sent.compactMap { $0["name"] as? String }, ["segment.split", "segment.merge"])
+        let splitParams = try XCTUnwrap(sent[0]["params"] as? [String: Any])
+        XCTAssertEqual(splitParams["segment_id"] as? String, first.id)
+        XCTAssertEqual(splitParams["expected_version"] as? Int, 1)
+        XCTAssertEqual((splitParams["parts"] as? [[String: Any]])?.compactMap { $0["reading_span"] as? [Int] }, [[0, 3], [3, 6]])
+        let mergeParams = try XCTUnwrap(sent[1]["params"] as? [String: Any])
+        XCTAssertEqual(mergeParams["segment_ids"] as? [String], [first.id, second.id])
+        XCTAssertEqual(mergeParams["keep_id"] as? String, first.id)
     }
 
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {

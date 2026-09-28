@@ -300,7 +300,9 @@ workspaces keep the image on. Built as `PaneConfig` layer values on those two Pr
 (`previewImage`, and the overlay layer), pinned by a `PaneListTests` test of all three panes.
 
 **Which pass the image draws (#5146, applied 2026-09-27 from the programme's rules).** When a page
-has several passes, the Source view draws the first that has boxes in this order: **hand-curated**
+has several passes, the Source view draws the first that has boxes in this order: **the pass a person
+CHOSE as the page's working pass** (#5156; their explicit choice outranks the ladder, as the
+inspector's focused artifact does) → **hand-curated**
 (a person's pass, or any pass holding a box a person drew; the 2026-09-03 rule) → **imported from a
 file** (a PAGE, ALTO or folder import) → **machine** → **legacy artifact geometry** (boxes still read
 from an artifact, ranked among themselves by the 2026-08-25 type tiers). Newest first inside each.

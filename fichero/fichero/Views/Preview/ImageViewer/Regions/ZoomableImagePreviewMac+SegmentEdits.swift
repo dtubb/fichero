@@ -43,6 +43,15 @@ extension ZoomableImagePreview {
         return true
     }
 
+    /// The Segment menu on the selection (#5157), on any page whose boxes are segments: one audited
+    /// `segment.update_many`, ⌘Z.
+    func setSelectedSegments(_ attribute: SegmentEdit.Attribute) {
+        guard let documentId else { return }
+        runSegmentEdit(
+            SegmentEdit.set(attribute, on: selectedSegments(documentId)), documentId: documentId, name: "Set Segment"
+        )
+    }
+
     /// The selection as segments, in the order picked, through the Inspector's one resolution.
     private func selectedSegments(_ documentId: String) -> [Segment] {
         guard let store = segmentEditStore else { return [] }

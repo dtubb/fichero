@@ -11,6 +11,9 @@ enum InspectorMaking {
         /// "PAGE XML · 12 lines, 4 regions".
         let detail: String
         let hasOriginal: Bool
+        /// The page's working pass -- the one its text and edits come from -- and why (#5156).
+        var working = false
+        var workingNote: String?
         var id: String { passId }
     }
 
@@ -26,9 +29,19 @@ enum InspectorMaking {
                 parts.append(counts(byPass[pass.id] ?? []))
                 return Entry(
                     passId: pass.id, title: title, detail: parts.joined(separator: " · "),
-                    hasOriginal: pass.hasOriginal
+                    hasOriginal: pass.hasOriginal, working: pass.working,
+                    workingNote: pass.working ? workingNote(pass.workingBasis) : nil
                 )
             }
+    }
+
+    /// Why the working pass is the working one, in words.
+    static func workingNote(_ basis: String?) -> String {
+        switch basis {
+        case "chosen": "Working · chosen by a person"
+        case nil: "Working"
+        default: "Working · by the project's rule"
+        }
     }
 
     /// The format as people write it.

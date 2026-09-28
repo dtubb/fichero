@@ -748,8 +748,30 @@ async def list_document_segments(
 
     passes = [pass_read for pass_read, _ in by_pass]
     segments = [segment for _, pass_segments in by_pass for segment in pass_segments]
+    _mark_working_pass(db, doc_id, passes)
 
     return SegmentListResponse(document_id=doc_id, passes=passes, segments=segments)
+
+
+def _mark_working_pass(db: Database, doc_id: str, passes: list[PassRead]) -> None:
+    """Say which pass is the page's working pass, and why (#5156) -- the same answer `document_text`
+    uses (`resolve_working_pass`), worked out once per page, never per row."""
+    from fichero_server.api.routes.document.segment_readings import (
+        SegmentPassChoice,
+        _pass_candidates,
+        project_record_rule,
+        resolve_working_pass,
+    )
+
+    answer = resolve_working_pass(
+        project_record_rule(db),
+        list(db.query(SegmentPassChoice, document_id=doc_id)),
+        _pass_candidates(db, doc_id),
+    )
+    for pass_read in passes:
+        if pass_read.id == answer.pass_id:
+            pass_read.working = True
+            pass_read.working_basis = answer.basis.value
 
 
 # ---------------------------------------------------------------------------

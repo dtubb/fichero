@@ -1206,6 +1206,10 @@ class Database(DatabaseEmbeddingMixin):
         from fichero_server.models.typed_links import LibraryLinkType, TypedLink
         from fichero_server.models.reading_orders import ReadingOrder, ReadingOrderEntry
         from fichero_server.models.source_declarations import LibraryScript
+        from fichero_server.models.editorial import EditorialFact
+        from fichero_server.models.hands import Hand, HandAttribution
+        from fichero_server.models.rights import RightsRecord
+        from fichero_server.models.signs import DeclaredSign
         from fichero_server.models import (
             ActionAudit,
             AgentNote,
@@ -1314,6 +1318,14 @@ class Database(DatabaseEmbeddingMixin):
             # on another table's column. It sits with the other Library*
             # vocabulary tables so a reader finds them together.
             LibraryScript,
+            # Slice 14 (#4935, #4953) and slice 9's signs (#4939): source-model records that were
+            # created on first save and so missed the open-time schema (found sweeping after the
+            # lead's review of PageLineMap). Declared, so a library gains them when it opens.
+            DeclaredSign,
+            EditorialFact,
+            Hand,
+            HandAttribution,
+            RightsRecord,
             # Source-model slice 10 (#4930): named reading orders. Registered so
             # the tables arrive at open like every other one; nothing at open
             # reads them, so the position here is not load-bearing.

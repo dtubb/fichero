@@ -1,0 +1,34 @@
+{
+ "hands": {
+  "items": [
+   {
+    "id": "hand-0001",
+    "label": "hand B",
+    "scribe": null,
+    "date": null,
+    "place": null,
+    "style": "Estrangela",
+    "notes": null,
+    "provenance_kind": "human",
+    "created_by": "owner",
+    "created_at": "2026-09-27T12:00:00Z",
+    "deleted_at": null
+   }
+  ]
+ },
+ "attributions": {
+  "items": [
+   {
+    "id": "attr-0001",
+    "hand_id": "hand-0001",
+    "segment_id": "seg-0003",
+    "certainty": 0.8,
+    "provenance_kind": "human",
+    "created_by": "owner",
+    "source": null,
+    "created_at": "2026-09-27T12:00:00Z",
+    "withdrawn_at": null
+   }
+  ]
+ }
+}
