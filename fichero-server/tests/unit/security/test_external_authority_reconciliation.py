@@ -115,9 +115,10 @@ async def test_authority_link_is_persisted_and_refresh_failure_is_loud(tmp_path,
             curation.AuthorityLinkRequest(entity_id=entity.id, authority="wikidata", authority_id="Q1"), db
         )
         assert audit.operation_type.value == "authority_link"
-        assert db.get(KnowledgeEntity, entity.id).metadata["authority_links"] == [
-            {"authority": "wikidata", "authority_id": "Q1"}
-        ]
+        # Maps D3 (#5123): the link is a `same_as` typed link to the canonical URI, read from there.
+        from fichero_server.knowledge.authorities import authority_links_of
+
+        assert authority_links_of(db, entity.id) == [{"authority": "wikidata", "authority_id": "Q1", "uri": "http://www.wikidata.org/entity/Q1"}]
 
         async def failing_fetch(*_args):
             raise HTTPException(status_code=502, detail="Wikidata refresh failed: timeout")

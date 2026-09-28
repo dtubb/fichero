@@ -87,3 +87,112 @@ def authority_of_uri(uri: str) -> tuple[str, str] | None:
         if back:
             return found.key, back.group(1)
     return None
+
+
+# ---------------------------------------------------------------------------
+# A chosen authority link IS a typed `same_as` link to the canonical URI (maps D3,
+# `source.geo.gazetteer-typed-record`): maker, certainty, time and withdraw, several per entity.
+# The earlier dict in `entity.metadata["authority_links"]` is migrated into these on open and no
+# longer read -- one place answers "which authority is this entity the same as".
+# ---------------------------------------------------------------------------
+
+SAME_AS = "same_as"
+#: Where a library's malformed earlier entries are kept, named with why, after the migration.
+REFUSED_KEY = "authority_links_refused"
+
+
+def same_as_links(db, entity_id: str) -> list:
+    from fichero_server.models.typed_links import TypedLink
+
+    return [link for link in db.query(TypedLink, from_id=entity_id)
+            if link.link_type == SAME_AS and link.to_kind == "uri" and link.deleted_at is None]
+
+
+def authority_links_of(db, entity_id: str) -> list[dict[str, str]]:
+    """The entity's live authority links as {authority, authority_id, uri} -- read from typed links only."""
+    out = []
+    for link in same_as_links(db, entity_id):
+        found = authority_of_uri(link.to_id)
+        if found:
+            out.append({"authority": found[0], "authority_id": found[1], "uri": link.to_id})
+    return out
+
+
+def link_entity(db, entity_id: str, authority: str, identifier: str, *, provenance_kind, created_by,
+                certainty: float | None = None, note: str | None = None):
+    """The entity's `same_as` link to the authority's canonical URI; the live one when it exists already."""
+    from fichero_server.models.typed_links import TypedLink
+
+    uri = canonical_uri(authority, identifier)
+    existing = next((link for link in same_as_links(db, entity_id) if link.to_id == uri), None)
+    if existing is not None:
+        return existing
+    link = TypedLink(from_kind="entity", from_id=entity_id, to_kind="uri", to_id=uri, link_type=SAME_AS,
+                     directed=False, provenance_kind=provenance_kind, created_by=created_by,
+                     certainty=certainty, note=note)
+    db.save(link)
+    return link
+
+
+def migrate_authority_links(db, entity) -> list[dict[str, str]]:
+    """Turn one entity's earlier `metadata["authority_links"]` into `same_as` links. Idempotent.
+    Each entry's maker is who confirmed it (its `EntityMergeAudit` row) when recorded, else the
+    library's earlier state (`external_import`, note "earlier authority link"). An entry that fits
+    no pattern is REFUSED and kept, named with why, under `REFUSED_KEY` -- never dropped, never
+    guessed. Returns the refused entries."""
+    from fichero_server.models.knowledge import EntityMergeAudit, ProvenanceKind
+
+    entries = list((entity.metadata or {}).get("authority_links") or [])
+    if not entries:
+        return []
+    confirmed = {}
+    for audit in db.query(EntityMergeAudit, target_entity_id=entity.id):
+        link = (audit.alias_changes or {}).get("authority_link") if isinstance(audit.alias_changes, dict) else None
+        if isinstance(link, dict):
+            confirmed.setdefault((link.get("authority"), link.get("authority_id")), audit.created_by)
+    refused = []
+    for entry in entries:
+        authority, identifier = entry.get("authority"), str(entry.get("authority_id") or "")
+        try:
+            canonical_uri(authority, identifier)
+        except AuthorityIdRefused as reason:
+            refused.append({"authority": authority, "authority_id": identifier, "reason": str(reason)})
+            continue
+        maker = confirmed.get((authority, identifier))
+        link_entity(db, entity.id, authority, identifier,
+                    provenance_kind=ProvenanceKind.human if maker else ProvenanceKind.external_import,
+                    created_by=maker, note=None if maker else "earlier authority link")
+    metadata = dict(entity.metadata or {})
+    metadata.pop("authority_links", None)
+    if refused:
+        metadata[REFUSED_KEY] = [*metadata.get(REFUSED_KEY, []), *refused]
+    entity.metadata = metadata
+    db.save(entity)
+    return refused
+
+
+def segments_naming(db, uri: str) -> dict:
+    """Every live segment that NAMES a place the given authority URI identifies (maps D3,
+    `source.geo.gazetteer-query`): the entities `same_as` it, then the segments that `names` them.
+    Any accepted spelling of the URI is read as its canonical form. Nothing is fetched."""
+    from fichero_server.models import Segment
+    from fichero_server.models.typed_links import TypedLink
+
+    found = authority_of_uri(uri)
+    if found is None:
+        raise AuthorityIdRefused(f"{uri!r} is not the URI of an authority this library knows")
+    canonical = canonical_uri(*found)
+    entity_ids = sorted({link.from_id for link in db.query(TypedLink, to_id=canonical)
+                         if link.link_type == SAME_AS and link.from_kind == "entity" and link.deleted_at is None})
+    segments = []
+    for entity_id in entity_ids:
+        for link in db.query(TypedLink, to_id=entity_id):
+            if link.link_type != "names" or link.from_kind != "segment" or link.deleted_at is not None:
+                continue
+            segment = db.get(Segment, link.from_id)
+            if segment is None or segment.deleted_at is not None:
+                continue
+            segments.append({"segment_id": segment.id, "document_id": segment.document_id,
+                             "entity_id": entity_id, "certainty": link.certainty, "link_id": link.id})
+    return {"uri": canonical, "authority": found[0], "authority_id": found[1],
+            "entity_ids": entity_ids, "segments": sorted(segments, key=lambda s: (s["document_id"], s["segment_id"]))}

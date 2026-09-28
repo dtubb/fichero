@@ -265,6 +265,39 @@ def _labels(db: Database) -> dict[str, tuple[str, str]]:
     }
 
 
+class NamingSegment(BaseModel):
+    segment_id: str
+    document_id: str
+    entity_id: str
+    certainty: Optional[float] = None
+    link_id: str
+
+
+class NamingResponse(BaseModel):
+    """Every segment naming the place an authority URI identifies (maps D3, #5123)."""
+
+    uri: str
+    authority: str
+    authority_id: str
+    entity_ids: list[str]
+    segments: list[NamingSegment]
+
+
+@router.get("/naming", response_model=NamingResponse)
+async def segments_naming_place(
+    uri: str = Query(..., description="A gazetteer's (or other authority's) URI for the place"),
+    db: Database = Depends(get_library_database),
+) -> NamingResponse:
+    """`GET /api/links/naming?uri=` -- every segment in the library that `names` a place entity
+    `same_as` this URI (`source.geo.gazetteer-query`): one query, never a fetch."""
+    from fichero_server.knowledge.authorities import AuthorityIdRefused, segments_naming
+
+    try:
+        return NamingResponse(**segments_naming(db, uri))
+    except AuthorityIdRefused as refusal:
+        raise HTTPException(status_code=422, detail=str(refusal)) from refusal
+
+
 @router.get("/of/{end_id}", response_model=LinkListResponse)
 async def links_of(
     end_id: str,

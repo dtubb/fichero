@@ -800,7 +800,7 @@ class TestLinkAuthorityAction:
         assert merge_audits[0].target_entity_id == entity.id
         assert merge_audits[0].created_by == "human"
 
-    def test_route_still_writes_entity_metadata(self, client, db):
+    def test_route_writes_a_same_as_link_not_metadata(self, client, db):
         entity = _make_entity(db, "Alice")
         _make_authority_snapshot(db)
 
@@ -809,10 +809,11 @@ class TestLinkAuthorityAction:
             json={"entity_id": entity.id, "authority": "wikidata", "authority_id": "Q1"},
         )
 
-        refreshed = db.get(KnowledgeEntity, entity.id)
-        assert refreshed.metadata.get("authority_links") == [
-            {"authority": "wikidata", "authority_id": "Q1"}
-        ]
+        # Maps D3 (#5123): the link is written as a `same_as` typed link, not into metadata.
+        from fichero_server.knowledge.authorities import authority_links_of
+
+        assert authority_links_of(db, entity.id) == [{"authority": "wikidata", "authority_id": "Q1", "uri": "http://www.wikidata.org/entity/Q1"}]
+        assert "authority_links" not in (db.get(KnowledgeEntity, entity.id).metadata or {})
 
     def test_route_404s_on_missing_snapshot_unchanged(self, client, db):
         entity = _make_entity(db, "Alice")

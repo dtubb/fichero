@@ -462,11 +462,22 @@ Places and gazetteers
   reads only `def`); **missing**: gazetteer
   authorities, a confidence and a match method on each candidate, candidates kept after the
   choice, and rejected candidates remembered so they are not offered again.
-- `source.geo.gazetteer-typed-record` — **[GAP]** (#4933) a chosen gazetteer link is a typed,
+- `source.geo.gazetteer-typed-record` — **[PARTIAL]** (#4933) a chosen gazetteer link is a typed,
   queryable record with maker, certainty and time, not a dict in entity metadata, and several
   chosen links to different gazetteers are allowed.
-- `source.geo.gazetteer-query` — **[GAP]** (#4933) every segment that names a given gazetteer
+  **Built 2026-09-28 (maps D3):** a chosen link is a `same_as` typed link from the entity to the
+  authority's canonical URI -- maker, certainty, time, withdraw, several gazetteers per entity, no
+  duplicates. The earlier `metadata["authority_links"]` is MIGRATED on open (ruled 2026-09-28: one
+  store): each entry becomes a link (its confirmer as maker when the audit recorded one, else
+  `external_import` "earlier authority link"), a malformed entry is refused and kept under
+  `authority_links_refused` with why, a second open adds nothing; reads come from the links only
+  (`fichero-server/tests/unit/api/test_gazetteer_links_and_query.py`). PARTIAL: no screen.
+- `source.geo.gazetteer-query` — **[PARTIAL]** (#4933) every segment that names a given gazetteer
   place is one query, answering the same from the app, MCP and the command line.
+  **Built 2026-09-28 (maps D3):** `GET /api/links/naming?uri=` answers every live segment that `names`
+  an entity `same_as` the URI, by any accepted spelling of it, with the certainty of each link; a
+  withdrawn link drops out; nothing is fetched (`fichero-server/tests/unit/api/test_gazetteer_links_and_query.py::test_every_segment_naming_the_place_by_any_spelling_of_its_uri`).
+  PARTIAL: the MCP tool and CLI command over this route are not built.
 - `source.geo.gazetteer-offline` — **[GAP]** (#4933) reading or querying places never fetches;
   only an explicit refresh behind the external-authority switch goes to the network.
 - `source.geo.geocoder-is-not-identity` — **[GAP]** (#4933) a geocoder hit is labelled a machine

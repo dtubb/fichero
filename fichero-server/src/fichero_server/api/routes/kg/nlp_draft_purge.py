@@ -188,8 +188,9 @@ def _protected_ids(
     for entity_id in entity_ids:
         if entity_id in protected:
             continue
-        entity = db.get(KnowledgeEntity, entity_id)
-        if entity is not None and (entity.metadata or {}).get("authority_links"):
+        from fichero_server.knowledge.authorities import same_as_links
+
+        if same_as_links(db, entity_id):
             protected[entity_id] = "has an authority link"
 
     return protected

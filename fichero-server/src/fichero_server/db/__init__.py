@@ -1056,6 +1056,7 @@ class Database(DatabaseEmbeddingMixin):
         self._seed_builtin_node_classes()
         self._seed_builtin_reading_kinds()
         self._seed_builtin_link_types()
+        self._migrate_authority_links_to_typed_links()
         self._backfill_claim_links_to_library_links()
         self._backfill_filed_entity_documents()
         self._backfill_note_documents()
@@ -4568,6 +4569,30 @@ class Database(DatabaseEmbeddingMixin):
                 continue
             for row in self._legacy_all_research_rows(model_cls):
                 saver(row)
+
+    def _migrate_authority_links_to_typed_links(self) -> None:
+        """An entity's earlier `metadata["authority_links"]` becomes `same_as` typed links to the
+        authority's canonical URI, on open (maps D3, #5123; `knowledge.authorities`). Idempotent:
+        migrated entries leave the dict, so a second open finds nothing to do; a malformed entry is
+        refused and kept under `authority_links_refused`, named with why, and logged."""
+        if not hasattr(self.conn, "execute"):
+            return
+        from fichero_server.knowledge.authorities import migrate_authority_links
+        from fichero_server.models.knowledge import KnowledgeEntity
+
+        table = self._table_name(KnowledgeEntity)
+        try:
+            rows = self.conn.execute(
+                f"SELECT id FROM {table} WHERE CAST(metadata AS VARCHAR) LIKE '%authority_links\"%'"
+            ).fetchall()
+        except Exception:
+            return  # no entity table yet: nothing to migrate
+        for (entity_id,) in rows:
+            entity = self.get(KnowledgeEntity, entity_id)
+            if entity is None or not (entity.metadata or {}).get("authority_links"):
+                continue
+            for refused in migrate_authority_links(self, entity):
+                logger.warning("authority link on entity %s refused in migration: %s", entity_id, refused)
 
     def _backfill_claim_links_to_library_links(self) -> None:
         """Mirror legacy claim-link rows into generic library-link rows."""
