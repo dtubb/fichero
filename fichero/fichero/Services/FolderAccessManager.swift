@@ -391,8 +391,17 @@ class FolderAccessManager {
     /// first-authenticated-ready; the grant route is idempotent, so
     /// re-sending already-held paths costs nothing.
     func resendAllGrantsToEngine() async {
-        let stored = UserDefaults.standard.dictionary(forKey: bookmarksKey) as? [String: Data] ?? [:]
-        guard !stored.isEmpty else { return }
+        let all = UserDefaults.standard.dictionary(forKey: bookmarksKey) as? [String: Data] ?? [:]
+        // Only the grants a library being opened needs (#5251, #5228): every bookmark ever stored was
+        // sent, one request at a time before any library loaded -- folders from long-closed libraries,
+        // and the installed app's too (Dev Local shares its defaults). A folder dropped for import
+        // later is granted again by the drop itself (#5219).
+        let libraryPaths = LibraryManager.shared.openLibraries.map(\.url.path) + LibraryManager.shared.getSavedLibraryPaths()
+        let stored = all.filter { Self.grantCoversALibrary($0.key, libraryPaths: libraryPaths) }
+        guard !stored.isEmpty else {
+            LibraryManager.shared.grantSweepDidComplete()
+            return
+        }
         var granted = 0
         for (path, bookmark) in stored {
             do {
@@ -414,6 +423,12 @@ class FolderAccessManager {
         // a manual close/reopen. This sweep IS the grant landing, so it
         // clears the gate and reschedules the deferred loads.
         LibraryManager.shared.grantSweepDidComplete()
+    }
+
+    /// A stored grant is re-sent when it IS a library being opened or holds one (#5251).
+    nonisolated static func grantCoversALibrary(_ grant: String, libraryPaths: [String]) -> Bool {
+        let root = grant.hasSuffix("/") ? grant : grant + "/"
+        return libraryPaths.contains { $0 == grant || $0.hasPrefix(root) }
     }
 
     /// Restore bookmarks on app launch

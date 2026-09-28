@@ -63,10 +63,26 @@ extension LibraryManager {
     /// libraries exist as UI state only and do not fire API requests (#1163).
     func backendDidBecomeReady() async {
         backendIsReady = true
-        for library in openLibraries {
-            library.reconfigureBackendHost()
-            await loadLibraryDataIfNeeded(for: library)
+        for library in openLibraries { library.reconfigureBackendHost() }
+        // THE FRONT LIBRARY FIRST (#5228): every open library was loaded one after another, each with
+        // its open-time migrations, before launch finished -- 24 s measured with seven open. The
+        // library the window shows is loaded and awaited; the others follow in the background, so the
+        // sidebar and the front library are usable while the rest arrive.
+        let order = Self.frontFirst(openLibraries.map(\.id), front: currentLibraryId)
+        let byId = Dictionary(openLibraries.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        guard let frontId = order.first, let front = byId[frontId] else { return }
+        await loadLibraryDataIfNeeded(for: front)
+        let rest = order.dropFirst().compactMap { byId[$0] }
+        guard !rest.isEmpty else { return }
+        Task(priority: .utility) { @MainActor in
+            for library in rest { await self.loadLibraryDataIfNeeded(for: library) }
         }
+    }
+
+    /// The load order at ready (#5228): the front library, then the others in their open order.
+    nonisolated static func frontFirst(_ ids: [UUID], front: UUID?) -> [UUID] {
+        guard let front, ids.contains(front) else { return ids }
+        return [front] + ids.filter { $0 != front }
     }
 
     /// The library-side effects that fire when the engine reaches `.ready`,
