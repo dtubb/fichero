@@ -98,7 +98,6 @@
   "GET /api/projects/{project_id}/items": "no Swift call for the /api/projects/* family (9 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "GET /api/providers/apple-intelligence/probe": "no Swift call for the /api/providers/* family (2 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "GET /api/providers/local-runtimes": "no Swift call for the /api/providers/* family (2 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
-  "GET /api/reading-orders/flows/onto/{document_id}": "bugs2 7f5cacecb: flows that could continue onto a page; the Mac 'Continue a flow here' verb is archive's next wiring",
   "GET /api/registry/open": "store missing — engine-internal open-set tracking; client registry access goes via /registry (list) + /registry/add + LibraryManager reconcile, not /registry/open (#3677)",
   "GET /api/registry/unicode-collisions": "prompt-first mojibake collision surface (#3075) - frontend prompt/store follow-up still pending (reason carried from check_ui_wiring's swiftui allowlist, #5105)",
   "GET /api/research/projects/{project_id}": "no Swift call for the /api/research/* family (3 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",

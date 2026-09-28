@@ -93,6 +93,49 @@ extension ReadingOrderService {
     }
 }
 
+extension ReadingOrderService {
+    /// The flows this page's segments could continue (`GET /api/reading-orders/flows/onto/{page}`):
+    /// flows ending on an earlier page of its source, nearest first, then flows on a source it shares a
+    /// project with. Flows on pages this reader may not read are counted, not listed.
+    func flowsOnto(documentId: String) async throws -> ReadingOrderChoice.FlowsOnto {
+        let response = try await client.api.flowsOntoPageApiReadingOrdersFlowsOntoDocumentIdGet(
+            path: .init(documentId: documentId)
+        )
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            return ReadingOrderChoice.FlowsOnto(
+                flows: body.flows.map {
+                    ReadingOrderChoice.ContinuableFlow(
+                        order: ReadingOrderSummary(id: $0.order.id, name: $0.order.name, kind: $0.order.kind, passId: $0.order.passId),
+                        lastPageId: $0.lastPageId, relation: $0.relation
+                    )
+                },
+                withheld: body.withheld ?? 0
+            )
+        case .unprocessableContent:
+            throw ReadingOrderError.refused("the engine refused the page")
+        case .undocumented(let status, _):
+            throw ReadingOrderError.unexpected(status)
+        }
+    }
+
+    /// One segment put at the END of an order (a flow continued onto this page); answers the audit id.
+    func placeAtEnd(orderId: String, segmentId: String) async throws -> String? {
+        let response = try await client.api.placeInReadingOrderApiReadingOrdersOrderIdPlacePost(
+            path: .init(orderId: orderId), body: .json(.init(segmentId: segmentId, atEnd: true))
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.auditId
+        case .unprocessableContent:
+            throw ReadingOrderError.refused("the engine refused the place")
+        case .undocumented(let status, _):
+            throw status == 409 ? ReadingOrderError.movedMeanwhile : ReadingOrderError.unexpected(status)
+        }
+    }
+}
+
 enum ReadingOrderError: Error, Equatable {
     case refused(String)
     case movedMeanwhile

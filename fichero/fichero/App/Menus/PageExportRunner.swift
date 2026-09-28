@@ -154,8 +154,8 @@ enum PageExportRunner {
             let result = try await library.documentService.exportPage(
                 documentId: documentId, format: format.name, passId: passId
             )
-            let suggested = PageExportChoice.filename(engine: result.filename, format: format)
-            guard let url = await ExportPresentation.savePanel(suggestedName: suggested, contentType: nil) else { return }
+            // The engine names the file for its format (bb1d5b5d7: `.hocr`, `.txt`, `.page.xml`, ...).
+            guard let url = await ExportPresentation.savePanel(suggestedName: result.filename, contentType: nil) else { return }
             try Data(result.content.utf8).write(to: url, options: .atomic)
             let choices = result.choices
             showReport(
