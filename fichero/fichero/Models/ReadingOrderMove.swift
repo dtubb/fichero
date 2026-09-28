@@ -18,6 +18,10 @@ enum ReadingOrderMove {
         let entryId: String
         let segmentId: String
         let version: Int
+        /// The entry this one sits under (a line's block), or nil at the top level. Orders nest,
+        /// and a move stays in its level: `place` is sent with this parent, because without it
+        /// the engine takes the move as one to the TOP level and lifts the line out of its block.
+        var parentEntryId: String?
     }
 
     /// The `reading_order.place` request to send.
@@ -27,6 +31,8 @@ enum ReadingOrderMove {
         /// `nil` means the start of the level — which is a real answer, not a missing one.
         let afterEntryId: String?
         let expectedVersion: Int
+        /// The level the move happens in: the moved entry's own parent, never a new one.
+        var parentEntryId: String?
     }
 
     enum Refusal: Error, Equatable {
@@ -73,7 +79,8 @@ enum ReadingOrderMove {
             orderId: orderId,
             segmentId: moved.segmentId,
             afterEntryId: after,
-            expectedVersion: moved.version
+            expectedVersion: moved.version,
+            parentEntryId: moved.parentEntryId
         ))
     }
 

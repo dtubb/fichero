@@ -74,13 +74,10 @@ enum OCRGeometrySelection {
         })
     }
 
-    /// The SAME ranking as `ranked(_:)` above, over `SegmentPassValue` instead of
-    /// `Artifact` (source-model App slice A stage 1, #4954), through the
-    /// shared `rankCandidates` core — one algorithm, not two kept in step by
-    /// tests (review fix #3). Extracted as a pure function so it is directly
-    /// testable ahead of being wired in: `loadSelected` keeps calling the
-    /// artifact-based path above for now, and nothing production calls this
-    /// yet — stage 2 switches the overlays over.
+    /// The seam's ranking of a page's passes (source-model App slice A, #4954): what the Mac canvas
+    /// draws, through `SegmentDisplay.selected(for:store:)` in `loadOCRGeometry`. Its LEGACY tier
+    /// keeps `ranked(_:)`'s artifact-type rule (2026-08-25) and the curation override (2026-09-03)
+    /// applies to every tier; the tiers above it rank passes that have no artifact at all (#5146).
     ///
     /// **Curation** takes BOTH signals `isHandCurated(_:Artifact)` takes,
     /// just addressed per pass instead of per artifact (review fix #2, the
@@ -103,13 +100,47 @@ enum OCRGeometrySelection {
     /// engine call, `source.one-store`), so "does this pass have any
     /// segments" is answered directly from that list, not carried as a
     /// field here.
+    ///
+    /// **Which passes rank, and in what order (#5146, applied 2026-09-27 from the programme's rules;
+    /// `segment-editor.md`):** hand-curated → imported from a file → machine → legacy artifact
+    /// geometry, newest first inside each tier. Only a LEGACY pass (provisional: read from an
+    /// artifact's `ocr_geometry` blob) is ranked by its artifact type, with the old type tiers inside
+    /// its tier and a non-geometry type left out. A real pass has no artifact behind it -- a PAGE or
+    /// ALTO import, a folder import -- so `artifactType` is nil, and dropping it for that is what left
+    /// every imported page with no boxes on the image while its text showed.
     nonisolated static func rankedPasses(_ passes: [SegmentPassValue], segments: [Segment]) -> [SegmentPassValue] {
         let curatedPassIds = Set(segments.filter(\.isHandCurated).map(\.passId))
-        return rankCandidates(passes.compactMap { pass in
-            guard let type = pass.artifactType else { return nil }
-            let isHandCurated = pass.provenanceKind == .human || curatedPassIds.contains(pass.id)
-            return RankCandidate(type: type, isHandCurated: isHandCurated, createdAt: pass.createdAt ?? .distantPast, value: pass)
-        })
+        var ranked: [RankedPass] = []
+        for pass in passes {
+            let tier: Int
+            var typeRank = 0
+            if pass.provenanceKind == .human || curatedPassIds.contains(pass.id) {
+                tier = 0
+            } else if pass.provenanceKind == .externalImport {
+                tier = 1
+            } else if !pass.provisional {
+                tier = 2
+            } else {
+                guard let type = pass.artifactType, let rank = geometryBearingTypes.firstIndex(of: type) else { continue }
+                tier = 3
+                typeRank = rank == 0 ? 0 : 1
+            }
+            ranked.append(RankedPass(tier: tier, typeRank: typeRank, createdAt: pass.createdAt ?? .distantPast, pass: pass))
+        }
+        ranked.sort { lhs, rhs in
+            if lhs.tier != rhs.tier { return lhs.tier < rhs.tier }
+            if lhs.typeRank != rhs.typeRank { return lhs.typeRank < rhs.typeRank }
+            return lhs.createdAt > rhs.createdAt
+        }
+        return ranked.map(\.pass)
+    }
+
+    /// One pass with its place in the ladder -- a struct, not a tuple (SwiftLint `large_tuple`).
+    private struct RankedPass {
+        let tier: Int
+        let typeRank: Int
+        let createdAt: Date
+        let pass: SegmentPassValue
     }
 
     /// One candidate for `rankCandidates` — a plain struct rather than a

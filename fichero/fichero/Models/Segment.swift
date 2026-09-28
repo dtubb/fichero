@@ -192,6 +192,9 @@ struct Segment: Codable, Hashable, Identifiable {
     /// The producing tool's own label for `kind`, when it differs
     /// (`source.segment.open-kinds`). `nil` until a tool records one.
     var kindRaw: String?
+    /// The segment this one sits in (a word's line, a line's block), or nil at the top of the page.
+    /// It is how the Inspector walks up a level (`build-notes-inspector.md`, the path head).
+    var parentSegmentId: String?
     /// Who made THIS segment — `.human` when the BOX ITSELF proves a person
     /// drew it (the engine's own `_box_is_hand_drawn`, not re-derived here),
     /// else the owning pass's kind. **A segment is hand-drawn exactly when
@@ -304,6 +307,7 @@ extension Segment {
         self.passId = generated.passId
         self.kind = generated.kind
         self.kindRaw = generated.kindRaw
+        self.parentSegmentId = generated.parentSegmentId
         self.provenanceKind = generated.provenanceKind
         self.anchor = SourceAnchorValue(generated: generated.anchor)
         self.baseline = generated.baseline

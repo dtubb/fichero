@@ -26,8 +26,10 @@ counts only when it sets `is_furniture`.
 from __future__ import annotations
 
 import logging
+import hashlib
 import threading
 from typing import Any
+
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +140,47 @@ def cache_text(derived: Any) -> str:
     return derived.text
 
 
+def _sha(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def line_map(db: Any, derived: Any) -> list[dict[str, Any]]:
+    """The derived text's spans folded to LINES: a word's span joins its line's, because a line is
+    what an order moves and what a caret on it names."""
+    from fichero_server.models import Segment
+
+    if not derived.spans:
+        return []
+    ids = sorted({span.segment_id for span in derived.spans})
+    segments = {row.id: row for row in db.query_in(Segment, "id", ids)}
+    parent_ids = sorted({row.parent_segment_id for row in segments.values() if row.parent_segment_id})
+    parents = {row.id: row for row in db.query_in(Segment, "id", parent_ids)} if parent_ids else {}
+    lines: list[dict[str, Any]] = []
+    for span in derived.spans:
+        segment = segments.get(span.segment_id)
+        line_id = span.segment_id
+        if segment is not None and segment.kind != "line":
+            parent = parents.get(segment.parent_segment_id or "")
+            if parent is not None and parent.kind == "line":
+                line_id = parent.id
+        if lines and lines[-1]["segment_id"] == line_id:
+            lines[-1]["char_end"] = span.end
+        else:
+            lines.append({"segment_id": line_id, "char_start": span.start, "char_end": span.end})
+    return lines
+
+
+def cached_line_map(db: Any, document_id: str, text: str) -> list[dict[str, Any]] | None:
+    """The stored map for this exact text; [] when the text is not the one it maps; None when the
+    page has never been refreshed since maps were stored."""
+    from fichero_server.models import PageLineMap
+
+    row = db.get(PageLineMap, document_id)
+    if row is None:
+        return None
+    return row.lines if row.text_sha == _sha(text) else []
+
+
 #: `Document.metadata` key holding the `DERIVATION_VERSION` the stored `page_content` was derived
 #: under. Absent means "before stamping existed": as stale as any older number.
 DERIVATION_STAMP = "page_text_derivation"
@@ -185,7 +228,12 @@ def ensure_current(db: Any, document_ids: list[str]) -> list[str]:
         derived = document_text(db, document_id)
         if derived.pass_id is None:
             continue
-        if _store(db, doc, cache_text(derived), utc_now()):
+        text = cache_text(derived)
+        # The map is re-stored with the text: a stale stamp means a stale map too.
+        from fichero_server.models import PageLineMap
+
+        db.save(PageLineMap(id=document_id, text_sha=_sha(text), lines=line_map(db, derived)))
+        if _store(db, doc, text, utc_now()):
             changed.append(document_id)
     return changed
 
@@ -194,7 +242,7 @@ def refresh_in_transaction(db: Any, spec: Any, action_name: str = "", params: An
     """Rewrite `page_content` for the pages this action changed the text of. Returns the ids whose
     stored text actually changed (the ones to re-embed)."""
     from fichero_server.api.routes.document.segment_readings import document_text
-    from fichero_server.models import Document
+    from fichero_server.models import Document, PageLineMap
     from fichero_server.core.timeutil import utc_now
     from fichero_server.workflows.curation_guard import page_content_is_user_edited
 
@@ -220,7 +268,10 @@ def refresh_in_transaction(db: Any, spec: Any, action_name: str = "", params: An
         derived = document_text(db, document_id)
         if derived.pass_id is None:
             continue  # no working pass: nothing derives, so nothing is cached
-        if _store(db, doc, cache_text(derived), utc_now()):
+        text = cache_text(derived)
+        # Stored even when the text is unchanged: two lines that read alike can swap places.
+        db.save(PageLineMap(id=document_id, text_sha=_sha(text), lines=line_map(db, derived)))
+        if _store(db, doc, text, utc_now()):
             changed.append(document_id)
     return changed
 

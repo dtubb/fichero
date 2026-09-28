@@ -20,6 +20,10 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     var readerPageActivationState: ReaderPageActivationState?
     /// Retained weakly so the Coordinator can apply zoom without a full updateNSView cycle.
     weak var webView: GuardedWKWebView?
+    /// The library this pane reads, captured in `updateNSView` like the buses above, and the store
+    /// the Reader's line moves go through (3c part d) -- the same type as the Inspector's list.
+    weak var library: LibraryManager.LibraryReference?
+    var lineOrderStore: ReadingOrderStore?
 
     var lastLoadedDocumentId: String?
     var lastLoadedLibraryPath: String?
@@ -400,6 +404,8 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
             handlePageActivated(body)
         case "pageRevealRequested":
             handlePageRevealRequested(body)
+        case "lineMove":
+            handleLineMove(body)
         case "textSelected":
             // The WebKit reader's selection joins the same seam the native
             // readers post (Daniel, 2026-08-30): the annotation bar applies
@@ -426,6 +432,29 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
 // Bridge-message routing, in an extension so the coordinator's own body stays
 // under the SwiftLint type-body threshold.
 extension DocumentKGWebPaneCoordinatorMacOS {
+    /// ⌥⌘↑ / ⌥⌘↓ / ⌥⌘⇞ / ⌥⌘⇟ on the Reader's caret line (3c part d): the Inspector's move, ⌘Z
+    /// included. The page's text follows the order, so it is reloaded after a move and an undo.
+    func handleLineMove(_ body: [String: Any]) {
+        guard let request = ReaderLineMove.request(from: body) else { return }
+        Task { @MainActor in await moveLine(request) }
+    }
+
+    @MainActor
+    func moveLine(_ request: ReaderLineMove.Request) async {
+        // ponytail: a whole-page reload (scroll and caret are lost); patching the one page in place,
+        // with its fresh line map, is the upgrade once moves are frequent.
+        guard let library else { return }
+        let store = lineOrderStore ?? ReadingOrderStore(transport: library.readingOrderService)
+        lineOrderStore = store
+        guard let auditId = await ReaderLineMove.perform(request, store: store) else { return }
+        let webView = webView
+        store.registerUndo(
+            auditId: auditId, undoManager: webView?.undoManager, actionsService: library.actionsService,
+            afterUndo: { webView?.reload() }
+        )
+        webView?.reload()
+    }
+
     /// A reader page click (#4373). Validates the bridge payload and publishes
     /// it on the per-window activation bus, where ContentView routes it through
     /// the SAME selection path a sidebar click uses — so the sidebar highlight,

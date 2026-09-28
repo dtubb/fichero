@@ -8,8 +8,39 @@ struct SourceSectionView: View {
     let document: Document
 
     @SceneStorage("inspector.source.mode") private var mode: SourceSectionMode = .content
+    @Environment(WindowState.self) private var windowState: WindowState?
+    @Environment(SegmentService.self) private var segmentService: SegmentService?
 
     var body: some View {
+        // A selection on this page is inspected at its level (ruled 2026-09-27); with none, the page.
+        let selected = selectedSegmentIds
+        if selected.isEmpty {
+            documentBody
+        } else {
+            SegmentInspectorView(documentId: document.id, selectedIds: selected)
+        }
+    }
+
+    /// The focused Source-view pane's selection on THIS page, as segment ids: its box indices,
+    /// resolved against the boxes of the pass its artifact produced, read through the selection's
+    /// own identity keys (`resolvedIndices(in:)`), so a list that changed order is not misread.
+    private var selectedSegmentIds: [String] {
+        guard let selection = windowState?.focusedRegionSelection, !selection.isEmpty,
+              selection.documentId == document.id, let segmentService else { return [] }
+        let store = SegmentStore.shared(for: segmentService)
+        let passes = store.passes(documentId: document.id)
+        let segments = store.segments(documentId: document.id)
+        guard let pass = passes.first(where: { $0.sourceArtifactId == selection.artifactId }),
+              let boxes = SegmentDisplay.geometry(
+                  from: segments.filter { $0.passId == pass.id }, provider: "", model: nil, renditionId: nil
+              )?.boxes else { return [] }
+        return InspectorPath.segmentIds(
+            selectedIndices: selection.resolvedIndices(in: boxes), artifactId: selection.artifactId,
+            passes: passes, segments: segments
+        )
+    }
+
+    private var documentBody: some View {
         VStack(spacing: 0) {
             Picker("Source view", selection: $mode) {
                 Text("Content").tag(SourceSectionMode.content)

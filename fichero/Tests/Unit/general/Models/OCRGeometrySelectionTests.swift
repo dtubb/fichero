@@ -384,7 +384,12 @@ struct OCRGeometrySelectionTests {
     /// converted page draws nothing while every test here stays green. The
     /// engine lane is deciding what a real pass should report; this pin must
     /// not be read as proof that case cannot occur.
-    @Test("rankedPasses: a pass whose artifactType is nil or unrecognised is excluded, not crashed on")
+    ///
+    /// **That day came (#5146):** a PAGE or ALTO import writes a real pass with no artifact, and the
+    /// maintainer's imported Syriac page drew no boxes. The rule now: only a LEGACY (provisional)
+    /// pass is judged by its artifact type, which is what this test still pins; a real pass with no
+    /// type is kept -- `rankedPassesKeepsARealPassWithNoArtifactType` below.
+    @Test("rankedPasses: a LEGACY pass whose artifactType is nil or unrecognised is excluded, not crashed on")
     func rankedPassesUnrecognisedTypeExcluded() {
         let unknownType = pass(id: "weird", type: "some_future_type", ageInHours: 0)
         let noType = SegmentPassValue(
@@ -395,5 +400,32 @@ struct OCRGeometrySelectionTests {
         let known = pass(id: "geo", type: "text_geometry", ageInHours: 0)
         let ranked = OCRGeometrySelection.rankedPasses([unknownType, noType, known], segments: [])
         #expect(ranked.map(\.id) == ["geo"])
+    }
+
+    private func realPass(id: String, kind: Components.Schemas.ProvenanceKind, ageInHours: Double) -> SegmentPassValue {
+        SegmentPassValue(
+            id: id, provisional: false, documentId: "page-1", name: id, provenanceKind: kind,
+            createdAt: Date(timeIntervalSince1970: 1_000_000 - ageInHours * 3600),
+            sourceArtifactId: nil, artifactType: nil
+        )
+    }
+
+    /// #5146: the maintainer's imported Syriac page showed its text and no boxes, because the one
+    /// pass it had -- written by `format.import`, with no artifact behind it -- was dropped here.
+    @Test("rankedPasses: a real pass with no artifactType is KEPT (an imported page draws its boxes)")
+    func rankedPassesKeepsARealPassWithNoArtifactType() {
+        let imported = realPass(id: "page-xml", kind: .externalImport, ageInHours: 5)
+        #expect(OCRGeometrySelection.rankedPasses([imported], segments: []).map(\.id) == ["page-xml"])
+    }
+
+    @Test("rankedPasses: hand-curated, then imported from a file, then machine, then legacy artifact geometry")
+    func rankedPassesLadder() {
+        let ranked = OCRGeometrySelection.rankedPasses([
+            pass(id: "legacy-geo", type: "text_geometry", ageInHours: 0),
+            realPass(id: "machine", kind: .workflow, ageInHours: 0),
+            realPass(id: "imported", kind: .externalImport, ageInHours: 50),
+            realPass(id: "curated", kind: .human, ageInHours: 500)
+        ], segments: [])
+        #expect(ranked.map(\.id) == ["curated", "imported", "machine", "legacy-geo"])
     }
 }

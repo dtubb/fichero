@@ -85,7 +85,7 @@ struct SegmentMappingTests {
         // (#4938) and are MAPPED, not dropped: they are what the app shows for a
         // region without asking the engine to resolve a cascade per list row.
         let accounted: Set<String> = [
-            "id", "provisional", "document_id", "pass_id", "kind", "kind_raw",
+            "id", "provisional", "document_id", "pass_id", "kind", "kind_raw", "parent_segment_id",
             "provenance_kind", "anchor", "baseline", "text", "confidence",
             "language", "script", "direction",
             "source_artifact_id", "box_index", "page_index", "metadata"
@@ -450,7 +450,7 @@ struct SegmentMappingTests {
         )
         let generated = Components.Schemas.SegmentRead(
             id: "legacy:a1:0", provisional: true, documentId: "doc-1", passId: "legacy:a1",
-            kind: "line", kindRaw: "textline",
+            kind: "line", kindRaw: "textline", parentSegmentId: "block-7",
             provenanceKind: Components.Schemas.ProvenanceKind.human, anchor: anchor,
             baseline: [[0.0, 0.5], [1.0, 0.5]], text: "hola", confidence: 0.87,
             sourceArtifactId: "a1", boxIndex: 3, pageIndex: 1, metadata: metadata
@@ -464,6 +464,7 @@ struct SegmentMappingTests {
         #expect(segment.passId == "legacy:a1")
         #expect(segment.kind == "line")
         #expect(segment.kindRaw == "textline")
+        #expect(segment.parentSegmentId == "block-7")
         #expect(segment.provenanceKind == Components.Schemas.ProvenanceKind.human)
         #expect(segment.isHandCurated)
         #expect(segment.anchor.documentId == "doc-1")

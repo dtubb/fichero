@@ -1228,6 +1228,7 @@ class Database(DatabaseEmbeddingMixin):
             SegmentMatch,
             SegmentPass,
             SegmentPassChoice,
+            PageLineMap,
             SegmentVersion,
             Trace,
             Workflow,
@@ -1354,6 +1355,10 @@ class Database(DatabaseEmbeddingMixin):
             SegmentMatch,
             SegmentVersion,
             SegmentPass,
+            # The Reader's line map, stored beside `Document.page_content` by the page-text cache
+            # (3c part c). Declared so an existing library gains the table when it opens, not on
+            # the first refresh that happens to write one.
+            PageLineMap,
             SpatialConnection,
             SpatialNode,
             SpatialRoom,
