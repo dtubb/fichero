@@ -256,13 +256,20 @@ class TestARealFileAnotherProjectWrote:
         assert texts == ["12851 PRIVATE", "H. MOULDS", "NORTHAMPTONSHIRE REGT.", "23RD JULY 1916 AGED 21",
                          "LOVING SON OF", "MRS MOULDS", "PETERBORO, ENGLAND", "FOR EVER WITH US"]
 
-    def test_deleted_text_is_not_the_reading_and_added_text_is(self, real_bytes):
+    def test_deleted_text_stays_in_the_reading_as_does_added_text(self, real_bytes):
+        """Diplomatic (ruled 2026-09-28, #5179): a deletion's letters are part of the reading --
+        what the page SHOWS -- and marked as deleted (a `del` mark, drawn ⟦ ⟧), never dropped. So
+        `<subst><add>ἐπιτρέψῃ</add><del>ἐπετρέψῃ</del></subst>` reads both, the second marked."""
         page = tei.read_pages(real_bytes)[0]
         texts = [s.readings[0][1] for s in page.segments if s.readings]
-        assert any(t.endswith("The expressed") or "The expressed" in t for t in texts)
-        assert not any("splodge" in t for t in texts), "<del>splodge</del> is deleted text"
+        assert any("splodge" in t for t in texts), "<del>splodge</del> is on the page"
         greek = [t for t in texts if "τῷ ὑποδέκτῃ" in t]
-        assert greek and "ἐπιτρέψῃ" in greek[0] and "ἐπετρέψῃ" not in greek[0]
+        assert greek and "ἐπιτρέψῃ" in greek[0] and "ἐπετρέψῃ" in greek[0]
+        marks = [m for s in page.segments for m in s.foreign.get(tei.TEI_MARKS, []) if m["tag"] == "del"]
+        greek_line = next(s for s in page.segments if s.readings and "τῷ ὑποδέκτῃ" in s.readings[0][1])
+        spans = [greek_line.readings[0][1][m["start"]:m["end"]]
+                 for m in greek_line.foreign.get(tei.TEI_MARKS, []) if m["tag"] == "del"]
+        assert marks and spans == ["ἐπετρέψῃ"]                   # the mark spans exactly the struck word
 
     def test_markup_the_model_has_no_field_for_is_kept_by_name(self, real_bytes):
         page = tei.read_pages(real_bytes)[0]
@@ -352,17 +359,15 @@ class TestThroughTheOneModelFromAnotherFormat:
 EPIDOC = sorted((Path(__file__).parent / "fixtures" / "corpus").glob("ddbdp_*.tei.xml"))
 
 
-def _choice_pairs(data: bytes, *, outside_del: bool = False) -> list[tuple[str, str]]:
+def _choice_pairs(data: bytes) -> list[tuple[str, str]]:
     """Each `<choice>`'s two sides, as the encoder wrote them, from the file itself (plain lxml,
-    not our reader). `outside_del` leaves out choices inside a `<del>`: deleted text is not
-    part of a reading, so there is nothing of theirs to keep."""
+    not our reader). Every choice counts, inside a `<del>` too: deleted letters are part of the
+    reading (#5179, diplomatic)."""
     from lxml import etree
 
     ns = {"t": "http://www.tei-c.org/ns/1.0"}
     pairs = []
     for choice in etree.fromstring(data).iterfind(".//t:choice", ns):
-        if outside_del and any(a.tag == "{http://www.tei-c.org/ns/1.0}del" for a in choice.iterancestors()):
-            continue
         # `<lb break="no"/>` inside a side: the word runs on, so the line break adds no space.
         sides = ["".join("".join(child.itertext()).split()) if child.find("t:lb[@break='no']", ns) is not None
                  else "".join(child.itertext()).strip() for child in choice if isinstance(child.tag, str)]
@@ -398,7 +403,7 @@ class TestAChoiceIsNotTwoWordsRunTogether:
     @pytest.mark.parametrize("path", EPIDOC, ids=lambda p: p.name)
     def test_every_other_side_is_kept_and_named_by_the_loss_report(self, path):
         data = path.read_bytes()
-        expected = _choice_pairs(data, outside_del=True)
+        expected = _choice_pairs(data)          # inside <del> too: deleted letters are read (#5179)
         page = read_page("tei", data)
         kept = [c for s in page.segments for c in s.foreign.get("tei-choice", [])]
         assert len(kept) == len(expected), f"{path.name}: {len(kept)} kept of {len(expected)} choices"

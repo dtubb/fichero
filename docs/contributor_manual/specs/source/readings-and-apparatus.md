@@ -304,8 +304,12 @@ Sureness and damage
   omitted -> supplied), `<gap>` (a position; illegible -> unclear with no span), `<surplus>`, `<add>`
   -- `external_import`, `source` "file: <name>", in the import's own action so its undo takes them;
   what cannot be a fact is named in `not_imported` (`fichero-server/tests/unit/api/test_marks_arrive_as_editorial_facts.py`, the Syriac PAGE page and the DDbDP
-  papyri). Still owed: `<del>` (the reader leaves deleted letters out of the reading, so a deleted
-  fact has nothing to span -- a ruling on whether the reading should hold them), and a screen.
+  papyri). `<del>`, ruled 2026-09-28 (diplomatic): the deleted letters stay IN the reading and a
+  `deleted` fact spans them, drawn ⟦ ⟧ -- nested deletions nest -- so a `<subst>` reads both its
+  added and its deleted letters, the struck ones marked
+  (`fichero-server/tests/unit/api/test_marks_arrive_as_editorial_facts.py::test_deleted_letters_stay_in_the_reading_as_a_deletion_drawn_in_double_brackets`,
+  `fichero-server/tests/unit/formats/test_tei.py::TestARealFileAnotherProjectWrote::test_deleted_text_stays_in_the_reading_as_does_added_text`).
+  Still owed: `<delSpan>` (a deletion across lines, no one reading to span), and a screen.
 - `source.sure.brackets-are-drawn` — **[PARTIAL]** (#4935) editorial signs are produced from those facts on display
   and export; they are never stored in a reading's text.
   **Built engine-side:** `editorial/leiden.py` draws the signs when read and never changes the text (`fichero-server/tests/unit/models/test_leiden.py::test_nested_facts_draw_inside_out_and_the_text_is_never_changed`, `fichero-server/tests/unit/models/test_leiden.py::test_a_lost_stretch_with_no_text_is_a_gap_of_its_extent`). **Missing:** the app, and exports.
