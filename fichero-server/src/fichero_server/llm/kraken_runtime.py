@@ -273,6 +273,7 @@ _MEMORY_NEED_ENV_VAR = "FICHERO_KRAKEN_MEMORY_NEED_MB"
 # memorypressure levels; verified live via `sysctl kern.memorystatus_vm_
 # pressure_level` and the matching ctypes read, 2026-09-20).
 _PRESSURE_NORMAL = 1
+_PRESSURE_CRITICAL = 4
 _PRESSURE_LABELS = {2: "warn", 4: "critical"}
 
 # Mach `host_statistics64` — the public struct layout from Apple's
@@ -438,11 +439,15 @@ def assert_memory_available_for_kraken(
             "again."
         )
 
+    # 2026-09-28 (maintainer): refusing at WARN was too aggressive -- a busy 16 GB
+    # Mac sits at warn much of the day, and Kraken's ~2.5 GB is not the real risk
+    # (the large MLX models are). The available-memory floor above is the measured
+    # safety margin; pressure refuses only at CRITICAL, when macOS itself is out.
     level = get_pressure()
-    if level is not None and level != _PRESSURE_NORMAL:
+    if level is not None and level >= _PRESSURE_CRITICAL:
         label = _PRESSURE_LABELS.get(level, f"level {level}")
         raise KrakenMemoryUnavailableError(
-            f"This Mac's memory pressure is {label}, not normal, so starting "
+            f"This Mac's memory pressure is {label}, so starting "
             f"Kraken now (it needs about {need / 1024**3:.1f} GB) risks the "
             "whole app crashing. Close other apps, or wait, then try again."
         )
