@@ -981,6 +981,57 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   compliance:** the Inspector checks `selection.artifactId == artifactId` itself instead of
   sharing the Source view's check. *Readings typed in the Reader* has no surface yet
   (`source.textedit.*`, #5001), and that is why this stays PARTIAL.
+- `source.editor.thin-by-default` — **[GAP]** (#5207) **How an unselected segment looks.** On a
+  dense page, filled boxes overlapped into stacked bands (Daniel, the clm13027 MUFI page).
+
+  By default a segment draws:
+  - a THIN outline, one screen point wide (two with Increase Contrast);
+  - its baseline, when it has one.
+
+  The fill appears only on hover or selection. A segment with no reading keeps its dashed hollow outline
+  (`deleting-words-keeps-ink`), and an uncertain one keeps its dashed stroke. Regions stay distinct from
+  lines by colour (`regions-in-colours`), not by fill.
+- `source.editor.regions-in-colours` — **[GAP]** (#5200) **Regions in distinct colours.**
+
+  **The palette:** every region is drawn in a colour from a fixed palette of SYSTEM colours (blue,
+  orange, green, purple, pink, teal, indigo, brown, mint, cyan, red, yellow). The palette follows
+  `SelectionStyle`'s rule that no RGB appears in the drawing code, so each colour adapts to Light Mode,
+  Dark Mode and Increase Contrast by itself.
+
+  **Which colour:**
+  - By default a region's colour is keyed by a STABLE hash of its segment id. So a region keeps its
+    colour across launches, zoom, panes and machines, and two neighbours usually differ.
+  - A region's lines, words and characters take their region's colour.
+  - Within a region, lines ALTERNATE between two tints of that colour, in the region's reading order:
+    the colour itself, and the colour at a lighter strength. Two overlapping neighbours stay
+    distinguishable with thin outlines. The tint follows the order, so moving a line in the order can
+    change its tint, and that is intended.
+
+  **A colour of its own:** the Inspector offers a Colour setting on a region, one of the palette's names.
+  It is stored on the segment by `segment.update`, audited, with ⌘Z. The stored value is the palette
+  NAME, never RGB, so it still adapts to the appearance and an export can map it. A set colour
+  replaces the hashed one for that region and its children.
+
+  Selection and hover keep the system's selection look (`SelectionStyle`), never a region's colour
+  (ruled 2026-08-31: "on the page, selection is selection").
+
+  **Open question for the maintainer:** colour by TYPE instead. Each kind or region type, such as main
+  text, marginalia or running head, would get one colour across the page, so a type reads at a glance.
+  The id-keyed default above distinguishes neighbours; colour by type distinguishes roles. If both are
+  wanted, a switch on the layer would choose between them.
+- `source.editor.selection-like-preview` — **[GAP]** (#5215) **Selection as Preview.app draws it.**
+
+  A selected segment draws an accent-coloured dashed marquee around its box. In Edit Segments it gets
+  eight handles, at the corners and the edge midpoints:
+  - dragging a handle RESIZES the box from that edge or corner;
+  - dragging inside the marquee MOVES it.
+
+  A polygon keeps its point and side handles (`reshape`) AND gets the eight-handle frame around them, and
+  dragging the frame scales every point. Unselected segments stay thin (`thin-by-default`).
+
+  Each gesture is ONE `segment.update` carrying the version read, with ⌘Z by its audit id. A resize or
+  move sends all the anchor's shapes (the rule in `reshape`), scaled or shifted together.
+
 - `source.editor.selection-shared` — **[PARTIAL]** (#4941) selecting a segment in the Source view, Reader or Inspector
   selects it in the others.
   **Two of the three pairs exist, by two different mechanisms** (read on disk 2026-09-27), and
