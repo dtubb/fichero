@@ -100,14 +100,15 @@ enum WindowDescription {
 @objc(FicheroDescribeWindowCommand)
 class FicheroDescribeWindowCommand: NSScriptCommand {
     override func performDefaultImplementation() -> Any? {
-        MainActor.assumeIsolated {
-            guard let root = (NSApp.keyWindow ?? NSApp.windows.first { $0.isVisible })?.contentView else {
-                scriptErrorNumber = NSInternalScriptError
-                scriptErrorString = "No visible window to describe -- is a library window open?"
-                return nil
-            }
+        let text: String? = MainActor.assumeIsolated {
+            guard let root = (NSApp.keyWindow ?? NSApp.windows.first { $0.isVisible })?.contentView else { return nil }
             return WindowDescription.json(WindowDescription.describe(root))
         }
+        if text == nil {
+            scriptErrorNumber = NSInternalScriptError
+            scriptErrorString = "No visible window to describe -- is a library window open?"
+        }
+        return text
     }
 }
 #endif
