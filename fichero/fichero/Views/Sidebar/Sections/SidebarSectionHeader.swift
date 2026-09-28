@@ -140,6 +140,8 @@ struct LibrarySectionHeader: View {
                 // out of step the moment the user changed it.
                 .font(.body)
             Text(libraryName)
+                .lineLimit(1)
+                .truncationMode(.middle)  // Finder's rule: keep the distinguishing tail (2026-09-28)
                 .foregroundStyle(isDropTargeted ? Color.white : Color.primary)
             locationBadge
             LibrarySharingBadge(library: library)
