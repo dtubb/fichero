@@ -1,0 +1,73 @@
+import Foundation
+
+/// Choosing among a page's orders, making a new one, and stepping through one (#5160;
+/// `source.order.named-multiple`, `source.order.next-previous`, `source.segment.flow`). Pure: the
+/// rules live where a test can reach them; the picker (`ReadingOrderPicker`) sends them.
+enum ReadingOrderChoice {
+    /// What a new order is: a named reading of this page, or a flow that may continue onto others.
+    enum NewKind: Equatable {
+        case named
+        case flow
+
+        var engineKind: String { self == .named ? "imposed" : "flow" }
+        var title: String { self == .named ? "New Order" : "New Flow" }
+    }
+
+    struct Neighbours: Equatable {
+        let previous: String?
+        let next: String?
+    }
+
+    /// The create the picker sends: over the same pass as the order shown, filled with the pass's
+    /// segments in page order so it starts as a copy to rearrange -- never an empty order to explain.
+    /// Nil for a blank name or when the order shown names no pass.
+    static func create(
+        _ kind: NewKind, name: String, documentId: String, from shown: ReadingOrderSummary?
+    ) -> ReadingOrderCreateRequest? {
+        let name = name.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty, let passId = shown?.passId else { return nil }
+        return ReadingOrderCreateRequest(
+            documentId: documentId, passId: passId, name: name, kind: kind.engineKind, seedFromPass: true
+        )
+    }
+
+    /// The order a create just made: the one with its name that was not there before.
+    static func made(named name: String, before: [ReadingOrderSummary], after: [ReadingOrderSummary]) -> ReadingOrderSummary? {
+        let known = Set(before.map(\.id))
+        return after.first { $0.name == name.trimmingCharacters(in: .whitespaces) && !known.contains($0.id) }
+    }
+
+    /// Where a step lands: on this page (select it), on another page (open that page, then select it),
+    /// or nowhere -- the order ends there.
+    struct Landing: Equatable {
+        let documentId: String
+        let segmentId: String
+    }
+
+    /// The segment a step goes to, or nil at the order's end.
+    static func target(_ neighbours: Neighbours, forward: Bool) -> String? {
+        forward ? neighbours.next : neighbours.previous
+    }
+
+    /// How an order is listed in the picker: its name, and what kind of claim it makes.
+    static func title(_ order: ReadingOrderSummary) -> String {
+        switch order.kind {
+        case "as-written": "As Written"
+        case "flow": "\(order.name) (flow)"
+        default: order.name
+        }
+    }
+}
+
+/// `reading_order.create`.
+struct ReadingOrderCreateRequest: Encodable, Equatable {
+    let documentId: String
+    let passId: String
+    let name: String
+    let kind: String
+    let seedFromPass: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case documentId = "document_id", passId = "pass_id", name, kind, seedFromPass = "seed_from_pass"
+    }
+}

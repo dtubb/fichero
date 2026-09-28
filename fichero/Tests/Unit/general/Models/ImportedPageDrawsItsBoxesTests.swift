@@ -83,6 +83,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         /// What the reading-order routes answer: the page's orders, the top level, one region's
         /// children (for `parent_entry_id` = `childrenOf`); every place POST is recorded.
         nonisolated(unsafe) static var ordersReply = Data()
+        /// What `GET /api/reading-orders/{id}/neighbours` answers, and the query it was asked (#5160).
+        nonisolated(unsafe) static var neighboursReply = Data()
+        nonisolated(unsafe) static var neighboursQuery: String?
         nonisolated(unsafe) static var topEntriesReply = Data()
         nonisolated(unsafe) static var childEntriesReply = Data()
         nonisolated(unsafe) static var childrenOf = ""
@@ -149,6 +152,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 actionBody = Self.statementsReply
             } else if path.hasPrefix("/api/reading-orders/document/") {
                 actionBody = Self.ordersReply
+            } else if path.hasPrefix("/api/reading-orders/"), path.hasSuffix("/neighbours") {
+                Self.neighboursQuery = request.url?.query
+                actionBody = Self.neighboursReply
             } else if path.hasPrefix("/api/reading-orders/"), path.hasSuffix("/entries") {
                 let query = request.url?.query ?? ""
                 actionBody = !Self.childrenOf.isEmpty && query == "parent_entry_id=\(Self.childrenOf)"
@@ -213,6 +219,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             rightsReply = Data()
             statementsReply = Data()
             ordersReply = Data()
+            neighboursReply = Data()
+            neighboursQuery = nil
             topEntriesReply = Data()
             childEntriesReply = Data()
             childrenOf = ""
@@ -1222,6 +1230,62 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         manager.undo()
         for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(RecordedEngine.undone, ["audit-2"], "⌘Z undoes the reject by its own audit id")
+    }
+
+    /// `source.order.named-multiple`, `next-previous`, `source.segment.flow` end to end (#5160, the Order
+    /// list's picker), over the recorded Syriac page with a named order and a flow that continues onto a
+    /// second imported page: the store lists all three orders and switches to the flow; New Flow sends
+    /// the exact create the recorder proved (same pass, `seed_from_pass`) and finds what it made; Next
+    /// from the flow's last line on this page asks the neighbours route and lands on the next page's
+    /// line, whose page it opens. Breaks if an order is missing, the create differs from what the engine
+    /// takes, or Next stays on the page when the flow leaves it.
+    func testTheOrderPickerListsNamedOrdersAndAFlowWhoseNextOpensTheNextPage() async throws {
+        let segments = try await loadedStore().segments(documentId: "doc-0001")
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.named-orders-and-flow.json")
+        )) as? [String: Any])
+        RecordedEngine.ordersReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["orders"]))
+        RecordedEngine.topEntriesReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["flow_top"]))
+        RecordedEngine.neighboursReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["neighbours"]))
+        RecordedEngine.segmentReplies["seg-next-0001"] = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["across"]))
+        let service = ReadingOrderService(ficheroClient: try XCTUnwrap(storeClient))
+        let store = ReadingOrderStore(transport: service)
+
+        try await store.load(documentId: "doc-0001")
+        XCTAssertEqual(store.orders.map(ReadingOrderChoice.title), ["As Written", "Commentary order", "Into the next page (flow)"])
+        XCTAssertEqual(store.orderId, "order-0001", "the file's own order first")
+        try await store.choose("order-0003")
+        XCTAssertEqual(store.orderId, "order-0003")
+        XCTAssertEqual(store.entries.last?.segmentId, "seg-next-0001", "the flow ends on the next page")
+
+        let asWritten = try XCTUnwrap(store.orders.first)
+        let params = try XCTUnwrap(ReadingOrderChoice.create(.flow, name: " Into the next page ", documentId: "doc-0001", from: asWritten))
+        XCTAssertEqual(params, ReadingOrderCreateRequest(
+            documentId: "doc-0001", passId: "pass-0002", name: "Into the next page", kind: "flow", seedFromPass: true
+        ))
+        XCTAssertNil(ReadingOrderChoice.create(.named, name: "  ", documentId: "doc-0001", from: asWritten), "a name is needed")
+        RecordedEngine.invoked = []
+        try await AuditedAction.run(
+            "reading_order.create", params: params, actionName: "New Flow",
+            actionsService: ActionsService(client: try XCTUnwrap(storeClient)), undoManager: nil
+        )
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        let sentParams = try XCTUnwrap(sent["params"] as? [String: Any])
+        XCTAssertEqual(sentParams["pass_id"] as? String, "pass-0002")
+        XCTAssertEqual(sentParams["kind"] as? String, "flow")
+        XCTAssertEqual(sentParams["seed_from_pass"] as? Bool, true)
+        XCTAssertEqual(
+            ReadingOrderChoice.made(named: "Into the next page", before: Array(store.orders.prefix(2)), after: store.orders)?.id,
+            "order-0003"
+        )
+
+        let neighbours = try await service.neighbours(orderId: "order-0003", segmentId: "seg-0014")
+        XCTAssertEqual(RecordedEngine.neighboursQuery, "segment_id=seg-0014")
+        XCTAssertEqual(neighbours, ReadingOrderChoice.Neighbours(previous: "seg-0018", next: "seg-next-0001"))
+        let target = try XCTUnwrap(ReadingOrderChoice.target(neighbours, forward: true))
+        XCTAssertFalse(segments.contains { $0.id == target }, "Next leaves this page")
+        let fetched = try await SegmentService(ficheroClient: try XCTUnwrap(storeClient)).segment(id: target)
+        XCTAssertEqual(fetched?.documentId, "doc-0002", "the page Next opens")
     }
 
     /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the

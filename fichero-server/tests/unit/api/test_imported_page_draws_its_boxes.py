@@ -785,3 +785,68 @@ def test_a_page_s_proposed_matches_are_recorded_and_accept_and_reject_are_the_ap
     assert client.post(f"/api/actions/audit/{accepted['audit_id']}/undo").status_code == 200
     again = client.get(f"/api/segments/document/{doc_id}/matches", params={"state": "proposed"}).json()["items"]
     assert [m["id"] for m in again] == [first["result"]["match_id"]]
+
+
+FLOW_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.named-orders-and-flow.json"
+
+
+def test_a_named_order_and_a_flow_onto_the_next_page_are_recorded_for_the_order_picker(db, client):
+    """`source.order.named-multiple`, `source.order.next-previous`, `source.segment.flow` (#5160, the
+    Order list's picker): on the imported Syriac page, the app's EXACT creates -- `reading_order.create
+    {document_id, pass_id, name, kind, seed_from_pass: true}` for a named order and for a flow -- then a
+    second imported page's first line placed at the flow's end. Recorded: the page's orders (as-written
+    first, then by name), the flow's top level, what reads after the flow's last entry on this page (the
+    next page's line: the neighbours route), and that line's own read (the page Next opens). Breaks if
+    a created order is not listed, the flow does not cross the page, or neighbours answer wrongly."""
+    doc_id = _import(db, SYRIAC)
+    next_page = _import(db, SYRIAC)
+    route = client.get(f"/api/segments/document/{doc_id}").json()
+    real_pass = next(p["id"] for p in route["passes"] if not p["provisional"])
+
+    def invoke(name, params):
+        answer = client.post("/api/actions/invoke", json={"name": name, "params": params})
+        assert answer.status_code == 200, answer.text
+        return answer.json()["result"]
+
+    named = invoke("reading_order.create", {"document_id": doc_id, "pass_id": real_pass, "name": "Commentary order",
+                                            "kind": "imposed", "seed_from_pass": True})
+    flow = invoke("reading_order.create", {"document_id": doc_id, "pass_id": real_pass, "name": "Into the next page",
+                                           "kind": "flow", "seed_from_pass": True})
+    other = client.get(f"/api/segments/document/{next_page}").json()
+    other_pass = next(p["id"] for p in other["passes"] if not p["provisional"])
+    other_line = min((s for s in other["segments"] if s["pass_id"] == other_pass and s["kind"] == "line"),
+                     key=lambda s: s["anchor"]["rect"])
+    placed = client.post(f"/api/reading-orders/{flow['order_id']}/place",
+                         json={"segment_id": other_line["id"], "at_end": True})
+    assert placed.status_code == 200, placed.text
+
+    orders = client.get(f"/api/reading-orders/document/{doc_id}").json()
+    assert [o["name"] for o in orders["orders"]][0] == "as-written"
+    assert {o["id"] for o in orders["orders"]} >= {named["order_id"], flow["order_id"]}
+    top = client.get(f"/api/reading-orders/{flow['order_id']}/entries").json()
+    last_here = top["entries"][-2]["segment_id"]
+    assert top["entries"][-1]["segment_id"] == other_line["id"]
+    neighbours = client.get(f"/api/reading-orders/{flow['order_id']}/neighbours",
+                            params={"segment_id": last_here}).json()
+    assert neighbours["next_segment_id"] == other_line["id"], "the flow crosses onto the next page"
+    across = client.get(f"/api/segments/{other_line['id']}").json()
+    assert across["segment"]["document_id"] == next_page
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    by_rect = {repr(s["anchor"]["rect"]): s["id"] for s in stable_route["segments"]}
+    ids = {doc_id: stable_route["document_id"], next_page: "doc-0002", other_line["id"]: "seg-next-0001",
+           real_pass: next(p["id"] for p in stable_route["passes"] if not p["provisional"]), other_pass: "pass-next"}
+    for segment in route["segments"]:
+        ids[segment["id"]] = by_rect[repr(segment["anchor"]["rect"])]
+    for other_segment in other["segments"]:
+        ids.setdefault(other_segment["id"], f"seg-next-{len(ids):04d}")
+    for index, order in enumerate(orders["orders"], start=1):
+        ids[order["id"]] = f"order-{index:04d}"
+    for index, entry in enumerate(top["entries"], start=1):
+        ids[entry["id"]] = f"entry-{index:04d}"
+    stable = _stabilizer(ids)
+    recorded = {"orders": stable(orders), "flow_top": stable(top), "neighbours": stable(neighbours),
+                "across": stable(across)}
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        FLOW_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(FLOW_FIXTURE.read_text()) == recorded, "the app's orders-and-flow fixture drifted"
