@@ -2525,6 +2525,7 @@ def _invert_merge(before, after, ctx: ActionContext):
                 sid: current_versions[sid] for sid in absorbed_versions if sid in current_versions
             },
             "representation_ids": after.get("representation_ids", []),
+            "order_entries": after.get("order_entries", []),
         },
     )
 
@@ -2700,6 +2701,10 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
             )
         )
 
+    # The absorbed segments leave every reading order; unmerge writes the same rows back (2026-09-28).
+    from fichero_server.api.routes.document.reading_orders import remove_segment_entries
+
+    order_entries = remove_segment_entries(db, absorbed_ids)
     spec = ChangeSpec(
         audit_id=audit_id,
         domains=["segment"],
@@ -2708,6 +2713,7 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
         after={
             "kept_id": params.keep_id, "forwarding_ids": forwarding_ids,
             "absorbed_versions": absorbed_versions,
+            "order_entries": order_entries,
             # Slice 8 (#4934): the joined readings THIS merge added, so its
             # inverse retracts exactly those and nothing else.
             "representation_ids": merge_representation_ids,
@@ -2753,10 +2759,16 @@ class SegmentUnmergeParams(BaseModel):
     #: members' OWN readings need nothing done to them -- they never left their
     #: segments, so restoring the segments brings them back exactly.
     representation_ids: list[str] = []
+    #: The absorbed segments' order entries the merge took out, written back where they were. Only
+    #: entries OF segments being restored are accepted.
+    order_entries: list[SegmentOrderEntryParams] = Field(default_factory=list)
 
 
 @action("segment.unmerge", SegmentUnmergeParams, domains=["segment"], undoable=False)
 def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionContext):
+    strangers = [entry.segment_id for entry in params.order_entries if entry.segment_id not in params.versions]
+    if strangers:
+        raise HTTPException(status_code=422, detail=f"order_entries name segments not being restored: {strangers}")
     audit_id = uuid.uuid4().hex
     # Slice 8 (#4934): the join this merge wrote stops counting again.
     _retract_readings(db, params.representation_ids)
@@ -2825,6 +2837,9 @@ def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionConte
         after_versions[segment_id] = row.version
         document_ids.add(row.document_id)
         pass_ids.add(row.pass_id)
+    from fichero_server.api.routes.document.reading_orders import restore_segment_entries
+
+    restore_segment_entries(db, [entry.model_dump() for entry in params.order_entries])
     spec = ChangeSpec(
         audit_id=audit_id,
         domains=["segment"],
@@ -3147,6 +3162,10 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
         new_ids.append(row.id)
     if new_rows:
         db.save_many(new_rows)
+        # The parts follow the line they were cut from in every order that holds it; unsplit takes them out.
+        from fichero_server.api.routes.document.reading_orders import place_after
+
+        place_after(db, params.segment_id, new_ids)
 
     # Slice 8 (#4934): each part that named a stretch gets its own reading,
     # derived from the one that counted. The kept part is `params.segment_id`
@@ -3339,6 +3358,10 @@ def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionConte
             sequence=db.next_forwarding_sequence(),
         ))
         deleted_ids.append(new_id)
+    # The parts leave every reading order with the parts (a redo of the split mints and places new ones).
+    from fichero_server.api.routes.document.reading_orders import remove_segment_entries
+
+    remove_segment_entries(db, deleted_ids)
     # The version only ever goes UP: a fresh preimage of the CURRENT
     # (post-split) state, then apply the target's fields -- never
     # `row.version = params.version` (that would move it BACKWARDS).

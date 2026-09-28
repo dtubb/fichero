@@ -183,6 +183,25 @@ def restore_segment_entries(db: Database, entries: list[dict]) -> None:
         db.save(ReadingOrderEntry(**{field: fields.get(field) for field in ENTRY_FIELDS}))
 
 
+def place_after(db: Database, kept_id: str, new_ids: list[str]) -> None:
+    """A split's new parts, in every order that holds the line they were cut from: right after it, in the
+    order given, at its level. Read on from one part of a line and you read the next -- the reading
+    order of a cut line is the line's, not a page-order guess (2026-09-28: the parts had no entry at all,
+    so a split line's second half was missing from every order, its export and the Reader's walk)."""
+    for kept in db.query(ReadingOrderEntry, segment_id=kept_id):
+        level = entries_in_sequence(db, kept.order_id, parent_entry_id=kept.parent_entry_id)
+        following = next((row.position for row in level if row.position > kept.position), None)
+        previous = kept.position
+        for new_id in new_ids:
+            if db.query(ReadingOrderEntry, order_id=kept.order_id, segment_id=new_id):
+                continue
+            position = midpoint(kept.order_id, previous, following)
+            db.save(ReadingOrderEntry(
+                order_id=kept.order_id, segment_id=new_id, position=position, parent_entry_id=kept.parent_entry_id,
+            ))
+            previous = position
+
+
 def place_in_page_order(db: Database, order: ReadingOrder, segment: Segment) -> ReadingOrderEntry | None:
     """Put one segment into `order` where PAGE order says it belongs.
 

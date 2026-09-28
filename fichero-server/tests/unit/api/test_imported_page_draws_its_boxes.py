@@ -1406,3 +1406,94 @@ def test_a_deleted_region_leaves_the_order_and_its_undo_puts_it_back_in_its_plac
         (e.id, e.position, e.parent_entry_id) for e in top], "back at its own place, the same row"
     assert [e.segment_id for e in entries_in_sequence(db, order.id, parent_entry_id=entry.id)] == lines
     assert reading_order_refs() == refs_before
+
+
+def _syriac_order(db, client):
+    from fichero_server.api.routes.document.reading_orders import as_written_order
+
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    return doc_id, real, as_written_order(db, real["id"])
+
+
+def _page_export(client, doc_id, pass_id) -> str:
+    return client.get(f"/api/documents/{doc_id}/export/pagexml", params={"pass_id": pass_id}).json()["content"]
+
+
+def _reading_order_refs(content: str) -> list[str]:
+    return [el.get("regionRef") for el in etree.fromstring(content.encode("utf-8")).iter() if el.get("regionRef")]
+
+
+def test_a_merge_takes_the_absorbed_segment_out_of_the_order_and_its_undo_puts_the_same_row_back(db, client):
+    """The class of 1052fda4a, for `segment.merge`: merging region 2 into region 1 of the imported Syriac
+    page takes region 2's entry out of the as-written order -- the PAGE export's `<ReadingOrder>` names one
+    region fewer -- and the undo (`segment.unmerge`) writes the SAME row back, so the order and the export
+    are as they were; the redo takes it out again. Breaks if a merge leaves a ghost entry for a segment
+    that is gone, or its undo brings the region back at another place or none."""
+    from fichero_server.api.routes.document.reading_orders import entries_in_sequence
+    from fichero_server.models.reading_orders import ReadingOrderEntry
+
+    doc_id, real, order = _syriac_order(db, client)
+    top = entries_in_sequence(db, order.id)
+    keep = client.get(f"/api/segments/{top[0].segment_id}").json()["segment"]
+    gone = client.get(f"/api/segments/{top[1].segment_id}").json()["segment"]
+    refs_before = _reading_order_refs(_page_export(client, doc_id, real["id"]))
+
+    merged = client.post("/api/actions/invoke", json={"name": "segment.merge", "params": {
+        "segment_ids": [keep["id"], gone["id"]], "keep_id": keep["id"],
+        "expected_versions": {keep["id"]: keep["version"], gone["id"]: gone["version"]}}})
+    assert merged.status_code == 200, merged.text
+    assert db.query(ReadingOrderEntry, segment_id=gone["id"]) == [], "no row for the absorbed region"
+    assert len(_reading_order_refs(_page_export(client, doc_id, real["id"]))) == len(refs_before) - 1
+
+    undo = client.post(f"/api/actions/audit/{merged.json()['audit_id']}/undo")
+    assert undo.status_code == 200, undo.text
+    assert [(e.id, e.position, e.parent_entry_id) for e in entries_in_sequence(db, order.id)] == [
+        (e.id, e.position, e.parent_entry_id) for e in top], "the same row, at its own place"
+    assert _reading_order_refs(_page_export(client, doc_id, real["id"])) == refs_before
+
+    redo = client.post(f"/api/actions/audit/{undo.json()['audit_id']}/undo")
+    assert redo.status_code == 200, redo.text
+    assert db.query(ReadingOrderEntry, segment_id=gone["id"]) == [], "the redo takes it out again"
+
+
+def test_a_split_line_s_new_part_follows_it_in_the_order_and_its_undo_takes_the_part_out(db, client):
+    """`segment.split`'s parts had NO entry: a split line's second half was missing from every order,
+    from the export's line order and from the Reader's walk. Now the new part follows the line it was
+    cut from, at its level, in every order holding it -- in the PAGE export too -- and the undo
+    (`segment.unsplit`) takes the part's entry out with the part; the redo mints a new part and places
+    it the same way. Breaks if a split part is left out of the order, placed away from its line, or its
+    entry outlives the undo."""
+    from fichero_server.api.routes.document.reading_orders import entries_in_sequence
+    from fichero_server.models.reading_orders import ReadingOrderEntry
+
+    doc_id, real, order = _syriac_order(db, client)
+    region_entry = entries_in_sequence(db, order.id)[1]
+    lines = entries_in_sequence(db, order.id, parent_entry_id=region_entry.id)
+    line = client.get(f"/api/segments/{lines[0].segment_id}").json()["segment"]
+    x, y, w, h = line["anchor"]["rect"]
+    half = {"document_id": doc_id}
+    made = client.post("/api/actions/invoke", json={"name": "segment.split", "params": {
+        "segment_id": line["id"], "expected_version": line["version"], "parts": [
+            {"anchor": {**half, "rect": [x, y, w / 2, h]}},
+            {"anchor": {**half, "rect": [x + w / 2, y, w / 2, h]}}]}})
+    assert made.status_code == 200, made.text
+    part = made.json()["result"]["new_segment_ids"][0]
+    after = [e.segment_id for e in entries_in_sequence(db, order.id, parent_entry_id=region_entry.id)]
+    assert after == [line["id"], part] + [e.segment_id for e in lines[1:]], "right after the line it was cut from"
+    exported = _page_export(client, doc_id, real["id"])
+    assert line["id"] in exported and part in exported
+    assert exported.index(line["id"]) < exported.index(part), "and so in the export's line order"
+
+    undo = client.post(f"/api/actions/audit/{made.json()['audit_id']}/undo")
+    assert undo.status_code == 200, undo.text
+    assert db.query(ReadingOrderEntry, segment_id=part) == [], "the part's entry leaves with the part"
+    assert [e.segment_id for e in entries_in_sequence(db, order.id, parent_entry_id=region_entry.id)] == [
+        e.segment_id for e in lines]
+    assert part not in _page_export(client, doc_id, real["id"])
+
+    redo = client.post(f"/api/actions/audit/{undo.json()['audit_id']}/undo")
+    assert redo.status_code == 200, redo.text
+    again = redo.json()["result"]["new_segment_ids"][0]
+    assert [e.segment_id for e in entries_in_sequence(db, order.id, parent_entry_id=region_entry.id)][:2] == [line["id"], again]
