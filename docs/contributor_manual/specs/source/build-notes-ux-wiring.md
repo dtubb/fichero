@@ -1,5 +1,51 @@
 # Build notes: UX wiring -- where the app reaches what the engine does (audit, 2026-09-27)
 
+## What to test in the morning (2026-09-28)
+
+Built overnight on `spec/page-model`; the lead merges, syncs the contract and builds. Use the
+acceptance library's imported Syriac page, or any page imported from PAGE / ALTO with File ▸ Import
+Page From…. Every edit below should undo with ⌘Z and redo with ⇧⌘Z.
+
+1. **Imported boxes show** (#5146). Open an imported page: the Source view draws its regions and
+   lines. *Should:* boxes on the image, not only text.
+2. **Select a box on an imported page** (#5152). Click a line. *Should:* it highlights; the Inspector's
+   Source section shows the path **Page › Region › Line**, then **Text**, **Language & Script**,
+   **Hands**, and **Order**. Click a crumb to inspect that level.
+3. **Edit an imported page** (#5152). Turn on Edit Segments (head, beside the pencil). Drag a line's
+   box; select two lines and right-click ▸ **Join 2 Regions**; select one and press Delete. *Should:*
+   each happens, and ⌘Z puts it back.
+4. **How the page was made** (#5149). Inspector ▸ Source ▸ **Info**, or click **Page** in the path.
+   *Should:* "Imported from ‹file› · PAGE XML · 12 lines, 4 regions" and **Show Original**, which opens
+   the file read-only, exactly as imported.
+5. **The working pass** (#5156). On a page with two passes, the Making section says which is
+   "Working" and why; the other offers **Make Working**. *Should:* the Source view redraws from the
+   chosen pass; ⌘Z goes back (a first choice goes back to the rule).
+6. **Which reading counts** (#5153). Select a line that has two readings (type a correction into one,
+   or use a line with two). *Should:* Text lists both, says nothing counts yet, and offers **Make
+   This Count**; the chosen one is marked "Chosen by a person"; ⌘Z.
+7. **Language & script** (#5158). Select a line. *Should:* language, script, direction, encoding, each
+   saying where it came from. **Known:** the Syriac page shows "English · a fallback" and
+   left-to-right -- the engine does not yet read the line's own text (#5176).
+8. **The Segment menu** (#5157). With lines selected: Inspector path head ▸ **Segment** ▸ Direction ▸
+   Right to Left, or Language… (type `syc`); also right-click in Edit Segments. *Should:* all the
+   selected lines change in one step; one ⌘Z undoes it.
+9. **Hands** (#5161). Select a line ▸ Hands ▸ **Attribute** ▸ New Hand… ("hand B"). *Should:* "hand B"
+   on one line, "judged by ‹you›" on the next; **Withdraw** removes it from view (kept in the record);
+   ⌘Z.
+10. **Marks on a selection** (Q6). Select two lines and press Highlight. *Should:* one highlight per
+    line, each attached to its own line (so moving a line takes its highlight).
+11. **Reading order** (Q5, 3c). Inspector ▸ Source ▸ **Order**: drag a region, or click the list and
+    press ⌥⌘↑ / ⌥⌘↓ / ⌥⌘⇞ / ⌥⌘⇟. Click a line crumb: Order lists its **words**, which move the same way.
+    *Should:* the Reader's text follows the new order; ⌘Z restores it byte for byte. In the Reader,
+    put the caret in a line and press ⌥⌘↑ (with the Order list NOT focused): the line moves.
+12. **One selection** (#5155). Pick a row in the Order list. *Should:* that segment lights on the
+    image and the Inspector follows it.
+
+**Not testable yet** (the served page's half, the bugs lane): typing in the Reader (a new reading,
+Return splits, Backspace joins -- #5154) and the Reader's caret selecting the line on the image
+(#5155). **Not built:** the menu-bar Segment menu, comparing two passes side by side, attribute edits
+on a page still read from an artifact (it is converted on first edit, #4924).
+
 Asked for by the maintainer after his try-out of 2026-09-27: everything built must be hooked into the
 UX, systematically. `SegmentDisplay` was the pattern that prompted it -- a seam tested twenty ways that
 seemed never to reach the screen (#5146; it did reach the screen, and the defect was the ranking
