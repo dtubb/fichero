@@ -337,3 +337,64 @@ def residuals(transformation: str, gcps: list[tuple[str, tuple[float, float], tu
     ]
     rms = lambda values: round(math.sqrt(sum(v * v for v in values) / len(values)), 3)  # noqa: E731
     return rows, rms([r.residual_m for r in rows]), rms([r.residual_px for r in rows])
+
+
+# ---------------------------------------------------------------------------
+# GeoJSON out (RFC 7946, `source.geo.geojson-out`)
+# ---------------------------------------------------------------------------
+
+
+def _signed_area(ring: list[list[float]]) -> float:
+    return sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(ring, ring[1:])) / 2
+
+
+def counterclockwise(geometry: dict[str, Any]) -> dict[str, Any]:
+    """A Polygon's exterior ring counterclockwise, as RFC 7946 section 3.1.6 says it SHOULD be
+    (an image's y runs down, so a ring drawn clockwise on the page comes out reversed)."""
+    if geometry.get("type") != "Polygon":
+        return geometry
+    rings = [ring if (_signed_area(ring) >= 0) == (index == 0) else list(reversed(ring))
+             for index, ring in enumerate(geometry["coordinates"])]
+    return {**geometry, "coordinates": rings}
+
+
+def geojson_problems(document: dict[str, Any]) -> list[str]:
+    """What in `document` breaks RFC 7946's rules for a FeatureCollection of Point / LineString /
+    Polygon features in WGS 84 -- each rule quoted from the RFC's section it comes from."""
+    out: list[str] = []
+    if document.get("type") != "FeatureCollection" or not isinstance(document.get("features"), list):
+        return ["3.3: a FeatureCollection has a \"features\" array"]
+    if "crs" in document:
+        out.append("4: the \"crs\" member was removed; coordinates are WGS 84 longitude, latitude")
+
+    def position(p: Any, where: str) -> None:
+        if not (isinstance(p, list) and len(p) >= 2 and all(isinstance(v, (int, float)) for v in p[:2])):
+            out.append(f"{where}: 3.1.1 a position is an array of two or more numbers")
+        elif not (-180 <= p[0] <= 180 and -90 <= p[1] <= 90):
+            out.append(f"{where}: 4 longitude then latitude, in range ({p[0]}, {p[1]})")
+
+    for index, feature in enumerate(document["features"]):
+        where = f"feature {index}"
+        if feature.get("type") != "Feature" or "properties" not in feature or "geometry" not in feature:
+            out.append(f"{where}: 3.2 a Feature has \"geometry\" and \"properties\" members")
+            continue
+        geometry = feature["geometry"]
+        kind, coords = geometry.get("type"), geometry.get("coordinates")
+        if kind == "Point":
+            position(coords, where)
+        elif kind == "LineString":
+            if not isinstance(coords, list) or len(coords) < 2:
+                out.append(f"{where}: 3.1.4 a LineString has two or more positions")
+            for p in coords or []:
+                position(p, where)
+        elif kind == "Polygon":
+            for ring_index, ring in enumerate(coords or []):
+                if len(ring) < 4 or ring[0] != ring[-1]:
+                    out.append(f"{where}: 3.1.6 a linear ring is closed, with four or more positions")
+                for p in ring:
+                    position(p, where)
+                if len(ring) >= 4 and (_signed_area(ring) > 0) != (ring_index == 0):
+                    out.append(f"{where}: 3.1.6 exterior rings are counterclockwise, holes clockwise")
+        else:
+            out.append(f"{where}: geometry type {kind!r} is not written by this exporter")
+    return out

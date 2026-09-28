@@ -375,3 +375,55 @@ async def get_world_shape(
         return world_shape(db, segment_id, pass_id)
     except (LookupError, ValueError) as exc:
         raise _http(exc) from exc
+
+
+@router.get("/documents/{doc_id}/geojson", response_model=dict)
+async def get_document_geojson(
+    doc_id: str,
+    kinds: str = Query("place", description="Comma-separated segment kinds to place"),
+    db: Database = Depends(get_library_database),
+) -> dict[str, Any]:
+    """`GET /api/georeference/documents/{doc_id}/geojson` -- this image's segments of `kinds`, placed
+    in the world through its working georeferencing pass, as an RFC 7946 FeatureCollection
+    (`source.geo.geojson-out`). Each Feature is the segment's `world-shape`: its id, its citable
+    reference back, the pass and transform version, the error estimate and whether the GCPs are a
+    machine's unchosen ones. A segment that cannot be placed (outside the map, on an image with no
+    recorded alignment) is not a Feature: it is listed, with why, in the foreign member
+    `fichero:not_placed` -- never dropped silently, never extrapolated."""
+    from fichero_server.api.routes.document.segment_readings import counting_by_kind, readings_of_segment
+    from fichero_server.models.geo import counterclockwise, geojson_problems
+
+    wanted = {k.strip() for k in kinds.split(",") if k.strip()}
+    georef = {p.id for p in db.query(SegmentPass, document_id=doc_id) if p.transformation}
+    rows = sorted((s for s in db.query(Segment, document_id=doc_id)
+                   if s.deleted_at is None and s.kind in wanted and s.pass_id not in georef), key=lambda s: s.id)
+    library_uuid = db.library_uuid() or "unknown"
+    features, not_placed = [], []
+    for row in rows:
+        try:
+            shape = world_shape(db, row.id)
+        except (LookupError, ValueError) as refusal:
+            not_placed.append({"segment_id": row.id, "reason": str(refusal)})
+            continue
+        if shape.outside_the_map or shape.geometry is None:
+            not_placed.append({"segment_id": row.id, "reason": shape.reason or "outside the map"})
+            continue
+        items = readings_of_segment(db, row.id)
+        counted = counting_by_kind(db, row.id, items).get("transcription")
+        text = next((i.content for i in items if counted and i.id == counted.representation_id), None)
+        features.append({
+            "type": "Feature",
+            "id": row.id,
+            "geometry": counterclockwise(shape.geometry),
+            "properties": {
+                "reference": f"fichero:segment/{library_uuid}/{row.document_id}/{row.id}",
+                "segment_id": row.id, "kind": row.kind, "text": text,
+                "georeference_pass_id": shape.pass_id, "transformation": shape.transformation,
+                "gcp_set_version": shape.gcp_set_version, "error_m": shape.error_m, "unchosen": shape.unchosen,
+            },
+        })
+    collection = {"type": "FeatureCollection", "features": features, "fichero:not_placed": not_placed}
+    problems = geojson_problems(collection)
+    if problems:
+        raise HTTPException(500, "the GeoJSON written breaks RFC 7946: " + "; ".join(problems))
+    return collection

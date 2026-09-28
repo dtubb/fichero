@@ -531,8 +531,16 @@ Formats
 - `source.geo.kml` — **[GAP]** (#4946, → #5125) a warped map goes in and out as Mapwarper's KML
   `GroundOverlay`. Our export validates against the vendored OGC KML schema, and the tests use real
   Mapwarper exports (licence first).
-- `source.geo.geojson-out` — **[GAP]** (#4946) places, place segments and entity movements export
+- `source.geo.geojson-out` — **[PARTIAL]** (#4946) places, place segments and entity movements export
   as RFC 7946 GeoJSON, each Feature carrying its reference back to its segment, claim or entity.
+  **Place segments built 2026-09-28 (#5122, maps C5):** `GET /api/georeference/documents/{doc_id}/geojson`
+  writes the image's segments of `kinds` (default `place`) placed through its working georeferencing
+  pass as an RFC 7946 FeatureCollection: each Feature's `id` is the segment and its properties carry
+  the `fichero:segment` reference, the pass, transform version, error and `unchosen`; exterior rings
+  counterclockwise; a shape that cannot be placed is listed with its reason in `fichero:not_placed`.
+  Every write is checked against RFC 7946's rules (`models.geo.geojson_problems`, each rule firing in
+  a fixture) (`fichero-server/tests/unit/api/test_place_segments_export_as_geojson.py`). PARTIAL:
+  place ENTITIES and entity movements are not written yet.
 - `source.geo.geopackage-out` — **[GAP]** (#4946) the same layers export as a GeoPackage in any
   CRS.
 - `source.geo.linked-places-out` — **[GAP]** (#4946) place entities export as Linked Places Format
