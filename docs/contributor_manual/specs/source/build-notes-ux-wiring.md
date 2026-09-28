@@ -74,7 +74,9 @@ Page From…. Every edit below should undo with ⌘Z and redo with ⇧⌘Z.
     the order changes; ⌘Z. **Gathered sets:** in the Inspector, Hands ▸ **Everything in This Hand**, or
     Signs ▸ **Every Instance**. *Should:* the pane lists them across pages (the crumb "Page" goes
     back); a row opens its page with that segment selected; pages you may not read are counted
-    beneath ("2 more on pages you may not read"), never silently missing. **Not yet:** strip and grid.
+    beneath ("2 more on pages you may not read"), never silently missing. **Strip and Grid:** the head's view menu ▸ Strip / Grid. *Should:* each
+    segment's picture cut from the page, its words beneath, in the page's order; a click selects, a
+    double click opens a region. A click in the pane focuses it: ⊞ Split splits the Segments pane.
 15. **A georeference beside a transcription** (#5122). On a page with an imported transcription AND an
     imported IIIF georeference: *Should:* the Source view draws the transcription's lines, never the
     control points; Making lists the georeference under **Georeferencing**.
@@ -119,7 +121,8 @@ against the engine on every Python run). When the lead's run is green, the rows'
 | 5.8 | `source.rights.record`, `tighten-only` (shown in words, records placed), `who-acts` (the engine's refusal said) | b01d0cdf4 | `…RightsSectionSaysWhatApplies…` |
 | 5.7 | `source.statement.on-segment`, `both-ways` (from the segment: claims and mentions whose anchor names it, each opening its claim or entity) | f95b6e43a, 0f0d01e37 | `…WhatIsSaidAboutALineListsItsClaimAndMention…` |
 | #4942 | `source.segments-pane.exists`, `selection-shared`, `reorders` (first slice: the list) | 9b7e783fd (spec), e252d3967 | `…SegmentsPaneListsOpensReordersAndSelects…` |
-| #4942 | `source.segments-pane.gathers` (everything in a hand, every instance of a sign; what may not be read is counted and said, #5180) | (this commit) | `…EverythingInHandBIsGathered…`, `…EveryInstanceOfTheMUFISignIsGathered` |
+| #4942 | `source.segments-pane.views` (list, strip, grid of the engine's segment pictures; one order store) | d1f312d68 | `…AStripCellsPictureIsTheEnginesCutOfTheLine` |
+| #4942 | `source.segments-pane.gathers` (everything in a hand, every instance of a sign; what may not be read is counted and said, #5180) | 2036f6d2f, 73e31c287 (pane focus) | `…EverythingInHandBIsGathered…`, `…EveryInstanceOfTheMUFISignIsGathered` |
 | #5122 | a georeferencing pass is never drawn as the page's boxes; Making lists it apart | 8b9e51c37 | unit only: `SegmentDisplayTests.aGeoreferenceIsNotDrawnAsThePagesBoxes` (no real georef+transcription page recorded yet) |
 
 Engine defects found on the way, filed: #5176 (the Syriac page resolved to "English, left to right"
