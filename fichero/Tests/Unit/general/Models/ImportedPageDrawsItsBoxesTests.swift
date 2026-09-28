@@ -33,6 +33,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 || path.hasPrefix("/api/editorial/") || path.hasPrefix("/api/signs")
                 || path.hasPrefix("/api/letterforms") || path.hasPrefix("/api/links/")
                 || (path.hasPrefix("/api/segments/") && path.hasSuffix("/reference"))
+                || path == "/api/rights/effective"
         }
 
         /// What `GET /api/hands` and `GET /api/hands/segment/{id}` answer (set by the test that asks).
@@ -62,6 +63,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         nonisolated(unsafe) static var linksReply = Data()
         nonisolated(unsafe) static var linkTypesReply = Data()
         nonisolated(unsafe) static var referenceReply = Data()
+        /// What `GET /api/rights/effective` answers.
+        nonisolated(unsafe) static var rightsReply = Data()
 
         private static func actionReply(auditId: String) -> Data {
             Data(#"{"ok":true,"result":{},"audit_id":"\#(auditId)","changed_domains":["segment"]}"#.utf8)
@@ -101,6 +104,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 actionBody = Self.linkTypesReply
             } else if path.hasPrefix("/api/segments/"), path.hasSuffix("/reference") {
                 actionBody = Self.referenceReply
+            } else if path == "/api/rights/effective" {
+                actionBody = Self.rightsReply
             } else if path.hasPrefix("/api/segments/passes/"), path.hasSuffix("/original") {
                 actionBody = Self.originalReply
             } else if path == "/api/actions/invoke" {
@@ -146,6 +151,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             linksReply = Data()
             linkTypesReply = Data()
             referenceReply = Data()
+            rightsReply = Data()
         }
 
         /// URLSession hands a protocol its body as a stream, not as `httpBody`.
@@ -738,6 +744,50 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         manager.undo()
         for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(RecordedEngine.undone, ["audit-2"], "⌘Z restores the withdrawn link by its own audit row")
+    }
+
+    /// `source.rights.record`, `tighten-only` end to end (5.8): the imported Syriac page's first line,
+    /// with a label on the library, local models only for the page, and the line restricted to one
+    /// reader (the engine's recorded answer). Read through `RightsService`, the section says what
+    /// applies and places each record; Set ▸ No Models sends rights.set on the line; Withdraw sends
+    /// rights.withdraw for the line's own record, and ⌘Z undoes it.
+    func testTheRightsSectionSaysWhatAppliesAndWhereEachRecordSits() async throws {
+        _ = try await loadedStore()
+        RecordedEngine.rightsReply = try Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-line-rights.json")
+        )
+        let answer = try await RightsService(client: try XCTUnwrap(storeClient))
+            .effective(targetKind: "segment", targetId: "seg-0003")
+        XCTAssertEqual(InspectorRights.effect(answer).map(\.value), ["Only owner", "Local models only", "TK Attribution"])
+        let rows = InspectorRights.rows(answer.records, targetKind: "segment", targetId: "seg-0003", pageId: "doc-0001")
+        XCTAssertEqual(rows.map(\.place), ["On the library", "On this page", "On this segment"])
+        XCTAssertEqual(rows.map(\.detail), [
+            "labels: TK Attribution · held by Österreichische Nationalbibliothek · by owner",
+            "local models only · agreement 2026-07 · by owner",
+            "restricted to owner · by owner"
+        ])
+
+        let actions = ActionsService(client: try XCTUnwrap(storeClient))
+        try await AuditedAction.run(
+            "rights.set", params: RightsSetRequest(targetKind: "segment", targetId: "seg-0003", modelUse: "none"),
+            actionName: "Set Model Rule", actionsService: actions, undoManager: nil
+        )
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        try await AuditedAction.run(
+            "rights.withdraw", params: RightsRecordIdRequest(recordId: rows[2].recordId),
+            actionName: "Withdraw Rights Record", actionsService: actions, undoManager: manager
+        )
+        manager.endUndoGrouping()
+        let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
+        XCTAssertEqual(sent.compactMap { $0["name"] as? String }, ["rights.set", "rights.withdraw"])
+        XCTAssertEqual(sent[0]["params"] as? [String: String],
+                       ["target_kind": "segment", "target_id": "seg-0003", "model_use": "none"])
+        XCTAssertEqual(sent[1]["params"] as? [String: String], ["record_id": "rights-0003"])
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-2"])
     }
 
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {

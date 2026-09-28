@@ -1,0 +1,68 @@
+{
+ "target_kind": "segment",
+ "target_id": "seg-0003",
+ "restricted": true,
+ "readers": [
+  "owner"
+ ],
+ "model_use": "local",
+ "labels": [
+  "TK Attribution"
+ ],
+ "records": [
+  {
+   "id": "rights-0001",
+   "target_kind": "library",
+   "target_id": "library",
+   "holders": [
+    "\u00d6sterreichische Nationalbibliothek"
+   ],
+   "consent": null,
+   "conditions": null,
+   "labels": [
+    "TK Attribution"
+   ],
+   "restricted": false,
+   "readers": [],
+   "model_use": null,
+   "provenance_kind": "human",
+   "created_by": "owner",
+   "created_at": "2026-09-27T12:00:00Z",
+   "withdrawn_at": null
+  },
+  {
+   "id": "rights-0002",
+   "target_kind": "document",
+   "target_id": "doc-0001",
+   "holders": [],
+   "consent": null,
+   "conditions": "agreement 2026-07",
+   "labels": [],
+   "restricted": false,
+   "readers": [],
+   "model_use": "local",
+   "provenance_kind": "human",
+   "created_by": "owner",
+   "created_at": "2026-09-27T12:00:00Z",
+   "withdrawn_at": null
+  },
+  {
+   "id": "rights-0003",
+   "target_kind": "segment",
+   "target_id": "seg-0003",
+   "holders": [],
+   "consent": null,
+   "conditions": null,
+   "labels": [],
+   "restricted": true,
+   "readers": [
+    "owner"
+   ],
+   "model_use": null,
+   "provenance_kind": "human",
+   "created_by": "owner",
+   "created_at": "2026-09-27T12:00:00Z",
+   "withdrawn_at": null
+  }
+ ]
+}

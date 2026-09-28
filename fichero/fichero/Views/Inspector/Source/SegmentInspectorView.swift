@@ -77,10 +77,13 @@ struct SegmentInspectorView: View {
                         )
                         // Typed links, both ways, and the segment's reference (5.7).
                         InspectorLinksSection(segmentId: inspected, documentId: documentId, selectedIds: selectedIds)
+                        // What applies here, from the library down (5.8).
+                        InspectorRightsSection(targetKind: "segment", targetId: inspected, pageId: documentId)
                     }
                     if level == .page {
                         // Page level: how the page's passes were made (#5149).
                         InspectorMakingSection(documentId: documentId)
+                        InspectorRightsSection(targetKind: "document", targetId: documentId, pageId: documentId)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

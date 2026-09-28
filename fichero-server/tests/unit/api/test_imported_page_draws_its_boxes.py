@@ -429,3 +429,43 @@ def test_a_link_between_two_lines_is_recorded_from_both_ends_for_the_app(db, cli
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         LINKS_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
     assert json.loads(LINKS_FIXTURE.read_text()) == recorded, "the app's links fixture drifted"
+
+
+RIGHTS_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.first-line-rights.json"
+
+
+def test_what_rights_apply_to_a_line_is_recorded_for_the_app(db, client):
+    """`source.rights.record`, `tighten-only` (the Inspector's Rights section, 5.8): the app reads GET
+    /api/rights/effective for the inspected segment -- what applies, worked out from the library down,
+    with the records that added up to it. Recorded on the imported Syriac page after three records at
+    three levels: a community label on the library, local models only for the page, and the first line
+    restricted to one named reader -- through the calls the app makes."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    line = min((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+               key=lambda s: s["anchor"]["rect"])
+    record_ids = []
+    for params in (
+        {"target_kind": "library", "labels": ["TK Attribution"], "holders": ["Österreichische Nationalbibliothek"]},
+        {"target_kind": "document", "target_id": doc_id, "model_use": "local", "conditions": "agreement 2026-07"},
+        {"target_kind": "segment", "target_id": line["id"], "restricted": True, "readers": ["owner"]},
+    ):
+        answer = client.post("/api/actions/invoke", json={"name": "rights.set", "params": params})
+        assert answer.status_code == 200, answer.text
+        record_ids.append(answer.json()["result"]["record_id"])
+    effective = client.get("/api/rights/effective",
+                           params={"target_kind": "segment", "target_id": line["id"]}).json()
+    assert effective["restricted"] is True and effective["model_use"] == "local"
+    assert [r["id"] for r in effective["records"]] == record_ids  # library first
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    token = next(s["id"] for s in stable_route["segments"]
+                 if s["kind"] == "line" and s["anchor"]["rect"] == line["anchor"]["rect"])
+    ids = {doc_id: stable_route["document_id"], line["id"]: token}
+    for index, record_id in enumerate(record_ids, start=1):
+        ids[record_id] = f"rights-{index:04d}"
+    recorded = _stabilizer(ids)(effective)
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        RIGHTS_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(RIGHTS_FIXTURE.read_text()) == recorded, "the app's rights fixture drifted"
