@@ -138,3 +138,34 @@ def test_a_direction_stated_on_the_source_reaches_a_line_without_letters(db, cli
     resolved = client.get("/api/source-settings/resolve", params={"segment_id": line["segment_id"]})
     [direction] = [s for s in resolved.json()["settings"] if s["key"] == "direction"]
     assert (direction["value"], direction["level"], direction["basis"]) == ("ttb", "document", "recorded on this source")
+
+
+LATIN = CORPUS / "escriptorium_latin-mufi_clm13027-38r.alto.xml"
+
+
+def test_a_direction_stated_on_the_project_reaches_a_line_without_letters_everywhere(db, client):
+    """The LAST stated rung is the project's, and every reader of the cascade takes it -- region,
+    page, source, project, from ONE function (`direction_rungs`). The resolve route had the project
+    rung and the derivation and the Reader did not, so a project stated `rtl` showed its folio
+    number as `ltr` in the Reader while the Inspector said `rtl`. If this regresses, the Reader and
+    the resolve route disagree about the same line again.
+
+    A real Latin page (clm 13027, f. 38r, eScriptorium ALTO) whose folio line is `38`: with nothing
+    stated its digits would take the page's `ltr` from its Latin letters -- so `rtl` here can only
+    have come from the project."""
+    from fichero_server.actions.registry import registry
+    from tests.unit.api.test_page_text_follows_the_file import BOOT
+
+    lines = [t for t in _alto_lines(LATIN) if t.strip()]
+    assert "38" in lines and sum(1 for t in lines if _strong(t) == {"L"}) > 100    # the premise, from the file
+    doc_id = _import(db, LATIN)
+    registry.invoke(db, "source_setting.set", {"level": "project", "key": "direction", "value": "rtl"}, BOOT)
+    page = _view(client, doc_id)[0]["pages"][0]
+    line = next(l for l in page["lines"] if page["content"][l["char_start"]:l["char_end"]] == "38")
+    assert line["direction"] == "rtl" and not line.get("direction_basis")         # the Reader: stated, not inherited
+    derived = document_text(db, doc_id, include_furniture=True)                    # a folio number is furniture
+    [block] = [b for b in derived.blocks if any(derived.text[s.start:s.end] == "38" for s in b.spans)]
+    assert (block.direction, block.direction_level) == ("rtl", "project")          # the derivation
+    resolved = client.get("/api/source-settings/resolve", params={"segment_id": line["segment_id"]})
+    [direction] = [s for s in resolved.json()["settings"] if s["key"] == "direction"]
+    assert (direction["value"], direction["level"]) == ("rtl", "project")          # the resolve route

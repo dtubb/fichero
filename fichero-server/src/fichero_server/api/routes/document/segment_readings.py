@@ -52,6 +52,7 @@ from fichero_server.llm.language_policy import (
     stated_direction_source,
 )
 from fichero_server.models import Artifact, ContentRepresentation, Document
+from fichero_server.models.source_declarations import project_facts
 from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.knowledge import ProvenanceKind
 from fichero_server.models.readings import (
@@ -797,10 +798,11 @@ def _why_omitted(
 #: 7: a person's correction outranks the reading it corrects (#5175).
 #: 8: a georeferencing pass is never the page's text pass (#5122, maps C1).
 #: 9: a direction stated on the page's source (file/folder) reaches its lines (#5172).
-DERIVATION_VERSION = 9
+#: 10: ...and the project's, the last stated rung (#5172, one order for every caller).
+DERIVATION_VERSION = 10
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
-DERIVATION_SOURCE_SHA256 = "4715839b022659bab73f0da3e23aa9aab3c3e3138ddec4e124736f84b8cf7052"
+DERIVATION_SOURCE_SHA256 = "b3146cce75ef20009d36cd285f241f14babcbe13a04475a9332d70401dbdedb8"
 
 
 def derivation_source_digest() -> str:
@@ -810,22 +812,33 @@ def derivation_source_digest() -> str:
 
     functions = (
         document_text, _text_bearing_rows, _readings_for_live_rows, _document_readings,
-        _segment_order_key, _direction_of, _lines_are_vertical,
+        _segment_order_key, direction_rungs, _direction_of, _lines_are_vertical,
         _has_no_direction_of_its_own, settle_neutral_directions,
     )
     return hashlib.sha256("\n".join(inspect.getsource(f) for f in functions).encode()).hexdigest()
 
 
+def direction_rungs(db: Database, document: Any) -> dict[str, Any]:
+    """The rungs ABOVE the page a line's direction can come from -- its source (the nearest file or
+    folder stating one) and the project -- read once per page. The ONE place every caller of the
+    cascade gets them (the derivation, the Reader's line map, the resolve route, the split cut), so
+    no two of them walk a different order (#5172: region, page, source, project)."""
+    return {
+        "source": stated_direction_source(lambda i: db.get(Document, i), document),
+        "project": project_facts(db),
+    }
+
+
 def _direction_of(
     row: Segment, document: Any, text: str | None, lines_are_vertical: bool | None = None,
-    source: Any = None,
+    rungs: dict[str, Any] | None = None,
 ) -> tuple[str | None, str | None]:
     """A span's direction and the rung that said so. With nothing stated anywhere, the text's own
     characters decide (#5137: Syriac and Hebrew lines came out `ltr`), and for a script that may
     be vertical, the page's line shapes (#5147)."""
     resolved = resolve_direction(
-        segment=row, document=document, source=source, text=text,
-        lines_are_vertical=lines_are_vertical,
+        segment=row, document=document, text=text,
+        lines_are_vertical=lines_are_vertical, **(rungs or {}),
     )
     return (resolved.language if resolved.status != STATUS_UNKNOWN else None), resolved.level
 
@@ -1014,8 +1027,7 @@ def document_text(
     # pure counting function -- not a cache of the answer, which this design
     # deliberately does not store.
     document = db.get(Document, document_id)
-    # A direction stated on the file or folder above the page (#5172: region, page, SOURCE).
-    source = stated_direction_source(lambda i: db.get(Document, i), document)
+    rungs = direction_rungs(db, document)   # source and project, once per page (#5172)
     # Non-orientable per-segment values (`languages-scripts-signs.md`'s six-value list):
     # neither describes ONE orientation a block could be laid out under, so a segment
     # resolving to either always starts (and ends) its own block.
@@ -1063,7 +1075,7 @@ def document_text(
             span = DerivedTextSpan(
                 segment_id=row.id, representation_id=None, start=cursor, end=cursor
             )
-            direction, direction_level = _direction_of(row, document, None, vertical, source)
+            direction, direction_level = _direction_of(row, document, None, vertical, rungs)
             spans.append(span)
             span_directions.append((row.parent_segment_id, direction, direction_level, span))
             span_neutral.append(False)
@@ -1071,7 +1083,7 @@ def document_text(
         text = next(
             item.content for item in items if item.id == counted.representation_id
         )
-        direction, direction_level = _direction_of(row, document, text, vertical, source)
+        direction, direction_level = _direction_of(row, document, text, vertical, rungs)
         start = cursor
         pieces.append(text)
         cursor += len(text)
