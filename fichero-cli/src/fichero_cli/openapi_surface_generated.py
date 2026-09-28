@@ -5518,6 +5518,35 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('fonts')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for fonts endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='fonts')
+        existing_apps['fonts'] = target_app
+
+    @target_app.command("list")
+    def fonts_list_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Fonts (GET /api/fonts)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/fonts"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("file")
+    def fonts_file_get(
+        ctx: typer.Context,
+        name: str = typer.Argument(..., help="Path parameter: name."),
+    ) -> None:
+        """Font File (GET /api/fonts/{name})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/fonts/{name}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('formats')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for formats endpoints.', no_args_is_help=True)
@@ -15087,18 +15116,6 @@ def register_generated_openapi_commands(
                 "pages": pages,
                 "representation": representation,
             }
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("bundled-font")
-    def view_bundled_font_get(
-        ctx: typer.Context,
-        name: str = typer.Argument(..., help="Path parameter: name."),
-    ) -> None:
-        """Bundled Font (GET /view/fonts/{name})."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/view/fonts/{name}"
-            params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 

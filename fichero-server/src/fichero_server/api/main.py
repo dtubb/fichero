@@ -2034,6 +2034,7 @@ from fichero_server.api.routes.system import (  # noqa: E402
     bookmarks,
     changes,
     chat,
+    fonts,
     locations,
     migrations,
     projects,
@@ -2199,6 +2200,8 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (workflow_execution.router, "/api/workflow-execution", ["workflow-execution"]),
     (workflows.router, "/api/workflows", ["workflows"]),
     (views.router, "", ["views"]),
+    # /api/fonts -- bundled fallback fonts for the Reader and the app (#5210).
+    (fonts.router, "", ["fonts"]),
     # /api/kg/* — promoted from dev-tier to core 2026-05-12 (#967).
     # The Swift OntologyBrowser + DocumentInspector consume these
     # endpoints unconditionally; gating them behind FICHERO_FEATURE_TIER=dev

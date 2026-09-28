@@ -296,6 +296,7 @@ where = ["src"]
 # directly, which is why the embedded engine still worked and nobody noticed.
 fichero_server = [
     "resources/bin/*",
+    "resources/fonts/*",
     "resources/default_workflows/*.json",
     "resources/workflow_meta/*.json",
     "resources/fonts/*",

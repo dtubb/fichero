@@ -3867,6 +3867,30 @@
         "response_model": "FolderViewsResponse"
       }
     ],
+    "fonts": [
+      {
+        "method": "GET",
+        "path": "/fonts",
+        "operation_id": "list_fonts_api_fonts_get",
+        "summary": "List Fonts",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[BundledFont]"
+      },
+      {
+        "method": "GET",
+        "path": "/fonts/{name}",
+        "operation_id": "font_file_api_fonts__name__get",
+        "summary": "Font File",
+        "path_params": [
+          "name"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
     "formats": [
       {
         "method": "GET",
@@ -10400,18 +10424,6 @@
             "type": "string"
           }
         ],
-        "request_model": null,
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/view/fonts/{name}",
-        "operation_id": "bundled_font_view_fonts__name__get",
-        "summary": "Bundled Font",
-        "path_params": [
-          "name"
-        ],
-        "query_params": [],
         "request_model": null,
         "response_model": null
       },

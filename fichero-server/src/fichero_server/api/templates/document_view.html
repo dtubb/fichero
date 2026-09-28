@@ -5,22 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ document.name }}</title>
     <style>
-        /* Bundled fallback fonts (#5210, #5206), served by the engine at /view/fonts/ (SIL OFL
-           1.1). They sit AFTER the system fonts: the system font still draws every glyph it has,
-           and these only fill what macOS lacks -- MUFI private-use letters (Junicode), Syriac,
-           Mongolian, Coptic, Cherokee -- so a medieval abbreviation is a letter, not a box. */
-        @font-face { font-family: "Fichero Junicode"; src: url("/view/fonts/JunicodeVF-Roman.woff2") format("woff2"); font-weight: 300 700; font-display: swap; }
-        @font-face { font-family: "Fichero Noto Syriac"; src: url("/view/fonts/NotoSansSyriac-VF.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
-        @font-face { font-family: "Fichero Noto Mongolian"; src: url("/view/fonts/NotoSansMongolian-Regular.ttf") format("truetype"); font-display: swap; }
-        @font-face { font-family: "Fichero Noto Coptic"; src: url("/view/fonts/NotoSansCoptic-Regular.ttf") format("truetype"); font-display: swap; }
-        @font-face { font-family: "Fichero Noto Cherokee"; src: url("/view/fonts/NotoSansCherokee-VF.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+        /* Bundled fallback fonts (#5210): MUFI, Syriac, Mongolian, Coptic, Cherokee. */
+        {{ bundled_font_faces | safe }}
         :root {
             color-scheme: light dark;
-            /* Apple system defaults — match the native app chrome (#1228), then the bundled
-               fallbacks for what the system fonts lack (#5210). */
-            --font-fallbacks: "Fichero Junicode", "Fichero Noto Syriac", "Fichero Noto Mongolian", "Fichero Noto Coptic", "Fichero Noto Cherokee";
-            --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, var(--font-fallbacks), sans-serif;
-            --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+            /* Apple system defaults — match the native app chrome (#1228) — then the bundled
+               fonts, so a letter the system fonts lack is drawn before it becomes a box. */
+            --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, {{ bundled_font_families | safe }}, sans-serif;
+            --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, {{ bundled_font_families | safe }}, monospace;
             --bg: #f7f4ee;
             --panel: rgba(255, 255, 255, 0.85);
             --text: #1f1d1a;

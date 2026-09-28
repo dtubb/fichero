@@ -894,6 +894,19 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   `acceptance-2026-09-27.md` § Directions in the Reader. **Still PARTIAL:** columns that advance
   left to right (Mongolian) cannot be said (#5173); "a direction the platform cannot lay out is
   labelled" is not built; not run on the screen.
+- `source.text.bundled-fonts` — **[PARTIAL]** (#5210, subsumes #5206) a letter the system fonts lack is
+  drawn by a bundled open font before it becomes ⍰ or ▦. **Built 2026-09-28 (engine half):** the
+  engine ships Junicode (MUFI, medieval Latin), Noto Sans Syriac (Estrangela, Western, Eastern),
+  Noto Sans Mongolian, Coptic and Cherokee -- each the upstream file unmodified, SIL OFL 1.1 with
+  its own OFL text, sha256 and source in `resources/fonts/PROVENANCE.md`, 1.3 MB in all -- serves
+  them at `GET /api/fonts` (the list, in fallback order) and `GET /api/fonts/{file}` (`font/otf`,
+  behind the engine's auth like thumbnails), and the Reader declares each by `@font-face` and names
+  them after the system fonts in its stack. Pinned by
+  `fichero-server/tests/unit/api/test_bundled_fonts.py`: every MUFI letter of Clm 13027 f. 38r
+  (U+F1AC among them) is in Junicode's own cmap, each font draws a letter of its script, the page
+  declares every face. **[GAP] (#5210):** the app registering the same files for the Inspector,
+  Segments rows and on-image labels; the per-script font choice through the cascade; not checked
+  on the screen.
 - `source.textedit.no-second-path` — **[GAP]** (#5001) every change made from the text is one of the existing
   segment, reading and reading-order actions; the text surface defines none of its own.
 - `source.segments-pane.exists` — **[GAP]** (#4942; approved 2026-09-27) a Segments pane kind lists the segments
