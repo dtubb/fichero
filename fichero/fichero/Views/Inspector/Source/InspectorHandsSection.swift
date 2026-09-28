@@ -9,6 +9,7 @@ struct InspectorHandsSection: View {
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
     @Environment(\.undoManager) private var undoManager
+    @Environment(WindowState.self) private var windowState: WindowState?
     @State private var hands: [InspectorHands.ListedHand] = []
     @State private var attributions: [InspectorHands.Attribution] = []
     @State private var naming = false
@@ -32,6 +33,12 @@ struct InspectorHandsSection: View {
                         }
                     }
                     Spacer()
+                    Button("Everything in This Hand") {
+                        windowState?.segmentsGather = .hand(id: row.handId, label: row.ink)
+                    }
+                        .buttonStyle(.borderless)
+                        .font(.caption)
+                        .help("List every segment attributed to this hand, across sources, in the Segments pane")
                     Button("Withdraw") {
                         run("hand.unattribute", HandUnattributeRequest(attributionId: row.attributionId), "Withdraw Attribution")
                     }

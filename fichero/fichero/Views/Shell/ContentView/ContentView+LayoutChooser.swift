@@ -22,13 +22,7 @@ extension ContentView {
     /// The focused pane's KIND, from real focus falling back to the last hint — the same signal
     /// the retired `SplitCommandRouting` used, minus the dead slot-id translation (#4685).
     private var focusedPaneKindForSplit: PaneKind? {
-        switch focusedPane ?? paneFocusHint {
-        case .content: .library
-        case .preview: .preview
-        case .reading: .reading
-        case .chat: .chat
-        case .sidebar, .inspector, nil: nil
-        }
+        (focusedPane ?? paneFocusHint)?.paneKind
     }
 
     /// The id of the FOCUSED leaf in the applied `PaneList` — the first top-level leaf of the

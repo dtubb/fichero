@@ -62,6 +62,8 @@ extension ContentView {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .inspector; paneFocusHint = .inspector })
             )
+        case .segments:
+            return segmentsPane(splitKey: splitKey, modelSplit: modelSplit, fixedWidth: spec.fixedWidth)
         case .chat:
             // Chat is no longer a centre pane — it lives beneath the sidebar
             // (spec panes.chat.below-sidebar). The kind stays in the enum so the
@@ -78,6 +80,20 @@ extension ContentView {
         }
     }
 
+    /// The Segments pane (#4942): the selected page's segments, beside the Preview.
+    private func segmentsPane(splitKey: String, modelSplit: PaneModelSplitHook?, fixedWidth: CGFloat?) -> AnyView {
+        AnyView(
+            adaptiveSplittablePane(storageKey: splitKey, modelSplit: modelSplit) {
+                SegmentsPaneView(document: previewDocument)
+            }
+            .frame(width: fixedWidth)
+            .frame(maxWidth: fixedWidth == nil ? .infinity : nil)
+            .clipped()
+            // A click in the pane focuses it, as the other panes do, so Split / Close act on it.
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .segments; paneFocusHint = .segments })
+        )
+    }
+
     // MARK: - The ONE renderer (spec §F7: one rendering path)
 
     /// Map the pure-model `PaneKind` to the view's `PaneSpec.Kind`. They carry the same four
@@ -89,6 +105,7 @@ extension ContentView {
         case .reading: .reading
         case .inspector: .inspector
         case .chat: .chat
+        case .segments: .segments
         }
     }
 
@@ -101,6 +118,7 @@ extension ContentView {
         case .reading: .reading
         case .inspector: .inspector
         case .chat: .chat
+        case .segments: .segments
         }
     }
 

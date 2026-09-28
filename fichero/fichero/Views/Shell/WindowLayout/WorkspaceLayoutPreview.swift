@@ -84,6 +84,7 @@ struct WorkspaceLayoutPreview: View {
         case .reading: .purple
         case .inspector: .gray
         case .chat: .green
+        case .segments: .teal
         }
     }
 
@@ -100,6 +101,7 @@ struct WorkspaceLayoutPreview: View {
         case .reading: return "Reader"
         case .inspector: return "Inspector"
         case .chat: return "Chat"
+        case .segments: return "Segments"
         }
     }
 }

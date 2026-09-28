@@ -35,6 +35,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 || (path.hasPrefix("/api/segments/") && path.hasSuffix("/reference"))
                 || path == "/api/rights/effective"
                 || (path.hasPrefix("/api/segments/") && path.hasSuffix("/statements"))
+                || path.hasPrefix("/api/reading-orders/")
+                || path.split(separator: "/").count == 3 && path.hasPrefix("/api/segments/")
+                || (path.hasPrefix("/api/segments/") && path.hasSuffix("/picture"))
         }
 
         /// What `GET /api/hands` and `GET /api/hands/segment/{id}` answer (set by the test that asks).
@@ -68,6 +71,18 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         nonisolated(unsafe) static var rightsReply = Data()
         /// What `GET /api/segments/{id}/statements` answers.
         nonisolated(unsafe) static var statementsReply = Data()
+        /// What the reading-order routes answer: the page's orders, the top level, one region's
+        /// children (for `parent_entry_id` = `childrenOf`); every place POST is recorded.
+        nonisolated(unsafe) static var ordersReply = Data()
+        nonisolated(unsafe) static var topEntriesReply = Data()
+        nonisolated(unsafe) static var childEntriesReply = Data()
+        nonisolated(unsafe) static var childrenOf = ""
+        nonisolated(unsafe) static var placed: [Data] = []
+        /// What `GET /api/hands/{id}/attributions` answers, and `GET /api/segments/{id}` per id.
+        nonisolated(unsafe) static var everythingReply = Data()
+        nonisolated(unsafe) static var segmentReplies: [String: Data] = [:]
+        /// What `GET /api/segments/{id}/picture` answers: the engine's PNG bytes, as image/png.
+        nonisolated(unsafe) static var pictureReply = Data()
 
         private static func actionReply(auditId: String) -> Data {
             Data(#"{"ok":true,"result":{},"audit_id":"\#(auditId)","changed_domains":["segment"]}"#.utf8)
@@ -83,7 +98,14 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             // recording it made the highlight test parse empty data when a store reloaded.
             if isAnnotation, request.httpMethod == "POST" { Self.annotationRequests.append(Self.bodyOf(request)) }
             var actionBody: Data?
-            if path == "/api/hands" {
+            let isPicture = path.hasPrefix("/api/segments/") && path.hasSuffix("/picture")
+            if isPicture {
+                actionBody = Self.pictureReply
+            } else if path.hasPrefix("/api/hands/"), path.hasSuffix("/attributions") {
+                actionBody = Self.everythingReply
+            } else if path.split(separator: "/").count == 3, path.hasPrefix("/api/segments/") {
+                actionBody = Self.segmentReplies[String(path.split(separator: "/").last ?? "")]
+            } else if path == "/api/hands" {
                 actionBody = Self.handsReply
             } else if path.hasPrefix("/api/hands/segment/") {
                 actionBody = Self.attributionsReply
@@ -111,6 +133,15 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 actionBody = Self.rightsReply
             } else if path.hasPrefix("/api/segments/"), path.hasSuffix("/statements") {
                 actionBody = Self.statementsReply
+            } else if path.hasPrefix("/api/reading-orders/document/") {
+                actionBody = Self.ordersReply
+            } else if path.hasPrefix("/api/reading-orders/"), path.hasSuffix("/entries") {
+                let query = request.url?.query ?? ""
+                actionBody = !Self.childrenOf.isEmpty && query == "parent_entry_id=\(Self.childrenOf)"
+                    ? Self.childEntriesReply : Self.topEntriesReply
+            } else if path.hasPrefix("/api/reading-orders/"), path.hasSuffix("/place") {
+                Self.placed.append(Self.bodyOf(request))
+                actionBody = Self.actionReply(auditId: "place-\(Self.placed.count)")
             } else if path.hasPrefix("/api/segments/passes/"), path.hasSuffix("/original") {
                 actionBody = Self.originalReply
             } else if path == "/api/actions/invoke" {
@@ -124,7 +155,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             guard let url = request.url,
                   let response = HTTPURLResponse(
                       url: url, statusCode: isAnnotation ? 422 : 200, httpVersion: "HTTP/1.1",
-                      headerFields: ["Content-Type": "application/json"]
+                      headerFields: ["Content-Type": isPicture ? "image/png" : "application/json"]
                   ) else {
                 client?.urlProtocol(self, didFailWithError: URLError(.badURL))
                 return
@@ -158,6 +189,14 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             referenceReply = Data()
             rightsReply = Data()
             statementsReply = Data()
+            ordersReply = Data()
+            topEntriesReply = Data()
+            childEntriesReply = Data()
+            childrenOf = ""
+            placed = []
+            everythingReply = Data()
+            segmentReplies = [:]
+            pictureReply = Data()
         }
 
         /// URLSession hands a protocol its body as a stream, not as `httpBody`.
@@ -818,6 +857,179 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         focus.focusEntity(entityId: rows[1].targetId, sourceDocumentId: "doc-0001")
         XCTAssertEqual(focus.focusedEntityId, "entity-0001")
         XCTAssertNil(focus.focusedClaimId, "opening an entity is not opening a claim")
+    }
+
+    /// `source.segments-pane.exists`, `reorders`, `selection-shared` end to end (#4942): the imported
+    /// Syriac page in the Segments pane, over the engine's recorded reading order. Through the Order
+    /// list's own store (`ReadingOrderStore` over `ReadingOrderService`, the one implementation) the
+    /// pane lists the page's four regions, opens the first to its line with a path back up, moves a
+    /// region down with ONE place call whose ⌘Z undoes it by its own audit row, and a row picked is
+    /// the Source view's selection (`InspectorPath.select`, the call the list makes on a pick).
+    func testTheSegmentsPaneListsOpensReordersAndSelectsTheImportedPagesSegments() async throws {
+        let segmentStore = try await loadedStore()
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.reading-order.json")
+        )) as? [String: Any])
+        RecordedEngine.ordersReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["orders"]))
+        RecordedEngine.topEntriesReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["top"]))
+        RecordedEngine.childEntriesReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["children"]))
+        RecordedEngine.childrenOf = try XCTUnwrap(recorded["region_entry"] as? String)
+        let segments = segmentStore.segments(documentId: "doc-0001")
+
+        let orders = ReadingOrderStore(transport: ReadingOrderService(ficheroClient: try XCTUnwrap(storeClient)))
+        try await orders.load(documentId: "doc-0001")
+        let top = orders.shown.map(\.segmentId)
+        XCTAssertEqual(top.count, 4, "the page's four regions, in its order")
+        XCTAssertEqual(top.map { id in segments.first { $0.id == id }?.kind }, Array(repeating: "region", count: 4))
+        let region = try XCTUnwrap(top.first)
+        XCTAssertTrue(SegmentsPane.hasChildren(region, in: segments), "a region opens to its lines")
+
+        await orders.show(childrenOf: region)
+        let lines = orders.shown.map(\.segmentId)
+        XCTAssertEqual(lines.count, 1)
+        let line = try XCTUnwrap(segments.first { $0.id == lines.first })
+        XCTAssertEqual(line.kind, "line")
+        XCTAssertEqual(SegmentsPane.rowLabel(line, at: 0), "Line · " + (line.text ?? "").trimmingCharacters(in: .whitespaces))
+        XCTAssertEqual(SegmentsPane.path(pageTitle: "page", to: region, in: segments).map(\.title), ["page", "Region"])
+
+        await orders.show(childrenOf: nil)
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        let auditId = await orders.move(region, step: .downward)
+        orders.registerUndo(auditId: auditId, undoManager: manager, actionsService: ActionsService(client: try XCTUnwrap(storeClient)))
+        manager.endUndoGrouping()
+        XCTAssertEqual(auditId, "place-1")
+        let placed = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.placed.first)) as? [String: Any])
+        XCTAssertEqual(placed["segment_id"] as? String, region)
+        XCTAssertEqual(placed["after_entry_id"] as? String, "entry-0002", "one place down: after the second region")
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["place-1"])
+
+        let selection = RegionSelection()
+        XCTAssertEqual(InspectorPath.select(segmentIds: [line.id], into: selection, documentId: "doc-0001", store: segmentStore), [line.id])
+        XCTAssertEqual(InspectorPath.selectedSegmentIds(selection: selection, documentId: "doc-0001", store: segmentStore), [line.id])
+    }
+
+    /// `source.segments-pane.gathers` end to end, a hand (#4942): the imported Syriac page's first two
+    /// lines attributed to hand B (the engine's recorded answer), gathered through the pane's own load
+    /// (`SegmentsGatheredList.load` -> `HandService.everything` -> each segment read). Each row is the
+    /// line's words with who judged and how sure, and opens the page it is on; nothing is withheld.
+    func testEverythingInHandBIsGatheredWithEachLineAndItsJudgement() async throws {
+        let store = try await loadedStore()
+        RecordedEngine.everythingReply = try Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.everything-in-hand.json")
+        )
+        for segment in store.segments(documentId: "doc-0001") {
+            let route = try XCTUnwrap(JSONSerialization.jsonObject(with: RecordedEngine.body) as? [String: Any])
+            let raw = try XCTUnwrap((route["segments"] as? [[String: Any]])?.first { $0["id"] as? String == segment.id })
+            RecordedEngine.segmentReplies[segment.id] = try JSONSerialization.data(withJSONObject: ["segment": raw])
+        }
+        let service = SegmentService(ficheroClient: try XCTUnwrap(storeClient))
+        let answer = await SegmentsGatheredList.load(.hand(id: "hand-0001", label: "hand B"), segmentService: service)
+        let lines = store.segments(documentId: "doc-0001")
+        let first = try XCTUnwrap(lines.first { $0.id == "seg-0003" })
+        XCTAssertEqual(answer.rows.count, 2)
+        XCTAssertEqual(answer.rows.first?.title, SegmentsPane.rowLabel(first, at: 0))
+        XCTAssertEqual(answer.rows.map(\.detail), ["judged by owner · sure 80%", "judged by owner · sure 60%"])
+        XCTAssertEqual(answer.rows.map(\.documentId), ["doc-0001", "doc-0001"], "each opens the page it is on")
+        XCTAssertEqual(answer.withheld, 0)
+        XCTAssertNil(SegmentsGathered.withheldNote(answer.withheld))
+    }
+
+    /// `source.segments-pane.gathers` end to end, a sign (#4942): every instance of the MUFI sign
+    /// declared on the real Clm 13027 page (the engine's recorded answer), gathered through the pane's
+    /// own load -> `SignService.instances`: forty readings, each row how often the sign occurs in it,
+    /// each opening its page.
+    func testEveryInstanceOfTheMUFISignIsGathered() async throws {
+        _ = try await loadedStore()
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("mufi_clm13027-38r.signs.json")
+        )) as? [String: Any])
+        RecordedEngine.instancesReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["instances"]))
+        let service = SegmentService(ficheroClient: try XCTUnwrap(storeClient))
+        let answer = await SegmentsGatheredList.load(.sign(id: "sign-0001", name: "MUFI abbreviation sign"), segmentService: service)
+        XCTAssertEqual(answer.rows.count, 40, "the page's forty readings that use U+F1AC")
+        XCTAssertEqual(answer.rows.first?.detail, "once")
+        XCTAssertTrue(answer.rows.allSatisfy { $0.documentId == "doc-mufi" }, "each opens the page it is on")
+        XCTAssertEqual(answer.withheld, 0)
+    }
+
+    /// `source.segments-pane.views` end to end (#4942): a strip or grid cell's picture is the engine's
+    /// own cut of the segment, read through `SegmentPictureService` as PNG. Recorded on the imported
+    /// Syriac page's first line: the corpus has no scan, so the page image is a stand-in at the file's
+    /// proportions with the file's lines inked, and the bytes are the engine's real cut of that line.
+    func testAStripCellsPictureIsTheEnginesCutOfTheLine() async throws {
+        _ = try await loadedStore()
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-line-picture.json")
+        )) as? [String: Any])
+        let png = try XCTUnwrap(Data(base64Encoded: try XCTUnwrap(recorded["png_base64"] as? String)))
+        RecordedEngine.pictureReply = png
+        let fetched = try await SegmentPictureService(client: try XCTUnwrap(storeClient))
+            .picture(segmentId: try XCTUnwrap(recorded["segment_id"] as? String), size: 120)
+        let bytes = try XCTUnwrap(fetched, "a picture, not nil")
+        XCTAssertEqual(bytes, png, "the engine's bytes, untouched")
+        let image = try XCTUnwrap(PlatformImage(data: bytes))
+        XCTAssertEqual(max(image.size.width, image.size.height), 120, accuracy: 1, "the size asked for")
+        XCTAssertGreaterThan(image.size.width, image.size.height, "a line is wider than it is tall")
+    }
+
+    /// `source.textedit.a-run-of-keys-is-one-action` end to end, the app's half: a run of typing on the
+    /// imported Syriac page's first line reaches the app as ONE `readingEdit` (the page coalesces the
+    /// keys), and through the calls the Reader's coordinator makes it is ONE `representation.create`,
+    /// ONE audit row and ONE undo step: ⌘Z once undoes the whole run, and there is nothing more.
+    func testARunOfTypingIsOneReadingOneAuditOneUndo() async throws {
+        let store = try await loadedStore()
+        let line = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.id == "seg-0003" })
+        let typed = (line.text ?? "") + " ܘܐܝܣܚܩ"
+        let edit = try XCTUnwrap(ReaderTextEdit.message(from: [
+            "kind": "readingEdit", "pageId": "doc-0001", "segmentId": line.id, "text": typed,
+            "previous": line.text ?? "", "basedOn": "rep-0001"
+        ]))
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        try await AuditedAction.run(
+            "representation.create", params: try XCTUnwrap(ReaderTextEdit.newReading(for: edit)), actionName: "Typing",
+            actionsService: ActionsService(client: try XCTUnwrap(storeClient)), undoManager: manager
+        )
+        manager.endUndoGrouping()
+        XCTAssertEqual(RecordedEngine.invoked.count, 1, "one run of keys, one action")
+        XCTAssertEqual(manager.undoActionName, "Typing")
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"], "one ⌘Z undoes the whole run")
+        XCTAssertFalse(manager.canUndo, "and there is no second step to undo")
+    }
+
+    /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the
+    /// imported Syriac page's first line -- down to nothing at all -- is a NEW READING without them,
+    /// through the calls the Reader's coordinator makes. No segment action is ever sent: the line and
+    /// its box stay; deleting a segment is the Source view's own named command.
+    func testDeletingWordsIsANewReadingAndNeverTouchesTheSegments() async throws {
+        let store = try await loadedStore()
+        let line = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.id == "seg-0003" })
+        let words = (line.text ?? "").split(separator: " ")
+        XCTAssertGreaterThan(words.count, 2)
+        let actions = ActionsService(client: try XCTUnwrap(storeClient))
+        for text in [words.dropLast().joined(separator: " "), ""] {
+            let edit = try XCTUnwrap(ReaderTextEdit.message(from: [
+                "kind": "readingEdit", "pageId": "doc-0001", "segmentId": line.id, "text": text,
+                "previous": line.text ?? "", "basedOn": "rep-0001"
+            ]))
+            try await AuditedAction.run(
+                "representation.create", params: try XCTUnwrap(ReaderTextEdit.newReading(for: edit)),
+                actionName: "Typing", actionsService: actions, undoManager: nil
+            )
+        }
+        let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
+        XCTAssertEqual(sent.compactMap { $0["name"] as? String }, ["representation.create", "representation.create"])
+        let contents = sent.compactMap { ($0["params"] as? [String: Any])?["content"] as? String }
+        XCTAssertEqual(contents, [words.dropLast().joined(separator: " "), ""], "the words gone from the reading, down to an empty line")
+        XCTAssertTrue(sent.allSatisfy { ($0["params"] as? [String: Any])?["segment_id"] as? String == line.id })
+        XCTAssertEqual(store.segments(documentId: "doc-0001").filter { $0.id == line.id }.count, 1, "the line is still there")
     }
 
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {

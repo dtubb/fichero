@@ -325,3 +325,15 @@ struct PreviewMarkupToolsRow: View {
         }
     }
 }
+
+// Both label modes, as `AnnotationBar` shows them. No `WindowState` is injected: the row reads
+// it optionally, so this is its no-window default (select tool, standard highlight style).
+#Preview("Markup tools — icons") {
+    PreviewMarkupToolsRow()
+        .padding()
+}
+
+#Preview("Markup tools — with labels") {
+    PreviewMarkupToolsRow(showsLabels: true)
+        .padding()
+}

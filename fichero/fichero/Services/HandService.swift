@@ -45,4 +45,27 @@ struct HandService {
             throw SegmentServiceError.unexpectedResponse(statusCode)
         }
     }
+
+    /// Everything attributed to one hand across sources, that this reader may read, and how many
+    /// were left out (#5180). The segment ids are what the Segments pane gathers (#4942).
+    func everything(handId: String) async throws -> (attributions: [InspectorHands.Attribution], withheld: Int) {
+        let response = try await client.api.everythingInAHandApiHandsHandIdAttributionsGet(path: .init(handId: handId))
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            let attributions: [InspectorHands.Attribution] = body.items.filter { $0.withdrawnAt == nil }.compactMap { item in
+                item.id.map {
+                    InspectorHands.Attribution(
+                        id: $0, handId: item.handId, certainty: item.certainty, judgedBy: item.createdBy,
+                        fromFile: item.source, segmentId: item.segmentId
+                    )
+                }
+            }
+            return (attributions, body.withheld ?? 0)
+        case .unprocessableContent:
+            return ([], 0)
+        case .undocumented(let statusCode, _):
+            throw SegmentServiceError.unexpectedResponse(statusCode)
+        }
+    }
 }

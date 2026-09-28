@@ -512,3 +512,129 @@ def test_what_is_said_about_a_line_is_recorded_for_the_app(db, client):
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         STATEMENTS_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
     assert json.loads(STATEMENTS_FIXTURE.read_text()) == recorded, "the app's statements fixture drifted"
+
+
+ORDER_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.reading-order.json"
+
+
+def test_the_page_s_reading_order_is_recorded_for_the_segments_pane(db, client):
+    """`source.segments-pane.exists`, `reorders` (the Segments pane, #4942): the pane lists a page's
+    segments through the Order list's own calls -- GET /api/reading-orders/document/{id}, then
+    GET /api/reading-orders/{order}/entries for the top level and for a region's lines. Recorded for
+    the imported Syriac page, so the app's test lists, opens and reorders over the engine's answer."""
+    doc_id = _import(db, SYRIAC)
+    orders = client.get(f"/api/reading-orders/document/{doc_id}").json()
+    order = next(o for o in orders["orders"] if o["name"] == "as-written")
+    top = client.get(f"/api/reading-orders/{order['id']}/entries").json()
+    assert top["entries"], "the imported page has an as-written order"
+    region_entry = next(e for e in top["entries"]
+                        if client.get(f"/api/reading-orders/{order['id']}/entries",
+                                      params={"parent_entry_id": e["id"]}).json()["entries"])
+    children = client.get(f"/api/reading-orders/{order['id']}/entries",
+                          params={"parent_entry_id": region_entry["id"]}).json()
+
+    route = client.get(f"/api/segments/document/{doc_id}").json()
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    by_rect = {repr(s["anchor"]["rect"]): s["id"] for s in stable_route["segments"]}
+    ids = {doc_id: stable_route["document_id"], order["id"]: "order-0001"}
+    for segment in route["segments"]:
+        ids[segment["id"]] = by_rect[repr(segment["anchor"]["rect"])]
+    real_pass = next(p["id"] for p in route["passes"] if not p["provisional"])
+    ids[real_pass] = next(p["id"] for p in stable_route["passes"] if not p["provisional"])
+    for index, entry in enumerate(top["entries"] + children["entries"], start=1):
+        ids[entry["id"]] = f"entry-{index:04d}"
+    for other in orders["orders"]:
+        ids.setdefault(other["id"], f"order-{len(ids):04d}")
+    stable = _stabilizer(ids)
+    recorded = {"orders": stable(orders), "top": stable(top), "region_entry": ids[region_entry["id"]],
+                "children": stable(children)}
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        ORDER_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(ORDER_FIXTURE.read_text()) == recorded, "the app's reading-order fixture drifted"
+
+
+HAND_GATHER_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.everything-in-hand.json"
+
+
+def test_everything_in_a_hand_is_recorded_for_the_segments_pane(db, client):
+    """`source.segments-pane.gathers` (#4942): "Everything in This Hand" reads GET
+    /api/hands/{id}/attributions. Recorded for the imported Syriac page after a person attributes its
+    first two lines to hand B, one of them only 60% sure -- through the calls the app makes."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    first, second = sorted((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+                           key=lambda s: s["anchor"]["rect"])[:2]
+    hand_id = client.post("/api/actions/invoke", json={"name": "hand.create", "params": {"label": "hand B"}}).json()["result"]["hand_id"]
+    for line, certainty in ((first, 0.8), (second, 0.6)):
+        answer = client.post("/api/actions/invoke", json={"name": "hand.attribute", "params": {
+            "hand_id": hand_id, "segment_id": line["id"], "certainty": certainty}})
+        assert answer.status_code == 200, answer.text
+    everything = client.get(f"/api/hands/{hand_id}/attributions").json()
+    assert sorted(a["segment_id"] for a in everything["items"]) == sorted([first["id"], second["id"]])
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    by_rect = {repr(s["anchor"]["rect"]): s["id"] for s in stable_route["segments"]}
+    ids = {hand_id: "hand-0001", first["id"]: by_rect[repr(first["anchor"]["rect"])],
+           second["id"]: by_rect[repr(second["anchor"]["rect"])]}
+    everything["items"] = sorted(everything["items"], key=lambda a: ids[a["segment_id"]])
+    for index, item in enumerate(everything["items"], start=1):
+        ids[item["id"]] = f"attr-{index:04d}"
+    recorded = _stabilizer(ids)(everything)
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        HAND_GATHER_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(HAND_GATHER_FIXTURE.read_text()) == recorded, "the app's everything-in-hand fixture drifted"
+
+
+PICTURE_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.first-line-picture.json"
+
+
+def test_a_line_s_picture_is_recorded_for_the_segments_pane(db, client):
+    """`source.segments-pane.views` (the Segments pane's strip and grid, #4942): each cell reads GET
+    /api/segments/{id}/picture. The corpus ships the PAGE file but not its scan, so the page image here
+    is a STAND-IN at the file's own proportions (1969x2365, scaled) with every line of the file inked
+    grey where the file puts it. The picture is the engine's real cut of the real first line's box.
+    Recorded as base64 PNG, with the ids the route recording gives, so the app's test decodes the
+    engine's own bytes."""
+    import base64
+    import io
+
+    from PIL import Image, ImageDraw
+
+    from fichero_server.actions.registry import registry
+    from fichero_server.models import DocType, Document, FileType, Status
+    from tests.unit.api.test_page_text_follows_the_file import BOOT
+
+    width, height = 394, 473  # 1969x2365 scaled by 1/5
+    scan = Image.new("RGB", (width, height), (250, 247, 240))
+    path = Path(db.path.parent) / "syriac-stand-in.png"
+    scan.save(path)
+    doc = Document(name="syriac", doc_type=DocType.file, file_type=FileType.image, path=str(path),
+                   status=Status.completed)
+    db.save(doc)
+    registry.invoke(db, "format.import", {"document_id": doc.id, "path": str(SYRIAC)}, BOOT)
+    body = client.get(f"/api/segments/document/{doc.id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    lines = sorted((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+                   key=lambda s: s["anchor"]["rect"])
+    draw = ImageDraw.Draw(scan)
+    for line in lines:
+        x, y, w, h = line["anchor"]["rect"]
+        draw.rectangle([x * width, y * height, (x + w) * width, (y + h) * height], fill=(90, 80, 70))
+    scan.save(path)
+
+    first = lines[0]
+    picture = client.get(f"/api/segments/{first['id']}/picture", params={"size": 120})
+    assert picture.status_code == 200, picture.text
+    assert picture.headers["content-type"] == "image/png"
+    cut = Image.open(io.BytesIO(picture.content)).convert("RGB")
+    assert max(cut.size) == 120, cut.size
+    assert cut.getpixel((cut.width // 2, cut.height // 2)) == (90, 80, 70), "the cut is the line, not the page"
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    token = next(s["id"] for s in stable_route["segments"]
+                 if s["kind"] == "line" and s["anchor"]["rect"] == first["anchor"]["rect"])
+    recorded = {"segment_id": token, "size": 120, "png_base64": base64.b64encode(picture.content).decode()}
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        PICTURE_FIXTURE.write_text(json.dumps(recorded, indent=1) + "\n")
+    assert json.loads(PICTURE_FIXTURE.read_text()) == recorded, "the app's picture fixture drifted"

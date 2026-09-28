@@ -66,6 +66,10 @@ struct SelectAllButton: View {
             // default branch, because "the reader works" was previously an
             // accident of the library's enablement rather than a decision.
             return nil
+        case .segments:
+            // DELIBERATELY nil: the Segments pane's list is a SwiftUI List whose own selection answers
+            // ⌘A; the library must not take it just because it is the default owner (#4942).
+            return nil
         default:
             // The library is the default owner, as it was before the inspector
             // could answer: no pane hint at all still means the library, which

@@ -21,6 +21,8 @@ enum InspectorHands {
         let judgedBy: String?
         /// "file: <name>" when an import's file said so; nil for a judgement made here.
         let fromFile: String?
+        /// The segment attributed: what "everything in this hand" gathers (#4942).
+        var segmentId: String?
     }
 
     struct Row: Equatable, Identifiable {
@@ -29,6 +31,8 @@ enum InspectorHands {
         let ink: String
         /// Who made the record and how sure: "judged by owner · sure 80%", "from the file 0065.xml".
         let record: String
+        /// The hand, for "Everything in This Hand" (#4942).
+        var handId = ""
         var id: String { attributionId }
     }
 
@@ -47,7 +51,10 @@ enum InspectorHands {
             if let certainty = attribution.certainty {
                 record.append("sure \(Int((certainty * 100).rounded()))%")
             }
-            return Row(attributionId: attribution.id, ink: ink, record: record.joined(separator: " · "))
+            return Row(
+                attributionId: attribution.id, ink: ink, record: record.joined(separator: " · "),
+                handId: attribution.handId
+            )
         }
     }
 }
