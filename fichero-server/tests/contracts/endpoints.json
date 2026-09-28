@@ -9469,6 +9469,18 @@
       },
       {
         "method": "GET",
+        "path": "/segments/{segment_id}/statements",
+        "operation_id": "segment_statements_api_segments__segment_id__statements_get",
+        "summary": "Segment Statements",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SegmentStatementsResponse"
+      },
+      {
+        "method": "GET",
         "path": "/segments/{segment_id}/versions",
         "operation_id": "list_segment_versions_api_segments__segment_id__versions_get",
         "summary": "List Segment Versions",
