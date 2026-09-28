@@ -364,3 +364,17 @@ def test_sandbox_grant_route_is_exempt_from_header_validation():
 def test_every_other_route_still_validates_the_header():
     for path in ("/api/documents", "/api/registry", "/api/health", "/api/sandboxed-not-really"):
         assert not api_main._library_header_validation_exempt(path), path
+
+
+def test_an_ingest_path_outside_every_root_is_refused_with_a_code_the_app_can_key_on(client):
+    """#5219: the app offers "Grant Access…" when an ingest is refused for its location. It must
+    key that off a CODE: matching the English sentence breaks the first time the sentence is
+    reworded, and the app then shows a bare error with no way to grant the folder. The refused
+    path is named so the app can ask for exactly that folder."""
+    response = client.post("/api/ingest/folder", json={"path": "/usr/local/not-a-root"})
+
+    assert response.status_code == 403, response.text
+    body = response.json()
+    assert body["code"] == "library_outside_allowed_locations"
+    assert body["path"] == "/usr/local/not-a-root"
+    assert body["detail"].startswith("Ingest path is not in an allowed location:")

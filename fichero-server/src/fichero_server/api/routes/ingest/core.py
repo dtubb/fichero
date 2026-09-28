@@ -16,7 +16,12 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from fichero_server.api.library_header import require_library_path
-from fichero_server.api.main import _is_allowed_local_path, db_manager, get_library_database_for_write
+from fichero_server.api.main import (
+    LibraryAccessDeniedError, _is_allowed_local_path, db_manager, get_library_database_for_write,
+)
+
+#: The 403 code for a path outside every allowed root and grant (#5219).
+INGEST_PATH_OUTSIDE_ALLOWED = "library_outside_allowed_locations"
 from fichero_server.api.auth import actor_from_request
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.security import authz
@@ -41,10 +46,13 @@ def _validate_ingest_path(raw_path: str) -> None:
         # (#4230). This is the ONLY gate — a path that passes here is servable,
         # because ingest and serving now consult the same authority.
         logger.warning("Refusing ingest of a path outside every allowed root: %s", raw_path)
-        raise HTTPException(
-            status_code=403,
-            detail=f"Ingest path is not in an allowed location: {raw_path}",
-        )
+        # Flat `{detail, code, path}` (#5219): the app keys "Grant Access…" off `code`, never off
+        # the sentence. `exc.detail` stays the sentence for every caller that reads it.
+        raise LibraryAccessDeniedError({
+            "detail": f"Ingest path is not in an allowed location: {raw_path}",
+            "code": INGEST_PATH_OUTSIDE_ALLOWED,
+            "path": raw_path,
+        })
 
 
 def _require_ingest_owner(request: Request, library_path: str) -> None:
