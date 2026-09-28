@@ -92,7 +92,7 @@ The engine half can ship alone. It makes every client safe at once, including ag
   taken back as a batch (`run-take-back.md`). *Test:* start a run that writes; press Command-Z;
   my own previous step is offered, not the run's.
 - `safety.undo.viewers-have-no-stack` — **[GAP]** (#5242) an account that may not write has nothing to undo; the
-  menu item is disabled. The #4917 access rules apply to undo as to any write: a step on a
+  menu item is disabled. The → #4917 access rules apply to undo as to any write: a step on a
   thing I may no longer edit is refused. *Test:* remove A's access to a folder; A's undo of an
   earlier step inside it is refused.
 

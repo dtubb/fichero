@@ -104,7 +104,7 @@ Keeping, comparing
 - `explore.saved.compare-two` — **[GAP]** (#5032) two experiments on the same set (two methods,
   two settings, two dates) open side by side in two panes with the same selection, so that the
   same items can be found in both. No new comparison surface. Two panes side by side work
-  today; the SHARED selection is BLOCKED on the pane-linking design session (#4881).
+  today; the SHARED selection is BLOCKED on the pane-linking design session (→ #4881).
 - `explore.saved.shareable-as-a-file` — **[GAP]** (#5032) a saved view can be exported and
   imported as a small readable file (its description only, no research data), so a colleague
   with the same kind of project can run it. This follows the ruling that recipes are files.

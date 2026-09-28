@@ -70,7 +70,7 @@ This supersedes `audit.run-scoped-undo` (#2074, #1831) in the action-layer spec.
   pages stays within the ratchet.
 - `safety.run.the-engine-says-who-made-it` — **[GAP]** (#5245) whether a thing was made by a person or a machine,
   by which model, in which run, and who started the run, is set by the engine from the run,
-  never claimed by the writer. This is the #4869 rule, and the remote-compute set's
+  never claimed by the writer. This is the → #4869 rule, and the remote-compute set's
   `compute.land.server-sets-the-maker`. *Test:* a tool that claims "made by a person" inside a
   run is recorded as machine-made.
 
@@ -105,7 +105,7 @@ This supersedes `audit.run-scoped-undo` (#2074, #1831) in the action-layer spec.
   returns, same ids, until the Trash holding it is emptied. *Test:* take back, put back,
   compare with the state after the run.
 - `safety.run.who-may` — **[GAP]** (#5245) the person who started a run may take it back. The library's owner
-  may take back any run. The #4917 access rules apply: a run's work inside a folder a person
+  may take back any run. The → #4917 access rules apply: a run's work inside a folder a person
   may not edit is kept and listed as kept. *Test:* two accounts.
 - `safety.run.a-failed-run-offers-it` — **[GAP]** (#5245) a run that failed or was stopped keeps what it wrote
   (as today) and its row offers Take Back at once, with the count. *Test:* stop a run half

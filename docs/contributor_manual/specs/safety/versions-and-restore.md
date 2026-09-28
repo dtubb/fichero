@@ -74,7 +74,7 @@ Undo is for the last few minutes. History is for last month.
 - `safety.history.versions-are-ordinary-data` — **[GAP]** (#5244) versions live with the research, not in the
   tamper-evident record. So access rules reach them, a purge can reach them, and a snapshot
   carries them. The record refers to a version by number (`the-record.md`). *Test:* deny a
-  viewer on a document; its versions are refused too (#4917).
+  viewer on a document; its versions are refused too (→ #4917).
 
 ### B. What keeps history
 
@@ -82,7 +82,7 @@ Undo is for the last few minutes. History is for last month.
   its branch); a **text artifact**, meaning a page's transcription or other text output held
   outside segments (not built anywhere yet; needed until every page's text lives in segments,
   because today each edit to one stores the full text twice in the record); a **note**; a **statement**; an **entity**'s name, kind, aliases and
-  description; a **workflow**'s definition (#4342). These do not: tags, ratings, positions on
+  description; a **workflow**'s definition (→ #4342). These do not: tags, ratings, positions on
   a board, links (they are undo only, and the record shows them); images (their edit settings
   are their history). *Test:* one behaviour test per kind: three committed changes leave three
   versions.
@@ -138,7 +138,7 @@ Undo is for the last few minutes. History is for last month.
 - `safety.history.the-trash-keeps-history` — **[GAP]** (#5244) a thing in the Trash keeps its versions, and Put
   Back returns them. Emptying the Trash removes them with the thing. *Test:* both.
 - `safety.history.a-purge-reaches-versions` — **[GAP]** (#5244) a purge for rights reasons
-  (source-model set, #4953) removes the content of every version of the thing, leaving the
+  (source-model set, → #4953) removes the content of every version of the thing, leaving the
   version rows as stated absences. *Test:* theirs; cited here so the two agree.
 
 ### F. From everywhere

@@ -135,7 +135,7 @@ All untagged and unbuilt unless stated.
 - `compute.target.one-list` — **[GAP]** (#5238) compute targets live in one list, read and written through one
   set of routes (`/api/compute/targets`), with `kind` telling them apart. *Data:* one app-wide
   settings value `compute.targets` (JSON, keyed by `target_id`), the same shape of storage the
-  clusters use today; a table only when #2573 needs it. *Existing data:* see the next line.
+  clusters use today; a table only when → #2573 needs it. *Existing data:* see the next line.
   *Test:* save, list, read, delete for each kind; owner required for save and delete.
 - `compute.target.saved-clusters-carry-over` — **[GAP]** (#5238) on first read after the change, every entry
   under `hpc.clusters` becomes a target of kind `slurm-cluster` with the **same id**, its
@@ -160,7 +160,7 @@ All untagged and unbuilt unless stated.
   reachable.
 - `compute.target.change-is-audited-and-undoable` — **[GAP]** (#5238) adding, changing and removing a target are
   registered actions with an inverse; "check" and "install" are recorded as non-undoable, by
-  name, with the reason. This closes the part of #4907 that concerns these routes. *Test:*
+  name, with the reason. This closes the part of → #4907 that concerns these routes. *Test:*
   `scripts/check_undo_coverage.py` is green for every `/api/compute/*` route.
 
 ### Checking

@@ -209,7 +209,7 @@ very engine spawn those tests exist to exercise.
   `PortConflictDecisionTests` ("foreign holder + no decision → surface the portConflict phase,
   never adopt or spawn", "portConflict is a non-ready phase with a PID-bearing diagnosis (renders
   the connection view, not blank)").
-- `engine.live-socket-is-a-user-decision` — **[PARTIAL]** (#3111's socket half, 2026-09-28) another
+- `engine.live-socket-is-a-user-decision` — **[PARTIAL]** (→ #3111's socket half, 2026-09-28) another
   Fichero engine already ANSWERING on the container socket -- the installed app's, a dev build's --
   is the same in-window decision as a held port (Use it / Quit; Stop it once its pid is known), worded
   "Another Fichero Is Running" with its version when its health says it. The app never spawns a

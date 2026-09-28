@@ -89,7 +89,7 @@ This is the Trash the app already promises in its delete dialog and does not hav
   each is put back on its own. Nothing is rewritten. *Test:* delete one of each kind; each is
   in the Trash list with who and when.
 - `safety.trash.deleted-runs-join-it` — **[GAP]** (#5243) a deleted workflow run goes to the Trash with its
-  events intact; the delete is a recorded action (#4960; the engine half has landed on the
+  events intact; the delete is a recorded action (→ #4960; the engine half has landed on the
   integration branch as a soft delete with events kept, which is exactly what the Trash
   needs). What is left for this slice: the run appears in the Trash list; Put Back is a
   recorded action that flips the mark back; and the tracker's unused "workflow deleted" event
@@ -110,7 +110,7 @@ This is the Trash the app already promises in its delete dialog and does not hav
 - `safety.trash.every-read-leaves-it-out` — **[GAP]** (#5243) a thing in the Trash appears in no list, count,
   search, graph, dataset, chat context or export. Reads go through one seam that leaves trashed
   rows out unless the caller asks for the Trash by name. *Why a seam:* the defect found twice
-  already (#4960, and documents in exports) is a mark that is written and not read. *Data:*
+  already (→ #4960, and documents in exports) is a mark that is written and not read. *Data:*
   none new. *Test:* for each Trash kind, a behaviour test per read surface; and a guardrail
   that refuses a query on a Trash kind's table that names neither the seam nor the Trash.
 - `safety.trash.dependants-go-with-their-source` — **[GAP]** (#5243) while a document is in the Trash:
@@ -176,7 +176,7 @@ This is the Trash the app already promises in its delete dialog and does not hav
 ### E. Shared libraries
 
 - `safety.trash.you-see-what-you-could-see` — **[GAP]** (#5243) a person sees in the Trash exactly the things
-  they could see before deletion. The #4917 access rules apply to the Trash list, to looking at
+  they could see before deletion. The → #4917 access rules apply to the Trash list, to looking at
   a trashed thing, and to Put Back: a restriction on a document reaches it in the Trash too. A
   viewer can look and cannot put back. *Test:* deny a viewer on a folder; trash a document in
   it; the viewer's Trash does not list it.
@@ -199,7 +199,7 @@ This is the Trash the app already promises in its delete dialog and does not hav
   same actions. *Test:* CLI and MCP legs.
 - `safety.trash.shortcuts-ask-first` — **[GAP]** (#5243) the Shortcuts delete action sends to the Trash and
   needs no confirmation; no Shortcuts action empties the Trash. This answers the open half of
-  #3304. *Test:* the intent calls the Trash action.
+  → #3304. *Test:* the intent calls the Trash action.
 
 ## Not in this slice
 

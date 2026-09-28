@@ -259,11 +259,11 @@ Sets, selection and panes
 - `explore.panes.one-thing-is-a-rendition` — **[PARTIAL]** (#5032) a view of ONE selected thing
   is a Reader or Inspector rendition of that selection. Built for a document's graph, timeline
   and map (`DocumentKGSurface.swift`); not built for a person, a place or a claim.
-- `explore.panes.linked-views-share-selection-and-time` — **[GAP]** (#5032, #4881; BLOCKED on the
+- `explore.panes.linked-views-share-selection-and-time` — **[GAP]** (#5032, → #4881; BLOCKED on the
   pane-linking design session) a linked group of view modes shares one selection and one "as
   of". Whether and how Library panes link is not ruled here; unlinked panes stay independent,
   as ruled.
-- `explore.panes.one-library-pane-updates-another` — **[GAP]** (#4881, #5009; BLOCKED on the
+- `explore.panes.one-library-pane-updates-another` — **[GAP]** (→ #4881, → #5009; BLOCKED on the
   pane-linking design session) recorded as wanted and not working today: choosing an entity in
   one Library pane makes another show the pages it appears in. It belongs to the panes spec;
   it is listed here because every linked explore view stands on it.

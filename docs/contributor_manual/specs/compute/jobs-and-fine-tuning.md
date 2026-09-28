@@ -294,7 +294,7 @@ All untagged and unbuilt unless stated.
 - `compute.engine.same-card-resolves-by-platform` — **[GAP]** (#5240) a card names the engines that can run it;
   the same workflow resolves to MLX on the Mac and vLLM in the gpu image with no change to the
   workflow. A card no engine on the target can run refuses the job before sending.
-  *Routed:* the card's fields are #4948's. *Test:* resolution table, pure.
+  *Routed:* the card's fields are → #4948's. *Test:* resolution table, pure.
 - `compute.engine.session-adds-and-removes-a-row` — **[GAP]** (#5240) a `session` job that reaches *ready* adds
   one provider row of kind `vllm`, named for the target and the model, addressed at the local
   end of the forward; it is removed when the session ends. It is not saved as a setting.
@@ -312,7 +312,7 @@ All untagged and unbuilt unless stated.
 
 - `compute.tune.input-is-a-training-set` — **[GAP]** (#5240) a training job's only data input is a training set
   as `source.train.*` defines it, made by that spec's code; this slice adds no second way to
-  cut line pictures. *Routed:* #4947. *Test:* a training package holds exactly the training
+  cut line pictures. *Routed:* → #4947. *Test:* a training package holds exactly the training
   set's objects and its description.
 - `compute.tune.kraken-recognition` — **[GAP]** (#5240) a `train-kraken-recognition` job runs `ketos train` on the
   training set, from a base model card or from nothing, and returns the best model, its log,
@@ -326,7 +326,7 @@ All untagged and unbuilt unless stated.
 - `compute.tune.lora` — **[GAP]** (#5240) a `train-lora` job fine-tunes a base model named by card with LoRA
   (QLoRA when the card and the target's memory call for it), from a recipe file that names
   rank, learning rate, epochs and the prompt form, and returns the adapter, its log and scores.
-  A recipe is a shareable file in the sense of `source.recipe.is-a-file` (#4950). *Test:* a
+  A recipe is a shareable file in the sense of `source.recipe.is-a-file` (→ #4950). *Test:* a
   tiny model and a tiny set, in automation on CPU for a few steps, yields an adapter that
   loads; the full path is a named-machine test.
 - `compute.tune.survives-the-time-limit` — **[GAP]** (#5240) a training job longer than its time limit saves a

@@ -94,7 +94,7 @@ As of, and animation
   storylines) has one "as of" control: a moment or a window on the time axis. What did not yet
   hold, or no longer held, is not drawn; what MAY have held (uncertain span) is drawn as
   uncertain.
-- `explore.time.as-of-is-shared-when-linked` — **[GAP]** (#5032, #4881; BLOCKED on the
+- `explore.time.as-of-is-shared-when-linked` — **[GAP]** (#5032, → #4881; BLOCKED on the
   pane-linking design session) a linked group of view modes shares one "as of". Not to be
   built before that design exists.
 - `explore.time.play` — **[GAP]** (#5032) "as of" can be played forward and back at a chosen

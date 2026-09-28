@@ -656,7 +656,7 @@ The editor
   line before it in the page's text order, for `segment.merge` keeping it
   (`fichero-server/tests/unit/api/test_reader_typing.py::test_backspace_joins_only_at_a_lines_start_and_never_the_first`).
   **Still PARTIAL:** the Swift call.
-- `source.textedit.deleting-words-keeps-ink` — **[OK]** (#5001; #5190) removing text is a new reading without those words;
+- `source.textedit.deleting-words-keeps-ink` — **[PARTIAL]** (#5001; #5190) removing text is a new reading without those words;
   no segment is deleted by it; a segment that has no reading, or an emptied line, is shown as such; deleting a segment is a separate, named command.
   **Page half built (2026-09-28):** an emptied line is a new, empty reading through
   `representation.create`, stays in the line map as a zero-width line, and is drawn in its place as
@@ -782,7 +782,7 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   - the line's text is its counting reading;
   - a retired word is written with its geometry and **no text**:
     - PAGE XML: a `Word` with its `Coords` and no `TextEquiv`;
-    - ALTO: `String CONTENT=""`, the same form an untranscribed word already takes (#5130, `alto.py`);
+    - ALTO: `String CONTENT=""`, the same form an untranscribed word already takes (→ #5130, `alto.py`);
     - hOCR: an `ocrx_word` with empty text;
     - TEI facsimile: a `zone` with no text.
 
@@ -815,7 +815,7 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   (`fichero-server/tests/unit/api/test_reader_selection.py::test_focus_is_posted_once_per_line_change`,
   `::test_the_apps_selection_names_exactly_those_lines_text`). **Still PARTIAL:** the app's half
   (archive, f5f580761) and a run from the screen; the word-level selection is not built.
-- `source.textedit.a-run-of-keys-is-one-action` — **[OK]** (#5001) typing in one line commits as one reading, one
+- `source.textedit.a-run-of-keys-is-one-action` — **[PARTIAL]** (#5001) typing in one line commits as one reading, one
   audit record and one undo step, on leaving the line, a structural key, loss of focus, Save,
   or two seconds' pause; structural edits are their own action at once.
   **Page half built (2026-09-28):** the page sends one `readingEdit` per run: on leaving the line, a
@@ -828,7 +828,7 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   ONE `representation.create`, one audit row and one ⌘Z step, and the page is told the reading it made
   (`ImportedPageDrawsItsBoxesTests.testARunOfTypingIsOneReadingOneAuditOneUndo`, over the recorded Syriac
   page); the engine half is `representation.create` itself. **The joint (2026-09-28):** the served page's OWN script, run in node on the imported Syriac page, posts through its own `notify` (`test_imported_page_draws_its_boxes.py::test_the_served_page_s_own_messages_are_recorded_for_the_app_s_bridge`, regenerated every run, failing on drift), and those exact bodies go through the bridge's own parse and `ReaderTextEditRunner` -- what `applyTextEdit` runs -- to the requests the engine takes (`ImportedPageDrawsItsBoxesTests.testTheServedPagesOwnMessagesBecomeTheRequestsTheEngineTakes`).
-- `source.textedit.stale-keeps-your-words` — **[OK]** (#5001) an edit against a version that has moved on is refused
+- `source.textedit.stale-keeps-your-words` — **[PARTIAL]** (#5001) an edit against a version that has moved on is refused
   and the typed words are kept and offered: keep mine, take theirs, compare; out of reach of
   the engine the text is read-only. **The token (decided 2026-09-28 by the lead as a default; the
   maintainer may revisit):** a write carries `expected_counting_id`, the id of the reading that

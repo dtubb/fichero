@@ -243,7 +243,7 @@ Readings
   was made from if it has one.
 - `source.reading.author-and-guideline` — **[OK]** (#4934; pinned by `tests/unit/api/test_segment_readings.py::TestReadingsAreWritten::test_a_reading_names_its_author_not_only_the_kind_of_author`) a reading names its author (person, or model and
   run) and any guideline it follows.
-- `source.reading.corrections-are-new` — **[OK]** (#4934; pinned by `tests/unit/api/test_segment_readings.py::TestReadingsAreWritten::test_a_correction_names_its_target_and_leaves_its_text_alone`) a correction is a new reading that names what it
+- `source.reading.corrections-are-new` — **[PARTIAL]** (#4934; pinned by `tests/unit/api/test_segment_readings.py::TestReadingsAreWritten::test_a_correction_names_its_target_and_leaves_its_text_alone`) a correction is a new reading that names what it
   corrects.
   **And it counts (#5175, 2026-09-28):** a person's correction outranks the reading it names, basis
   `correction`; a chain leaves its last link; ⌘Z brings the corrected reading back; a choice still

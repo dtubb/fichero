@@ -115,7 +115,7 @@ something goes badly wrong.
   matches, and updated from there; the existing updates are already written to be safe to run
   twice. Nothing is discarded. *Test:* an update that fails half way: the library's tables are
   byte-identical to before, the version is unchanged, the open is refused with the sentence.
-- `safety.net.an-update-in-two-phases` — **[GAP]** (#5246) #4983 is being built in two phases, and the split is
+- `safety.net.an-update-in-two-phases` — **[GAP]** (#5246) → #4983 is being built in two phases, and the split is
   deliberate. **Phase one, now:** each update is atomic (it completes or changes nothing), and
   a failure is VISIBLE: the person is told, in the app, which update failed and that nothing
   was changed. The library still opens. **Phase two, the maintainer's decision:** a failed

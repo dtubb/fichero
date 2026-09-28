@@ -217,7 +217,7 @@ Rules for every format
   (`::test_a_txt_with_no_image_of_its_stem_stays_an_ordinary_file`,
   `::test_yolo_labels_named_after_their_image_are_not_read_as_a_transcription`). One file can be
   forced with `fichero import-page DOC FILE --format plain-text`. Both are read only.
-- `source.format.import-is-pass` — **[OK]** (→ #4943) an import arrives as a new pass with its provenance and
+- `source.format.import-is-pass` — **[PARTIAL]** (→ #4943) an import arrives as a new pass with its provenance and
   overwrites nothing. `format.import` writes a pass, its segments, their readings and the file's
   order in four batches; the pass records `import_file` and `import_checksum` (fields slice 1 had
   already put there). Pinned by

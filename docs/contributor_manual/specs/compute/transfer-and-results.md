@@ -210,7 +210,7 @@ All untagged and unbuilt unless stated.
 
 - `compute.leave.one-gate` — **[GAP]** (#5239) a send to any target is allowed or refused by the one egress gate
   (`source.egress.one-gate`), called with the collection, the target and the kind of work. This
-  slice adds no second check. *Routed:* the gate itself is #4949's. *Test:* with the gate faked
+  slice adds no second check. *Routed:* the gate itself is → #4949's. *Test:* with the gate faked
   to refuse, no carrier is ever called.
 - `compute.leave.stays-local-is-absolute` — **[GAP]** (#5239) a collection marked "may not leave this machine"
   (`source.project.stays-local`) can be sent only to targets of kind `this-mac`. A
@@ -228,7 +228,7 @@ All untagged and unbuilt unless stated.
   removal to the rights behaviour being tagged built.
 - `compute.leave.restricted-left-out` — **[GAP]** (#5239) once a rights record can mark a source or segment as
   not to leave, the package builder leaves it out in the one export stream
-  (`source.format.rights-filtered-once`, #4943), and the sheet lists what was left out and why.
+  (`source.format.rights-filtered-once`, → #4943), and the sheet lists what was left out and why.
   **Blocked** with `source/rights-and-access.md`. *Test:* to be written with that slice.
 - `compute.leave.community-question-once` — **[GAP]** (#5239) the community question is asked once for a
   collection, its answer is stored on the collection, and "Not sure: do not send" refuses every
@@ -301,7 +301,7 @@ All untagged and unbuilt unless stated.
   have" is a listing. *Test:* against the SSH fixture.
 - `compute.transfer.stays-in-the-background` — **[GAP]** (#5239) hashing and sending run at background priority
   with at most a fixed number of objects in flight, and a 5 GB send does not raise the app's
-  main-thread latency above the perf ratchet. *Test:* load leg (#4634).
+  main-thread latency above the perf ratchet. *Test:* load leg (→ #4634).
 - `compute.transfer.progress-is-the-checkpoint` — **[GAP]** (#5239) the progress a person sees (objects and bytes
   done of total) is read from the checkpoint, so it is right after a restart. *Test:* restart
   mid-send; the bar resumes at the same figure.
@@ -340,7 +340,7 @@ All untagged and unbuilt unless stated.
 - `compute.land.server-sets-the-maker` — **[GAP]** (#5239) every landed action is stamped by the Mac's server as
   machine-made, with job id, target id, model card and version, and the sending person as
   responsible. A `created_by` or similar field inside the package is ignored. This is the rule
-  of #4869 applied here. *Test:* a package claiming `created_by: human` lands as machine-made.
+  of → #4869 applied here. *Test:* a package claiming `created_by: human` lands as machine-made.
 - `compute.land.never-overwrites` — **[GAP]** (#5239) results arrive as a new pass or new readings; no existing
   pass, reading, segment or claim is changed or removed by landing. *Test:* land onto a source
   with a person's pass; that pass's rows are byte-identical afterwards.

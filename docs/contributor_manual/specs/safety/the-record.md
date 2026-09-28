@@ -150,7 +150,7 @@ are already outside the chain on their branch, so a purge can reach those today.
   database; the name templates of `safety.undo.menu-names-the-step`. *Test:* the list equals
   the record under each filter; load leg.
 - `safety.record.you-see-what-you-may-see` — **[GAP]** (#5247) a row about a thing a person may not see is not
-  shown to them, names included. The #4917 rules apply to the record as to the thing. *Test:*
+  shown to them, names included. The → #4917 rules apply to the record as to the thing. *Test:*
   deny a viewer on a folder; rows about its documents are absent from their list.
 - `safety.record.reverse-from-here` — **[GAP]** (#5247) from this view a person can take back an older step of
   their own, and an owner can reverse anyone's (`safety.undo.owner-may-reverse-anyone`), one
@@ -161,7 +161,7 @@ are already outside the chain on their branch, so a purge can reach those today.
 
 - `safety.record.one-record` — **[GAP]** (#5247) nothing new is written to the older mutation log. Its rows stay
   readable for ever. Its undo route first refuses what the action layer owns, naming the right
-  route (#4864), then is removed once no client calls it. The 30-second matching goes with it.
+  route (→ #4864), then is removed once no client calls it. The 30-second matching goes with it.
   The merge audit stays as the merge's own working data (which aliases moved), reached only
   through the registry. *Existing data:* kept and readable; nothing converted. *Test:* an
   entity delete writes one row in one record; the older undo route refuses it by name.
@@ -169,7 +169,7 @@ are already outside the chain on their branch, so a purge can reach those today.
   record, and from the older tables only for rows older than this slice. *Test:* the curation
   guard's tests pass with the mutation log empty for new rows.
 - `safety.record.every-change-is-in-it` — **[GAP]** (#5247) every route that changes a library goes through the
-  registry: the nine graph and entity routes (#4831), deleting a run, deleting a folder's
+  registry: the nine graph and entity routes (→ #4831), deleting a run, deleting a folder's
   contents, deleting a snapshot, schedules. The guardrail that checks this covers every route
   folder, not two. Deleting an account is outside any one library; it is recorded in the
   server's own record. *Test:* the guardrail at zero.
