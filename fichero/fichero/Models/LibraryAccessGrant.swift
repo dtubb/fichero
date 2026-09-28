@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 /// Grant Access… for a library the engine refused as outside every location it may open (#5198).
 ///
@@ -15,6 +16,14 @@ struct LibraryAccessGrant {
         let directoryURL: URL
         let message: String
         let prompt: String
+
+        /// A folder an import was refused (#5219): the same panel, worded for a folder, not a library.
+        init(importURL: URL) {
+            directoryURL = importURL
+            message = "Fichero may not read \u{201C}\(importURL.lastPathComponent)\u{201D}: it is outside the folders "
+                + "this Mac's engine may read. Choose it, or a folder holding it, to grant access."
+            prompt = "Grant Access"
+        }
 
         init(libraryURL: URL) {
             directoryURL = libraryURL
@@ -53,3 +62,29 @@ extension LibraryAccessGrant {
     }
 }
 #endif
+
+/// The path of the last import the engine refused as outside its allowed roots (#5219), for the Drop Failed
+/// alerts to offer Grant Access… on. Set where the refusal is read (`ImportService.startFolderImport`), cleared
+/// when the alert goes. One seam, because a drop's failure reaches the alerts as a message from a dozen sites.
+@MainActor
+@Observable
+final class DropAccessRefusal {
+    static let shared = DropAccessRefusal()
+    var path: String?
+
+    #if os(macOS)
+    /// The panel at the refused folder, then the ordered grant. The drop is not replayed: its target and
+    /// options belong to the drop, so the person drops again (the message says so).
+    static func grantAccess(to path: String) async {
+        let grant = LibraryAccessGrant(
+            choose: { _ in
+                await FolderAccessManager.shared.chooseForAccess(.init(importURL: URL(fileURLWithPath: path)))
+            },
+            grant: { url in try await FolderAccessManager.shared.saveBookmarkIfDirectory(url) },
+            retry: {}
+        )
+        _ = try? await grant.run(for: URL(fileURLWithPath: path))
+        shared.path = nil
+    }
+    #endif
+}

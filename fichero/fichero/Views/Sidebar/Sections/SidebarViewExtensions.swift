@@ -205,8 +205,10 @@ private struct SidebarDropAlertsModifier: ViewModifier {
                     }
                 )
             ) {
+                DropAccessGrantButton()
                 Button("OK", role: .cancel) {
                     sidebarState.dropErrorMessage = nil
+                    DropAccessRefusal.shared.path = nil
                 }
             } message: {
                 Text(sidebarState.dropErrorMessage ?? "The drop could not be completed.")

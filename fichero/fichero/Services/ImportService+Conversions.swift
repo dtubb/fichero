@@ -173,9 +173,15 @@ enum ImportServiceError: Error, LocalizedError {
     case serverError(String)
     case taskFailed(String)
     case timeout
+    /// The engine refused to read the path: it is outside every folder it may read (#5219).
+    case outsideAllowedLocations(path: String)
 
     var errorDescription: String? {
         switch self {
+        case .outsideAllowedLocations(let path):
+            let name = URL(fileURLWithPath: path).lastPathComponent
+            return "Fichero may not read \u{201C}\(name)\u{201D}: it is outside the folders this Mac's engine may read. "
+                + "Choose Grant Access\u{2026} to allow it, then drop it again."
         case .unexpectedResponse(let code):
             return "Unexpected response from import service (status: \(code))"
         case .serverError(let message):
@@ -186,4 +192,23 @@ enum ImportServiceError: Error, LocalizedError {
             return "Import task timed out"
         }
     }
+
+    /// The engine's refusal of a path outside its allowed roots, read from a 403's body: by its code
+    /// (`library_outside_allowed_locations`, with the path when it names one), or by the older detail text.
+    /// Nil for any other 403, which stays an unexpected response.
+    static func refusal(fromBody data: Data, path: String) -> ImportServiceError? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        if let detail = object["detail"] as? [String: Any], detail["code"] as? String == outsideAllowedCode {
+            return .outsideAllowedLocations(path: detail["path"] as? String ?? path)
+        }
+        if object["code"] as? String == outsideAllowedCode {
+            return .outsideAllowedLocations(path: object["path"] as? String ?? path)
+        }
+        if let text = object["detail"] as? String, text.hasPrefix("Ingest path is not in an allowed location") {
+            return .outsideAllowedLocations(path: path)
+        }
+        return nil
+    }
+
+    static let outsideAllowedCode = "library_outside_allowed_locations"
 }
