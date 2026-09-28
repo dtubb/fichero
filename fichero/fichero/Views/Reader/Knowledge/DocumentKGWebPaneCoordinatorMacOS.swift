@@ -24,6 +24,10 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     /// the Reader's line moves go through (3c part d) -- the same type as the Inspector's list.
     weak var library: LibraryManager.LibraryReference?
     var lineOrderStore: ReadingOrderStore?
+    /// The window's focused Source-view selection (#5155), captured like the buses above; and the
+    /// lines last shown to the page, so an unchanged selection is not sent again.
+    weak var windowState: WindowState?
+    var lastShownLines: [String]?
 
     var lastLoadedDocumentId: String?
     var lastLoadedLibraryPath: String?
@@ -344,6 +348,9 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
         // Fresh DOM: the dedupe must not skip the first injection.
         lastInjectedBootstrapScript = nil
         injectContext(into: webView)
+        // A fresh page knows no selection: show it the current one (#5155).
+        lastShownLines = nil
+        syncSelectedLines(into: webView)
         webView.evaluateJavaScript(DocumentKGPaneRoute.themeInjectionScript())
         webView.evaluateJavaScript(DocumentKGPaneRoute.scrollSyncScript(pageCount: parent?.pageCount))
         // A finished navigation is a FRESH DOM: nothing has been patched into it,
@@ -406,6 +413,8 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
             handlePageRevealRequested(body)
         case "lineMove":
             handleLineMove(body)
+        case "lineFocused":
+            if let focus = ReaderLineSelection.focus(from: body) { focusLine(focus) }
         case "textSelected":
             // The WebKit reader's selection joins the same seam the native
             // readers post (Daniel, 2026-08-30): the annotation bar applies
@@ -434,6 +443,31 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
 extension DocumentKGWebPaneCoordinatorMacOS {
     /// ⌥⌘↑ / ⌥⌘↓ / ⌥⌘⇞ / ⌥⌘⇟ on the Reader's caret line (3c part d): the Inspector's move, ⌘Z
     /// included. The page's text follows the order, so it is reloaded after a move and an undo.
+    /// The Reader's caret line becomes the focused Source view's selection (#5155).
+    @MainActor
+    func focusLine(_ focus: ReaderLineSelection.Focus) {
+        guard let selection = windowState?.focusedRegionSelection, let library else { return }
+        InspectorPath.select(
+            segmentIds: [focus.segmentId], into: selection, documentId: focus.pageId,
+            store: SegmentStore.shared(for: library.segmentService)
+        )
+    }
+
+    /// The focused Source view's selection, shown in the Reader's text (#5155). Sent only on change.
+    @MainActor
+    func syncSelectedLines(into webView: WKWebView) {
+        guard let library else { return }
+        var ids: [String] = []
+        if let selection = windowState?.focusedRegionSelection, let pageId = selection.documentId {
+            ids = InspectorPath.selectedSegmentIds(
+                selection: selection, documentId: pageId, store: SegmentStore.shared(for: library.segmentService)
+            )
+        }
+        guard ids != lastShownLines else { return }
+        lastShownLines = ids
+        webView.evaluateJavaScript(ReaderLineSelection.showLinesScript(ids))
+    }
+
     func handleLineMove(_ body: [String: Any]) {
         guard let request = ReaderLineMove.request(from: body) else { return }
         Task { @MainActor in await moveLine(request) }

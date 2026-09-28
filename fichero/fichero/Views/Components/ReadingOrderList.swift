@@ -17,6 +17,7 @@ struct ReadingOrderList: View {
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
     @Environment(\.undoManager) private var undoManager
+    @Environment(WindowState.self) private var windowState: WindowState?
 
     @State private var store: ReadingOrderStore?
 
@@ -66,6 +67,15 @@ struct ReadingOrderList: View {
                     description: Text("This page has no named order yet.")
                 )
             }
+        }
+        // One selection across the surfaces (#5155): a row picked here is the focused Source view's
+        // selection too, so the boxes light and the Inspector follows.
+        .onChange(of: selection) { _, picked in
+            guard let picked, let focused = windowState?.focusedRegionSelection, let segmentService else { return }
+            InspectorPath.select(
+                segmentIds: [picked], into: focused, documentId: documentId,
+                store: SegmentStore.shared(for: segmentService)
+            )
         }
         .task(id: "\(documentId)/\(parentSegmentId ?? "")") {
             if store == nil, let service { store = ReadingOrderStore(transport: service) }

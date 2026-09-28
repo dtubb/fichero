@@ -291,6 +291,32 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
     }
 
+    /// #5155 end to end: one selection across the surfaces. On the recorded imported Syriac page, a
+    /// line named by the Reader's caret (the page's `lineFocused` message) or picked in the Order list
+    /// becomes the Source view's selection -- its box lights -- and the Inspector's own resolution
+    /// reads back exactly that line; an id not on the shown pass selects nothing.
+    func testALineNamedByTheReaderIsTheSourceViewsSelectionAndTheInspectors() async throws {
+        let store = try await loadedStore()
+        let shown = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
+        let line = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.kind == "line" })
+        let focus = try XCTUnwrap(ReaderLineSelection.focus(from: ["pageId": "doc-0001", "segmentId": line.id]))
+
+        let selection = RegionSelection()
+        let selected = InspectorPath.select(
+            segmentIds: [focus.segmentId], into: selection, documentId: focus.pageId, store: store
+        )
+        XCTAssertEqual(selected, [line.id])
+        XCTAssertEqual(selection.resolvedIndices(in: shown.geometry.boxes), [try XCTUnwrap(line.boxIndex)], "its box lights")
+        XCTAssertEqual(
+            InspectorPath.selectedSegmentIds(selection: selection, documentId: "doc-0001", store: store), [line.id],
+            "the Inspector inspects the same line"
+        )
+
+        let nothing = RegionSelection()
+        XCTAssertTrue(InspectorPath.select(segmentIds: ["not-on-this-page"], into: nothing, documentId: "doc-0001", store: store).isEmpty)
+        XCTAssertTrue(nothing.isEmpty)
+    }
+
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {
         let expected = try JSONDecoder().decode(
             [ExpectedBox].self,
