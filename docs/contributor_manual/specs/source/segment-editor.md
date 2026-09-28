@@ -663,9 +663,11 @@ The editor
   `representation.create`, stays in the line map as a zero-width line, and is drawn in its place as
   an empty line under its segment (`.line-empty`, a drawn placeholder, so no offset moves); a caret
   there is on that line (`fichero-server/tests/unit/api/test_reader_runs_and_empty_lines.py::test_a_line_whose_words_are_all_deleted_stays_on_the_page`).
-  PARTIAL: the Swift half (a `readingEdit` only ever becomes `representation.create`) is archive's;
-  a word segment left without a reading is not in the Reader's line map, so it is shown by the
-  Source view, not here.
+  **App half built:** a `readingEdit` that removes words, down to an empty line, only ever becomes
+  `representation.create`, never a segment action, and the line stays
+  (`ImportedPageDrawsItsBoxesTests.testDeletingWordsIsANewReadingAndNeverTouchesTheSegments`, over the
+  recorded Syriac page). still PARTIAL, not OK, because no test carries the served page's OWN message through the app's bridge (`DocumentKGWebPaneCoordinatorMacOS.applyTextEdit`): each side pins the message shape against the same real page separately, and that joint is the screen path; and a word segment left without a reading is not in the Reader's line
+  map, so it is shown by the Source view, not here.
 - `source.textedit.lines-move-in-the-order` — **[PARTIAL]** (#5001) cutting and pasting whole lines changes the named
   reading order and nothing on the page; other pasted text is typing, its line breaks
   turned to spaces.
@@ -692,8 +694,10 @@ The editor
   commit made (`lineCommitted.representationId`); words typed while the page is re-read are kept
   on their line and sent with their run (`fichero-server/tests/unit/api/test_reader_runs_and_empty_lines.py::test_a_pause_of_two_seconds_ends_the_run_and_the_next_key_starts_another`,
   `::test_the_next_run_is_based_on_the_reading_the_last_one_made`,
-  `::test_words_being_typed_survive_the_page_being_re_read`). PARTIAL: one audit record and one
-  ⌘Z step per run are the Swift half (archive).
+  `::test_words_being_typed_survive_the_page_being_re_read`). **App half built:** one `readingEdit` is
+  ONE `representation.create`, one audit row and one ⌘Z step, and the page is told the reading it made
+  (`ImportedPageDrawsItsBoxesTests.testARunOfTypingIsOneReadingOneAuditOneUndo`, over the recorded Syriac
+  page); the engine half is `representation.create` itself. still PARTIAL, not OK, because no test carries the served page's OWN message through the app's bridge (`DocumentKGWebPaneCoordinatorMacOS.applyTextEdit`): each side pins the message shape against the same real page separately, and that joint is the screen path.
 - `source.textedit.stale-keeps-your-words` — **[PARTIAL]** (#5001) an edit against a version that has moved on is refused
   and the typed words are kept and offered: keep mine, take theirs, compare; out of reach of
   the engine the text is read-only. **The token (decided 2026-09-28 by the lead as a default; the
@@ -713,7 +717,11 @@ The editor
   `ImportedPageDrawsItsBoxesTests.testATypedLineAgainstAReadingThatNoLongerCountsKeepsTheWordsAndNamesWhatCounts`,
   recorded Syriac readings: token sent, 409 answered with the words kept and `rep-0002` named, Keep Mine
   re-sent against it). A line whose text came from its words sends no `basedOn`, so no check.
-  **Not yet:** the page's inline Keep Mine / Take Theirs / Compare (the page half, bugs2).
+  **Page half built (bugs2, 4e6e9ef5a, dbe236d0a):** the stale line keeps the typed words, marked, with Keep
+  Mine / Take Theirs / Compare inline; its commits are held so it is never re-sent into a 409 loop; Keep Mine
+  posts the same words against what counts now, or with no basis when nothing counts; the page's own message
+  goes through `representation.create` with `expected_counting_id` on a real imported page
+  (`fichero-server/tests/unit/api/test_reader_stale_keeps_your_words.py`, 5 tests). still PARTIAL, not OK, because no test carries the served page's OWN message through the app's bridge (`DocumentKGWebPaneCoordinatorMacOS.applyTextEdit`): each side pins the message shape against the same real page separately, and that joint is the screen path.
 - `source.textedit.every-direction` — **[PARTIAL]** (#5001) each block is laid out and edited in its own direction;
   line starts, joins and cuts follow reading order and the baseline; a direction the platform
   cannot lay out is labelled, never reordered.
