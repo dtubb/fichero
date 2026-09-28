@@ -1021,7 +1021,20 @@ The editor
   `inlineTextEnabled`. Of these, `annotationsEnabled` and `regionsEnabled` become overlay layers; the
   loupe and magnifier are viewing aids, not layers. Nothing yet turns the image itself off, and no
   setting carries workspace defaults.
-- `source.editor.draw-shapes` — **[GAP]** (#4941) box, polygon, point, line and baseline can be drawn.
+- `source.editor.draw-shapes` — **[PARTIAL]** (#4941) box, polygon, point, line and baseline can be drawn.
+  **Built 2026-09-28 (image pages, segment passes), in the ONE Shape tool:** its kind menu, shown in Edit
+  Segments, picks Box (a drag, as before), Polygon (click points; a click on the first point, or a
+  double-click, closes it) or Baseline (click points; a double-click finishes). A finished polygon is
+  `segment.create` of a REGION anchored by its outline and the rect it bounds; a finished baseline is a
+  LINE whose anchor is the baseline as an open path -- no outline invented -- with that baseline; both on
+  the shown pass, naming its picture, ⌘Z by audit id. A drawn line with a flat baseline is drawn and
+  clicked by its shapes' bounds (`SegmentShapes.displayBox`). Pinned: the engine takes the app's exact
+  creates and the page stays drawable, undo removing them
+  (`test_imported_page_draws_its_boxes.py::test_the_shape_tool_s_polygon_and_baseline_become_segments_the_canvas_still_draws`);
+  the app closes, refuses too few points and sends those calls
+  (`ImportedPageDrawsItsBoxesTests.testTheShapeToolsPolygonAndBaselineCreateSegmentsWithUndo`).
+  **Not yet:** a point and an open line; Escape to abandon a drawing (switching tools drops it); a drawn
+  line is not placed in the region it is drawn in; pages whose boxes come from an artifact.
 - `source.editor.reshape` — **[PARTIAL]** (#4941) points can be dragged, added and removed; shapes moved and nudged.
   **Built 2026-09-28 (image pages, segment passes):** the overlay draws a segment AS its shapes -- the
   outline its file drew, an open path, a point, the baseline under the ink -- not its box

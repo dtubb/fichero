@@ -22,11 +22,14 @@ enum SegmentEdit {
         case updateMany(SegmentUpdateManyRequest)
         /// Reshape's baseline edit (`SegmentShapes.reshape`).
         case baseline(SegmentBaselineRequest)
+        /// The Shape tool's polygon or baseline (`SegmentShapes.create`).
+        case create(SegmentCreateRequest)
 
         func encode(to encoder: any Encoder) throws {
             switch self {
             case .update(let params): try params.encode(to: encoder)
             case .baseline(let params): try params.encode(to: encoder)
+            case .create(let params): try params.encode(to: encoder)
             case .delete(let params): try params.encode(to: encoder)
             case .merge(let params): try params.encode(to: encoder)
             case .updateMany(let params): try params.encode(to: encoder)

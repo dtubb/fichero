@@ -39,6 +39,20 @@ extension ZoomableImagePreview {
         )
     }
 
+    /// DRAW a polygon or baseline with the Shape tool: `segment.create` on the shown pass, ⌘Z. Only on a
+    /// segment pass (an imported page); a page drawn from an artifact keeps its box-only regions path.
+    func drawSegmentShape(_ kind: SegmentShapes.DrawKind, points: [[Double]]) {
+        guard let passId = shownArtifactlessPassId, let documentId, let store = segmentEditStore else {
+            Self.logger.notice("Draw \(kind.title, privacy: .public) not sent: the shown boxes are not a segment pass")
+            return
+        }
+        let onPass = store.segments(documentId: documentId).first { $0.passId == passId }
+        runSegmentEdit(
+            SegmentShapes.create(kind, points: points, documentId: documentId, passId: passId, onPass: onPass),
+            documentId: documentId, name: "Draw \(kind.title)"
+        )
+    }
+
     /// DELETE the selected boxes on an artifact-less pass. True when handled here.
     func deleteSelectedSegments() -> Bool {
         guard shownArtifactlessPassId != nil, let documentId else { return false }

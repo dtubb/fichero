@@ -99,6 +99,7 @@ struct PreviewMarkupToolsRow: View {
                 name: .previewRegionVerb, object: PreviewRegionVerb.draw.rawValue
             )
         }
+        if windowState?.isEditingSegments == true { shapeKindMenu }
 
         toolButton(
             icon: PreviewMarkupTool.line.icon,
@@ -323,6 +324,41 @@ struct PreviewMarkupToolsRow: View {
             .accessibilityLabel(label)
             .accessibilityIdentifier(identifier)
         }
+    }
+}
+
+// The Shape tool's kind menu, apart so the row's body stays under its length limit.
+extension PreviewMarkupToolsRow {
+    /// What the ONE Shape tool draws while editing segments (`source.editor.draw-shapes`): Box (drag),
+    /// Polygon (click points; click the first, or double-click, to close), Baseline (click points;
+    /// double-click to finish). Choosing one arms the tool.
+    var shapeKindMenu: some View {
+        Menu {
+            ForEach(SegmentShapes.DrawKind.allCases) { kind in
+                Button {
+                    windowState?.shapeKind = kind
+                    windowState?.activeMarkupTool = .drawRegion
+                    NotificationCenter.default.post(name: .previewRegionVerb, object: PreviewRegionVerb.draw.rawValue)
+                } label: {
+                    if windowState?.shapeKind == kind {
+                        Label(kind.title, systemImage: "checkmark")
+                    } else {
+                        Text(kind.title)
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "chevron.down")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Shape kind — Box: drag. Polygon: click points, then the first point or a double-click closes it. "
+            + "Baseline: click points, double-click to finish.")
+        .accessibilityLabel("Shape kind")
+        .accessibilityIdentifier("previewMarkupShapeKind")
     }
 }
 

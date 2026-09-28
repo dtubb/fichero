@@ -129,6 +129,8 @@ extension ZoomableImagePreview {
                 },
                 onOpenRegion: { index in openRegion(atIndex: index) },
                 onReshapeCommit: { index, target, points in reshapeSegment(index: index, target, to: points) },
+                drawKind: windowState?.shapeKind ?? .box,
+                onDrawShapeCommit: { kind, points in drawSegmentShape(kind, points: points) },
                 selection: regionSelection
             )
             .contextMenu { regionContextMenu }

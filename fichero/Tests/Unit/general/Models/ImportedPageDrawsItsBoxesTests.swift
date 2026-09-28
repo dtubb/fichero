@@ -1470,8 +1470,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
     /// `ReaderTextEditRunner` -- exactly what `applyTextEdit` runs -- and become the requests the engine
     /// takes: a typing run is `representation.create` correcting, and checked against, the reading typed
     /// over; Keep Mine is the same words against what counts now; Return is `segment.split` at the
-    /// caret, checked against the version read; deleting every word is an empty reading, never a delete. Breaks if the page and the app stop agreeing on a
-    /// message, which each side's own tests cannot see.
+    /// caret, checked against the version read; deleting every word is an empty reading, never a delete.
+    /// Breaks if the page and the app stop agreeing on a message, which each side's own tests cannot see.
     func testTheServedPagesOwnMessagesBecomeTheRequestsTheEngineTakes() async throws {
         let store = try await loadedStore()
         RecordedEngine.readingsReply = try Data(
@@ -1521,6 +1521,91 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             with: Data(first.dropFirst("window.fichero?.lineCommitted?.(".count).dropLast(2).utf8)
         ) as? [String: Any])
         XCTAssertEqual(told["representationId"] as? String, "rep-0009", "the run's reading, for the next run's basis")
+    }
+
+    /// `source.editor.draw-shapes` end to end (#4941), on the imported Syriac page: with the one Shape
+    /// tool set to Polygon, clicking points and then the first one closes the shape, and the request is
+    /// `segment.create` of a REGION with that polygon and the rect it bounds, on the shown pass, naming
+    /// the pass's own picture; set to Baseline, the clicked points are a LINE anchored by its baseline
+    /// as an open path, with no rect or outline invented; each is ⌘Z-able by its audit id -- the exact
+    /// calls the engine test proved land and keep the page drawable. A drawn line with a flat baseline
+    /// is still given a box to be clicked by. Breaks if a drawing is sent as something else, lands on
+    /// another pass, or cannot be clicked once made.
+    func testTheShapeToolsPolygonAndBaselineCreateSegmentsWithUndo() async throws {
+        let store = try await loadedStore()
+        let selected = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
+        let onPass = store.segments(documentId: "doc-0001").first { $0.passId == selected.passId }
+        let reach = [0.004, 0.004]
+        var clicked: [[Double]] = [[0.1, 0.1], [0.3, 0.1], [0.3, 0.2]]
+        XCTAssertFalse(SegmentShapes.closes(Array(clicked.prefix(2)), at: [0.1, 0.1], tolerance: reach), "three points first")
+        clicked.append([0.1, 0.2])
+        XCTAssertTrue(SegmentShapes.closes(clicked, at: [0.1005, 0.0998], tolerance: reach), "a click on the first point closes")
+
+        let polygon = try SegmentShapes.create(
+            .polygon, points: clicked, documentId: "doc-0001", passId: selected.passId, onPass: onPass
+        ).get()
+        let baselinePoints = [[0.2, 0.6], [0.5, 0.6], [0.8, 0.6]]
+        let baseline = try SegmentShapes.create(
+            .baseline, points: baselinePoints, documentId: "doc-0001", passId: selected.passId, onPass: onPass
+        ).get()
+        XCTAssertEqual(SegmentShapes.create(.baseline, points: [[0.2, 0.6]], documentId: "doc-0001",
+                                            passId: selected.passId, onPass: onPass), .failure(.tooFew))
+        try await sendDrawings([.init(call: polygon, name: "Draw Polygon", points: clicked),
+                                .init(call: baseline, name: "Draw Baseline", points: baselinePoints)],
+                               passId: selected.passId, onPass: onPass, store: store)
+
+        var drawnLine = try XCTUnwrap(onPass)
+        drawnLine.anchor.rect = nil
+        drawnLine.anchor.polygon = nil
+        drawnLine.anchor.shapes = [AnchorShapeValue(generated: Components.Schemas.AnchorShape(kind: .path, points: baselinePoints))]
+        drawnLine.baseline = baselinePoints
+        let box = try XCTUnwrap(SegmentShapes.displayBox(for: drawnLine))
+        XCTAssertEqual(box[3], 0.004, accuracy: 1e-9, "a flat baseline is still clickable")
+        XCTAssertEqual(box[2], 0.6, accuracy: 1e-9)
+    }
+
+    /// One finished drawing: the call it makes, its undo name, the points clicked.
+    private struct Drawing {
+        let call: SegmentEdit.Call
+        let name: String
+        let points: [[Double]]
+    }
+
+    /// The drawings sent, as the host sends them (`SegmentEditRunner`), and what the engine was asked.
+    private func sendDrawings(
+        _ drawings: [Drawing],
+        passId: String, onPass: Segment?, store: SegmentStore
+    ) async throws {
+        let (clicked, baselinePoints) = (drawings[0].points, drawings[1].points)
+        RecordedEngine.invoked = []
+        RecordedEngine.undone = []
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        let runner = SegmentEditRunner(actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store)
+        for drawing in drawings {
+            manager.beginUndoGrouping()
+            try await runner.run(drawing.call, documentId: "doc-0001", actionName: drawing.name, undoManager: manager)
+            manager.endUndoGrouping()
+        }
+        let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
+        XCTAssertEqual(sent.compactMap { $0["name"] as? String }, ["segment.create", "segment.create"])
+        let params = sent.compactMap { $0["params"] as? [String: Any] }
+        XCTAssertEqual(params.compactMap { $0["pass_id"] as? String }, [passId, passId], "on the shown pass")
+        XCTAssertEqual(params.compactMap { $0["kind"] as? String }, ["region", "line"])
+        let regionAnchor = try XCTUnwrap(params[0]["anchor"] as? [String: Any])
+        XCTAssertEqual(regionAnchor["polygon"] as? [[Double]], clicked)
+        XCTAssertEqual(regionAnchor["rect"] as? [Double], SegmentShapes.bounds(clicked))
+        XCTAssertEqual(regionAnchor["space"] as? String, onPass?.anchor.space, "the pass's own picture")
+        let lineAnchor = try XCTUnwrap(params[1]["anchor"] as? [String: Any])
+        XCTAssertEqual(params[1]["baseline"] as? [[Double]], baselinePoints)
+        XCTAssertNil(lineAnchor["rect"], "no box invented for a baseline")
+        XCTAssertNil(lineAnchor["polygon"], "no outline invented for a baseline")
+        let path = try XCTUnwrap((lineAnchor["shapes"] as? [[String: Any]])?.first)
+        XCTAssertEqual(path["kind"] as? String, "path")
+        XCTAssertEqual(manager.undoActionName, "Draw Baseline")
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-2"], "⌘Z undoes the last drawing by its own audit id")
     }
 
     /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the
