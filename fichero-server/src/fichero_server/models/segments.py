@@ -172,6 +172,10 @@ class SegmentRead(BaseModel):
     #: (``raw_polygon_px``, ``raw_baseline_px``, ``raw_pixel_frame``), and
     #: ``geometry_problem`` when the anchor could not hold this box's shape.
     metadata: dict[str, Any] = {}
+    #: The row's version (#5152): what an edit sends back as `expected_version`, so an edit made
+    #: against a copy somebody else has since changed is REFUSED (`source.edit.stale-is-refused`)
+    #: rather than overwriting theirs. None for a provisional segment, which has no row to version.
+    version: int | None = None
 
 
 class PassRead(BaseModel):
@@ -871,6 +875,7 @@ def segment_read_from_row(
             else None
         ),
         metadata=dict(row.metadata),
+        version=row.version,
     )
 
 

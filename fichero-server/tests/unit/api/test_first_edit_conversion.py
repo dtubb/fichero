@@ -319,7 +319,17 @@ class TestUndoOfACombinePutsThePageBack:
 
         # FIELD FOR FIELD, including each box's words -- ids and all, since
         # a combine mints nothing and undoing it must restore the same rows.
-        assert after_undo["segments"] == before["segments"]
+        # The page is back as it was -- everything you can SEE. A restored row's `version` is not
+        # among that: every change keeps a version, so an undo moves it ON, never back (a client
+        # still holding the old number is refused, which is the point of it, #5152).
+        def seen(segments):
+            return [{k: v for k, v in s.items() if k != "version"} for s in segments]
+
+        assert seen(after_undo["segments"]) == seen(before["segments"])
+        versions_before = {s["id"]: s["version"] for s in before["segments"]}
+        assert all(
+            s["version"] >= versions_before[s["id"]] for s in after_undo["segments"] if s["id"] in versions_before
+        )
         assert after_undo["passes"] == before["passes"]
 
         undo_audit = [a for a in db.all(ActionAudit) if a.inverse_of is not None][-1]

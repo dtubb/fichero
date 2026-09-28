@@ -150,6 +150,9 @@ class TestConversionChangesNothingYouCanSeeThroughTheSeam:
         for b, a in zip(before["segments"], after["segments"], strict=True):
             for field in ("id", "pass_id", "provisional"):
                 b.pop(field), a.pop(field)
+            # `version` differs in exactly one way: a provisional box has no row to version,
+            # and the row it becomes starts at 1 (#5152).
+            assert b.pop("version") is None and a.pop("version") == 1
             added_index = a["metadata"].pop("box_index")
             added_page = a["metadata"].pop("page_index", None)
             assert added_index == b["box_index"]

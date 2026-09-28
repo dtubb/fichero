@@ -284,6 +284,9 @@ class TestConversionChangesNothingYouCanSee:
             # provisional one named (#4924 review).
             for field in ("id", "pass_id", "provisional"):
                 b.pop(field), a.pop(field)
+            # `version` differs in exactly one way: a provisional box has no row to version,
+            # and the row it becomes starts at 1 (#5152).
+            assert b.pop("version") is None and a.pop("version") == 1
             # Metadata is compared MINUS the two keys conversion adds, not
             # popped whole -- popping it would let a lost or changed key
             # through unnoticed.
