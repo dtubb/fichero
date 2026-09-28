@@ -83,7 +83,14 @@ extension ImportService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ImportServiceError.serverError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
+        case .undocumented(let statusCode, let payload):
+            // A path outside every allowed root is said as such, with Grant Access… (#5219), never a bare 403.
+            if statusCode == 403, let body = payload.body,
+               let data = try? await Data(collecting: body, upTo: 64 * 1024),
+               let refusal = ImportServiceError.refusal(fromBody: data, path: url.path) {
+                if case .outsideAllowedLocations(let path) = refusal { DropAccessRefusal.shared.path = path }
+                throw refusal
+            }
             throw ImportServiceError.unexpectedResponse(statusCode)
         }
     }

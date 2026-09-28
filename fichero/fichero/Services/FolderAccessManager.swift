@@ -34,7 +34,7 @@ class FolderAccessManager {
     /// Injected by LibraryManager when it builds the API client — this manager is a
     /// singleton created long before any client exists, so it cannot construct one.
     /// nil until then, and permanently nil in the DMG build, which needs no handoff.
-    @ObservationIgnored var engineAccessService: SandboxAccessService?
+    @ObservationIgnored var engineAccessService: (any EngineAccessGranting)?
 
     /// The engine's refusal to open a folder we handed it, or nil when all is well.
     /// Observed, so the UI can say the folder is unreadable at the moment we learn it,
@@ -297,7 +297,7 @@ class FolderAccessManager {
         // ever, every library picked after engine start unreachable, and
         // folder-drop imports 403ing (found live, 2026-08-08). Same rationale
         // as SandboxEnvironment.swift's own doc comment.
-        guard SandboxEnvironment.isSandboxed else { return }
+        // Sent sandboxed or not (#5219): the engine's allowed roots are a POLICY it applies either way.
         Task { @MainActor in
             // Fire-and-forget: this caller does not immediately read the path, so a
             // denial is swallowed here — it is still surfaced via engineAccessFailure
@@ -318,11 +318,10 @@ class FolderAccessManager {
     /// spawn-time env var covers anything minted that early) and on the
     /// non-App-Store build (no sandbox — nothing to grant).
     private func grantEngineAccess(path: String, bookmark: Data) async throws {
-        // Runtime check, not the MAS build flag — see
-        // `handOffToEngine` above. An unsandboxed app has nothing to grant
-        // (the engine reads the filesystem directly), so returning without
-        // throwing is the documented no-grant-needed case.
-        guard SandboxEnvironment.isSandboxed else { return }
+        // Sent sandboxed OR NOT (#5219, Daniel's Finder drop from ~/Fichero Test Corpus): the engine
+        // refuses a path outside its allowed roots as a POLICY, whatever the sandbox, and a grant is
+        // what adds a root. The old "an unsandboxed app has nothing to grant" meant Dev Local never
+        // sent one, and every drop outside the static roots was a bare 403.
         guard let service = engineAccessService else {
             logger.debug("No engine access service yet; \(path) will be granted at next spawn")
             return
@@ -334,6 +333,12 @@ class FolderAccessManager {
             // existed — the authorization answer just changed.
             NotificationCenter.default.post(name: .ficheroEngineAccessChanged, object: nil)
         } catch {
+            // Unsandboxed, a refused grant is not the end: the path may sit under a static root, and the
+            // engine's own answer to the read (a worded 403) is the one to show.
+            guard SandboxEnvironment.isSandboxed else {
+                logger.warning("Engine did not take the grant for \(path): \(error.localizedDescription)")
+                return
+            }
             // Loud AND fatal to the caller's engine work: the engine cannot read
             // this folder, so ingesting/opening it would fail later with an
             // inscrutable DuckDB permission error. Surface it and stop the read.
@@ -386,7 +391,6 @@ class FolderAccessManager {
     /// first-authenticated-ready; the grant route is idempotent, so
     /// re-sending already-held paths costs nothing.
     func resendAllGrantsToEngine() async {
-        guard SandboxEnvironment.isSandboxed else { return }
         let stored = UserDefaults.standard.dictionary(forKey: bookmarksKey) as? [String: Data] ?? [:]
         guard !stored.isEmpty else { return }
         var granted = 0
@@ -586,3 +590,11 @@ extension FolderAccessManager {
         return try await engineWork()
     }
 }
+
+/// What the folder grants are handed to: the running engine (`SandboxAccessService`), or a test's recorder.
+@MainActor
+protocol EngineAccessGranting: AnyObject {
+    func grantAccess(toPath path: String, bookmark: Data) async throws
+}
+
+extension SandboxAccessService: EngineAccessGranting {}

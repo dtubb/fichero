@@ -173,7 +173,9 @@ struct AnnotationMarkLayer: View {
                         .allowsHitTesting(false)
                 }
             }
-            .frame(width: geo.size.width, height: geo.size.height)
+            // Top-leading: the marks are placed by `.offset` from the origin; a centred frame shifts them
+            // when they do not fill it (#5214's class).
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
         }
     }
 

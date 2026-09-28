@@ -351,12 +351,26 @@ struct LibraryDropAlertModifier: ViewModifier {
                 }
             )
         ) {
+            DropAccessGrantButton()
             Button("OK", role: .cancel) {
                 windowState.dropErrorMessage = nil
+                DropAccessRefusal.shared.path = nil
             }
         } message: {
             Text(windowState.dropErrorMessage ?? "The drop could not be completed.")
         }
+    }
+}
+
+/// Grant Access… in a Drop Failed alert, only when the engine refused the dropped folder as outside every
+/// folder it may read (#5219). One button for both drop alerts.
+struct DropAccessGrantButton: View {
+    var body: some View {
+        #if os(macOS)
+        if let path = DropAccessRefusal.shared.path {
+            Button("Grant Access\u{2026}") { Task { await DropAccessRefusal.grantAccess(to: path) } }
+        }
+        #endif
     }
 }
 

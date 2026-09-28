@@ -45,17 +45,10 @@ struct FolderAccessManagerSandboxGateTests {
         )
     }
 
-    @Test("Both grant methods carry the runtime sandbox guard")
-    func grantMethodsUseRuntimeGuard() throws {
-        let source = try managerSource()
-        let guardCount = source.components(
-            separatedBy: "guard SandboxEnvironment.isSandboxed else { return }"
-        ).count - 1
-        #expect(
-            guardCount >= 2,
-            "handOffToEngine and grantEngineAccess must each guard on the runtime sandbox check; found \(guardCount) guard(s)."
-        )
-    }
+    // "Both grant methods carry the runtime sandbox guard" was removed with #5219: that guard WAS the
+    // defect -- the engine's allowed roots are a policy it applies unsandboxed too, so an unsandboxed app
+    // that sent no grant had every drop outside them refused. The behaviour is pinned instead by
+    // `DropGrantsBeforeIngestTests` (the grant is sent, and before the ingest).
 }
 
 /// The 2026-08-08 launch-grant race, pinned end to end: grants fired before
