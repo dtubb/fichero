@@ -76,6 +76,8 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
         guard lastLoadedDocumentId != parent?.documentId || lastLoadedLibraryPath != parent?.libraryPath
             || lastLoadedPageIds != parent?.pageIds
             || lastLoadedRepresentation != parent?.representation else { return }
+        // A page swap: the old page sends the line being typed first (#5001), so no words are lost.
+        if lastLoadedDocumentId != nil { webView.evaluateJavaScript(ReaderTextEdit.commitPendingScript) }
         // An explicit load supersedes any scheduled failure retry.
         failureRetryTask?.cancel()
         failureRetryTask = nil
@@ -459,15 +461,15 @@ extension DocumentKGWebPaneCoordinatorMacOS {
             await store.load(documentId: pageId, force: true)
             await DocumentKGWebPaneCoordinatorMacOS.refreshPage(pageId, in: webView)
         }
-        var reason: String?
+        var reason: String?, staleAnswer: String?, made: String?  // refused, refused as stale, the reading made
         do {
             switch edit {
             case .edited:
                 guard let params = ReaderTextEdit.newReading(for: edit) else { return }
-                try await AuditedAction.run(
+                made = try await AuditedAction.run(
                     "representation.create", params: params, actionName: "Typing", actionsService: actions,
                     undoManager: undoManager, afterChange: refresh
-                )
+                ).resultId
             case .split(_, let id, _):
                 // Fresh: a readingEdit posted just before the split changed the line's text and version.
                 await store.load(documentId: pageId, force: true)
@@ -490,13 +492,18 @@ extension DocumentKGWebPaneCoordinatorMacOS {
                     afterChange: { await DocumentKGWebPaneCoordinatorMacOS.refreshPage(pageId, in: webView) }
                 )
             }
+        } catch APIError.httpError(409, _) {
+            // Stale (#5001): another reading counts now. Nothing was written; tell the page what counts
+            // so it keeps the typed words and offers Keep Mine / Take Theirs / Compare. No refresh.
+            reason = "stale"  // a split or join refused as stale has no typed words: a plain refusal
+            staleAnswer = await ReaderTextEdit.staleAnswer(to: edit, readings: library.segmentService)
         } catch {
             reason = String(describing: error)
         }
         // The page's answer is a courtesy (it re-reads itself on a refusal), so a failure to deliver it
         // is ignored. In an async context the async-throwing overload is chosen.
         _ = try? await webView?.evaluateJavaScript(
-            ReaderTextEdit.committedScript(pageId: pageId, segmentId: edit.segmentId, reason: reason)
+            staleAnswer ?? ReaderTextEdit.committedScript(pageId: pageId, segmentId: edit.segmentId, reason: reason, representationId: made)
         )
     }
 

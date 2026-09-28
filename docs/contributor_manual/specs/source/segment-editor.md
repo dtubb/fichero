@@ -715,8 +715,14 @@ The editor
   (`fichero-server/tests/unit/api/test_reader_stale_keeps_your_words.py::test_keep_mine_sends_the_same_words_against_what_counts_now_and_it_lands`,
   `::test_a_stale_line_is_held_never_re_sent`, `::test_a_re_read_keeps_the_stale_words_on_their_line`,
   `::test_compare_shows_theirs_struck_against_mine_and_the_bar_offers_three_choices`).
-  **Not yet:** the app sending the token and turning the 409 into the page's stale answer (archive's
-  Swift half), and "out of reach of the engine the text is read-only".
+  **Built: the app** sends `basedOn` as the token (`ReaderTextEdit.newReading`); a 409 is answered to
+  the page as `lineCommitted({ok:false, stale:true, mine, theirs:{representationId, text}})`, with what
+  counts re-read from the engine and no page refresh over the typed words (`ReaderTextEdit.staleAnswer`;
+  `ImportedPageDrawsItsBoxesTests.testATypedLineAgainstAReadingThatNoLongerCountsKeepsTheWordsAndNamesWhatCounts`,
+  recorded Syriac readings: token sent, 409 answered with the words kept and `rep-0002` named, Keep Mine
+  re-sent against it). A line whose text came from its words sends no `basedOn`, so no check.
+  **Not yet:** "out of reach of the engine the text is read-only"; both halves above are built and each
+  is tested on its side, and the maintainer's run of the Reader is the end-to-end check.
 - `source.textedit.every-direction` — **[PARTIAL]** (#5001) each block is laid out and edited in its own direction;
   line starts, joins and cuts follow reading order and the baseline; a direction the platform
   cannot lay out is labelled, never reordered.

@@ -51,6 +51,11 @@ struct ReadingOrderList: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if let store, !store.orders.isEmpty, !(hidesWhenEmpty && store.shown.isEmpty) {
+                // Which order, new orders and flows, Previous / Next (#5160).
+                ReadingOrderPicker(documentId: documentId, store: store, selection: $selection)
+                Divider()
+            }
             if let store, !store.shown.isEmpty {
                 List(selection: $selection) {
                     ForEach(Array(store.shown.enumerated()), id: \.element.segmentId) { index, entry in
@@ -90,6 +95,11 @@ struct ReadingOrderList: View {
             if store == nil, let service { store = ReadingOrderStore(transport: service) }
             if store?.documentId != documentId { try? await store?.load(documentId: documentId) }
             await store?.show(childrenOf: parentSegmentId)
+            // Next in a flow crossed onto this page: select the segment it went to.
+            if let pending = windowState?.pendingSegmentSelection, pending.documentId == documentId {
+                selection = pending.segmentId
+                windowState?.pendingSegmentSelection = nil
+            }
         }
     }
 
@@ -152,7 +162,7 @@ struct ReadingOrderList: View {
         let segment = SegmentStore.shared(for: segmentService)
             .segments(documentId: documentId).first { $0.id == segmentId }
         if let text = segment?.text, !text.isEmpty { return text }
-        return "\((segment?.kind ?? "segment").capitalized) \(index + 1)"
+        return SegmentsPane.rowLabel(segment, at: index)
     }
 
     private static func keyName(_ key: KeyEquivalent) -> String {

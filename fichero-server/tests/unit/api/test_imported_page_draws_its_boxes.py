@@ -638,3 +638,266 @@ def test_a_line_s_picture_is_recorded_for_the_segments_pane(db, client):
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         PICTURE_FIXTURE.write_text(json.dumps(recorded, indent=1) + "\n")
     assert json.loads(PICTURE_FIXTURE.read_text()) == recorded, "the app's picture fixture drifted"
+
+
+HISTORY_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.first-line-history.json"
+
+
+def test_a_line_s_history_is_recorded_and_restoring_it_is_the_app_s_exact_call(db, client):
+    """`source.segment.versioned-alone` (#5163, the Inspector's Making section at segment level): the
+    app reads GET /api/segments/{id}/versions and the live row (GET /api/segments/{id}, for the version
+    a restore is checked against). Recorded on the imported Syriac page's first line after two changes
+    through the audited actions: moved, then its language set. Then the app's EXACT restore --
+    `segment.restore_version {segment_id, version: 1, expected_version: <live>}` -- is sent: the box
+    goes back, and undoing the restore by its audit id moves it again. Breaks if the history is not
+    recorded per change, or if the restore the app sends is refused or restores the wrong state."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    line = min((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+               key=lambda s: s["anchor"]["rect"])
+    original_rect = line["anchor"]["rect"]
+
+    def invoke(name, params):
+        answer = client.post("/api/actions/invoke", json={"name": name, "params": params})
+        assert answer.status_code == 200, answer.text
+        return answer.json()
+
+    moved = dict(line["anchor"], rect=[original_rect[0] + 0.01, original_rect[1], original_rect[2], original_rect[3]])
+    moved.pop("segment_id", None)
+    invoke("segment.update", {"segment_id": line["id"], "expected_version": line["version"], "anchor": {
+        k: moved.get(k) for k in ("document_id", "page_id", "rendition_id", "space", "rect", "polygon", "rotation",
+                                  "granularity")}})
+    invoke("segment.update_many", {"updates": [
+        {"segment_id": line["id"], "expected_version": line["version"] + 1, "language": "syc"}]})
+    versions = client.get(f"/api/segments/{line['id']}/versions").json()
+    live = client.get(f"/api/segments/{line['id']}").json()
+    assert [v["version"] for v in versions["items"]] == [1, 2], "one version row per change"
+    assert versions["items"][0]["anchor"]["rect"] == original_rect
+    assert live["segment"]["version"] == 3
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    token = next(s["id"] for s in stable_route["segments"]
+                 if s["kind"] == "line" and s["anchor"]["rect"] == original_rect)
+    stable_line = next(s for s in stable_route["segments"] if s["id"] == token)
+    ids = {doc_id: stable_route["document_id"], line["id"]: token, real["id"]: stable_line["pass_id"],
+           line["parent_segment_id"]: stable_line["parent_segment_id"]}
+    for index, item in enumerate(versions["items"], start=1):
+        ids[item["id"]] = f"version-{index:04d}"
+        if item.get("audit_id"):
+            ids[item["audit_id"]] = f"audit-{index:04d}"
+    stable = _stabilizer(ids)
+    recorded = {"versions": stable(versions), "live": stable(live)}
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        HISTORY_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(HISTORY_FIXTURE.read_text()) == recorded, "the app's history fixture drifted"
+
+    # The app's exact restore, then its undo (normalized coordinates: the move was 0.01).
+    restored = invoke("segment.restore_version",
+                      {"segment_id": line["id"], "version": 1, "expected_version": live["segment"]["version"]})
+    assert client.get(f"/api/segments/{line['id']}").json()["segment"]["anchor"]["rect"] == original_rect
+    assert client.post(f"/api/actions/audit/{restored['audit_id']}/undo").status_code == 200
+    assert client.get(f"/api/segments/{line['id']}").json()["segment"]["anchor"]["rect"][0] == original_rect[0] + 0.01
+
+
+TABLE_PAGE = Path(__file__).resolve().parents[1] / "formats" / "fixtures" / "transkribus_abp_table_0019.page.xml"
+TABLE_FIXTURE = FIXTURES / "transkribus_abp_table_0019.route.json"
+
+
+def test_an_imported_table_s_cells_say_their_row_and_column_to_the_app(db, client):
+    """`source.segment.table-cells` (#5168): a Transkribus table page, imported, answers the canvas's
+    and the Segments pane's call (GET /api/segments/document/{id}) with every cell's row, column and
+    spans exactly as its `TableCell` said -- checked against the file with lxml -- and the answer is
+    recorded for the app, whose path head and row labels name a cell by its place. Breaks if a cell's
+    place is lost or shifted on the way to the app."""
+    doc_id = _import(db, TABLE_PAGE)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    cells = [s["cell"] for s in body["segments"] if s["pass_id"] == real["id"] and s.get("cell")]
+
+    root = etree.parse(str(TABLE_PAGE)).getroot()
+    in_file = sorted(
+        (int(c.get("row")), int(c.get("col")), int(c.get("rowSpan") or 1), int(c.get("colSpan") or 1))
+        for c in root.iter() if isinstance(c.tag, str) and etree.QName(c).localname == "TableCell"
+    )
+    assert len(in_file) == 172
+    assert sorted((c["row"], c["column"], c["row_span"], c["column_span"]) for c in cells) == in_file
+
+    # Recorded REDUCED to the table and its cells (the lines inside them are 60% of 600 KB and no part of
+    # what the path head or a row label reads); reduced before stabilizing, so box indices stay whole.
+    reduced = dict(body, segments=[s for s in body["segments"] if s["kind"] == "table" or s.get("cell")])
+    stable = _stable(reduced)
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        TABLE_FIXTURE.write_text(json.dumps(stable, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(TABLE_FIXTURE.read_text()) == stable, "the app's table fixture drifted"
+
+
+MATCHES_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.proposed-matches.json"
+
+
+def test_a_page_s_proposed_matches_are_recorded_and_accept_and_reject_are_the_app_s_exact_calls(db, client):
+    """`source.segment.match-record` (#5165, the Segments pane's "Proposed matches" set): the app reads
+    GET /api/segments/document/{id}/matches?state=proposed. Recorded on the imported Syriac page after
+    two proposals through `segment.match_propose` (the first line is the second; the third is the
+    fourth, 60% sure). Then the app's EXACT verbs -- `segment.match_accept {match_id}` and
+    `segment.match_reject {match_id}` -- are sent: each lands, the proposed list empties, and undoing
+    the accept by its audit id makes it a proposal again. Breaks if proposals are not listed, or the
+    verbs the app sends are refused or change the wrong match."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    lines = sorted((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+                   key=lambda s: s["anchor"]["rect"][1])
+
+    def invoke(name, params):
+        answer = client.post("/api/actions/invoke", json={"name": name, "params": params})
+        assert answer.status_code == 200, answer.text
+        return answer.json()
+
+    first = invoke("segment.match_propose", {"from_segment_id": lines[0]["id"], "to_segment_id": lines[1]["id"]})
+    second = invoke("segment.match_propose", {"from_segment_id": lines[2]["id"], "to_segment_id": lines[3]["id"],
+                                              "certainty": 0.6, "note": "same words, redrawn box"})
+    proposed = client.get(f"/api/segments/document/{doc_id}/matches", params={"state": "proposed"}).json()
+    assert proposed["count"] == 2
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+
+    def token_of(segment):
+        return next(s["id"] for s in stable_route["segments"]
+                    if s["kind"] == segment["kind"] and s["anchor"]["rect"] == segment["anchor"]["rect"])
+
+    ids = {doc_id: stable_route["document_id"]}
+    for line in lines[:4]:
+        ids[line["id"]] = token_of(line)
+    for index, item in enumerate(proposed["items"], start=1):
+        ids[item["id"]] = f"match-{index:04d}"
+    recorded = _stabilizer(ids)(proposed)
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        MATCHES_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(MATCHES_FIXTURE.read_text()) == recorded, "the app's matches fixture drifted"
+
+    # The app's exact verbs, then the accept's undo.
+    accepted = invoke("segment.match_accept", {"match_id": first["result"]["match_id"]})
+    invoke("segment.match_reject", {"match_id": second["result"]["match_id"]})
+    after = client.get(f"/api/segments/document/{doc_id}/matches").json()["items"]
+    assert sorted(m["state"] for m in after) == ["accepted", "rejected"]
+    assert client.get(f"/api/segments/document/{doc_id}/matches", params={"state": "proposed"}).json()["count"] == 0
+    assert client.post(f"/api/actions/audit/{accepted['audit_id']}/undo").status_code == 200
+    again = client.get(f"/api/segments/document/{doc_id}/matches", params={"state": "proposed"}).json()["items"]
+    assert [m["id"] for m in again] == [first["result"]["match_id"]]
+
+
+FLOW_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.named-orders-and-flow.json"
+
+
+def test_a_named_order_and_a_flow_onto_the_next_page_are_recorded_for_the_order_picker(db, client):
+    """`source.order.named-multiple`, `source.order.next-previous`, `source.segment.flow` (#5160, the
+    Order list's picker): on the imported Syriac page, the app's EXACT creates -- `reading_order.create
+    {document_id, pass_id, name, kind, seed_from_pass: true}` for a named order and for a flow -- then a
+    second imported page's first line placed at the flow's end. Recorded: the page's orders (as-written
+    first, then by name), the flow's top level, what reads after the flow's last entry on this page (the
+    next page's line: the neighbours route), and that line's own read (the page Next opens). Breaks if
+    a created order is not listed, the flow does not cross the page, or neighbours answer wrongly."""
+    doc_id = _import(db, SYRIAC)
+    next_page = _import(db, SYRIAC)
+    route = client.get(f"/api/segments/document/{doc_id}").json()
+    real_pass = next(p["id"] for p in route["passes"] if not p["provisional"])
+
+    def invoke(name, params):
+        answer = client.post("/api/actions/invoke", json={"name": name, "params": params})
+        assert answer.status_code == 200, answer.text
+        return answer.json()["result"]
+
+    named = invoke("reading_order.create", {"document_id": doc_id, "pass_id": real_pass, "name": "Commentary order",
+                                            "kind": "imposed", "seed_from_pass": True})
+    flow = invoke("reading_order.create", {"document_id": doc_id, "pass_id": real_pass, "name": "Into the next page",
+                                           "kind": "flow", "seed_from_pass": True})
+    other = client.get(f"/api/segments/document/{next_page}").json()
+    other_pass = next(p["id"] for p in other["passes"] if not p["provisional"])
+    other_line = min((s for s in other["segments"] if s["pass_id"] == other_pass and s["kind"] == "line"),
+                     key=lambda s: s["anchor"]["rect"])
+    placed = client.post(f"/api/reading-orders/{flow['order_id']}/place",
+                         json={"segment_id": other_line["id"], "at_end": True})
+    assert placed.status_code == 200, placed.text
+
+    orders = client.get(f"/api/reading-orders/document/{doc_id}").json()
+    assert [o["name"] for o in orders["orders"]][0] == "as-written"
+    assert {o["id"] for o in orders["orders"]} >= {named["order_id"], flow["order_id"]}
+    top = client.get(f"/api/reading-orders/{flow['order_id']}/entries").json()
+    last_here = top["entries"][-2]["segment_id"]
+    assert top["entries"][-1]["segment_id"] == other_line["id"]
+    neighbours = client.get(f"/api/reading-orders/{flow['order_id']}/neighbours",
+                            params={"segment_id": last_here}).json()
+    assert neighbours["next_segment_id"] == other_line["id"], "the flow crosses onto the next page"
+    across = client.get(f"/api/segments/{other_line['id']}").json()
+    assert across["segment"]["document_id"] == next_page
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    by_rect = {repr(s["anchor"]["rect"]): s["id"] for s in stable_route["segments"]}
+    ids = {doc_id: stable_route["document_id"], next_page: "doc-0002", other_line["id"]: "seg-next-0001",
+           real_pass: next(p["id"] for p in stable_route["passes"] if not p["provisional"]), other_pass: "pass-next"}
+    for segment in route["segments"]:
+        ids[segment["id"]] = by_rect[repr(segment["anchor"]["rect"])]
+    for other_segment in other["segments"]:
+        ids.setdefault(other_segment["id"], f"seg-next-{len(ids):04d}")
+    for index, order in enumerate(orders["orders"], start=1):
+        ids[order["id"]] = f"order-{index:04d}"
+    for index, entry in enumerate(top["entries"], start=1):
+        ids[entry["id"]] = f"entry-{index:04d}"
+    stable = _stabilizer(ids)
+    recorded = {"orders": stable(orders), "flow_top": stable(top), "neighbours": stable(neighbours),
+                "across": stable(across)}
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        FLOW_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(FLOW_FIXTURE.read_text()) == recorded, "the app's orders-and-flow fixture drifted"
+
+
+RESOLVE_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.reference-resolved.json"
+
+
+def test_a_citable_reference_resolves_to_its_page_and_follows_a_merge_for_the_url_handler(db, client):
+    """`source.segment.citable` (#5164, the app's `fichero:segment/…` URL handler): the engine's own
+    reference for the imported Syriac page's first line (GET /api/segments/{id}/reference) is sent
+    WHOLE to POST /api/locations/resolve -- the handler's exact call -- and names the page and the
+    line. Then the line is joined into the next one (`segment.merge`, keeping the next), and the SAME
+    reference resolves to the live line that absorbed it: an old link still opens the right place.
+    Both answers are recorded for the app. Breaks if the resolver does not accept the string form, or
+    an old reference to a merged line opens nothing or the wrong line."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    lines = sorted((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+                   key=lambda s: s["anchor"]["rect"][1])
+    first, second = lines[0], lines[1]
+    reference = client.get(f"/api/segments/{first['id']}/reference").json()["reference"]
+    assert reference.startswith("fichero:segment/") and reference.endswith(f"/{doc_id}/{first['id']}")
+
+    direct = client.post("/api/locations/resolve", json={"segmentId": reference})
+    assert direct.status_code == 200, direct.text
+    assert direct.json()["resolvedDocumentId"] == doc_id and direct.json()["resolvedSegmentId"] == first["id"]
+
+    merged = client.post("/api/actions/invoke", json={"name": "segment.merge", "params": {
+        "segment_ids": [second["id"], first["id"]], "keep_id": second["id"],
+        "expected_versions": {second["id"]: second["version"], first["id"]: first["version"]}}})
+    assert merged.status_code == 200, merged.text
+    followed = client.post("/api/locations/resolve", json={"segmentId": reference})
+    assert followed.status_code == 200, followed.text
+    assert followed.json()["resolvedSegmentId"] == second["id"], "an old reference follows the merge"
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+
+    def token_of(segment):
+        return next(s["id"] for s in stable_route["segments"]
+                    if s["kind"] == segment["kind"] and s["anchor"]["rect"] == segment["anchor"]["rect"])
+
+    library = reference.split("/")[1]
+    ids = {doc_id: stable_route["document_id"], first["id"]: token_of(first), second["id"]: token_of(second),
+           library: "lib-0001", reference: f"fichero:segment/lib-0001/{stable_route['document_id']}/{token_of(first)}"}
+    for index, note in enumerate(followed.json().get("segmentForwarding") or [], start=1):
+        ids.setdefault(note.get("id"), f"forward-{index:04d}")
+        ids.setdefault(note.get("audit_id"), f"audit-{index:04d}")
+    stable = _stabilizer(ids)
+    recorded = {"reference": ids[reference], "direct": stable(direct.json()), "after_merge": stable(followed.json())}
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        RESOLVE_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(RESOLVE_FIXTURE.read_text()) == recorded, "the app's reference fixture drifted"

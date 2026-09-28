@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 
 /// What the Inspector inspects, as segments, and the path head above it (ruled 2026-09-27,
@@ -7,9 +8,27 @@ struct InspectorPath: Equatable {
     struct Crumb: Equatable, Identifiable {
         let segmentId: String
         let kind: String
-        var id: String { segmentId }
         /// "Line", "Block" -- the level, which is what a crumb names; the words are the Text section's.
-        var label: String { kind.capitalized }
+        /// A table cell is named by its place: "Cell, Row 3, Column 1" (#5168).
+        let label: String
+        var id: String { segmentId }
+    }
+
+    /// What a segment is called where its level is named -- the path head, the Segments pane's rows:
+    /// its kind, or for a table cell its place in the table (#5168).
+    static func name(of segment: Segment) -> String {
+        guard let place = cellPlace(segment.cell) else { return segment.kind.capitalized }
+        return "Cell, " + place
+    }
+
+    /// A cell's place counted from 1, as people count ("Row 3, Column 1"; "Rows 3–4, Column 1" for a
+    /// span). The file counts from 0 (PAGE's `TableCell`), so row 2 there is Row 3 here.
+    static func cellPlace(_ cell: Components.Schemas.TableCellPlace?) -> String? {
+        guard let cell else { return nil }
+        let span = { (name: String, start: Int, count: Int) -> String in
+            count > 1 ? "\(name)s \(start + 1)–\(start + count)" : "\(name) \(start + 1)"
+        }
+        return span("Row", cell.row, cell.rowSpan ?? 1) + ", " + span("Column", cell.column, cell.columnSpan ?? 1)
     }
 
     /// Outermost first, ending at the inspected segment. EMPTY means the page itself: a mixed
@@ -29,7 +48,7 @@ struct InspectorPath: Equatable {
             chain.append(parent)
             current = parent
         }
-        return InspectorPath(crumbs: chain.reversed().map { Crumb(segmentId: $0.id, kind: $0.kind) })
+        return InspectorPath(crumbs: chain.reversed().map { Crumb(segmentId: $0.id, kind: $0.kind, label: name(of: $0)) })
     }
 
     /// A MIXED selection shows its nearest common parent (ruled): the longest path every selected

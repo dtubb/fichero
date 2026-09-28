@@ -54,9 +54,10 @@ enum SegmentsPane {
 
     /// A row's words: its kind, then its reading when it has one ("Line · ܐܒܪܗܡ…").
     static func rowLabel(_ segment: Segment?, at index: Int) -> String {
-        let kind = (segment?.kind ?? "segment").capitalized
+        let kind = segment.map(InspectorPath.name(of:)) ?? "Segment"
         guard let text = segment?.text?.trimmingCharacters(in: .whitespaces), !text.isEmpty else {
-            return "\(kind) \(index + 1)"
+            // A cell is named by its place already; a count after it would read as another number.
+            return segment?.cell != nil ? kind : "\(kind) \(index + 1)"
         }
         return "\(kind) · \(text)"
     }

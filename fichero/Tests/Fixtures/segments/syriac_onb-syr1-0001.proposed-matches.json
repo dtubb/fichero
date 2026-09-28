@@ -1,0 +1,33 @@
+{
+ "items": [
+  {
+   "id": "match-0001",
+   "document_id": "doc-0001",
+   "from_segment_id": "seg-0012",
+   "to_segment_id": "seg-0010",
+   "state": "proposed",
+   "proposed_by_kind": "human",
+   "proposed_by": "owner",
+   "accepted_by": null,
+   "accepted_at": null,
+   "certainty": null,
+   "note": null,
+   "created_at": "2026-09-27T12:00:00Z"
+  },
+  {
+   "id": "match-0002",
+   "document_id": "doc-0001",
+   "from_segment_id": "seg-0011",
+   "to_segment_id": "seg-0009",
+   "state": "proposed",
+   "proposed_by_kind": "human",
+   "proposed_by": "owner",
+   "accepted_by": null,
+   "accepted_at": null,
+   "certainty": 0.6,
+   "note": "same words, redrawn box",
+   "created_at": "2026-09-27T12:00:00Z"
+  }
+ ],
+ "count": 2
+}

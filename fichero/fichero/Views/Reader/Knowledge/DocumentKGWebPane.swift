@@ -146,6 +146,12 @@ struct DocumentKGWebPane: NSViewRepresentable {
         return webView
     }
 
+    /// The window closes or the pane goes: the page sends the line being typed (#5001). Best effort --
+    /// a torn-down web view may not run it; the page also commits on focus leaving it.
+    static func dismantleNSView(_ webView: GuardedWKWebView, coordinator: Coordinator) {
+        webView.evaluateJavaScript(ReaderTextEdit.commitPendingScript)
+    }
+
     func updateNSView(_ webView: GuardedWKWebView, context: Context) {
         context.coordinator.parent = self
         context.coordinator.claimSourceNavigationState = claimSourceNavigationState

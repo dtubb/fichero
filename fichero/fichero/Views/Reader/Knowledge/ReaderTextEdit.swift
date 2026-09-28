@@ -7,7 +7,9 @@ import Foundation
 /// - `readingEdit` {pageId, segmentId, text, previous, basedOn}: a run of keys on one line is a NEW
 ///   READING (`representation.create`, correcting `basedOn`, the reading it was typed over), never an
 ///   overwrite. `basedOn` is null when the line's text came from its words: there is no one reading to
-///   correct. `previous` is kept for the stale check (#5001), not sent.
+///   correct. `basedOn` is also the stale check's token (#5001, `expected_counting_id`): if another
+///   reading counts by the time it lands, the engine refuses with 409 and the page is told
+///   (`staleScript`), the typed words kept. No `basedOn`, no check.
 /// - `lineSplit` {pageId, segmentId, offset}: Return inside a line is `segment.split {at_offset}`. The
 ///   ENGINE cuts the reading and the box at that character, along the line's direction (`cut:
 ///   estimated`) -- one implementation of the cut, not one here too. The app's job is the offset: the
@@ -58,7 +60,7 @@ enum ReaderTextEdit {
         guard case .edited(let pageId, let segmentId, let text, let basedOn) = message else { return nil }
         return NewReadingParams(
             documentId: pageId, segmentId: segmentId, kind: "transcription", content: text,
-            correctsRepresentationId: basedOn
+            correctsRepresentationId: basedOn, expectedCountingId: basedOn
         )
     }
 
@@ -91,12 +93,53 @@ enum ReaderTextEdit {
     /// The app's answer to the page after each message: `window.fichero.lineCommitted({pageId,
     /// segmentId, ok, reason?})`, optional-chained so a page without it ignores it. The app then asks
     /// the page to re-read itself (`refreshPage`).
-    static func committedScript(pageId: String, segmentId: String, reason: String?) -> String {
+    /// `representationId`, on a `readingEdit` that landed, is the reading it made: the page bases the
+    /// line's next run on it before its re-read arrives.
+    static func committedScript(
+        pageId: String, segmentId: String, reason: String?, representationId: String? = nil
+    ) -> String {
         var payload: [String: Any] = ["pageId": pageId, "segmentId": segmentId, "ok": reason == nil]
         if let reason { payload["reason"] = reason }
+        if reason == nil, let representationId { payload["representationId"] = representationId }
         let data = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
         let json = String(bytes: data, encoding: .utf8) ?? "{}"
         return "window.fichero?.lineCommitted?.(\(json));"
+    }
+
+    /// The answer to a `readingEdit` the engine refused as stale (409): what the person typed (`mine`)
+    /// and what counts now (`theirs`), so the page can offer Keep Mine / Take Theirs / Compare. The
+    /// page is NOT refreshed after this -- that would replace the typed words. Keep Mine is the page
+    /// posting `readingEdit` again with `basedOn` = `theirs.representationId`.
+    static func staleScript(
+        pageId: String, segmentId: String, mine: String, theirsId: String?, theirsText: String?
+    ) -> String {
+        var theirs: [String: Any] = [:]
+        theirs["representationId"] = theirsId ?? NSNull()
+        theirs["text"] = theirsText ?? NSNull()
+        let payload: [String: Any] = [
+            "pageId": pageId, "segmentId": segmentId, "ok": false, "stale": true,
+            "reason": "another reading counts now", "mine": mine, "theirs": theirs
+        ]
+        let data = (try? JSONSerialization.data(withJSONObject: payload, options: .sortedKeys)) ?? Data()
+        let json = String(bytes: data, encoding: .utf8) ?? "{}"
+        return "window.fichero?.lineCommitted?.(\(json));"
+    }
+
+    /// Asks the page to send the line being typed now, before the page goes away: it is swapped for
+    /// another or its window closes (`window.fichero.commitPending()`, the page half; idempotent, and
+    /// optional-chained so an older page ignores it).
+    static let commitPendingScript = "window.fichero?.commitPending?.();"
+
+    /// The stale answer for a refused `readingEdit`: re-reads the line's readings (the 409's body is not
+    /// in the contract, so the app asks what counts now) and says it with `staleScript`. Nil for the
+    /// other two messages, which carry no typed words.
+    @MainActor
+    static func staleAnswer(to message: Message, readings: SegmentService) async -> String? {
+        guard case .edited(let pageId, let segmentId, let text, _) = message else { return nil }
+        let theirs = (try? await readings.readings(segmentId: segmentId))?.countingReading(ofKind: "transcription")
+        return staleScript(
+            pageId: pageId, segmentId: segmentId, mine: text, theirsId: theirs?.id, theirsText: theirs?.content
+        )
     }
 
     /// A JavaScript (UTF-16) offset into `text` as a Unicode-scalar offset -- what the engine's Python
@@ -117,10 +160,13 @@ struct NewReadingParams: Encodable, Equatable {
     let kind: String
     let content: String
     let correctsRepresentationId: String?
+    /// The reading that counted when typing began; the engine refuses (409) if another counts now.
+    var expectedCountingId: String?
 
     enum CodingKeys: String, CodingKey {
         case documentId = "document_id", segmentId = "segment_id", kind, content
         case correctsRepresentationId = "corrects_representation_id"
+        case expectedCountingId = "expected_counting_id"
     }
 
     func encode(to encoder: any Encoder) throws {
@@ -130,6 +176,7 @@ struct NewReadingParams: Encodable, Equatable {
         try container.encode(kind, forKey: .kind)
         try container.encode(content, forKey: .content)
         try container.encodeIfPresent(correctsRepresentationId, forKey: .correctsRepresentationId)
+        try container.encodeIfPresent(expectedCountingId, forKey: .expectedCountingId)
     }
 }
 

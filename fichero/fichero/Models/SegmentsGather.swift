@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 
 /// A GATHERED set in the Segments pane (`source.segments-pane.gathers`, #4942): segments that are not
@@ -7,11 +8,14 @@ import Foundation
 enum SegmentsGather: Equatable {
     case hand(id: String, label: String)
     case sign(id: String, name: String)
+    /// A page's proposed matches, to accept or reject (#5165, `source.segment.match-record`).
+    case matches(documentId: String)
 
     var title: String {
         switch self {
         case .hand(_, let label): "Everything in \(label)"
         case .sign(_, let name): "Every instance of \(name)"
+        case .matches: "Proposed matches"
         }
     }
 }
@@ -25,6 +29,8 @@ enum SegmentsGathered {
         let documentId: String?
         let title: String
         let detail: String
+        /// A proposed match's id: the row offers Accept and Reject (#5165).
+        var matchId: String?
     }
 
     struct Answer: Equatable {
@@ -72,12 +78,67 @@ enum SegmentsGathered {
         }
     }
 
+    /// One proposed match: "this newer segment is that older one" (`SegmentMatch`).
+    struct Match: Equatable {
+        let id: String
+        let fromSegmentId: String
+        let toSegmentId: String
+        let proposedBy: String?
+        let certainty: Double?
+        let note: String?
+    }
+
+    /// A page's proposed matches, each row the newer segment, saying what it was matched to, who
+    /// proposed it and how sure; the row opens the newer segment.
+    static func matchRows(_ matches: [Match], documentId: String, segments: [String: Segment]) -> [Row] {
+        matches.enumerated().map { index, match in
+            var parts = ["was " + SegmentsPane.rowLabel(segments[match.fromSegmentId], at: index)]
+            if let proposedBy = match.proposedBy { parts.append("proposed by \(proposedBy)") }
+            if let certainty = match.certainty { parts.append("sure \(Int((certainty * 100).rounded()))%") }
+            if let note = match.note { parts.append(note) }
+            return Row(
+                id: match.id, segmentId: match.toSegmentId, documentId: documentId,
+                title: SegmentsPane.rowLabel(segments[match.toSegmentId], at: index),
+                detail: parts.joined(separator: " · "), matchId: match.id
+            )
+        }
+    }
+
     /// "3 more on pages you may not read" -- or nothing when none were left out.
     static func withheldNote(_ withheld: Int) -> String? {
         switch withheld {
         case ..<1: nil
         case 1: "1 more on a page you may not read"
         default: "\(withheld) more on pages you may not read"
+        }
+    }
+}
+
+/// `segment.match_accept` / `segment.match_reject`: one match, by id.
+struct SegmentMatchIdRequest: Encodable, Equatable {
+    let matchId: String
+
+    enum CodingKeys: String, CodingKey { case matchId = "match_id" }
+}
+
+extension SegmentService {
+    /// A page's matches still to review (`GET /api/segments/document/{id}/matches?state=proposed`).
+    func proposedMatches(documentId: String) async throws -> [SegmentsGathered.Match] {
+        let response = try await client.api.listDocumentMatchesApiSegmentsDocumentDocIdMatchesGet(
+            path: .init(docId: documentId), query: .init(state: "proposed")
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items.map {
+                SegmentsGathered.Match(
+                    id: $0.id ?? "", fromSegmentId: $0.fromSegmentId, toSegmentId: $0.toSegmentId,
+                    proposedBy: $0.proposedBy, certainty: $0.certainty, note: $0.note
+                )
+            }
+        case .unprocessableContent:
+            return []
+        case .undocumented(let statusCode, _):
+            throw SegmentServiceError.unexpectedResponse(statusCode)
         }
     }
 }
