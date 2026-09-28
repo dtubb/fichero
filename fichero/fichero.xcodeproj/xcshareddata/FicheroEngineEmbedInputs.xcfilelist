@@ -60,6 +60,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/claim/links.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/annotations.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/artifacts.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/campaigns.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/classifications.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/content_representations.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/dataset.py
@@ -345,6 +346,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/media/transcript_alignment.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/transcript_alignment_service.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/anchors.py
+$(SRCROOT)/../fichero-server/src/fichero_server/models/campaigns.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/canvas.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/conversion.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/editorial.py
