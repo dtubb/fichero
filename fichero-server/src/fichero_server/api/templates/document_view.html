@@ -278,6 +278,24 @@
             background-color: color-mix(in srgb, Highlight 28%, transparent);
         }
 
+        /* A line whose words were refused because the reading they corrected no longer counts
+           (13b, `stale-keeps-your-words`): the words stay, marked, with the three choices below
+           the page. Nothing is sent until the person chooses. */
+        ::highlight(fichero-stale-lines) {
+            text-decoration: underline wavy color-mix(in srgb, orange 80%, transparent);
+            background-color: color-mix(in srgb, orange 12%, transparent);
+        }
+        .stale-bar {
+            margin: 0.5em 0;
+            padding: 0.4em 0.6em;
+            border-left: 3px solid orange;
+            color: var(--text);
+            font-size: 0.9em;
+        }
+        .stale-bar button { margin-left: 0.4em; }
+        .stale-bar .stale-compare del { color: var(--muted); }
+        .stale-bar .stale-compare ins { text-decoration: none; font-weight: 600; }
+
         /* Table representations (2026-08-29): a real table in the page's own
            idiom, inside its own horizontal scroller — a wide ledger scrolls
            HERE, never the page body (#4385's rule applied to tables). */
@@ -945,7 +963,19 @@ function commitPendingEdit() {
     const before = pageTexts.get(pageId) ?? "";
     const lines = pageLineMaps.get(pageId);
     const edit = readingEditMessage(before, body.textContent, lines, pageId, segmentId);
-    if (!edit) return true;
+    const stale = staleLines.get(staleKey(pageId, segmentId));
+    const decision = commitDecision(edit, stale);
+    if (decision === "nothing") return true;
+    if (decision === "hold") {
+        // HELD, never sent: a stale line waits for the person's choice. Re-posting against the old
+        // basis would be refused again -- the loop the ruling rules out -- and posting against
+        // theirs would be choosing Keep Mine for them. What they typed on is still theirs to keep.
+        stale.mine = edit.message.text;
+        pageTexts.set(pageId, body.textContent);
+        pageLineMaps.set(pageId, shiftLines(lines, segmentId, edit.delta));
+        showStale(pageId, segmentId);
+        return true;
+    }
     if (edit.refused) {
         body.outerHTML = pageBodyMarkup({ content: before, lines });
         makeEditable(article);
@@ -957,6 +987,53 @@ function commitPendingEdit() {
     editsSent += 1;
     return true;
 }
+
+// Stale lines by `pageId\u0000segmentId`: {mine, theirs, comparing}.
+const staleLines = new Map();
+const staleKey = (pageId, segmentId) => `${pageId}\u0000${segmentId}`;
+
+function applyStaleHighlight() {
+    if (!(window.CSS && CSS.highlights && window.Highlight)) return;
+    const ranges = [];
+    for (const key of staleLines.keys()) {
+        const [pageId, segmentId] = key.split("\u0000");
+        const line = (pageLineMaps.get(pageId) || []).find((item) => item.segment_id === segmentId);
+        const body = document.querySelector(`article[data-page-id="${CSS.escape(pageId)}"] .transcript-page-body`);
+        const range = line && body && rangeInBody(body, line.char_start, line.char_end);
+        if (range) ranges.push(range);
+    }
+    if (ranges.length) CSS.highlights.set("fichero-stale-lines", new Highlight(...ranges));
+    else CSS.highlights.delete("fichero-stale-lines");
+}
+
+function showStale(pageId, segmentId) {
+    const article = document.querySelector(`article[data-page-id="${CSS.escape(pageId)}"]`);
+    if (!article) return;
+    const old = article.querySelector(`.stale-bar[data-segment-id="${CSS.escape(segmentId)}"]`);
+    const stale = staleLines.get(staleKey(pageId, segmentId));
+    if (!stale) { if (old) old.remove(); applyStaleHighlight(); return; }
+    const markup = staleBarMarkup(segmentId, stale, stale.comparing);
+    if (old) old.outerHTML = markup;
+    else article.querySelector(".transcript-page-body").insertAdjacentHTML("afterend", markup);
+    applyStaleHighlight();
+}
+
+document.addEventListener("click", (event) => {
+    const button = event.target.closest && event.target.closest("[data-stale-action]");
+    if (!button) return;
+    const bar = button.closest(".stale-bar");
+    const pageId = button.closest("article[data-page-id]").dataset.pageId;
+    const segmentId = bar.dataset.segmentId;
+    const key = staleKey(pageId, segmentId);
+    const stale = staleLines.get(key);
+    if (!stale) return;
+    const action = button.dataset.staleAction;
+    if (action === "compare") { stale.comparing = !stale.comparing; showStale(pageId, segmentId); return; }
+    staleLines.delete(key);
+    showStale(pageId, segmentId);
+    if (action === "mine") { notify("readingEdit", keepMineMessage(pageId, segmentId, stale)); editsSent += 1; }
+    else refreshPage(pageId);   // Take Theirs: the library's line, the local words dropped
+});
 
 const pauseCommit = pauseCommitter(() => commitPendingEdit(), (f, ms) => setTimeout(f, ms), (h) => clearTimeout(h));
 document.addEventListener("input", () => { if (pendingEdit) pauseCommit.touch(); });
@@ -1371,8 +1448,11 @@ async function refreshPage(pageId) {
     if (!body) return false;
     const response = await fetch(`/view/document/${encodeURIComponent(pageId)}`, { headers: sourceHeaders() });
     if (!response.ok) return false;
-    const fresh = pagePayloadFromView(await response.text(), pageId);
-    if (!fresh) return false;
+    const read = pagePayloadFromView(await response.text(), pageId);
+    if (!read) return false;
+    // A stale line keeps the person's words through any re-read until they choose (13b).
+    const fresh = overlayLines(read, [...staleLines].filter(([key]) => key.startsWith(`${pageId}\u0000`))
+        .map(([key, stale]) => ({ segmentId: key.slice(pageId.length + 1), text: stale.mine })));
     const at = lineAtCaret();
     const selection = window.getSelection();
     const oldOffset = at && at.pageId === pageId ? bodyOffset(body, selection.focusNode, selection.focusOffset) : null;
@@ -1393,6 +1473,7 @@ async function refreshPage(pageId) {
     const newBody = article.querySelector(".transcript-page-body");
     makeEditable(article);
     applyShownLines();
+    applyStaleHighlight();
     if (offset !== null && newBody) {
         let rest = offset;
         const walker = document.createTreeWalker(newBody, NodeFilter.SHOW_TEXT);
@@ -1502,6 +1583,78 @@ function pauseCommitter(commit, setTimer, clearTimer, ms = 2000) {
             handle = null;
         },
     };
+}
+
+// Stale (13b, `stale-keeps-your-words`, ruled 2026-09-28): the app answers a refused edit with
+// `lineCommitted({ok:false, stale:true, mine, theirs:{representationId, text}})`. The page keeps
+// `mine` on the line and offers three choices; these are their rules.
+//
+// What a commit does with a line's edit: "send" it, "hold" it (a stale line waits for the person --
+// sending again would be refused again, the loop the ruling rules out), "refuse" it (not one line's),
+// or "nothing" (no change).
+function commitDecision(edit, stale) {
+    if (!edit) return "nothing";
+    if (edit.refused) return "refuse";
+    return stale ? "hold" : "send";
+}
+
+// Keep Mine: the SAME words, now a correction of the reading that counts -- so the engine takes it.
+function keepMineMessage(pageId, segmentId, stale) {
+    return { pageId, segmentId, text: stale.mine, previous: stale.theirs.text,
+             basedOn: stale.theirs.representationId };
+}
+
+// Compare: a word-by-word diff of theirs against mine -- [{op: "same"|"del"|"ins", text}], where
+// "del" is theirs only and "ins" is mine only. Whitespace-separated words, longest common run.
+function wordDiff(theirs, mine) {
+    const a = String(theirs ?? "").split(/\s+/).filter(Boolean);
+    const b = String(mine ?? "").split(/\s+/).filter(Boolean);
+    const n = a.length, m = b.length;
+    const L = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+    for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) {
+        L[i][j] = a[i] === b[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+    }
+    const out = [];
+    const push = (op, text) => {
+        const last = out[out.length - 1];
+        if (last && last.op === op) last.text += " " + text; else out.push({ op, text });
+    };
+    let i = 0, j = 0;
+    while (i < n && j < m) {
+        if (a[i] === b[j]) { push("same", a[i]); i++; j++; }
+        else if (L[i + 1][j] >= L[i][j + 1]) push("del", a[i++]);
+        else push("ins", b[j++]);
+    }
+    while (i < n) push("del", a[i++]);
+    while (j < m) push("ins", b[j++]);
+    return out;
+}
+
+// A re-read page with each stale line's words laid back over the library's: [{segmentId, text}].
+// The map moves with them, so an edit elsewhere on the page is still measured against what is shown.
+function overlayLines(fresh, overlays) {
+    let content = String(fresh.content ?? ""), lines = fresh.lines || [];
+    for (const { segmentId, text } of overlays || []) {
+        const line = lines.find((item) => item.segment_id === segmentId);
+        if (!line) continue;
+        content = content.slice(0, line.char_start) + text + content.slice(line.char_end);
+        lines = shiftLines(lines, segmentId, text.length - (line.char_end - line.char_start));
+    }
+    return { ...fresh, content, lines };
+}
+
+function staleBarMarkup(segmentId, stale, comparing) {
+    const diff = comparing
+        ? `<div class="stale-compare">${wordDiff(stale.theirs.text, stale.mine).map((part) =>
+            part.op === "same" ? escapeHtml(part.text)
+            : part.op === "del" ? `<del>${escapeHtml(part.text)}</del>` : `<ins>${escapeHtml(part.text)}</ins>`).join(" ")}</div>`
+        : "";
+    return `<div class="stale-bar" data-segment-id="${escapeHtml(String(segmentId))}">`
+        + `This line was changed elsewhere while you typed; your words are kept.`
+        + `<button type="button" data-stale-action="mine">Keep Mine</button>`
+        + `<button type="button" data-stale-action="theirs">Take Theirs</button>`
+        + `<button type="button" data-stale-action="compare">${comparing ? "Hide Comparison" : "Compare"}</button>`
+        + diff + `</div>`;
 }
 
 // Return at `offset` (in the page body): split that line at the caret's place in its own text.
@@ -2618,6 +2771,13 @@ window.fichero = {
             pageLineMaps.set(answer.pageId, withReading(pageLineMaps.get(answer.pageId), answer.segmentId, answer.representationId));
         }
         if (!answer || answer.ok) return true;
+        if (answer.stale && answer.pageId && answer.segmentId && answer.theirs) {
+            // Kept, not re-read: re-reading would put their words over the person's.
+            staleLines.set(staleKey(answer.pageId, answer.segmentId),
+                           { mine: String(answer.mine ?? ""), theirs: answer.theirs, comparing: false });
+            showStale(answer.pageId, answer.segmentId);
+            return true;
+        }
         console.warn("[fichero] edit not taken:", answer.reason || "no reason given", answer);
         return answer.pageId ? refreshPage(answer.pageId) : false;
     },

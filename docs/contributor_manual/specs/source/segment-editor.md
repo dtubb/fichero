@@ -707,8 +707,16 @@ The editor
   3 tests on the imported Syriac page: a stale write writes nothing and names what counts; Keep Mine
   against the new basis lands and counts; no token behaves as today; a token without a segment is
   refused), plus `test_textedit_engine_primitives.py::TestWithoutTheTokenTwoCorrectionsBothLand`.
-  **Not yet:** the app sending the token and turning the 409 into the page's stale answer, and the
-  page's inline Keep Mine / Take Theirs / Compare (bugs2's half).
+  **Built: the page** (2026-09-28): on `lineCommitted({ok:false, stale:true, mine, theirs})` the line
+  keeps the person's words, marked (`::highlight(fichero-stale-lines)`), with Keep Mine (the same
+  words re-sent with `basedOn` = theirs, which lands), Take Theirs (the library's line, re-read) and
+  Compare (theirs struck against mine, word by word); a stale line's commits are HELD, never re-sent
+  (no loop), and its words survive any re-read of the page until the person chooses
+  (`fichero-server/tests/unit/api/test_reader_stale_keeps_your_words.py::test_keep_mine_sends_the_same_words_against_what_counts_now_and_it_lands`,
+  `::test_a_stale_line_is_held_never_re_sent`, `::test_a_re_read_keeps_the_stale_words_on_their_line`,
+  `::test_compare_shows_theirs_struck_against_mine_and_the_bar_offers_three_choices`).
+  **Not yet:** the app sending the token and turning the 409 into the page's stale answer (archive's
+  Swift half), and "out of reach of the engine the text is read-only".
 - `source.textedit.every-direction` — **[PARTIAL]** (#5001) each block is laid out and edited in its own direction;
   line starts, joins and cuts follow reading order and the baseline; a direction the platform
   cannot lay out is labelled, never reordered.
