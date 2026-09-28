@@ -14075,6 +14075,80 @@
         }
       }
     },
+    "/api/documents/import-batch": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Import Files Together",
+        "description": "Import files dropped together (multipart, one `files` part each): images and their\nPAGE/ALTO/hOCR/TEI/.box/.txt pair exactly as when their folder is dropped. One file sent\nalone cannot pair -- its layout file is not in the request -- so a drop of several files\ncomes here, not to `POST /import` once per file.",
+        "operationId": "import_files_together_api_documents_import_batch_post",
+        "parameters": [
+          {
+            "name": "parent_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Parent Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_files_together_api_documents_import_batch_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportBatchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{doc_id}/move": {
       "put": {
         "tags": [
@@ -43582,6 +43656,23 @@
         ],
         "title": "Body_import_file_api_documents_import_post"
       },
+      "Body_import_files_together_api_documents_import_batch_post": {
+        "properties": {
+          "files": {
+            "items": {
+              "type": "string",
+              "contentMediaType": "application/octet-stream"
+            },
+            "type": "array",
+            "title": "Files"
+          }
+        },
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "title": "Body_import_files_together_api_documents_import_batch_post"
+      },
       "BookmarkCreate": {
         "properties": {
           "target_id": {
@@ -55485,6 +55576,55 @@
         ],
         "title": "ImportActionRequest",
         "description": "Request to import an action."
+      },
+      "ImportBatchResponse": {
+        "properties": {
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/Document"
+            },
+            "type": "array",
+            "title": "Documents"
+          },
+          "imported_as_passes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Imported As Passes",
+            "default": []
+          },
+          "not_imported": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Not Imported",
+            "default": {}
+          },
+          "unpaired": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Unpaired",
+            "default": {}
+          },
+          "failed": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Failed",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "documents"
+        ],
+        "title": "ImportBatchResponse",
+        "description": "What a dropped set became: its documents, and what happened to each layout file."
       },
       "InclusionRequest": {
         "properties": {

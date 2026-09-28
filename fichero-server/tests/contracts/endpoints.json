@@ -2739,6 +2739,22 @@
       },
       {
         "method": "POST",
+        "path": "/documents/import-batch",
+        "operation_id": "import_files_together_api_documents_import_batch_post",
+        "summary": "Import Files Together",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "parent_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ImportBatchResponse"
+      },
+      {
+        "method": "POST",
         "path": "/documents/pdfs/backfill-pages",
         "operation_id": "backfill_pdf_pages_api_documents_pdfs_backfill_pages_post",
         "summary": "Backfill Pdf Pages",

@@ -149,6 +149,7 @@
   "POST /api/content-representations": "no Swift call for the /api/content-representations/* family (1 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "POST /api/documents/bulk": "2026-08-19 bulk document create (#1848) - importer path; store wiring queued",
   "POST /api/documents/cleanup-orphans": "no Swift call for the /api/documents/* family (13 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
+  "POST /api/documents/import-batch": "app half pending: a multi-file COPY drop uploads as one set so layout pairs (#5220); engine and CLI now",
   "POST /api/documents/pdfs/backfill-pages": "no Swift call for the /api/documents/* family (13 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "POST /api/documents/{doc_id}/duplicate": "SwiftUI drives it via POST /api/actions/invoke (#4102); CLI hits the raw path",
   "POST /api/entities/bulk": "2026-08-18 bulk entity upsert - importer path; store wiring queued with #4118",

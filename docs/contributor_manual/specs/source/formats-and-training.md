@@ -174,7 +174,13 @@ Rules for every format
   are paired by the file's own `imageFilename` first, then by the same stem, looking in the same
   folder and then its parent (Transkribus writes a `page/` subfolder). Both keys ignore CASE (the Ajami ALTO
   states `.JPG` for a `.jpg`); two images differing only by case are refused by name
-  (`fichero-server/tests/unit/importers/test_pairing_ignores_case.py`). Each pair is imported through
+  (`fichero-server/tests/unit/importers/test_pairing_ignores_case.py`).
+  **Files dropped together pair the same way:** `POST /api/documents/import-batch` (multipart, one
+  `files` part per file) runs the same pairing over the set, so a jpg and its ALTO selected and
+  dropped become one page with its pass and the ALTO its kept original, never an XML document
+  (`fichero-server/tests/unit/importers/test_loose_files_dropped_together_pair.py`; the real Ajami
+  set runs from the local corpus). The app's drop must send a multi-file drop there, not one
+  `POST /api/documents/import` per file. Each pair is imported through
   the audited `format.import` action, the same path as the one-file menu import, so the pass is the
   same record. Pinned by
   `fichero-server/tests/unit/importers/test_folder_of_images_and_layout.py::TestDroppingTheFolder::test_the_images_become_pages_with_their_passes` and

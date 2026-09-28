@@ -1982,6 +1982,105 @@ async def import_file(
                 logger.warning(f"Failed to clean up temp file {temp_path}: {e}")
 
 
+class ImportBatchResponse(BaseModel):
+    """What a dropped set became: its documents, and what happened to each layout file."""
+
+    documents: list[Document]
+    #: layout files that became a pass on their image
+    imported_as_passes: list[str] = []
+    #: layout file -> why its pass was not written
+    not_imported: dict[str, str] = {}
+    #: layout file -> why it paired with no image (it was imported as an ordinary file)
+    unpaired: dict[str, str] = {}
+    #: file -> why it was refused
+    failed: dict[str, str] = {}
+
+
+def import_dropped_set(
+    db: Database, uploads: list[tuple[Path, str]], parent_id: str | None, ctx: "ActionContext"
+) -> ImportBatchResponse:
+    """Import files dropped TOGETHER as a folder import would (`plan_pairs`, #5132).
+
+    `uploads` is (temp file, the name the person's file had). A layout file paired with an image
+    in the set becomes a pass on it (`format.import`, its bytes kept as the source record) and
+    not a document; everything else goes through `import.upload_file`, as a one-file upload.
+    Pairing reads the layout files only, so those are staged under their real names; an image
+    is only LISTED by its name and imported from its upload temp.
+    """
+    import shutil
+
+    from fichero_server.api.routes.ingest.core import _import_paired_layout
+    from fichero_server.importers.interchange_pairing import IMAGE_SUFFIXES, plan_pairs
+
+    staging = Path(tempfile.mkdtemp(prefix="fichero_drop_")).resolve()
+    try:
+        temp_for: dict[Path, Path] = {}
+        for temp, name in uploads:
+            named = staging / name
+            if named.suffix.lower() not in IMAGE_SUFFIXES:
+                shutil.copyfile(temp, named)
+            temp_for[named] = temp
+        plan = plan_pairs(sorted(temp_for))
+        paired = set(plan.pairs) | set(plan.pages)
+        documents: list[Document] = []
+        by_source: dict[str, Document] = {}
+        failed: dict[str, str] = {}
+        for named, temp in sorted(temp_for.items()):
+            if named in paired:
+                continue
+            try:
+                result = registry.invoke(
+                    db, "import.upload_file",
+                    {"path": str(temp), "original_filename": named.name, "parent_id": parent_id}, ctx,
+                )
+            except HTTPException as exc:
+                failed[named.name] = str(exc.detail)
+                continue
+            doc = Document.model_validate(result.result)
+            documents.append(doc)
+            by_source[str(named)] = doc
+        report = _import_paired_layout(db, documents, plan, ctx, by_source=by_source)
+        return ImportBatchResponse(documents=documents, failed=failed, **report)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+
+
+@router.post("/import-batch")
+async def import_files_together(
+    files: list[UploadFile],
+    parent_id: Optional[str] = None,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> ImportBatchResponse:
+    """Import files dropped together (multipart, one `files` part each): images and their
+    PAGE/ALTO/hOCR/TEI/.box/.txt pair exactly as when their folder is dropped. One file sent
+    alone cannot pair -- its layout file is not in the request -- so a drop of several files
+    comes here, not to `POST /import` once per file."""
+    from fichero_server.db.storage import UploadTooLargeError, save_uploaded_file
+
+    names = [Path(f.filename or "").name for f in files]
+    if not files or any(not n or n.startswith(".") for n in names):
+        raise HTTPException(status_code=422, detail="every file needs a name")
+    if len({n.casefold() for n in names}) != len(names):
+        # Two files one name apart only in case (or the same name twice) cannot both be named in
+        # one folder, and pairing by name would have to pick one: refused, never guessed.
+        raise HTTPException(status_code=422, detail="two files in the drop have the same name: " + ", ".join(sorted(names)))
+    uploads: list[tuple[Path, str]] = []
+    try:
+        for file, name in zip(files, names):
+            try:
+                temp = await save_uploaded_file(file)
+            except UploadTooLargeError as exc:
+                raise HTTPException(status_code=413, detail=f"{name}: {exc}") from exc
+            uploads.append((temp, name))
+            if temp.stat().st_size == 0:
+                raise HTTPException(status_code=422, detail=f"Empty upload refused: {name!r} contained no data")
+        return await asyncio.to_thread(import_dropped_set, db, uploads, parent_id, ctx)
+    finally:
+        for temp, _name in uploads:
+            temp.unlink(missing_ok=True)
+
+
 @router.put("/{doc_id}/move")
 async def move_document(
     doc_id: str,
