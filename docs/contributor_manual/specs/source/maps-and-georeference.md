@@ -573,9 +573,13 @@ Places over time and in words
 - `source.geo.historical-units` — **[PARTIAL]** (#5120) a historical distance unit is kept as written
   with the conversion used, so the resolved area is recomputed when the conversion changes.
   **Built 2026-09-28 (maps D10):** `knowledge/units.py` -- legua (legal 5000 varas, común 20000
-  pies, on the 1849 Spanish equivalence of the vara), vara, English statute mile and land league
-  (NIST Handbook 44), verst (1835 Russian law), km, m: public-domain law and government sources only
-  (ruled; no Roman mile). The library chooses a unit's conversion (`units.set_conversion`, audited,
+  pies), vara, English statute mile and land league, verst, km, m: public-domain sources only
+  (ruled; no Roman mile). VERIFIED against recorded source text (`fixtures/units/`): the mile and
+  league from NIST Handbook 44 (2024), Appendix C, pp. C-5, C-10, C-11; the verst, 1066.781 m, from
+  Brockhaus-Efron s.v. «Верста»
+  (`fichero-server/tests/unit/api/test_the_unit_values_are_the_recorded_ones.py`). The Castilian
+  vara (0.835905 m, the 1849 metric law's equivalence) could not be retrieved as text, so the legua
+  and vara answer `verified: false`, "cited, not verified". The library chooses a unit's conversion (`units.set_conversion`, audited,
   undoable); every area re-resolves on the next read and nothing written changes. The tolerance is
   explicit (ruled): half the spread of the unit's own conversions, else a stated default of ±25%,
   said in the answer's `conversion.tolerance_basis`

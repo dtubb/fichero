@@ -26,6 +26,9 @@ class Conversion:
     key: str
     metres: float
     source: str
+    #: True when the value is checked against a recorded copy of its source
+    #: (`tests/unit/api/fixtures/units/`); False: cited, not verified -- and every answer says so.
+    verified: bool = True
 
 
 @dataclass(frozen=True)
@@ -45,23 +48,25 @@ class Unit:
 
 _VARA_CASTELLANA_M = 0.835905     # the vara of Burgos, Spain's legal vara, as fixed when the metric system was adopted
 _CASTILE = ("Spain, Ley de 19 de julio de 1849 (the metric system) and its tables of equivalence with the "
-            "measures of Castile: vara castellana = 0.835905 m")
-_NIST = "NIST Handbook 44, Appendix C (US government, public domain)"
+            "measures of Castile: vara castellana = 0.835905 m -- cited, not verified")
+_NIST = "NIST Handbook 44, 2024 Edition, Appendix C (US government, public domain)"
 
 UNITS: dict[str, Unit] = {u.key: u for u in (
     Unit("legua", "legua (Castile)", (
-        Conversion("legal", 5000 * _VARA_CASTELLANA_M, f"legua legal of 5000 varas; {_CASTILE}"),
-        Conversion("comun", 20000 / 3 * _VARA_CASTELLANA_M, f"legua común of 20000 pies (6666⅔ varas); {_CASTILE}"),
+        Conversion("legal", 5000 * _VARA_CASTELLANA_M, f"legua legal of 5000 varas; {_CASTILE}", verified=False),
+        Conversion("comun", 20000 / 3 * _VARA_CASTELLANA_M, f"legua común of 20000 pies (6666⅔ varas); {_CASTILE}",
+                   verified=False),
     ), default="legal"),
-    Unit("vara", "vara castellana", (Conversion("castellana", _VARA_CASTELLANA_M, _CASTILE),), default="castellana"),
+    Unit("vara", "vara castellana", (Conversion("castellana", _VARA_CASTELLANA_M, _CASTILE, verified=False),),
+         default="castellana"),
     Unit("mile", "mile (English statute)", (
-        Conversion("statute", 1609.344, f"statute mile of 5280 feet, international foot; {_NIST}"),), default="statute"),
+        Conversion("statute", 1609.344, f"1 mile = 5280 feet = 1609.344 m; {_NIST}, C-5 and C-10"),), default="statute"),
     Unit("league", "league (English land)", (
-        Conversion("land", 3 * 1609.344, f"league (land) of 3 statute miles; {_NIST}"),), default="land"),
+        Conversion("land", 4828.032, f"1 league = 3 miles = 4 828.032 m; {_NIST}, C-5 and C-11"),), default="land"),
     Unit("verst", "verst (Russia)", (
-        Conversion("1835", 500 * 7 * 0.3048,
-                   "verst of 500 sazhen, the sazhen fixed at 7 English feet by the Russian weights-and-measures "
-                   "law of 1835"),), default="1835"),
+        Conversion("1835", 1066.781,
+                   "the verst of 500 sazhen after the 1835 reform = 1066.781 m; Brockhaus-Efron, s.v. «Верста»"),),
+         default="1835"),
     Unit("km", "kilometre", (Conversion("si", 1000.0, "SI"),), default="si"),
     Unit("m", "metre", (Conversion("si", 1.0, "SI"),), default="si"),
 )}
@@ -94,4 +99,4 @@ def resolve_distance(value: float, unit_key: str, conversion_key: str | None = N
         basis = (f"stated default: ±{DEFAULT_TOLERANCE_FRACTION:.0%} of the distance "
                  "(one conversion; historical distances were measured along roads and rounded)")
     return {"unit": unit.key, "conversion": chosen.key, "metres_per_unit": chosen.metres, "source": chosen.source,
-            "distance_m": metres, "tolerance_m": tolerance, "tolerance_basis": basis}
+            "verified": chosen.verified, "distance_m": metres, "tolerance_m": tolerance, "tolerance_basis": basis}
