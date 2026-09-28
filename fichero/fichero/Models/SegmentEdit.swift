@@ -16,10 +16,10 @@ enum SegmentEdit {
     }
 
     enum Params: Encodable, Equatable {
-        case update(SegmentUpdateParams)
-        case delete(SegmentDeleteParams)
-        case merge(SegmentMergeParams)
-        case updateMany(SegmentUpdateManyParams)
+        case update(SegmentUpdateRequest)
+        case delete(SegmentDeleteRequest)
+        case merge(SegmentMergeRequest)
+        case updateMany(SegmentUpdateManyRequest)
 
         func encode(to encoder: any Encoder) throws {
             switch self {
@@ -85,7 +85,7 @@ enum SegmentEdit {
         )
         return .success(Call(
             action: "segment.update",
-            params: .update(SegmentUpdateParams(segmentId: segment.id, expectedVersion: version, anchor: anchor))
+            params: .update(SegmentUpdateRequest(segmentId: segment.id, expectedVersion: version, anchor: anchor))
         ))
     }
 
@@ -107,7 +107,7 @@ enum SegmentEdit {
             updates.append(update)
         }
         return .success(Call(
-            action: "segment.update_many", params: .updateMany(SegmentUpdateManyParams(updates: updates))
+            action: "segment.update_many", params: .updateMany(SegmentUpdateManyRequest(updates: updates))
         ))
     }
 
@@ -117,7 +117,7 @@ enum SegmentEdit {
         guard let versions = versions(of: segments) else { return .failure(.versionUnknown) }
         return .success(Call(
             action: "segment.delete",
-            params: .delete(SegmentDeleteParams(segmentIds: segments.map(\.id), expectedVersions: versions))
+            params: .delete(SegmentDeleteRequest(segmentIds: segments.map(\.id), expectedVersions: versions))
         ))
     }
 
@@ -127,7 +127,7 @@ enum SegmentEdit {
         guard let versions = versions(of: segments) else { return .failure(.versionUnknown) }
         return .success(Call(
             action: "segment.merge",
-            params: .merge(SegmentMergeParams(
+            params: .merge(SegmentMergeRequest(
                 segmentIds: segments.map(\.id), keepId: keep.id, expectedVersions: versions
             ))
         ))
@@ -153,7 +153,7 @@ enum SegmentEdit {
 }
 
 /// `segment.update`: the segment's anchor, moved.
-struct SegmentUpdateParams: Encodable, Equatable {
+struct SegmentUpdateRequest: Encodable, Equatable {
     let segmentId: String
     let expectedVersion: Int
     let anchor: SegmentAnchorParams
@@ -181,7 +181,7 @@ struct SegmentAnchorParams: Encodable, Equatable {
 }
 
 /// `segment.delete`: soft and undoable, every id with the version it was read at.
-struct SegmentDeleteParams: Encodable, Equatable {
+struct SegmentDeleteRequest: Encodable, Equatable {
     let segmentIds: [String]
     let expectedVersions: [String: Int]
 
@@ -191,7 +191,7 @@ struct SegmentDeleteParams: Encodable, Equatable {
 }
 
 /// `segment.merge`: Join. The first segment picked is kept; the engine orders the text.
-struct SegmentMergeParams: Encodable, Equatable {
+struct SegmentMergeRequest: Encodable, Equatable {
     let segmentIds: [String]
     let keepId: String
     let expectedVersions: [String: Int]
@@ -229,7 +229,7 @@ struct SegmentAttributeUpdateParams: Encodable, Equatable {
     }
 }
 
-struct SegmentUpdateManyParams: Encodable, Equatable {
+struct SegmentUpdateManyRequest: Encodable, Equatable {
     let updates: [SegmentAttributeUpdateParams]
 }
 

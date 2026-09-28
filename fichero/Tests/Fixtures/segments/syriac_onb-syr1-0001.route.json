@@ -18,8 +18,9 @@
    "import_checksum": "abd92d4208786f45667c698ffc1b22873f6c23cc7bc2d176edd69eda379bcea7",
    "import_format": "pagexml",
    "has_original": true,
+   "transformation": null,
    "working": true,
-   "working_basis": "human-touched"
+   "working_basis": "imported"
   }
  ],
  "segments": [
@@ -257,6 +258,7 @@
    "source_artifact_id": null,
    "box_index": 0,
    "page_index": null,
+   "cell": null,
    "metadata": {
     "foreign": {
      "custom": "readingOrder {index:1;} structure {type:DefaultLine;}"
@@ -496,6 +498,7 @@
    "source_artifact_id": null,
    "box_index": 1,
    "page_index": null,
+   "cell": null,
    "metadata": {
     "foreign": {
      "custom": "readingOrder {index:2;} structure {type:DefaultLine;}"
@@ -783,6 +786,7 @@
    "source_artifact_id": null,
    "box_index": 2,
    "page_index": null,
+   "cell": null,
    "metadata": {
     "foreign": {
      "custom": "readingOrder {index:0;} structure {type:DefaultLine;}"
@@ -858,6 +862,7 @@
    "source_artifact_id": null,
    "box_index": 3,
    "page_index": null,
+   "cell": null,
    "metadata": {
     "foreign": {
      "custom": "readingOrder {index:3;}"
@@ -933,6 +938,7 @@
    "source_artifact_id": null,
    "box_index": 4,
    "page_index": null,
+   "cell": null,
    "metadata": {
     "foreign": {
      "custom": "readingOrder {index:0;}"
@@ -1008,6 +1014,7 @@
    "source_artifact_id": null,
    "box_index": 5,
    "page_index": null,
+   "cell": null,
    "metadata": {
     "foreign": {
      "custom": "readingOrder {index:4;} unclear {offset:0; length:26;}"
@@ -1083,6 +1090,7 @@
    "source_artifact_id": null,
    "box_index": 6,
    "page_index": null,
+   "cell": null,
    "metadata": {
     "foreign": {
      "custom": "readingOrder {index:3;} unclear {offset:0; length:21;}"
@@ -1158,6 +1166,7 @@
    "source_artifact_id": null,
    "box_index": 7,
    "page_index": null,
+   "cell": null,
    "metadata": {
     "foreign": {
      "custom": "readingOrder {index:1;} unclear {offset:0; length:17;}"
@@ -1233,6 +1242,7 @@
    "source_artifact_id": null,
    "box_index": 8,
    "page_index": null,
+   "cell": null,
    "metadata": {
     "foreign": {
      "custom": "readingOrder {index:2;} unclear {offset:0; length:10;}"
@@ -1308,6 +1318,7 @@
    "source_artifact_id": null,
    "box_index": 9,
    "page_index": null,
+   "cell": null,
    "metadata": {
     "foreign": {
      "custom": "readingOrder {index:0;} unclear {offset:0; length:12;}"
@@ -1383,6 +1394,7 @@
    "source_artifact_id": null,
    "box_index": 10,
    "page_index": null,
+   "cell": null,
    "metadata": {
     "foreign": {
      "custom": "readingOrder {index:5;} unclear {offset:0; length:16;}"
@@ -1458,6 +1470,7 @@
    "source_artifact_id": null,
    "box_index": 11,
    "page_index": null,
+   "cell": null,
    "metadata": {
     "foreign": {
      "custom": "readingOrder {index:0;} structure {type:NumberingZone;}"
@@ -1524,6 +1537,7 @@
    "source_artifact_id": null,
    "box_index": 12,
    "page_index": null,
+   "cell": null,
    "metadata": {
     "foreign": {
      "custom": "readingOrder {index:0;} structure {type:MarginTextZone;}"
@@ -1606,6 +1620,7 @@
    "source_artifact_id": null,
    "box_index": 13,
    "page_index": null,
+   "cell": null,
    "metadata": {
     "foreign": {
      "custom": "readingOrder {index:2;} structure {type:MainZone;}"
@@ -1672,6 +1687,7 @@
    "source_artifact_id": null,
    "box_index": 14,
    "page_index": null,
+   "cell": null,
    "metadata": {
     "foreign": {
      "custom": "readingOrder {index:1;} structure {type:MainZone-gold;}"
@@ -1738,6 +1754,7 @@
    "source_artifact_id": null,
    "box_index": 15,
    "page_index": null,
+   "cell": null,
    "metadata": {
     "foreign": {
      "custom": "readingOrder {index:3;} structure {type:NumberingZone;}"

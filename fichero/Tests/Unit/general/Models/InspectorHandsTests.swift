@@ -5,7 +5,7 @@ import Testing
 /// into one line (`source.hand.not-provenance`), a rival judgement hidden, or an imported `<handShift>`
 /// shown as if a person here had judged it.
 struct InspectorHandsTests {
-    private let hands: [InspectorHands.Hand] = [
+    private let hands: [InspectorHands.ListedHand] = [
         .init(id: "b", label: "hand B", scribe: nil, date: nil, style: "Estrangela"),
         .init(id: "c", label: "hand C", scribe: "Rabbula", date: nil, style: nil)
     ]

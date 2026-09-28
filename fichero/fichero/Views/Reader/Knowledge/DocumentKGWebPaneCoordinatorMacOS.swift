@@ -415,8 +415,8 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
             handleLineMove(body)
         case "lineFocused":
             if let focus = ReaderLineSelection.focus(from: body) { focusLine(focus) }
-        case "lineEdited", "lineSplit", "lineJoin":
-            if let edit = ReaderTextEdit.message(from: body) { Task { @MainActor in await applyTextEdit(edit, kind: kind) } }
+        case "readingEdit", "lineSplit", "lineJoin":
+            if let edit = ReaderTextEdit.message(from: body) { Task { @MainActor in await applyTextEdit(edit) } }
         case "textSelected":
             // The WebKit reader's selection joins the same seam the native
             // readers post (Daniel, 2026-08-30): the annotation bar applies
@@ -448,45 +448,55 @@ extension DocumentKGWebPaneCoordinatorMacOS {
     /// Typing in the Reader (#5154): each page message is one audited action, ⌘Z by its own audit id;
     /// the page is told how it went so it can re-read its text in place.
     @MainActor
-    func applyTextEdit(_ edit: ReaderTextEdit.Message, kind: String) async {
+    func applyTextEdit(_ edit: ReaderTextEdit.Message) async {
         guard let library else { return }
         let store = SegmentStore.shared(for: library.segmentService)
         let actions = library.actionsService
+        let webView = webView
+        let pageId = edit.pageId
         let undoManager = webView?.undoManager
-        await store.load(documentId: edit.pageId)
-        let segments = store.segments(documentId: edit.pageId)
-        var segmentId = ""
-        var detail = ""
+        let refresh: @MainActor () async -> Void = {
+            await store.load(documentId: pageId, force: true)
+            await DocumentKGWebPaneCoordinatorMacOS.refreshPage(pageId, in: webView)
+        }
+        var reason: String?
         do {
             switch edit {
-            case .edited(_, let id, _, _):
-                segmentId = id
+            case .edited:
                 guard let params = ReaderTextEdit.newReading(for: edit) else { return }
                 try await AuditedAction.run(
                     "representation.create", params: params, actionName: "Typing", actionsService: actions,
-                    undoManager: undoManager
+                    undoManager: undoManager, afterChange: refresh
                 )
-            case .split(_, let id, _, _):
-                segmentId = id
-                guard let line = segments.first(where: { $0.id == id }) else { throw SegmentEdit.Refusal.tooFew }
-                let params = try ReaderTextEdit.split(edit, of: line).get()
+            case .split(_, let id, _):
+                // Fresh: a readingEdit posted just before the split changed the line's text and version.
+                await store.load(documentId: pageId, force: true)
+                guard let line = store.segments(documentId: pageId).first(where: { $0.id == id }) else {
+                    throw SegmentEdit.Refusal.tooFew
+                }
+                let shown = try? await library.segmentService.readings(segmentId: id)
+                let params = try ReaderTextEdit.split(
+                    edit, of: line, shownText: shown?.countingContent(ofKind: "transcription")
+                ).get()
                 try await AuditedAction.run(
                     "segment.split", params: params, actionName: "Split Line", actionsService: actions,
-                    undoManager: undoManager, afterChange: { await store.load(documentId: edit.pageId, force: true) }
+                    undoManager: undoManager, afterChange: refresh
                 )
-            case .join(_, let id, _):
-                segmentId = id
-                let call = try ReaderTextEdit.join(edit, segments: segments).get()
-                try await SegmentEditRunner(actionsService: actions, store: store)
-                    .run(call, documentId: edit.pageId, actionName: "Join Lines", undoManager: undoManager)
+            case .join:
+                await store.load(documentId: pageId, force: true)
+                let call = try ReaderTextEdit.join(edit, segments: store.segments(documentId: pageId)).get()
+                try await SegmentEditRunner(actionsService: actions, store: store).run(
+                    call, documentId: pageId, actionName: "Join Lines", undoManager: undoManager,
+                    afterChange: { await DocumentKGWebPaneCoordinatorMacOS.refreshPage(pageId, in: webView) }
+                )
             }
         } catch {
-            detail = String(describing: error)
+            reason = String(describing: error)
         }
-        // In an async context the async-throwing overload is chosen; the page's answer is a courtesy, so a
-        // failure to deliver it is ignored (the page re-reads itself on refresh either way).
+        // The page's answer is a courtesy (it re-reads itself on a refusal), so a failure to deliver it
+        // is ignored. In an async context the async-throwing overload is chosen.
         _ = try? await webView?.evaluateJavaScript(
-            ReaderTextEdit.committedScript(kind: kind, segmentId: segmentId, succeeded: detail.isEmpty, detail: detail)
+            ReaderTextEdit.committedScript(pageId: pageId, segmentId: edit.segmentId, reason: reason)
         )
     }
 

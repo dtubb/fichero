@@ -125,8 +125,9 @@ READINGS_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.first-line-readings.json"
 def test_a_line_s_readings_with_a_correction_are_recorded_for_the_app(db, client):
     """#5153 (choose which reading counts): the app's Text section reads GET
     /api/segments/{id}/readings. Recorded here for the first line of the imported Syriac page after a
-    person's correction -- two equal readings, neither counting until one is chosen -- through the calls
-    the app makes, so the app's test can choose one over the engine's own answer."""
+    person's correction -- which COUNTS, basis "correction" (#5175: a correction outranks the reading it
+    corrects) -- through the calls the app makes, so the app's test shows why it counts and can choose
+    the file's reading back over the engine's own answer."""
     doc_id = _import(db, SYRIAC)
     body = client.get(f"/api/segments/document/{doc_id}").json()
     real = next(p for p in body["passes"] if not p["provisional"])
@@ -144,9 +145,10 @@ def test_a_line_s_readings_with_a_correction_are_recorded_for_the_app(db, client
     after = client.get(f"/api/segments/{line['id']}/readings").json()
     assert after["count"] == 2
     counting = after["counting"]["transcription"]
-    # Two people's readings of one line, and this library's rule: NOTHING counts until one is chosen
-    # (`source.reading.equal-alternatives`). That is the case the Text section's choose verb is for.
-    assert counting["representation_id"] is None and counting["basis"] == "none"
+    # The person's correction counts over the file's reading it corrects (#5175); choosing the file's
+    # reading back is what the Text section's "Make This Count" is for.
+    correction = next(i for i in after["items"] if i["corrects_representation_id"] == file_reading["id"])
+    assert counting["representation_id"] == correction["id"] and counting["basis"] == "correction"
 
     # Stable ids, the SAME tokens the route recording gives this segment and page.
     stable_route = json.loads(ROUTE_FIXTURE.read_text())

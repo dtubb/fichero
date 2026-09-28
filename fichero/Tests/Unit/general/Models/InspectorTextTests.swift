@@ -17,6 +17,8 @@ struct InspectorTextTests {
         #expect(InspectorText.Why(basis: "chosen") == .chosen)
         #expect(InspectorText.Why(basis: "newest-human") == .newestHuman)
         #expect(InspectorText.Why(basis: "newest-machine-unchosen") == .newestMachineUnchosen)
+        #expect(InspectorText.Why(basis: "correction") == .correction)
+        #expect(InspectorText.Why.correction.label.contains("correction"))
         #expect(InspectorText.Why(basis: "none") == .noneCounts)
         #expect(InspectorText.Why(basis: nil) == .noneCounts)
         #expect(InspectorText.Why(basis: "by-committee") == .unknown("by-committee"))

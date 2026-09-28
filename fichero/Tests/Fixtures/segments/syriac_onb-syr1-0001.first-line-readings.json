@@ -10,7 +10,7 @@
    "language": null,
    "script": null,
    "level": null,
-   "provenance_kind": "human",
+   "provenance_kind": "external_import",
    "created_by": "historian",
    "machine_confidence": null,
    "char_confidences": null,
@@ -274,8 +274,8 @@
  "count": 2,
  "counting": {
   "transcription": {
-   "representation_id": null,
-   "basis": "none",
+   "representation_id": "rep-0002",
+   "basis": "correction",
    "labelled_machine": false
   }
  }

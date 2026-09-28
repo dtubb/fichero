@@ -28,7 +28,7 @@ struct InspectorText: Equatable {
     }
 
     enum Why: Equatable {
-        case chosen, newestHuman, newestMachineUnchosen, noneCounts
+        case chosen, newestHuman, correction, newestMachineUnchosen, noneCounts
         /// A basis this build does not know. Shown as itself, never quietly read as one we do.
         case unknown(String)
 
@@ -36,6 +36,7 @@ struct InspectorText: Equatable {
             switch basis {
             case "chosen": self = .chosen
             case "newest-human": self = .newestHuman
+            case "correction": self = .correction
             case "newest-machine-unchosen": self = .newestMachineUnchosen
             case "none", nil: self = .noneCounts
             case let other?: self = .unknown(other)
@@ -47,6 +48,8 @@ struct InspectorText: Equatable {
             switch self {
             case .chosen: "Chosen by a person"
             case .newestHuman: "Newest reading by a person"
+            // #5175: a person's correction outranks the reading it corrects.
+            case .correction: "A person's correction, over the reading it corrects"
             case .newestMachineUnchosen: "Machine reading, not yet checked"
             case .noneCounts: "No reading counts yet"
             case .unknown(let basis): "Counts (\(basis))"
@@ -79,6 +82,13 @@ struct InspectorText: Equatable {
     func readings(ofKind kind: String) -> [Reading] { readings.filter { $0.kind == kind } }
 
     func counts(_ reading: Reading) -> Bool { counting[reading.kind]?.readingId == reading.id }
+
+    /// The text of the reading that counts for `kind`, or nil when none does -- what the Reader shows
+    /// on the line, and so what its caret offsets count in (#5154).
+    func countingContent(ofKind kind: String) -> String? {
+        guard let id = counting[kind]?.readingId else { return nil }
+        return readings.first { $0.id == id }?.content
+    }
 
     /// The other half of a written / read pair, shown beside it as a pair.
     func partner(of reading: Reading) -> Reading? {

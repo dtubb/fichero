@@ -4,26 +4,26 @@
  "settings": [
   {
    "key": "language",
-   "value": "English",
-   "status": "resolved",
-   "source": "fallback",
-   "basis": "no language policy is set and there is no text to detect from",
+   "value": null,
+   "status": "unknown",
+   "source": "never_determined",
+   "basis": "not determined: nothing states a language and none was detected; its letters are Syrc",
    "level": null
   },
   {
    "key": "script",
-   "value": null,
-   "status": "unknown",
-   "source": "never_determined",
-   "basis": "no script has been recorded at any level",
+   "value": "Syrc",
+   "status": "resolved",
+   "source": "detected",
+   "basis": "from the letters of its text: most are Syrc",
    "level": null
   },
   {
    "key": "direction",
-   "value": "ltr",
+   "value": "rtl",
    "status": "resolved",
    "source": "derived-from-script",
-   "basis": "no script is recorded either, so the reading order of the text is assumed",
+   "basis": "from the letters of its text (Syrc): the first strongly directional character decides (Unicode bidi P2)",
    "level": null
   },
   {
@@ -31,7 +31,7 @@
    "value": null,
    "status": "unknown",
    "source": "never_determined",
-   "basis": "no script is established, so there is no encoding to read",
+   "basis": "this library has not recorded an encoding for Syrc",
    "level": null
   }
  ]
