@@ -3740,6 +3740,28 @@ async def propose_match(
     return match.model_dump(mode="json") if match else result.result
 
 
+class SegmentMatchListResponse(BaseModel):
+    """A page's segment matches (#5165), `{items, count}` -- never a bare array."""
+
+    items: list[SegmentMatch]
+    count: int
+
+
+@router.get("/document/{doc_id}/matches", response_model=SegmentMatchListResponse)
+async def list_document_matches(
+    doc_id: str,
+    state: Optional[str] = Query(None, description="proposed, accepted or rejected; all when omitted"),
+    db: Database = Depends(get_library_database),
+) -> SegmentMatchListResponse:
+    """The matches recorded on one page (`source.segment.match-record`, #5165): what a person
+    reviews -- accepts, rejects, or carries readings and marks across. Before this, a match could
+    be proposed, accepted and rejected, and nothing could LIST them, so a proposal nobody had the
+    id of could never be reviewed. Oldest first."""
+    rows = [row for row in db.query(SegmentMatch, document_id=doc_id) if state is None or row.state == state]
+    rows.sort(key=lambda row: (row.created_at, row.id))
+    return SegmentMatchListResponse(items=rows, count=len(rows))
+
+
 @router.post("/matches/{match_id}/accept")
 async def accept_match(
     match_id: str,
