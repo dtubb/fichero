@@ -73,6 +73,8 @@ struct SourceInfoView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                // How the page's passes were made (#5149): "Imported from X · PAGE XML · 22 lines".
+                InspectorMakingSection(documentId: document.id)
                 DocumentInspectorInfoTab(document: document)
                 if !document.metadata.isEmpty || document.path != nil {
                     DocumentInspectorMetadataTab(document: document)

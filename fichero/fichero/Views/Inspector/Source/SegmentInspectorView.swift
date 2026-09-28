@@ -55,6 +55,10 @@ struct SegmentInspectorView: View {
                     if let text, !text.readings.isEmpty {
                         InspectorTextSection(text: text)
                     }
+                    if level == .page {
+                        // Page level: how the page's passes were made (#5149).
+                        InspectorMakingSection(documentId: documentId)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(8)

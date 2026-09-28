@@ -27,8 +27,11 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         override class func canInit(with request: URLRequest) -> Bool {
             guard request.url?.host == "127.0.0.1", let path = request.url?.path else { return false }
             return path.hasPrefix("/api/segments/document/") || path == "/api/annotations"
-                || path.hasPrefix("/api/actions/")
+                || path.hasPrefix("/api/actions/") || path.hasPrefix("/api/segments/passes/")
         }
+
+        /// What `GET /api/segments/passes/{id}/original` answers (set by the test that asks).
+        nonisolated(unsafe) static var originalReply = Data()
 
         private static func actionReply(auditId: String) -> Data {
             Data(#"{"ok":true,"result":{},"audit_id":"\#(auditId)","changed_domains":["segment"]}"#.utf8)
@@ -42,7 +45,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             let isAnnotation = path == "/api/annotations"
             if isAnnotation { Self.annotationRequests.append(Self.bodyOf(request)) }
             var actionBody: Data?
-            if path == "/api/actions/invoke" {
+            if path.hasPrefix("/api/segments/passes/"), path.hasSuffix("/original") {
+                actionBody = Self.originalReply
+            } else if path == "/api/actions/invoke" {
                 Self.invoked.append(Self.bodyOf(request))
                 actionBody = Self.actionReply(auditId: "audit-\(Self.invoked.count)")
             } else if path.hasPrefix("/api/actions/audit/"), path.hasSuffix("/undo") {
@@ -213,6 +218,34 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         manager.undo()
         for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(RecordedEngine.undone, ["audit-1"], "⌘Z inverts the Join's own audit row")
+    }
+
+    /// #5149 end to end: the imported Syriac page's Making entry says its file, format and contents,
+    /// and Show Original brings back the file's own bytes through `SegmentService.original` -- the
+    /// engine's answer played with the REAL corpus file inside it.
+    func testTheImportedPageSaysHowItWasMadeAndShowsItsOriginal() async throws {
+        let store = try await loadedStore()
+        let entries = InspectorMaking.entries(
+            passes: store.passes(documentId: "doc-0001"), segments: store.segments(documentId: "doc-0001")
+        )
+        let entry = try XCTUnwrap(entries.first)
+        XCTAssertEqual(entry.title, "Imported from escriptorium_syriac_onb-syr1-0001.page.xml")
+        XCTAssertEqual(entry.detail, "PAGE XML · 12 lines, 4 regions")
+        XCTAssertTrue(entry.hasOriginal)
+
+        let corpus = try AppSource.root().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("fichero-server/tests/unit/formats/fixtures/corpus/escriptorium_syriac_onb-syr1-0001.page.xml")
+        let fileBytes = try Data(contentsOf: corpus)
+        RecordedEngine.originalReply = try JSONSerialization.data(withJSONObject: [
+            "pass_id": entry.passId, "file_name": "escriptorium_syriac_onb-syr1-0001.page.xml",
+            "import_format": "pagexml", "media_type": "application/xml",
+            "content_base64": fileBytes.base64EncodedString()
+        ])
+        let original = try await XCTUnwrap(
+            SegmentService(ficheroClient: XCTUnwrap(storeClient)).original(passId: entry.passId)
+        )
+        XCTAssertEqual(original.bytes, fileBytes, "Show Original is the file byte for byte")
+        XCTAssertEqual(original.text, String(data: fileBytes, encoding: .utf8), "shown as the file's own text")
     }
 
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {

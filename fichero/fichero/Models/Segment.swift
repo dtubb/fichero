@@ -292,6 +292,12 @@ struct SegmentPassValue: Codable, Hashable, Identifiable {
     var text: String?
     var sourceArtifactId: String?
     var artifactType: String?
+    /// How an IMPORTED pass was made (#5149, the Inspector's Making section): the file's name, its
+    /// sha256, the format it was read as, and whether its original bytes are kept.
+    var importFile: String?
+    var importChecksum: String?
+    var importFormat: String?
+    var hasOriginal = false
 }
 
 // MARK: - Generated-client mapping
@@ -356,5 +362,9 @@ extension SegmentPassValue {
         self.text = generated.text
         self.sourceArtifactId = generated.sourceArtifactId
         self.artifactType = generated.artifactType
+        self.importFile = generated.importFile
+        self.importChecksum = generated.importChecksum
+        self.importFormat = generated.importFormat
+        self.hasOriginal = generated.hasOriginal ?? false
     }
 }

@@ -128,7 +128,8 @@ struct SegmentMappingTests {
         let accounted: Set<String> = [
             "id", "provisional", "document_id", "name", "provenance_kind",
             "provider", "model", "run_id", "created_at", "text",
-            "source_artifact_id", "artifact_type"
+            "source_artifact_id", "artifact_type",
+            "import_file", "import_checksum", "import_format", "has_original"
         ]
         #expect(declared == accounted, "PassRead's fields changed. Unaccounted: \(declared.subtracting(accounted).sorted()).")
     }
