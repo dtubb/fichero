@@ -976,6 +976,62 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertGreaterThan(image.size.width, image.size.height, "a line is wider than it is tall")
     }
 
+    /// `source.textedit.a-run-of-keys-is-one-action` end to end, the app's half: a run of typing on the
+    /// imported Syriac page's first line reaches the app as ONE `readingEdit` (the page coalesces the
+    /// keys), and through the calls the Reader's coordinator makes it is ONE `representation.create`,
+    /// ONE audit row and ONE undo step: ⌘Z once undoes the whole run, and there is nothing more.
+    func testARunOfTypingIsOneReadingOneAuditOneUndo() async throws {
+        let store = try await loadedStore()
+        let line = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.id == "seg-0003" })
+        let typed = (line.text ?? "") + " ܘܐܝܣܚܩ"
+        let edit = try XCTUnwrap(ReaderTextEdit.message(from: [
+            "kind": "readingEdit", "pageId": "doc-0001", "segmentId": line.id, "text": typed,
+            "previous": line.text ?? "", "basedOn": "rep-0001"
+        ]))
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        try await AuditedAction.run(
+            "representation.create", params: try XCTUnwrap(ReaderTextEdit.newReading(for: edit)), actionName: "Typing",
+            actionsService: ActionsService(client: try XCTUnwrap(storeClient)), undoManager: manager
+        )
+        manager.endUndoGrouping()
+        XCTAssertEqual(RecordedEngine.invoked.count, 1, "one run of keys, one action")
+        XCTAssertEqual(manager.undoActionName, "Typing")
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"], "one ⌘Z undoes the whole run")
+        XCTAssertFalse(manager.canUndo, "and there is no second step to undo")
+    }
+
+    /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the
+    /// imported Syriac page's first line -- down to nothing at all -- is a NEW READING without them,
+    /// through the calls the Reader's coordinator makes. No segment action is ever sent: the line and
+    /// its box stay; deleting a segment is the Source view's own named command.
+    func testDeletingWordsIsANewReadingAndNeverTouchesTheSegments() async throws {
+        let store = try await loadedStore()
+        let line = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.id == "seg-0003" })
+        let words = (line.text ?? "").split(separator: " ")
+        XCTAssertGreaterThan(words.count, 2)
+        let actions = ActionsService(client: try XCTUnwrap(storeClient))
+        for text in [words.dropLast().joined(separator: " "), ""] {
+            let edit = try XCTUnwrap(ReaderTextEdit.message(from: [
+                "kind": "readingEdit", "pageId": "doc-0001", "segmentId": line.id, "text": text,
+                "previous": line.text ?? "", "basedOn": "rep-0001"
+            ]))
+            try await AuditedAction.run(
+                "representation.create", params: try XCTUnwrap(ReaderTextEdit.newReading(for: edit)),
+                actionName: "Typing", actionsService: actions, undoManager: nil
+            )
+        }
+        let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
+        XCTAssertEqual(sent.compactMap { $0["name"] as? String }, ["representation.create", "representation.create"])
+        let contents = sent.compactMap { ($0["params"] as? [String: Any])?["content"] as? String }
+        XCTAssertEqual(contents, [words.dropLast().joined(separator: " "), ""], "the words gone from the reading, down to an empty line")
+        XCTAssertTrue(sent.allSatisfy { ($0["params"] as? [String: Any])?["segment_id"] as? String == line.id })
+        XCTAssertEqual(store.segments(documentId: "doc-0001").filter { $0.id == line.id }.count, 1, "the line is still there")
+    }
+
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {
         let expected = try JSONDecoder().decode(
             [ExpectedBox].self,
