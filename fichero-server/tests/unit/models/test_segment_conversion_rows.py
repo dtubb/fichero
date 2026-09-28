@@ -203,6 +203,10 @@ class TestConversionChangesNothingYouCanSee:
             for field in ("id", "pass_id", "provisional", "source_artifact_id"):
                 b.pop(field)
                 a.pop(field)
+            # #5152: a real row has a version to edit against, a provisional box has none --
+            # the same allowance its siblings make (test_segment_conversion_action,
+            # test_segments_seam_after_conversion).
+            assert b.pop("version") is None and a.pop("version") == 1
             # Conversion adds exactly two keys to metadata and changes
             # nothing else in it: the sort key the seam already reads, and
             # the page number, stored so it survives the artifact.
