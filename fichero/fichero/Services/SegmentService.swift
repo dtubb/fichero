@@ -91,7 +91,9 @@ extension SegmentService {
             let readings = body.items.map {
                 InspectorText.Reading(
                     id: $0.id, kind: $0.kind, content: $0.content, maker: $0.provenanceKind.rawValue,
-                    author: $0.createdBy, guideline: $0.guideline, pairId: $0.pairId, pairRole: $0.pairRole
+                    author: $0.createdBy, guideline: $0.guideline, pairId: $0.pairId, pairRole: $0.pairRole,
+                    correctsId: $0.correctsRepresentationId, level: $0.level,
+                    machineConfidence: $0.machineConfidence, readFromRenditionId: $0.readFromRenditionId
                 )
             }
             let counting = body.counting.additionalProperties.mapValues {

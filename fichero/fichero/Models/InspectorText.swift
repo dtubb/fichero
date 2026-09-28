@@ -17,6 +17,14 @@ struct InspectorText: Equatable {
         /// A written / read pair (sic and corr, abbr and expan): same `pairId`, each with its role.
         let pairId: String?
         let pairRole: String?
+        /// The reading this one corrects, when it is a correction (`source.reading.corrections-are-new`).
+        var correctsId: String?
+        /// The normalisation level it was made at (diplomatic, normalised, ...), as recorded.
+        var level: String?
+        /// A machine's own confidence, 0-1 -- never shown for a person's reading, which has none.
+        var machineConfidence: Double?
+        /// The rendition it was read from, when not the page's own image.
+        var readFromRenditionId: String?
     }
 
     enum Why: Equatable {

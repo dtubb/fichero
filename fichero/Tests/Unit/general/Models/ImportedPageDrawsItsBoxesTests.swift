@@ -28,7 +28,11 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             guard request.url?.host == "127.0.0.1", let path = request.url?.path else { return false }
             return path.hasPrefix("/api/segments/document/") || path == "/api/annotations"
                 || path.hasPrefix("/api/actions/") || path.hasPrefix("/api/segments/passes/")
+                || (path.hasPrefix("/api/segments/") && path.hasSuffix("/readings"))
         }
+
+        /// What `GET /api/segments/{id}/readings` answers (set by the test that asks).
+        nonisolated(unsafe) static var readingsReply = Data()
 
         /// What `GET /api/segments/passes/{id}/original` answers (set by the test that asks).
         nonisolated(unsafe) static var originalReply = Data()
@@ -45,7 +49,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             let isAnnotation = path == "/api/annotations"
             if isAnnotation { Self.annotationRequests.append(Self.bodyOf(request)) }
             var actionBody: Data?
-            if path.hasPrefix("/api/segments/passes/"), path.hasSuffix("/original") {
+            if path.hasPrefix("/api/segments/"), path.hasSuffix("/readings") {
+                actionBody = Self.readingsReply
+            } else if path.hasPrefix("/api/segments/passes/"), path.hasSuffix("/original") {
                 actionBody = Self.originalReply
             } else if path == "/api/actions/invoke" {
                 Self.invoked.append(Self.bodyOf(request))
@@ -246,6 +252,43 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         )
         XCTAssertEqual(original.bytes, fileBytes, "Show Original is the file byte for byte")
         XCTAssertEqual(original.text, String(data: fileBytes, encoding: .utf8), "shown as the file's own text")
+    }
+
+    /// #5153 end to end: on the imported Syriac page's first line -- the file's reading and a
+    /// person's correction, neither counting (the engine's recorded answer) -- the Text section reads
+    /// both through `SegmentService.readings`, says nothing counts, and "Make This Count" on the
+    /// correction sends `reading.choose` with its id; ⌘Z undoes that choice by its own audit id.
+    func testChoosingTheCorrectionOnAnImportedLineSendsReadingChooseAndUndoes() async throws {
+        _ = try await loadedStore()
+        RecordedEngine.readingsReply = try Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-line-readings.json")
+        )
+        let service = SegmentService(ficheroClient: try XCTUnwrap(storeClient))
+        let text = try await XCTUnwrap(service.readings(segmentId: "seg-0003"))
+        XCTAssertEqual(text.readings.map(\.id), ["rep-0001", "rep-0002"])
+        XCTAssertEqual(text.counting["transcription"]?.why, .noneCounts)
+        XCTAssertEqual(text.readings[1].correctsId, "rep-0001", "the correction says what it corrects")
+
+        let params = try XCTUnwrap(ReadingChoice.choose(text.readings[1], of: "seg-0003", in: text))
+        RecordedEngine.invoked = []
+        RecordedEngine.undone = []
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        let auditId = try await ReadingChoice.run(
+            params, actionsService: ActionsService(client: try XCTUnwrap(storeClient)), undoManager: manager,
+            afterChange: {}
+        )
+        manager.endUndoGrouping()
+
+        XCTAssertEqual(auditId, "audit-1")
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        XCTAssertEqual(sent["name"] as? String, "reading.choose")
+        XCTAssertEqual(sent["params"] as? [String: String],
+                       ["segment_id": "seg-0003", "kind": "transcription", "representation_id": "rep-0002"])
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
     }
 
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {

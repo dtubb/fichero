@@ -12,6 +12,8 @@ struct SegmentInspectorView: View {
     let selectedIds: [String]
 
     @Environment(SegmentService.self) private var segmentService: SegmentService?
+    @Environment(ActionStore.self) private var actionStore: ActionStore?
+    @Environment(\.undoManager) private var undoManager
     @State private var level: Level = .selection
     @State private var text: InspectorText?
 
@@ -53,7 +55,7 @@ struct SegmentInspectorView: View {
                         Text(countsLine).font(.caption).foregroundStyle(.secondary)
                     }
                     if let text, !text.readings.isEmpty {
-                        InspectorTextSection(text: text)
+                        InspectorTextSection(text: text) { reading in choose(reading, in: text) }
                     }
                     if level == .page {
                         // Page level: how the page's passes were made (#5149).
@@ -70,10 +72,27 @@ struct SegmentInspectorView: View {
         }
         .task(id: inspected) {
             text = nil
-            guard let inspected, let segmentService else { return }
-            text = try? await segmentService.readings(segmentId: inspected)
+            await reloadText()
         }
         .onChange(of: selectedIds) { level = .selection }
+    }
+
+    private func reloadText() async {
+        guard let inspected, let segmentService else { return }
+        text = try? await segmentService.readings(segmentId: inspected)
+    }
+
+    /// "Make This Count" (#5153): the audited `reading.choose`, ⌘Z by its own audit id.
+    private func choose(_ reading: InspectorText.Reading, in text: InspectorText) {
+        guard let inspected, let params = ReadingChoice.choose(reading, of: inspected, in: text),
+              let actionsService = actionStore?.actionsService else { return }
+        let undoManager = undoManager
+        Task {
+            try? await ReadingChoice.run(
+                params, actionsService: actionsService, undoManager: undoManager,
+                afterChange: { await reloadText() }
+            )
+        }
     }
 
     private var pathHead: some View {
@@ -106,6 +125,8 @@ struct SegmentInspectorView: View {
 /// Every live reading, grouped by kind; the one that counts is marked with WHY it counts.
 struct InspectorTextSection: View {
     let text: InspectorText
+    /// "Make This Count" on a reading that does not count; nil shows no verb (a preview, a reader).
+    var onChoose: ((InspectorText.Reading) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -136,7 +157,15 @@ struct InspectorTextSection: View {
                 }
                 Text(reading.content).font(.body).textSelection(.enabled)
             }
-            Text(detail(reading, counts: counts)).font(.caption).foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                Text(detail(reading, counts: counts)).font(.caption).foregroundStyle(.secondary)
+                if !counts, let onChoose {
+                    Button("Make This Count") { onChoose(reading) }
+                        .buttonStyle(.borderless)
+                        .font(.caption)
+                        .help("Choose this reading as the one that counts for \(reading.kind)")
+                }
+            }
         }
     }
 
@@ -145,6 +174,10 @@ struct InspectorTextSection: View {
         var parts = [reading.maker.capitalized]
         if let author = reading.author { parts.append(author) }
         if let guideline = reading.guideline { parts.append(guideline) }
+        if let level = reading.level { parts.append("level \(level)") }
+        if let confidence = reading.machineConfidence { parts.append("confidence \(Int((confidence * 100).rounded()))%") }
+        if reading.correctsId != nil { parts.append("a correction") }
+        if reading.readFromRenditionId != nil { parts.append("read from another image") }
         if counts, let why = text.counting[reading.kind]?.why { parts.append(why.label) }
         return parts.joined(separator: " · ")
     }
