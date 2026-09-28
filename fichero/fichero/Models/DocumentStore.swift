@@ -23,6 +23,11 @@ enum DocumentChange {
 @MainActor
 @Observable
 final class DocumentStore {
+    /// How long after a root load the one-level cache warm starts (#5228): after the launch, not in it.
+    static var rootPrefetchDelay: Duration = .seconds(5)
+    /// The deferred root warm, so a caller (a test) can await it.
+    @ObservationIgnored var rootPrefetch: Task<Void, Never>?
+
     // MARK: - Private Properties
 
     let logger = Logger(subsystem: "app.fichero.fichero", category: "DocumentStore")
@@ -387,7 +392,15 @@ final class DocumentStore {
             // Prefetch one level down so ROOT folders show their disclosure
             // chevrons before any click (#3355). Roots are already rendered from
             // `collections` above; this fills the chevrons in shortly after.
-            await prefetchChildContainerChildren(of: collections)
+            // AFTER the launch, not during it (#5228): the chevrons come from `child_count` (#4515);
+            // this only warms the cache so an expand opens from it. Measured on the maintainer's
+            // launch: ~40 fetches across seven libraries, all competing with the front library.
+            let collections = self.collections
+            let delay = Self.rootPrefetchDelay
+            rootPrefetch = Task(priority: .utility) { [weak self] in
+                if delay > .zero { try? await Task.sleep(for: delay) }
+                await self?.prefetchChildContainerChildren(of: collections)
+            }
 
             // Auto-select first root collection if none selected
             if selectedCollection == nil, let first = collections.first(where: { $0.parentId == nil }) {

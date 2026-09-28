@@ -70,7 +70,8 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         let store = try Self.appSource("Models/DocumentStore.swift")
         let prefetch = try Self.appSource("Models/DocumentStore+SidebarPrefetch.swift")
         // Root load STILL prefetches one level so top-level folders' subfolders
-        // are warm — a bounded, one-time startup cost over a handful of roots.
+        // are warm -- but AFTER the launch (#5228: ~40 fetches across seven
+        // libraries had competed with the front library).
         XCTAssertTrue(store.contains("prefetchChildContainerChildren(of: collections)"))
         // Expanding a folder fetches its own children (the names)…
         XCTAssertTrue(prefetch.contains("fetchSidebarChildren(of: document)"))
@@ -252,13 +253,8 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     func testEntityLibrarySelectionRoutesBrowserSelectionIntoKGFocus() throws {
         // file_length: ContentView+State split into ContentView+State*; read them all concatenated.
-        let stateSource = try [
-            Self.appSource("Views/Shell/ContentView/ContentView+StateDisplay.swift"),
-            Self.appSource("Views/Shell/ContentView/ContentView+StateSelection.swift"),
-            Self.appSource("Views/Shell/ContentView/ContentView+StateLayout.swift"),
-            Self.appSource("Views/Shell/ContentView/ContentView+StatePreview.swift"),
-            Self.appSource("Views/Shell/ContentView/ContentView+StateEvents.swift"),
-        ].joined(separator: "\n")
+        // Every ContentView+*.swift: the handlers keep being split (StateEvents -> SelectionAndDetailEvents).
+        let stateSource = try AppSource.swiftFiles(under: "Views/Shell/ContentView").map(\.code).joined(separator: "\n")
         let navigationSource = try Self.appSource("Views/Shell/ContentView/ContentView+Navigation.swift")
 
         XCTAssertTrue(stateSource.contains("if isEntityLibrarySelection {"))
@@ -273,10 +269,8 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     func testPinnedSidebarEntryPointsRouteToExpectedSurfaces() throws {
         // Typed SidebarDestination routing (SidebarView+SelectionHandling.swift);
         // the `case .browser(...)` mappings themselves live in SidebarStateManagers.swift.
-        let source = try [
-            Self.appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift"),
-            Self.appSource("Views/Sidebar/State/SidebarStateManagers.swift")
-        ].joined(separator: "\n")
+        // The whole sidebar: the routing moved out of SidebarView+SelectionHandling.swift.
+        let source = try AppSource.swiftFiles(under: "Views/Sidebar").map(\.code).joined(separator: "\n")
 
         XCTAssertTrue(source.contains("case .browser(.comparison):"))
         XCTAssertTrue(source.contains("viewMode = .comparison(nil)"))

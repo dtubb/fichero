@@ -151,7 +151,11 @@ final class SidebarPrefetchBehavioralTests: XCTestCase {
             ]))
         ])
 
+        DocumentStore.rootPrefetchDelay = .zero
+        defer { DocumentStore.rootPrefetchDelay = .seconds(5) }
         await store.loadCollections()
+        // The warm runs AFTER the load now (#5228: it was ~40 fetches inside the launch).
+        await store.rootPrefetch?.value
 
         // The regression this pins: children of every ROOT folder are cached
         // one level down with no click and no expansion anywhere.

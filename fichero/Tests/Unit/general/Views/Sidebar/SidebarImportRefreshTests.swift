@@ -89,7 +89,8 @@ final class SidebarImportRefreshTests: XCTestCase {
     /// here at all, and it is the lost-event backstop's partner. Deleting the
     /// two sleeps must not have taken it with them.
     func testTheChangeStreamRebuildIsStillWired() throws {
-        let observers = try AppSource.text("Views/Sidebar/Components/SidebarObservers.swift")
+        // The whole sidebar: the rebuild moved into SidebarActions.swift.
+        let observers = try AppSource.swiftFiles(under: "Views/Sidebar").map(\.code).joined(separator: "\n")
         XCTAssertTrue(
             observers.contains("rebuildCaches(for: libraryId)"),
             "#4522 removed the redundant redraws, not the change-stream one"
