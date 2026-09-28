@@ -100,6 +100,19 @@ class WindowState {
     /// paging. A press anywhere else lets it go.
     var selectedShapePoint: SegmentShapes.PointRef?
 
+    /// The points of a polygon or baseline being drawn with the Shape tool, in the order clicked. Here,
+    /// not in the canvas layer, so Escape (the preview's exit command) can abandon it.
+    var drawingPoints: [[Double]] = []
+
+    /// Escape during a drawing: drop the points clicked so far and make nothing. True when there was a
+    /// drawing to abandon -- that Escape does nothing else; the next one clears as it always has.
+    @discardableResult
+    func abandonDrawing() -> Bool {
+        guard !drawingPoints.isEmpty else { return false }
+        drawingPoints = []
+        return true
+    }
+
     /// A segment to select once its page is shown: Next in a flow crossing onto another page (#5160).
     /// The Order list on that page takes it and clears it.
     var pendingSegmentSelection: ReadingOrderChoice.Landing?

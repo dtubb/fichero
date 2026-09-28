@@ -1033,7 +1033,8 @@ The editor
   (`test_imported_page_draws_its_boxes.py::test_the_shape_tool_s_polygon_and_baseline_become_segments_the_canvas_still_draws`);
   the app closes, refuses too few points and sends those calls
   (`ImportedPageDrawsItsBoxesTests.testTheShapeToolsPolygonAndBaselineCreateSegmentsWithUndo`).
-  **Not yet:** a point and an open line; Escape to abandon a drawing (switching tools drops it); a drawn
+  **Escape abandons a drawing in progress** and does nothing else; the next Escape clears as it always did
+  (`WindowState.abandonDrawing`, `ShapeDrawingEscapeTests`). **Not yet:** a point and an open line; a drawn
   line is not placed in the region it is drawn in; pages whose boxes come from an artifact.
 - `source.editor.reshape` — **[PARTIAL]** (#4941) points can be dragged, added and removed; shapes moved and nudged.
   **Built 2026-09-28 (image pages, segment passes):** the overlay draws a segment AS its shapes -- the
