@@ -458,6 +458,44 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
     }
 
+    /// #5154 end to end, the app's half: on the recorded imported Syriac page, the page's `lineSplit`
+    /// for the first line becomes ONE segment.split -- the line's version, two parts, the reading cut
+    /// at the caret -- and `lineJoin` for its neighbour ONE segment.merge keeping the line before, both
+    /// through the calls the Reader's coordinator makes (`ReaderTextEdit` -> `AuditedAction` /
+    /// `SegmentEditRunner`). (Engine half: test_reader_typing_requests.py sends these shapes.)
+    func testTheReadersSplitAndJoinMessagesBecomeSegmentSplitAndMerge() async throws {
+        let store = try await loadedStore()
+        let lines = store.segments(documentId: "doc-0001").filter { $0.kind == "line" }
+            .sorted { ($0.boxIndex ?? 0) < ($1.boxIndex ?? 0) }
+        let first = try XCTUnwrap(lines.first)
+        let second = try XCTUnwrap(lines.dropFirst().first)
+        let actions = ActionsService(client: try XCTUnwrap(storeClient))
+        RecordedEngine.invoked = []
+
+        let split = try XCTUnwrap(ReaderTextEdit.message(from: [
+            "kind": "lineSplit", "pageId": "doc-0001", "segmentId": first.id, "offset": 3, "text": "ܐܒܓܕܗܘ"
+        ]))
+        try await AuditedAction.run(
+            "segment.split", params: try ReaderTextEdit.split(split, of: first).get(), actionName: "Split Line",
+            actionsService: actions, undoManager: nil
+        )
+        let join = try XCTUnwrap(ReaderTextEdit.message(from: [
+            "kind": "lineJoin", "pageId": "doc-0001", "segmentId": second.id, "previousSegmentId": first.id
+        ]))
+        try await SegmentEditRunner(actionsService: actions, store: store)
+            .run(try ReaderTextEdit.join(join, segments: lines).get(), documentId: "doc-0001", actionName: "Join Lines", undoManager: nil)
+
+        let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
+        XCTAssertEqual(sent.compactMap { $0["name"] as? String }, ["segment.split", "segment.merge"])
+        let splitParams = try XCTUnwrap(sent[0]["params"] as? [String: Any])
+        XCTAssertEqual(splitParams["segment_id"] as? String, first.id)
+        XCTAssertEqual(splitParams["expected_version"] as? Int, 1)
+        XCTAssertEqual((splitParams["parts"] as? [[String: Any]])?.compactMap { $0["reading_span"] as? [Int] }, [[0, 3], [3, 6]])
+        let mergeParams = try XCTUnwrap(sent[1]["params"] as? [String: Any])
+        XCTAssertEqual(mergeParams["segment_ids"] as? [String], [first.id, second.id])
+        XCTAssertEqual(mergeParams["keep_id"] as? String, first.id)
+    }
+
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {
         let expected = try JSONDecoder().decode(
             [ExpectedBox].self,

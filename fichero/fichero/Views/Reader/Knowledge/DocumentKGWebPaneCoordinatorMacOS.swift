@@ -415,6 +415,8 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
             handleLineMove(body)
         case "lineFocused":
             if let focus = ReaderLineSelection.focus(from: body) { focusLine(focus) }
+        case "lineEdited", "lineSplit", "lineJoin":
+            if let edit = ReaderTextEdit.message(from: body) { Task { @MainActor in await applyTextEdit(edit, kind: kind) } }
         case "textSelected":
             // The WebKit reader's selection joins the same seam the native
             // readers post (Daniel, 2026-08-30): the annotation bar applies
@@ -443,6 +445,49 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
 extension DocumentKGWebPaneCoordinatorMacOS {
     /// ⌥⌘↑ / ⌥⌘↓ / ⌥⌘⇞ / ⌥⌘⇟ on the Reader's caret line (3c part d): the Inspector's move, ⌘Z
     /// included. The page's text follows the order, so it is reloaded after a move and an undo.
+    /// Typing in the Reader (#5154): each page message is one audited action, ⌘Z by its own audit id;
+    /// the page is told how it went so it can re-read its text in place.
+    @MainActor
+    func applyTextEdit(_ edit: ReaderTextEdit.Message, kind: String) async {
+        guard let library else { return }
+        let store = SegmentStore.shared(for: library.segmentService)
+        let actions = library.actionsService
+        let undoManager = webView?.undoManager
+        await store.load(documentId: edit.pageId)
+        let segments = store.segments(documentId: edit.pageId)
+        var segmentId = ""
+        var detail = ""
+        do {
+            switch edit {
+            case .edited(_, let id, _, _):
+                segmentId = id
+                guard let params = ReaderTextEdit.newReading(for: edit) else { return }
+                try await AuditedAction.run(
+                    "representation.create", params: params, actionName: "Typing", actionsService: actions,
+                    undoManager: undoManager
+                )
+            case .split(_, let id, _, _):
+                segmentId = id
+                guard let line = segments.first(where: { $0.id == id }) else { throw SegmentEdit.Refusal.tooFew }
+                let params = try ReaderTextEdit.split(edit, of: line).get()
+                try await AuditedAction.run(
+                    "segment.split", params: params, actionName: "Split Line", actionsService: actions,
+                    undoManager: undoManager, afterChange: { await store.load(documentId: edit.pageId, force: true) }
+                )
+            case .join(_, let id, _):
+                segmentId = id
+                let call = try ReaderTextEdit.join(edit, segments: segments).get()
+                try await SegmentEditRunner(actionsService: actions, store: store)
+                    .run(call, documentId: edit.pageId, actionName: "Join Lines", undoManager: undoManager)
+            }
+        } catch {
+            detail = String(describing: error)
+        }
+        webView?.evaluateJavaScript(
+            ReaderTextEdit.committedScript(kind: kind, segmentId: segmentId, succeeded: detail.isEmpty, detail: detail)
+        )
+    }
+
     /// The Reader's caret line becomes the focused Source view's selection (#5155).
     @MainActor
     func focusLine(_ focus: ReaderLineSelection.Focus) {
