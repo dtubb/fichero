@@ -324,8 +324,13 @@ Control points and the transform
   (`fichero-server/tests/unit/api/test_a_control_point_has_a_place_on_the_earth.py::test_the_files_first_gcp_is_stored_in_wgs84_with_what_it_arrived_as`;
   from a file: `fichero-server/tests/unit/api/test_a_georeferencing_file_imports_as_a_pass.py`). Certainty per GCP is not
   recorded yet, and no screen shows one.
-- `source.geo.gcp-corrected-alone` — **[GAP]** (#4933) moving, retyping or withdrawing one GCP is
+- `source.geo.gcp-corrected-alone` — **[PARTIAL]** (#4933) moving, retyping or withdrawing one GCP is
   one audited, undoable action that changes that GCP's record and no other.
+  **Built 2026-09-28 (#5122), with no new action:** move = `segment.update`, retype = a
+  `world-point` reading that corrects the old one and counts (#5175), withdraw = `segment.delete`;
+  each is one audited action that changes that GCP alone and undoes through the audit trail
+  (`fichero-server/tests/unit/api/test_one_control_point_is_corrected_alone.py`, on the real
+  Allmaps Paris plan). PARTIAL: no screen makes these calls yet.
 - `source.geo.georef-is-a-pass` — **[PARTIAL]** (#4933) a map's GCPs, mask and transformation type
   form one georeferencing pass; two georeferencings of one sheet are two passes, and the
   working-pass rule chooses between them.
