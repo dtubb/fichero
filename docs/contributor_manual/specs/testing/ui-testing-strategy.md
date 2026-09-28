@@ -221,9 +221,17 @@ The regression check this enables is the one that was missing: import a page thr
 working pass.
 
 **Behaviours.**
-- `ui-testing.drawn-boxes-are-elements` [GAP] (#5192): every box drawn on a page is an accessibility
+- `ui-testing.drawn-boxes-are-elements` [PARTIAL] (#5192): every box drawn on a page is an accessibility
   element identified `SegmentBox-<segmentId>` with its frame; none is drawn without one, and none
   exists undrawn.
+  **Built 2026-09-28 (f794976dc), tests not yet run:** the image overlay that draws the boxes
+  (`DocumentOverlayView.accessibilityChildren`) and a PDF page's view (`PinchOwningPDFView`) each name
+  every box drawn in view `SegmentBox-<segmentId>`, labelled by kind, with its drawn frame and selected
+  state (`SegmentBoxAccessibility`). Pinned by
+  `ImportedPageDrawsItsBoxesTests.testTheRealPreviewInTheLibraryWindowsTreeDrawsTheImportedPagesRegionsAndLines`
+  (the real Preview in the window's environment: exactly the recorded page's 4 regions and 12 lines,
+  read from the accessibility tree) and `…testAPDFPagesDrawnSegmentBoxesAreAccessibilityElements`. OK
+  once those run green.
 - `ui-testing.describe-window` [GAP] (#5193): a Debug-only `describe window` verb reports panes,
   selection and, per page on screen, the drawn segment ids and frames, read from the drawn elements.
 - `ui-testing.drive-below-a-document` [GAP] (#5194): Debug-only `select page`, `select segment` and
