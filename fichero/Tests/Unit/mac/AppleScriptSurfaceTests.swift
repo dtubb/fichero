@@ -80,6 +80,36 @@ final class AppleScriptSurfaceTests: XCTestCase {
                       "the dictionary is chosen per configuration, never one file for both")
     }
 
+    /// #5194 (`ui-testing.drive-below-a-document`): the Debug suite reaches below a document --
+    /// `select page`, `select segment`, `show pane` -- each bound to a class this Debug build has, each
+    /// answering whether it was accepted. The rules they use: a pane by the name a script says (and a
+    /// refusal naming the panes that would have worked), and the sidebar reveal's page + segment -- the
+    /// seam a citable reference already lands through. Breaks if a verb binds nothing, a pane name is
+    /// misread, or a segment lands without its page.
+    func testTheDebugSuiteReachesBelowADocument() throws {
+        let url = try AppSource.root().appendingPathComponent("FicheroDebug.sdef")
+        let resolved = try XMLDocument(contentsOf: url, options: [.documentXInclude])
+        let bindings: [String: String] = [
+            "select page": "FicheroSelectPageCommand",
+            "select segment": "FicheroSelectSegmentCommand",
+            "show pane": "FicheroShowPaneCommand",
+        ]
+        for (verb, cls) in bindings {
+            let bound = try resolved.nodes(forXPath: "//suite[@name='Fichero Test Suite']/command[@name='\(verb)']/cocoa/@class")
+            XCTAssertEqual(bound.first?.stringValue, cls, verb)
+            XCTAssertNotNil(NSClassFromString(cls), "\(cls) is in the Debug build")
+        }
+        XCTAssertEqual(DebugScriptVerbs.paneKind(named: " Segments "), .segments)
+        XCTAssertEqual(DebugScriptVerbs.paneKind(named: "preview"), .preview)
+        XCTAssertNil(DebugScriptVerbs.paneKind(named: "kg"), "a panel is not a pane")
+        XCTAssertEqual(Set(DebugScriptVerbs.paneNames), Set(PaneKind.allCases.map(\.rawValue)))
+        XCTAssertEqual(DebugScriptVerbs.revealUserInfo(documentId: "doc-1"), ["documentId": "doc-1"])
+        XCTAssertEqual(DebugScriptVerbs.revealUserInfo(documentId: "doc-1", segmentId: "seg-3"),
+                       ["documentId": "doc-1", "segmentId": "seg-3"])
+        XCTAssertEqual(PaneList([.leaf(.preview)]).settingVisible(.segments, true).leafIDs(of: .segments).count, 1,
+                       "show pane adds the pane when it is absent")
+    }
+
     /// The smoke's named-view step depends on the miss being LOUD and
     /// self-describing — a capture that cannot find its view must say what it
     /// could see, or every miss becomes an undebuggable blank.

@@ -210,6 +210,16 @@ extension ContentView {
     /// Handles `.onReceive` of `.ficheroShowPanelRequested`.
     /// AppleScript command path for `show panel "library|inspector|kg|activity"`.
     func handleAppleScriptShowPanel(_ note: Notification) {
+        // Debug `show pane <kind>` (#5194): a pane of that kind shown through the ONE pane-list
+        // visibility path (added when absent), then the list's save funnel.
+        if let paneName = note.userInfo?["pane"] as? String, let kind = DebugScriptVerbs.paneKind(named: paneName) {
+            let next = activePaneList.settingVisible(kind, true)
+            if next != activePaneList {
+                activePaneList = next
+                paneListDidChange()
+            }
+            return
+        }
         guard let rawPanel = note.userInfo?["panel"] as? String else { return }
         switch rawPanel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case "library":

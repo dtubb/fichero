@@ -245,9 +245,17 @@ working pass.
   real-Preview test (`describe` finds doc-0001 and its 16 boxes) and
   `AppleScriptSurfaceTests.testTheDebugDictionaryIncludesTheUserOneAndAddsDescribeWindow`. Not yet: run
   from `osascript` against a built Debug app.
-- `ui-testing.drive-below-a-document` [GAP] (#5194): Debug-only `select page`, `select segment` and
+- `ui-testing.drive-below-a-document` [PARTIAL] (#5194): Debug-only `select page`, `select segment` and
   `show pane` verbs, each answering whether the request was accepted, in the style of the existing
   verbs.
+  **Built 2026-09-28, tests not yet run:** in `FicheroDebug.sdef`'s test suite, through seams the app
+  already has -- `select page` and `select segment` through the sidebar's reveal (a segment is resolved
+  to its live page by the engine's one resolver, following a merge or a split, as a citable reference
+  is), `show pane` through the pane list's visibility (`PaneList.settingVisible`, added when absent).
+  Each answers whether it was accepted; a name that is not a pane is refused with the panes that would
+  work (`DebugScriptVerbs`; `AppleScriptSurfaceTests.testTheDebugSuiteReachesBelowADocument`). Not yet:
+  run through `osascript`; `select segment` selects in the Source view only once a list that takes the
+  pending selection (the Order list, the Segments pane) shows the page, as a citable reference does.
 - `ui-testing.test-verbs-never-in-release` [GAP] (#5195): a Release build contains neither the test
   suite in its sdef nor the test verbs' command classes, and a guard over the built Release app fails
   if either appears.
