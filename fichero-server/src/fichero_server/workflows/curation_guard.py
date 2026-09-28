@@ -282,7 +282,49 @@ def page_text_is_derived(db: Any, document_id: str) -> bool:
     from fichero_server.api.routes.document.segment_conversion import is_converted
     from fichero_server.models import Artifact
 
-    return any(is_converted(a) for a in db.query(Artifact, document_id=document_id))
+    if not any(is_converted(a) for a in db.query(Artifact, document_id=document_id)):
+        return False
+    # CONVERTED IS NOT ENOUGH (#5222). Until the whole library converted on open, a page converted
+    # only at a person's first edit, so "converted" meant "a person worked here". Now the engine
+    # converts every page when a library opens, and taking "converted" as the sign froze every
+    # page's text against every later run -- a transcription after a region detection never
+    # reached page_content, search or the Reader. The sign is a PERSON's mark on the page model.
+    return a_person_worked_on_the_page_text(db, document_id)
+
+
+#: `deleted_by` actors that are not a person: the engine's own work, a workflow run, an import.
+#: `provenance_kind_from_ctx` is the rule for rows that carry a maker; a deletion stores only the
+#: actor's name, so its machine names are listed here.
+_MACHINE_ACTORS = frozenset({"", "system", "workflow", "import"})
+
+
+def a_person_worked_on_the_page_text(db: Any, document_id: str) -> bool:
+    """True when a person has chosen, drawn, corrected, read or deleted anything in this page's
+    segments or readings -- the marks the working-pass ranking and the counting rule already
+    treat as a person's (`touched_by_a_person`, `by_a_person`), plus a deletion by name.
+
+    ponytail: a person's MOVE in a reading order leaves no maker on any row, so it is not seen
+    here; add it when reading-order entries record who placed them.
+    """
+    from fichero_server.models import ContentRepresentation, ContentRepresentationRevision, Segment
+    from fichero_server.models.knowledge import ProvenanceKind
+    from fichero_server.models.segments import SegmentPassChoice
+
+    if any(row.superseded_at is None for row in db.query(SegmentPassChoice, document_id=document_id)):
+        return True
+    for row in db.query(Segment, document_id=document_id):
+        if row.provenance_kind is ProvenanceKind.human:
+            return True
+        if row.deleted_at is not None and (row.deleted_by or "") not in _MACHINE_ACTORS:
+            return True
+    readings = db.query(ContentRepresentation, document_id=document_id)
+    if any(r.provenance_kind is ProvenanceKind.human for r in readings):
+        return True
+    ids = [r.id for r in readings]
+    return bool(ids) and any(
+        rev.provenance_kind is ProvenanceKind.human
+        for rev in db.query_in(ContentRepresentationRevision, "representation_id", ids)
+    )
 
 
 def sweep_replaceable(

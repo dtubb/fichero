@@ -924,6 +924,16 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
   PDF's text layer, regions, Kraken's pixel polygons, Kraken HTR, merged geometry, aligned
   transcripts, a box set measured on a crop), converts: `test_every_legacy_shape_converts.py`.
   Opening the real engine converts nothing in the test suite (`FICHERO_SKIP_PROJECT_CONVERSION`).
+- `source.convert.converting-is-not-a-persons-work` — **[OK]** (→ #5222, #5081) a page the ENGINE
+  converted is still the machine's to write: a later tool run still writes its text into the page's
+  stored text (search, embeddings, the Reader), exactly as before the conversion. Only a person's
+  mark on the page model -- a working pass chosen, a box drawn or moved, a reading written or
+  corrected, a line deleted -- makes the page's text derived and stops a machine run writing it.
+  (#5081 took "any result converted" as that sign, which was true while only a person's first edit
+  converted; with whole-library conversion it would have frozen every page on first open.) Pinned
+  by `fichero-server/tests/unit/workflows/test_curation_guard.py::TestConvertedByTheEngineIsNotAPersonsWork`
+  (four tests) and, through real reruns, `fichero-server/tests/unit/api/test_segment_corrections_survive_a_rerun.py`.
+  Not seen: a person's move in a reading order, which records no maker on any row.
 - `source.convert.only-the-running-engine` — **[OK]** (→ #4998) the only thing that converts a
   project is the engine of the running app that has it open. A lock, and a lock that can be
   RECOVERED: a second opening is refused while one runs, being refused is not mistaken for
