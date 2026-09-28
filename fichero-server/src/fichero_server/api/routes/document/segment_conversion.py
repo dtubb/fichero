@@ -1276,7 +1276,12 @@ def _record_working_pass(db: Any, pass_row: SegmentPass, ctx: ActionContext) -> 
     from fichero_server.core.timeutil import utc_now
 
     now = utc_now()
+    from fichero_server.api.routes.document.segment_readings import georeferences
+
+    kind = georeferences(pass_row)
     for previous in db.query(SegmentPassChoice, document_id=pass_row.document_id):
+        if georeferences(db.get(SegmentPass, previous.pass_id)) != kind:
+            continue  # a choice of the other kind of pass is not this one's to retire (#5122)
         if previous.superseded_at is None and previous.pass_id != pass_row.id:
             previous.superseded_at = now
             db.save(previous)

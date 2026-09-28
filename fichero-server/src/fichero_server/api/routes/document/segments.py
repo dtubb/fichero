@@ -789,18 +789,19 @@ class SegmentPassCreateParams(BaseModel):
 
 
 def _new_pass_provenance_kind(
-    *, actor: str, run_id: str | None, provider: str | None, model: str | None,
+    *, ctx: ActionContext, run_id: str | None, provider: str | None, model: str | None,
 ) -> ProvenanceKind:
-    """Set by the engine from how the write arrived: a run or a
-    provider/model behind it means a machine made this pass; a real actor
-    with neither means a person did; nothing given is honestly unknown --
-    never a trusting default (same posture as `derive_pass_provenance_kind`
-    for a legacy artifact)."""
-    if run_id or provider or model:
+    """Set by the engine from how the write arrived: a provider/model behind the pass means a
+    machine made it; otherwise the ONE rule every source-model write uses,
+    `provenance_kind_from_ctx` -- which reads the run the REQUEST came from and the MCP surface.
+    This used to be a second copy that read only a `run_id` in the params, so a run creating a
+    pass under its own context stamped it `human` (#4868/#4869's class), and an agent's pass was
+    never `agent`."""
+    if provider or model:
         return ProvenanceKind.workflow
-    if actor and actor not in {"", "system"}:
-        return ProvenanceKind.human
-    return ProvenanceKind.unknown
+    if run_id and not ctx.run_id:
+        return ProvenanceKind.workflow
+    return provenance_kind_from_ctx(ctx)
 
 
 def _create_pass_impl(db: Database, params: SegmentPassCreateParams, ctx: ActionContext) -> SegmentPass:
@@ -833,12 +834,12 @@ def _create_pass_impl(db: Database, params: SegmentPassCreateParams, ctx: Action
         document_id=params.document_id,
         name=params.name,
         provenance_kind=_new_pass_provenance_kind(
-            actor=ctx.actor, run_id=params.run_id, provider=provider, model=model,
+            ctx=ctx, run_id=params.run_id, provider=provider, model=model,
         ),
         actor=ctx.actor,
         provider=provider,
         model=model,
-        run_id=params.run_id,
+        run_id=params.run_id or ctx.run_id,
         source_artifact_id=params.source_artifact_id,
     )
     db.save(pass_row)

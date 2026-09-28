@@ -51,6 +51,10 @@ class LinkEndKind(str, Enum):
     document = "document"
     claim = "claim"
     canvas_item = "canvas_item"
+    #: A knowledge-graph entity (#5123/#5122 maps D): a place segment `names` its place entity.
+    entity = "entity"
+    #: A URI outside this library -- a gazetteer's place (`same_as`), in its canonical form.
+    uri = "uri"
 
 
 #: The words the KG already stores, reused rather than re-spelled. Read from the

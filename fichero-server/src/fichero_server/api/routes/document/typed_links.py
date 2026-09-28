@@ -113,11 +113,25 @@ def _action_link_create(db: Database, params: TypedLinkCreateParams, ctx: Action
     """Link two things, with a type this library knows (`source.link.typed`)."""
     if params.from_id == params.to_id:
         raise _as_http_error(LinkNeedsTwoEnds(params.from_id))
+    known_kinds = {kind.value for kind in LinkEndKind}
     for end_id, kind in ((params.from_id, params.from_kind), (params.to_id, params.to_kind)):
+        if kind not in known_kinds:
+            # An end of no known kind was stored as given; a reader could not tell what it named.
+            raise HTTPException(status_code=422, detail=f"unknown link end kind {kind!r}; one of {', '.join(sorted(known_kinds))}")
         if kind == LinkEndKind.segment.value:
             assert_not_provisional(end_id, what="segment id")
             if db.get(Segment, end_id) is None:
                 raise HTTPException(status_code=404, detail=f"Segment not found: {end_id}")
+        elif kind == LinkEndKind.entity.value:
+            # A place segment `names` its place ENTITY (maps D, `source.geo.place-segment-names-entity`):
+            # a live one -- a merged entity answers with the one it was merged into.
+            from fichero_server.models.knowledge import KnowledgeEntity
+
+            entity = db.get(KnowledgeEntity, end_id)
+            if entity is None:
+                raise HTTPException(status_code=404, detail=f"Entity not found: {end_id}")
+            if entity.merged_into_id:
+                raise HTTPException(status_code=422, detail=f"entity {end_id} was merged into {entity.merged_into_id}; link that one")
     try:
         resolved = assert_known_link_type(db, params.link_type)
     except ValueError as refusal:
@@ -249,6 +263,39 @@ def _labels(db: Database) -> dict[str, tuple[str, str]]:
     return {
         row.key: (row.label, row.inverse_label) for row in db.query(LibraryLinkType)
     }
+
+
+class NamingSegment(BaseModel):
+    segment_id: str
+    document_id: str
+    entity_id: str
+    certainty: Optional[float] = None
+    link_id: str
+
+
+class NamingResponse(BaseModel):
+    """Every segment naming the place an authority URI identifies (maps D3, #5123)."""
+
+    uri: str
+    authority: str
+    authority_id: str
+    entity_ids: list[str]
+    segments: list[NamingSegment]
+
+
+@router.get("/naming", response_model=NamingResponse)
+async def segments_naming_place(
+    uri: str = Query(..., description="A gazetteer's (or other authority's) URI for the place"),
+    db: Database = Depends(get_library_database),
+) -> NamingResponse:
+    """`GET /api/links/naming?uri=` -- every segment in the library that `names` a place entity
+    `same_as` this URI (`source.geo.gazetteer-query`): one query, never a fetch."""
+    from fichero_server.knowledge.authorities import AuthorityIdRefused, segments_naming
+
+    try:
+        return NamingResponse(**segments_naming(db, uri))
+    except AuthorityIdRefused as refusal:
+        raise HTTPException(status_code=422, detail=str(refusal)) from refusal
 
 
 @router.get("/of/{end_id}", response_model=LinkListResponse)

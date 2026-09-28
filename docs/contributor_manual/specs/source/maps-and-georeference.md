@@ -338,6 +338,11 @@ Control points and the transform
   transformation (`fichero-server/tests/unit/api/test_a_georeferencing_file_imports_as_a_pass.py`). PARTIAL: two
   georeferencings of one sheet are two passes by construction, but the working-pass rule has not
   been exercised on georeferencing passes, and no screen shows them.
+  **Working pass (2026-09-28, maps C1):** georeferencing passes are ranked by the working-pass rule
+  AMONG THEMSELVES, apart from text passes: an imported georeference no longer outranks a page's
+  transcription (its text went blank), and a choice of one kind no longer retires the other's
+  (`fichero-server/tests/unit/api/test_machine_gcps_are_unchosen.py::test_a_georeference_imported_onto_a_page_leaves_its_text_alone`,
+  `::test_with_two_georeferences_the_rule_picks_and_says_why`).
 - `source.geo.mask` — **[PARTIAL]** (#4933) the part of an image that is the map is an area segment in
   the pass, and a sheet with several maps has several masks each with its own GCPs.
   **Built 2026-09-28 (#5122):** the mask is a `mask` area segment and each GCP `controls` its mask
@@ -370,11 +375,26 @@ PARTIAL: no screen offers the choice.
   ten times the honest RMS (`fichero-server/tests/unit/api/test_the_transform_is_worked_out_from_the_gcps.py::test_affine_misses_by_a_little_and_a_gcp_typed_wrong_misses_by_most`);
   a thin-plate spline is exact at its GCPs, by construction (`::test_the_files_thin_plate_spline_is_exact_at_its_gcps`).
   PARTIAL: no screen shows them.
-- `source.geo.machine-gcps-unchosen` — **[GAP]** (#4933) GCPs a machine proposes arrive in a
+  **What a residual can and cannot say (2026-09-28, found twice on the real Paris plan):** with as
+  few GCPs as a transformation's parameters allow for, least squares spreads one bad point's error
+  across the others. Under affine with Paris's four points, a GCP typed 1 deg off got the SMALLEST
+  residual (archive, 76ba75156's finding), and a GCP 0.01 deg off was the worst for only one of the
+  four choices (eec2c16ac); leaving one out in turn did not find it either. Under helmert the moved
+  point was the worst for all four. So a high RMS says the SET is wrong; which point is wrong needs
+  redundancy (more GCPs than parameters), and the answer must not be read as naming it before then.
+- `source.geo.machine-gcps-unchosen` — **[PARTIAL]** (#4933) GCPs a machine proposes arrive in a
   machine pass and are labelled unchosen until a person chooses them.
-- `source.geo.gcp-other-image` — **[GAP]** (#4933) GCPs measured on one image apply to another
+  **Built 2026-09-28 (#5122, maps C1):** the transform and every world shape say whose pass it is,
+  whether it is the image's working georeferencing pass and why, and `unchosen: true` for a
+  machine's pass no person has chosen; `pass.choose_working` makes it chosen
+  (`fichero-server/tests/unit/api/test_machine_gcps_are_unchosen.py::test_a_machines_gcps_are_unchosen_until_a_person_chooses_them`). PARTIAL: no screen shows the label.
+- `source.geo.gcp-other-image` — **[PARTIAL]** (#4933) GCPs measured on one image apply to another
   image of the page only through a recorded alignment, and otherwise Fichero says they do not.
-
+  **Built 2026-09-28 (#5122, maps C2):** every GCP, mask and placed shape is carried to the page's own
+  frame through its image's recorded relation (`Rendition.transform`, chained): a pure resample
+  passes, a crop maps exactly; a turned image with no recorded turn, or a relation in pixels of an
+  unknown size, is said -- a GCP is left out with the reason, a shape is refused with it
+  (`fichero-server/tests/unit/api/test_gcps_on_another_image.py`). PARTIAL: rotation angles are not recorded anywhere yet, so every turned image is "cannot"; no screen.
 A segment's place in the world
 - `source.geo.world-shape` — **[PARTIAL]** (#4933) on a georeferenced image any segment's world shape
   is answered with its CRS, the pass and transform version used and an error estimate, and is
@@ -382,8 +402,8 @@ A segment's place in the world
   **Built 2026-09-28 (#5122):** `GET /api/georeference/segments/{segment_id}/world-shape` answers
   an RFC 7946 geometry in EPSG:4326 with the pass, transformation, `gcp_set_version` and the fit's
   RMS as `error_m`, worked out on every read (`fichero-server/tests/unit/api/test_a_segments_place_in_the_world.py::test_a_label_at_a_gcps_pixel_is_at_that_gcps_place`,
-  `::test_a_corrected_gcp_moves_the_answer`). PARTIAL: with several georeferencing passes on one
-  image the caller must name one (the working-pass rule is not applied to them yet); no screen.
+  `::test_a_corrected_gcp_moves_the_answer`). With several georeferencing passes on one
+  image the working-pass rule picks and the answer says why (maps C1). PARTIAL: no screen.
 - `source.geo.outside-the-mask` — **[PARTIAL]** (#4933) a segment outside the map's mask is answered
   "outside the map", never extrapolated.
   **Built 2026-09-28 (#5122):** a segment not wholly inside any mask is answered
@@ -416,11 +436,23 @@ The coordinate reference system
   build time and never downloads code at run time.
 
 Places and gazetteers
-- `source.geo.place-segment-names-entity` — **[GAP]** (#4933) a segment that names a place is
+- `source.geo.place-segment-names-entity` — **[PARTIAL]** (#4933) a segment that names a place is
   joined to a KG place entity by a typed `names` link with a maker and certainty.
-- `source.geo.gazetteer-authorities` — **[GAP]** (#4933) WHG, Pleiades, Getty TGN and GeoNames are
+  **Built 2026-09-28 (maps D1):** a typed link's end may be a knowledge-graph `entity` (and a
+  `uri`); `typed_link.create` refuses an entity that does not exist, one merged into another (naming
+  the survivor), and an end kind it does not know (it stored any string before). The real Syriac
+  line l_77, "in the land of Palestine", `names` its place entity with a certainty, seen from both
+  ends (`fichero-server/tests/unit/api/test_a_place_segment_names_its_entity.py`). PARTIAL: no screen.
+- `source.geo.gazetteer-authorities` — **[PARTIAL]** (#4933) WHG, Pleiades, Getty TGN and GeoNames are
   authorities beside Wikidata, each identifier is stored in its canonical URI form, and one that
   does not fit its authority's pattern is refused.
+  **Built 2026-09-28 (maps D2):** `knowledge/authorities.py` is the one table -- Wikidata, VIAF, LoC
+  and the gazetteers Pleiades, TGN, GeoNames, WHG -- with each identifier's pattern and canonical
+  URI; an id given as its URI reads back; anything else is refused. `entity.link_authority` takes
+  the gazetteers and refuses a malformed id before anything is stored
+  (`fichero-server/tests/unit/api/test_gazetteer_authorities.py`, real ids). PARTIAL: WHG's URI
+  form is `https://whgazetteer.org/places/<id>` as its site writes it, unverified against a
+  published canonical form; no screen.
 - `source.geo.gazetteer-candidates` — **[PARTIAL]** (#4933) candidates for an entity come from
   locally cached authority snapshots without fetching, and a chosen one is recorded by an
   audited action. Built for Wikidata, VIAF and LoC by exact name or alias match
@@ -430,11 +462,22 @@ Places and gazetteers
   reads only `def`); **missing**: gazetteer
   authorities, a confidence and a match method on each candidate, candidates kept after the
   choice, and rejected candidates remembered so they are not offered again.
-- `source.geo.gazetteer-typed-record` — **[GAP]** (#4933) a chosen gazetteer link is a typed,
+- `source.geo.gazetteer-typed-record` — **[PARTIAL]** (#4933) a chosen gazetteer link is a typed,
   queryable record with maker, certainty and time, not a dict in entity metadata, and several
   chosen links to different gazetteers are allowed.
-- `source.geo.gazetteer-query` — **[GAP]** (#4933) every segment that names a given gazetteer
+  **Built 2026-09-28 (maps D3):** a chosen link is a `same_as` typed link from the entity to the
+  authority's canonical URI -- maker, certainty, time, withdraw, several gazetteers per entity, no
+  duplicates. The earlier `metadata["authority_links"]` is MIGRATED on open (ruled 2026-09-28: one
+  store): each entry becomes a link (its confirmer as maker when the audit recorded one, else
+  `external_import` "earlier authority link"), a malformed entry is refused and kept under
+  `authority_links_refused` with why, a second open adds nothing; reads come from the links only
+  (`fichero-server/tests/unit/api/test_gazetteer_links_and_query.py`). PARTIAL: no screen.
+- `source.geo.gazetteer-query` — **[PARTIAL]** (#4933) every segment that names a given gazetteer
   place is one query, answering the same from the app, MCP and the command line.
+  **Built 2026-09-28 (maps D3):** `GET /api/links/naming?uri=` answers every live segment that `names`
+  an entity `same_as` the URI, by any accepted spelling of it, with the certainty of each link; a
+  withdrawn link drops out; nothing is fetched (`fichero-server/tests/unit/api/test_gazetteer_links_and_query.py::test_every_segment_naming_the_place_by_any_spelling_of_its_uri`).
+  The MCP tool `fichero_segments_naming_place` is the route, and answers the same (`fichero-server/tests/unit/api/test_the_naming_query_everywhere.py`); the command line's `links naming` is generated from the route on the contract sync. PARTIAL: no screen.
 - `source.geo.gazetteer-offline` — **[GAP]** (#4933) reading or querying places never fetches;
   only an explicit refresh behind the external-authority switch goes to the network.
 - `source.geo.geocoder-is-not-identity` — **[GAP]** (#4933) a geocoder hit is labelled a machine
@@ -483,25 +526,54 @@ Formats
   (`::TestWriting::test_converting_the_earlier_dialect_names_what_it_did_not_write`). A missing
   pixel size is refused rather than invented. **The checker** is written from the extension's
   normative text (https://iiif.io/api/extension/georef/, read 2026-09-27). Each rule quotes its
-  sentence in the code, and each is fired once by `::TestTheChecker`. Not built: a pass from a
-  library, which has no GCPs to give until #5122.
+  sentence in the code, and each is fired once by `::TestTheChecker`. **From a library (2026-09-28, maps C3):** `GET /api/documents/{id}/export/iiif-georef`
+  exports the image's working georeferencing pass -- each GCP's pixel end (in the page's frame) and
+  counted world end, the mask each controls, the pass's transformation -- and it passes the checker;
+  a correction made in the library is in the file (`fichero-server/tests/unit/api/test_a_georeference_exports_from_the_library.py`).
 - `source.geo.iiif-georef-round-trip` — **[OK]** (→ #5125) the two vendored Allmaps files import,
   export and import again with the same GCPs, mask and transformation type, less what the loss
   report names (`fichero-server/tests/unit/formats/test_iiif_georef.py::TestWriting::test_the_round_trip_keeps_gcps_mask_and_transformation`,
-  format to format. Through a library it waits on the GCP model, which `iiif-georef-in` tracks).
+  format to format; and through a library, in and out with the same GCPs and transformation: `fichero-server/tests/unit/api/test_a_georeference_exports_from_the_library.py::test_the_pass_goes_out_as_it_came_in`).
   **Found on the way:** the earlier-dialect file (Delft) **fails the published checker**. It has no
   georef context and uses `pixelCoords`. That is true of the file, and it is why the reader is
   tolerant and the writer strict
   (`::TestReadingTheEarlierDialect::test_the_published_checker_rejects_it_for_the_stated_reasons`).
-- `source.geo.gcp-tables` — **[GAP]** (#4946) GCPs go in and out as a QGIS `.points` file and a
+- `source.geo.gcp-tables` — **[PARTIAL]** (#4946) GCPs go in and out as a QGIS `.points` file and a
   Mapwarper GCP CSV with the CRS carried or declared.
+  **QGIS `.points` built 2026-09-28 (#5122, maps C4):** format `qgis-points` reads and writes the
+  QGIS georeferencer's file; imported, its GCPs' pixel ends are placed by the page's recorded size
+  (the file has none; with none recorded the import is refused by name), and the world ends keep
+  the file's `#CRS` -- none stated is held `unknown`, a projected CRS is held until PROJ ships; a
+  person's correction declaring the CRS makes them usable; the export writes a WGS 84 `#CRS` and
+  the file's own numbers back (`fichero-server/tests/unit/api/test_gcp_tables_qgis_points.py`, two
+  real files from the Allmaps CLI's tests, MIT). **Mapwarper GCP CSV: not built** -- no real
+  export with a licence was found (mapwarper.net states none for its data; NYPL's warper is
+  retired), and a format is built on a real file or not at all.
 - `source.geo.world-file-geotiff` — **[GAP]** (#4946) an affine pass exports as a world file with
   its `.prj`, and any pass as a GeoTIFF of the unwarped image with GCP tie points and the CRS.
+  **Not built, and why (2026-09-28, maps C6):** no real world file from a georeferencing tool with a
+  stated licence was found -- GDAL's one (`autotest/gdrivers/data/png/test.wld`) states no origin, so
+  it is not known to be another program's output -- and a format is built on a real file or not at
+  all. Importing a world file would also mean INVENTING control points (a world file is an affine
+  with no GCPs; the model derives the transform from GCPs), which needs a ruling on whether an
+  imported transform may stand without them. The GeoTIFF half needs a TIFF writer the engine does not
+  ship.
 - `source.geo.kml` — **[GAP]** (#4946, → #5125) a warped map goes in and out as Mapwarper's KML
   `GroundOverlay`. Our export validates against the vendored OGC KML schema, and the tests use real
   Mapwarper exports (licence first).
-- `source.geo.geojson-out` — **[GAP]** (#4946) places, place segments and entity movements export
+  **Not built, and why (2026-09-28, maps C6):** the spec's rule is real Mapwarper exports, licence
+  first; mapwarper.net states no licence for its maps' data and NYPL's Map Warper is retired, so there
+  is no real KML to test against yet.
+- `source.geo.geojson-out` — **[PARTIAL]** (#4946) places, place segments and entity movements export
   as RFC 7946 GeoJSON, each Feature carrying its reference back to its segment, claim or entity.
+  **Place segments built 2026-09-28 (#5122, maps C5):** `GET /api/georeference/documents/{doc_id}/geojson`
+  writes the image's segments of `kinds` (default `place`) placed through its working georeferencing
+  pass as an RFC 7946 FeatureCollection: each Feature's `id` is the segment and its properties carry
+  the `fichero:segment` reference, the pass, transform version, error and `unchosen`; exterior rings
+  counterclockwise; a shape that cannot be placed is listed with its reason in `fichero:not_placed`.
+  Every write is checked against RFC 7946's rules (`models.geo.geojson_problems`, each rule firing in
+  a fixture) (`fichero-server/tests/unit/api/test_place_segments_export_as_geojson.py`). PARTIAL:
+  place ENTITIES and entity movements are not written yet.
 - `source.geo.geopackage-out` — **[GAP]** (#4946) the same layers export as a GeoPackage in any
   CRS.
 - `source.geo.linked-places-out` — **[GAP]** (#4946) place entities export as Linked Places Format

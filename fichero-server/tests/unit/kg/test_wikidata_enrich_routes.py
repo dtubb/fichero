@@ -16,9 +16,13 @@ from fichero_server.models.knowledge import (
 
 
 def _linked_entity(db: Database, qid: str = "Q42") -> KnowledgeEntity:
+    from fichero_server.knowledge.authorities import link_entity
+    from fichero_server.models.knowledge import ProvenanceKind
+
     entity = KnowledgeEntity(canonical_name="Douglas Adams", entity_type=EntityType.person)
-    entity.metadata["authority_links"] = [{"authority": "wikidata", "authority_id": qid}]
     db.save(entity)
+    # Maps D3 (#5123): an entity's authority link is a `same_as` typed link.
+    link_entity(db, entity.id, "wikidata", qid, provenance_kind=ProvenanceKind.human, created_by="tester")
     return entity
 
 

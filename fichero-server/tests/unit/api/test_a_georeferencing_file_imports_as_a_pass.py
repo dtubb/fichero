@@ -50,7 +50,7 @@ def _import(db, path: Path, size: tuple[int, int]) -> str:
     return doc.id
 
 
-def _check(db, client, path: Path, size: tuple[int, int]) -> None:
+def assert_the_pass_matches_the_file(db, client, path: Path, size: tuple[int, int]) -> None:
     doc_id = _import(db, path, size)
     [pass_row] = [p for p in db.all(SegmentPass) if p.document_id == doc_id]
     assert pass_row.transformation == "thin-plate-spline"            # the file's `thinPlateSpline`
@@ -76,7 +76,7 @@ def _check(db, client, path: Path, size: tuple[int, int]) -> None:
 
 def test_the_published_dialect_imports_with_both_ends_of_every_gcp(db, client):
     source = _annotation(PARIS)["target"]["source"]
-    _check(db, client, PARIS, (source["width"], source["height"]))
+    assert_the_pass_matches_the_file(db, client, PARIS, (source["width"], source["height"]))
 
 
 def test_the_earlier_dialect_imports_too(db, client):
@@ -84,7 +84,7 @@ def test_the_earlier_dialect_imports_too(db, client):
 
     svg = _annotation(DELFT)["target"]["selector"]["value"]
     width, height = (int(v) for v in re.search(r'width="(\d+)" height="(\d+)"', svg).groups())
-    _check(db, client, DELFT, (width, height))
+    assert_the_pass_matches_the_file(db, client, DELFT, (width, height))
 
 
 def test_an_existing_library_gains_the_transformation_column_on_open(tmp_path):

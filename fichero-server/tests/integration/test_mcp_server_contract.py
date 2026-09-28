@@ -59,6 +59,7 @@ EXPECTED_TOOLS = {
     "fichero_segment_reference",
     # #5139: reading the text of the shapes above.
     "fichero_segment_readings",
+    "fichero_segments_naming_place",
     "fichero_document_text",
     "fichero_segments_in_scope",
     "fichero_reading_orders",

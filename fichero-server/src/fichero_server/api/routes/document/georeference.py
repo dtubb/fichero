@@ -88,9 +88,55 @@ def control_points(
         if point is None:
             not_used.append({"segment_id": gcp.id, "reason": "it has no point on the image"})
             continue
+        try:
+            # Measured on another image of the page: carried to the page's frame only through a
+            # recorded alignment (`source.geo.gcp-other-image`); otherwise said, not guessed.
+            [point] = page_frame_points(db, gcp.anchor.rendition_id, [point])
+        except NoKnownAlignment as refusal:
+            not_used.append({"segment_id": gcp.id, "reason": str(refusal)})
+            continue
         usable.append((gcp.id, (point[0] * width, point[1] * height), (world["lon"], world["lat"])))
     version = hashlib.sha256(f"{pass_row.transformation}|{mask_id}|{'|'.join(fingerprint)}".encode()).hexdigest()[:16]
     return usable, not_used, version
+
+
+class NoKnownAlignment(ValueError):
+    """A shape measured on an image whose relation to the page's own frame is not recorded:
+    Fichero says it cannot place it, rather than guess (`source.geo.gcp-other-image`,
+    `source.segment.no-guessing-across-images`)."""
+
+
+#: Roles whose image is turned against the page: a crop rect alone does not say how.
+_TURNED = {"rotated", "deskewed"}
+
+
+def page_frame_points(db: Database, rendition_id: str | None, points: list[list[float]], _depth: int = 0) -> list[list[float]]:
+    """Normalised points measured on `rendition_id` expressed in the PAGE's own frame, through the
+    rendition's recorded relation to it (`Rendition.transform`, which chains). No rendition, or a
+    pure resample (no transform), is the page's frame already. A crop maps exactly. Anything else
+    -- a turned image, a relation in pixels of an unknown size, a missing rendition -- raises
+    `NoKnownAlignment` naming why."""
+    from fichero_server.models import Rendition
+
+    if rendition_id is None:
+        return [list(p) for p in points]
+    if _depth > 8:
+        raise NoKnownAlignment(f"rendition {rendition_id}'s frames chain too deep to follow")
+    rendition = db.get(Rendition, rendition_id)
+    if rendition is None:
+        raise NoKnownAlignment(f"it was measured on image {rendition_id}, which is not in this library")
+    region = rendition.transform
+    if region is None:
+        return [list(p) for p in points]                       # a pure resample: the same frame
+    if rendition.role in _TURNED:
+        raise NoKnownAlignment(
+            f"it was measured on a {rendition.role} image ({rendition_id}) whose turn against the page "
+            "is not recorded, so it cannot be carried to the page")
+    if str(getattr(region.space, "value", region.space)) != "normalized":
+        raise NoKnownAlignment(f"image {rendition_id}'s place on the page is recorded in pixels of a size not known here")
+    x, y, w, h = region.rect
+    mapped = [[x + px * w, y + py * h] for px, py in points]
+    return page_frame_points(db, region.rendition_id, mapped, _depth + 1)
 
 
 def _masks(db: Database, pass_row: SegmentPass) -> list[str]:
@@ -143,6 +189,40 @@ def _action_set_transformation(db: Database, params: TransformationSetParams, ct
     )
 
 
+def working_georeference(db: Database, document_id: str) -> tuple[str | None, str | None]:
+    """(pass id, basis): the image's working georeferencing pass, by the SAME rule as its text
+    pass (`resolve_working_pass`) over its georeferencing passes only (#5122,
+    `source.geo.georef-is-a-pass`): a person's choice, then a pass a person made or touched, then an
+    imported one, then the newest."""
+    from fichero_server.api.routes.document.segment_readings import (
+        SegmentPassChoice,
+        _pass_candidates,
+        project_record_rule,
+        resolve_working_pass,
+    )
+
+    answer = resolve_working_pass(
+        project_record_rule(db),
+        list(db.query(SegmentPassChoice, document_id=document_id)),
+        _pass_candidates(db, document_id, georeferencing=True),
+    )
+    return answer.pass_id, (answer.basis.value if answer.pass_id else None)
+
+
+def _labels(db: Database, pass_row: SegmentPass) -> dict[str, Any]:
+    from fichero_server.models.knowledge import ProvenanceKind
+
+    working_id, basis = working_georeference(db, pass_row.document_id)
+    machine = pass_row.provenance_kind not in (ProvenanceKind.human, ProvenanceKind.external_import)
+    chosen = working_id == pass_row.id and basis in ("chosen", "human-touched")
+    return {
+        "pass_provenance": getattr(pass_row.provenance_kind, "value", pass_row.provenance_kind),
+        "working": working_id == pass_row.id,
+        "pass_basis": basis if working_id == pass_row.id else None,
+        "unchosen": machine and not chosen,
+    }
+
+
 def worked_out_transform(db: Database, pass_id: str, mask_id: str | None = None) -> WorkedOutTransform:
     pass_row = _live_pass(db, pass_id)
     if not pass_row.transformation:
@@ -156,6 +236,7 @@ def worked_out_transform(db: Database, pass_id: str, mask_id: str | None = None)
     return WorkedOutTransform(
         pass_id=pass_row.id, mask_id=mask_id, transformation=pass_row.transformation,
         gcp_set_version=version, gcps=rows, rms_m=rms_m, rms_px=rms_px, not_used=not_used,
+        **_labels(db, pass_row),
     )
 
 
@@ -218,6 +299,12 @@ class WorldShape(BaseModel):
     error_m: float
     outside_the_map: bool = False
     reason: str | None = None
+    #: As on the transform: whose pass, whether working and why, and whether it is a machine's
+    #: GCPs nobody has chosen (then the place is SHOWN, labelled, not the record).
+    pass_provenance: str | None = None
+    working: bool = False
+    pass_basis: str | None = None
+    unchosen: bool = False
 
 
 def _segment_shape(segment: Segment) -> tuple[str, list[list[float]]]:
@@ -244,24 +331,28 @@ def world_shape(db: Database, segment_id: str, pass_id: str | None = None) -> Wo
     if segment is None or segment.deleted_at is not None:
         raise LookupError(f"Segment not found: {segment_id}")
     if pass_id is None:
-        georef = [p for p in db.query(SegmentPass, document_id=segment.document_id)
-                  if p.transformation and p.deleted_at is None]
-        if not georef:
+        pass_id, _basis = working_georeference(db, segment.document_id)
+        if pass_id is None:
             raise ValueError("this image is not georeferenced: no pass on it has a transformation")
-        if len(georef) > 1:
-            raise ValueError(f"{len(georef)} georeferencing passes on this image; name one (pass_id): "
-                             + ", ".join(p.id for p in georef))
-        pass_id = georef[0].id
     pass_row = _live_pass(db, pass_id)
     if pass_row.document_id != segment.document_id:
         raise ValueError(f"pass {pass_id} georeferences another image")
     kind, points = _segment_shape(segment)
+    points = page_frame_points(db, segment.anchor.rendition_id, points)     # NoKnownAlignment -> 422
     masks = [db.get(Segment, m) for m in _masks(db, pass_row)]
-    containing = [m for m in masks if m is not None and m.anchor.polygon
-                  and all(inside_polygon((x, y), m.anchor.polygon) for x, y in points)]
+
+    def mask_on_page(mask: Segment) -> list[list[float]] | None:
+        try:
+            return page_frame_points(db, mask.anchor.rendition_id, mask.anchor.polygon)
+        except NoKnownAlignment:
+            return None   # a mask that cannot be placed on the page contains nothing we can say
+
+    containing = [m for m in masks if m is not None and m.anchor.polygon and (outline := mask_on_page(m))
+                  and all(inside_polygon((x, y), outline) for x, y in points)]
     transform = worked_out_transform(db, pass_row.id, containing[0].id if containing else (masks[0].id if len(masks) == 1 else None))
     common = {"segment_id": segment.id, "pass_id": pass_row.id, "transformation": transform.transformation,
-              "gcp_set_version": transform.gcp_set_version, "error_m": transform.rms_m}
+              "gcp_set_version": transform.gcp_set_version, "error_m": transform.rms_m,
+              **{k: getattr(transform, k) for k in ("pass_provenance", "working", "pass_basis", "unchosen")}}
     if masks and not containing:
         return WorldShape(**common, mask_id=None, outside_the_map=True,
                           reason="the segment is not wholly inside any of this sheet's maps (masks)")
@@ -284,3 +375,55 @@ async def get_world_shape(
         return world_shape(db, segment_id, pass_id)
     except (LookupError, ValueError) as exc:
         raise _http(exc) from exc
+
+
+@router.get("/documents/{doc_id}/geojson", response_model=dict)
+async def get_document_geojson(
+    doc_id: str,
+    kinds: str = Query("place", description="Comma-separated segment kinds to place"),
+    db: Database = Depends(get_library_database),
+) -> dict[str, Any]:
+    """`GET /api/georeference/documents/{doc_id}/geojson` -- this image's segments of `kinds`, placed
+    in the world through its working georeferencing pass, as an RFC 7946 FeatureCollection
+    (`source.geo.geojson-out`). Each Feature is the segment's `world-shape`: its id, its citable
+    reference back, the pass and transform version, the error estimate and whether the GCPs are a
+    machine's unchosen ones. A segment that cannot be placed (outside the map, on an image with no
+    recorded alignment) is not a Feature: it is listed, with why, in the foreign member
+    `fichero:not_placed` -- never dropped silently, never extrapolated."""
+    from fichero_server.api.routes.document.segment_readings import counting_by_kind, readings_of_segment
+    from fichero_server.models.geo import counterclockwise, geojson_problems
+
+    wanted = {k.strip() for k in kinds.split(",") if k.strip()}
+    georef = {p.id for p in db.query(SegmentPass, document_id=doc_id) if p.transformation}
+    rows = sorted((s for s in db.query(Segment, document_id=doc_id)
+                   if s.deleted_at is None and s.kind in wanted and s.pass_id not in georef), key=lambda s: s.id)
+    library_uuid = db.library_uuid() or "unknown"
+    features, not_placed = [], []
+    for row in rows:
+        try:
+            shape = world_shape(db, row.id)
+        except (LookupError, ValueError) as refusal:
+            not_placed.append({"segment_id": row.id, "reason": str(refusal)})
+            continue
+        if shape.outside_the_map or shape.geometry is None:
+            not_placed.append({"segment_id": row.id, "reason": shape.reason or "outside the map"})
+            continue
+        items = readings_of_segment(db, row.id)
+        counted = counting_by_kind(db, row.id, items).get("transcription")
+        text = next((i.content for i in items if counted and i.id == counted.representation_id), None)
+        features.append({
+            "type": "Feature",
+            "id": row.id,
+            "geometry": counterclockwise(shape.geometry),
+            "properties": {
+                "reference": f"fichero:segment/{library_uuid}/{row.document_id}/{row.id}",
+                "segment_id": row.id, "kind": row.kind, "text": text,
+                "georeference_pass_id": shape.pass_id, "transformation": shape.transformation,
+                "gcp_set_version": shape.gcp_set_version, "error_m": shape.error_m, "unchosen": shape.unchosen,
+            },
+        })
+    collection = {"type": "FeatureCollection", "features": features, "fichero:not_placed": not_placed}
+    problems = geojson_problems(collection)
+    if problems:
+        raise HTTPException(500, "the GeoJSON written breaks RFC 7946: " + "; ".join(problems))
+    return collection

@@ -109,10 +109,27 @@ def _interpretation(db, doc):
     return "interpretation.update", {"interpretation_id": row.id, "interpretation_text": "read otherwise"}
 
 
+def _rights_on_page(db, doc):
+    from fichero_server.models.rights import RightsRecord
+
+    row = RightsRecord(target_kind="document", target_id=doc.id)
+    db.save(row)
+    return "rights.withdraw", {"record_id": row.id}
+
+
+def _rights_on_segment(db, doc):
+    from fichero_server.models.rights import RightsRecord
+
+    row = RightsRecord(target_kind="segment", target_id=_segment(db, doc).id)
+    db.save(row)
+    return "rights.withdraw", {"record_id": row.id}
+
+
 KINDS = {
     "reading": _reading, "reading order": _order, "reading-order entry": _entry, "agent note": _agent_note,
     "citation": _citation, "annotation": _annotation, "note": _note, "typed link": _typed_link,
     "library link": _library_link, "interpretation": _interpretation,
+    "rights record on the page": _rights_on_page, "rights record on a segment": _rights_on_segment,
 }
 
 
@@ -126,3 +143,19 @@ def test_an_editor_denied_the_page_cannot_change_its_record(kind, multiuser_clie
         name, params = KINDS[kind](db, doc)
         response = client.post("/api/actions/invoke", headers=login("editor"), json={"name": name, "params": params})
         assert response.status_code == expected, (kind, doc.name, response.text[:300])
+
+
+def test_a_rights_record_on_the_library_is_not_the_pages_to_deny(multiuser_client, app_db, users, db):
+    """Archive's semantics (#5177): a record on the LIBRARY belongs to no document, so a deny on
+    some page does not reach it -- and it must not fail closed either (the editor may withdraw it)."""
+    from fichero_server.models.rights import RightsRecord
+
+    client, login, library_path = multiuser_client
+    _grant_role(app_db, users.editor, library_path, "editor")
+    denied = _make_doc(db, "denied.jpg")
+    _override(app_db, users.editor, library_path, denied.id, "deny")
+    row = RightsRecord(target_kind="library", target_id="library")
+    db.save(row)
+    response = client.post("/api/actions/invoke", headers=login("editor"),
+                           json={"name": "rights.withdraw", "params": {"record_id": row.id}})
+    assert response.status_code == 200, response.text[:300]

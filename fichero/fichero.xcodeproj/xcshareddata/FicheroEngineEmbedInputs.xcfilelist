@@ -230,6 +230,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/formats/harness.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/hocr.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/iiif_georef.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/pagexml.py
+$(SRCROOT)/../fichero-server/src/fichero_server/formats/qgis_points.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/PROVENANCE.md
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/alto-4-2.xsd
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/alto-4-3.xsd
@@ -271,6 +272,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/integrations/devonthink.py
 $(SRCROOT)/../fichero-server/src/fichero_server/integrations/tinderbox.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/_common.py
+$(SRCROOT)/../fichero-server/src/fichero_server/knowledge/authorities.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/dedupe.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/entity_vectors.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/graph.py

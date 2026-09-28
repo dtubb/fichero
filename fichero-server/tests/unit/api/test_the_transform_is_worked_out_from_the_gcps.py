@@ -49,13 +49,25 @@ def test_the_files_thin_plate_spline_is_exact_at_its_gcps(db, client):
 
 
 def test_affine_misses_by_a_little_and_a_gcp_typed_wrong_misses_by_most(db, client):
+    """Affine on this real plan misses by metres. Then one GCP is retyped 0.01 deg (~700 m) off,
+    under HELMERT: four points against four parameters leaves the fit enough to single the bad one
+    out whichever it is (checked for each of the four); under affine, four points leave one spare
+    observation per axis, and least squares can spread one bad point's error so that another shows
+    the largest residual -- a property of the method, which is why the check is made where the
+    method can make it. The GCP is chosen by the FILE's order, never by a random id."""
     doc_id, pass_id = _pass(db)
     assert client.put(f"/api/georeference/passes/{pass_id}/transformation",
                       json={"transformation": "polynomial-1"}).status_code == 200
-    honest = _transform(client, pass_id)
-    assert 0 < honest["rms_m"] < 50                       # a real plan: a few metres off, not zero
+    affine = _transform(client, pass_id)
+    assert 0 < affine["rms_m"] < 50                       # a real plan: a few metres off, not zero
 
-    wrong = sorted(s.id for s in db.all(Segment) if s.document_id == doc_id and s.kind == "control-point")[1]
+    assert client.put(f"/api/georeference/passes/{pass_id}/transformation",
+                      json={"transformation": "helmert"}).status_code == 200
+    honest = _transform(client, pass_id)
+    (px, py), _world = _file_gcps(PARIS)[1]
+    source = _annotation(PARIS)["target"]["source"]
+    wrong = next(g["segment_id"] for g in honest["gcps"]
+                 if abs(g["pixel"][0] - px) < 0.01 and abs(g["pixel"][1] - py) < 0.01)
     old = counting_by_kind(db, wrong, readings_of_segment(db, wrong))["world-point"].representation_id
     lon, lat = next(g["world"] for g in honest["gcps"] if g["segment_id"] == wrong)
     registry.invoke(db, "representation.create", {
@@ -65,6 +77,7 @@ def test_affine_misses_by_a_little_and_a_gcp_typed_wrong_misses_by_most(db, clie
     assert after["gcp_set_version"] != honest["gcp_set_version"]          # a corrected GCP is a new set
     worst = max(after["gcps"], key=lambda g: g["residual_m"])
     assert worst["segment_id"] == wrong and worst["residual_m"] > 10 * honest["rms_m"]
+    assert source["width"] > px                                           # the pixel is the file's own
 
 
 def test_too_few_gcps_is_refused_with_the_number_needed_and_the_choice_undoes(db, client):
