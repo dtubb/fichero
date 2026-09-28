@@ -30,7 +30,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
-from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryResult
+from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryLevel, OCRGeometryResult
 from fichero_server.models import Artifact, ContentRepresentation, Document
 from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.knowledge import (
@@ -304,7 +304,9 @@ def _box_for_row(
         update = {
             "bbox": list(rect),
             "text": words if words is not None else source_box.text,
-            "level": row.kind,
+            # The ENUM, not the row's string: `model_copy` does not validate, and a bare 'line'
+            # made every serialization of the page warn (#5234).
+            "level": OCRGeometryLevel(row.kind),
             "char_start": row.anchor.char_start,
             "char_end": row.anchor.char_end,
         }

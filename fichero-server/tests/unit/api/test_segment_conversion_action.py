@@ -931,6 +931,9 @@ class TestWhatDeferringRepointingActuallyCosts:
 
         assert db.get(Artifact, artifact.id).model_dump(mode="json")["ocr_geometry"] == kept
 
+    # #5234: a projected box that carried the row's level as a bare string made every read of the
+    # artifact warn, flooding the engine log. Serializing the projection must be clean.
+    @pytest.mark.filterwarnings("error:Pydantic serializer warnings:UserWarning")
     def test_a_record_that_finds_its_pixels_by_char_span_follows_the_move(self, db, client):
         """The half that is FINE. The app resolves a char span against the
         boxes it gets from `GET /api/artifacts/{id}`, and that response is
