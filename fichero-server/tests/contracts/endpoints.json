@@ -9105,6 +9105,18 @@
         "response_model": null
       },
       {
+        "method": "GET",
+        "path": "/segments/passes/{pass_id}/original",
+        "operation_id": "get_pass_original_api_segments_passes__pass_id__original_get",
+        "summary": "Get Pass Original",
+        "path_params": [
+          "pass_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
         "method": "POST",
         "path": "/segments/split",
         "operation_id": "split_segment_api_segments_split_post",

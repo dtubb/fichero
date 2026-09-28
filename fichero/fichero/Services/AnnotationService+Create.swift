@@ -20,7 +20,9 @@ extension AnnotationService {
         color: String? = nil,
         rating: Int? = nil,
         tags: [String] = [],
-        linkedClaimIds: [String] = []
+        linkedClaimIds: [String] = [],
+        // The segments the mark is ABOUT (Q6): a mark on the selection names them, whole.
+        targets: [String] = []
     ) async -> DocumentAnnotation? {
         syncLibraryPath()
         do {
@@ -41,7 +43,7 @@ extension AnnotationService {
                     bbox: bbox, documentId: documentId, pageId: pageId, folderId: folderId,
                     renditionId: renditionId
                 ),
-
+                targets: targets.isEmpty ? nil : targets.map { Components.Schemas.MarkTarget(segmentId: $0) },
                 text: text.isEmpty ? nil : text,
                 rating: rating,
                 color: color,

@@ -423,6 +423,7 @@ nav:
               - Build Notes (the Preview, for slice 13's wireframes): contributor_manual/specs/source/build-notes-preview-inventory.md
               - Build Notes (marks, from PDFKit's annotation types): contributor_manual/specs/source/build-notes-marks-pdfkit.md
               - Build Notes (the Inspector, rethought from the archive model): contributor_manual/specs/source/build-notes-inspector.md
+              - Build Notes (UX wiring: every built behaviour traced to the screen): contributor_manual/specs/source/build-notes-ux-wiring.md
               - Acceptance Run (real corpus in and out, 2026-09-27): contributor_manual/specs/source/acceptance-2026-09-27.md
               - Segment Representations (earlier; first slice): contributor_manual/specs/source/segment-representations.md
               - Historical Text Normalization (earlier; the text side): contributor_manual/specs/source/historical-text-normalization.md
