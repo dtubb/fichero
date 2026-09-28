@@ -7,7 +7,7 @@ extension ContentView {
 
     var activeLocationDocument: Document? {
         switch focusedPane {
-        case .preview, .reading:
+        case .preview, .reading, .segments:
             pageFocusDocument ?? detailDocument ?? inspectorDocument
         case .sidebar, .content, .chat, .inspector, .none:
             inspectorDocument

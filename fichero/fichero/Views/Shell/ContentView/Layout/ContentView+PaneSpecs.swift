@@ -89,6 +89,8 @@ extension ContentView {
             .frame(width: fixedWidth)
             .frame(maxWidth: fixedWidth == nil ? .infinity : nil)
             .clipped()
+            // A click in the pane focuses it, as the other panes do, so Split / Close act on it.
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .segments; paneFocusHint = .segments })
         )
     }
 
