@@ -263,12 +263,15 @@ final class DocumentOverlayView: NSView {
         let stroke = SelectionStyle.stroke(emphasized: emphasized)
         let wash = SelectionStyle.washBase(emphasized: emphasized)
             .withAlphaComponent(SelectionStyle.washAlpha(emphasized: emphasized))
+        // In Edit Segments the selection is Preview's marquee (#5215): dashed, with eight handles.
+        let dashed = overlay.isEditing
         let outline = { (rect: CGRect) in
             let path = NSBezierPath(rect: rect)
             wash.setFill()
             path.fill()
             stroke.setStroke()
             path.lineWidth = line
+            if dashed { path.setLineDash([4 / scale, 3 / scale], count: 2, phase: 0) }
             path.stroke()
         }
         // The Inspector's selected annotation: the same selection look as a selected box.
@@ -285,6 +288,8 @@ final class DocumentOverlayView: NSView {
                 ))
                 if overlay.isEditing {
                     ShapeDrawing.drawHandles(shapes, imageRect: imageRect, scale: scale, line: line, stroke: stroke)
+                    // The frame around the shape too, whose handles scale every point (#5215).
+                    drawFrameHandles(around: rect, scale: scale, line: line, stroke: stroke)
                     if let point = overlay.selectedPoint.flatMap({ DocumentBoxMapping.point(normalized: $0, imageRect: imageRect) }) {
                         // The point the arrow keys nudge: its handle filled, as a selected handle is in Preview.
                         let side = SelectionStyle.handleSide / scale
@@ -296,14 +301,19 @@ final class DocumentOverlayView: NSView {
             }
             outline(rect)
             guard overlay.isEditing else { continue }  // handles only in Edit Segments
-            for handle in SelectionStyle.handleRects(around: rect, side: SelectionStyle.handleSide / scale) {
-                let square = NSBezierPath(rect: handle)
-                SelectionStyle.handleFill.setFill()
-                square.fill()
-                stroke.setStroke()
-                square.lineWidth = line
-                square.stroke()
-            }
+            drawFrameHandles(around: rect, scale: scale, line: line, stroke: stroke)
+        }
+    }
+
+    /// The eight resize handles of a selected box or shape frame, as Preview draws them.
+    private func drawFrameHandles(around rect: CGRect, scale: CGFloat, line: CGFloat, stroke: NSColor) {
+        for handle in SelectionStyle.handleRects(around: rect, side: SelectionStyle.handleSide / scale) {
+            let square = NSBezierPath(rect: handle)
+            SelectionStyle.handleFill.setFill()
+            square.fill()
+            stroke.setStroke()
+            square.lineWidth = line
+            square.stroke()
         }
     }
 }

@@ -981,7 +981,7 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   compliance:** the Inspector checks `selection.artifactId == artifactId` itself instead of
   sharing the Source view's check. *Readings typed in the Reader* has no surface yet
   (`source.textedit.*`, #5001), and that is why this stays PARTIAL.
-- `source.editor.thin-by-default` — **[GAP]** (#5207) **How an unselected segment looks.** On a
+- `source.editor.thin-by-default` — **[PARTIAL]** (#5207) **How an unselected segment looks.** On a
   dense page, filled boxes overlapped into stacked bands (Daniel, the clm13027 MUFI page).
 
   By default a segment draws:
@@ -991,7 +991,10 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   The fill appears only on hover or selection. A segment with no reading keeps its dashed hollow outline
   (`deleting-words-keeps-ink`), and an uncertain one keeps its dashed stroke. Regions stay distinct from
   lines by colour (`regions-in-colours`), not by fill.
-- `source.editor.regions-in-colours` — **[GAP]** (#5200) **Regions in distinct colours.**
+  **Built 2026-09-28 (d046a7a73), image pages:** no fill at rest, and hover now washes
+  (`DocumentOverlayView`). **Still PARTIAL:** the PDF page's boxes, and the maintainer's look on the
+  clm13027 page.
+- `source.editor.regions-in-colours` — **[PARTIAL]** (#5200) **Regions in distinct colours.**
 
   **The palette:** every region is drawn in a colour from a fixed palette of SYSTEM colours (blue,
   orange, green, purple, pink, teal, indigo, brown, mint, cyan, red, yellow). The palette follows
@@ -1019,7 +1022,17 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   text, marginalia or running head, would get one colour across the page, so a type reads at a glance.
   The id-keyed default above distinguishes neighbours; colour by type distinguishes roles. If both are
   wanted, a switch on the layer would choose between them.
-- `source.editor.selection-like-preview` — **[GAP]** (#5215) **Selection as Preview.app draws it.**
+
+  **Built 2026-09-28 (d046a7a73), image pages:**
+  - the palette (`SelectionStyle.regionPalette`) and the FNV-1a key (`RegionColours.paletteIndex`);
+  - children taking their region's colour;
+  - lines alternating tints in as-written order.
+
+  Pinned by `RegionColoursTests`. **Still PARTIAL:**
+  - the Inspector's Colour setting, which needs a `colour` field on `segment.update` (engine);
+  - alternation by a NAMED reading order;
+  - the PDF page.
+- `source.editor.selection-like-preview` — **[PARTIAL]** (#5215) **Selection as Preview.app draws it.**
 
   A selected segment draws an accent-coloured dashed marquee around its box. In Edit Segments it gets
   eight handles, at the corners and the edge midpoints:
@@ -1031,6 +1044,17 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
 
   Each gesture is ONE `segment.update` carrying the version read, with ⌘Z by its audit id. A resize or
   move sends all the anchor's shapes (the rule in `reshape`), scaled or shifted together.
+
+  **Built 2026-09-28, image pages:**
+  - in Edit Segments the selection is a dashed accent marquee with eight handles, and a shape gets the
+    frame's handles too;
+  - a handle's drag resizes (`BoxResize`), live, and its release is ONE move to the new box through the
+    existing move path (`SegmentEdit.move`, `segment.update` with its version and ⌘Z);
+  - that move now carries every point from the old box to the new (`SegmentEdit.mapped`), shifted when
+    only the place changes and scaled when the size does, so a polygon scales with its frame;
+  - drag-inside-to-move was already built.
+
+  Pinned by `BoxResizeTests`. **Still PARTIAL:** the PDF page, and a run on screen.
 
 - `source.editor.selection-shared` — **[PARTIAL]** (#4941) selecting a segment in the Source view, Reader or Inspector
   selects it in the others.

@@ -74,17 +74,18 @@ enum SegmentEdit {
 
     /// MOVE: the box goes to `rect`, and its outline and every extra shape move by the same offset, so
     /// they all agree (before, a segment with extra shapes was refused a move rather than leave them).
+    /// MOVE or RESIZE a box to `rect` (#5215): every point of its outline and shapes is carried from the
+    /// old box to the new one -- shifted when only the place changes, scaled with the frame when its size
+    /// does -- so the shapes are sent back whole and none is dropped.
     static func move(_ segment: Segment, to rect: [Double]) -> Result<Call, Refusal> {
         guard let version = segment.version else { return .failure(.versionUnknown) }
         let old = segment.anchor.rect ?? rect
-        let deltaX = rect[0] - old[0]
-        let deltaY = rect[1] - old[1]
         let polygon: [[Double]]? = segment.anchor.polygon.map { points in
-            points.map { point in shifted(point, byX: deltaX, byY: deltaY) }
+            points.map { point in mapped(point, from: old, to: rect) }
         }
         let shapes = segment.anchor.shapes?.map { shape in
             AnchorShapeParams(
-                kind: shape.kind.rawValue, points: shape.points?.map { shifted($0, byX: deltaX, byY: deltaY) },
+                kind: shape.kind.rawValue, points: shape.points?.map { mapped($0, from: old, to: rect) },
                 tStart: shape.tStart, tEnd: shape.tEnd
             )
         }
@@ -144,11 +145,15 @@ enum SegmentEdit {
     }
 
     /// One outline point moved; anything past x and y is kept as it was.
-    private static func shifted(_ point: [Double], byX deltaX: Double, byY deltaY: Double) -> [Double] {
-        guard point.count >= 2 else { return point }
-        var moved: [Double] = point
-        moved[0] += deltaX
-        moved[1] += deltaY
+    /// A point carried from one box `[x, y, w, h]` to another: its place in the old box kept in the new.
+    /// A box with no width or height keeps that axis's scale at one, so a flat baseline shifts cleanly.
+    static func mapped(_ point: [Double], from old: [Double], to new: [Double]) -> [Double] {
+        guard point.count >= 2, old.count >= 4, new.count >= 4 else { return point }
+        let scaleX = old[2] > 0 ? new[2] / old[2] : 1
+        let scaleY = old[3] > 0 ? new[3] / old[3] : 1
+        var moved = point
+        moved[0] = new[0] + (point[0] - old[0]) * scaleX
+        moved[1] = new[1] + (point[1] - old[1]) * scaleY
         return moved
     }
 
