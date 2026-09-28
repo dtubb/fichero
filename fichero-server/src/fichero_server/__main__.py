@@ -187,6 +187,7 @@ class _QuietSteadyStateAccessLog(logging.Filter):
         "/api/health",
         "/api/registry",
         "/api/activity/stream",
+        "/api/activity/jobs",  # the app's activity display polls it on a timer (#5237)
         "/api/ingest/status/",
         "/api/storage/thumbnail/",
         "/api/storage/display/",

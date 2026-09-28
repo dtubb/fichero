@@ -20,7 +20,7 @@ def test_steady_state_200s_are_quiet():
     for path in (
         "/api/health", "/api/registry", "/api/activity/stream",
         "/api/ingest/status/abc123", "/api/storage/thumbnail/xyz",
-        "/api/storage/display/xyz",
+        "/api/storage/display/xyz", "/api/activity/jobs", "/api/activity/jobs?limit=20",
     ):
         assert f.filter(_record(path, 200)) is False, path
 
@@ -29,6 +29,8 @@ def test_failures_on_noisy_paths_still_log():
     f = _QuietSteadyStateAccessLog()
     assert f.filter(_record("/api/health", 500)) is True
     assert f.filter(_record("/api/registry", 401)) is True
+    # #5237: the activity poll is quiet only while it succeeds.
+    assert f.filter(_record("/api/activity/jobs", 500)) is True
 
 
 def test_everything_else_still_logs():
