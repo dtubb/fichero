@@ -63,5 +63,5 @@ def test_the_guard_is_live_and_refuses_before_anything_starts(tmp_path):
     does not exist, so reaching exec would raise FileNotFoundError instead."""
     assert subprocess.Popen is GuardedPopen
     with pytest.raises(AssertionError, match="real libraries"):
-        subprocess.Popen([str(tmp_path / "no-such" / "uvicorn"), "fichero_server.api.main:app"],
+        subprocess.Popen([str(tmp_path / "no-such" / "uvicorn"), "fichero_server.api.tcp_transport:app"],
                          env=_old_transport_env(tmp_path, "t"))

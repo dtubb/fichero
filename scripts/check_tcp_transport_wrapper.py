@@ -63,10 +63,6 @@ ALLOWLIST_REASONS: dict[str, str] = {
         "drives a real HTTPS listener to prove the transport works; wrapping "
         "would test the wrapper instead of the transport (#4176)"
     ),
-    "fichero-server/tests/integration/test_cli_engine_contract.py": (
-        "exercises the CLI against a raw engine; the control surface is not "
-        "part of that contract"
-    ),
     "fichero-server/tests/integration/test_engine_start_makes_no_outbound_connection.py": (
         "spawns the engine exactly as _cli_live does (loopback only, auth off) to record that its "
         "start reaches nothing off the machine (#5188)"
