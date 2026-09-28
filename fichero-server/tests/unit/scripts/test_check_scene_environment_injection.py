@@ -121,6 +121,34 @@ def test_canonical_list_is_derived_from_the_workspace_root(tmp_path):
     assert _mod.canonical_services(workspace, manager) == {"ArtifactService"}
 
 
+def test_a_root_that_delegates_to_the_helper_injects_the_helpers_whole_list(tmp_path):
+    """2026-09-28: LibraryWorkspaceRoot swapped its hand-copied list for ONE
+    `.libraryServiceEnvironment(library)` call, and this guard -- reading only the
+    root's own `.environment(library.X)` lines -- saw 1 service and went BLIND (exit 2).
+    A root that calls the helper injects every service the helper lists."""
+    _, workspace, manager = _fixture(tmp_path)
+    workspace.write_text(
+        "struct LibraryWorkspaceRoot: View {\n  var body: some View {\n"
+        "    Text(\"x\").libraryServiceEnvironment(library)\n  }\n}\n",
+        encoding="utf-8",
+    )
+    helper = tmp_path / "LibraryServiceEnvironment.swift"
+    helper.write_text(
+        "extension View {\n  func libraryServiceEnvironment(_ library: L) -> some View {\n"
+        "    self.environment(library.artifactService)\n  }\n}\n",
+        encoding="utf-8",
+    )
+    assert _mod.canonical_services(workspace, manager, helper) == {"ArtifactService"}
+    assert _mod.canonical_services(workspace, manager, tmp_path / "absent.swift") == set(), \
+        "without the helper's list the root injects nothing it names itself"
+
+
+def test_the_real_root_injects_the_full_list():
+    """The tree as it stands: the root delegates, and the guard sees the helper's list --
+    36 services on 2026-08-04, 40+ since -- never the 1 that made it blind."""
+    assert len(_mod.canonical_services()) >= 36
+
+
 def test_every_scene_is_examined(tmp_path):
     app_dir, workspace, manager = _fixture(tmp_path)
     _, examined = scan(app_dir, workspace, manager, detached=CONTRACTS)

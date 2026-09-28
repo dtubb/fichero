@@ -201,14 +201,22 @@ def library_property_types(manager_file: Path = LIBRARY_MANAGER_FILE) -> dict[st
 def canonical_services(
     workspace_file: Path = WORKSPACE_ROOT_FILE,
     manager_file: Path = LIBRARY_MANAGER_FILE,
+    helper_env_file: Path = SERVICE_ENV_HELPER_FILE,
 ) -> set[str]:
     """The library-scoped service/store TYPES `LibraryWorkspaceRoot` injects.
 
     Derived, not hand-listed: adding `.environment(library.newThing)` there
-    widens this guardrail on the next run.
+    widens this guardrail on the next run. Since 2026-09-28 the root injects
+    through `.libraryServiceEnvironment(library)` -- its own hand-copied list had
+    drifted (no ReadingOrderService, SegmentService, RenditionService, APIClient)
+    -- so a root that calls the helper injects the helper's WHOLE list, read from
+    LibraryServiceEnvironment.swift. Without this the scan saw one service and
+    went BLIND.
     """
     property_types = library_property_types(manager_file)
     text = strip_comments(workspace_file.read_text(encoding="utf-8"))
+    if ".libraryServiceEnvironment(" in text and helper_env_file.exists():
+        text += "\n" + strip_comments(helper_env_file.read_text(encoding="utf-8"))
     services: set[str] = set()
     for arg in _ENVIRONMENT_CALL.findall(text):
         match = re.fullmatch(r"library\.(\w+)", arg.strip())
@@ -342,11 +350,14 @@ def required_services(
     services: set[str],
     property_types: dict[str, str],
     depth: int = MAX_DEPTH,
+    helper_services: frozenset[str] = frozenset(),
 ) -> set[str]:
     """Canonical services read below `root_type`, pruned where re-injected.
 
     A file that injects service `T` makes its whole subtree self-sufficient for
-    `T`, so `T` stops propagating up from beyond it.
+    `T`, so `T` stops propagating up from beyond it. A file that applies
+    `.libraryServiceEnvironment(library)` injects `helper_services`, the helper's
+    whole list (ActivityDetailWindow delegates since 2026-09-28).
     """
     required: set[str] = set()
     seen: set[str] = set()
@@ -360,6 +371,8 @@ def required_services(
             text = index[name][1]
             required |= non_optional_reads(text, services) - satisfied
             here = satisfied | injected_types(text, services, property_types)
+            if ".libraryServiceEnvironment(" in text:
+                here |= helper_services
             for child in _referenced_types(text, index) - seen:
                 nxt.add((child, frozenset(here)))
         frontier = nxt
@@ -443,8 +456,11 @@ def scan(
     helper_env_file: Path = SERVICE_ENV_HELPER_FILE,
 ) -> tuple[dict[str, str], int]:
     """`({"<scene> needs <Service>": detail}, scenes examined)`."""
-    services = canonical_services(workspace_file, manager_file)
+    services = canonical_services(workspace_file, manager_file, helper_env_file)
     property_types = library_property_types(manager_file)
+    helper_services = frozenset(
+        injected_types(_read_text(helper_env_file), services, property_types) if helper_env_file.exists() else ()
+    )
     index = view_files(app_dir)
     declared = DETACHED_SCENES if detached is None else detached
 
@@ -491,7 +507,10 @@ def scan(
                     _read_text(helper_env_file), services, property_types
                 )
             for root in sorted(roots):
-                for service in sorted(required_services(root, index, services, property_types) - injected):
+                for service in sorted(
+                    required_services(root, index, services, property_types, helper_services=helper_services)
+                    - injected
+                ):
                     found[f"{label} needs {service}"] = (
                         f"{_rel(path)} — root {root} reaches a non-optional "
                         f"@Environment({service}.self) reader, but the scene never injects it"
