@@ -14,7 +14,7 @@ struct ReadingOrderMoveTests {
         .init(entryId: "e-a", segmentId: "s-a", version: 1),
         .init(entryId: "e-b", segmentId: "s-b", version: 2),
         .init(entryId: "e-c", segmentId: "s-c", version: 3),
-        .init(entryId: "e-d", segmentId: "s-d", version: 4),
+        .init(entryId: "e-d", segmentId: "s-d", version: 4)
     ]
 
     private func place(_ segment: String, to index: Int) -> Result<ReadingOrderMove.Place, ReadingOrderMove.Refusal> {
@@ -99,10 +99,10 @@ struct ReadingOrderMoveTests {
 
     @Test("a key moves one place, and is exactly the drag to that place")
     func keyUpAndDownAreOneStep() throws {
-        #expect(try step("s-c", .up).get() == place("s-c", to: 1).get())
-        #expect(try step("s-b", .down).get() == place("s-b", to: 2).get())
+        #expect(try step("s-c", .upward).get() == place("s-c", to: 1).get())
+        #expect(try step("s-b", .downward).get() == place("s-b", to: 2).get())
         // b up to the top follows nothing -- the start of the level is a real answer.
-        #expect(try step("s-b", .up).get().afterEntryId == nil)
+        #expect(try step("s-b", .upward).get().afterEntryId == nil)
     }
 
     @Test("to start and to end reach the ends of the level")
@@ -115,14 +115,14 @@ struct ReadingOrderMoveTests {
     /// Never a wrap: up on the first line or down on the last sends nothing.
     @Test("at an end the key refuses rather than wrapping round")
     func noWrap() {
-        #expect(step("s-a", .up) == .failure(.alreadyThere))
-        #expect(step("s-d", .down) == .failure(.alreadyThere))
+        #expect(step("s-a", .upward) == .failure(.alreadyThere))
+        #expect(step("s-d", .downward) == .failure(.alreadyThere))
         #expect(step("s-a", .toStart) == .failure(.alreadyThere))
         #expect(step("s-d", .toEnd) == .failure(.alreadyThere))
     }
 
     @Test("a segment not in the order is refused by a key as by a drag")
     func keyOnAStranger() {
-        #expect(step("s-z", .down) == .failure(.notInThisOrder))
+        #expect(step("s-z", .downward) == .failure(.notInThisOrder))
     }
 }

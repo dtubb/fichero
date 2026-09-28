@@ -1,6 +1,6 @@
 #if os(macOS)
-@testable import Fichero
 import CoreGraphics
+@testable import Fichero
 import Testing
 
 /// #5020: a segment's box -- and its highlight -- sits EXACTLY where the segment is on the page, at

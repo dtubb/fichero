@@ -89,7 +89,7 @@ enum ReadingOrderMove {
     /// Segments pane -- one implementation, never three).
     enum Step: Equatable {
         /// One place earlier or later (⌥⌘↑ / ⌥⌘↓).
-        case up, down
+        case upward, downward
         /// To the start or the end of its level.
         case toStart, toEnd
     }
@@ -108,8 +108,8 @@ enum ReadingOrderMove {
         }
         let target: Int
         switch step {
-        case .up: target = max(from - 1, 0)
-        case .down: target = min(from + 1, entries.count - 1)
+        case .upward: target = max(from - 1, 0)
+        case .downward: target = min(from + 1, entries.count - 1)
         case .toStart: target = 0
         case .toEnd: target = entries.count - 1
         }

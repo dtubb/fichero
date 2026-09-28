@@ -27,8 +27,8 @@ enum ReaderLineMove {
     /// The page's step names (`LINE_MOVE_STEPS` in `document_view.html`).
     static func step(named name: String) -> ReadingOrderMove.Step? {
         switch name {
-        case "up": .up
-        case "down": .down
+        case "up": .upward
+        case "down": .downward
         case "toStart": .toStart
         case "toEnd": .toEnd
         default: nil

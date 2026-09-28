@@ -12,18 +12,18 @@ struct ReadingOrderStoreTests {
     final class FakeTransport: ReadingOrderTransport {
         var orderList: [ReadingOrderSummary] = [
             .init(id: "o-imposed", name: "commentary first", kind: "imposed"),
-            .init(id: "o-written", name: "as-written", kind: "as-written"),
+            .init(id: "o-written", name: "as-written", kind: "as-written")
         ]
         var entryList: [ReadingOrderMove.Entry] = [
             .init(entryId: "e-a", segmentId: "s-a", version: 1),
             .init(entryId: "e-b", segmentId: "s-b", version: 1),
-            .init(entryId: "e-c", segmentId: "s-c", version: 1),
+            .init(entryId: "e-c", segmentId: "s-c", version: 1)
         ]
         /// Block `s-b`'s lines, the level below the top (entry `e-b`).
         var linesOfB: [ReadingOrderMove.Entry] = [
             .init(entryId: "e-l1", segmentId: "s-l1", version: 1, parentEntryId: "e-b"),
             .init(entryId: "e-l2", segmentId: "s-l2", version: 1, parentEntryId: "e-b"),
-            .init(entryId: "e-l3", segmentId: "s-l3", version: 1, parentEntryId: "e-b"),
+            .init(entryId: "e-l3", segmentId: "s-l3", version: 1, parentEntryId: "e-b")
         ]
         /// Line `s-l2`'s words (ruled 2026-09-27: words reorder under a line with the same verbs).
         var wordsOfL2: [ReadingOrderMove.Entry] = [
@@ -66,7 +66,7 @@ struct ReadingOrderStoreTests {
     @Test("a key sends ONE place, and the list shows the move with the row's new version")
     func keyMoveIsOneCallAppliedInPlace() async throws {
         let (store, transport) = try await loaded()
-        let audit = await store.move("s-c", step: .up)
+        let audit = await store.move("s-c", step: .upward)
         #expect(audit == "audit-1")
         #expect(transport.sent == [.init(orderId: "o-written", segmentId: "s-c", afterEntryId: "e-a", expectedVersion: 1)])
         #expect(store.entries.map(\.segmentId) == ["s-a", "s-c", "s-b"])
@@ -86,7 +86,7 @@ struct ReadingOrderStoreTests {
     @Test("a move to where it already is sends nothing")
     func noOpSendsNothing() async throws {
         let (store, transport) = try await loaded()
-        #expect(await store.move("s-a", step: .up) == nil)
+        #expect(await store.move("s-a", step: .upward) == nil)
         #expect(transport.sent.isEmpty)
         #expect(store.lastRefusal != nil)
     }
@@ -105,7 +105,7 @@ struct ReadingOrderStoreTests {
         // What breaks without it: a line moved from the Reader's text would be lifted out of its
         // block (no parent sent means the top level), or move differently from the Inspector's key.
         let (inspector, inspectorTransport) = try await loaded()
-        await inspector.move("s-l2", step: .up)
+        await inspector.move("s-l2", step: .upward)
 
         let readerTransport = FakeTransport()
         let reader = ReadingOrderStore(transport: readerTransport)
@@ -128,7 +128,7 @@ struct ReadingOrderStoreTests {
         #expect(transport.sent.first?.parentEntryId == "e-b")
         #expect(store.entries.map(\.segmentId) == ["s-a", "s-b", "s-c"])
         // The level was applied in place: a second key press plans from the moved line's new spot.
-        await store.move("s-l1", step: .up)
+        await store.move("s-l1", step: .upward)
         #expect(transport.sent.last?.afterEntryId == "e-l2")
     }
 
@@ -137,13 +137,13 @@ struct ReadingOrderStoreTests {
         #expect(ReaderLineMove.request(from: ["segmentId": "s-l2", "pageId": "d1", "step": "sideways"]) == nil)
         #expect(ReaderLineMove.request(from: ["segmentId": "", "pageId": "d1", "step": "up"]) == nil)
         #expect(ReaderLineMove.request(from: ["segmentId": "s-l2", "step": "up"]) == nil)
-        #expect(["up", "down", "toStart", "toEnd"].compactMap(ReaderLineMove.step(named:)) == [.up, .down, .toStart, .toEnd])
+        #expect(["up", "down", "toStart", "toEnd"].compactMap(ReaderLineMove.step(named:)) == [.upward, .downward, .toStart, .toEnd])
     }
 
     @Test("a segment in no level of the order is refused, with nothing sent")
     func unknownSegmentIsRefused() async throws {
         let (store, transport) = try await loaded()
-        #expect(await store.move("s-nowhere", step: .up) == nil)
+        #expect(await store.move("s-nowhere", step: .upward) == nil)
         #expect(transport.sent.isEmpty)
         #expect(store.lastRefusal?.contains("notInThisOrder") == true)
     }
@@ -165,7 +165,7 @@ struct ReadingOrderStoreTests {
         let (store, transport) = try await loaded()
         await store.show(childrenOf: "s-l2")
         #expect(store.shown.map(\.segmentId) == ["s-w1", "s-w2"])
-        await store.move("s-w2", step: .up)
+        await store.move("s-w2", step: .upward)
         #expect(transport.sent.last == .init(
             orderId: "o-written", segmentId: "s-w2", afterEntryId: nil, expectedVersion: 1, parentEntryId: "e-l2"
         ))

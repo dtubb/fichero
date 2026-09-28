@@ -1,5 +1,9 @@
 import CoreGraphics
 
+/// How a saved mark is drawn on the page: a wash, a bar under or through the words, a line, a box.
+/// Top level for SwiftLint's nesting rule (it was `DocumentOverlay.Mark.Shape`).
+enum DocumentOverlayMarkShape: Equatable { case wash, underline, strike, line, box }
+
 /// What the one-transform overlay draws (#5020, #5142): the page's boxes and the selection, as
 /// plain values, so the view only draws and this decides.
 struct DocumentOverlay: Equatable {
@@ -19,14 +23,13 @@ struct DocumentOverlay: Equatable {
     /// glyph and text marks (a check in the margin, a note, a star) and anything tappable stay in
     /// SwiftUI: there are few of them, and a note must stay tappable.
     struct Mark: Equatable {
-        enum Shape: Equatable { case wash, underline, strike, line, box }
-        let shape: Shape
+        let shape: DocumentOverlayMarkShape
         let bbox: [Double]
         /// The person's chosen colour (data, not chrome), or nil for the default.
         let color: AnnotationRGBA?
 
         /// The shape an annotation draws as here, or nil when it is drawn elsewhere.
-        static func shape(for kind: AnnotationKind) -> Shape? {
+        static func shape(for kind: AnnotationKind) -> DocumentOverlayMarkShape? {
             switch kind {
             case .highlight: .wash
             case .underline: .underline
