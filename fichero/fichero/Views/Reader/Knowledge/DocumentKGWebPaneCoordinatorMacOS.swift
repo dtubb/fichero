@@ -461,16 +461,15 @@ extension DocumentKGWebPaneCoordinatorMacOS {
             await store.load(documentId: pageId, force: true)
             await DocumentKGWebPaneCoordinatorMacOS.refreshPage(pageId, in: webView)
         }
-        var reason: String?
-        var staleAnswer: String?
+        var reason: String?, staleAnswer: String?, made: String?  // refused, refused as stale, the reading made
         do {
             switch edit {
             case .edited:
                 guard let params = ReaderTextEdit.newReading(for: edit) else { return }
-                try await AuditedAction.run(
+                made = try await AuditedAction.run(
                     "representation.create", params: params, actionName: "Typing", actionsService: actions,
                     undoManager: undoManager, afterChange: refresh
-                )
+                ).resultId
             case .split(_, let id, _):
                 // Fresh: a readingEdit posted just before the split changed the line's text and version.
                 await store.load(documentId: pageId, force: true)
@@ -504,7 +503,7 @@ extension DocumentKGWebPaneCoordinatorMacOS {
         // The page's answer is a courtesy (it re-reads itself on a refusal), so a failure to deliver it
         // is ignored. In an async context the async-throwing overload is chosen.
         _ = try? await webView?.evaluateJavaScript(
-            staleAnswer ?? ReaderTextEdit.committedScript(pageId: pageId, segmentId: edit.segmentId, reason: reason)
+            staleAnswer ?? ReaderTextEdit.committedScript(pageId: pageId, segmentId: edit.segmentId, reason: reason, representationId: made)
         )
     }
 

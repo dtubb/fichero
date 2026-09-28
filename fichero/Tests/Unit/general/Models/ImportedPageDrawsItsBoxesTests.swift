@@ -24,6 +24,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         nonisolated(unsafe) static var undone: [String] = []
         /// What `POST /api/actions/invoke` answers with; 409 is the engine's stale refusal (#5001).
         nonisolated(unsafe) static var invokeStatus = 200
+        /// The `result` an invoke answers with (the engine's is per action; `{}` unless a test says).
+        nonisolated(unsafe) static var invokeResult = "{}"
 
         // swiftlint:disable:next static_over_final_class
         override class func canInit(with request: URLRequest) -> Bool {
@@ -148,7 +150,10 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 actionBody = Self.originalReply
             } else if path == "/api/actions/invoke" {
                 Self.invoked.append(Self.bodyOf(request))
-                actionBody = Self.actionReply(auditId: "audit-\(Self.invoked.count)")
+                let auditId = "audit-\(Self.invoked.count)"
+                actionBody = Data(
+                    #"{"ok":true,"result":\#(Self.invokeResult),"audit_id":"\#(auditId)","changed_domains":["segment"]}"#.utf8
+                )
             } else if path.hasPrefix("/api/actions/audit/"), path.hasSuffix("/undo") {
                 let auditId = path.split(separator: "/").dropLast().last.map(String.init) ?? ""
                 Self.undone.append(auditId)
@@ -178,6 +183,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             invoked = []
             undone = []
             invokeStatus = 200
+            invokeResult = "{}"
             handsReply = Data()
             attributionsReply = Data()
             settingsReply = Data()
@@ -995,12 +1001,25 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let manager = UndoManager()
         manager.groupsByEvent = false
         manager.beginUndoGrouping()
-        try await AuditedAction.run(
+        RecordedEngine.invokeResult = #"{"id":"rep-0009","segment_id":"seg-0003"}"#
+        let made = try await AuditedAction.run(
             "representation.create", params: try XCTUnwrap(ReaderTextEdit.newReading(for: edit)), actionName: "Typing",
             actionsService: ActionsService(client: try XCTUnwrap(storeClient)), undoManager: manager
         )
         manager.endUndoGrouping()
         XCTAssertEqual(RecordedEngine.invoked.count, 1, "one run of keys, one action")
+        // The page is told the reading the run made, so a second run before the re-read is based on it.
+        XCTAssertEqual(made.resultId, "rep-0009")
+        let told = ReaderTextEdit.committedScript(
+            pageId: "doc-0001", segmentId: line.id, reason: nil, representationId: made.resultId
+        )
+        let payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: Data(told.dropFirst("window.fichero?.lineCommitted?.(".count).dropLast(2).utf8)
+            ) as? [String: Any]
+        )
+        XCTAssertEqual(payload["representationId"] as? String, "rep-0009")
+        XCTAssertEqual(payload["ok"] as? Bool, true)
         XCTAssertEqual(manager.undoActionName, "Typing")
         manager.undo()
         for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }

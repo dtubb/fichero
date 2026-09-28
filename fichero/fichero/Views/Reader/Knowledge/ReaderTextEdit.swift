@@ -93,9 +93,14 @@ enum ReaderTextEdit {
     /// The app's answer to the page after each message: `window.fichero.lineCommitted({pageId,
     /// segmentId, ok, reason?})`, optional-chained so a page without it ignores it. The app then asks
     /// the page to re-read itself (`refreshPage`).
-    static func committedScript(pageId: String, segmentId: String, reason: String?) -> String {
+    /// `representationId`, on a `readingEdit` that landed, is the reading it made: the page bases the
+    /// line's next run on it before its re-read arrives.
+    static func committedScript(
+        pageId: String, segmentId: String, reason: String?, representationId: String? = nil
+    ) -> String {
         var payload: [String: Any] = ["pageId": pageId, "segmentId": segmentId, "ok": reason == nil]
         if let reason { payload["reason"] = reason }
+        if reason == nil, let representationId { payload["representationId"] = representationId }
         let data = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
         let json = String(bytes: data, encoding: .utf8) ?? "{}"
         return "window.fichero?.lineCommitted?.(\(json));"

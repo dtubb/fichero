@@ -57,7 +57,8 @@ extension ActionLibraryService {
             let result = ActionInvokeResult(
                 succeeded: json.ok,
                 auditId: json.auditId,
-                changedDomains: json.changedDomains
+                changedDomains: json.changedDomains,
+                resultId: (json.result.value as? [String: (any Sendable)?])?["id"] as? String
             )
             // Central undo seam (#3302 part 1): record EVERY audited mutation so
             // ⌘Z reaches all ~109 registry actions — not just the handful of call
@@ -196,6 +197,9 @@ struct ActionInvokeResult: Decodable {
     let succeeded: Bool
     let auditId: String
     let changedDomains: [String]
+    /// `result.id` when the action made or named one row (`representation.create`'s new reading) --
+    /// the Reader tells the page the reading it just made, so the next run is based on it.
+    var resultId: String?
 
     enum CodingKeys: String, CodingKey {
         case succeeded = "ok"
