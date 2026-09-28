@@ -343,9 +343,14 @@ Control points and the transform
   **Built 2026-09-28 (#5122):** the mask is a `mask` area segment and each GCP `controls` its mask
   by a typed link (`fichero-server/tests/unit/api/test_a_georeferencing_file_imports_as_a_pass.py`). PARTIAL: a sheet with two
   masks is read format-side (`test_iiif_georef.py`) but not yet imported through a library in a test.
-- `source.geo.transform-is-derived` — **[GAP]** (#4933) the transform is worked out from the
+- `source.geo.transform-is-derived` — **[PARTIAL]** (#4933) the transform is worked out from the
   pass's GCPs and transformation type; a stored copy names the GCP-set version it came from and
   is discarded when that changes.
+  **Built 2026-09-28 (#5122):** `GET /api/georeference/passes/{pass_id}/transform` works the
+  transform out on every read from the pass's usable GCPs and type -- nothing is stored -- and
+  names the GCP set it came from (`gcp_set_version`, which a corrected GCP changes) so a caller's
+  cache can tell (`fichero-server/tests/unit/api/test_the_transform_is_worked_out_from_the_gcps.py::test_affine_misses_by_a_little_and_a_gcp_typed_wrong_misses_by_most`).
+  PARTIAL: no screen draws it.
 - `source.geo.transformation-type` — **[PARTIAL]** (#4933) the transformation type is an explicit
   choice on the pass, defaulting to affine, and too few GCPs for the chosen type is refused with
   the number needed.
@@ -353,9 +358,18 @@ Control points and the transform
   thin-plate-spline, helmert, projective; polynomial-1 when a file states none; an unknown one
   refused by name), shown on `PassRead`, existing libraries gain the column on open
   (`fichero-server/tests/unit/api/test_a_georeferencing_file_imports_as_a_pass.py::test_an_existing_library_gains_the_transformation_column_on_open`).
-  Not built: choosing it (an action), and refusing too few GCPs for the type.
-- `source.geo.residuals` — **[GAP]** (#4933) every GCP reports its residual under the current
+  **Choosing it (2026-09-28):** `georef.set_transformation`, audited and undoable, through
+`PUT /api/georeference/passes/{pass_id}/transformation`; an unknown type, or one any mask's GCPs
+are too few for, is refused with the number needed
+(`fichero-server/tests/unit/api/test_the_transform_is_worked_out_from_the_gcps.py::test_too_few_gcps_is_refused_with_the_number_needed_and_the_choice_undoes`).
+PARTIAL: no screen offers the choice.
+- `source.geo.residuals` — **[PARTIAL]** (#4933) every GCP reports its residual under the current
   transform in pixels and metres, so a wrong one can be found.
+  **Built 2026-09-28 (#5122):** every usable GCP reports `residual_m` (a local plane about the GCPs)
+  and `residual_px` (the inverse fit), with RMS; a GCP retyped ~700 m off is the worst by more than
+  ten times the honest RMS (`fichero-server/tests/unit/api/test_the_transform_is_worked_out_from_the_gcps.py::test_affine_misses_by_a_little_and_a_gcp_typed_wrong_misses_by_most`);
+  a thin-plate spline is exact at its GCPs, by construction (`::test_the_files_thin_plate_spline_is_exact_at_its_gcps`).
+  PARTIAL: no screen shows them.
 - `source.geo.machine-gcps-unchosen` — **[GAP]** (#4933) GCPs a machine proposes arrive in a
   machine pass and are labelled unchosen until a person chooses them.
 - `source.geo.gcp-other-image` — **[GAP]** (#4933) GCPs measured on one image apply to another
