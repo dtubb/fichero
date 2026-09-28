@@ -469,17 +469,6 @@ def read_pages(data: bytes) -> list[SourcePage]:
             flush_line()
             _tail(element)
             return
-        if tag == "del":
-            # Deleted text is not part of the reading; the element is recorded so a loss report
-            # can say it was there -- and, as a mark (#5179), WHERE and what it said.
-            if state["line"] is not None:
-                state["line"].foreign.setdefault("inline", set()).add("del")
-            elif state["region"] is not None:
-                state["region"].foreign.setdefault("inline", set()).add("del")
-            at = _mark_at()
-            _mark(element, at, at, text=_norm(_written_text(element)).strip())
-            _tail(element)
-            return
         if tag == "w":
             text = _norm(_written_text(element))
             line = state["line"]
@@ -817,8 +806,8 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                 "inline markup",
                 len(segment.foreign["tei-inline"]),
                 "the model has no field for TEI's inline elements (hi, rs, add, del, subst, c, anchor ...); "
-                "the text of added and highlighted spans is kept, deleted text is not part of the "
-                "reading, and the markup itself is not written back",
+                "the text of added, deleted and highlighted spans is kept (deleted letters stay in the "
+                "reading, #5179), and the markup itself is not written back",
             )
 
     def text_into(parent: Any, segment: PageSegment) -> None:
