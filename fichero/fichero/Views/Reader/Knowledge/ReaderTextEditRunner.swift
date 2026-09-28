@@ -16,7 +16,7 @@ struct ReaderTextEditRunner {
         var problem: String?
     }
 
-    static let staleProblem = "stale"
+    nonisolated static let staleProblem = "stale"
 
     let actionsService: ActionsService
     let segmentService: SegmentService

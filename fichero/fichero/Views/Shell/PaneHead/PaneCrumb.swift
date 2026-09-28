@@ -45,6 +45,7 @@ extension PaneCrumb {
     static let libraryPrefix = "library:"
 
     /// A library's root crumb (#5218): navigable -- it shows the library's top level, as its sidebar row does.
+    @MainActor
     static func library(_ library: LibraryManager.LibraryReference) -> PaneCrumb {
         PaneCrumb(
             id: libraryPrefix + library.id.uuidString, title: library.displayName,
