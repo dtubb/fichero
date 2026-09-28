@@ -226,4 +226,50 @@ struct AccessErrorTests {
         )
         #expect(title == "Backend Not Reachable")
     }
+
+    // MARK: - Grant Access… (#5198)
+
+    /// The engine's 403 for a package outside every location it may open, as the app receives it: the
+    /// flat body with its code. ONLY that code offers Grant Access -- a membership denial (another
+    /// person's library, `library_access_denied`) still says to ask the owner.
+    @Test func aLibraryOutsideTheAllowedLocationsOffersGrantAccessAndAMembershipDenialDoesNot() {
+        let outside = Data(#"{"detail": "'/Volumes/X/Acceptance 2026-09-27b.fichero' is a .fichero package, but it is outside every location this engine may open (allowed roots and security-scoped grants). Open it from the app so access can be granted, or move it into an allowed location such as Documents.", "code": "library_outside_allowed_locations"}"#.utf8)
+        let error = AccessError.classify(statusCode: 403, body: outside)
+        #expect(error?.recovery == .grantAccess)
+        #expect(LibraryAccessDeniedView.resolvePrimaryAction(
+            for: error ?? .unauthenticated, isAuthenticated: true, isOwnerAccess: true
+        ) == .grantAccess, "the owner of a library outside the allowed places gets Grant Access, not Try Again")
+
+        let membership = Data(#"{"detail": "not a member", "code": "library_access_denied", "required": "read"}"#.utf8)
+        let denied = AccessError.classify(statusCode: 403, body: membership)
+        #expect(denied?.recovery == .requestAccess)
+        #expect(LibraryAccessDeniedView.resolvePrimaryAction(
+            for: denied ?? .unauthenticated, isAuthenticated: true, isOwnerAccess: false
+        ) == .requestAccess, "another person's library: ask its owner, never a folder picker")
+    }
+
+    /// Grant Access… with the panel stubbed: the panel opens AT the library (selected, named in the
+    /// message); a choice is granted to the engine and THEN the load is retried; a cancel does neither.
+    @MainActor
+    @Test func grantAccessGrantsTheChoiceThenRetriesAndACancelDoesNothing() async throws {
+        let library = URL(fileURLWithPath: "/Volumes/Archive/Acceptance 2026-09-27b.fichero")
+        final class Log { var steps: [String] = []; var asked: LibraryAccessGrant.Request? }
+        let log = Log()
+        let chosen = library.deletingLastPathComponent()
+        let grant = LibraryAccessGrant(
+            choose: { request in log.asked = request; return chosen },
+            grant: { url in log.steps.append("grant " + url.lastPathComponent) },
+            retry: { log.steps.append("retry") }
+        )
+        #expect(try await grant.run(for: library))
+        #expect(log.steps == ["grant Archive", "retry"], "the grant lands before the load is tried again")
+        #expect(log.asked?.directoryURL == library, "the panel opens at the library itself")
+        #expect(log.asked?.message.hasPrefix("Fichero may not open \u{201C}Acceptance 2026-09-27b\u{201D}") == true)
+
+        log.steps = []
+        let cancelled = LibraryAccessGrant(choose: { _ in nil }, grant: { _ in log.steps.append("grant") },
+                                           retry: { log.steps.append("retry") })
+        #expect(try await cancelled.run(for: library) == false)
+        #expect(log.steps.isEmpty, "a cancel grants nothing and retries nothing")
+    }
 }

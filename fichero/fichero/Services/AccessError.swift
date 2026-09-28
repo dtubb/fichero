@@ -36,9 +36,15 @@ enum AccessError: LocalizedError, Equatable {
     /// swallowed silently.
     case transport(String)
 
+    /// The engine's code for a library package outside every location it may open (#5198) -- the one
+    /// denial a folder grant fixes. Distinct from `library_access_denied` (another person's library).
+    static let outsideAllowedLocations = "library_outside_allowed_locations"
+
     /// The single next-step the UI should offer for this failure.
     enum Recovery: Equatable {
         case signIn
+        /// Choose the library (or a folder holding it) so the app can grant the engine access (#5198).
+        case grantAccess
         case requestAccess
         case resetPin
         case restartEngine
@@ -51,6 +57,7 @@ enum AccessError: LocalizedError, Equatable {
         case .unauthenticated: return .signIn
         case .staleBootstrapToken: return .restartEngine
         case .deviceAccessExpired: return .rePair
+        case .forbidden(let reason, _) where reason == Self.outsideAllowedLocations: return .grantAccess
         case .forbidden: return .requestAccess
         case .tlsPinFailure: return .resetPin
         case .engineUnreachable: return .restartEngine

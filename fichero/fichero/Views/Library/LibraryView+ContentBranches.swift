@@ -1,10 +1,13 @@
 import Combine
 import FicheroAPIClient
+import OSLog
 import SwiftUI
 
 // MARK: - LibraryView content branches (file-length split, 2026-08-13)
 //
 // The engine-failure / loading / rows-or-empty branch stack `body` hosts.
+
+private let libraryAccessGrantLogger = Logger(subsystem: "app.fichero.fichero", category: "LibraryAccessGrant")
 
 extension LibraryView {
     @ViewBuilder
@@ -67,7 +70,8 @@ extension LibraryView {
                 identity: appState.identityStore,
                 onRetry: { onRetry() },
                 onSignIn: nil,
-                onResetPin: { RemoteCertificatePinning.clearPersistedSPKIPin(hostString: EngineConfig.hostString) }
+                onResetPin: { RemoteCertificatePinning.clearPersistedSPKIPin(hostString: EngineConfig.hostString) },
+                onGrantAccess: grantAccessAction
             )
         } else if !isShowingEntitiesCollection, Self.isEngineOutage(documentStore.error) {
             connectionErrorState(message: engineUnreachableDetail)
@@ -76,6 +80,26 @@ extension LibraryView {
         } else {
             libraryRowsOrEmptyState
         }
+    }
+
+    /// Grant Access… (#5198): choose the library, hand the engine the grant, load again. macOS only --
+    /// on iOS a document picker is what grants, so the view falls back to Try Again.
+    private var grantAccessAction: (@MainActor () async -> Void)? {
+        #if os(macOS)
+        guard let libraryURL = libraryReference?.url else { return nil }
+        let retry = onRetry
+        return {
+            do {
+                try await LibraryAccessGrant.live(retry: { retry() }).run(for: libraryURL)
+            } catch {
+                libraryAccessGrantLogger.error(
+                    "Grant Access failed for \(libraryURL.path, privacy: .public): \(error.localizedDescription)"
+                )
+            }
+        }
+        #else
+        return nil
+        #endif
     }
 
     /// The final answer: rows, or the empty/placeholder state.

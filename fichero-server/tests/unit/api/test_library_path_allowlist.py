@@ -352,6 +352,26 @@ def test_rejection_detail_is_never_the_old_disjunction():
         assert "not in an allowed location or not a .fichero package" not in detail
 
 
+def test_a_rejected_path_carries_a_code_apart_from_a_membership_denial():
+    """#5198: the app offers Grant Access… ONLY for a package outside every allowed location -- the
+    one case a folder grant fixes -- so the 403 names that case by code. A path that is not a package
+    at all, and another person's library (`library_access_denied`), must never read as it."""
+    outside = api_main._rejected_library_path_payload("/Users/real-user/X.fichero")
+    assert outside["code"] == "library_outside_allowed_locations"
+    assert outside["detail"] == api_main._rejected_library_path_detail("/Users/real-user/X.fichero")
+    not_a_package = api_main._rejected_library_path_payload("/Users/real-user/notes.txt")
+    assert not_a_package["code"] == "library_not_a_package"
+    assert "library_access_denied" not in {outside["code"], not_a_package["code"]}
+
+
+def test_the_middleware_403_body_carries_the_code(client):
+    """The app reads it from the response it actually gets: the header middleware's 403."""
+    response = client.get("/api/documents/roots", headers={"X-Fichero-Library-Path": "/Users/real-user/X.fichero"})
+    assert response.status_code == 403
+    assert response.json()["code"] == "library_outside_allowed_locations"
+    assert "outside every location" in response.json()["detail"]
+
+
 def test_sandbox_grant_route_is_exempt_from_header_validation():
     """The grant route EXPANDS the allowed set — validating the current
     library's header against the not-yet-expanded set 403s the very request

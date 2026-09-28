@@ -446,8 +446,8 @@ enum ConnectionPresentation {
                 return .resetCertificate
             case .rePair:
                 return .forgetPairing
-            case .requestAccess:
-                // Nothing the app can do mints authorization.
+            case .requestAccess, .grantAccess:
+                // Nothing the app can do mints authorization; a folder grant is the library view's to offer.
                 return nil
             case .restartEngine, .retry, .none:
                 break

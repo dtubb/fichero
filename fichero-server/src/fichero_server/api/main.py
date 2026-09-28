@@ -147,6 +147,21 @@ class LibraryAccessDeniedError(HTTPException):
         self.payload = payload
 
 
+#: The machine codes of a library-path rejection -- distinct from a membership/owner denial
+#: (`library_access_denied`) so the app offers the RIGHT next step: a folder grant for a package outside
+#: every allowed location (#5198: "No Access" offered only Try Again, which can never succeed), never for
+#: another person's library.
+LIBRARY_OUTSIDE_ALLOWED_LOCATIONS = "library_outside_allowed_locations"
+LIBRARY_NOT_A_PACKAGE = "library_not_a_package"
+
+
+def _rejected_library_path_payload(path: str) -> dict[str, str]:
+    """The 403 body for a rejected library path: the one accurate sentence and its machine code."""
+    detail = _rejected_library_path_detail(path)
+    code = LIBRARY_NOT_A_PACKAGE if Path(path).expanduser().suffix != ".fichero" else LIBRARY_OUTSIDE_ALLOWED_LOCATIONS
+    return {"detail": detail, "code": code}
+
+
 def _rejected_library_path_detail(path: str) -> str:
     """Log the rejection and return ONE accurate sentence for the 403.
 
@@ -1397,10 +1412,9 @@ async def validate_library_path_header(request: Request, call_next):
         return await call_next(request)
     library_path = optional_library_path(request)
     if library_path and not _is_allowed_library_path(library_path):
-        detail = _rejected_library_path_detail(library_path)
         from fastapi.responses import JSONResponse
 
-        return JSONResponse(status_code=403, content={"detail": detail})
+        return JSONResponse(status_code=403, content=_rejected_library_path_payload(library_path))
     return await call_next(request)
 
 
@@ -1501,10 +1515,7 @@ def _get_library_database_for_access(
         )
 
     if not _is_allowed_library_path(x_fichero_library_path):
-        raise HTTPException(
-            status_code=403,
-            detail=_rejected_library_path_detail(x_fichero_library_path),
-        )
+        raise LibraryAccessDeniedError(_rejected_library_path_payload(x_fichero_library_path))
 
     _bootstrap_legacy_library_owner_if_needed(request, x_fichero_library_path)
 
@@ -1772,10 +1783,7 @@ async def health_check(
 
     if x_fichero_library_path:
         if not _is_allowed_library_path(x_fichero_library_path):
-            raise HTTPException(
-                status_code=403,
-                detail=_rejected_library_path_detail(x_fichero_library_path),
-            )
+            raise LibraryAccessDeniedError(_rejected_library_path_payload(x_fichero_library_path))
         assert_library_read_authorized(request, x_fichero_library_path)
         # Library-specific health check
         try:

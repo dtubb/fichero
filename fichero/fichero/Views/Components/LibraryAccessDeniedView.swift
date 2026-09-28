@@ -34,12 +34,15 @@ struct LibraryAccessDeniedView: View {
     /// Start the re-pair flow (scan a fresh QR on the Mac) for an expired/revoked
     /// device token (#3096). Nil hides the re-pair button.
     var onRePair: (@MainActor () -> Void)?
+    /// Choose the library (or a folder holding it), grant the engine access, and load again (#5198). Nil
+    /// (iOS, where a document picker grants) falls back to Try Again.
+    var onGrantAccess: (@MainActor () async -> Void)?
 
     /// The one next-step this denial resolves to, from error × identity.
     /// The concrete next-action a denial resolves to. Internal (not private) so
     /// the decision can be unit-tested for every failure case without rendering.
     enum PrimaryAction: Equatable {
-        case signIn, requestAccess, restartEngine, resetPin, rePair, retry
+        case signIn, grantAccess, requestAccess, restartEngine, resetPin, rePair, retry
     }
 
     private var primaryAction: PrimaryAction {
@@ -71,6 +74,11 @@ struct LibraryAccessDeniedView: View {
             return .rePair
         case .unauthenticated:
             return .signIn
+        case .forbidden where error.recovery == .grantAccess:
+            // Outside every location the engine may open (#5198): only a folder grant fixes it -- never
+            // "ask the owner", never a retry that can never succeed. Checked before identity: it is about
+            // WHERE the library is, not WHO you are.
+            return .grantAccess
         case .forbidden:
             // 401/403 collapse in some load paths — let identity disambiguate.
             if let isAuthenticated {
@@ -129,6 +137,16 @@ struct LibraryAccessDeniedView: View {
     @ViewBuilder
     private var actionButtons: some View {
         switch primaryAction {
+        case .grantAccess:
+            if let onGrantAccess {
+                Button("Grant Access…") { Task { await onGrantAccess() } }
+                    .buttonStyle(.borderedProminent)
+                    .help("Choose this library (or a folder holding it) so Fichero may open it")
+                retryButton(title: "Try Again")
+            } else {
+                retryButton(title: "Try Again", prominent: true)
+            }
+
         case .signIn:
             if let onSignIn {
                 Button("Sign In") { onSignIn() }

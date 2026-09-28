@@ -118,40 +118,34 @@ class FolderAccessManager {
     /// Request access to a folder (shows NSOpenPanel)
     func requestFolderAccess(suggestedPath: String? = nil, completion: @escaping (Bool) -> Void) {
         Task { @MainActor in
-            let panel = NSOpenPanel()
-            panel.canChooseFiles = false
-            panel.canChooseDirectories = true
-            panel.allowsMultipleSelection = false
-
-            // Find the best parent folder to suggest
-            var suggestedFolder: URL?
-            if let path = suggestedPath {
-                suggestedFolder = self.findBestParentFolder(for: path)
+            // The ONE access panel (`chooseForAccess`), shared with Grant Access… (#5198).
+            let request = suggestedPath.map { LibraryAccessGrant.Request(libraryURL: URL(fileURLWithPath: $0)) }
+                ?? LibraryAccessGrant.Request(libraryURL: FileManager.default.homeDirectoryForCurrentUser)
+            guard let chosen = await self.chooseForAccess(request) else {
+                completion(false)
+                return
             }
-
-            if let folder = suggestedFolder {
-                panel.message = "Grant access to '\(folder.lastPathComponent)' folder"
-                panel.prompt = "Grant Access"
-                panel.directoryURL = folder.deletingLastPathComponent() // Navigate to parent so folder is visible
-            } else {
-                panel.message = "Select a folder to grant Fichero access"
-                panel.prompt = "Grant Access"
-            }
-
-            panel.begin { response in
-                if response == .OK, let selectedURL = panel.url {
-                    self.saveBookmark(for: selectedURL)
-                    completion(true)
-                } else {
-                    completion(false)
-                }
-            }
+            self.saveBookmark(for: chosen)
+            completion(true)
         }
     }
 
-    /// Get the parent folder for a file path
-    private func findBestParentFolder(for path: String) -> URL? {
-        return URL(fileURLWithPath: path).deletingLastPathComponent()
+    /// The access panel: opened AT the library (its folder shown, the library selected), letting the
+    /// person choose the library package itself or a folder holding it. Nil when cancelled.
+    @MainActor
+    func chooseForAccess(_ request: LibraryAccessGrant.Request) async -> URL? {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true  // a .fichero package is a file to the panel
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = request.directoryURL
+        panel.message = request.message
+        panel.prompt = request.prompt
+        return await withCheckedContinuation { continuation in
+            panel.begin { response in
+                continuation.resume(returning: response == .OK ? panel.url : nil)
+            }
+        }
     }
 
     /// The security-scoped bookmarks the SANDBOXED ENGINE needs, as
