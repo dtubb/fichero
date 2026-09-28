@@ -247,6 +247,12 @@ final class DocumentOverlayView: NSView {
                 ))
                 if overlay.isEditing {
                     ShapeDrawing.drawHandles(shapes, imageRect: imageRect, scale: scale, line: line, stroke: stroke)
+                    if let point = overlay.selectedPoint.flatMap({ DocumentBoxMapping.point(normalized: $0, imageRect: imageRect) }) {
+                        // The point the arrow keys nudge: its handle filled, as a selected handle is in Preview.
+                        let side = SelectionStyle.handleSide / scale
+                        stroke.setFill()
+                        NSBezierPath(rect: CGRect(x: point.x - side / 2, y: point.y - side / 2, width: side, height: side)).fill()
+                    }
                 }
                 continue
             }
@@ -284,7 +290,7 @@ enum ShapeDrawing {
         for shape in shapes {
             let points = shape.points.compactMap { DocumentBoxMapping.point(normalized: $0, imageRect: imageRect) }
             switch shape {
-            case .polygon:
+            case .polygon, .area:
                 guard let path = path(through: points, closed: true) else { continue }
                 wash.setFill()
                 path.fill()
@@ -314,19 +320,14 @@ enum ShapeDrawing {
         }
     }
 
-    /// Reshape's handles: a square on every point of the outline and the baseline, as Preview draws a
-    /// shape's handles, and a small round one on each side's midpoint, where a point can be added.
+    /// Reshape's handles: a square on every point of every shape, as Preview draws a shape's handles, and
+    /// a small round one on each side's midpoint, where a point can be added (a point shape has none).
     static func drawHandles(
         _ shapes: [SegmentShapes.Drawn], imageRect: CGRect, scale: CGFloat, line: CGFloat, stroke: NSColor
     ) {
         let side = SelectionStyle.handleSide / scale
         for shape in shapes {
-            let target: SegmentShapes.Target
-            switch shape {
-            case .polygon: target = .polygon
-            case .baseline: target = .baseline
-            case .path, .point: continue  // not reshaped here yet
-            }
+            let target = shape.target
             for normalized in shape.points {
                 guard let point = DocumentBoxMapping.point(normalized: normalized, imageRect: imageRect) else { continue }
                 let square = NSBezierPath(rect: CGRect(x: point.x - side / 2, y: point.y - side / 2, width: side, height: side))

@@ -92,6 +92,14 @@ class WindowState {
     /// "Everything in This Hand", "Every Instance" of a sign (#4942). Nil shows the page.
     var segmentsGather: SegmentsGather?
 
+    /// What the one Shape tool draws in Edit Segments (`source.editor.draw-shapes`): a dragged box, or a
+    /// polygon or baseline clicked point by point. Outside Edit Segments the tool always drags a box.
+    var shapeKind: SegmentShapes.DrawKind = .box
+
+    /// The shape point last pressed in Edit Segments: the arrow keys nudge it (1 px, ⇧ 10) instead of
+    /// paging. A press anywhere else lets it go.
+    var selectedShapePoint: SegmentShapes.PointRef?
+
     /// A segment to select once its page is shown: Next in a flow crossing onto another page (#5160).
     /// The Order list on that page takes it and clears it.
     var pendingSegmentSelection: ReadingOrderChoice.Landing?

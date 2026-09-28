@@ -48,6 +48,7 @@ extension ZoomableImagePreview {
             },
             selected: selected,
             selectedShapes: selectedIndices.map { all[$0].shapes },
+            selectedPoint: selectedShapePoint(in: all),
             entryWashes: annotationFrameMatchesDisplay(nil) ? highlightBoxes : [],
             linkedWashes: linkedFrameMatches ? linkedSelectionBoxes : [],
             marks: shownAnnotationMarks.compactMap { mark in
@@ -60,6 +61,15 @@ extension ZoomableImagePreview {
             isEditing: windowState?.isEditingSegments == true,
             isFocusedPane: windowState?.focusedRegionSelection === regionSelection
         )
+    }
+
+    /// Where the nudged shape point is now, for its filled handle (Edit Segments only).
+    private func selectedShapePoint(in all: [OCRGeometryBox]) -> [Double]? {
+        guard windowState?.isEditingSegments == true, let ref = windowState?.selectedShapePoint,
+              ref.documentId == documentId, all.indices.contains(ref.boxIndex),
+              let points = all[ref.boxIndex].shapes.first(where: { $0.target == ref.target })?.points,
+              points.indices.contains(ref.index) else { return nil }
+        return points[ref.index]
     }
 
     /// The full box list, or nothing when the geometry names a frame other
@@ -129,6 +139,8 @@ extension ZoomableImagePreview {
                 },
                 onOpenRegion: { index in openRegion(atIndex: index) },
                 onReshapeCommit: { index, target, points in reshapeSegment(index: index, target, to: points) },
+                drawKind: windowState?.shapeKind ?? .box,
+                onDrawShapeCommit: { kind, points in drawSegmentShape(kind, points: points) },
                 selection: regionSelection
             )
             .contextMenu { regionContextMenu }

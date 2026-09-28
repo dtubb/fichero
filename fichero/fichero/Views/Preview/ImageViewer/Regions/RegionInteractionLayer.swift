@@ -88,10 +88,14 @@ struct RegionInteractionLayer: View {
     let onOpenRegion: (Int) -> Void
     /// Commit a Reshape: (full-list index, what was reshaped, its new points). Nil: no Reshape here.
     var onReshapeCommit: ((Int, SegmentShapes.Target, [[Double]]) -> Void)?
+    /// What the Shape tool draws while editing segments (the window's `shapeKind`).
+    var drawKind: SegmentShapes.DrawKind = .box
+    /// Commit a drawn polygon or baseline: (its kind, its points). Nil: the Shape tool drags boxes only.
+    var onDrawShapeCommit: ((SegmentShapes.DrawKind, [[Double]]) -> Void)?
 
     /// Sticky-tool + check-cycle seams (Daniel, 2026-08-30). Optional so
     /// headless hosts stay safe.
-    @Environment(WindowState.self) private var windowState: WindowState?
+    @Environment(WindowState.self) var windowState: WindowState?
     @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore?
 
     /// THE PANE'S selection, handed in (#5020): the layer never reaches for another pane's.
@@ -110,6 +114,8 @@ struct RegionInteractionLayer: View {
     @State private var shiftHeld = false
     /// Live Reshape: the box, what is reshaped, the point being dragged, and the points as they are now.
     @State var reshapeDrag: ReshapeDrag?
+    /// The points of a polygon or baseline being drawn, in the order clicked.
+    @State var drawingPoints: [[Double]] = []
 
     var body: some View {
         GeometryReader { geo in
@@ -120,6 +126,7 @@ struct RegionInteractionLayer: View {
                     if drawsSelection { marqueeRects(in: geo.size) }  // else the document overlay does
                     selectedRegionRects(in: geo.size)
                     liveReshape(in: geo.size)
+                    liveDrawing(in: geo.size)
                     if let rect = liveBandRect {
                         RoundedRectangle(cornerRadius: 2)
                             .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1.5, dash: [4]))
@@ -282,7 +289,7 @@ struct RegionInteractionLayer: View {
         guard let point = layerPoint(event.point, in: size) else { return }
         shiftHeld = event.shift
         // Edit Segments on ONE selected shape: Reshape takes the press, the drag and the release.
-        if handleReshape(event, in: size) { return }
+        if handleReshape(event, in: size) || handleDrawShape(event, in: size) { return }
         switch event.phase {
         case .pressed:
             handlePress(at: point, clickCount: event.clickCount, in: size)

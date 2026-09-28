@@ -479,25 +479,33 @@ struct ZoomableImagePreview: View {
             // PREVIOUS/NEXT item, up/down pan the current image. ←/→ pan
             // only when the zoomed image can actually travel horizontally;
             // otherwise they step siblings via the trackpad-swipe seam.
-            .onKeyPress(.leftArrow, phases: .down) { _ in
+            .onKeyPress(.leftArrow, phases: .down) { press in
+                // Edit Segments with a shape point selected: the arrow nudges it (1 px, ⇧ 10).
+                if nudgeSelectedShapePoint(-1, 0, fast: press.modifiers.contains(.shift)) { return .handled }
                 if canPanHorizontally { panLeft() } else {
                     NotificationCenter.default.post(name: .previewSiblingSwipe, object: -1)
                 }
                 return .handled
             }
-            .onKeyPress(.rightArrow, phases: .down) { _ in
+            .onKeyPress(.rightArrow, phases: .down) { press in
+                // Edit Segments with a shape point selected: the arrow nudges it (1 px, ⇧ 10).
+                if nudgeSelectedShapePoint(1, 0, fast: press.modifiers.contains(.shift)) { return .handled }
                 if canPanHorizontally { panRight() } else {
                     NotificationCenter.default.post(name: .previewSiblingSwipe, object: 1)
                 }
                 return .handled
             }
-            .onKeyPress(.upArrow, phases: .down) { _ in
+            .onKeyPress(.upArrow, phases: .down) { press in
+                // Edit Segments with a shape point selected: the arrow nudges it (1 px, ⇧ 10).
+                if nudgeSelectedShapePoint(0, -1, fast: press.modifiers.contains(.shift)) { return .handled }
                 if canPanVertically { panUp() } else {
                     verticalStep(-1)
                 }
                 return .handled
             }
-            .onKeyPress(.downArrow, phases: .down) { _ in
+            .onKeyPress(.downArrow, phases: .down) { press in
+                // Edit Segments with a shape point selected: the arrow nudges it (1 px, ⇧ 10).
+                if nudgeSelectedShapePoint(0, 1, fast: press.modifiers.contains(.shift)) { return .handled }
                 if canPanVertically { panDown() } else {
                     verticalStep(1)
                 }

@@ -1092,3 +1092,81 @@ console.log(JSON.stringify(posts));
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         PAGE_MESSAGES_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
     assert json.loads(PAGE_MESSAGES_FIXTURE.read_text()) == recorded, "the page's messages changed: re-record and re-run the app's joint test"
+
+
+def test_the_shape_tool_s_polygon_and_baseline_become_segments_the_canvas_still_draws(db, client):
+    """`source.editor.draw-shapes` (the one Shape tool's Polygon and Baseline in Edit Segments): on the
+    imported Syriac page, the app's EXACT creates -- `segment.create` of a REGION anchored by its polygon
+    and the rect it bounds, and of a LINE anchored by its baseline as an open path (no outline invented)
+    with that baseline -- land on the shown pass; the canvas's call (GET /api/segments/document/{id})
+    still numbers the pass's boxes 0..<count, so the page keeps drawing; and ⌘Z (the create's audit
+    undone) takes each away. Breaks if a drawn shape is refused, stored as something else, or makes the
+    pass undrawable."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    on_pass = next(s for s in body["segments"] if s["pass_id"] == real["id"])
+    anchor = {k: on_pass["anchor"][k] for k in ("page_id", "rendition_id", "space") if on_pass["anchor"].get(k) is not None}
+    polygon = [[0.1, 0.1], [0.3, 0.1], [0.3, 0.2], [0.1, 0.2], [0.05, 0.15]]
+    baseline = [[0.2, 0.6], [0.5, 0.6], [0.8, 0.61]]
+
+    def create(params):
+        answer = client.post("/api/actions/invoke", json={"name": "segment.create", "params": params})
+        assert answer.status_code == 200, answer.text
+        return answer.json()
+
+    region = create({"document_id": doc_id, "pass_id": real["id"], "kind": "region", "anchor": dict(
+        anchor, document_id=doc_id, polygon=polygon, rect=[0.05, 0.1, 0.25, 0.1])})
+    line = create({"document_id": doc_id, "pass_id": real["id"], "kind": "line", "baseline": baseline, "anchor": dict(
+        anchor, document_id=doc_id, shapes=[{"kind": "path", "points": baseline}])})
+    after = client.get(f"/api/segments/document/{doc_id}").json()
+    mine = [s for s in after["segments"] if s["pass_id"] == real["id"]]
+    assert sorted(s["box_index"] for s in mine) == list(range(len(mine))), "the pass still draws"
+    made = {s["id"]: s for s in mine}
+    drawn_region = made[region["result"]["segment_ids"][0]]
+    drawn_line = made[line["result"]["segment_ids"][0]]
+    assert drawn_region["kind"] == "region" and drawn_region["anchor"]["polygon"] == polygon
+    assert drawn_line["kind"] == "line" and drawn_line["baseline"] == baseline
+    assert drawn_line["anchor"]["shapes"][0]["kind"] == "path" and drawn_line["anchor"]["polygon"] is None
+    for created in (line, region):
+        assert client.post(f"/api/actions/audit/{created['audit_id']}/undo").status_code == 200
+    left = {s["id"] for s in client.get(f"/api/segments/document/{doc_id}").json()["segments"]}
+    assert drawn_region["id"] not in left and drawn_line["id"] not in left, "⌘Z takes each drawing away"
+
+
+def test_reshaping_an_anchors_path_and_point_shapes_is_the_app_s_exact_update(db, client):
+    """`source.editor.reshape` for the anchor's EXTRA shapes (an open path, a point): on the imported
+    Syriac page, a line drawn by its baseline carries a path shape, and a point shape beside it; the
+    app's exact reshape -- `segment.update` with the whole anchor sent back, the path's second point
+    moved and the point nudged one pixel, every other shape and field carried -- lands as sent and
+    undoes by its audit id. Breaks if a rewrite drops or reorders a shape, or the engine refuses it."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    path = [[0.2, 0.6], [0.5, 0.6], [0.8, 0.61]]
+    point = [0.9, 0.62]
+    shapes = [{"kind": "path", "points": path}, {"kind": "point", "points": [point]}]
+    made = client.post("/api/actions/invoke", json={"name": "segment.create", "params": {
+        "document_id": doc_id, "pass_id": real["id"], "kind": "line", "baseline": path,
+        "anchor": {"document_id": doc_id, "shapes": shapes}}}).json()
+    segment_id = made["result"]["segment_ids"][0]
+    before = client.get(f"/api/segments/{segment_id}").json()["segment"]
+
+    moved_path = [path[0], [0.5, 0.58], path[2]]
+    nudged = [point[0] + 1 / 1969, point[1]]
+    sent_shapes = [{"kind": "path", "points": moved_path, "t_start": None, "t_end": None},
+                   {"kind": "point", "points": [nudged], "t_start": None, "t_end": None}]
+    xs = [p[0] for p in moved_path + [nudged]]
+    ys = [p[1] for p in moved_path + [nudged]]
+    update = client.post("/api/actions/invoke", json={"name": "segment.update", "params": {
+        "segment_id": segment_id, "expected_version": before["version"], "anchor": {
+            "document_id": doc_id, "shapes": [{k: v for k, v in s.items() if v is not None} for s in sent_shapes],
+            "rect": [min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)]}}})
+    assert update.status_code == 200, update.text
+    after = client.get(f"/api/segments/{segment_id}").json()["segment"]
+    assert [s["kind"] for s in after["anchor"]["shapes"]] == ["path", "point"], "no shape dropped or reordered"
+    assert after["anchor"]["shapes"][0]["points"] == moved_path
+    assert after["anchor"]["shapes"][1]["points"] == [nudged]
+    assert after["baseline"] == path, "a shape reshape leaves the baseline alone"
+    assert client.post(f"/api/actions/audit/{update.json()['audit_id']}/undo").status_code == 200
+    assert client.get(f"/api/segments/{segment_id}").json()["segment"]["anchor"]["shapes"][0]["points"] == path

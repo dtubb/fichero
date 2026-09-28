@@ -22,11 +22,14 @@ enum SegmentEdit {
         case updateMany(SegmentUpdateManyRequest)
         /// Reshape's baseline edit (`SegmentShapes.reshape`).
         case baseline(SegmentBaselineRequest)
+        /// The Shape tool's polygon or baseline (`SegmentShapes.create`).
+        case create(SegmentCreateRequest)
 
         func encode(to encoder: any Encoder) throws {
             switch self {
             case .update(let params): try params.encode(to: encoder)
             case .baseline(let params): try params.encode(to: encoder)
+            case .create(let params): try params.encode(to: encoder)
             case .delete(let params): try params.encode(to: encoder)
             case .merge(let params): try params.encode(to: encoder)
             case .updateMany(let params): try params.encode(to: encoder)
@@ -67,24 +70,28 @@ enum SegmentEdit {
         case versionUnknown
         /// Join needs two or more; delete needs one.
         case tooFew
-        /// A segment with extra shapes: moving only its box and outline would leave them behind.
-        case hasExtraShapes
     }
 
-    /// MOVE: the box goes to `rect`, and its outline moves by the same offset, so the two agree.
+    /// MOVE: the box goes to `rect`, and its outline and every extra shape move by the same offset, so
+    /// they all agree (before, a segment with extra shapes was refused a move rather than leave them).
     static func move(_ segment: Segment, to rect: [Double]) -> Result<Call, Refusal> {
         guard let version = segment.version else { return .failure(.versionUnknown) }
-        guard segment.anchor.shapes?.isEmpty ?? true else { return .failure(.hasExtraShapes) }
         let old = segment.anchor.rect ?? rect
         let deltaX = rect[0] - old[0]
         let deltaY = rect[1] - old[1]
         let polygon: [[Double]]? = segment.anchor.polygon.map { points in
             points.map { point in shifted(point, byX: deltaX, byY: deltaY) }
         }
+        let shapes = segment.anchor.shapes?.map { shape in
+            AnchorShapeParams(
+                kind: shape.kind.rawValue, points: shape.points?.map { shifted($0, byX: deltaX, byY: deltaY) },
+                tStart: shape.tStart, tEnd: shape.tEnd
+            )
+        }
         let anchor = SegmentAnchorParams(
             documentId: segment.anchor.documentId, pageId: segment.anchor.pageId,
             renditionId: segment.anchor.renditionId, space: segment.anchor.space, rect: rect,
-            polygon: polygon, rotation: segment.anchor.rotation, granularity: segment.anchor.granularity
+            polygon: polygon, rotation: segment.anchor.rotation, granularity: segment.anchor.granularity, shapes: shapes
         )
         return .success(Call(
             action: "segment.update",
@@ -172,14 +179,17 @@ struct SegmentAnchorParams: Encodable, Equatable {
     let pageId: String?
     let renditionId: String?
     let space: String?
-    let rect: [Double]
+    /// Absent when the shapes enclose no area (a flat line): the engine works the box out itself.
+    let rect: [Double]?
     let polygon: [[Double]]?
     let rotation: Double?
     let granularity: String?
+    /// The anchor's extra shapes, sent back whole so a rewrite never drops one (Reshape).
+    var shapes: [AnchorShapeParams]?
 
     enum CodingKeys: String, CodingKey {
         case documentId = "document_id", pageId = "page_id", renditionId = "rendition_id"
-        case space, rect, polygon, rotation, granularity
+        case space, rect, polygon, rotation, granularity, shapes
     }
 }
 

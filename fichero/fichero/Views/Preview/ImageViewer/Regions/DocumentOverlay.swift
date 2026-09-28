@@ -50,6 +50,8 @@ struct DocumentOverlay: Equatable {
     /// Each selected box's shapes, parallel to `selected`: outlined as themselves, and in Edit
     /// Segments given a handle per point and one per side to add a point (Reshape).
     var selectedShapes: [[SegmentShapes.Drawn]] = []
+    /// The shape point the arrow keys nudge, normalized: its handle is drawn filled.
+    var selectedPoint: [Double]?
     /// The entry-source highlight: a soft wash BEHIND the words (the passage a claim or a search
     /// hit came from). Drawn first.
     var entryWashes: [[Double]] = []

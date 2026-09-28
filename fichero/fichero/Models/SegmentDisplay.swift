@@ -219,7 +219,10 @@ enum SegmentDisplay {
                     // An UNSTATED shape is the same zero-size placeholder as an unset rect: kept in
                     // its place so no later box shifts, never drawn as the page-sized rectangle the
                     // engine stores it on.
-                    bbox: segment.shapeIsUnstated ? [0, 0, 0, 0] : (segment.anchor.rect ?? [0, 0, 0, 0]),
+                    // A drawn polygon or baseline may state no rect: it is drawn and clicked by its
+                    // shapes' bounds (`SegmentShapes.displayBox`), a flat baseline kept clickable.
+                    bbox: segment.shapeIsUnstated
+                        ? [0, 0, 0, 0] : (segment.anchor.rect ?? SegmentShapes.displayBox(for: segment) ?? [0, 0, 0, 0]),
                     level: segment.kind,
                     confidence: segment.confidence,
                     pageIndex: nil,

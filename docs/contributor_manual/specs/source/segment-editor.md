@@ -1021,7 +1021,20 @@ The editor
   `inlineTextEnabled`. Of these, `annotationsEnabled` and `regionsEnabled` become overlay layers; the
   loupe and magnifier are viewing aids, not layers. Nothing yet turns the image itself off, and no
   setting carries workspace defaults.
-- `source.editor.draw-shapes` — **[GAP]** (#4941) box, polygon, point, line and baseline can be drawn.
+- `source.editor.draw-shapes` — **[PARTIAL]** (#4941) box, polygon, point, line and baseline can be drawn.
+  **Built 2026-09-28 (image pages, segment passes), in the ONE Shape tool:** its kind menu, shown in Edit
+  Segments, picks Box (a drag, as before), Polygon (click points; a click on the first point, or a
+  double-click, closes it) or Baseline (click points; a double-click finishes). A finished polygon is
+  `segment.create` of a REGION anchored by its outline and the rect it bounds; a finished baseline is a
+  LINE whose anchor is the baseline as an open path -- no outline invented -- with that baseline; both on
+  the shown pass, naming its picture, ⌘Z by audit id. A drawn line with a flat baseline is drawn and
+  clicked by its shapes' bounds (`SegmentShapes.displayBox`). Pinned: the engine takes the app's exact
+  creates and the page stays drawable, undo removing them
+  (`test_imported_page_draws_its_boxes.py::test_the_shape_tool_s_polygon_and_baseline_become_segments_the_canvas_still_draws`);
+  the app closes, refuses too few points and sends those calls
+  (`ImportedPageDrawsItsBoxesTests.testTheShapeToolsPolygonAndBaselineCreateSegmentsWithUndo`).
+  **Not yet:** a point and an open line; Escape to abandon a drawing (switching tools drops it); a drawn
+  line is not placed in the region it is drawn in; pages whose boxes come from an artifact.
 - `source.editor.reshape` — **[PARTIAL]** (#4941) points can be dragged, added and removed; shapes moved and nudged.
   **Built 2026-09-28 (image pages, segment passes):** the overlay draws a segment AS its shapes -- the
   outline its file drew, an open path, a point, the baseline under the ink -- not its box
@@ -1036,8 +1049,19 @@ The editor
   the app draws them and sends those calls (`ImportedPageDrawsItsBoxesTests.testALinesOutlineAndBaselineAreDrawnAsThemselvesAndReshapeSendsTheCheckedUpdate`,
   `…testReshapingALinesOutlineSendsTheCheckedUpdateAndUndoes`, `…testReshapingABaselineSendsItAloneAndTheRefusalsHold`).
   Two successive edits of one segment undo twice (`test_segment_undo_twice.py`; the engine refused the second
-  ⌘Z before). **Not yet:** open paths and points are drawn but not reshaped; nudging with keys; PDF pages (the
-  `PDFAnnotation` renderer still draws boxes); a pass with an artifact behind it (its boxes carry no shapes).
+  ⌘Z before). **Also built (2026-09-28):** the anchor's extra shapes -- an area, an open path, a point --
+  are drawn, get handles and are reshaped the same way (a point moves only: it takes no new points and is
+  never removed); every anchor rewrite now sends back ALL the shapes, the changed one changed, so none is
+  dropped -- the outline reshape and Move no longer refuse a segment with extra shapes, and Move shifts them
+  with the box. **Nudge:** the point last pressed stays selected (its handle filled); the arrow keys move it
+  one image pixel, ten with ⇧, each one `segment.update` with ⌘Z, and without a selected point the arrows
+  keep paging. Pinned: the engine takes the app's exact path-and-point rewrite and undoes it
+  (`test_imported_page_draws_its_boxes.py::test_reshaping_an_anchors_path_and_point_shapes_is_the_app_s_exact_update`);
+  the app's handles, limits, pixel nudge and request
+  (`ImportedPageDrawsItsBoxesTests.testReshapingAnAnchorsPathAndPointAndNudgingByAPixel`; Move with shapes,
+  `SegmentEditTests.moveShiftsExtraShapesToo`). **Not yet:** PDF pages (the `PDFAnnotation` renderer still
+  draws boxes); a pass with an artifact behind it (its boxes carry no shapes); a held arrow key is one edit
+  per press, not coalesced.
 - `source.editor.propose-shape` — **[GAP]** (#4941) a click asks the engine to propose a shape, which can then be
   adjusted.
 - `source.editor.cut` — **[GAP]** (#4941) a scissors stroke splits one or many lines at once.
