@@ -77,6 +77,8 @@ struct SegmentInspectorView: View {
                         )
                         // Typed links, both ways, and the segment's reference (5.7).
                         InspectorLinksSection(segmentId: inspected, documentId: documentId, selectedIds: selectedIds)
+                        // What is said about it: claims and mentions whose anchor names it (5.7).
+                        InspectorStatementsSection(segmentId: inspected, documentId: documentId)
                         // What applies here, from the library down (5.8).
                         InspectorRightsSection(targetKind: "segment", targetId: inspected, pageId: documentId)
                     }

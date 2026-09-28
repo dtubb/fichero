@@ -63,6 +63,10 @@ Page From…. Every edit below should undo with ⌘Z and redo with ⇧⌘Z.
     "On this segment"; at Page level the page's own records; **Withdraw**; ⌘Z. Records only tighten: a
     page rule of "No Models" wins over a line's "Local or Cloud". **Not built:** restricting to named
     readers from the app (it cannot list accounts yet); enforcement stays on its branch.
+19. **Said about this** (5.7). On a page with claims, anchor one to a line (`claim.patch` with a
+    `source_anchor` naming the line's `segment_id`, from MCP or the command line), then select that line. *Should:* "Said About This" lists the
+    claim ("anchored here", its excerpt) and the entities mentioned on the line; clicking one opens it
+    in the knowledge views. Hidden on a line nothing is said about.
 15. **A georeference beside a transcription** (#5122). On a page with an imported transcription AND an
     imported IIIF georeference: *Should:* the Source view draws the transcription's lines, never the
     control points; Making lists the georeference under **Georeferencing**.
@@ -104,7 +108,8 @@ against the engine on every Python run). When the lead's run is green, the rows'
 | 5.5 | `source.sure.editorial-facts`, `brackets-are-drawn` (shown, marked, withdrawn) | b75cac9ef, abe343ae9, fd3e57f96 | `…CertaintyAndDamageSectionShowsTheFactsDrawn…` |
 | 5.6 | `source.sign.declared`, `list-authority`, `gather-instances` (a count); `source.letterform.chain`, `features` (read-only, inside Signs) | 46cf7efa1 | `…SignsSectionNamesTheMUFISign…` (real MUFI page), `…SignsSectionReadsACharactersLetterform…` |
 | #5164 | `source.link.typed`, `both-ways` (read from each end), `source.segment.citable` (Copy Reference) | 13494cbb7 | `…LinksSectionReadsALinkFromThisEnd…` |
-| 5.8 | `source.rights.record`, `tighten-only` (shown in words, records placed), `who-acts` (the engine's refusal said) | (this commit) | `…RightsSectionSaysWhatApplies…` |
+| 5.8 | `source.rights.record`, `tighten-only` (shown in words, records placed), `who-acts` (the engine's refusal said) | b01d0cdf4 | `…RightsSectionSaysWhatApplies…` |
+| 5.7 | `source.statement.on-segment`, `both-ways` (from the segment: claims and mentions whose anchor names it, each opening its claim or entity) | f95b6e43a, (this commit) | `…WhatIsSaidAboutALineListsItsClaimAndMention…` |
 | #5122 | a georeferencing pass is never drawn as the page's boxes; Making lists it apart | 8b9e51c37 | unit only: `SegmentDisplayTests.aGeoreferenceIsNotDrawnAsThePagesBoxes` (no real georef+transcription page recorded yet) |
 
 Engine defects found on the way, filed: #5176 (the Syriac page resolved to "English, left to right"

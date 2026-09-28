@@ -34,6 +34,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 || path.hasPrefix("/api/letterforms") || path.hasPrefix("/api/links/")
                 || (path.hasPrefix("/api/segments/") && path.hasSuffix("/reference"))
                 || path == "/api/rights/effective"
+                || (path.hasPrefix("/api/segments/") && path.hasSuffix("/statements"))
         }
 
         /// What `GET /api/hands` and `GET /api/hands/segment/{id}` answer (set by the test that asks).
@@ -65,6 +66,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         nonisolated(unsafe) static var referenceReply = Data()
         /// What `GET /api/rights/effective` answers.
         nonisolated(unsafe) static var rightsReply = Data()
+        /// What `GET /api/segments/{id}/statements` answers.
+        nonisolated(unsafe) static var statementsReply = Data()
 
         private static func actionReply(auditId: String) -> Data {
             Data(#"{"ok":true,"result":{},"audit_id":"\#(auditId)","changed_domains":["segment"]}"#.utf8)
@@ -106,6 +109,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 actionBody = Self.referenceReply
             } else if path == "/api/rights/effective" {
                 actionBody = Self.rightsReply
+            } else if path.hasPrefix("/api/segments/"), path.hasSuffix("/statements") {
+                actionBody = Self.statementsReply
             } else if path.hasPrefix("/api/segments/passes/"), path.hasSuffix("/original") {
                 actionBody = Self.originalReply
             } else if path == "/api/actions/invoke" {
@@ -152,6 +157,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             linkTypesReply = Data()
             referenceReply = Data()
             rightsReply = Data()
+            statementsReply = Data()
         }
 
         /// URLSession hands a protocol its body as a stream, not as `httpBody`.
@@ -788,6 +794,30 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         manager.undo()
         for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(RecordedEngine.undone, ["audit-2"])
+    }
+
+    /// `source.statement.on-segment`, `both-ways` end to end (5.7, statements): the imported Syriac
+    /// page's first line, with a claim anchored to it and an entity mentioned on it (the engine's
+    /// recorded answer). Read through `StatementService`, the section lists the claim -- saying it is
+    /// anchored here, with its excerpt -- then the mention; opening each focuses THAT claim or entity in
+    /// the one focus the knowledge views follow.
+    func testWhatIsSaidAboutALineListsItsClaimAndMentionAndOpensEach() async throws {
+        _ = try await loadedStore()
+        RecordedEngine.statementsReply = try Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-line-statements.json")
+        )
+        let answer = try await StatementService(client: try XCTUnwrap(storeClient)).statements(segmentId: "seg-0003")
+        let rows = InspectorStatements.rows(answer)
+        XCTAssertEqual(rows.map(\.title), ["Abraham begat Isaac", "Abraham"])
+        XCTAssertEqual(rows.map(\.isClaim), [true, false])
+        XCTAssertEqual(rows.first?.detail, "unreviewed · confidence 50% · anchored here · “ܐܒܪܗܡ ܐܘܠܕ”")
+
+        let focus = KGFocusState()
+        focus.focusClaim(claimId: rows[0].targetId, entityId: nil, sourceDocumentId: "doc-0001")
+        XCTAssertEqual(focus.focusedClaimId, "claim-0001")
+        focus.focusEntity(entityId: rows[1].targetId, sourceDocumentId: "doc-0001")
+        XCTAssertEqual(focus.focusedEntityId, "entity-0001")
+        XCTAssertNil(focus.focusedClaimId, "opening an entity is not opening a claim")
     }
 
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {
