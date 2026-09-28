@@ -107,6 +107,5 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
 LIBRARY_SCOPED_MODELS: dict[str, str] = {
     "KnowledgeClaim": _KG,
     "BookStructureNode": "a node of the book-structure outline built over many documents; its source document is where it was read from",
-    "SourceSupport": _KG,
     "RightsRecord": "resolved with archive's rights work (#5177 thread); itself-only until then",
 }

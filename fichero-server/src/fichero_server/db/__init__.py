@@ -1179,7 +1179,14 @@ class Database(DatabaseEmbeddingMixin):
             InterpretiveFramework,
             PatternInstance,
         )
+        from fichero_server.db.migrations.runner import MigrationRunRecord
         from fichero_server.models.knowledge import (
+            AuthoritySnapshot,
+            EntityMergeAudit,
+            KnowledgeGraphInclusion,
+            KnowledgePredictionReview,
+            LibrarySetting,
+            NoteLink,
             Annotation,
             BookStructureNode,
             ClaimMergeAudit,
@@ -1233,6 +1240,7 @@ class Database(DatabaseEmbeddingMixin):
             SegmentPass,
             SegmentPassChoice,
             PageLineMap,
+            Rendition,
             SegmentVersion,
             Trace,
             Workflow,
@@ -1377,6 +1385,19 @@ class Database(DatabaseEmbeddingMixin):
             SpatialViewport,
             Trace,
             Workflow,
+            # #5178: tables that were created on FIRST SAVE instead of declared, found by
+            # archive's sweep and pinned by `test_every_used_model_is_declared.py`: an undeclared
+            # table bypasses the schema, migration, snapshot and export walkers. Declared, an
+            # existing library gains each on open. (`SourceSupport`, also listed, is not a row:
+            # it is embedded in an entity's `source_supports` and has no table to declare.)
+            AuthoritySnapshot,
+            EntityMergeAudit,
+            KnowledgeGraphInclusion,
+            KnowledgePredictionReview,
+            LibrarySetting,
+            MigrationRunRecord,
+            NoteLink,
+            Rendition,
         )
 
     def _materialize_schema(self) -> None:

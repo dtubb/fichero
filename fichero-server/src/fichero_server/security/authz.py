@@ -26,6 +26,7 @@ from fichero_server.models.hermeneutics import Interpretation
 from fichero_server.models.knowledge import (
     Annotation,
     DocumentCitation,
+    KnowledgeGraphInclusion,
     LibraryItemLink,
     Note,
     ProjectInclusion,
@@ -445,6 +446,8 @@ _DOCUMENT_ID_RESOLVERS: tuple[tuple[type, Callable[[Any, Any], "str | None"]], .
     (TypedLink, lambda db, row: _owning_document(db, row.from_id) or _owning_document(db, row.to_id) or NO_DOCUMENT),
     (LibraryItemLink, lambda db, row: _owning_document(db, row.target_id) or NO_DOCUMENT),
     (ProjectInclusion, lambda db, row: _owning_document(db, row.target_id) or NO_DOCUMENT),
+    # Declared with #5178; including a document in the knowledge graph is a fact about that document.
+    (KnowledgeGraphInclusion, lambda db, row: _owning_document(db, row.target_id) or NO_DOCUMENT),
 )
 
 #: A resolver's answer for a row that belongs to NO document (a library-level annotation or note,
@@ -464,7 +467,7 @@ def _owning_document(db: Any, target_id: str | None, _depth: int = 0) -> "str | 
     if db.get(Document, target_id) is not None:
         return target_id
     for model, get_document_id in _DOCUMENT_ID_RESOLVERS:
-        if model in (TypedLink, LibraryItemLink, ProjectInclusion):
+        if model in (TypedLink, LibraryItemLink, ProjectInclusion, KnowledgeGraphInclusion):
             continue  # a link's end is never another link: no chains to follow
         row = db.get(model, target_id)
         if row is not None:
