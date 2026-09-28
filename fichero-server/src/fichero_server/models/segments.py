@@ -1098,7 +1098,13 @@ class SegmentDeleted(ValueError):
 
 #: Fields compared to fill `SegmentStale.changed` -- geometry and
 #: placement only, never text (nothing here ever holds a reading).
-_VERSIONED_FIELDS = ("anchor", "baseline", "kind", "kind_raw", "parent_segment_id", "is_furniture")
+#: Every field a version snapshots and a restore puts back. The cascade's facts (slice 9, #4938) were
+#: snapshotted and restored but not compared, so a stale refusal never named a language change, and
+#: an undo could not see that somebody had set one since (found 2026-09-28).
+_VERSIONED_FIELDS = (
+    "anchor", "baseline", "kind", "kind_raw", "parent_segment_id", "is_furniture",
+    "language", "script", "direction", "language_meta", "script_meta", "direction_meta", "line_progression",
+)
 
 
 def changed_fields(before: "SegmentVersion", after: "Segment") -> list[str]:
