@@ -219,6 +219,16 @@ class DatabaseManager:
                     except Exception:
                         logger.exception("Pending-derivative resume failed")
 
+                # Convert the library's stored geometry to the page model, in the background,
+                # after the migrations above (#5222, ruled 2026-09-20). Returns at once; it
+                # never delays the open, and unconverted pages read through as before.
+                try:
+                    from fichero_server.maintenance import conversion_on_open
+
+                    conversion_on_open.start(db, cache_key)
+                except Exception:
+                    logger.exception("Could not start the project conversion")
+
                 emit_change(
                     package_str,
                     type="library.opened",
@@ -255,6 +265,7 @@ class DatabaseManager:
     def close_database(self, package_path: str | Path):
         """Close the shared connection for a package."""
         package_str = self._cache_key(package_path)
+        _stop_conversion(package_str)
 
         with self._lock:
             keys = [k for k in self._databases if k == package_str]
@@ -279,6 +290,8 @@ class DatabaseManager:
         outside this lock's scope.
         """
         package_str = self._cache_key(package_path)
+        if close:
+            _stop_conversion(package_str)
 
         with self._lock:
             keys = [k for k in self._databases if k == package_str]
@@ -438,12 +451,21 @@ class DatabaseManager:
 
     def close_all(self):
         """Close every package's shared connection."""
+        _stop_conversion(None)
         with self._lock:
             for cache_key, db in list(self._databases.items()):
                 db.close()
                 logger.info(f"Closed database: {cache_key}")
             self._databases.clear()
             logger.info("All database connections closed")
+
+
+def _stop_conversion(package_path: str | None) -> None:
+    """Stop a library's background conversion at a page boundary BEFORE its connection closes
+    (#5222), outside the manager lock: the runner finishes its page, then sees the stop."""
+    from fichero_server.maintenance import conversion_on_open
+
+    conversion_on_open.stop(package_path)
 
 
 # Global singleton

@@ -2582,6 +2582,30 @@
         "response_model": "ContentRepresentationRevision"
       }
     ],
+    "conversion": [
+      {
+        "method": "GET",
+        "path": "/conversion/status",
+        "operation_id": "conversion_status_api_conversion_status_get",
+        "summary": "Conversion Status",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ConversionStatus"
+      },
+      {
+        "method": "POST",
+        "path": "/conversion/{run_id}/seen",
+        "operation_id": "conversion_seen_api_conversion__run_id__seen_post",
+        "summary": "Conversion Seen",
+        "path_params": [
+          "run_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ConversionStatus"
+      }
+    ],
     "documents": [
       {
         "method": "GET",

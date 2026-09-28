@@ -899,21 +899,31 @@ Storage
 
 Converting a whole project (ruled 2026-09-20; built after readings are on segments)
 
-> **BUILT AND NOT YET REACHABLE (#5088, found 2026-09-27).** Every property below is
-> implemented and pinned — the preflight, the snapshot gate, the lock, resume, the courtesy
-> to the person's work, the invisibility of a half-done run. **Nothing calls
-> `convert_project` outside the tests**, so no user can reach any of it. The `[OK]` tags
-> below are claims about the code, not about what a person can do today; read them with this
-> note or they will read as "this works". The one line that would start it is a maintainer
-> decision (#5088), because a first open of a large library would take a full snapshot before
-> converting anything, and whether that happens unannounced is a product question.
-- `source.convert.starts-when-a-project-opens` — **[GAP]** (#4998, #5088) conversion starts by
-  itself after a project opens and never delays the opening; the project is fully usable while it
-  runs. **The second half is built and the first is not.** Opening converts nothing and is no
-  slower with work waiting than without
-  (`fichero-server/tests/unit/maintenance/test_project_conversion_measured.py::TestOpeningIsNotHeldUp`) —
-  and it is pinned TRIVIALLY, because nothing starts at all (#5088). This is the behaviour that
-  owns the group's reachability, which is why it alone stays [GAP].
+> **Reachable since 2026-09-28 (#5222, #5088).** The running engine starts the conversion when a
+> library opens (`maintenance/conversion_on_open.py`, called from `DatabaseManager.get_database`
+> after the open-time migrations), and the app reads it at `GET /api/conversion/status`. Before
+> that date nothing called `convert_project`, and every page curated before the page model stayed
+> one rerun away from losing its correction (#5075).
+- `source.convert.results-live-as-passes` — **[PARTIAL]** (#5222) results always live as passes: old
+  ones convert when their library opens (the behaviours below), and every tool that finds boxes
+  writes its result as its own pass. **The second half is not built yet** (#5222 part 2: every
+  machine producer still saves its boxes on an artifact, converted only here or on a first edit).
+- `source.convert.starts-when-a-project-opens` — **[OK]** (→ #5222, #4998, #5088) conversion starts by
+  itself after a project opens -- after its migrations, on a background thread -- and never
+  delays the opening; pages not yet converted read through from their stored geometry; closing
+  the library stops it at a page boundary and the next open finishes it; a second open with
+  nothing left writes nothing. Automatic on every open with work, announced only through the
+  status route (ruled 2026-09-20; #5088 decided 2026-09-28). A bare `Database()` open -- a
+  migration, a script, the CLI's own process -- still converts nothing
+  (`::TestOpeningIsNotHeldUp` below). Pinned by
+  `fichero-server/tests/unit/maintenance/test_conversion_starts_on_open.py::test_opening_converts_every_page_in_the_background`,
+  `::test_the_open_returns_before_the_conversion_does`, `::test_a_second_open_writes_nothing`,
+  `::test_closing_mid_run_stops_at_a_page_boundary_and_the_next_open_finishes`, and
+  `::test_when_the_snapshot_cannot_be_made_nothing_converts_and_it_says_why`. Every stored shape
+  of an older result, one fixture per producer and era (Apple Vision lines and words, VLM boxes, a
+  PDF's text layer, regions, Kraken's pixel polygons, Kraken HTR, merged geometry, aligned
+  transcripts, a box set measured on a crop), converts: `test_every_legacy_shape_converts.py`.
+  Opening the real engine converts nothing in the test suite (`FICHERO_SKIP_PROJECT_CONVERSION`).
 - `source.convert.only-the-running-engine` — **[OK]** (→ #4998) the only thing that converts a
   project is the engine of the running app that has it open. A lock, and a lock that can be
   RECOVERED: a second opening is refused while one runs, being refused is not mistaken for
@@ -938,9 +948,13 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
   it: a person's read AND edit both finish while a conversion runs, and the runner yields between
   every page
   (`fichero-server/tests/unit/maintenance/test_project_conversion_measured.py::TestTheMachineStaysUsable`).
-- `source.convert.a-page-is-all-or-nothing` — **[GAP]** (#4998) each page converts in one transaction or not at
+- `source.convert.a-page-is-all-or-nothing` — **[OK]** (→ #5222, #4998) each page converts in one transaction or not at
   all; a page that cannot convert is recorded with its reason, skipped, and still reads from
-  its block as before; the rest carry on.
+  its block as before; the rest carry on. A fault raised INSIDE a page's transaction, after its
+  pass and segments were written, leaves that page with none of them
+  (`fichero-server/tests/unit/maintenance/test_conversion_starts_on_open.py::test_a_fault_inside_a_pages_transaction_leaves_that_page_untouched`);
+  a stored box a later validator refuses is named against its page and the rest convert
+  (`test_every_legacy_shape_converts.py::test_a_stored_box_a_later_validator_refuses_is_named_and_the_rest_convert`).
 - `source.convert.stops-starts-and-repeats-safely` — **[OK]** (→ #4998) quitting part-way loses
   nothing; the next open carries on; running it again over a converted project writes nothing. A
   resumed run ends EXACTLY where an uninterrupted one would, a third run writes nothing and files
@@ -951,8 +965,14 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
   across surfaces rather than one: the page text at every point, a claim anchored by rectangle
   still revealing after its page converts, and the artifact still reporting its own boxes
   (`fichero-server/tests/unit/maintenance/test_project_conversion_invisible.py::TestAHalfConvertedProjectReadsTheSame`).
-- `source.convert.report` — **[GAP]** (#4998) each project has a kept report: what converted, what could not and
-  why, where the snapshot is, how long it took.
+- `source.convert.report` — **[OK]** (→ #5222, #4998) each project has a kept report: what converted, what could not and
+  why, where the snapshot is, how long it took. The kept `ConversionRun` of each run, read at
+  `GET /api/conversion/status` (running, verdict, pages converted and skipped, each page not
+  converted with its reason, pages and results still waiting asked of the database now, the
+  snapshot, the disk a refusal needed, and results left as they were -- the old `segmentation`
+  artifact, which no engine producer wrote); `POST /api/conversion/{run_id}/seen` records that a
+  person saw it, which is what releases the snapshot. Pinned by
+  `fichero-server/tests/unit/maintenance/test_conversion_starts_on_open.py::test_the_status_route_reports_the_run_what_is_left_and_what_was_not_converted`.
 - `source.convert.words-move-with-the-boxes` — **[GAP]** (#4998) once readings are on segments, converting a page
   also gives each segment its words as a reading with its maker, so the old block is no longer
   the only home of the text and a converted result can be deleted again.

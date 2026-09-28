@@ -3914,6 +3914,35 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('conversion')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for conversion endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='conversion')
+        existing_apps['conversion'] = target_app
+
+    @target_app.command("status")
+    def conversion_status_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Conversion Status (GET /api/conversion/status)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/conversion/status"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("seen")
+    def conversion_seen_post(
+        ctx: typer.Context,
+        run_id: str = typer.Argument(..., help="Path parameter: run_id."),
+    ) -> None:
+        """Conversion Seen (POST /api/conversion/{run_id}/seen)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/conversion/{run_id}/seen"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('documents')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for documents endpoints.', no_args_is_help=True)

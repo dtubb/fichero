@@ -27353,6 +27353,73 @@
         }
       }
     },
+    "/api/conversion/status": {
+      "get": {
+        "tags": [
+          "conversion",
+          "conversion"
+        ],
+        "summary": "Conversion Status",
+        "description": "What the library's conversion has done, is doing, and has left.",
+        "operationId": "conversion_status_api_conversion_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversionStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversion/{run_id}/seen": {
+      "post": {
+        "tags": [
+          "conversion",
+          "conversion"
+        ],
+        "summary": "Conversion Seen",
+        "description": "A person has seen this run's report. A RUNNING one cannot be: its snapshot is\nkept out of the ordinary tidy-up until then (`ConversionRun.snapshot_may_be_unpinned`).",
+        "operationId": "conversion_seen_api_conversion__run_id__seen_post",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversionStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/fonts": {
       "get": {
         "tags": [
@@ -48471,6 +48538,103 @@
         "title": "ConversationUpdate",
         "description": "Request to update conversation properties."
       },
+      "ConversionStatus": {
+        "properties": {
+          "running": {
+            "type": "boolean",
+            "title": "Running"
+          },
+          "run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Run Id"
+          },
+          "verdict": {
+            "type": "string",
+            "nullable": true,
+            "title": "Verdict"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Started At"
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Finished At"
+          },
+          "seconds": {
+            "type": "number",
+            "nullable": true,
+            "title": "Seconds"
+          },
+          "pages_converted": {
+            "type": "integer",
+            "title": "Pages Converted",
+            "default": 0
+          },
+          "pages_skipped": {
+            "type": "integer",
+            "title": "Pages Skipped",
+            "default": 0
+          },
+          "pages_not_converted": {
+            "items": {
+              "$ref": "#/components/schemas/PageNotConverted"
+            },
+            "type": "array",
+            "title": "Pages Not Converted",
+            "default": []
+          },
+          "pages_remaining": {
+            "type": "integer",
+            "title": "Pages Remaining",
+            "default": 0
+          },
+          "results_remaining": {
+            "type": "integer",
+            "title": "Results Remaining",
+            "default": 0
+          },
+          "snapshot_path": {
+            "type": "string",
+            "nullable": true,
+            "title": "Snapshot Path"
+          },
+          "disk_required_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Disk Required Bytes"
+          },
+          "disk_available_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Disk Available Bytes"
+          },
+          "left_as_they_were": {
+            "items": {
+              "$ref": "#/components/schemas/LeftAsItWas"
+            },
+            "type": "array",
+            "title": "Left As They Were",
+            "default": []
+          },
+          "seen": {
+            "type": "boolean",
+            "title": "Seen",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "running"
+        ],
+        "title": "ConversionStatus",
+        "description": "The latest run and what is left. `run_id` is None when no run has ever been needed."
+      },
       "CostEstimateItem": {
         "properties": {
           "provider": {
@@ -58547,6 +58711,29 @@
         "title": "LanguageTierCounts",
         "description": "LOOVE tier counts for exemplar characters."
       },
+      "LeftAsItWas": {
+        "properties": {
+          "artifact_type": {
+            "type": "string",
+            "title": "Artifact Type"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "artifact_type",
+          "count",
+          "reason"
+        ],
+        "title": "LeftAsItWas"
+      },
       "LetterFeature": {
         "properties": {
           "component": {
@@ -63538,6 +63725,24 @@
           "losses"
         ],
         "title": "PageExportResponse"
+      },
+      "PageNotConverted": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "reason"
+        ],
+        "title": "PageNotConverted"
       },
       "PageRangeItem": {
         "properties": {

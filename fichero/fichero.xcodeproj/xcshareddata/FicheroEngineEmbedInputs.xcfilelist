@@ -159,6 +159,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/agent_memory.p
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/bookmarks.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/changes.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/chat.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/conversion.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/fonts.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/locations.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/system/migrations.py
@@ -339,6 +340,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/loaders/unified.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/xlsx_reader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/xmp_loader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/maintenance/__init__.py
+$(SRCROOT)/../fichero-server/src/fichero_server/maintenance/conversion_on_open.py
 $(SRCROOT)/../fichero-server/src/fichero_server/maintenance/project_conversion.py
 $(SRCROOT)/../fichero-server/src/fichero_server/maintenance/reanchor.py
 $(SRCROOT)/../fichero-server/src/fichero_server/mcp/__init__.py
