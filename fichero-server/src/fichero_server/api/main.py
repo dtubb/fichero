@@ -1463,11 +1463,16 @@ def _is_allowed_library_path(library_path: str) -> bool:
     return _is_allowed_local_path(library_path)
 
 
-async def get_library_database(
+def get_library_database(
     request: Request,
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> Database:
     """FastAPI dependency to get the database for the current library package.
+
+    A plain ``def`` (#5257): the FIRST request for a library opens it (connect, migrations,
+    ~6 s for a large library), and as an ``async def`` that ran on the event loop -- every other
+    request, the app's readiness probe included, waited behind it. FastAPI runs a plain ``def``
+    dependency in its thread pool; the manager's lock still makes one open per library.
 
     Extracts library path from X-Fichero-Library-Path header and returns
     the appropriate Database instance.
@@ -1488,7 +1493,7 @@ async def get_library_database(
     )
 
 
-async def get_library_database_for_write(
+def get_library_database_for_write(
     request: Request,
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> Database:
@@ -1766,7 +1771,7 @@ def _dependency_versions() -> dict[str, str]:
 
 
 @app.get("/api/health", response_model=HealthResponse)
-async def health_check(
+def health_check(
     request: Request,
     x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_client_nonce: str | None = Header(
@@ -1785,14 +1790,27 @@ async def health_check(
         if not _is_allowed_library_path(x_fichero_library_path):
             raise LibraryAccessDeniedError(_rejected_library_path_payload(x_fichero_library_path))
         assert_library_read_authorized(request, x_fichero_library_path)
-        # Library-specific health check
+        # Library-specific health check -- but NEVER a library open, and never every row (#5257).
+        # The app's probe and heartbeat carry the library header on every call: this opened the
+        # library (~6 s for a large one, the whole launch waiting on it) and hydrated EVERY document
+        # to count them, on each poll. A library not open yet is reported as such; an open one is
+        # counted with a query.
+        from pathlib import Path as _Path
+
+        if _Path(x_fichero_library_path).expanduser().is_dir() and not db_manager.is_open(x_fichero_library_path):
+            return _with_server_proof(
+                HealthResponse(
+                    status="healthy",
+                    library_path=x_fichero_library_path,
+                    backend_version=_ENGINE_VERSION,
+                    contract=_CONTRACT_IDENTITY,
+                    dependencies=_dependency_versions(),
+                ),
+                nonce or x_fichero_client_nonce,
+            )
         try:
             db = db_manager.get_database(x_fichero_library_path)
-            doc_count = sum(
-                1
-                for doc in db.all(Document)
-                if getattr(doc, "deleted_at", None) is None
-            )
+            doc_count = db.count(Document, deleted_at=None)
             return _with_server_proof(
                 HealthResponse(
                     status="healthy",

@@ -165,7 +165,7 @@ async def test_folder_deny_blocks_read_dependency_and_registry_write(
     )
 
     with pytest.raises(HTTPException) as read_exc:
-        await get_library_database(
+        get_library_database(
             _request(users.editor, doc_id=child.id),
             x_fichero_library_path=library_path,
         )
@@ -194,7 +194,7 @@ async def test_no_role_fails_closed_for_read_and_write(
     library_path = _library_path(db)
 
     with pytest.raises(HTTPException) as read_exc:
-        await get_library_database(
+        get_library_database(
             _request(users.stranger),
             x_fichero_library_path=library_path,
         )
@@ -219,14 +219,14 @@ async def test_write_dependency_denies_viewer_and_allows_editor(
     _grant(app_db, users.editor, library_path, "editor")
 
     with pytest.raises(HTTPException) as viewer_exc:
-        await get_library_database_for_write(
+        get_library_database_for_write(
             _request(users.viewer),
             x_fichero_library_path=library_path,
         )
     assert viewer_exc.value.status_code == 403
 
     assert (
-        await get_library_database_for_write(
+        get_library_database_for_write(
             _request(users.editor),
             x_fichero_library_path=library_path,
         )
@@ -384,7 +384,7 @@ async def test_multiuser_off_leaves_write_dependency_unchanged(
     library_path = _library_path(db)
 
     assert (
-        await get_library_database_for_write(
+        get_library_database_for_write(
             _request(users.stranger),
             x_fichero_library_path=library_path,
         )
@@ -410,7 +410,7 @@ async def test_generic_id_extraction_enforces_subtree_denies(
 
     assert authz.target_id_from_request(_request(users.editor, note_id=note.id)) == note.id
     with pytest.raises(HTTPException) as read_exc:
-        await get_library_database(
+        get_library_database(
             _request(users.editor, note_id=note.id),
             x_fichero_library_path=library_path,
         )
@@ -437,7 +437,7 @@ async def test_bootstrap_secret_without_user_fails_closed_for_read_and_write(
     library_path = _library_path(db)
 
     with pytest.raises(HTTPException) as read_exc:
-        await get_library_database(
+        get_library_database(
             _request(None),
             x_fichero_library_path=library_path,
         )
@@ -559,14 +559,14 @@ async def test_schedule_and_trigger_dependencies_use_read_acl(
     library_path = _library_path(db)
 
     with pytest.raises(HTTPException) as schedule_exc:
-        await get_schedule_database(
+        get_schedule_database(
             _request(users.stranger),
             x_fichero_library_path=library_path,
         )
     assert schedule_exc.value.status_code == 403
 
     with pytest.raises(HTTPException) as trigger_exc:
-        await get_trigger_database(
+        get_trigger_database(
             _request(users.stranger),
             x_fichero_library_path=library_path,
         )
@@ -692,19 +692,19 @@ async def test_multiuser_off_leaves_registry_and_read_dependency_unchanged(
     library_path = _library_path(db)
 
     assert (
-        await get_library_database(
+        get_library_database(
             _request(users.stranger),
             x_fichero_library_path=library_path,
         )
     ) is db
     assert (
-        await get_schedule_database(
+        get_schedule_database(
             _request(users.stranger),
             x_fichero_library_path=library_path,
         )
     ) is db
     assert (
-        await get_trigger_database(
+        get_trigger_database(
             _request(users.stranger),
             x_fichero_library_path=library_path,
         )

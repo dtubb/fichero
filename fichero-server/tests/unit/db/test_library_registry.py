@@ -382,9 +382,9 @@ class TestGlobalRegistryHeaderless:
         lib_path = tmp_path / unicodedata.normalize("NFC", "Chocó.fichero")
         lib_path.mkdir(parents=True, exist_ok=True)
         global_client.post("/api/registry/add", params={"path": str(lib_path)})
+        # Left OPEN: health never opens a library (#5257); what it must do is find THIS one
+        # under an NFD spelling of its path, not make a second entry.
         db_manager.get_database(lib_path)
-
-        db_manager.close_database(str(lib_path))
         normalized = unicodedata.normalize("NFC", str(lib_path))
         try:
             response = global_client.get(
@@ -400,6 +400,7 @@ class TestGlobalRegistryHeaderless:
             body = response.json()
             assert body["status"] == "healthy"
             assert body["library_path"] == normalized
+            assert body["document_count"] is not None, "the open library was not the one health read"
             matches = [key for key in db_manager._databases if key == normalized]
             assert matches == [normalized]
         finally:

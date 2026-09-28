@@ -108,3 +108,21 @@ def test_post_library_still_creates(tmp_path: Path) -> None:
         assert (target / "fichero.duckdb").exists()
     finally:
         db_manager.close_database(target)
+
+
+def test_health_never_opens_a_library_it_names(tmp_path: Path) -> None:
+    """#5257: the app's readiness probe and heartbeat carry the library header on every call. Health
+    opened the library (~6 s for a large one; the whole launch waited on it) and loaded every
+    document to count them, on each poll. A library that isn't open yet is reported healthy and
+    left closed; it is opened by the first request that actually uses it."""
+    from fichero_server.db.manager import db_manager
+
+    library = tmp_path / "Present.fichero"
+    library.mkdir()
+    assert not db_manager.is_open(library)
+
+    response = _client().get("/api/health", headers={"X-Fichero-Library-Path": str(library)})
+
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "healthy"
+    assert not db_manager.is_open(library), "a health check opened the library"

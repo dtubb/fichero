@@ -77,6 +77,10 @@ class DatabaseManager:
         (the workflow NodeCache, #5189). A None means "not open now": call `get_database`."""
         return self._databases.get(cache_key)
 
+    def is_open(self, package_path: str | Path) -> bool:
+        """Whether this package already has its shared connection -- without opening it (#5257)."""
+        return self._cache_key(Path(nfc_path(package_path))) in self._databases
+
     def get_database(
         self, package_path: str | Path, *, create: bool = False
     ) -> "Database":
