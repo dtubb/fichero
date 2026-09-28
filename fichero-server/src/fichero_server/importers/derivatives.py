@@ -847,11 +847,16 @@ def generate_derivative(doc_id: str, library_path: str | Path) -> Path | None:
     return thumb
 
 
-def shutdown(wait: bool = True) -> None:
-    """Stop the derivative pool (engine shutdown, and between test modules)."""
+def shutdown(wait: bool = True, *, cancel_pending: bool = False) -> None:
+    """Stop the derivative pool (engine shutdown, and at the end of a test session).
+
+    `cancel_pending` drops stages not yet started. The pool's worker threads are not daemons, so
+    Python's exit JOINS them, and they run every queued stage first: a test session that imported
+    a folder sat at exit, at background QoS, embedding pages of libraries already deleted (#5223).
+    A stage already running still finishes -- a page is never left half-written."""
     global _executor
     _disarm_stall_watchdog()
     with _executor_lock:
         executor, _executor = _executor, None
     if executor is not None:
-        executor.shutdown(wait=wait)
+        executor.shutdown(wait=wait, cancel_futures=cancel_pending)

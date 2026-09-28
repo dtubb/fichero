@@ -996,6 +996,17 @@ def pytest_sessionfinish(session, exitstatus):
         faulthandler.cancel_dump_traceback_later()
         _deadlock_dump_armed = False
 
+    # #5223: stop the post-ingest derivative pool and DROP its queued stages. Its workers are not
+    # daemons, so the interpreter's exit joins them after every run that imported anything, and
+    # they embed pages of temp libraries pytest has already deleted -- a file of folder-import
+    # tests passed in 14 s and then sat at exit until killed.
+    try:
+        from fichero_server.importers import derivatives
+
+        derivatives.shutdown(wait=False, cancel_pending=True)
+    except Exception as exc:  # noqa: BLE001 -- a teardown courtesy; the result is already in
+        print(f"derivative pool shutdown failed: {exc}")
+
     if not _ratchet_enabled():
         return
 
