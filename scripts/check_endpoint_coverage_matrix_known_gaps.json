@@ -124,6 +124,7 @@
   "GET /api/workflow-execution/threads/{thread_id}/diagram.svg": "#2628 thread graph SVG is returned for backend/CLI/export flows; Activity has no SwiftUI SVG viewer yet (#2638/#2640) (reason carried from check_ui_wiring's swiftui allowlist, #5105)",
   "GET /api/workflow-execution/workflows/{workflow_id}/cache/stats": "no Swift call for the /api/workflow-execution/* family (7 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "GET /view/document/{doc_id}": "no Swift call for the /view/document/* family (1 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
+  "GET /view/fonts/{name}": "fetched by the Reader's web view through the app's fichero-server:// scheme handler (a @font-face url in document_view.html), not the generated client (#5210)",
   "GET /view/kg/global": "no Swift call for the /view/kg/* family (1 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "PATCH /api/agent-memory/{note_id}": "#2152 agent memory - UI deferred (reason carried from check_ui_wiring's swiftui allowlist, #5105)",
   "PATCH /api/hermeneutics/frameworks/{framework_id}": "#3299 generated client is available; framework CRUD has no approved inspector placement (#3434)",

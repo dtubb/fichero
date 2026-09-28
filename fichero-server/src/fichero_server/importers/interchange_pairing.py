@@ -32,10 +32,10 @@ from pathlib import Path
 
 #: The formats a folder of page images comes with. TEI is an edition, not one file per
 #: image; YOLO labels have no image name to check against.
-PAGED_FORMATS = ("pagexml", "alto", "hocr")
+PAGED_FORMATS = ("pagexml", "alto", "hocr", "tesseract-box")
 
 IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png", ".tif", ".tiff", ".jp2", ".webp", ".gif", ".bmp"})
-LAYOUT_SUFFIXES = (".page.xml", ".alto.xml", ".xml", ".hocr", ".html", ".htm")
+LAYOUT_SUFFIXES = (".page.xml", ".alto.xml", ".xml", ".hocr", ".html", ".htm", ".box", ".txt")
 
 
 @dataclass
@@ -76,13 +76,22 @@ def plan_pairs(files: list[Path]) -> PairingPlan:
             by_dir.setdefault(path.parent, []).append(path)
 
     for path in files:
-        if path.suffix.lower() not in (".xml", ".hocr", ".html", ".htm"):
+        if path.suffix.lower() not in (".xml", ".hocr", ".html", ".htm", ".box", ".txt"):
             continue
         try:
             data = path.read_bytes()
         except OSError:
             continue
         spec = format_for(path.name, data)
+        if spec is None and path.suffix.lower() == ".txt":
+            # A plain-text transcription beside its image (#5174): paired by stem ONLY, never
+            # guessed, and a .txt with no image of its stem stays an ordinary file, unnamed --
+            # most .txt files in a folder are notes, not pages.
+            match = _match(path, None, by_dir)
+            if isinstance(match, Path):
+                plan.formats[path] = "plain-text"
+                plan.pairs[path] = match
+            continue
         if spec is not None and spec.name == "tei" and _plan_tei_pages(plan, path, data, by_dir):
             continue
         if spec is None or spec.name not in PAGED_FORMATS:
@@ -100,7 +109,8 @@ def plan_pairs(files: list[Path]) -> PairingPlan:
             continue
         plan.formats[path] = spec.name
         try:
-            stated = read_page(spec.name, data).image_name
+            # A Tesseract .box names no image (#5174): it pairs by its stem alone.
+            stated = None if spec.name == "tesseract-box" else read_page(spec.name, data).image_name
         except Exception as exc:  # noqa: BLE001 -- the reason is reported by name
             plan.unpaired[path] = f"{spec.name} file could not be read: {exc}"
             continue

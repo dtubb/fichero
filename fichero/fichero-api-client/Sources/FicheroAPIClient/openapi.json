@@ -27131,6 +27131,48 @@
         }
       }
     },
+    "/view/fonts/{name}": {
+      "get": {
+        "tags": [
+          "views",
+          "views"
+        ],
+        "summary": "Bundled Font",
+        "description": "A bundled fallback font, by its exact file name, or 404.",
+        "operationId": "bundled_font_view_fonts__name__get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/view/document/{doc_id}": {
       "get": {
         "tags": [

@@ -252,12 +252,23 @@ def test_memory_guard_refuses_below_the_declared_need() -> None:
         )
 
 
-def test_memory_guard_refuses_under_pressure() -> None:
-    with pytest.raises(KrakenMemoryUnavailableError, match="warn"):
+def test_memory_guard_refuses_at_critical_pressure() -> None:
+    with pytest.raises(KrakenMemoryUnavailableError, match="critical"):
         kraken_runtime.assert_memory_available_for_kraken(
             available_bytes=lambda: 8 * 1024**3,
-            pressure_level=lambda: 2,  # warn
+            pressure_level=lambda: 4,  # critical
         )
+
+
+def test_memory_guard_runs_at_warn_pressure_when_there_is_room() -> None:
+    """Maintainer, 2026-09-28: refusing at WARN was too aggressive -- a busy Mac sits at
+    warn much of the day and Kraken needs ~2.5 GB, which the available-memory floor
+    already checks. If this starts refusing again, Kraken becomes unusable in ordinary
+    use; the real guard for big models belongs on MLX, not here."""
+    kraken_runtime.assert_memory_available_for_kraken(
+        available_bytes=lambda: 8 * 1024**3,
+        pressure_level=lambda: 2,  # warn
+    )
 
 
 def test_memory_guard_runs_when_there_is_room() -> None:

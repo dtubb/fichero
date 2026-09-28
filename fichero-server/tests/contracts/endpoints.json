@@ -10379,6 +10379,18 @@
       },
       {
         "method": "GET",
+        "path": "/view/fonts/{name}",
+        "operation_id": "bundled_font_view_fonts__name__get",
+        "summary": "Bundled Font",
+        "path_params": [
+          "name"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
         "path": "/view/kg/global",
         "operation_id": "global_kg_view_view_kg_global_get",
         "summary": "Global Kg View",

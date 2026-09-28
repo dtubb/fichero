@@ -244,7 +244,9 @@ def _registry() -> dict[str, FormatSpec]:
     global _builtins_loaded
     if not _builtins_loaded:
         _builtins_loaded = True
-        from fichero_server.formats import alto, hocr, iiif_georef, pagexml, qgis_points, tei, yolo  # noqa: F401
+        from fichero_server.formats import (  # noqa: F401
+            alto, hocr, iiif_georef, pagexml, plain_text, qgis_points, tei, tesseract_box, yolo,
+        )
     return _REGISTRY
 
 

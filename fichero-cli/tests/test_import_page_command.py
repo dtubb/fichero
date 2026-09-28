@@ -1,4 +1,4 @@
-"""`fichero import page` (`source.format.everywhere`).
+"""`fichero import-page` (`source.format.everywhere`).
 
 Thin over `POST /api/documents/{id}/import`. What is pinned: the request is that one
 route, the person is told which format was RECOGNISED and how many shapes were
@@ -61,7 +61,7 @@ def test_the_person_is_told_what_was_recognised_and_what_landed(tmp_path, monkey
 
     monkeypatch.setattr(cli, "_client", lambda ctx: FakeClient())
     path = _file(tmp_path)
-    result = CliRunner().invoke(app, ["import", "page", "d1", str(path)])
+    result = CliRunner().invoke(app, ["import-page", "d1", str(path)])
 
     assert result.exit_code == 0, result.output
     for needed in ("as pagexml", "pass: p9", "segments: 812", "readings: 806"):
@@ -80,7 +80,7 @@ def test_a_repaired_shape_is_reported_not_buried(tmp_path, monkeypatch):
         def import_page(self, *a, **k): return dict(PAYLOAD, geometry_problems=40)
 
     monkeypatch.setattr(cli, "_client", lambda ctx: FakeClient())
-    result = CliRunner().invoke(app, ["import", "page", "d1", str(_file(tmp_path))])
+    result = CliRunner().invoke(app, ["import-page", "d1", str(_file(tmp_path))])
 
     assert result.exit_code == 0, result.output
     assert "REPAIRED 40" in result.output
@@ -97,7 +97,7 @@ def test_a_name_that_disagrees_with_the_bytes_is_said_out_loud(tmp_path, monkeyp
         def import_page(self, *a, **k): return PAYLOAD
 
     monkeypatch.setattr(cli, "_client", lambda ctx: FakeClient())
-    result = CliRunner().invoke(app, ["import", "page", "d1", str(_file(tmp_path, "folio.alto"))])
+    result = CliRunner().invoke(app, ["import-page", "d1", str(_file(tmp_path, "folio.alto"))])
 
     assert result.exit_code == 0, result.output
     assert "the name says 'alto' and the bytes read as pagexml" in result.output
@@ -122,7 +122,7 @@ def test_reimporting_the_same_bytes_is_an_answer_with_status_zero(tmp_path, monk
         def import_page(self, *a, **k): raise already
 
     monkeypatch.setattr(cli, "_client", lambda ctx: FakeClient())
-    result = CliRunner().invoke(app, ["import", "page", "d1", str(_file(tmp_path))])
+    result = CliRunner().invoke(app, ["import-page", "d1", str(_file(tmp_path))])
 
     assert result.exit_code == 0, result.output
     assert "already imported" in result.output
@@ -143,7 +143,7 @@ def test_a_refused_file_still_fails(tmp_path, monkeypatch):
         def import_page(self, *a, **k): raise refused
 
     monkeypatch.setattr(cli, "_client", lambda ctx: FakeClient())
-    result = CliRunner().invoke(app, ["import", "page", "d1", str(_file(tmp_path))])
+    result = CliRunner().invoke(app, ["import-page", "d1", str(_file(tmp_path))])
 
     assert result.exit_code == 1
     assert "This build reads" in result.output
@@ -156,7 +156,7 @@ def test_a_missing_file_is_refused_before_the_engine_is_called(tmp_path, monkeyp
         raise AssertionError("the engine must not be called for a file that is not there")
 
     monkeypatch.setattr(cli, "_client", explode)
-    result = CliRunner().invoke(app, ["import", "page", "d1", str(tmp_path / "nope.xml")])
+    result = CliRunner().invoke(app, ["import-page", "d1", str(tmp_path / "nope.xml")])
 
     assert result.exit_code == 1
     assert "No such file" in result.output
@@ -204,3 +204,21 @@ def test_an_xml_file_sends_no_dataset_even_beside_a_classes_file(tmp_path):
     client, seen = _capture()
     client.import_page("d1", _file(tmp_path), import_format="pagexml")
     assert b'name="dataset"' not in seen[0].content
+
+
+def test_file_import_and_page_import_both_resolve():
+    """#4943 mounted page import as an `import` GROUP, which shadowed the top-level
+    `fichero import <file>` command: `fichero import book.pdf` answered "No such command"
+    and every script that imports files broke. Both spellings must resolve to a command,
+    never one eating the other."""
+    import click
+    import typer.main
+
+    group = typer.main.get_command(app)
+    ctx = click.Context(group)
+    file_import = group.get_command(ctx, "import")
+    page_import = group.get_command(ctx, "import-page")
+    assert file_import is not None and not isinstance(file_import, click.Group)
+    assert [p.name for p in file_import.params if p.param_type_name == "argument"] == ["path"]
+    assert page_import is not None
+    assert [p.name for p in page_import.params if p.param_type_name == "argument"] == ["doc_id", "path"]

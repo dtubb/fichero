@@ -232,6 +232,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/formats/harness.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/hocr.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/iiif_georef.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/pagexml.py
+$(SRCROOT)/../fichero-server/src/fichero_server/formats/plain_text.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/qgis_points.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/PROVENANCE.md
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/alto-4-2.xsd
@@ -246,6 +247,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/tei_all_xml.xsd
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/xlink.xsd
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/schemas/xml.xsd
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/tei.py
+$(SRCROOT)/../fichero-server/src/fichero_server/formats/tesseract_box.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/validation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/yolo.py
 $(SRCROOT)/../fichero-server/src/fichero_server/histdate.py
@@ -435,6 +437,17 @@ $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/tran
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/translate_deepl.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/translate_review.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/translate_reviewed_transcription.json
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/JunicodeVF-Roman.woff2
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/NotoSansCherokee-VF.ttf
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/NotoSansCoptic-Regular.ttf
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/NotoSansMongolian-Regular.ttf
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/NotoSansSyriac-VF.ttf
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/OFL-Junicode.txt
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/OFL-NotoSans-cherokee.txt
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/OFL-NotoSans-coptic.txt
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/OFL-NotoSans-mongolian.txt
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/OFL-NotoSans-syriac.txt
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/fonts/PROVENANCE.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/model_prices.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/narrative_v1.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/narrative_v2.md
