@@ -114,7 +114,11 @@ enum OCRGeometrySelection {
         for pass in passes {
             let tier: Int
             var typeRank = 0
-            if pass.provenanceKind == .human || curatedPassIds.contains(pass.id) {
+            if pass.working && pass.workingBasis == "chosen" {
+                // A person CHOSE this as the page's working pass (#5156): their explicit choice
+                // outranks the ladder, as the inspector's focused artifact does (2026-08-27).
+                tier = -1
+            } else if pass.provenanceKind == .human || curatedPassIds.contains(pass.id) {
                 tier = 0
             } else if pass.provenanceKind == .externalImport {
                 tier = 1

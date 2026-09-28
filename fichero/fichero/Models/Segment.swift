@@ -298,6 +298,9 @@ struct SegmentPassValue: Codable, Hashable, Identifiable {
     var importChecksum: String?
     var importFormat: String?
     var hasOriginal = false
+    /// Whether this is the page's working pass, and why ("chosen" when a person chose it) (#5156).
+    var working = false
+    var workingBasis: String?
 }
 
 // MARK: - Generated-client mapping
@@ -366,5 +369,7 @@ extension SegmentPassValue {
         self.importChecksum = generated.importChecksum
         self.importFormat = generated.importFormat
         self.hasOriginal = generated.hasOriginal ?? false
+        self.working = generated.working ?? false
+        self.workingBasis = generated.workingBasis
     }
 }

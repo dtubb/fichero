@@ -51,4 +51,20 @@ struct InspectorMakingTests {
         #expect(["pagexml", "alto", "tei", "hocr", "yolo", "other"].map(InspectorMaking.formatName)
                 == ["PAGE XML", "ALTO", "TEI", "hOCR", "YOLO", "other"])
     }
+
+    @Test("the working pass says so and why; the others offer to become it")
+    func workingSaysWhy() {
+        var chosen = pass("c", name: "mine")
+        chosen.working = true
+        chosen.workingBasis = "chosen"
+        var byRule = pass("r", name: "file", file: "f.xml", format: "alto")
+        byRule.working = true
+        byRule.workingBasis = "human-touched"
+        let other = pass("o", name: "other")
+        let entries = InspectorMaking.entries(passes: [chosen, byRule, other], segments: [])
+        let notes = Dictionary(uniqueKeysWithValues: entries.map { ($0.passId, $0.workingNote) })
+        #expect(notes["c"] == "Working · chosen by a person")
+        #expect(notes["r"] == "Working · by the project's rule")
+        #expect(notes["o"] == .some(nil))
+    }
 }

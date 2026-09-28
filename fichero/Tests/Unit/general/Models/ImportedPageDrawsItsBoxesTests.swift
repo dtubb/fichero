@@ -317,6 +317,38 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertTrue(nothing.isEmpty)
     }
 
+    /// #5156 end to end: the imported page's Making entry says its pass is the working one and why
+    /// (the engine's recorded answer), and "Make Working" sends `pass.choose_working` through the
+    /// calls the Making section makes (`WorkingPassChoice.run`), re-reading the page; ⌘Z undoes that
+    /// audit row. (The recorded page has one pass, so the verb is driven for it directly: the UI
+    /// offers it only on a pass that is not working.)
+    func testMakeWorkingSendsPassChooseWorkingAndUndoes() async throws {
+        let store = try await loadedStore()
+        let entry = try XCTUnwrap(InspectorMaking.entries(
+            passes: store.passes(documentId: "doc-0001"), segments: store.segments(documentId: "doc-0001")
+        ).first)
+        XCTAssertTrue(entry.working)
+        XCTAssertEqual(entry.workingNote, "Working · by the project's rule")
+
+        RecordedEngine.invoked = []
+        RecordedEngine.undone = []
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        let auditId = try await WorkingPassChoice.run(
+            documentId: "doc-0001", passId: entry.passId,
+            actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store, undoManager: manager
+        )
+        manager.endUndoGrouping()
+        XCTAssertEqual(auditId, "audit-1")
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        XCTAssertEqual(sent["name"] as? String, "pass.choose_working")
+        XCTAssertEqual(sent["params"] as? [String: String], ["document_id": "doc-0001", "pass_id": entry.passId])
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
+    }
+
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {
         let expected = try JSONDecoder().decode(
             [ExpectedBox].self,
