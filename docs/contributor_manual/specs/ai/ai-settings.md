@@ -126,6 +126,17 @@ left to point at.
   `.testSaveSurfacesFailure`, `.testResetSurfacesFailure`, `.testSuccessfulLoadLeavesNoError`,
   `.testCallsAreNoOpBeforeAttach`.
 
+- `settings.local-model-refused-before-it-loads` — **[OK]** (#5221) a local MLX model is refused
+  BEFORE its process starts when this Mac cannot hold it right now: it needs about the model's
+  weights x 1.2 + 1.5 GB free (an estimate from the catalog's size, overridable with
+  `FICHERO_MLX_MEMORY_NEED_MB`; not yet measured per size class as Kraken's 2.5 GB was), and macOS
+  memory pressure must not be critical (warn still loads, as ruled for Kraken on 2026-09-28). The
+  refusal says what it needs, what is free, and up to two smaller catalog models with a shared
+  capability that fit; it is the route's existing 409 for hardware refusals. Pinned by
+  `fichero-server/tests/unit/llm/test_mlx_memory_guard.py` (injected memory, never the machine),
+  including that a refused load spawns no process. Not covered: user-configured models outside
+  the catalog (no known size) and the Whisper models (under 1 GB).
+
 ### What has not shipped (P1's schema half, P2, P3, P4)
 
 - `settings.mlx-runtime-honest-status` — **[BROKEN]** (#4303) a local runtime's status dot

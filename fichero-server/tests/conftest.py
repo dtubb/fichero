@@ -99,6 +99,8 @@ _arm_credentials_tripwire()
 # No background embed threads out of db_manager.get_database — a re-opened
 # test package with pending rows would otherwise embed during the test.
 os.environ.setdefault("FICHERO_SKIP_DERIVATIVE_RESUME", "1")
+# Nor a real-memory read before a local model process starts (#5221): fake sidecars load nothing.
+os.environ.setdefault("FICHERO_SKIP_MLX_MEMORY_GUARD", "1")
 # #742 added shared-secret auth + a loopback check. FastAPI's TestClient
 # uses host "testclient" (not 127.0.0.1) and doesn't carry the Authorization
 # header tests aren't aware of. Disable auth entirely for the test app —

@@ -11,6 +11,7 @@ import asyncio
 from collections import deque
 from functools import lru_cache
 import ipaddress
+import logging
 import os
 import platform
 import subprocess
@@ -23,6 +24,8 @@ from urllib.parse import urljoin, urlparse
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, StrictBool, field_validator, model_validator
 
 from fichero_server.llm.providers import ProviderType, get_provider_info
+
+logger = logging.getLogger(__name__)
 
 
 class LocalInferenceValidationError(ValueError):
@@ -39,6 +42,91 @@ class LocalModelNotInstalledError(RuntimeError):
 
 class LocalModelHardwareError(RuntimeError):
     """Raised when the current machine cannot safely run a managed local model."""
+
+
+class LocalModelMemoryUnavailableError(LocalModelHardwareError):
+    """This Mac has the model's hardware but not, right now, the free memory to load it (#5221).
+
+    A LOAD, not a machine: an 8B vision model loads its whole weights into unified memory at
+    start, and doing that with too little free takes the whole app down with it -- the real crash
+    risk, where Kraken's ~2.5 GB is not. Said in words a person can act on: what it needs, what is
+    free, and a smaller model that fits."""
+
+
+#: A load's need, from the catalog's download size -- the 4-bit weights ARE the resident size --
+#: plus the working memory a first request allocates on top (KV cache, activations, the vision
+#: tower's image tensors).
+#: ponytail: an estimate, not a measurement like Kraken's 2.5 GB (#4987): weights x 1.2 + 1.5 GB.
+#: Measure one load per size class (3B, 8B) and replace these if the guard refuses loads that fit
+#: or passes loads that crash. `FICHERO_MLX_MEMORY_NEED_MB` overrides it on one machine.
+_MLX_LOAD_FACTOR = 1.2
+_MLX_LOAD_MARGIN_BYTES = int(1.5 * 1024**3)
+_MLX_MEMORY_NEED_ENV_VAR = "FICHERO_MLX_MEMORY_NEED_MB"
+
+
+def mlx_memory_need_bytes(spec: Any) -> int:
+    """How much free memory loading this catalog model needs."""
+    override = os.environ.get(_MLX_MEMORY_NEED_ENV_VAR)
+    if override:
+        try:
+            return int(float(override) * 1024 * 1024)
+        except ValueError:
+            logger.warning("%s=%r is not a number; using the estimate", _MLX_MEMORY_NEED_ENV_VAR, override)
+    return int(spec.download_size_bytes * _MLX_LOAD_FACTOR) + _MLX_LOAD_MARGIN_BYTES
+
+
+def assert_memory_available_for_model(
+    spec: Any,
+    *,
+    catalog: Any = None,
+    available_bytes: Any = None,
+    pressure_level: Any = None,
+) -> None:
+    """Refuse BEFORE the model's process starts if loading it now could crash the app (#5221).
+
+    Two signals, the same ones Kraken's guard reads (`kraken_runtime`): free memory against the
+    load's need, and macOS memory pressure, refused only at CRITICAL (a busy Mac sits at warn much
+    of the day; ruled 2026-09-28). `available_bytes`/`pressure_level` are injectable so a test
+    never depends on the real machine."""
+    from fichero_server.llm import kraken_runtime
+
+    get_available = available_bytes or kraken_runtime._available_memory_bytes
+    get_pressure = pressure_level or kraken_runtime._memory_pressure_level
+    need = mlx_memory_need_bytes(spec)
+    free = get_available()
+    level = get_pressure()
+    critical = level is not None and level >= kraken_runtime._PRESSURE_CRITICAL
+    if not critical and (free is None or free >= need):
+        return
+    gb = lambda n: f"{n / 1024**3:.1f} GB"  # noqa: E731
+    if critical:
+        said = (f"{spec.display_name} needs about {gb(need)} to load, and this Mac's memory pressure "
+                "is critical right now, so loading it risks the whole app crashing.")
+    else:
+        said = f"{spec.display_name} needs about {gb(need)} free to load; this Mac has {gb(free)} free right now."
+    fits = _smaller_models_that_fit(spec, free, catalog)
+    advice = " Close other apps or wait, then try again"
+    advice += f", or use a smaller model: {', '.join(fits)}." if fits and not critical else "."
+    raise LocalModelMemoryUnavailableError(said + advice)
+
+
+def _smaller_models_that_fit(spec: Any, free: int | None, catalog: Any = None) -> list[str]:
+    """Catalog models sharing a capability with `spec` whose load fits in `free`, the most capable
+    that fits first: at most two names."""
+    if free is None:
+        return []
+    if catalog is None:
+        from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS
+
+        catalog = MANAGED_MLX_MODELS.values()
+    wanted = set(spec.capabilities)
+    fits = [
+        other for other in catalog
+        if other.model_id != spec.model_id and wanted & set(other.capabilities)
+        and mlx_memory_need_bytes(other) <= free
+    ]
+    fits.sort(key=mlx_memory_need_bytes, reverse=True)   # the most capable that fits, first
+    return [other.display_name for other in fits[:2]]
 
 
 class LocalServiceState(str, Enum):
@@ -405,6 +493,7 @@ class ManagedLocalInferenceProcess:
         if self.is_running():
             return
         model_spec = self._model_spec()
+        self._refuse_if_memory_is_short()
         python_executable = self._python_executable()
         argv = [
             python_executable,
@@ -540,6 +629,23 @@ class ManagedLocalInferenceProcess:
         except RuntimeError as exc:
             self.last_error = str(exc)
             raise LocalInferenceRuntimeMissingError(str(exc)) from exc
+
+    def _refuse_if_memory_is_short(self) -> None:
+        """#5221: a catalog model is refused BEFORE its process loads it when this Mac cannot hold
+        it right now. A user-configured model (not in the catalog) has no known size: not checked."""
+        from fichero_server.llm.mlx_model_store import get_mlx_model_store
+
+        if os.environ.get("FICHERO_SKIP_MLX_MEMORY_GUARD") == "1":
+            return  # the test suite: its fake sidecars load nothing, and must not read this Mac
+        try:
+            spec = get_mlx_model_store().spec(self.profile.model_id)
+        except KeyError:
+            return
+        try:
+            assert_memory_available_for_model(spec)
+        except LocalModelMemoryUnavailableError as exc:
+            self.last_error = str(exc)
+            raise
 
     def _model_spec(self) -> str:
         try:
