@@ -33,9 +33,8 @@ def _tree(tmp_path: Path) -> tuple[Path, Path]:
     stamp = server / "build" / "fichero_server" / "macos" / "app" / "Fichero Server.app" / "Contents" / "Info.plist"
     stamp.parent.mkdir(parents=True)
     past = time.time() - 60
-    for f in server.rglob("*"):
-        if f.is_file():
-            os.utime(f, (past, past))
+    for f in (stub, src / "document_view.html", server / "src" / "fichero_server" / "app.py"):
+        os.utime(f, (past, past))
     stamp.write_text("<plist/>")  # the bundle is newer than every source file
     return root, src / "document_view.html"
 
