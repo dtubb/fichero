@@ -29,8 +29,12 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             return path.hasPrefix("/api/segments/document/") || path == "/api/annotations"
                 || path.hasPrefix("/api/actions/") || path.hasPrefix("/api/segments/passes/")
                 || (path.hasPrefix("/api/segments/") && path.hasSuffix("/readings"))
-                || path == "/api/source-settings/resolve"
+                || path == "/api/source-settings/resolve" || path.hasPrefix("/api/hands")
         }
+
+        /// What `GET /api/hands` and `GET /api/hands/segment/{id}` answer (set by the test that asks).
+        nonisolated(unsafe) static var handsReply = Data()
+        nonisolated(unsafe) static var attributionsReply = Data()
 
         /// What `GET /api/source-settings/resolve` answers (set by the test that asks).
         nonisolated(unsafe) static var settingsReply = Data()
@@ -53,7 +57,11 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             let isAnnotation = path == "/api/annotations"
             if isAnnotation { Self.annotationRequests.append(Self.bodyOf(request)) }
             var actionBody: Data?
-            if path == "/api/source-settings/resolve" {
+            if path == "/api/hands" {
+                actionBody = Self.handsReply
+            } else if path.hasPrefix("/api/hands/segment/") {
+                actionBody = Self.attributionsReply
+            } else if path == "/api/source-settings/resolve" {
                 actionBody = Self.settingsReply
             } else if path.hasPrefix("/api/segments/"), path.hasSuffix("/readings") {
                 actionBody = Self.readingsReply
@@ -410,6 +418,44 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(rows["direction"]?.value, "Left to Right")
         XCTAssertEqual(rows["direction"]?.origin, "from the script")
         XCTAssertEqual(rows["encoding"]?.value, "Not determined")
+    }
+
+    /// #5161 end to end: the imported Syriac page's first line, attributed to hand B by a person (the
+    /// engine's recorded answers for GET /api/hands and /api/hands/segment/{id}), read through
+    /// `HandService`: the ink and the record on separate lines; "Withdraw" sends hand.unattribute for
+    /// that attribution through `AuditedAction.run`, and ⌘Z undoes it.
+    func testTheHandsSectionShowsTheAttributionAndWithdrawsItUndoably() async throws {
+        _ = try await loadedStore()
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-line-hands.json")
+        )) as? [String: Any])
+        RecordedEngine.handsReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["hands"]))
+        RecordedEngine.attributionsReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["attributions"]))
+        let service = HandService(client: try XCTUnwrap(storeClient))
+        let rows = InspectorHands.rows(
+            try await service.attributions(segmentId: "seg-0003"), hands: try await service.hands()
+        )
+        XCTAssertEqual(rows.map(\.ink), ["hand B (Estrangela)"])
+        XCTAssertEqual(rows.map(\.record), ["judged by owner · sure 80%"])
+
+        RecordedEngine.invoked = []
+        RecordedEngine.undone = []
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        let result = try await AuditedAction.run(
+            "hand.unattribute", params: HandUnattributeParams(attributionId: rows[0].attributionId),
+            actionName: "Withdraw Attribution", actionsService: ActionsService(client: try XCTUnwrap(storeClient)),
+            undoManager: manager
+        )
+        manager.endUndoGrouping()
+        XCTAssertEqual(result.auditId, "audit-1")
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        XCTAssertEqual(sent["name"] as? String, "hand.unattribute")
+        XCTAssertEqual(sent["params"] as? [String: String], ["attribution_id": "attr-0001"])
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
     }
 
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {

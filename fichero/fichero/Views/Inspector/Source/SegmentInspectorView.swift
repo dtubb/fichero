@@ -64,6 +64,10 @@ struct SegmentInspectorView: View {
                     if !language.isEmpty {
                         InspectorLanguageSection(rows: language)
                     }
+                    if let inspected {
+                        // Who wrote the ink, and who judged so (#5161).
+                        InspectorHandsSection(segmentId: inspected)
+                    }
                     if level == .page {
                         // Page level: how the page's passes were made (#5149).
                         InspectorMakingSection(documentId: documentId)

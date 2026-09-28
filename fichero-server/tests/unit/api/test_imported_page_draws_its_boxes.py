@@ -195,3 +195,47 @@ def test_a_line_s_resolved_language_script_and_direction_are_recorded_for_the_ap
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         SETTINGS_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
     assert json.loads(SETTINGS_FIXTURE.read_text()) == recorded, "the app's settings fixture drifted"
+
+
+HANDS_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.first-line-hands.json"
+
+
+def test_a_line_s_hand_attribution_is_recorded_for_the_app(db, client):
+    """#5161 (the Inspector's Hands section): the app reads GET /api/hands (the project's hands) and
+    GET /api/hands/segment/{id} (who wrote this segment's ink, and who judged so). Recorded for the
+    imported Syriac page's first line after a person names hand B and attributes the line to it --
+    through the calls the app makes (POST /api/actions/invoke)."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    line = min((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+               key=lambda s: s["anchor"]["rect"])
+    created = client.post("/api/actions/invoke", json={"name": "hand.create", "params": {
+        "label": "hand B", "style": "Estrangela"}})
+    assert created.status_code == 200, created.text
+    hand_id = created.json()["result"]["hand_id"]
+    attributed = client.post("/api/actions/invoke", json={"name": "hand.attribute", "params": {
+        "hand_id": hand_id, "segment_id": line["id"], "certainty": 0.8}})
+    assert attributed.status_code == 200, attributed.text
+    hands = client.get("/api/hands").json()
+    of_line = client.get(f"/api/hands/segment/{line['id']}").json()
+    assert [a["hand_id"] for a in of_line["items"]] == [hand_id]
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    token = next(s["id"] for s in stable_route["segments"]
+                 if s["kind"] == "line" and s["anchor"]["rect"] == line["anchor"]["rect"])
+    ids = {line["id"]: token, hand_id: "hand-0001"}
+    for index, item in enumerate(of_line["items"], start=1):
+        ids[item["id"]] = f"attr-{index:04d}"
+
+    def stable(value):
+        if isinstance(value, dict):
+            return {k: ("2026-09-27T12:00:00Z" if k == "created_at" and v else stable(v)) for k, v in value.items()}
+        if isinstance(value, list):
+            return [stable(v) for v in value]
+        return ids.get(value, value) if isinstance(value, str) else value
+
+    recorded = {"hands": stable(hands), "attributions": stable(of_line)}
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        HANDS_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(HANDS_FIXTURE.read_text()) == recorded, "the app's hands fixture drifted"
