@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse
 from fichero_server.api.main import get_library_database
 from fichero_server.db import Database
 from fichero_server.models.knowledge import Annotation, KnowledgeClaim, KnowledgeEntity
-from fichero_server.models import Artifact, DocType, Document
+from fichero_server.models import Artifact, DocType, Document, Segment
 
 router = APIRouter(prefix="/view", tags=["views"])
 
@@ -619,7 +619,36 @@ def page_line_map(db: Database, page_id: str, content: str) -> list[dict[str, ob
     # No stored map means the page is not a derived cache (no working pass, or a person's own
     # edit): `ensure_current` ran before this and stores the map with every text it refreshes.
     # Deriving here would rewrite what is not this derivation's to rewrite (test_derivation_version).
-    return cached_line_map(db, page_id, content) or []
+    lines = cached_line_map(db, page_id, content) or []
+    return _with_directions(db, page_id, content, lines)
+
+
+def _with_directions(
+    db: Database, page_id: str, content: str, lines: list[dict[str, object]]
+) -> list[dict[str, object]]:
+    """Each mapped line's direction, resolved NOW (#5147 Reader half, #5171).
+
+    Resolved at render, not stored with the map: a direction is a setting as much as a fact of
+    the text, and a person setting a page to `ttb` changes no text, so nothing would refresh a
+    stored copy -- the Genji stayed in rows after `source_setting.set direction=ttb`. The same
+    `_direction_of` the derivation uses, on the line's own row and text and the page's line
+    shapes: two queries per page, no readings read."""
+    if not lines:
+        return lines
+    from fichero_server.api.routes.document.segment_readings import _direction_of, _lines_are_vertical
+
+    rows = {row.id: row for row in db.query_in(Segment, "id", [str(line["segment_id"]) for line in lines])}
+    page = db.get(Document, page_id)
+    pass_ids = {row.pass_id for row in rows.values()}
+    shapes = [row for row in db.query_in(Segment, "pass_id", sorted(pass_ids)) if row.deleted_at is None]
+    vertical = _lines_are_vertical(shapes, page)
+    out = []
+    for line in lines:
+        row = rows.get(str(line["segment_id"]))
+        text = content[int(line["char_start"]):int(line["char_end"])]
+        direction = _direction_of(row, page, text, vertical)[0] if row is not None else None
+        out.append({**line, "direction": direction})
+    return out
 
 
 #: How the reader should obtain the document's flat transcript. A closed set,

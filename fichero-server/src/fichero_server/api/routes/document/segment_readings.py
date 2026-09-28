@@ -775,7 +775,8 @@ def _why_omitted(
 #: fix kept the doubled text, because nothing on those pages changed. A changed derivation under
 #: an unchanged stamp is exactly that bug; a bumped stamp makes the next read re-derive the page,
 #: once. 1: before stamping. 2: text once (#5148) and direction from line shapes (#5147).
-#: 3: the stored line map carries each line's direction (#5147 Reader half).
+#: 3: the stored line map carried each line's direction (#5147); since #5171 the Reader resolves
+#: it at render, and the map stores none again -- 3 stays, a bump is never undone.
 DERIVATION_VERSION = 3
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
