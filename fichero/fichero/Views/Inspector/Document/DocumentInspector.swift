@@ -308,11 +308,7 @@ enum EntityArmLoad {
     let library = libraryManager.globalLibrary!
 
     DocumentInspector(document: nil)
-        .environment(library.artifactService)
-        .environment(library.entityService)
-        .environment(library.documentStore)
-        .environment(library.entityStore)
-        .environment(library.claimStore)
+        .libraryServiceEnvironment(library)
         .environment(KGFocusState.shared)
         .environment(ClaimFocusState.shared)
         .frame(width: 280, height: 400)
@@ -339,11 +335,7 @@ enum EntityArmLoad {
     )
 
     DocumentInspector(document: mockDocument)
-        .environment(library.artifactService)
-        .environment(library.entityService)
-        .environment(library.documentStore)
-        .environment(library.entityStore)
-        .environment(library.claimStore)
+        .libraryServiceEnvironment(library)
         .environment(KGFocusState.shared)
         .environment(ClaimFocusState.shared)
         .frame(width: 280, height: 400)

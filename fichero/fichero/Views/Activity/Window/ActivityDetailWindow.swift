@@ -25,16 +25,10 @@ struct ActivityDetailWindow: View {
         Group {
             if let library, let selectedRun = selectionState.selectedRun {
                 ActivityDetailView(selectedRun: selectedRun)
-                    .environment(library.activityStore)
-                    .environment(library.apiClient)
-                    .environment(library.documentStore)
-                    .environment(library.workflowExecutionStore)
-                    // `RunArtifactRow` reads ArtifactService to fetch the full
-                    // text behind a clipped preview (#4284). Omitting it did not
-                    // degrade the row — it TRAPPED the moment a run with
-                    // artifacts was opened, because a missing @Environment
-                    // object is a fatal error, not a nil.
-                    .environment(library.artifactService)
+                    // The ONE service list, never a hand-picked subset: this window's own copy once
+                    // omitted ArtifactService and TRAPPED the moment a run with artifacts was opened
+                    // (#4284) -- a missing @Environment object is a fatal error, not a nil.
+                    .libraryServiceEnvironment(library)
             } else {
                 ContentUnavailableView(
                     "No Activity Selected",

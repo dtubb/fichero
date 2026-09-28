@@ -400,9 +400,6 @@ struct NodePopover: View {
         onDelete: {},
         onDuplicate: {}
     )
-    .environment(library.providerService)
-    .environment(library.documentStore)
-    .environment(library.savedSearchService)
-    .environment(library.workflowService)
+    .libraryServiceEnvironment(library)
     .environment(FeatureManager.shared)
 }
