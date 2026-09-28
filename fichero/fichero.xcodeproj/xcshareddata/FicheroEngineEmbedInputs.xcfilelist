@@ -69,6 +69,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/folders.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/format_import.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/hands.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/inspector.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/letterforms.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/notes.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/page_export.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/reading_orders.py
@@ -350,6 +351,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/models/editorial.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/hands.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/hermeneutics.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/knowledge.py
+$(SRCROOT)/../fichero-server/src/fichero_server/models/letterforms.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/node_aliases.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/node_prototypes.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/prototype_schema.py

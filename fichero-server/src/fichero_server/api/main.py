@@ -1933,6 +1933,7 @@ from fichero_server.api.routes.document import (  # noqa: E402
     rights as document_rights,
     hands as document_hands,
     editorial as document_editorial,
+    letterforms as document_letterforms,
     view as document_view,
 )
 from fichero_server.api.routes.entity import (  # noqa: E402
@@ -2049,6 +2050,8 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (document_hands.router, "/api", ["hands"]),
     # Slice 14 (#4935): editorial facts -- unclear, lost, supplied... -- drawn as the editor's signs.
     (document_editorial.router, "/api", ["editorial"]),
+    # Slice 14 (#4935): letterforms -- allographs, described marks, gathered to compare.
+    (document_letterforms.router, "/api", ["letterforms"]),
     # Source-model (#4943): a file becomes a pass. The export half lives in
     # `page_export`; this is the way in, so `source.format.everywhere` has both
     # directions from the app rather than an export-only surface.

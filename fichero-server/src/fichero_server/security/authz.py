@@ -21,6 +21,7 @@ from fichero_server.db.app import get_app_db
 from fichero_server.db.library_paths import nfc_path
 from fichero_server.models.editorial import EditorialFact
 from fichero_server.models.hands import HandAttribution
+from fichero_server.models.letterforms import LetterformDescription
 from fichero_server.models import (
     AccountUser,
     Artifact,
@@ -398,6 +399,7 @@ _DOCUMENT_ID_RESOLVERS: tuple[tuple[type, Callable[[Any, Any], "str | None"]], .
     # person denied the page could withdraw its facts or attributions by naming them.
     (EditorialFact, lambda db, row: _document_id_of_segment(db, row.segment_id)),
     (HandAttribution, lambda db, row: _document_id_of_segment(db, row.segment_id)),
+    (LetterformDescription, lambda db, row: _document_id_of_segment(db, row.segment_id)),
 )
 
 

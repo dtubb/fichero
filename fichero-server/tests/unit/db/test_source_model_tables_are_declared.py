@@ -14,10 +14,11 @@ import pytest
 from fichero_server.db import Database
 from fichero_server.models.editorial import EditorialFact
 from fichero_server.models.hands import Hand, HandAttribution
+from fichero_server.models.letterforms import Allograph, LetterformDescription
 from fichero_server.models.rights import RightsRecord
 from fichero_server.models.signs import DeclaredSign
 
-MODELS = [Hand, HandAttribution, RightsRecord, DeclaredSign, EditorialFact]
+MODELS = [Hand, HandAttribution, RightsRecord, DeclaredSign, EditorialFact, Allograph, LetterformDescription]
 
 
 def _tables(conn) -> set[str]:
