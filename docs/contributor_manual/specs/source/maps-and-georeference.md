@@ -639,8 +639,18 @@ Formats
   place ENTITIES and entity movements are not written yet.
 - `source.geo.geopackage-out` — **[GAP]** (#4946) the same layers export as a GeoPackage in any
   CRS.
-- `source.geo.linked-places-out` — **[GAP]** (#4946) place entities export as Linked Places Format
+- `source.geo.linked-places-out` — **[PARTIAL]** (#4946) place entities export as Linked Places Format
   with names, geometries, time spans and gazetteer links.
+  **Built 2026-09-28 (maps D9):** `GET /api/entities/{id}/linked-places` -- a FeatureCollection (the
+  LPF v1.1 context) whose Feature has every name as a toponym with its language, citation and
+  `when` (a romanized form as its own toponym, `<lang>-Latn`), every dated geometry in a
+  GeometryCollection with its own `when`, and the `same_as` gazetteer links as `exactMatch`; `when`
+  is ISO 8601, so a source's historical years are converted (Pleiades -30 -> `-0029`); worked out
+  each time, nothing stored (`fichero-server/tests/unit/api/test_places_export_as_linked_places.py::test_lutetia_leaves_with_every_name_dated_in_iso_8601_and_its_gazetteer_link`,
+  `::test_a_moving_place_leaves_with_each_position_dated`, `::test_a_place_with_no_history_is_still_a_valid_feature`).
+  PARTIAL: one place per call (no whole-library export yet), no screen, and not validated against
+  the LPF JSON schema -- its repository states no licence, so the schema is not vendored; each
+  geometry is checked against RFC 7946 instead.
 - `source.geo.duckdb-spatial` — **[GAP]** (#4946) spatial questions in the engine use DuckDB
   Spatial shipped at build time, never installed at run time.
 - `source.geo.fixtures-licensed` — **[GAP]** (#4946) every vendored geographic fixture is real

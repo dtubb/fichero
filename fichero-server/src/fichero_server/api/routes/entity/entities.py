@@ -2481,3 +2481,21 @@ def _action_adopt_boundary(db: Database, params: EntityAdoptBoundaryParams, ctx:
     db.save(entity)
     return ({"entity_id": entity.id, "place_id": place.id, "dated": place.when is not None},
             _entity_spec(entity.id, before=None, after={"entity_id": entity.id, "place_id": place.id}, emit="entity.updated"))
+
+
+@router.get("/{entity_id}/linked-places")
+async def place_as_linked_places(
+    entity_id: str,
+    db: Database = Depends(get_library_database),
+) -> dict:
+    """The place as Linked Places Format (`source.geo.linked-places-out`): a FeatureCollection with
+    one Feature -- its names with language, dates and citations, its dated geometries, its gazetteer
+    links. Worked out from the entity each time; nothing is fetched."""
+    from fichero_server.knowledge.authorities import same_as_links
+    from fichero_server.knowledge.linked_places import feature_collection, place_feature
+
+    entity = db.get(KnowledgeEntity, entity_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+    uris = sorted(link.to_id for link in same_as_links(db, entity.id))
+    return feature_collection([place_feature(entity, uris)])

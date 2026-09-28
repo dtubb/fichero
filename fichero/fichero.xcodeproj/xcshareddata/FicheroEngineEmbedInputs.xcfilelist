@@ -278,6 +278,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/entity_vectors.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/graph.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/graph_reasoning.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/jsonld_context.py
+$(SRCROOT)/../fichero-server/src/fichero_server/knowledge/linked_places.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/ner.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/paragraph.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/places.py
