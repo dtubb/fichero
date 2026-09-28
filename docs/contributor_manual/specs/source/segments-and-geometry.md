@@ -533,6 +533,15 @@ Structure
   (`fichero-server/tests/unit/api/test_reading_orders.py::TestPlacingWritesOneRow::test_a_flow_may_cross_passes`),
   and an ordinary order correctly refuses a foreign segment
   (`::test_a_segment_of_another_pass_is_refused_outside_a_flow`) — that distinction is deliberate.
+  **Continuing a flow onto a page (2026-09-28, bugs lane):** `GET /api/reading-orders/flows/onto/{page}`
+  offers the live flows that end on an EARLIER page of the same source, nearest first, and those on
+  a source a project shares with it (marked "same project"); a flow already reaching the page, a
+  non-flow order and a deleted one are not offered; flows on pages the caller may not read are
+  withheld and counted
+  (`fichero-server/tests/unit/api/test_flows_that_could_continue_onto_a_page.py::test_a_flow_ending_on_an_earlier_page_is_offered_nearest_first`,
+  `::test_a_flow_on_a_source_the_page_shares_a_project_with_is_offered_and_marked`,
+  `::test_a_flow_on_a_page_the_caller_may_not_read_is_withheld_and_counted`). The app half (adding
+  the page's segments with `reading_order.place`) is archive's.
   But `document_text` draws its rows from ONE pass and then keeps only the ordered ids it holds, so
   a cross-pass continuation is still **left out** of the derived text by the same filter that
   legitimately drops a deleted line (#5090).
