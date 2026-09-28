@@ -34,7 +34,24 @@ enum SelectionStyle {
 
     /// An unselected box: the accent, faint, its stroke dimmed by how sure the machine is.
     static let boxBase: NSColor = .controlAccentColor
-    static let boxWashAlpha: CGFloat = 0.06
+
+    /// Regions in distinct colours (#5200): SYSTEM colours, so each adapts to Light, Dark and Increase
+    /// Contrast. `RegionColours.paletteCount` long; a region's place is `RegionColours.paletteIndex`.
+    static let regionPalette: [NSColor] = [
+        .systemBlue, .systemOrange, .systemGreen, .systemPurple, .systemPink, .systemTeal,
+        .systemIndigo, .systemBrown, .systemMint, .systemCyan, .systemRed, .systemYellow
+    ]
+
+    /// A box's colour: its region's, or the plain box colour when it has no region (artifact geometry).
+    static func regionColour(_ regionId: String?) -> NSColor {
+        regionId.map { regionPalette[RegionColours.paletteIndex(for: $0) % regionPalette.count] } ?? boxBase
+    }
+
+    /// The lighter of a region's two line tints.
+    static let alternateTintAlpha: CGFloat = 0.5
+
+    /// The wash under a hovered box: a fill only on hover or selection, never at rest (#5207).
+    static let hoverWashAlpha: CGFloat = 0.1
 
     /// A resize handle's fill: the control background (white in Light Mode, dark in Dark Mode), with
     /// the selection's stroke around it, as Preview draws its shape handles.

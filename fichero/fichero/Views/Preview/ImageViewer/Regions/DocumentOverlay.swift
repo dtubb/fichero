@@ -23,6 +23,9 @@ struct DocumentOverlay: Equatable {
         /// The segment drawn, and its kind: what the box is called as an accessibility element (#5192).
         var segmentId: String?
         var kind = ""
+        /// Its region's colour, and the lighter tint on alternate lines (#5200).
+        var regionId: String?
+        var alternateTint = false
     }
 
     var boxes: [Box] = []

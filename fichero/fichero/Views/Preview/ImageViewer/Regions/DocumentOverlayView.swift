@@ -199,15 +199,19 @@ final class DocumentOverlayView: NSView {
         }
     }
 
+    /// Every box THIN, in its region's colour (#5207, #5200): an outline and its baseline, no fill at rest --
+    /// the fill is hover's and selection's. Lines alternate two tints of their region's colour.
     private func drawBoxes(in dirtyRect: NSRect, imageRect: CGRect, scale: CGFloat, line: CGFloat) {
         for (box, rect) in overlay.boxes(in: dirtyRect, imageRect: imageRect) {
+            let colour = SelectionStyle.regionColour(box.regionId)
+            let tint = box.alternateTint ? SelectionStyle.alternateTintAlpha : 1
             // A segment with its own shapes is drawn AS them -- the outline its file drew, the baseline
             // under its ink -- never as the box around them (#5163's residue).
             if !box.shapes.isEmpty, !(box.showsText && !box.text.isEmpty) {
                 ShapeDrawing.draw(box.shapes, imageRect: imageRect, scale: scale, look: .init(
                     line: line,
-                    stroke: SelectionStyle.boxBase.withAlphaComponent(OCRBoxConfidence.strokeOpacity(box.confidence)),
-                    wash: box.noReading ? .clear : SelectionStyle.boxBase.withAlphaComponent(SelectionStyle.boxWashAlpha),
+                    stroke: colour.withAlphaComponent(OCRBoxConfidence.strokeOpacity(box.confidence) * tint),
+                    wash: .clear,
                     dashed: box.noReading || OCRBoxConfidence.isUncertain(box.confidence)
                 ))
                 continue
@@ -215,7 +219,7 @@ final class DocumentOverlayView: NSView {
             if box.noReading {
                 // No reading yet: hollow and dashed, never hidden, so it can be seen, picked and typed.
                 let hollow = NSBezierPath(rect: rect)
-                SelectionStyle.boxBase.setStroke()
+                colour.withAlphaComponent(tint).setStroke()
                 hollow.lineWidth = line
                 hollow.setLineDash([4 / scale, 3 / scale], count: 2, phase: 0)
                 hollow.stroke()
@@ -227,17 +231,24 @@ final class DocumentOverlayView: NSView {
                 NSColor.textBackgroundColor.withAlphaComponent(InlineWords.plateAlpha).setFill()
                 path.fill()
                 InlineWords.draw(box.text, in: rect)
-            } else {
-                SelectionStyle.boxBase.withAlphaComponent(SelectionStyle.boxWashAlpha).setFill()
-                path.fill()
             }
-            SelectionStyle.boxBase.withAlphaComponent(OCRBoxConfidence.strokeOpacity(box.confidence)).setStroke()
+            colour.withAlphaComponent(OCRBoxConfidence.strokeOpacity(box.confidence) * tint).setStroke()
             path.lineWidth = line
             if OCRBoxConfidence.isUncertain(box.confidence) {
                 path.setLineDash([3 / scale, 2 / scale], count: 2, phase: 0)
             }
             path.stroke()
         }
+    }
+
+    /// The hovered box: its wash and outline -- a fill only here and on selection, never at rest (#5207).
+    private func drawHover(_ rect: CGRect, line: CGFloat) {
+        let path = NSBezierPath(rect: rect)
+        SelectionStyle.hoverBase.withAlphaComponent(SelectionStyle.hoverWashAlpha).setFill()
+        path.fill()
+        SelectionStyle.hoverBase.withAlphaComponent(SelectionStyle.hoverAlpha).setStroke()
+        path.lineWidth = line
+        path.stroke()
     }
 
     /// The hover, the Inspector's selected annotation, and the selected boxes (with their handles
@@ -247,10 +258,7 @@ final class DocumentOverlayView: NSView {
     ) {
         let selected = overlay.selected(in: dirtyRect, imageRect: imageRect)
         if let hovered, hovered.intersects(dirtyRect), !selected.contains(hovered) {
-            let path = NSBezierPath(rect: hovered)
-            SelectionStyle.hoverBase.withAlphaComponent(SelectionStyle.hoverAlpha).setStroke()
-            path.lineWidth = line
-            path.stroke()
+            drawHover(hovered, line: line)
         }
         let stroke = SelectionStyle.stroke(emphasized: emphasized)
         let wash = SelectionStyle.washBase(emphasized: emphasized)
