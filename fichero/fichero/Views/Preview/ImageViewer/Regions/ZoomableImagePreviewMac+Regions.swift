@@ -217,8 +217,10 @@ extension ZoomableImagePreview {
     func registerRegionUndo(_ result: RegionEditResult, actionName: String) {
         result.registerUndo(
             actionName: actionName, undoManager: undoManager,
-            actionsService: actionStore?.actionsService
+            actionsService: actionStore?.actionsService,
+            afterChange: { await reloadSegmentsAfterRegionEdit() }
         )
+        Task { await reloadSegmentsAfterRegionEdit() }
     }
 
     // MARK: Verbs

@@ -29,14 +29,52 @@ extension ZoomableImagePreview {
 
     /// RESHAPE one box's outline or baseline (by its index in the shown boxes): `segment.update`, checked
     /// against the version read, ⌘Z. A segment's shapes are on a segment pass, so this is the only path.
+    /// On a page whose boxes are still its result's (no version to check against, #5235) the page is
+    /// converted first -- `segment.convert_and_edit`, its own ⌘Z -- and the reshape goes to the segment it
+    /// became. Before this the drag snapped back with nothing sent and nothing said.
     func reshapeSegment(index: Int, _ target: SegmentShapes.Target, to points: [[Double]]) {
-        guard let passId = shownArtifactlessPassId, let documentId, let store = segmentEditStore,
-              let segment = store.segments(documentId: documentId)
-                .first(where: { $0.passId == passId && $0.boxIndex == index }) else { return }
-        runSegmentEdit(
-            SegmentShapes.reshape(segment, target, to: points), documentId: documentId,
-            name: target == .polygon ? "Reshape Segment" : "Reshape Baseline"
-        )
+        let name = target == .polygon ? "Reshape Segment" : "Reshape Baseline"
+        guard let documentId, let store = segmentEditStore, let segment = shownSegment(at: index, documentId, store) else {
+            Self.logger.notice("\(name, privacy: .public) not sent: box \(index) is not a segment on the shown pass")
+            return
+        }
+        guard segment.version == nil else {
+            runSegmentEdit(SegmentShapes.reshape(segment, target, to: points), documentId: documentId, name: name)
+            return
+        }
+        guard let actionsService = actionStore?.actionsService else { return }
+        Task {
+            do {
+                try await AuditedAction.run(
+                    "segment.convert_and_edit", params: ConvertPageRequest(documentId: documentId),
+                    actionName: "Convert Page", actionsService: actionsService, undoManager: undoManager,
+                    afterChange: { await reloadSegmentsAfterRegionEdit() }
+                )
+                await reloadSegmentsAfterRegionEdit()
+                guard let converted = shownSegment(at: index, documentId, store), converted.version != nil else {
+                    Self.logger.error("\(name, privacy: .public) not sent: box \(index) has no segment after converting")
+                    return
+                }
+                runSegmentEdit(SegmentShapes.reshape(converted, target, to: points), documentId: documentId, name: name)
+            } catch {
+                Self.logger.error("\(name, privacy: .public) failed converting the page: \(String(describing: error), privacy: .public)")
+            }
+        }
+    }
+
+    /// The segment drawn as box `index`, on the pass the overlay drew (the same answer, asked again).
+    private func shownSegment(at index: Int, _ documentId: String, _ store: SegmentStore) -> Segment? {
+        guard let passId = shownArtifactlessPassId ?? SegmentDisplay.selected(for: documentId, store: store)?.passId
+        else { return nil }
+        return store.segments(documentId: documentId).first { $0.passId == passId && $0.boxIndex == index }
+    }
+
+    /// The Segments store re-read, then the boxes redrawn from it (#5235): the overlay draws from the store,
+    /// so after an edit through the artifact route -- or its ⌘Z -- a stale store painted the old boxes back.
+    func reloadSegmentsAfterRegionEdit() async {
+        guard let documentId, let store = segmentEditStore else { return }
+        await store.load(documentId: documentId, force: true)
+        await loadOCRGeometry()
     }
 
     /// NUDGE the shape point last pressed (an arrow key in Edit Segments): 1 image pixel, 10 with ⇧, as one
@@ -44,10 +82,9 @@ extension ZoomableImagePreview {
     /// ponytail: one audited edit per key press; coalesce a held key into one if the audit trail grows.
     func nudgeSelectedShapePoint(_ deltaX: Double, _ deltaY: Double, fast: Bool) -> Bool {
         guard windowState?.isEditingSegments == true, let ref = windowState?.selectedShapePoint,
-              let documentId, ref.documentId == documentId, let passId = shownArtifactlessPassId,
+              let documentId, ref.documentId == documentId,
               let store = segmentEditStore, imageSize.width > 0, imageSize.height > 0,
-              let segment = store.segments(documentId: documentId)
-                .first(where: { $0.passId == passId && $0.boxIndex == ref.boxIndex }),
+              let segment = shownSegment(at: ref.boxIndex, documentId, store),
               let points = SegmentShapes.points(of: segment, ref.target) else { return false }
         let step = fast ? 10.0 : 1.0
         let moved = SegmentShapes.nudging(

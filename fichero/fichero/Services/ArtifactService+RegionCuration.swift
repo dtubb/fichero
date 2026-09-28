@@ -20,14 +20,19 @@ extension RegionEditResult {
     /// that includes the undo). No audit id, undo manager or actions service: nothing is
     /// registered, because the alternative is inverting a guessed row.
     @MainActor
-    func registerUndo(actionName: String, undoManager: UndoManager?, actionsService: ActionsService?) {
+    func registerUndo(
+        actionName: String, undoManager: UndoManager?, actionsService: ActionsService?,
+        afterChange: @escaping @MainActor () async -> Void = {}
+    ) {
         guard let actionsService else { return }
         ActionUndo.register(
             auditId: auditId,
             actionName: actionName,
             undoManager: undoManager,
             performUndo: { auditId in
-                try await actionsService.undoAction(auditId: auditId).auditId
+                let next = try await actionsService.undoAction(auditId: auditId).auditId
+                await afterChange()
+                return next
             }
         )
     }
