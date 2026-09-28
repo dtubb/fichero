@@ -2025,6 +2025,10 @@ class HealthResponse(BaseModel):
     # it just launched — not a stale process squatting the port. engine_pid lets
     # the app diagnose "port occupied by PID N" precisely.
     engine_pid: int | None = None
+    #: Which app this engine belongs to (2026-09-28): the `.app` bundle path its interpreter lives
+    #: in, or "dev external" for a script-started engine -- so the app can say WHICH engine holds
+    #: the socket. Loopback callers only; None to a remote one (no local paths over the network).
+    engine_owner: str | None = None
     launch_nonce: str | None = None
     # Live dependency versions for the About box's "Built with" (Daniel wants
     # them DERIVED, never hard-typed). Keys are lowercased pip distribution

@@ -299,7 +299,9 @@ def test_engine_still_requires_tls_for_tcp_without_uds(
 
 
 def test_uds_socket_is_unlinked_before_bind() -> None:
-    """A pre-existing file at the UDS path is removed before bind (no EADDRINUSE)."""
+    """A crashed engine's leftover socket at the UDS path is reclaimed before bind (no
+    EADDRINUSE). Since 2026-09-28 only a STALE SOCKET is reclaimed: a live engine's socket is
+    refused and a non-socket file is left alone (test_one_engine_per_socket.py)."""
     import os as _os
     import socket as _socket
     import tempfile
@@ -310,7 +312,9 @@ def test_uds_socket_is_unlinked_before_bind() -> None:
     # tmp_path cannot host a socket. Build a short dir under the system tmp.
     short_dir = tempfile.mkdtemp(prefix="fu", dir="/tmp")
     path = Path(short_dir) / "s.sock"
-    path.write_text("stale")  # a regular file here would block bind() if not unlinked
+    crashed = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+    crashed.bind(str(path))
+    crashed.close()  # the socket file a crash leaves: it would block bind() if not reclaimed
 
     sock = _bind_uds_socket(str(path))
     try:

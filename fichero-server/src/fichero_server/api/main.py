@@ -904,6 +904,13 @@ def _log_fm_bridge_presence() -> None:
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     from fichero_server.api.change_stream import reset_sse_shutdown, signal_sse_shutdown
+    from fichero_server.api.uds_claim import claim_uds_path, uds_path_of_this_process
+
+    # FIRST, before anything is written (2026-09-28): another engine live on this socket means
+    # this one does not start -- no takeover of its socket, no rewrite of its .api-key.
+    _uds_path = uds_path_of_this_process()
+    if _uds_path:
+        claim_uds_path(_uds_path)
 
     reset_sse_shutdown()
     _reset_first_registry_200_signal(app)
@@ -1824,6 +1831,9 @@ async def health_check(
                 active_libraries=db_manager.active_count,
                 remote_backend=build_remote_backend_status().as_dict(),
                 engine_pid=os.getpid(),
+                # Which app this engine belongs to -- to a same-machine caller only: a bundle path
+                # is local disk layout, and a remote caller gets nothing of it.
+                engine_owner=_engine_owner_for(request),
                 launch_nonce=os.environ.get("FICHERO_LAUNCH_NONCE") or None,
                 dependencies=_dependency_versions(),
             ),
@@ -1849,6 +1859,14 @@ def _redact_local_path(message: str, db_path) -> str:
     redacted = message.replace(str(path), "<library>")
     redacted = redacted.replace(str(path.parent), "<library>")
     return redacted
+
+
+def _engine_owner_for(request: Request) -> str | None:
+    """`engine_owner` for a loopback caller (UDS, in-process, 127.0.0.1); None otherwise."""
+    from fichero_server.api.auth import _is_loopback_request
+    from fichero_server.api.uds_claim import engine_owner
+
+    return engine_owner() if _is_loopback_request(request) else None
 
 
 def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthResponse:

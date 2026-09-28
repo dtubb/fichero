@@ -184,6 +184,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/workflow_execution/vi
 $(SRCROOT)/../fichero-server/src/fichero_server/api/tcp_transport.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/templates/document_view.html
 $(SRCROOT)/../fichero-server/src/fichero_server/api/transport_diagnostics.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/uds_claim.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/uds_transport.py
 $(SRCROOT)/../fichero-server/src/fichero_server/bibliography/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/bibliography/doi_lookup.py

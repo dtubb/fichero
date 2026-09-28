@@ -88,18 +88,34 @@ def _bind_listener_socket(host: str, port: int) -> socket.socket:
 
 
 def _bind_uds_socket(uds_path: str) -> socket.socket:
-    """Bind a Unix-domain stream socket, unlinking any stale path first.
+    """Bind a Unix-domain stream socket, reclaiming a stale path first -- never a live one.
 
     A stale socket file left behind by a crashed engine makes ``bind()`` fail
-    with ``EADDRINUSE`` and blocks respawn, so unlink immediately before bind.
+    with ``EADDRINUSE`` and blocks respawn, so it is reclaimed. But an engine that
+    is still LIVE on the path is never unlinked: that was two engines on one
+    socket (2026-09-28). `claim_uds_path` refuses, naming it, and this exits.
     """
-    # CRITICAL: remove a stale socket left by a prior crash before binding.
-    pathlib.Path(uds_path).unlink(missing_ok=True)
+    from fichero_server.api.uds_claim import EngineAlreadyServing, claim_uds_path
+
+    try:
+        claim_uds_path(uds_path)
+    except EngineAlreadyServing as refusal:
+        raise SystemExit(str(refusal)) from refusal
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.bind(uds_path)
     sock.listen(socket.SOMAXCONN)
     sock.setblocking(False)
     return sock
+
+
+def _release_uds_path(uds_path: str, bound_inode: int) -> None:
+    """Unlink the socket file on exit only if it is still the one this engine bound: another
+    engine may have taken the path since, and its live socket is not ours to remove."""
+    try:
+        if os.stat(uds_path).st_ino == bound_inode:
+            pathlib.Path(uds_path).unlink(missing_ok=True)
+    except FileNotFoundError:
+        pass
 
 
 def _ignore_sigpipe() -> None:
@@ -469,6 +485,7 @@ def main(argv: list[str] | None = None):
                 )
 
         uds_sock = _bind_uds_socket(uds_path)
+        bound_inode = os.stat(uds_path).st_ino
         server = uvicorn.Server(uvicorn.Config(**uds_kwargs))
         try:
             # Last stamp before uvicorn takes the thread: everything after this
@@ -483,7 +500,7 @@ def main(argv: list[str] | None = None):
             raise
         finally:
             uds_sock.close()
-            pathlib.Path(uds_path).unlink(missing_ok=True)
+            _release_uds_path(uds_path, bound_inode)
         return
 
     bind_host = resolve_bind_host()
