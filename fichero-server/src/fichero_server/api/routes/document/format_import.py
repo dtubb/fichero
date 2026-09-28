@@ -148,6 +148,19 @@ class ImportArrivedBefore(ValueError):
         )
 
 
+def keep_original(db: Database, path: Path) -> str | None:
+    """Copy an imported file into the library package, byte for byte, the way every library file
+    is kept (`ingest._copy_to_library`: `files/<shard>/`, APFS clone where it can, verified), and
+    answer its package-relative path (#5149). None for a library with no package on disk."""
+    from fichero_server.importers.ingest import _copy_to_library
+
+    if not getattr(db, "path", None):
+        return None
+    package = Path(db.path).parent
+    kept = _copy_to_library(path, package)
+    return kept.relative_to(package).as_posix()
+
+
 def file_checksum(data: bytes) -> str:
     """The same sha256 over content the importer uses (→ #739)."""
     return hashlib.sha256(data).hexdigest()
@@ -258,6 +271,8 @@ def _action_format_import(db: Database, params: FormatImportParams, ctx: ActionC
         checksum=checksum,
         pass_name=params.name or path.name,
         ctx=ctx,
+        # Kept only once the file has been READ: an unreadable file leaves nothing behind (#5149).
+        original=keep_original(db, path),
     )
 
     if spec.name == "tei":
@@ -523,8 +538,12 @@ def write_page_into_library(
     checksum: str,
     pass_name: str,
     ctx: ActionContext,
+    original: str | None = None,
 ) -> dict[str, Any]:
     """One `SourcePage` as a pass, its segments, their readings and its order.
+
+    `original` is where the file's own bytes were kept (`keep_original`), package-relative.
+
 
     In BATCHES, and in this order: the pass, then the segments, then the readings,
     then the order's entries. Each `save_many` is one statement, and nothing places a
@@ -543,6 +562,8 @@ def write_page_into_library(
         run_id=ctx.run_id,
         import_file=source_name,
         import_checksum=checksum,
+        import_format=format_name,
+        import_original=original,
     )
     db.save(pass_row)
 
