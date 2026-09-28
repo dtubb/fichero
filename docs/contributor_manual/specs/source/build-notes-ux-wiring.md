@@ -148,7 +148,8 @@ Page From…. Every edit below should undo with ⌘Z and redo with ⇧⌘Z.
 36. **Reshape on a PDF page.** On that PDF page, turn on Edit Segments (head) and click a line. *Should:*
     its points show square handles and its sides round ones; drag a baseline point and the line follows
     (dashed while dragging), then lands; ⌥-click an outline point removes it; ⌘Z puts each back. The
-    Inspector does not follow a PDF selection yet.
+    Inspector shows the line picked; put the Reader's caret on another line and the PDF page outlines
+    that one. While editing, the head shows no Polygon/Baseline menu, Delete or Join on a PDF page.
 
 **Not built:** the menu-bar Segment menu, comparing two passes side by side, attribute edits
 on a page still read from an artifact (it is converted on first edit, #4924).

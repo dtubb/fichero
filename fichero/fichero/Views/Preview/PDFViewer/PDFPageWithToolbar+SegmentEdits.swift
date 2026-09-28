@@ -10,13 +10,17 @@ extension PDFPageWithToolbar {
     var pdfSegmentEditing: PDFSegmentEditing {
         #if canImport(AppKit)
         let boxes = ocrGeometry?.boxes ?? []
-        let selected = pdfSelectedBoxIndex.flatMap { index in
-            boxes.indices.contains(index) ? (index: index, box: boxes[index]) : nil
-        }
+        let documentId = effectiveGeometryDocumentId
+        let scope = pdfSelectionScope
+        let selection = pdfRegionSelection
+        let windowState = pdfWindowState
         return PDFSegmentEditing(
             isEditing: pdfWindowState?.isEditingSegments == true,
-            selected: selected,
-            select: { box in pdfSelectedBoxIndex = box.flatMap { picked in boxes.firstIndex { $0.id == picked.id } } },
+            selected: PDFSegmentEditing.selected(from: selection, among: boxes, scope: scope, documentId: documentId),
+            select: { box in
+                PDFSegmentEditing.select(box, among: boxes, scope: scope, documentId: documentId, into: selection)
+                windowState?.focusRegionSelection(selection)
+            },
             commit: { index, target, points in reshapePDFSegment(index: index, target, to: points) }
         )
         #else
@@ -25,6 +29,14 @@ extension PDFPageWithToolbar {
     }
 
     #if canImport(AppKit)
+    /// The shown pass's selection scope (`SegmentDisplay.selectionScope`), nil when the boxes have no pass.
+    var pdfSelectionScope: String? {
+        guard let segmentService,
+              let shown = SegmentDisplay.selected(for: effectiveGeometryDocumentId, store: SegmentStore.shared(for: segmentService))
+        else { return nil }
+        return SegmentDisplay.selectionScope(artifactId: shown.artifactId, passId: shown.passId)
+    }
+
     /// The shown pass's segment at `index` reshaped: the image's rule, sent through `SegmentEditRunner`.
     func reshapePDFSegment(index: Int, _ target: SegmentShapes.Target, to points: [[Double]]) {
         guard let segmentService, let actionsService = pdfActionStore?.actionsService else { return }

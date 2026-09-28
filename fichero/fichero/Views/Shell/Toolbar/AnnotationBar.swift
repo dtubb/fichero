@@ -18,11 +18,13 @@ struct AnnotationBar: View {
     /// (Daniel, 2026-09-02) — the one switch the window toolbar's text mode
     /// also throws.
     var onSetLabels: ((Bool) -> Void)?
+    /// What the shown canvas acts on in Edit Segments (`PreviewPaneChrome.segmentVerbs`).
+    var segmentVerbs: SegmentVerbs = .all
 
     var body: some View {
         HStack(spacing: 10) {
             Spacer(minLength: 0)
-            PreviewMarkupToolsRow(showsLabels: showsLabels)
+            PreviewMarkupToolsRow(showsLabels: showsLabels, segmentVerbs: segmentVerbs)
             Spacer(minLength: 0)
         }
         // Real margins (Daniel, 2026-08-30: "left right margins should be

@@ -81,6 +81,22 @@ enum PDFShapeAnnotations {
         return out
     }
 
+    /// A selected box outside Edit Segments: its bounds in the accent colour, as the image marks a selection.
+    static func selectionOutline(for box: OCRGeometryBox, on page: PDFPage, userName: String) -> [PDFAnnotation] {
+        let crop = page.bounds(for: .cropBox)
+        let unrotated = PDFRegionGeometry.unrotated(normalized: box.bbox, rotation: page.rotation)
+        guard let rect = PDFRegionGeometry.pageRect(normalized: unrotated, pageSize: crop.size) else { return [] }
+        let outline = PDFAnnotation(
+            bounds: rect.offsetBy(dx: crop.minX, dy: crop.minY).insetBy(dx: -2, dy: -2), forType: .square, withProperties: nil
+        )
+        let border = PDFBorder()
+        border.lineWidth = 2
+        outline.border = border
+        outline.color = .controlAccentColor
+        outline.userName = userName
+        return [outline]
+    }
+
     /// The shape as it is being dragged: dashed, in the accent colour, over the drawn one until the edit lands.
     static func live(_ points: [[Double]], closed: Bool, on page: PDFPage, userName: String) -> PDFAnnotation? {
         let crop = page.bounds(for: .cropBox)

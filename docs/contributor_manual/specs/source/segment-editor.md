@@ -1107,9 +1107,16 @@ The editor
   drawing's `pagePoint`) and decided by the image's own rule (`ReshapeDrag.press`), so the same
   `SegmentShapes.reshape` is sent, ⌘Z by its audit id
   (`ImportedPageDrawsItsBoxesTests.testReshapingALinesBaselineOnAPDFPageSendsTheImagesUpdateAndUndoes`, the
-  recorded Syriac line on the corpus's real PDF page). **Not yet:** on a PDF page, nudging with the arrow
-  keys, a selection shared with the Inspector and the Reader (the PDF page's selection is its own), Move,
-  Delete, Join and drawing new shapes; iOS; a pass with an artifact behind it (its boxes carry no shapes);
+  recorded Syriac line on the corpus's real PDF page). **A PDF page's selection is the ONE selection
+  (#5155's ruling):** a click on a PDF page writes the line into the page's selection in the shown pass's
+  scope, as an image does, so the Inspector inspects it; the Reader's caret line (or an Inspector crumb)
+  written the other way is the box the PDF page then outlines, or gives handles to in Edit Segments
+  (`PDFSegmentEditing.select`/`.selected`;
+  `ImportedPageDrawsItsBoxesTests.testAPDFPagesSelectionIsTheOneSelectionTheInspectorAndReaderShare`).
+  **Not yet:** on a PDF page, a click selects only in Edit Segments (outside it a click is PDFKit's text
+  selection), nudging with the arrow keys, Move, Delete, Join and drawing new shapes -- and so a PDF page's head HIDES the Shape kind menu (Polygon,
+  Baseline), Delete and Join while editing segments, rather than offer controls that do nothing
+  (`SegmentVerbs.pdfPage`; `ImportedPageDrawsItsBoxesTests.testAPDFPagesHeadOffersOnlyTheSegmentVerbsThatAct`); iOS; a pass with an artifact behind it (its boxes carry no shapes);
   a held arrow key is one edit per press, not coalesced.
 - `source.editor.propose-shape` — **[GAP]** (#4941) a click asks the engine to propose a shape, which can then be
   adjusted.

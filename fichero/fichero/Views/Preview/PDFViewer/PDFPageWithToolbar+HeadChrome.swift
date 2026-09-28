@@ -29,6 +29,7 @@ extension PDFPageWithToolbar {
         // Edit Segments reaches a PDF page too: select a segment, reshape its outline and baseline.
         #if os(macOS)
         paneChrome.canEditSegments = true
+        paneChrome.segmentVerbs = .pdfPage
         #endif
     }
 

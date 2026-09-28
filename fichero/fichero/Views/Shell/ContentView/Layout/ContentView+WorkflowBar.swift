@@ -23,7 +23,8 @@ extension ContentView {
         if showAnnotationBar {
             AnnotationBar(
                 showsLabels: showWorkflowBarLabels,
-                onSetLabels: { showWorkflowBarLabels = $0 }
+                onSetLabels: { showWorkflowBarLabels = $0 },
+                segmentVerbs: previewChrome.segmentVerbs
             )
             .background { ToolbarTextModeSync(showsLabels: $showWorkflowBarLabels) }
         }

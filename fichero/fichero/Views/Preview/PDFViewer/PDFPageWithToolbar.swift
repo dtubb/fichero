@@ -118,8 +118,9 @@ struct PDFPageWithToolbar: View {
     @Environment(WindowState.self) var pdfWindowState: WindowState?
     @Environment(ActionStore.self) var pdfActionStore: ActionStore?
     @Environment(\.undoManager) var pdfUndoManager
-    /// Edit Segments: the selected box's index among the shown pass's boxes (`PDFPageWithToolbar+SegmentEdits`).
-    @State var pdfSelectedBoxIndex: Int?
+    /// This page's region selection -- the window's ONE selection while it is the focused pane (#5155):
+    /// the Inspector and the Reader read and write it (`PDFPageWithToolbar+SegmentEdits`).
+    @State var pdfRegionSelection = RegionSelection()
     /// ON by default (#4418) — same reasoning as the image surface: geometry
     /// that exists but is never drawn is geometry nobody can check a
     /// transcription against.
@@ -491,7 +492,9 @@ struct PDFPageWithToolbar: View {
             .onAppear {
                 localPageIndex = pageIndex
                 loadAnnotations()
+                pdfWindowState?.offerRegionSelection(pdfRegionSelection)
             }
+            .onDisappear { pdfWindowState?.releaseRegionSelection(pdfRegionSelection) }
             .onChange(of: pageIndex) { _, newIndex in
                 // Primary unpinned pane: keep in step with parent selection.
                 // Secondary or pinned pane: ignore parent changes.
@@ -499,7 +502,7 @@ struct PDFPageWithToolbar: View {
             }
             .onChange(of: effectiveDocumentId) { _, _ in
                 isDrawingRegion = false
-                pdfSelectedBoxIndex = nil  // a selection belongs to its page
+                pdfRegionSelection.clear()  // a selection belongs to its page
                 loadAnnotations()
             }
             .onChange(of: annotationStore.changeToken) { _, _ in

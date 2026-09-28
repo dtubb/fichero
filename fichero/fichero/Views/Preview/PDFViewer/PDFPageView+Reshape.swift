@@ -10,6 +10,34 @@ struct PDFSegmentEditing {
     var selected: (index: Int, box: OCRGeometryBox)?
     var select: ((OCRGeometryBox?) -> Void)?
     var commit: ((Int, SegmentShapes.Target, [[Double]]) -> Void)?
+
+    /// A PDF page's pick as the ONE selection (#5155's ruling): written into the page's `RegionSelection`
+    /// in the shown pass's scope and box indices, exactly as an image page writes it, so the Inspector
+    /// and the Reader follow it. Nil (blank page, or boxes with no pass behind them) clears it.
+    @MainActor
+    static func select(
+        _ box: OCRGeometryBox?, among boxes: [OCRGeometryBox], scope: String?, documentId: String,
+        into selection: RegionSelection
+    ) {
+        guard let box, let scope, let index = boxes.firstIndex(where: { $0.id == box.id }) else {
+            selection.clear()
+            return
+        }
+        selection.select(index, artifactId: scope, documentId: documentId, in: boxes)
+    }
+
+    /// The other way: whatever made the selection -- this page, the Inspector, the Reader's caret line --
+    /// the ONE box it names on this page is the one that gets handles. Nil for none, several, or another
+    /// pass's selection.
+    @MainActor
+    static func selected(
+        from selection: RegionSelection, among boxes: [OCRGeometryBox], scope: String?, documentId: String
+    ) -> (index: Int, box: OCRGeometryBox)? {
+        guard let scope, selection.artifactId == scope, selection.documentId == documentId else { return nil }
+        let picked = selection.resolvedIndices(in: boxes)
+        guard picked.count == 1, let index = picked.first, boxes.indices.contains(index) else { return nil }
+        return (index, boxes[index])
+    }
 }
 
 #if os(macOS)
