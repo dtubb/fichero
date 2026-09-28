@@ -135,6 +135,10 @@ Page From…. Every edit below should undo with ⌘Z and redo with ⇧⌘Z.
     just under its last line. *Should:* the Inspector's path reads **Page › Region › Line**, and the Order
     list shows it as that region's last line; ONE ⌘Z removes it from both. Draw one on blank margin
     outside every region: the path reads **Page › Line**, and it is not put in any region.
+34. **A direction reaches the Reader at once** (#5171). With the Reader open beside the Source view,
+    select a line and use the Segment menu (or the Inspector) to set **Right to Left**. *Should:* the
+    Reader's page lays that line out right to left straight away; ⌘Z puts it back, ⇧⌘Z sets it again,
+    each showing at once, with the scroll and caret kept.
 
 **Not built:** the menu-bar Segment menu, comparing two passes side by side, attribute edits
 on a page still read from an artifact (it is converted on first edit, #4924).

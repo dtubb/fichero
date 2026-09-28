@@ -760,7 +760,13 @@ The editor
   `::test_a_direction_set_on_the_page_reaches_the_reader_at_once`); a line with no letters takes its
   block's direction, else its page's, and says so
   (`fichero-server/tests/unit/api/test_a_line_without_letters_takes_its_pages_direction.py`); a Return cut follows the
-  direction (`return-splits-the-line`). Matrix on real corpus files:
+  direction (`return-splits-the-line`). **The app re-reads the Reader's page** when a direction is set
+  from the Segment menu or the Inspector, and on that set's ⌘Z and ⇧⌘Z -- once per change, only a page
+  the Reader shows, never a poll: every `SegmentEditRunner` change posts `didChange`, and the Reader's
+  `SegmentChangeObserver` patches that page in place
+  (`ImportedPageDrawsItsBoxesTests.testADirectionSetItsUndoAndItsRedoEachReloadTheReadersPageOnce`,
+  Syriac). The app has no control of its own for `source_setting.set` yet: a setting made from MCP or
+  the command line shows at the Reader's next open. Matrix on real corpus files:
   `acceptance-2026-09-27.md` § Directions in the Reader. **Still PARTIAL:** columns that advance
   left to right (Mongolian) cannot be said (#5173); "a direction the platform cannot lay out is
   labelled" is not built; not run on the screen.

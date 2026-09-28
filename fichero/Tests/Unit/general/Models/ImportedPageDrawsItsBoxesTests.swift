@@ -584,6 +584,46 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
     }
 
+    /// #5171 end to end: a direction set from the Segment menu or the Inspector (both `SegmentEditRunner.run`)
+    /// reaches the Reader, which re-reads the page through the SAME observer it holds
+    /// (`SegmentChangeObserver`, `DocumentKGWebPaneCoordinatorMacOS.segmentChanges`). The set, its ⌘Z and
+    /// its ⇧⌘Z each re-read the page ONCE -- not zero (the change would show only on the next open), not
+    /// twice, and never on a timer. Breaks if the runner stops posting, or posts on only one of the three.
+    func testADirectionSetItsUndoAndItsRedoEachReloadTheReadersPageOnce() async throws {
+        let store = try await loadedStore()
+        let picked = Array(store.segments(documentId: "doc-0001").filter { $0.kind == "line" }.prefix(1))
+        final class Reloads { var pages: [String] = [] }
+        let reloaded = Reloads()
+        let observer = SegmentChangeObserver { pageId in reloaded.pages.append(pageId) }
+        let settle = { (count: Int) in
+            for _ in 0..<200 where reloaded.pages.count < count { try await Task.sleep(nanoseconds: 10_000_000) }
+            try await Task.sleep(nanoseconds: 50_000_000)  // a second, unwanted reload would land here
+        }
+
+        RecordedEngine.undone = []
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        _ = try await SegmentEditRunner(actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store).run(
+            try SegmentEdit.set(.direction("ltr"), on: picked).get(), documentId: "doc-0001",
+            actionName: "Set Segment", undoManager: manager
+        )
+        manager.endUndoGrouping()
+        try await settle(1)
+        XCTAssertEqual(reloaded.pages, ["doc-0001"], "the set re-reads the page once")
+
+        manager.undo()
+        try await settle(2)
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
+        XCTAssertEqual(reloaded.pages, ["doc-0001", "doc-0001"], "its ⌘Z re-reads it once more")
+
+        manager.redo()
+        try await settle(3)
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1", "undo-of-audit-1"], "⇧⌘Z inverts the undo's own row")
+        XCTAssertEqual(reloaded.pages, ["doc-0001", "doc-0001", "doc-0001"], "its ⇧⌘Z once more")
+        withExtendedLifetime(observer) {}
+    }
+
     /// #5158 end to end: the imported Syriac page's first line, through `SegmentService.resolvedSettings`
     /// over the engine's recorded answer. What the section shows is exactly what the engine says: the
     /// script DETECTED from the line's own letters (Syrc), the direction from that script (right to left),

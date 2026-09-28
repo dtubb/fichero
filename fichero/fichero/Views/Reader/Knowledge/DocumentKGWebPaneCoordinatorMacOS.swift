@@ -70,8 +70,16 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     /// Watching for the engine's return after a typed line could not reach it (13b out of reach).
     var reachabilityProbe: Task<Void, Never>?
 
+    /// A segment edit made elsewhere -- a direction from the Segment menu or the Inspector, a move, its
+    /// ⌘Z -- re-reads the page here if it is shown (#5171).
+    var segmentChanges: SegmentChangeObserver?
+
     init(parent: DocumentKGWebPane) {
         self.parent = parent
+        super.init()
+        segmentChanges = SegmentChangeObserver { [weak self] pageId in
+            await Self.refreshIfShown(pageId, in: self?.webView)
+        }
     }
 
     func loadIfNeeded(_ webView: WKWebView) {
@@ -534,6 +542,19 @@ extension DocumentKGWebPaneCoordinatorMacOS {
             afterUndo: { Task { @MainActor in await DocumentKGWebPaneCoordinatorMacOS.refreshPage(pageId, in: webView) } }
         )
         await DocumentKGWebPaneCoordinatorMacOS.refreshPage(pageId, in: webView)
+    }
+
+    /// `refreshPage` for a page this Reader SHOWS; nothing for one it does not -- a change on a page
+    /// elsewhere must not reload the whole view (`refreshPage`'s fallback).
+    @MainActor
+    static func refreshIfShown(_ pageId: String, in webView: WKWebView?) async {
+        guard let webView else { return }
+        let shown = try? await webView.callAsyncJavaScript(
+            "return document.querySelector(`article[data-page-id=\"${CSS.escape(pageId)}\"]`) !== null;",
+            arguments: ["pageId": pageId], in: nil, contentWorld: .page
+        )
+        guard (shown as? Bool) == true else { return }
+        await refreshPage(pageId, in: webView)
     }
 
     /// Patch the one page in place (`window.fichero.refreshPage` in `document_view.html`), so the

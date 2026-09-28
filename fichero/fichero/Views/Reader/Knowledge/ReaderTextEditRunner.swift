@@ -53,9 +53,10 @@ struct ReaderTextEditRunner {
             case .join:
                 await store.load(documentId: pageId, force: true)
                 let call = try ReaderTextEdit.join(edit, segments: store.segments(documentId: pageId)).get()
+                // No afterChange: the runner posts `didChange`, which re-reads the Reader's page (#5171);
+                // refreshing here too would read it twice.
                 try await SegmentEditRunner(actionsService: actionsService, store: store).run(
-                    call, documentId: pageId, actionName: "Join Lines", undoManager: undoManager,
-                    afterChange: { await refreshPage(pageId) }
+                    call, documentId: pageId, actionName: "Join Lines", undoManager: undoManager
                 )
             }
         } catch let error where ReaderTextEdit.unreachableReason(error) != nil {
