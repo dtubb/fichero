@@ -103,6 +103,8 @@ os.environ.setdefault("FICHERO_SKIP_DERIVATIVE_RESUME", "1")
 os.environ.setdefault("FICHERO_SKIP_MLX_MEMORY_GUARD", "1")
 # Nor a whole-project conversion thread (#5222): a test that wants one starts it itself.
 os.environ.setdefault("FICHERO_SKIP_PROJECT_CONVERSION", "1")
+# A test that DOES start a conversion wants it now, not after the launch settle (#5228).
+os.environ.setdefault("FICHERO_CONVERSION_START_DELAY_SECONDS", "0")
 # #742 added shared-secret auth + a loopback check. FastAPI's TestClient
 # uses host "testclient" (not 127.0.0.1) and doesn't carry the Authorization
 # header tests aren't aware of. Disable auth entirely for the test app —

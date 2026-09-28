@@ -56,11 +56,28 @@ def start(db: Any, package_path: str | Path) -> threading.Thread | None:
         return thread
 
 
+#: Seconds a library's conversion waits after the open before it starts (#5228). At launch every
+#: restored library opens at once; converting them all in the same seconds (a snapshot first, then
+#: page after page of Python) competed with the app's first requests. Background work waits until
+#: the launch is over. `FICHERO_CONVERSION_START_DELAY_SECONDS` overrides it (the test suite: 0).
+DEFAULT_START_DELAY_SECONDS = 20.0
+
+
+def _start_delay() -> float:
+    try:
+        return max(0.0, float(os.environ.get("FICHERO_CONVERSION_START_DELAY_SECONDS", DEFAULT_START_DELAY_SECONDS)))
+    except ValueError:
+        return DEFAULT_START_DELAY_SECONDS
+
+
 def _run(db: Any, package_path: Path, stop_event: threading.Event) -> None:
     from fichero_server.maintenance.project_conversion import (
         ConversionAlreadyRunning,
         convert_project,
     )
+
+    if stop_event.wait(_start_delay()):
+        return  # stopped (the library closed) before the launch settled: the next open converts
 
     try:
         run = convert_project(db, package_path, should_stop=stop_event.is_set)
