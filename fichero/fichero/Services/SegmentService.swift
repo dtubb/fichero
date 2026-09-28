@@ -91,7 +91,9 @@ extension SegmentService {
             let readings = body.items.map {
                 InspectorText.Reading(
                     id: $0.id, kind: $0.kind, content: $0.content, maker: $0.provenanceKind.rawValue,
-                    author: $0.createdBy, guideline: $0.guideline, pairId: $0.pairId, pairRole: $0.pairRole
+                    author: $0.createdBy, guideline: $0.guideline, pairId: $0.pairId, pairRole: $0.pairRole,
+                    correctsId: $0.correctsRepresentationId, level: $0.level,
+                    machineConfidence: $0.machineConfidence, readFromRenditionId: $0.readFromRenditionId
                 )
             }
             let counting = body.counting.additionalProperties.mapValues {
@@ -130,6 +132,28 @@ extension SegmentService {
             return nil
         case .unprocessableContent:
             return nil
+        case .undocumented(let statusCode, _):
+            throw SegmentServiceError.unexpectedResponse(statusCode)
+        }
+    }
+}
+
+extension SegmentService {
+    /// The language, script, direction and encoding the engine resolves for ONE segment, each with
+    /// where it came from (#5158; `GET /api/source-settings/resolve`). Empty for an id it cannot find.
+    func resolvedSettings(segmentId: String) async throws -> [InspectorLanguage.Setting] {
+        let response = try await client.api.resolveSourceSettingsApiSourceSettingsResolveGet(
+            query: .init(segmentId: segmentId)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.settings.map {
+                InspectorLanguage.Setting(
+                    key: $0.key, value: $0.value, status: $0.status, source: $0.source, basis: $0.basis, level: $0.level
+                )
+            }
+        case .undocumented(404, _), .unprocessableContent:
+            return []
         case .undocumented(let statusCode, _):
             throw SegmentServiceError.unexpectedResponse(statusCode)
         }

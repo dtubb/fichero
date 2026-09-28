@@ -428,4 +428,19 @@ struct OCRGeometrySelectionTests {
         ], segments: [])
         #expect(ranked.map(\.id) == ["curated", "imported", "machine", "legacy-geo"])
     }
+
+    /// #5156: a person's explicit choice of working pass outranks the ladder, as the inspector's
+    /// focused artifact does; a pass that is working only by the rule does not jump the ladder.
+    @Test("rankedPasses: a pass a person CHOSE as working comes first; working by the rule does not")
+    func rankedPassesChosenWorkingFirst() {
+        var chosen = realPass(id: "machine-chosen", kind: .workflow, ageInHours: 100)
+        chosen.working = true
+        chosen.workingBasis = "chosen"
+        var byRule = realPass(id: "machine-by-rule", kind: .workflow, ageInHours: 0)
+        byRule.working = true
+        byRule.workingBasis = "human-touched"
+        let curated = realPass(id: "curated", kind: .human, ageInHours: 1)
+        #expect(OCRGeometrySelection.rankedPasses([curated, chosen], segments: []).map(\.id) == ["machine-chosen", "curated"])
+        #expect(OCRGeometrySelection.rankedPasses([byRule, curated], segments: []).map(\.id) == ["curated", "machine-by-rule"])
+    }
 }

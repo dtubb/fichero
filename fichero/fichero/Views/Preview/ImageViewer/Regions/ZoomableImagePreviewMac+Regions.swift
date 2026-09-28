@@ -178,6 +178,8 @@ extension ZoomableImagePreview {
                 Button("New Region from Words") { promoteSelectedWords() }
             }
             if !selection.isEmpty {
+                // The Segment menu (#5157): kind, direction, text or furniture, on the selection.
+                SegmentAttributeMenu(apply: { setSelectedSegments($0) })
                 Button(
                     selection.count == 1 ? "Delete Region" : "Delete \(selection.count) Regions",
                     role: .destructive

@@ -76,6 +76,8 @@ struct DocumentKGWebPane: NSViewRepresentable {
     var readerTextWrap = ReaderTextWrap.tidy
     @Environment(KGFocusState.self) var kgFocusState
     @Environment(LibraryManager.self) var libraryManager
+    /// The window's focused Source-view selection, shown in the Reader and set from it (#5155).
+    @Environment(WindowState.self) var windowState: WindowState?
     /// Per-window source-navigation bus (#3437). Captured into the coordinator
     /// in `updateNSView` — a WKScriptMessageHandler callback fires async, outside
     /// view evaluation, where reading `@Environment` directly is unsafe.
@@ -149,6 +151,8 @@ struct DocumentKGWebPane: NSViewRepresentable {
         context.coordinator.claimSourceNavigationState = claimSourceNavigationState
         context.coordinator.readerPageActivationState = readerPageActivationState
         context.coordinator.library = libraryManager.library(atPath: libraryPath)
+        context.coordinator.windowState = windowState
+        context.coordinator.syncSelectedLines(into: webView)
         context.coordinator.injectContext(into: webView)
         context.coordinator.loadIfNeeded(webView)
         context.coordinator.syncSelection(into: webView)
