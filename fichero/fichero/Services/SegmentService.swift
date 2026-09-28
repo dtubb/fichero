@@ -110,6 +110,46 @@ extension SegmentService {
     }
 }
 
+extension SegmentService {
+    /// The file an imported pass was read from, exactly as it arrived (#5149, the Making section's
+    /// Show Original). Nil for 404 -- a pass not made from a kept file.
+    func original(passId: String) async throws -> PassOriginal? {
+        let response = try await client.api.getPassOriginalApiSegmentsPassesPassIdOriginalGet(
+            path: .init(passId: passId)
+        )
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            guard let bytes = Data(base64Encoded: body.contentBase64) else {
+                throw SegmentServiceError.serverError("the original's bytes did not decode")
+            }
+            return PassOriginal(
+                fileName: body.fileName, importFormat: body.importFormat, mediaType: body.mediaType, bytes: bytes
+            )
+        case .undocumented(404, _):
+            return nil
+        case .unprocessableContent:
+            return nil
+        case .undocumented(let statusCode, _):
+            throw SegmentServiceError.unexpectedResponse(statusCode)
+        }
+    }
+}
+
+/// A kept original: its bytes as they arrived, and what to call it.
+struct PassOriginal: Equatable {
+    let fileName: String?
+    let importFormat: String?
+    let mediaType: String
+    let bytes: Data
+
+    /// For reading on screen: UTF-8 when it is, else Latin-1 (which decodes any byte), so a file in
+    /// another encoding is still shown rather than refused.
+    var text: String {
+        String(data: bytes, encoding: .utf8) ?? String(data: bytes, encoding: .isoLatin1) ?? ""
+    }
+}
+
 enum SegmentServiceError: Error, LocalizedError {
     case unexpectedResponse(Int)
     case serverError(String)

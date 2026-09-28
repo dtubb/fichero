@@ -3581,17 +3581,28 @@ async def delete_pass(
     return result.result
 
 
-@router.get("/passes/{pass_id}/original")
+class PassOriginalResponse(BaseModel):
+    """The file an imported pass was read from (#5149). `content_base64` is its bytes exactly as they
+    arrived -- base64, so a file in any encoding comes back byte for byte; the app decodes it to show."""
+
+    pass_id: str
+    file_name: str | None = None
+    import_format: str | None = None
+    import_checksum: str | None = None
+    media_type: str
+    content_base64: str
+
+
+@router.get("/passes/{pass_id}/original", response_model=PassOriginalResponse)
 async def get_pass_original(
     pass_id: str,
     db: Database = Depends(get_library_database),
-):
+) -> PassOriginalResponse:
     """The file an imported pass was read from, byte for byte as it arrived (#5149): the Inspector's
     Making section offers it as "Show original". Read access to the pass's page is the check
     (`pass_id` resolves to its document). 404 for a pass not made from a kept file."""
+    import base64
     from pathlib import Path
-
-    from fastapi.responses import FileResponse
 
     row = db.get(SegmentPass, pass_id)
     if row is None or row.deleted_at is not None:
@@ -3605,7 +3616,11 @@ async def get_pass_original(
     if not kept.is_relative_to(package / "files") or not kept.is_file():
         raise HTTPException(status_code=404, detail=f"The original of pass {pass_id} is missing from the library")
     media_type = "application/xml" if kept.suffix.lower() in {".xml", ".html", ".hocr"} else "text/plain"
-    return FileResponse(kept, media_type=media_type, filename=row.import_file or kept.name)
+    return PassOriginalResponse(
+        pass_id=row.id, file_name=row.import_file, import_format=row.import_format,
+        import_checksum=row.import_checksum, media_type=media_type,
+        content_base64=base64.b64encode(kept.read_bytes()).decode("ascii"),
+    )
 
 
 @router.post("", response_model=SegmentRead)
