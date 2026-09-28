@@ -273,6 +273,13 @@
         .transcript-page-body span[dir] {
             unicode-bidi: isolate;
         }
+        /* One line per manuscript line (#5208): the separator between two lines is followed by a
+           generated line break. A diplomatic reading keeps the manuscript's lines; in a `ttb` page
+           the same break starts the next column. The break is CSS, never text, so no offset moves. */
+        .transcript-page-body .line-break::after {
+            content: "\A";
+            white-space: pre;
+        }
         /* A line whose words were all deleted (13b, `deleting-words-keeps-ink`): the line is still on
            the page, in its place, under its segment -- only its reading is empty. The placeholder is
            drawn, never text, so the page's text and every offset walk are unchanged. */
@@ -1435,17 +1442,61 @@ function pageDirection(runs) {
     return best;
 }
 
-// content[start, end) escaped, with an EMPTY line's marker at its offset: an element with no text,
-// so the text nodes (and every offset) are exactly the page text's.
-function textWithEmptyLines(content, start, end, empties) {
-    let out = "", at = start;
+// content[start, end) escaped, with an EMPTY line's marker at its offset (an element with no text), and
+// each separator between two lines wrapped as a `.line-break` (#5208: one line per manuscript line, the
+// break drawn by CSS after it). The separator character stays in its text node, so the text nodes (and
+// every offset walk) are exactly the page text's.
+function textWithEmptyLines(content, start, end, empties, breaks = []) {
+    const marks = [];
     for (const line of empties) {
         if (line.char_start < start || line.char_start > end || (line.char_start === end && end !== content.length)) continue;
-        out += escapeHtml(content.slice(at, line.char_start))
-            + `<span class="line-empty" data-segment-id="${escapeHtml(String(line.segment_id))}"></span>`;
-        at = line.char_start;
+        marks.push({ at: line.char_start, width: 0, html: `<span class="line-empty" data-segment-id="${escapeHtml(String(line.segment_id))}"></span>` });
+    }
+    for (const at of breaks) if (at >= start && at < end) marks.push({ at, width: 1 });
+    marks.sort((a, b) => a.at - b.at || a.width - b.width);
+    let out = "", at = start;
+    for (const mark of marks) {
+        out += escapeHtml(content.slice(at, mark.at));
+        if (mark.width) {
+            out += `<span class="line-break">${escapeHtml(content.slice(mark.at, mark.at + 1))}</span>`;
+            at = mark.at + 1;
+        } else {
+            out += mark.html;
+            at = mark.at;
+        }
     }
     return out + escapeHtml(content.slice(at, end));
+}
+
+// Where an excerpt falls in a run of text nodes, as one piece per node it touches ({index, start, end},
+// offsets within that node), or [] when it is not there. A claim that crosses a line boundary now spans
+// the `.line-break` element (#5208), so the excerpt is found in the nodes' text JOINED, never one node's.
+function excerptPieces(texts, excerpt) {
+    if (!excerpt) return [];
+    const at = texts.join("").indexOf(excerpt);
+    return at < 0 ? [] : offsetPieces(texts.map((text) => text.length), at, at + excerpt.length);
+}
+
+// The range [start, end) of text laid out in nodes of these lengths, as one piece per node it touches.
+function offsetPieces(lengths, start, end) {
+    const pieces = [];
+    let offset = 0;
+    lengths.forEach((length, index) => {
+        const from = Math.max(start, offset), to = Math.min(end, offset + length);
+        if (from < to) pieces.push({ index, start: from - offset, end: to - offset });
+        offset += length;
+    });
+    return pieces;
+}
+
+// The separators between consecutive lines of the map: the one character between a line's end and
+// the next line's start (#5208).
+function lineBreaks(content, lines) {
+    const list = Array.isArray(lines) ? lines : [];
+    return list.slice(0, -1)
+        .map((line, i) => [line.char_end, list[i + 1].char_start])
+        .filter(([end, next]) => next === end + 1 && end < content.length)
+        .map(([end]) => end);
 }
 
 function pageBodyMarkup(page) {
@@ -1455,13 +1506,14 @@ function pageBodyMarkup(page) {
     const attr = base === "rtl" ? ' dir="rtl"' : base === "ttb" ? ' data-direction="ttb"' : "";
     const flow = base === "rtl" ? "rtl" : "ltr";
     const empties = (Array.isArray(page.lines) ? page.lines : []).filter((line) => line.char_end === line.char_start);
+    const breaks = lineBreaks(content, page.lines);
     const inner = runs.length
         ? runs.map((run) => {
-            const text = textWithEmptyLines(content, run.start, run.end, empties);
+            const text = textWithEmptyLines(content, run.start, run.end, empties, breaks);
             const own = run.direction === "rtl" || run.direction === "ltr" ? run.direction : flow;
             return own === flow ? text : `<span dir="${own}">${text}</span>`;
         }).join("")
-        : textWithEmptyLines(content, 0, content.length, empties);
+        : textWithEmptyLines(content, 0, content.length, empties, breaks);
     return `<div class="transcript-page-body"${attr}>${inner}</div>`;
 }
 
@@ -2074,24 +2126,41 @@ function updateTranscriptHighlight() {
     const activeClaim = claims.find((claim) => claim.id === state.activeClaimId);
     const excerpt = activeClaim?.source_excerpt;
     if (!excerpt) return;
-    // Walk text nodes to find and wrap the excerpt without serialising the whole DOM.
-    const walker = document.createTreeWalker(transcriptEl, NodeFilter.SHOW_TEXT);
-    let node;
-    while ((node = walker.nextNode())) {
-        const idx = node.nodeValue.indexOf(excerpt);
-        if (idx === -1) continue;
-        const before = node.nodeValue.slice(0, idx);
-        const after = node.nodeValue.slice(idx + excerpt.length);
+    // Walk the text nodes and wrap the excerpt's first occurrence without serialising the whole DOM. It
+    // may cross nodes -- a line break (#5208) or a direction isolate -- so each node it touches gets a
+    // <mark> of its own piece.
+    const nodes = textNodes(transcriptEl);
+    wrapPieces(nodes, excerptPieces(nodes.map((node) => node.nodeValue), excerpt), "claim");
+}
+
+// Every text node under `root`, in order -- collected before any is split, so wrapping never walks a
+// tree that is changing under it.
+function textNodes(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) nodes.push(node);
+    return nodes;
+}
+
+// Wrap each piece ({index, start, end} into `nodes`) in a <mark data-highlight=kind>; the first mark,
+// for scrolling to. A range that crosses a line break or an isolate gets one mark per node (#5208).
+function wrapPieces(nodes, pieces, kind) {
+    let first = null;
+    for (const piece of pieces) {
+        const node = nodes[piece.index];
+        const before = node.nodeValue.slice(0, piece.start);
+        const after = node.nodeValue.slice(piece.end);
         const mark = document.createElement("mark");
-        mark.setAttribute("data-highlight", "claim");
-        mark.textContent = excerpt;
+        mark.setAttribute("data-highlight", kind);
+        mark.textContent = node.nodeValue.slice(piece.start, piece.end);
         const parent = node.parentNode;
         if (before) parent.insertBefore(document.createTextNode(before), node);
         parent.insertBefore(mark, node);
         if (after) parent.insertBefore(document.createTextNode(after), node);
         parent.removeChild(node);
-        break; // highlight first occurrence only
+        first = first || mark;
     }
+    return first;
 }
 
 function claimMeta(claim) {
@@ -2660,39 +2729,9 @@ function scrollToCharRange(charStart, charEnd) {
     const excerpt = transcript.slice(charStart, charEnd);
     if (!excerpt) return;
 
-    // Walk text nodes to find and wrap the range.
-    let charOffset = 0;
-    const walker = document.createTreeWalker(transcriptEl, NodeFilter.SHOW_TEXT);
-    let targetMark = null;
-    let node;
-    while ((node = walker.nextNode())) {
-        const nodeLen = node.nodeValue.length;
-        const nodeStart = charOffset;
-        const nodeEnd = charOffset + nodeLen;
-        charOffset = nodeEnd;
-
-        if (nodeEnd <= charStart || nodeStart >= charEnd) continue;
-
-        // This node overlaps the range — for simplicity, match the first node
-        // that contains the start of the range.
-        const localStart = charStart - nodeStart;
-        const localEnd = Math.min(charEnd - nodeStart, nodeLen);
-        if (localStart < 0 || localStart >= nodeLen) continue;
-
-        const before = node.nodeValue.slice(0, localStart);
-        const highlighted = node.nodeValue.slice(localStart, localEnd);
-        const after = node.nodeValue.slice(localEnd);
-        const mark = document.createElement("mark");
-        mark.setAttribute("data-highlight", "span");
-        mark.textContent = highlighted;
-        const parent = node.parentNode;
-        if (before) parent.insertBefore(document.createTextNode(before), node);
-        parent.insertBefore(mark, node);
-        if (after) parent.insertBefore(document.createTextNode(after), node);
-        parent.removeChild(node);
-        targetMark = mark;
-        break;
-    }
+    // Wrap the range in every text node it touches (#5208: it may cross a line break).
+    const nodes = textNodes(transcriptEl);
+    const targetMark = wrapPieces(nodes, offsetPieces(nodes.map((node) => node.nodeValue.length), charStart, charEnd), "span");
 
     if (targetMark) {
         targetMark.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -2725,34 +2764,11 @@ function applySearchMatchHighlight(pageId, charStart, charEnd) {
     // markup-render / table pages have no plain body to offset into — nothing
     // to light here (the raw offsets index plain page_content only).
     if (!body) return;
-    let charOffset = 0;
-    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
-    let node;
-    while ((node = walker.nextNode())) {
-        const nodeLen = node.nodeValue.length;
-        const nodeStart = charOffset;
-        const nodeEnd = charOffset + nodeLen;
-        charOffset = nodeEnd;
-        if (nodeEnd <= charStart || nodeStart >= charEnd) continue;
-        const localStart = Math.max(0, charStart - nodeStart);
-        const localEnd = Math.min(charEnd - nodeStart, nodeLen);
-        if (localStart >= localEnd) continue;
-        const before = node.nodeValue.slice(0, localStart);
-        const highlighted = node.nodeValue.slice(localStart, localEnd);
-        const after = node.nodeValue.slice(localEnd);
-        const mark = document.createElement("mark");
-        mark.setAttribute("data-highlight", "search");
-        mark.textContent = highlighted;
-        const parent = node.parentNode;
-        if (before) parent.insertBefore(document.createTextNode(before), node);
-        parent.insertBefore(mark, node);
-        if (after) parent.insertBefore(document.createTextNode(after), node);
-        parent.removeChild(node);
-        mark.scrollIntoView({ behavior: "smooth", block: "center" });
-        // The body is a single escaped text node, so the span lives in one
-        // node — the first overlapping node is the whole match.
-        return;
-    }
+    // The page's offsets in its text nodes: a match may cross a line break (#5208) or an isolate, so
+    // every node it touches is lit, and the view goes to the first.
+    const nodes = textNodes(body);
+    const first = wrapPieces(nodes, offsetPieces(nodes.map((node) => node.nodeValue.length), charStart, charEnd), "search");
+    if (first) first.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 document.querySelectorAll(".tabs button").forEach((button) => {
