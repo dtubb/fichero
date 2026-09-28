@@ -95,3 +95,45 @@ def test_one_library_opening_does_not_block_another(tmp_path, monkeypatch):
     opener.join()
     mgr.close_all()
     assert waited < 0.5, f"reaching an open library waited {waited:.2f}s behind another library's open"
+
+
+def test_reopening_rewrites_only_the_workflow_mirrors_that_changed(tmp_path, monkeypatch):
+    """WHY: every open rewrote every workflow's sidebar mirror, ~1 s of each launch on the global
+    library though a save already keeps its mirror current (#5228). A missing mirror, an older one,
+    and a deleted SYSTEM preset's (it must render) are still written; an up-to-date one is not."""
+    from datetime import timedelta
+
+    from fichero_server.models import Workflow
+
+    path = tmp_path / "lib.duckdb"
+    db = Database(path)
+    current = [Workflow(name=f"W{i}") for i in range(30)]
+    for w in current:
+        db.save(w)
+    missing = Workflow(name="Missing")
+    db.save(missing)
+    db._execute("DELETE FROM documents WHERE id = $id", {"id": missing.id})
+    older = Workflow(name="Older")
+    db.save(older)
+    db._execute(
+        "UPDATE documents SET updated_at = $t WHERE id = $id",
+        {"t": older.updated_at - timedelta(days=1), "id": older.id},
+    )
+    db.close()
+
+    written: list[str] = []
+    original = Database._save_workflow_document
+
+    def counting(self, workflow):
+        written.append(workflow.id)
+        return original(self, workflow)
+
+    monkeypatch.setattr(Database, "_save_workflow_document", counting)
+    db = _reopen(path)
+    try:
+        assert sorted(written) == sorted([missing.id, older.id]), (
+            f"opening rewrote {len(written)} workflow mirrors; only the missing and the older one need it"
+        )
+        assert db.get(Document, missing.id) is not None, "a missing mirror must be written back"
+    finally:
+        db.close()

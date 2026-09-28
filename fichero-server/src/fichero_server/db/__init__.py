@@ -2174,14 +2174,15 @@ class Database(DatabaseEmbeddingMixin):
             if (hydrated := self._hydrate_row(Milestone, columns, row)) is not None
         ]
 
-    def _legacy_all_workflow_rows(self) -> list[BaseModel]:
-        """Read Workflow rows without any node-tree bridge logic."""
+    def _legacy_all_workflow_rows(self, where: str | None = None) -> list[BaseModel]:
+        """Read Workflow rows without any node-tree bridge logic (optionally a fixed WHERE on ``w``)."""
         from fichero_server.models import Workflow
 
         sql_table = self._sql_table_name(Workflow)
         self._ensure_table(Workflow)
         with self._lock:
-            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            clause = f" WHERE {where}" if where else ""
+            rows = self._execute(f"SELECT w.* FROM {sql_table} AS w{clause}").fetchall()
             columns = [desc[0] for desc in self.conn.description]
         return [
             hydrated
@@ -4332,7 +4333,7 @@ class Database(DatabaseEmbeddingMixin):
         if not hasattr(self.conn, "execute"):
             return
 
-        from fichero_server.models import Workflow
+        from fichero_server.models import Document, Workflow
 
         table_name = self._table_name(Workflow)
         table_exists = self.execute_fetchone(
@@ -4345,7 +4346,20 @@ class Database(DatabaseEmbeddingMixin):
         if not table_exists or int(table_exists[0] or 0) == 0:
             return
 
-        for workflow in self._legacy_all_workflow_rows():
+        # Only a workflow whose mirror is missing, older than it, or a deleted SYSTEM preset's
+        # (which must render) needs writing: every save already rewrites its mirror, and the
+        # mirror carries the workflow's `updated_at`. Rewriting all of them on every open cost
+        # the global library ~1 s per launch (#5228).
+        documents_table = self._sql_table_name(Document)
+        stale = f"""
+            NOT EXISTS (
+                SELECT 1 FROM {documents_table} AS d
+                WHERE d.id = w.id
+                  AND d.updated_at IS NOT DISTINCT FROM w.updated_at
+                  AND (d.deleted_at IS NULL OR NOT COALESCE(w.is_system, FALSE))
+            )
+        """
+        for workflow in self._legacy_all_workflow_rows(where=stale):
             self._save_workflow_document(workflow)
 
     def _save_research_workspace_document(self, project: BaseModel) -> None:
