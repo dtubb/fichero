@@ -204,6 +204,10 @@ struct ZoomableImagePreview: View {
     /// must address the artifact whose boxes are on screen, so the id rides
     /// with the boxes instead of being re-guessed at commit time.
     @State var ocrGeometryArtifactId: String?
+    /// What a selection of the shown boxes is scoped to: `ocrGeometryArtifactId`, or the shown pass
+    /// when it has no artifact (an imported page, #5152). Selecting and highlighting use this; the
+    /// edit verbs keep the real artifact id above.
+    @State var ocrGeometrySelectionScope: String?
     /// Rubber-band add mode: drags draw EPHEMERAL marquees (per-window seam
     /// `WindowState.previewMarquees`) — nothing persists until the user
     /// promotes them to regions or runs a workflow scoped to the crops.

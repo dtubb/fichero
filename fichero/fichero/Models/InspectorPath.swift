@@ -55,15 +55,39 @@ struct InspectorPath: Equatable {
             .sorted { $0.count != $1.count ? $0.count > $1.count : $0.kind < $1.kind }
     }
 
-    /// The Source view's selection -- indices into the boxes of the pass that `artifactId` produced
-    /// -- as segment ids, in the order picked. A box index is the segment's `boxIndex` in that pass
+    /// The Source view's selection on one page as segment ids -- what the Inspector inspects. Its box
+    /// indices are resolved against the boxes of the pass its scope names, read through the
+    /// selection's own identity keys (`resolvedIndices(in:)`), so a list that changed order is not
+    /// misread. The ONE resolution, called by `SourceSectionView` and by its end-to-end test.
+    @MainActor
+    static func selectedSegmentIds(selection: RegionSelection, documentId: String, store: SegmentStore) -> [String] {
+        guard !selection.isEmpty, selection.documentId == documentId else { return [] }
+        let passes = store.passes(documentId: documentId)
+        let segments = store.segments(documentId: documentId)
+        guard let pass = passes.first(where: {
+            SegmentDisplay.selectionScope(artifactId: $0.sourceArtifactId, passId: $0.id) == selection.artifactId
+        }),
+              let boxes = SegmentDisplay.geometry(
+                  from: segments.filter { $0.passId == pass.id }, provider: "", model: nil, renditionId: nil
+              )?.boxes else { return [] }
+        return segmentIds(
+            selectedIndices: selection.resolvedIndices(in: boxes), artifactId: selection.artifactId,
+            passes: passes, segments: segments
+        )
+    }
+
+    /// The Source view's selection -- indices into the boxes of the pass its scope names (the pass's
+    /// artifact, or the pass itself when it has none: `SegmentDisplay.selectionScope`) -- as segment
+    /// ids, in the order picked. A box index is the segment's `boxIndex` in that pass
     /// (`SegmentDisplay.geometry`). No pass for the artifact means no segments, never a guess at
     /// another pass: the same boxes in another pass are other segments.
     static func segmentIds(
         selectedIndices: [Int], artifactId: String?,
         passes: [SegmentPassValue], segments: [Segment]
     ) -> [String] {
-        guard let artifactId, let pass = passes.first(where: { $0.sourceArtifactId == artifactId }) else { return [] }
+        guard let artifactId, let pass = passes.first(where: {
+            SegmentDisplay.selectionScope(artifactId: $0.sourceArtifactId, passId: $0.id) == artifactId
+        }) else { return [] }
         let byIndex = Dictionary(
             segments.filter { $0.passId == pass.id }.compactMap { seg in seg.boxIndex.map { ($0, seg.id) } },
             uniquingKeysWith: { first, _ in first }
