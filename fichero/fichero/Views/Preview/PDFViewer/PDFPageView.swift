@@ -34,6 +34,8 @@ final class PinchOwningPDFView: PDFView {
 
     /// The segment boxes drawn on the current page, in PAGE space (#5192), set by `applyOCRBoxes`.
     var segmentBoxes: [PDFSegmentBox] = []
+    /// The page document those boxes belong to (#5193); the view keeps its own `pdfPreview` identifier.
+    var segmentPageId: String?
 
     /// PDFKit's own elements, plus one per segment box drawn in view (`SegmentBoxAccessibility`).
     override func accessibilityChildren() -> [Any]? {

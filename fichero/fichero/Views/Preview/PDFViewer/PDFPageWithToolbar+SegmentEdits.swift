@@ -21,7 +21,8 @@ extension PDFPageWithToolbar {
                 PDFSegmentEditing.select(box, among: boxes, scope: scope, documentId: documentId, into: selection)
                 windowState?.focusRegionSelection(selection)
             },
-            commit: { index, target, points in reshapePDFSegment(index: index, target, to: points) }
+            commit: { index, target, points in reshapePDFSegment(index: index, target, to: points) },
+            pageDocumentId: documentId
         )
         #else
         return PDFSegmentEditing()  // ponytail: no PDF overlay on iOS yet (#4418), so nothing to edit

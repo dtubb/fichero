@@ -233,8 +233,18 @@ working pass.
   (the real Preview in the window's environment: exactly the recorded page's 4 regions and 12 lines,
   read from the accessibility tree) and `…testAPDFPagesDrawnSegmentBoxesAreAccessibilityElements`. OK
   once those run green.
-- `ui-testing.describe-window` [GAP] (#5193): a Debug-only `describe window` verb reports panes,
+- `ui-testing.describe-window` [PARTIAL] (#5193): a Debug-only `describe window` verb reports panes,
   selection and, per page on screen, the drawn segment ids and frames, read from the drawn elements.
+  **Built 2026-09-28, tests not yet run:** `WindowDescription.describe` walks the key window's views and
+  accessibility elements -- panes by their `pane.<kind>` identifiers; each page by its drawing view
+  (`SegmentPage-<id>` on the image overlay, the PDF view's page id); each page's `SegmentBox-<id>` elements
+  with kind, screen frame and selected state -- as JSON. The verb is `describe window` in the Debug-only
+  "Fichero Test Suite" of `FicheroDebug.sdef`, which XIncludes `Fichero.sdef`; Info.plist names the
+  dictionary through `FICHERO_SCRIPTING_DEFINITION` (Debug: FicheroDebug.sdef; Release, Dev/Alpha/Beta
+  Embedded: Fichero.sdef), and `FicheroDescribeWindowCommand` is `#if DEBUG`. Pinned by the hosted
+  real-Preview test (`describe` finds doc-0001 and its 16 boxes) and
+  `AppleScriptSurfaceTests.testTheDebugDictionaryIncludesTheUserOneAndAddsDescribeWindow`. Not yet: run
+  from `osascript` against a built Debug app.
 - `ui-testing.drive-below-a-document` [GAP] (#5194): Debug-only `select page`, `select segment` and
   `show pane` verbs, each answering whether the request was accepted, in the style of the existing
   verbs.

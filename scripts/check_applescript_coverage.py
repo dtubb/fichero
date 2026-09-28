@@ -48,8 +48,17 @@ _SCRIPT_CMD_RE = re.compile(r"\bclass\s+(Fichero[A-Za-z0-9_]+)\s*:\s*NSScriptCom
 KNOWN_VIOLATIONS: dict[str, str] = {}
 
 
+#: The Debug build's dictionary (#5193): Fichero.sdef XIncluded, plus the Debug-only test suite. Info.plist
+#: names it in Debug only (FICHERO_SCRIPTING_DEFINITION), so a command it binds is advertised THERE.
+DEBUG_SDEF = APP_DIR / "FicheroDebug.sdef"
+
+
 def sdef_cocoa_classes(sdef: Path = SDEF) -> set[str]:
-    return set(_COCOA_CLASS_RE.findall(sdef.read_text(errors="ignore")))
+    """Classes the dictionary binds -- for the real dictionary, the Debug one's test suite too."""
+    found = set(_COCOA_CLASS_RE.findall(sdef.read_text(errors="ignore")))
+    if sdef == SDEF and DEBUG_SDEF.exists():
+        found |= set(_COCOA_CLASS_RE.findall(DEBUG_SDEF.read_text(errors="ignore")))
+    return found
 
 
 def _swift_sources(app_dir: Path) -> str:

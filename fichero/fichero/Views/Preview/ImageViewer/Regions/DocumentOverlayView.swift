@@ -13,7 +13,11 @@ import AppKit
 /// layer. The pointer is READ through a tracking area, which does not route events.
 final class DocumentOverlayView: NSView {
     var overlay: DocumentOverlay = .empty {
-        didSet { if overlay != oldValue { needsDisplay = true } }
+        didSet {
+            guard overlay != oldValue else { return }
+            needsDisplay = true
+            setAccessibilityIdentifier(overlay.documentId.map { SegmentBoxAccessibility.pagePrefix + $0 })
+        }
     }
 
     /// The box under the pointer, in this view's coordinates, or nil.
@@ -334,6 +338,8 @@ enum InlineWords {
 /// them the same way, so a test or a script asks both surfaces one question.
 enum SegmentBoxAccessibility {
     static let identifierPrefix = "SegmentBox-"
+    /// The view a page's boxes are drawn in, named for its page (#5193).
+    static let pagePrefix = "SegmentPage-"
 
     static func element(
         segmentId: String, kind: String, frame: CGRect, in parent: NSView, selected: Bool

@@ -1197,6 +1197,7 @@
 				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app";
 				FICHERO_FEATURE_TIER = dev;
 				GENERATE_INFOPLIST_FILE = YES;
+				FICHERO_SCRIPTING_DEFINITION = FicheroDebug.sdef;
 				INFOPLIST_FILE = fichero/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
@@ -1266,6 +1267,7 @@
 				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app";
 				FICHERO_FEATURE_TIER = release;
 				GENERATE_INFOPLIST_FILE = YES;
+				FICHERO_SCRIPTING_DEFINITION = Fichero.sdef;
 				INFOPLIST_FILE = fichero/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
@@ -1596,6 +1598,7 @@
 				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app";
 				FICHERO_FEATURE_TIER = dev;
 				GENERATE_INFOPLIST_FILE = YES;
+				FICHERO_SCRIPTING_DEFINITION = Fichero.sdef;
 				INFOPLIST_FILE = fichero/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
@@ -1665,6 +1668,7 @@
 				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app";
 				FICHERO_FEATURE_TIER = alpha;
 				GENERATE_INFOPLIST_FILE = YES;
+				FICHERO_SCRIPTING_DEFINITION = Fichero.sdef;
 				INFOPLIST_FILE = fichero/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
@@ -1741,6 +1745,7 @@
 				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app";
 				FICHERO_FEATURE_TIER = beta;
 				GENERATE_INFOPLIST_FILE = YES;
+				FICHERO_SCRIPTING_DEFINITION = Fichero.sdef;
 				INFOPLIST_FILE = fichero/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;

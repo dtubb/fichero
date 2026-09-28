@@ -10,6 +10,8 @@ struct PDFSegmentEditing {
     var selected: (index: Int, box: OCRGeometryBox)?
     var select: ((OCRGeometryBox?) -> Void)?
     var commit: ((Int, SegmentShapes.Target, [[Double]]) -> Void)?
+    /// The page document these boxes belong to, for the PDF view's page name (#5193).
+    var pageDocumentId: String?
 
     /// A PDF page's pick as the ONE selection (#5155's ruling): written into the page's `RegionSelection`
     /// in the shown pass's scope and box indices, exactly as an image page writes it, so the Inspector

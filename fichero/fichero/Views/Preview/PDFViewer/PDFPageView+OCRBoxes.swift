@@ -45,6 +45,7 @@ extension PDFPageView.Coordinator {
         (view as? PinchOwningPDFView)?.segmentBoxes = Self.segmentBoxes(
             owner.ocrBoxes, on: page, selectedId: owner.segmentEditing.selected?.box.segmentId
         )
+        (view as? PinchOwningPDFView)?.segmentPageId = owner.segmentEditing.pageDocumentId
         // `ocrBoxes` arrives already reduced to ONE level by the owner (words
         // when the pass produced them, lines otherwise). Drawing every level
         // would nest a line box around each of its own word boxes, which reads

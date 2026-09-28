@@ -75,6 +75,9 @@ struct DocumentOverlay: Equatable {
     /// This pane's selection is the window's focused one (`WindowState.focusedRegionSelection`):
     /// with a key window, the selection is emphasized; otherwise it dims, as Finder's does.
     var isFocusedPane = false
+    /// The page these boxes are drawn on: the overlay view is named `SegmentPage-<id>` to accessibility,
+    /// so `describe window` groups the drawn boxes by page (#5193).
+    var documentId: String?
 
     static let empty = DocumentOverlay()
 
