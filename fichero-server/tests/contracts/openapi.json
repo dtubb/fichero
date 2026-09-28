@@ -53298,15 +53298,17 @@
             "nullable": true,
             "title": "Source Excerpt"
           },
-          "source_segment_id": {
+          "adopted_from_segment_id": {
             "type": "string",
             "nullable": true,
-            "title": "Source Segment Id"
+            "title": "Adopted From Segment Id",
+            "description": "The boundary Segment (a real `Segment` record id) whose worked-out world shape this geometry was adopted from (`entity.adopt_boundary`). NOT the claims' legacy `source_segment_id`, which names an entry in a segmentation artifact."
           },
-          "source_pass_id": {
+          "adopted_from_pass_id": {
             "type": "string",
             "nullable": true,
-            "title": "Source Pass Id"
+            "title": "Adopted From Pass Id",
+            "description": "The georeferencing SegmentPass whose transformation placed the adopted shape."
           },
           "rationale": {
             "type": "string",
