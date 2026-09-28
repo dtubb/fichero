@@ -316,6 +316,26 @@ def target_id_from_request(request: Any) -> str | None:
     return None
 
 
+def target_ids_from_request(request: Any) -> list[str]:
+    """EVERY single id a request names in its path or query -- `id` or `*_id` -- in order (#5180).
+
+    The read and write dependencies check each one. Checking only the first let a request name an
+    id it may read FIRST and then one it may not: `?document_id=<allowed>&segment_id=<denied>`
+    answered the denied segment. A `*_ids` LIST is not here: a list route filters its scope itself
+    and says how many it withheld (`readable_documents`, #5135) instead of refusing the whole list.
+    """
+    target_ids: list[str] = []
+    path_params = getattr(request, "path_params", {}) or {}
+    query_params = getattr(request, "query_params", None)
+    pairs = list(path_params.items())
+    if query_params is not None:
+        pairs += list(query_params.multi_items()) if hasattr(query_params, "multi_items") else list(query_params.items())
+    for key, value in pairs:
+        if key == "id" or key.endswith("_id"):
+            _append_target_id(target_ids, value)
+    return target_ids
+
+
 def _append_target_id(target_ids: list[str], value: Any) -> None:
     if isinstance(value, str) and value and value not in target_ids:
         target_ids.append(value)

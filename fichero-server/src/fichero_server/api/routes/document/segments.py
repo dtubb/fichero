@@ -37,7 +37,7 @@ from fichero_server.api.routes.document.segment_conversion import (
     is_converted,
 )
 from fichero_server.api.library_header import optional_library_path
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import get_library_database, get_library_database_for_write, readable_documents
 from fichero_server.core.timeutil import utc_now
 from fichero_server.db import Database
 from fichero_server.models import (
@@ -497,7 +497,7 @@ async def list_segments_in_scope(
     # (`parent_id`; `document_ids` is a list), so a scope is never trusted. Every document in
     # it is checked the way a single-document read is, and the ones this caller may not read
     # are withheld -- and COUNTED, so a shorter list is never a silent one.
-    readable = _readable_documents(request, x_fichero_library_path, scope)
+    readable = readable_documents(request, x_fichero_library_path, scope)
     withheld = len(scope) - len(readable)
     scope = readable
 
@@ -514,23 +514,6 @@ async def list_segments_in_scope(
         items=items, count=len(items), total=total, document_ids=scope,
         withheld_documents=withheld,
     )
-
-
-def _readable_documents(request: Request | None, library_path: str | None, scope: list[str]) -> list[str]:
-    """The documents in `scope` this caller may read, in order (#5135).
-
-    The same decision as the router's single-target read check
-    (`assert_library_read_authorized` -> `authz.assert_can_read`), taken per document: a
-    bootstrap (owner, loopback) caller reads everything, and so does every caller when the
-    library is not multi-user, where `authz` answers before touching any table.
-    """
-    from fichero_server.security import authz
-
-    state = getattr(request, "state", None)
-    if getattr(state, "bootstrap_auth", False):
-        return list(scope)
-    user = getattr(state, "user", None)
-    return [doc_id for doc_id in scope if authz.can_read(user, library_path, doc_id)]
 
 
 @router.get("/document/{doc_id}", response_model=SegmentListResponse)

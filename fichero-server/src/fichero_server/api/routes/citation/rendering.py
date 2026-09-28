@@ -5,11 +5,12 @@ from __future__ import annotations
 import logging
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
-from fichero_server.api.main import get_library_database
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import get_library_database, readable_documents
 from fichero_server.db import Database
 
 logger = logging.getLogger(__name__)
@@ -137,11 +138,19 @@ async def cite_document_bibtex(
     ),
 )
 async def export_bibtex(
+    request: Request,
+    response: Response,
     document_ids: list[str] = Query(default=[]),
+    x_fichero_library_path: str = Depends(require_library_path),
     db: Database = Depends(get_library_database),
 ) -> str:
+    # ACCESS CONTROL (#5180): the read check sees single ids, never a list. Every document in it is
+    # checked the way a single-document read is; the ones this caller may not read are left out --
+    # and COUNTED in a header, so a shorter file is never a silent one (#5135's rule).
+    readable = readable_documents(request, x_fichero_library_path, document_ids)
+    response.headers["X-Fichero-Withheld-Documents"] = str(len(document_ids) - len(readable))
     entries = []
-    for doc_id in document_ids:
+    for doc_id in readable:
         meta = _metadata_for_document(db, doc_id)
         if meta is not None:
             entries.append(_render("bibtex", meta))

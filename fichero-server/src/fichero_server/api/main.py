@@ -1581,14 +1581,12 @@ def assert_library_read_authorized(
     if getattr(getattr(request, "state", None), "bootstrap_auth", False):
         return
 
+    user = getattr(getattr(request, "state", None), "user", None)
+    # Every id the request names, not only the first (#5180); none -> the library itself.
+    targets = [target_id] if target_id is not None else (authz.target_ids_from_request(request) or [None])
     try:
-        authz.assert_can_read(
-            getattr(getattr(request, "state", None), "user", None),
-            library_path,
-            target_id
-            if target_id is not None
-            else authz.target_id_from_request(request),
-        )
+        for target in targets:
+            authz.assert_can_read(user, library_path, target)
     except authz.AuthorizationError as exc:
         raise LibraryAccessDeniedError(
             library_access_denial_payload(
@@ -1612,14 +1610,12 @@ def assert_library_write_authorized(
     if getattr(getattr(request, "state", None), "bootstrap_auth", False):
         return
 
+    user = getattr(getattr(request, "state", None), "user", None)
+    # Every id the request names, not only the first (#5180); none -> the library itself.
+    targets = [target_id] if target_id is not None else (authz.target_ids_from_request(request) or [None])
     try:
-        authz.assert_can_write(
-            getattr(getattr(request, "state", None), "user", None),
-            library_path,
-            target_id
-            if target_id is not None
-            else authz.target_id_from_request(request),
-        )
+        for target in targets:
+            authz.assert_can_write(user, library_path, target)
     except authz.AuthorizationError as exc:
         raise LibraryAccessDeniedError(
             library_access_denial_payload(
@@ -1629,6 +1625,23 @@ def assert_library_write_authorized(
                 detail=str(exc),
             )
         ) from exc
+
+
+def readable_documents(request: Request | None, library_path: str | None, scope: list[str]) -> list[str]:
+    """The documents in `scope` this caller may read, in order (#5135; shared by every list route, #5180).
+
+    The same decision as the router's single-target read check
+    (`assert_library_read_authorized` -> `authz.assert_can_read`), taken per document: a
+    bootstrap (owner, loopback) caller reads everything, and so does every caller when the
+    library is not multi-user, where `authz` answers before touching any table.
+    """
+    from fichero_server.security import authz
+
+    state = getattr(request, "state", None)
+    if getattr(state, "bootstrap_auth", False):
+        return list(scope)
+    user = getattr(state, "user", None)
+    return [doc_id for doc_id in scope if authz.can_read(user, library_path, doc_id)]
 
 
 # Health check endpoint

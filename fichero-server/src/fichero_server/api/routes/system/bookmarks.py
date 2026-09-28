@@ -8,11 +8,12 @@ resolution, so dangling targets raise loudly instead of silently degrading.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import action_context
+from fichero_server.api.library_header import require_library_path
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.core.naturalsort import natural_key
@@ -143,10 +144,18 @@ async def list_bookmarks(
 @router.get("/{bookmark_id}/resolve", response_model=Document)
 async def resolve_bookmark(
     bookmark_id: str,
+    request: Request,
+    x_fichero_library_path: str = Depends(require_library_path),
     db: Database = Depends(get_library_database),
 ) -> Document:
-    """Resolve a bookmark node to its live target document."""
-    return resolve_bookmark_impl(db, bookmark_id)
+    """Resolve a bookmark node to its live target document -- which the caller must be able to read
+    itself: the router checked the BOOKMARK, and a bookmark to a denied page must not hand the page
+    over (#5180)."""
+    from fichero_server.api.main import assert_library_read_authorized
+
+    target = resolve_bookmark_impl(db, bookmark_id)
+    assert_library_read_authorized(request, x_fichero_library_path, target_id=target.id)
+    return target
 
 
 def _bookmark_snapshot(bookmark: Document) -> dict:
