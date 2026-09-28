@@ -199,6 +199,13 @@ class PassRead(BaseModel):
     #: (additive; slice 3's ``SegmentPass`` already has ``source_artifact_id``).
     source_artifact_id: str | None = None
     artifact_type: str | None = None
+    #: How an IMPORTED pass was made (#5149, the Inspector's Making section): the file's name, its
+    #: sha256, the format it was read as, and whether its original bytes are kept (then served by
+    #: `GET /api/segments/passes/{pass_id}/original`). All None for a pass not made from a file.
+    import_file: str | None = None
+    import_checksum: str | None = None
+    import_format: str | None = None
+    has_original: bool = False
 
 
 class SegmentListResponse(BaseModel):
@@ -541,6 +548,11 @@ class SegmentPass(BaseModel):
     source_artifact_id: str | None = None
     import_file: str | None = None
     import_checksum: str | None = None
+    #: The interchange format the file was read as ("pagexml", "alto", "tei", ...) (#5149).
+    import_format: str | None = None
+    #: Where the file's own bytes are kept, relative to the library package (`files/...`), exactly
+    #: as imported (#5149): the pass is a reading OF that file, and the file is the evidence.
+    import_original: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
     #: Soft delete -- a pass is never removed (`segment.pass_delete`'s
     #: inverse, `segment.pass_restore`, clears this).
@@ -1357,6 +1369,10 @@ def pass_read_from_row(
         created_at=row.created_at,
         source_artifact_id=row.source_artifact_id,
         artifact_type=artifact_type,
+        import_file=row.import_file,
+        import_checksum=row.import_checksum,
+        import_format=row.import_format,
+        has_original=row.import_original is not None,
         # Readings of their own arrive in slice 8; until then a converted
         # pass's text is the block's own (`source_block`).
         text=(source_block.text or None) if source_block is not None else None,

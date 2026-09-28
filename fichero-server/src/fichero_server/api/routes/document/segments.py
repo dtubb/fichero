@@ -3581,6 +3581,33 @@ async def delete_pass(
     return result.result
 
 
+@router.get("/passes/{pass_id}/original")
+async def get_pass_original(
+    pass_id: str,
+    db: Database = Depends(get_library_database),
+):
+    """The file an imported pass was read from, byte for byte as it arrived (#5149): the Inspector's
+    Making section offers it as "Show original". Read access to the pass's page is the check
+    (`pass_id` resolves to its document). 404 for a pass not made from a kept file."""
+    from pathlib import Path
+
+    from fastapi.responses import FileResponse
+
+    row = db.get(SegmentPass, pass_id)
+    if row is None or row.deleted_at is not None:
+        raise HTTPException(status_code=404, detail=f"Pass not found: {pass_id}")
+    if not row.import_original:
+        raise HTTPException(status_code=404, detail=f"Pass {pass_id} was not made from a kept file")
+    package = Path(db.path).parent.resolve()
+    kept = (package / row.import_original).resolve()
+    # Only ever a file under the package's own `files/`: the stored path is ours, but a path read
+    # back from a row is still checked before a byte of it is served.
+    if not kept.is_relative_to(package / "files") or not kept.is_file():
+        raise HTTPException(status_code=404, detail=f"The original of pass {pass_id} is missing from the library")
+    media_type = "application/xml" if kept.suffix.lower() in {".xml", ".html", ".hocr"} else "text/plain"
+    return FileResponse(kept, media_type=media_type, filename=row.import_file or kept.name)
+
+
 @router.post("", response_model=SegmentRead)
 async def create_segment(
     params: SegmentCreateParams,

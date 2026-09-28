@@ -166,6 +166,8 @@ fichero/Tests/Unit/general/Views/Preview/PreviewFitViewportTests.swift
 fichero/Tests/Unit/general/Views/Preview/PreviewSelectAllArmingGuardTests.swift
 fichero/Tests/Unit/general/Views/Preview/PreviewSelectionDefaultsTests.swift
 fichero/Tests/Unit/general/Views/Preview/RegionNamingAndEntryTests.swift
+# guardrail-scan, not a capability scrape: SelectionStyle must hard-code no colour (system colours only, #5020)
+fichero/Tests/Unit/general/Views/Preview/SelectionStyleTests.swift
 fichero/Tests/Unit/general/Views/Preview/SiblingSwipeGestureGuardTests.swift
 fichero/Tests/Unit/general/Views/Reader/MultiSelectionReaderTests.swift
 fichero/Tests/Unit/general/Views/Reader/ReaderFindScopeTests.swift

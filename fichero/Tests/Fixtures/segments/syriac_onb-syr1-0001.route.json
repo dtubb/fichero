@@ -13,7 +13,11 @@
    "created_at": "2026-09-27T12:00:00Z",
    "text": null,
    "source_artifact_id": null,
-   "artifact_type": null
+   "artifact_type": null,
+   "import_file": "escriptorium_syriac_onb-syr1-0001.page.xml",
+   "import_checksum": "abd92d4208786f45667c698ffc1b22873f6c23cc7bc2d176edd69eda379bcea7",
+   "import_format": "pagexml",
+   "has_original": true
   }
  ],
  "segments": [
