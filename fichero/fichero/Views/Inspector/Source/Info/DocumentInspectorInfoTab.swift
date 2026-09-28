@@ -239,6 +239,12 @@ struct DocumentInspectorInfoTab: View {
                     actionsService: currentLibrary?.actionsService
                 )
             }
+            if visibleAttributes.contains(.language) {
+                SourceDirectionRow(
+                    documentId: document.id, actionsService: currentLibrary?.actionsService,
+                    segmentService: currentLibrary?.segmentService
+                )
+            }
         }
     }
 

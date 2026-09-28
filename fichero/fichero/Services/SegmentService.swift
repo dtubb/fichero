@@ -142,9 +142,18 @@ extension SegmentService {
     /// The language, script, direction and encoding the engine resolves for ONE segment, each with
     /// where it came from (#5158; `GET /api/source-settings/resolve`). Empty for an id it cannot find.
     func resolvedSettings(segmentId: String) async throws -> [InspectorLanguage.Setting] {
-        let response = try await client.api.resolveSourceSettingsApiSourceSettingsResolveGet(
-            query: .init(segmentId: segmentId)
-        )
+        try await resolvedSettings(query: .init(segmentId: segmentId))
+    }
+
+    /// The same for a source -- a folder, document or page -- with no segment (the Inspector's Direction row).
+    func resolvedSettings(documentId: String) async throws -> [InspectorLanguage.Setting] {
+        try await resolvedSettings(query: .init(documentId: documentId))
+    }
+
+    private func resolvedSettings(
+        query: Operations.ResolveSourceSettingsApiSourceSettingsResolveGet.Input.Query
+    ) async throws -> [InspectorLanguage.Setting] {
+        let response = try await client.api.resolveSourceSettingsApiSourceSettingsResolveGet(query: query)
         switch response {
         case .ok(let okResponse):
             return try okResponse.body.json.settings.map {

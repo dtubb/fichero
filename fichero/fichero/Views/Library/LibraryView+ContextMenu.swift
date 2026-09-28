@@ -57,6 +57,7 @@ extension LibraryView {
         organizeMenuItems(for: document)
         stackMenuItems(for: document)
         excludeFromProcessingMenuItem(excludeTargets: excludeTargets)
+        SourceDirectionMenu(nodeId: document.id, actionsService: activeLibraryReference?.actionsService)
         deleteMenuItem(for: document)
         runWorkflowMenuItem(for: document)
     }

@@ -176,21 +176,6 @@ enum ReaderTextEdit {
         return script(payload, function: "engineState")
     }
 
-    /// Wait until the engine answers again, then say so to the page, once (13b out of reach). `isBack`
-    /// is the engine's health; `pause` the wait between asks. Stops when the task is cancelled.
-    @MainActor
-    static func waitForReturn(
-        isBack: @MainActor () async -> Bool, pause: @MainActor () async -> Void, tell: @MainActor (String) async -> Void
-    ) async {
-        while !Task.isCancelled {
-            await pause()
-            if await isBack() {
-                await tell(engineStateScript(reachable: true))
-                return
-            }
-        }
-    }
-
     private static func script(_ payload: [String: Any], function: String) -> String {
         let data = (try? JSONSerialization.data(withJSONObject: payload, options: .sortedKeys)) ?? Data()
         return "window.fichero?.\(function)?.(\(String(bytes: data, encoding: .utf8) ?? "{}"));"

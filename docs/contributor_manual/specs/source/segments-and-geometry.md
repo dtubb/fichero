@@ -479,6 +479,13 @@ Identity and versions
   without touching others.
 - `source.segment.delete-is-undoable` — **[OK]** (#4923; pinned by `tests/unit/api/test_segments_versions.py::TestDeleteIsUndoable::test_delete_then_undo_restores_the_segment_and_what_pointed_at_it`) a deleted segment can be brought back with everything
   that pointed at it.
+  **Its places in reading orders (2026-09-28):** a delete takes the segment's entries out of every
+  order -- no row is left for export, flows, neighbours, the next/previous walk or the Reader to meet --
+  and its undo writes the SAME entries back (id, position, level), so it returns to its place, a
+  person's reordering included; the undo of a create and its redo go the same way
+  (`test_imported_page_draws_its_boxes.py::test_a_deleted_region_leaves_the_order_and_its_undo_puts_it_back_in_its_place`,
+  `::test_a_line_drawn_inside_a_region_is_that_region_s_line_in_its_order_and_one_undo_takes_both`).
+  Not yet: `segment.merge`, `split` and `carry` retire segments without taking their entries out.
 
 Shape and images
 - `source.segment.shape-kinds` — **[OK]** (#4925 closed; `test_anchor_shapes.py::TestEachKindStoresAndReadsBack`) a segment's shape is a point, a line, an area or a stretch of

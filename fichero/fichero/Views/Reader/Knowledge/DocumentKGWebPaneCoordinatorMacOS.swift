@@ -67,11 +67,25 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     /// The pending automatic reload after a failed engine load; cancelled by
     /// the next explicit load so a stale retry cannot race a fresh document.
     var failureRetryTask: Task<Void, Never>?
-    /// Watching for the engine's return after a typed line could not reach it (13b out of reach).
-    var reachabilityProbe: Task<Void, Never>?
+    /// Whether the engine answers after a typed line could not reach it (13b out of reach), and the task
+    /// that tells the page each change of it.
+    var reachability: EngineReachabilityStore?
+    var reachabilityFollow: Task<Void, Never>?
+
+    /// A segment edit made elsewhere -- a direction from the Segment menu or the Inspector, a move, its
+    /// ⌘Z -- re-reads the page here if it is shown (#5171).
+    var segmentChanges: SegmentChangeObserver?
 
     init(parent: DocumentKGWebPane) {
         self.parent = parent
+        super.init()
+        segmentChanges = SegmentChangeObserver { [weak self] pageId in
+            if let pageId {
+                await Self.refreshIfShown(pageId, in: self?.webView)
+            } else {
+                await Self.refreshShownPages(in: self?.webView)
+            }
+        }
     }
 
     func loadIfNeeded(_ webView: WKWebView) {
@@ -468,27 +482,19 @@ extension DocumentKGWebPaneCoordinatorMacOS {
     }
 
     /// The engine could not be reached (13b, "out of reach of the engine the text is read-only"): the page
-    /// holds every edit and goes read-only, and the engine's health is probed until it answers -- then the
-    /// page is told, and posts its held edits as ordinary `readingEdit`s. One probe at a time.
+    /// holds every edit and goes read-only until the engine answers again -- then it posts its held edits
+    /// as ordinary `readingEdit`s. The probe is the STORE's (`EngineReachabilityStore`); this follows its
+    /// `reachable` and tells the page on each change.
     @MainActor
     func engineWentAway(_ reason: String, client: FicheroClient) {
-        let webView = webView
-        Task { _ = try? await webView?.evaluateJavaScript(ReaderTextEdit.engineStateScript(reachable: false, reason: reason)) }
-        guard reachabilityProbe == nil else { return }
-        reachabilityProbe = Task { @MainActor [weak self] in
-            // ponytail: a fixed 3 s probe; back off if a long outage makes this chatty.
-            await ReaderTextEdit.waitForReturn(
-                isBack: {
-                    guard let response = try? await client.api.healthCheckApiHealthGet(.init()), case .ok = response else {
-                        return false
-                    }
-                    return true
-                },
-                pause: { try? await Task.sleep(nanoseconds: 3_000_000_000) },
-                tell: { script in _ = try? await self?.webView?.evaluateJavaScript(script) }
-            )
-            self?.reachabilityProbe = nil
+        let store = reachability ?? EngineReachabilityStore(client: client)
+        if reachability == nil {
+            reachability = store
+            reachabilityFollow = Task { @MainActor [weak self] in
+                await store.tellEachChange { script in _ = try? await self?.webView?.evaluateJavaScript(script) }
+            }
         }
+        store.wentAway(reason)
     }
 
     /// The Reader's caret line becomes the focused Source view's selection (#5155).
@@ -534,6 +540,30 @@ extension DocumentKGWebPaneCoordinatorMacOS {
             afterUndo: { Task { @MainActor in await DocumentKGWebPaneCoordinatorMacOS.refreshPage(pageId, in: webView) } }
         )
         await DocumentKGWebPaneCoordinatorMacOS.refreshPage(pageId, in: webView)
+    }
+
+    /// `refreshPage` for a page this Reader SHOWS; nothing for one it does not -- a change on a page
+    /// elsewhere must not reload the whole view (`refreshPage`'s fallback).
+    @MainActor
+    static func refreshIfShown(_ pageId: String, in webView: WKWebView?) async {
+        guard let webView else { return }
+        let shown = try? await webView.callAsyncJavaScript(
+            "return document.querySelector(`article[data-page-id=\"${CSS.escape(pageId)}\"]`) !== null;",
+            arguments: ["pageId": pageId], in: nil, contentWorld: .page
+        )
+        guard (shown as? Bool) == true else { return }
+        await refreshPage(pageId, in: webView)
+    }
+
+    /// Every page this Reader shows, each patched in place: a direction stated on a source (#5171).
+    @MainActor
+    static func refreshShownPages(in webView: WKWebView?) async {
+        guard let webView else { return }
+        let ids = try? await webView.callAsyncJavaScript(
+            "return [...document.querySelectorAll('article[data-page-id]')].map((a) => a.dataset.pageId);",
+            arguments: [:], in: nil, contentWorld: .page
+        )
+        for pageId in (ids as? [String]) ?? [] { await refreshPage(pageId, in: webView) }
     }
 
     /// Patch the one page in place (`window.fichero.refreshPage` in `document_view.html`), so the

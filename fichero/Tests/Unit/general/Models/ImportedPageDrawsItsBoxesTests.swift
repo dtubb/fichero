@@ -46,6 +46,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
 
         /// What `GET /api/source-settings/resolve` answers (set by the test that asks).
         nonisolated(unsafe) static var settingsReply = Data()
+        /// The query `GET /api/source-settings/resolve` was asked with (a segment's, or a source's).
+        nonisolated(unsafe) static var settingsQuery: String?
 
         /// What `GET /api/segments/document/{id}/matches` answers, and the query it was asked (#5165).
         nonisolated(unsafe) static var matchesReply = Data()
@@ -132,6 +134,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             } else if path.hasPrefix("/api/hands/segment/") {
                 actionBody = Self.attributionsReply
             } else if path == "/api/source-settings/resolve" {
+                Self.settingsQuery = request.url?.query
                 actionBody = Self.settingsReply
             } else if path.hasPrefix("/api/segments/document/"), path.hasSuffix("/matches") {
                 Self.matchesQuery = request.url?.query
@@ -224,6 +227,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             handsReply = Data()
             attributionsReply = Data()
             settingsReply = Data()
+            settingsQuery = nil
             readingsReply = Data()
             versionsReply = Data()
             matchesReply = Data()
@@ -582,6 +586,102 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         manager.undo()
         for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
+    }
+
+    /// #5171 end to end: a direction set from the Segment menu or the Inspector (both `SegmentEditRunner.run`)
+    /// reaches the Reader, which re-reads the page through the SAME observer it holds
+    /// (`SegmentChangeObserver`, `DocumentKGWebPaneCoordinatorMacOS.segmentChanges`). The set, its ⌘Z and
+    /// its ⇧⌘Z each re-read the page ONCE -- not zero (the change would show only on the next open), not
+    /// twice, and never on a timer. Breaks if the runner stops posting, or posts on only one of the three.
+    func testADirectionSetItsUndoAndItsRedoEachReloadTheReadersPageOnce() async throws {
+        let store = try await loadedStore()
+        let picked = Array(store.segments(documentId: "doc-0001").filter { $0.kind == "line" }.prefix(1))
+        final class Reloads { var pages: [String] = [] }
+        let reloaded = Reloads()
+        let observer = SegmentChangeObserver { pageId in reloaded.pages.append(pageId ?? "every page") }
+        let settle = { (count: Int) in
+            for _ in 0..<200 where reloaded.pages.count < count { try await Task.sleep(nanoseconds: 10_000_000) }
+            try await Task.sleep(nanoseconds: 50_000_000)  // a second, unwanted reload would land here
+        }
+
+        RecordedEngine.undone = []
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        _ = try await SegmentEditRunner(actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store).run(
+            try SegmentEdit.set(.direction("ltr"), on: picked).get(), documentId: "doc-0001",
+            actionName: "Set Segment", undoManager: manager
+        )
+        manager.endUndoGrouping()
+        try await settle(1)
+        XCTAssertEqual(reloaded.pages, ["doc-0001"], "the set re-reads the page once")
+
+        manager.undo()
+        try await settle(2)
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
+        XCTAssertEqual(reloaded.pages, ["doc-0001", "doc-0001"], "its ⌘Z re-reads it once more")
+
+        manager.redo()
+        try await settle(3)
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1", "undo-of-audit-1"], "⇧⌘Z inverts the undo's own row")
+        XCTAssertEqual(reloaded.pages, ["doc-0001", "doc-0001", "doc-0001"], "its ⇧⌘Z once more")
+        withExtendedLifetime(observer) {}
+    }
+
+    /// #5171, the source level: a direction stated on a SOURCE from the Library's right-click or the
+    /// Inspector's Language section (`SourceDirectionMenu` -> `SourceDirection.apply`) is ONE audited
+    /// `source_setting.set` at level node on that source, ⌘Z by its audit id; the set, its ⌘Z and its ⇧⌘Z
+    /// each re-read every page the Reader shows once (`SegmentChangeObserver`, nil = every page). "Not
+    /// Stated" is `source_setting.clear` with no value. The Inspector's row asks the engine to resolve the
+    /// SOURCE (document_id), not a segment, and shows its answer and where it came from. Breaks if the menu
+    /// writes the wrong level or node, the change does not reach the Reader, or the row reads a segment.
+    func testADirectionStatedOnASourceIsOneUndoableSettingThatReReadsTheReader() async throws {
+        let store = try await loadedStore()
+        final class Reloads { var pages: [String] = [] }
+        let reloaded = Reloads()
+        let observer = SegmentChangeObserver { pageId in reloaded.pages.append(pageId ?? "every page") }
+        let settle = { (count: Int) in
+            for _ in 0..<200 where reloaded.pages.count < count { try await Task.sleep(nanoseconds: 10_000_000) }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        _ = store
+        RecordedEngine.invoked = []
+        RecordedEngine.undone = []
+        let actions = ActionsService(client: try XCTUnwrap(storeClient))
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        try await SourceDirection.apply("ttb", on: "doc-0001", actionsService: actions, undoManager: manager)
+        manager.endUndoGrouping()
+        try await settle(1)
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        XCTAssertEqual(sent["name"] as? String, "source_setting.set")
+        XCTAssertEqual(sent["params"] as? [String: String],
+                       ["level": "node", "key": "direction", "value": "ttb", "target_id": "doc-0001"])
+        XCTAssertEqual(reloaded.pages, ["every page"], "the set re-reads the Reader's pages once")
+
+        manager.undo()
+        try await settle(2)
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
+        XCTAssertEqual(reloaded.pages.count, 2, "its ⌘Z once more")
+        manager.redo()
+        try await settle(3)
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1", "undo-of-audit-1"])
+        XCTAssertEqual(reloaded.pages.count, 3, "its ⇧⌘Z once more")
+
+        RecordedEngine.invoked = []
+        try await SourceDirection.apply(nil, on: "doc-0001", actionsService: actions, undoManager: nil)
+        let cleared = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        XCTAssertEqual(cleared["name"] as? String, "source_setting.clear")
+        XCTAssertEqual(cleared["params"] as? [String: String], ["level": "node", "key": "direction", "target_id": "doc-0001"])
+
+        RecordedEngine.settingsReply = try Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-line-settings.json")
+        )
+        let settings = try await SegmentService(ficheroClient: try XCTUnwrap(storeClient)).resolvedSettings(documentId: "doc-0001")
+        XCTAssertEqual(RecordedEngine.settingsQuery, "document_id=doc-0001", "the row resolves the source, not a segment")
+        XCTAssertEqual(InspectorLanguage.rows(settings).first { $0.key == "direction" }?.value, "Right to Left")
+        withExtendedLifetime(observer) {}
     }
 
     /// #5158 end to end: the imported Syriac page's first line, through `SegmentService.resolvedSettings`
@@ -1761,14 +1861,45 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertNil(ReaderTextEdit.unreachableReason(APIError.httpError(statusCode: 409, message: "stale")),
                      "a refusal reached the engine: not out of reach")
 
-        // The engine comes back on the third ask: the page is told once, and asked about nothing more.
-        var asks = 0
-        var saidToPage: [String] = []
-        await ReaderTextEdit.waitForReturn(
-            isBack: { asks += 1; return asks == 3 }, pause: {}, tell: { saidToPage.append($0) }
-        )
-        XCTAssertEqual(asks, 3)
-        XCTAssertEqual(saidToPage, [ReaderTextEdit.engineStateScript(reachable: true)], "told once, when it answers")
+        // Through the coordinator's own store and follower: out of reach is said once, and the engine
+        // coming back on the third ask is said once.
+        final class Said { var scripts: [String] = []; var asks = 0 }
+        let said = Said()
+        let store = EngineReachabilityStore(isBack: { said.asks += 1; return said.asks == 3 }, pause: { await Task.yield() })
+        let follow = Task { await store.tellEachChange { said.scripts.append($0) } }
+        store.wentAway("connection refused")
+        for _ in 0..<200 where said.scripts.count < 2 { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(said.asks, 3)
+        XCTAssertEqual(said.scripts, [
+            ReaderTextEdit.engineStateScript(reachable: false, reason: "connection refused"),
+            ReaderTextEdit.engineStateScript(reachable: true),
+        ], "told when it went, and once when it answers")
+        follow.cancel()
+    }
+
+    /// 13b's probe lives in a STORE (the observable data layer: a view never calls the client). Two writes
+    /// failing while out of reach start ONE probe and say "out of reach" ONCE; its return flips
+    /// `reachable` once and is said once. Breaks if a second failure starts a second probe or the page
+    /// is told the same state twice.
+    func testTheEngineReachabilityStoreFlipsOnceAndTellsEachChangeOnce() async throws {
+        final class Seen { var scripts: [String] = []; var asks = 0; var back = false }
+        let seen = Seen()
+        let store = EngineReachabilityStore(isBack: { seen.asks += 1; return seen.back }, pause: { await Task.yield() })
+        let follow = Task { await store.tellEachChange { seen.scripts.append($0) } }
+        await Task.yield()
+        store.wentAway("connection refused")
+        store.wentAway("timed out")
+        for _ in 0..<200 where seen.scripts.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        for _ in 0..<50 where seen.asks < 5 { try await Task.sleep(nanoseconds: 1_000_000) }
+        XCTAssertFalse(store.reachable)
+        XCTAssertEqual(seen.scripts.count, 1, "out of reach said once, for two failed writes")
+        seen.back = true
+        for _ in 0..<200 where !store.reachable { try await Task.sleep(nanoseconds: 10_000_000) }
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertTrue(store.reachable)
+        XCTAssertEqual(seen.scripts.last, ReaderTextEdit.engineStateScript(reachable: true))
+        XCTAssertEqual(seen.scripts.count, 2, "back said once -- one probe, one flip")
+        follow.cancel()
     }
 
     /// `source.textedit.deleting-words-keeps-ink`, its last clause, end to end on the imported Syriac page
@@ -1869,6 +2000,46 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         var plain = box
         plain.shapes = []
         XCTAssertNil(PDFShapeAnnotations.make(for: plain, on: page, userName: "fichero.ocr-box"), "a box stays a square")
+    }
+
+    /// A drawn line lands in its region (`source.editor.draw-shapes`), on the recorded Syriac page: a
+    /// baseline drawn at the foot of region 2 is placed in region 2 -- the region holding MOST of it -- and
+    /// the create sends it as the parent (the engine test proves that makes region 2's last line, one undo
+    /// taking both); its path reads Page › Region › Line. A baseline outside every region, or only half in
+    /// one, stays at page level with no guess, and its path says so (Page › Line). Breaks if a line is
+    /// orphaned inside a region, or put in one it barely touches.
+    func testALineDrawnInsideARegionIsCreatedAsThatRegionsLine() async throws {
+        let store = try await loadedStore()
+        let segments = store.segments(documentId: "doc-0001")
+        let regions = segments.filter { $0.kind == "region" }
+            .sorted { (($0.anchor.rect?[1] ?? 0), ($0.anchor.rect?[0] ?? 0)) < (($1.anchor.rect?[1] ?? 0), ($1.anchor.rect?[0] ?? 0)) }
+        let region = regions[1]
+        let rect = try XCTUnwrap(region.anchor.rect)
+        let baseline = [[rect[0] + 0.1 * rect[2], rect[1] + 0.97 * rect[3]], [rect[0] + 0.9 * rect[2], rect[1] + 0.975 * rect[3]]]
+        XCTAssertEqual(SegmentShapes.containingRegion(for: baseline, among: segments)?.id, region.id, "the region it is drawn in")
+        XCTAssertNil(SegmentShapes.containingRegion(for: [[0.001, 0.001], [0.01, 0.001]], among: segments), "outside every region")
+        let straddling = [[rect[0] - 0.6 * rect[2], rect[1] + 0.5 * rect[3]], [rect[0] + 0.3 * rect[2], rect[1] + 0.5 * rect[3]]]
+        XCTAssertNil(SegmentShapes.containingRegion(for: straddling, among: segments), "a third inside is not most of it")
+
+        let call = try SegmentShapes.create(
+            .baseline, points: baseline, documentId: "doc-0001", passId: region.passId, onPass: region, parentSegmentId: region.id
+        ).get()
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(call.params)) as? [String: Any])
+        XCTAssertEqual(sent["parent_segment_id"] as? String, region.id)
+        XCTAssertEqual(sent["kind"] as? String, "line")
+        let pageLevel = try SegmentShapes.create(
+            .baseline, points: baseline, documentId: "doc-0001", passId: region.passId, onPass: region, parentSegmentId: nil
+        ).get()
+        let unparented = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(pageLevel.params)) as? [String: Any])
+        XCTAssertNil(unparented["parent_segment_id"], "no region: no parent sent, never a guessed one")
+
+        var drawn = try XCTUnwrap(segments.first { $0.kind == "line" })
+        drawn.id = "seg-drawn"
+        drawn.parentSegmentId = region.id
+        XCTAssertEqual(InspectorPath.to("seg-drawn", in: segments + [drawn])?.crumbs.map(\.label), ["Region", "Line"])
+        drawn.parentSegmentId = nil
+        XCTAssertEqual(InspectorPath.to("seg-drawn", in: segments + [drawn])?.crumbs.map(\.label), ["Line"],
+                       "at page level, and the path says so")
     }
 
     /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the

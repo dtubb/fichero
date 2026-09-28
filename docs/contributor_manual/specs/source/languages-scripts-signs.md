@@ -244,6 +244,14 @@ Direction
   the clm 13027 f. 38r folio `38`). A Latin-digit folio on an Arabic-script
   page reads right to left (`::test_a_latin_digit_folio_on_an_arabic_script_page_reads_right_to_left`,
   the Ajami Fulfulde ALTO page).
+  **Added 2026-09-28 (#5171, the app):** a direction is stated on a SOURCE -- a folder, a document or a
+  page -- from the Library's right-click (**Direction ▸** the six, or **Not Stated**) and from the
+  Inspector's Language section, whose **Direction** row shows what the engine resolves and where it came
+  from. One audited `source_setting.set` at level node (Not Stated: `source_setting.clear`), ⌘Z by its
+  audit id; the set, its ⌘Z and its ⇧⌘Z each re-read the pages the Reader shows, once
+  (`SourceDirection`, `SourceDirectionMenu`;
+  `ImportedPageDrawsItsBoxesTests.testADirectionStatedOnASourceIsOneUndoableSettingThatReReadsTheReader`).
+  A segment's own direction is the Segment menu's (`segment.update_many`).
 - `source.dir.logical-order-stored` — **[OK]** (→ #4938) stored text is in reading order; mixed
   direction in a line follows the Unicode bidirectional rules on display. Nothing in the engine
   reorders a string: a mixed-direction reading round trips byte for byte and resolving a direction

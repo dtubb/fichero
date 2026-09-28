@@ -138,6 +138,51 @@ def ensure_as_written_order(
     return order
 
 
+#: The fields of an order entry that a delete records and its undo writes back -- exactly the row,
+#: so the segment comes back to its place, a person's reordering included.
+ENTRY_FIELDS = ("id", "order_id", "segment_id", "position", "parent_entry_id", "version")
+
+
+def remove_segment_entries(db: Database, segment_ids: list[str]) -> list[dict]:
+    """Take the deleted segments out of EVERY order, and answer the rows as they were.
+
+    A deleted segment's entry left in the table is a ghost to every reader of the order -- export's
+    ReadingOrder, flows, neighbours, the next/previous walk, the Reader's line map -- so the delete
+    removes it, and `segment.undelete` (its inverse, and the redo of a create's undo) writes the rows
+    back unchanged (2026-09-28). An entry nested under a removed one keeps its parent id: it is out
+    of the walk while its parent is deleted and back in its place when the parent is restored.
+    """
+    removed: list[dict] = []
+    for segment_id in dict.fromkeys(segment_ids):
+        for entry in db.query(ReadingOrderEntry, segment_id=segment_id):
+            removed.append({field: getattr(entry, field) for field in ENTRY_FIELDS})
+            db.delete(entry)
+    return removed
+
+
+def restore_segment_entries(db: Database, entries: list[dict]) -> None:
+    """Write back what `remove_segment_entries` took, where it was. An order since deleted gets nothing
+    back (there is nothing to show it in); an entry the order already holds for that segment is not
+    doubled; an entry whose parent entry is gone (and is not coming back with it) is placed by page
+    order instead of being left nested under nothing."""
+    coming_back = {entry["id"] for entry in entries}
+    for fields in entries:
+        order = db.get(ReadingOrder, fields["order_id"])
+        if order is None or order.deleted_at is not None:
+            continue
+        if db.get(ReadingOrderEntry, fields["id"]) is not None or any(
+            row.segment_id == fields["segment_id"] for row in db.query(ReadingOrderEntry, order_id=order.id)
+        ):
+            continue
+        parent = fields.get("parent_entry_id")
+        if parent and parent not in coming_back and db.get(ReadingOrderEntry, parent) is None:
+            segment = db.get(Segment, fields["segment_id"])
+            if segment is not None:
+                place_in_page_order(db, order, segment)
+            continue
+        db.save(ReadingOrderEntry(**{field: fields.get(field) for field in ENTRY_FIELDS}))
+
+
 def place_in_page_order(db: Database, order: ReadingOrder, segment: Segment) -> ReadingOrderEntry | None:
     """Put one segment into `order` where PAGE order says it belongs.
 
@@ -149,9 +194,18 @@ def place_in_page_order(db: Database, order: ReadingOrder, segment: Segment) -> 
     The sort is `_segment_order_key`, IMPORTED. Returns None when the segment is
     already in the order, so a caller can be called twice without checking.
     """
-    entries = entries_in_sequence(db, order.id)
-    if any(row.segment_id == segment.id for row in entries):
+    if any(row.segment_id == segment.id for row in db.query(ReadingOrderEntry, order_id=order.id)):
         return None
+    # A segment with a parent (a line drawn inside a region) is placed among that parent's children, where
+    # page order puts it -- never at the top level beside the regions, which is where it landed before
+    # (2026-09-28). A parent the order does not hold leaves it at the top level, as before.
+    parent_entry = next(
+        (row for row in db.query(ReadingOrderEntry, order_id=order.id)
+         if segment.parent_segment_id and row.segment_id == segment.parent_segment_id),
+        None,
+    )
+    parent_entry_id = parent_entry.id if parent_entry is not None else None
+    entries = entries_in_sequence(db, order.id, parent_entry_id=parent_entry_id)
 
     key = _segment_order_key(segment)
     previous_position: float | None = None
@@ -170,6 +224,7 @@ def place_in_page_order(db: Database, order: ReadingOrder, segment: Segment) -> 
         order_id=order.id,
         segment_id=segment.id,
         position=midpoint(order.id, previous_position, following_position),
+        parent_entry_id=parent_entry_id,
     )
     db.save(entry)
     return entry

@@ -760,7 +760,13 @@ The editor
   `::test_a_direction_set_on_the_page_reaches_the_reader_at_once`); a line with no letters takes its
   block's direction, else its page's, and says so
   (`fichero-server/tests/unit/api/test_a_line_without_letters_takes_its_pages_direction.py`); a Return cut follows the
-  direction (`return-splits-the-line`). Matrix on real corpus files:
+  direction (`return-splits-the-line`). **The app re-reads the Reader's page** when a direction is set
+  from the Segment menu or the Inspector, and on that set's ⌘Z and ⇧⌘Z -- once per change, only a page
+  the Reader shows, never a poll: every `SegmentEditRunner` change posts `didChange`, and the Reader's
+  `SegmentChangeObserver` patches that page in place
+  (`ImportedPageDrawsItsBoxesTests.testADirectionSetItsUndoAndItsRedoEachReloadTheReadersPageOnce`,
+  Syriac). The app has no control of its own for `source_setting.set` yet: a setting made from MCP or
+  the command line shows at the Reader's next open. Matrix on real corpus files:
   `acceptance-2026-09-27.md` § Directions in the Reader. **Still PARTIAL:** columns that advance
   left to right (Mongolian) cannot be said (#5173); "a direction the platform cannot lay out is
   labelled" is not built; not run on the screen.
@@ -1053,8 +1059,16 @@ The editor
   the app closes, refuses too few points and sends those calls
   (`ImportedPageDrawsItsBoxesTests.testTheShapeToolsPolygonAndBaselineCreateSegmentsWithUndo`).
   **Escape abandons a drawing in progress** and does nothing else; the next Escape clears as it always did
-  (`WindowState.abandonDrawing`, `ShapeDrawingEscapeTests`). **Not yet:** a point and an open line; a drawn
-  line is not placed in the region it is drawn in; pages whose boxes come from an artifact.
+  (`WindowState.abandonDrawing`, `ShapeDrawingEscapeTests`). **A drawn line lands in its region:** it is
+  created as a line of the region holding MORE THAN HALF of its bounds (the most, then the smallest;
+  `SegmentShapes.containingRegion`), so the Inspector's path reads Region › Line; none holds it, it stays
+  at page level and the path says only Line -- no guessing. The same create places it in the as-written
+  order among that region's lines by its place on the page (#4930: page order, never append): a line
+  drawn between two of the region's lines goes between them, one drawn below its last line is its last.
+  One ⌘Z removes the line and its entry from the order itself; ⇧⌘Z puts the entry back where it was
+  (`test_imported_page_draws_its_boxes.py::test_a_line_drawn_inside_a_region_is_that_region_s_line_in_its_order_and_one_undo_takes_both`,
+  Syriac; `ImportedPageDrawsItsBoxesTests.testALineDrawnInsideARegionIsCreatedAsThatRegionsLine`).
+  **Not yet:** a point and an open line; pages whose boxes come from an artifact.
 - `source.editor.reshape` — **[PARTIAL]** (#4941) points can be dragged, added and removed; shapes moved and nudged.
   **Built 2026-09-28 (image pages, segment passes):** the overlay draws a segment AS its shapes -- the
   outline its file drew, an open path, a point, the baseline under the ink -- not its box
