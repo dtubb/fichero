@@ -37,6 +37,12 @@ class LibraryNotFoundError(FileNotFoundError):
         )
 
 
+class DatabaseBusy(RuntimeError):
+    """A consistent copy of a library's database could not be taken in time: another connection
+    held a write transaction open past the wait (#5185). Named, so a caller refuses with the reason
+    instead of a 500 -- and nothing was copied."""
+
+
 class DatabaseManager:
     """Manages Database instances for package documents — ONE per package,
     shared across all threads (#2508).
@@ -289,6 +295,7 @@ class DatabaseManager:
         dest: str | Path,
         *,
         source: str | Path | None = None,
+        wait: float = 10.0,
     ) -> Path:
         """A CONSISTENT copy of this library's database file.
 
@@ -321,24 +328,50 @@ class DatabaseManager:
         destination = Path(dest)
         package_str = self._cache_key(package_path)
 
-        with self._lock:
-            managed = [
-                self._databases[key] for key in list(self._databases) if key == package_str
-            ]
-            with contextlib.ExitStack() as stack:
-                # Every managed connection's write lock, held across BOTH the
-                # checkpoint and the copy. Normally there is exactly one.
-                for database in managed:
-                    stack.enter_context(database._lock)
-                for database in managed:
-                    database.conn.execute("CHECKPOINT")
-                if managed:
-                    logger.info(
-                        "Checkpointed %d connection(s) and copied %s under one lock",
-                        len(managed), package_str,
-                    )
-                shutil.copy2(src, destination)
-        return destination
+        import time
+
+        # A WRITE IN FLIGHT ON ANOTHER CONNECTION TO THE SAME DATABASE (#5185): a cursor's open
+        # transaction, which `Database._lock` does not cover. DuckDB then refuses CHECKPOINT ("there
+        # are other write transactions active"), and that surfaced as a 500 from the snapshot route.
+        # FORCE CHECKPOINT is NOT the answer: it aborts those transactions -- the write is lost. So
+        # WAIT for them: retry, releasing every lock between tries (a writer that needs one to
+        # finish must be able to take it), and copy only once a checkpoint succeeded, still under
+        # the locks. Bounded: past `wait` seconds the copy is REFUSED by name (`DatabaseBusy`),
+        # never taken half-flushed.
+        deadline = time.monotonic() + wait
+        pause = 0.02
+        while True:
+            with self._lock:
+                managed = [
+                    self._databases[key] for key in list(self._databases) if key == package_str
+                ]
+                with contextlib.ExitStack() as stack:
+                    # Every managed connection's write lock, held across BOTH the
+                    # checkpoint and the copy. Normally there is exactly one.
+                    for database in managed:
+                        stack.enter_context(database._lock)
+                    try:
+                        for database in managed:
+                            database.conn.execute("CHECKPOINT")
+                    except Exception as exc:  # noqa: BLE001 -- only the busy case is retried
+                        if "other write transactions" not in str(exc):
+                            raise
+                        busy = exc
+                    else:
+                        if managed:
+                            logger.info(
+                                "Checkpointed %d connection(s) and copied %s under one lock",
+                                len(managed), package_str,
+                            )
+                        shutil.copy2(src, destination)
+                        return destination
+            if time.monotonic() >= deadline:
+                raise DatabaseBusy(
+                    f"another connection kept a write transaction open for more than {wait:g}s, so "
+                    f"{package_str} could not be checkpointed for a consistent copy ({busy})"
+                )
+            time.sleep(pause)
+            pause = min(pause * 2, 0.5)
 
     def close_current_thread(self) -> None:
         """No-op under the single-connection model (#2508).

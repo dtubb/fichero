@@ -34,6 +34,7 @@ from fichero_server.db.storage import (
     restore_snapshot,
     delete_snapshot,
 )
+from fichero_server.db.storage_snapshots import SnapshotBusy  # after `storage`: it imports this module
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -550,6 +551,9 @@ async def create_snapshot(
         return snapshot
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except SnapshotBusy as e:
+        # #5185: a write held the library past the wait -- a refusal with its reason, not a 500.
+        raise HTTPException(status_code=409, detail={"reason": "library_busy", "detail": str(e)})
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
