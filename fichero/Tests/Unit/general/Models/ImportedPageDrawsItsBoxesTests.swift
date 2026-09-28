@@ -1428,8 +1428,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let params = try XCTUnwrap(sent["params"] as? [String: Any])
         XCTAssertEqual(params["expected_version"] as? Int, line.version, "checked against the version read")
         let anchor = try XCTUnwrap(params["anchor"] as? [String: Any])
-        XCTAssertEqual(anchor["polygon"] as? [[Double]], added)
-        XCTAssertEqual(anchor["rect"] as? [Double], SegmentShapes.bounds(added), "the box is the outline's bounds")
+        assertClose(anchor["polygon"], added)
+        assertClose(anchor["rect"], [SegmentShapes.bounds(added)], "the box is the outline's bounds")
         XCTAssertNil(params["baseline"], "an outline reshape leaves the baseline alone")
         XCTAssertEqual(manager.undoActionName, "Reshape Segment")
         manager.undo()
@@ -1460,6 +1460,23 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(rewrite.anchor.shapes, [AnchorShapeParams(kind: "point", points: [[0.5, 0.5]], tStart: nil, tEnd: nil)],
                        "an anchor rewrite carries the extra shapes, never drops them")
         XCTAssertEqual(rewrite.anchor.polygon, added)
+    }
+
+    /// Points sent in a request, compared after the JSON round trip: a double can come back one ULP off
+    /// (0.04651162790697672 for 0.046511627906976716), so each coordinate within 1e-12 -- never a
+    /// looser check on how many points there are. A single `[Double]` (a rect) is passed as `[rect]`.
+    private func assertClose(
+        _ sent: Any?, _ expected: [[Double]], _ message: String = "", file: StaticString = #filePath, line: UInt = #line
+    ) {
+        guard let got = (sent as? [[Double]]) ?? (sent as? [Double]).map({ [$0] }) else {
+            return XCTFail("not points: \(String(describing: sent)) \(message)", file: file, line: line)
+        }
+        XCTAssertEqual(got.map(\.count), expected.map(\.count), message, file: file, line: line)
+        for (gotPoint, wantPoint) in zip(got, expected) {
+            for (gotValue, wantValue) in zip(gotPoint, wantPoint) {
+                XCTAssertEqual(gotValue, wantValue, accuracy: 1e-12, message, file: file, line: line)
+            }
+        }
     }
 
     /// One point shape, for the rewrite above (the recorded page has no extra shapes).
@@ -1597,11 +1614,11 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(params.compactMap { $0["pass_id"] as? String }, [passId, passId], "on the shown pass")
         XCTAssertEqual(params.compactMap { $0["kind"] as? String }, ["region", "line"])
         let regionAnchor = try XCTUnwrap(params[0]["anchor"] as? [String: Any])
-        XCTAssertEqual(regionAnchor["polygon"] as? [[Double]], clicked)
-        XCTAssertEqual(regionAnchor["rect"] as? [Double], SegmentShapes.bounds(clicked))
+        assertClose(regionAnchor["polygon"], clicked)
+        assertClose(regionAnchor["rect"], [SegmentShapes.bounds(clicked)])
         XCTAssertEqual(regionAnchor["space"] as? String, onPass?.anchor.space, "the pass's own picture")
         let lineAnchor = try XCTUnwrap(params[1]["anchor"] as? [String: Any])
-        XCTAssertEqual(params[1]["baseline"] as? [[Double]], baselinePoints)
+        assertClose(params[1]["baseline"], baselinePoints)
         XCTAssertNil(lineAnchor["rect"], "no box invented for a baseline")
         XCTAssertNil(lineAnchor["polygon"], "no outline invented for a baseline")
         let path = try XCTUnwrap((lineAnchor["shapes"] as? [[String: Any]])?.first)
@@ -1655,9 +1672,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let anchor = try XCTUnwrap(params["anchor"] as? [String: Any])
         let shapes = try XCTUnwrap(anchor["shapes"] as? [[String: Any]])
         XCTAssertEqual(shapes.compactMap { $0["kind"] as? String }, ["path", "point"], "every shape sent back, in order")
-        XCTAssertEqual(shapes[0]["points"] as? [[Double]], movedPath)
-        XCTAssertEqual(shapes[1]["points"] as? [[Double]], [[0.9, 0.62]], "the other shape as it was")
-        XCTAssertEqual(anchor["polygon"] as? [[Double]], line.anchor.polygon, "the outline carried")
+        assertClose(shapes[0]["points"], movedPath)
+        assertClose(shapes[1]["points"], [[0.9, 0.62]], "the other shape as it was")
+        assertClose(anchor["polygon"], try XCTUnwrap(line.anchor.polygon), "the outline carried")
     }
 
     /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the
