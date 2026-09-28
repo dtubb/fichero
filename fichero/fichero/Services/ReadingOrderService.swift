@@ -20,7 +20,7 @@ final class ReadingOrderService: ReadingOrderTransport {
         switch response {
         case .ok(let okResponse):
             return try okResponse.body.json.orders.map {
-                ReadingOrderSummary(id: $0.id, name: $0.name, kind: $0.kind)
+                ReadingOrderSummary(id: $0.id, name: $0.name, kind: $0.kind, passId: $0.passId)
             }
         case .unprocessableContent:
             throw ReadingOrderError.refused("the engine refused the document id")
@@ -73,6 +73,26 @@ final class ReadingOrderService: ReadingOrderTransport {
     }
 }
 
+extension ReadingOrderService {
+    /// What reads before and after one segment IN ONE NAMED ORDER (`source.order.next-previous`,
+    /// #5160). In a flow the next may be on another page.
+    func neighbours(orderId: String, segmentId: String) async throws -> ReadingOrderChoice.Neighbours {
+        let response = try await client.api.orderNeighboursApiReadingOrdersOrderIdNeighboursGet(
+            path: .init(orderId: orderId), query: .init(segmentId: segmentId)
+        )
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            return ReadingOrderChoice.Neighbours(previous: body.previousSegmentId, next: body.nextSegmentId)
+        case .unprocessableContent:
+            throw ReadingOrderError.refused("the engine refused the segment")
+        case .undocumented(let status, _):
+            // 404: the segment is not in this order -- no neighbours to go to, said as a refusal.
+            throw status == 404 ? ReadingOrderError.refused("this segment is not in the order") : ReadingOrderError.unexpected(status)
+        }
+    }
+}
+
 enum ReadingOrderError: Error, Equatable {
     case refused(String)
     case movedMeanwhile
@@ -83,6 +103,8 @@ struct ReadingOrderSummary: Equatable, Identifiable {
     let id: String
     let name: String
     let kind: String
+    /// The pass it orders; a new order is made over the same one (#5160).
+    var passId: String?
 }
 
 /// What the store needs from the engine -- a protocol so the store is tested without one.

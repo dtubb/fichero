@@ -3650,6 +3650,36 @@
         "query_params": [],
         "request_model": null,
         "response_model": "EntityInspectorResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/entities/{entity_id}/linked-places",
+        "operation_id": "place_as_linked_places_api_entities__entity_id__linked_places_get",
+        "summary": "Place As Linked Places",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/entities/{entity_id}/place",
+        "operation_id": "place_as_of_api_entities__entity_id__place_get",
+        "summary": "Place As Of",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [
+          {
+            "name": "as_of",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "PlaceAsOfResponse"
       }
     ],
     "export": [
@@ -8011,6 +8041,18 @@
         ],
         "request_model": null,
         "response_model": "ReadingOrderListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/reading-orders/flows/onto/{document_id}",
+        "operation_id": "flows_onto_page_api_reading_orders_flows_onto__document_id__get",
+        "summary": "Flows Onto Page",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "FlowCandidatesResponse"
       },
       {
         "method": "GET",

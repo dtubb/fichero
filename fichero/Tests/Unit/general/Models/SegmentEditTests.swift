@@ -40,6 +40,17 @@ struct SegmentEditTests {
         #expect(anchor["document_id"] as? String == "page-1")
     }
 
+    @Test("a move shifts every extra shape with the box, never leaving one behind (it was refused before)")
+    func moveShiftsExtraShapesToo() throws {
+        var line = segment("l1", version: 2, rect: [0.1, 0.2, 0.5, 0.05])
+        line.anchor.shapes = [AnchorShapeValue(generated: Components.Schemas.AnchorShape(kind: .point, points: [[0.3, 0.22]]))]
+        let anchor = try #require(try json(SegmentEdit.move(line, to: [0.2, 0.3, 0.5, 0.05]).get())["anchor"] as? [String: Any])
+        let shapes = try #require(anchor["shapes"] as? [[String: Any]])
+        let point = try #require((shapes.first?["points"] as? [[Double]])?.first)
+        #expect(shapes.first?["kind"] as? String == "point")
+        #expect(abs(point[0] - 0.4) < 1e-12 && abs(point[1] - 0.32) < 1e-12)
+    }
+
     @Test("Join sends segment.merge keeping the first picked, every id with its version")
     func joinKeepsTheFirstPicked() throws {
         let call = try SegmentEdit.join([

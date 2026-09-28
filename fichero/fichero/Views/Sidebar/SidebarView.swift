@@ -152,6 +152,10 @@ struct SidebarView: View {
                 NotificationCenter.default.publisher(for: .sidebarRevealDocument)
             ) { note in
                 guard let docId = note.userInfo?["documentId"] as? String else { return }
+                // A segment to select when the page arrives: a citable reference (#5164), a flow's Next (#5160).
+                if let segmentId = note.userInfo?["segmentId"] as? String {
+                    windowState.pendingSegmentSelection = .init(documentId: docId, segmentId: segmentId)
+                }
                 Task { await revealDocument(docId) }
             }
             // Suppress the NavigationSplitView sidebar-column title header (#2309).

@@ -107,6 +107,20 @@ def _action_rights_set(db: Database, params: RightsSetParams, ctx: ActionContext
             status_code=422,
             detail="a restricted record names the people who may see it; with nobody named, nobody could",
         )
+    if params.restricted:
+        from fichero_server.security import authz
+
+        setter = authz.resolve_user(ctx.actor)
+        if setter is not None and setter.id not in params.readers:
+            # Never silently add the author: they may mean to hand the material over.
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"this restriction does not name you ({setter.username}), so it would lock you out of "
+                    f"the {target_kind} you are restricting; add your own account to the readers, or ask "
+                    "one of the people named to set it"
+                ),
+            )
     if params.model_use is not None:
         above = combine([r for kind, tid in links[:-1] for r in records_on(db, kind, tid)])
         if above.model_use is not None and MODEL_USE_RANK[params.model_use.value] > MODEL_USE_RANK[above.model_use]:

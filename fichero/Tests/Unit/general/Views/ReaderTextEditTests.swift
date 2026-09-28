@@ -61,11 +61,13 @@ struct ReaderTextEditTests {
     func newReadingAndReply() throws {
         let params = try #require(ReaderTextEdit.newReading(for: .edited(pageId: "p1", segmentId: "l1", text: "ܫܠܡܐ", basedOn: "r1")))
         let json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(params)) as? [String: String])
+        // The reading typed over is also the stale check's token (#5001): refused with a 409 if another counts now.
         #expect(json == ["document_id": "p1", "segment_id": "l1", "kind": "transcription", "content": "ܫܠܡܐ",
-                         "corrects_representation_id": "r1"])
+                         "corrects_representation_id": "r1", "expected_counting_id": "r1"])
         let fromWords = try #require(ReaderTextEdit.newReading(for: .edited(pageId: "p1", segmentId: "l1", text: "x", basedOn: nil)))
         let wordsJSON = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(fromWords)) as? [String: String])
         #expect(wordsJSON["corrects_representation_id"] == nil, "a line whose text came from its words corrects nothing")
+        #expect(wordsJSON["expected_counting_id"] == nil, "and has no reading to check against")
 
         let refused = ReaderTextEdit.committedScript(pageId: "p1", segmentId: #"x"); y"#, reason: "stale")
         #expect(refused.hasPrefix("window.fichero?.lineCommitted?.({") && refused.hasSuffix("});"))

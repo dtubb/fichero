@@ -265,6 +265,13 @@ struct FicheroApp: App {
             return
         }
 
+        // A citable segment reference (#5164): resolve it in the current library and open its page with
+        // the segment selected. Never a library path: before this it fell through and was opened as one.
+        if let reference = SegmentReference.parse(url) {
+            Task { await openSegmentReference(reference) }
+            return
+        }
+
         // Check if this library is already open
         if let existingLibrary = libraryManager.openLibraries.first(where: { $0.url == url }) {
             logger.info("Library already open: \(existingLibrary.displayName)")
@@ -881,4 +888,32 @@ extension FicheroApp {
     }
 }
 
+// The URL handler's segment-reference step (#5164), apart so the app's body stays under its length limit.
+extension FicheroApp {
+    /// `fichero:segment/…` opened from outside (#5164): the engine resolves it (following a merge or a
+    /// split, refusing another library's), then the sidebar reveals the page and the window selects the
+    /// segment. A reference that does not resolve is logged and beeps -- never opened as something else.
+    fileprivate func openSegmentReference(_ reference: SegmentReference) async {
+        guard let library = libraryManager.openLibraries.first(where: { $0.id == libraryManager.currentLibraryId }) else {
+            logger.error("handleOpenURL: a segment reference, but no library is open")
+            NSSound.beep()
+            return
+        }
+        do {
+            let locations = LocationService(ficheroClient: library.segmentService.client)
+            guard let landing = try await reference.resolve(with: locations) else {
+                logger.error("handleOpenURL: the referenced segment was deleted and has no successor")
+                NSSound.beep()
+                return
+            }
+            NotificationCenter.default.post(
+                name: .sidebarRevealDocument, object: nil,
+                userInfo: ["documentId": landing.documentId, "segmentId": landing.segmentId]
+            )
+        } catch {
+            logger.error("handleOpenURL: the segment reference did not resolve: \(error.localizedDescription)")
+            NSSound.beep()
+        }
+    }
+}
 #endif

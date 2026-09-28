@@ -4830,6 +4830,49 @@
         }
       }
     },
+    "/api/reading-orders/flows/onto/{document_id}": {
+      "get": {
+        "tags": [
+          "reading-orders"
+        ],
+        "summary": "Flows Onto Page",
+        "description": "`GET /api/reading-orders/flows/onto/{document_id}` -- the flows this page's segments could be\nadded to (`reading_order.place` then continues them here). Nearest earlier page first.",
+        "operationId": "flows_onto_page_api_reading_orders_flows_onto__document_id__get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlowCandidatesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/formats": {
       "get": {
         "tags": [
@@ -16100,6 +16143,109 @@
           },
           "404": {
             "description": "Entity not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/entities/{entity_id}/place": {
+      "get": {
+        "tags": [
+          "entities",
+          "entities"
+        ],
+        "summary": "Place As Of",
+        "description": "The place as of a date (`source.geo.geometry-over-time`): the geometries valid then, or\nnone with the reason -- never the nearest. Nothing is fetched.",
+        "operationId": "place_as_of_api_entities__entity_id__place_get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "A year or ISO 8601 date (astronomical count: -329 is 330 BC)",
+              "title": "As Of"
+            },
+            "description": "A year or ISO 8601 date (astronomical count: -329 is 330 BC)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceAsOfResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/entities/{entity_id}/linked-places": {
+      "get": {
+        "tags": [
+          "entities",
+          "entities"
+        ],
+        "summary": "Place As Linked Places",
+        "description": "The place as Linked Places Format (`source.geo.linked-places-out`): a FeatureCollection with\none Feature -- its names with language, dates and citations, its dated geometries, its gazetteer\nlinks. Worked out from the entity each time; nothing is fetched.",
+        "operationId": "place_as_linked_places_api_entities__entity_id__linked_places_get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Place As Linked Places Api Entities  Entity Id  Linked Places Get"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -52315,6 +52461,64 @@
         ],
         "title": "EntityMergeRequest"
       },
+      "EntityName": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Text"
+          },
+          "romanized": {
+            "type": "string",
+            "nullable": true,
+            "title": "Romanized"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "script": {
+            "type": "string",
+            "nullable": true,
+            "title": "Script"
+          },
+          "when": {
+            "$ref": "#/components/schemas/EvidentialDateRange",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind",
+            "default": "unknown"
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "EntityName",
+        "description": "One name of an entity, as a source attests it (maps D6, `source.geo.names-over-time`): the\nform in its own script, its language and script, when it was used, and who says so. The\nentity's `aliases` is DERIVED from these (plus older plain aliases): one answer to \"what is it\ncalled\", read the old way or the new."
+      },
       "EntityPatchRequest": {
         "properties": {
           "canonical_name": {
@@ -52928,6 +53132,15 @@
             "nullable": true,
             "title": "Label"
           },
+          "numbering": {
+            "type": "string",
+            "enum": [
+              "historical",
+              "astronomical"
+            ],
+            "nullable": true,
+            "title": "Numbering"
+          },
           "basis": {
             "$ref": "#/components/schemas/EvidenceBasis"
           },
@@ -53041,6 +53254,20 @@
             "nullable": true,
             "title": "Geojson"
           },
+          "when": {
+            "$ref": "#/components/schemas/EvidentialDateRange",
+            "nullable": true
+          },
+          "relative": {
+            "$ref": "#/components/schemas/RelativePlace",
+            "nullable": true
+          },
+          "crs": {
+            "type": "string",
+            "const": "EPSG:4326",
+            "title": "Crs",
+            "default": "EPSG:4326"
+          },
           "basis": {
             "$ref": "#/components/schemas/EvidenceBasis"
           },
@@ -53070,6 +53297,18 @@
             "type": "string",
             "nullable": true,
             "title": "Source Excerpt"
+          },
+          "adopted_from_segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Adopted From Segment Id",
+            "description": "The boundary Segment (a real `Segment` record id) whose worked-out world shape this geometry was adopted from (`entity.adopt_boundary`). NOT the claims' legacy `source_segment_id`, which names an entry in a segmentation artifact."
+          },
+          "adopted_from_pass_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Adopted From Pass Id",
+            "description": "The georeferencing SegmentPass whose transformation placed the adopted shape."
           },
           "rationale": {
             "type": "string",
@@ -53542,6 +53781,59 @@
         "title": "FileType",
         "description": "Type of source file."
       },
+      "FlowCandidate": {
+        "properties": {
+          "order": {
+            "$ref": "#/components/schemas/ReadingOrderRead"
+          },
+          "last_segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Last Segment Id"
+          },
+          "last_page_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Last Page Id"
+          },
+          "relation": {
+            "type": "string",
+            "title": "Relation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "order",
+          "relation"
+        ],
+        "title": "FlowCandidate"
+      },
+      "FlowCandidatesResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "flows": {
+            "items": {
+              "$ref": "#/components/schemas/FlowCandidate"
+            },
+            "type": "array",
+            "title": "Flows"
+          },
+          "withheld": {
+            "type": "integer",
+            "title": "Withheld",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "flows"
+        ],
+        "title": "FlowCandidatesResponse"
+      },
       "FolderDeleteResponse": {
         "properties": {
           "deleted_count": {
@@ -53974,6 +54266,12 @@
             "type": "string",
             "nullable": true,
             "title": "Place Name"
+          },
+          "crs": {
+            "type": "string",
+            "const": "EPSG:4326",
+            "title": "Crs",
+            "default": "EPSG:4326"
           }
         },
         "additionalProperties": true,
@@ -57197,6 +57495,13 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Metadata"
+          },
+          "names": {
+            "items": {
+              "$ref": "#/components/schemas/EntityName"
+            },
+            "type": "array",
+            "title": "Names"
           },
           "date_values": {
             "items": {
@@ -63734,6 +64039,53 @@
         "title": "PdfBackfillResponse",
         "description": "Result of /pdfs/backfill-pages \u2014 how many PDFs needed pages\ncreated and how many pages were created in total."
       },
+      "PlaceAsOfResponse": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "relative": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Relative"
+          },
+          "geometries": {
+            "items": {
+              "$ref": "#/components/schemas/EvidentialPlace"
+            },
+            "type": "array",
+            "title": "Geometries"
+          },
+          "undated": {
+            "items": {
+              "$ref": "#/components/schemas/EvidentialPlace"
+            },
+            "type": "array",
+            "title": "Undated"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "as_of",
+          "geometries",
+          "undated"
+        ],
+        "title": "PlaceAsOfResponse"
+      },
       "PlaceGeometryType": {
         "type": "string",
         "enum": [
@@ -66789,6 +67141,67 @@
         "title": "RelatedDocumentsResponse",
         "description": "One row of GET /api/documents/{doc_id}/related \u2014 another document\nrelated via shared knowledge-graph entities and/or semantic\nsimilarity (#4120). Lives here (not route-local) so the envelope is\nfully typed in the OpenAPI spec and the generated Swift client."
       },
+      "RelativePlace": {
+        "properties": {
+          "anchor_entity_id": {
+            "type": "string",
+            "title": "Anchor Entity Id"
+          },
+          "relation_as_written": {
+            "type": "string",
+            "nullable": true,
+            "title": "Relation As Written"
+          },
+          "bearing_deg": {
+            "type": "number",
+            "exclusiveMaximum": true,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Bearing Deg",
+            "maximum": 360.0
+          },
+          "bearing_halfwidth_deg": {
+            "type": "number",
+            "maximum": 180.0,
+            "exclusiveMinimum": true,
+            "title": "Bearing Halfwidth Deg",
+            "default": 22.5,
+            "minimum": 0.0
+          },
+          "distance_as_written": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Distance As Written"
+          },
+          "distance_value": {
+            "type": "number",
+            "exclusiveMinimum": true,
+            "title": "Distance Value",
+            "minimum": 0.0
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "certainty": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Certainty"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "anchor_entity_id",
+          "distance_as_written",
+          "distance_value",
+          "unit"
+        ],
+        "title": "RelativePlace",
+        "description": "A place described relative to another -- \"21 leguas de Quito\", \"96 leguas al N de Santa Fe\"\n(maps D10, `source.geo.relative-place`). Stored as the source says it: the anchor, the relation,\nthe distance AS WRITTEN with its number and unit, and a certainty. Never a point: it resolves on\nread to an AREA of uncertainty through the unit's conversion (`knowledge.units`)."
+      },
       "RemoteBackendHealth": {
         "properties": {
           "enabled": {
@@ -69386,6 +69799,13 @@
             "type": "object",
             "title": "Metadata"
           },
+          "names": {
+            "items": {
+              "$ref": "#/components/schemas/EntityName"
+            },
+            "type": "array",
+            "title": "Names"
+          },
           "date_values": {
             "items": {
               "$ref": "#/components/schemas/EvidentialDateRange"
@@ -70731,6 +71151,10 @@
             "type": "string",
             "nullable": true,
             "title": "Transformation"
+          },
+          "depicts": {
+            "$ref": "#/components/schemas/EvidentialDateRange",
+            "nullable": true
           },
           "created_at": {
             "type": "string",
@@ -77062,6 +77486,12 @@
             "type": "boolean",
             "title": "Unchosen",
             "default": false
+          },
+          "depicts": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Depicts"
           }
         },
         "type": "object",

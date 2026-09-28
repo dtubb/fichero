@@ -27,6 +27,52 @@ extension ZoomableImagePreview {
         return true
     }
 
+    /// RESHAPE one box's outline or baseline (by its index in the shown boxes): `segment.update`, checked
+    /// against the version read, ⌘Z. A segment's shapes are on a segment pass, so this is the only path.
+    func reshapeSegment(index: Int, _ target: SegmentShapes.Target, to points: [[Double]]) {
+        guard let passId = shownArtifactlessPassId, let documentId, let store = segmentEditStore,
+              let segment = store.segments(documentId: documentId)
+                .first(where: { $0.passId == passId && $0.boxIndex == index }) else { return }
+        runSegmentEdit(
+            SegmentShapes.reshape(segment, target, to: points), documentId: documentId,
+            name: target == .polygon ? "Reshape Segment" : "Reshape Baseline"
+        )
+    }
+
+    /// NUDGE the shape point last pressed (an arrow key in Edit Segments): 1 image pixel, 10 with ⇧, as one
+    /// `segment.update` with ⌘Z. False when no point is selected here, so the arrow keeps its paging.
+    /// ponytail: one audited edit per key press; coalesce a held key into one if the audit trail grows.
+    func nudgeSelectedShapePoint(_ deltaX: Double, _ deltaY: Double, fast: Bool) -> Bool {
+        guard windowState?.isEditingSegments == true, let ref = windowState?.selectedShapePoint,
+              let documentId, ref.documentId == documentId, let passId = shownArtifactlessPassId,
+              let store = segmentEditStore, imageSize.width > 0, imageSize.height > 0,
+              let segment = store.segments(documentId: documentId)
+                .first(where: { $0.passId == passId && $0.boxIndex == ref.boxIndex }),
+              let points = SegmentShapes.points(of: segment, ref.target) else { return false }
+        let step = fast ? 10.0 : 1.0
+        let moved = SegmentShapes.nudging(
+            points, index: ref.index, byPixels: [deltaX * step, deltaY * step],
+            imageSize: [Double(imageSize.width), Double(imageSize.height)]
+        )
+        guard moved != points else { return true }  // at the page's edge: nothing to send, the key is still ours
+        reshapeSegment(index: ref.boxIndex, ref.target, to: moved)
+        return true
+    }
+
+    /// DRAW a polygon or baseline with the Shape tool: `segment.create` on the shown pass, ⌘Z. Only on a
+    /// segment pass (an imported page); a page drawn from an artifact keeps its box-only regions path.
+    func drawSegmentShape(_ kind: SegmentShapes.DrawKind, points: [[Double]]) {
+        guard let passId = shownArtifactlessPassId, let documentId, let store = segmentEditStore else {
+            Self.logger.notice("Draw \(kind.title, privacy: .public) not sent: the shown boxes are not a segment pass")
+            return
+        }
+        let onPass = store.segments(documentId: documentId).first { $0.passId == passId }
+        runSegmentEdit(
+            SegmentShapes.create(kind, points: points, documentId: documentId, passId: passId, onPass: onPass),
+            documentId: documentId, name: "Draw \(kind.title)"
+        )
+    }
+
     /// DELETE the selected boxes on an artifact-less pass. True when handled here.
     func deleteSelectedSegments() -> Bool {
         guard shownArtifactlessPassId != nil, let documentId else { return false }

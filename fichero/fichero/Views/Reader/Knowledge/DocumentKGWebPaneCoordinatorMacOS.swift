@@ -76,6 +76,8 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
         guard lastLoadedDocumentId != parent?.documentId || lastLoadedLibraryPath != parent?.libraryPath
             || lastLoadedPageIds != parent?.pageIds
             || lastLoadedRepresentation != parent?.representation else { return }
+        // A page swap: the old page sends the line being typed first (#5001), so no words are lost.
+        if lastLoadedDocumentId != nil { webView.evaluateJavaScript(ReaderTextEdit.commitPendingScript) }
         // An explicit load supersedes any scheduled failure retry.
         failureRetryTask?.cancel()
         failureRetryTask = nil
@@ -450,54 +452,16 @@ extension DocumentKGWebPaneCoordinatorMacOS {
     @MainActor
     func applyTextEdit(_ edit: ReaderTextEdit.Message) async {
         guard let library else { return }
-        let store = SegmentStore.shared(for: library.segmentService)
-        let actions = library.actionsService
         let webView = webView
-        let pageId = edit.pageId
-        let undoManager = webView?.undoManager
-        let refresh: @MainActor () async -> Void = {
-            await store.load(documentId: pageId, force: true)
-            await DocumentKGWebPaneCoordinatorMacOS.refreshPage(pageId, in: webView)
-        }
-        var reason: String?
-        do {
-            switch edit {
-            case .edited:
-                guard let params = ReaderTextEdit.newReading(for: edit) else { return }
-                try await AuditedAction.run(
-                    "representation.create", params: params, actionName: "Typing", actionsService: actions,
-                    undoManager: undoManager, afterChange: refresh
-                )
-            case .split(_, let id, _):
-                // Fresh: a readingEdit posted just before the split changed the line's text and version.
-                await store.load(documentId: pageId, force: true)
-                guard let line = store.segments(documentId: pageId).first(where: { $0.id == id }) else {
-                    throw SegmentEdit.Refusal.tooFew
-                }
-                let shown = try? await library.segmentService.readings(segmentId: id)
-                let params = try ReaderTextEdit.split(
-                    edit, of: line, shownText: shown?.countingContent(ofKind: "transcription")
-                ).get()
-                try await AuditedAction.run(
-                    "segment.split", params: params, actionName: "Split Line", actionsService: actions,
-                    undoManager: undoManager, afterChange: refresh
-                )
-            case .join:
-                await store.load(documentId: pageId, force: true)
-                let call = try ReaderTextEdit.join(edit, segments: store.segments(documentId: pageId)).get()
-                try await SegmentEditRunner(actionsService: actions, store: store).run(
-                    call, documentId: pageId, actionName: "Join Lines", undoManager: undoManager,
-                    afterChange: { await DocumentKGWebPaneCoordinatorMacOS.refreshPage(pageId, in: webView) }
-                )
-            }
-        } catch {
-            reason = String(describing: error)
-        }
+        let runner = ReaderTextEditRunner(
+            actionsService: library.actionsService, segmentService: library.segmentService,
+            undoManager: webView?.undoManager,
+            refreshPage: { pageId in await DocumentKGWebPaneCoordinatorMacOS.refreshPage(pageId, in: webView) }
+        )
         // The page's answer is a courtesy (it re-reads itself on a refusal), so a failure to deliver it
         // is ignored. In an async context the async-throwing overload is chosen.
-        _ = try? await webView?.evaluateJavaScript(
-            ReaderTextEdit.committedScript(pageId: pageId, segmentId: edit.segmentId, reason: reason)
-        )
+        guard let script = await runner.apply(edit) else { return }
+        _ = try? await webView?.evaluateJavaScript(script)
     }
 
     /// The Reader's caret line becomes the focused Source view's selection (#5155).

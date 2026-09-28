@@ -60,6 +60,21 @@ final class ReadingOrderStore {
         }
     }
 
+    /// Show another of the page's orders (the picker, #5160): its top level, from the engine.
+    func choose(_ orderId: String) async throws {
+        guard orders.contains(where: { $0.id == orderId }) else { return }
+        self.orderId = orderId
+        levels = [:]
+        shownLevel = .top
+        entries = try await transport.entries(orderId: orderId, parentEntryId: nil)
+    }
+
+    /// Re-read the page's orders, keeping the one shown (after New Order / New Flow).
+    func reloadOrders() async throws {
+        guard let documentId else { return }
+        orders = try await transport.orders(documentId: documentId)
+    }
+
     /// A DRAG: `segmentId` to occupy `index` in the final list. Answers the audit id for ⌘Z.
     @discardableResult
     func move(_ segmentId: String, to index: Int) async -> String? {

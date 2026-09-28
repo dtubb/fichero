@@ -56,6 +56,10 @@ struct SegmentsPictureGrid: View {
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { if opens(id) { open(id) } }
         .onTapGesture { pick(id) }
+        // A second route to Open, for touch (iPad has no double-click) and for the keyboard-less.
+        .contextMenu {
+            if opens(id) { Button("Open") { open(id) } }
+        }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected == id ? [.isButton, .isSelected] : .isButton)
         .task(id: id) { await load(id) }

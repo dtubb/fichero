@@ -15,6 +15,9 @@ struct DocumentOverlay: Equatable {
         /// machine sure enough of where the word is).
         var text: String = ""
         var showsText = false
+        /// The segment's own shapes (polygon, path, point, baseline), drawn instead of the box when
+        /// present (`SegmentShapes`).
+        var shapes: [SegmentShapes.Drawn] = []
     }
 
     var boxes: [Box] = []
@@ -44,6 +47,11 @@ struct DocumentOverlay: Equatable {
     /// The selected boxes' rects, normalized. Drawn in the SAME view and pass as the boxes, so a
     /// highlight can never sit a transform away from the box it marks.
     var selected: [[Double]] = []
+    /// Each selected box's shapes, parallel to `selected`: outlined as themselves, and in Edit
+    /// Segments given a handle per point and one per side to add a point (Reshape).
+    var selectedShapes: [[SegmentShapes.Drawn]] = []
+    /// The shape point the arrow keys nudge, normalized: its handle is drawn filled.
+    var selectedPoint: [Double]?
     /// The entry-source highlight: a soft wash BEHIND the words (the passage a claim or a search
     /// hit came from). Drawn first.
     var entryWashes: [[Double]] = []

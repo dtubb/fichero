@@ -34,18 +34,21 @@ extension ZoomableImagePreview {
         let shown = displayedGeometryBoxes
         let all = frameMatchedGeometryBoxes
         let selection = regionSelection
-        let selected: [[Double]] = (ocrGeometrySelectionScope != nil && selection.artifactId == ocrGeometrySelectionScope)
-            ? selection.resolvedIndices(in: all).map { all[$0].bbox }
-            : []
+        let selectedIndices = (ocrGeometrySelectionScope != nil && selection.artifactId == ocrGeometrySelectionScope)
+            ? selection.resolvedIndices(in: all) : []
+        let selected: [[Double]] = selectedIndices.map { all[$0].bbox }
         // The same frame gates the SwiftUI washes had: the entry wash is anchored on the page's
         // own image, the linked words on the geometry they were measured on.
         let linkedFrameMatches = ocrGeometry.map { geometryFrameMatchesDisplay($0) } ?? false
         return DocumentOverlay(
             boxes: shown.map {
                 .init(bbox: $0.box.bbox, confidence: $0.box.confidence, text: $0.box.text,
-                      showsText: inlineTextEnabled && OCRBoxConfidence.drawsInlineText($0.box.confidence))
+                      showsText: inlineTextEnabled && OCRBoxConfidence.drawsInlineText($0.box.confidence),
+                      shapes: $0.box.shapes)
             },
             selected: selected,
+            selectedShapes: selectedIndices.map { all[$0].shapes },
+            selectedPoint: selectedShapePoint(in: all),
             entryWashes: annotationFrameMatchesDisplay(nil) ? highlightBoxes : [],
             linkedWashes: linkedFrameMatches ? linkedSelectionBoxes : [],
             marks: shownAnnotationMarks.compactMap { mark in
@@ -58,6 +61,15 @@ extension ZoomableImagePreview {
             isEditing: windowState?.isEditingSegments == true,
             isFocusedPane: windowState?.focusedRegionSelection === regionSelection
         )
+    }
+
+    /// Where the nudged shape point is now, for its filled handle (Edit Segments only).
+    private func selectedShapePoint(in all: [OCRGeometryBox]) -> [Double]? {
+        guard windowState?.isEditingSegments == true, let ref = windowState?.selectedShapePoint,
+              ref.documentId == documentId, all.indices.contains(ref.boxIndex),
+              let points = all[ref.boxIndex].shapes.first(where: { $0.target == ref.target })?.points,
+              points.indices.contains(ref.index) else { return nil }
+        return points[ref.index]
     }
 
     /// The full box list, or nothing when the geometry names a frame other
@@ -126,6 +138,9 @@ extension ZoomableImagePreview {
                     promoteMarquees(named: name, onlyIndex: index)
                 },
                 onOpenRegion: { index in openRegion(atIndex: index) },
+                onReshapeCommit: { index, target, points in reshapeSegment(index: index, target, to: points) },
+                drawKind: windowState?.shapeKind ?? .box,
+                onDrawShapeCommit: { kind, points in drawSegmentShape(kind, points: points) },
                 selection: regionSelection
             )
             .contextMenu { regionContextMenu }
