@@ -11,7 +11,12 @@ struct ReaderTextEditRunner {
     struct Answer {
         let script: String
         var unreachableReason: String?
+        /// Why nothing was written, for a caller that is not the page (the Inspector's Edit…, #5201):
+        /// nil when the edit landed; `staleProblem` when another reading counts now; else the reason.
+        var problem: String?
     }
+
+    static let staleProblem = "stale"
 
     let actionsService: ActionsService
     let segmentService: SegmentService
@@ -65,14 +70,17 @@ struct ReaderTextEditRunner {
             // Stale (#5001): another reading counts now. Nothing was written; tell the page what counts
             // so it keeps the typed words and offers Keep Mine / Take Theirs / Compare. No refresh. A
             // split or join refused as stale has no typed words: a plain refusal.
-            return Answer(script: await ReaderTextEdit.staleAnswer(to: edit, readings: segmentService)
-                ?? ReaderTextEdit.committedScript(pageId: pageId, segmentId: edit.segmentId, reason: "stale"))
+            return Answer(
+                script: await ReaderTextEdit.staleAnswer(to: edit, readings: segmentService)
+                    ?? ReaderTextEdit.committedScript(pageId: pageId, segmentId: edit.segmentId, reason: "stale"),
+                problem: Self.staleProblem
+            )
         } catch {
             reason = String(describing: error)
         }
         return Answer(script: ReaderTextEdit.committedScript(
             pageId: pageId, segmentId: edit.segmentId, reason: reason, representationId: made
-        ))
+        ), problem: reason)
     }
 
     /// Out of reach (13b): nothing was written. A typed run goes back to held on the page; a split or
@@ -83,6 +91,6 @@ struct ReaderTextEditRunner {
         } else {
             ReaderTextEdit.committedScript(pageId: edit.pageId, segmentId: edit.segmentId, reason: reason)
         }
-        return Answer(script: script, unreachableReason: reason)
+        return Answer(script: script, unreachableReason: reason, problem: reason)
     }
 }
