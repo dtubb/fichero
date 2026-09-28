@@ -159,7 +159,8 @@ def _plan_tei_pages(plan: PairingPlan, path: Path, data: bytes, by_dir: dict[Pat
         names = _names_in(page.image_name)
         match: Path | None = None
         for images in _candidates(path, by_dir):
-            found = [image for image in images if image.name in names or image.stem in names]
+            folded = {name.casefold() for name in names}
+            found = [image for image in images if image.name.casefold() in folded or image.stem.casefold() in folded]
             if len(found) == 1:
                 match = found[0]
                 break
@@ -203,14 +204,22 @@ def _match(layout: Path, stated: str | None, by_dir: dict[Path, list[Path]]) -> 
     """The image, or the reason there is none."""
     stated_name = Path(stated.replace("\\", "/")).name if stated else None
     stem = _layout_stem(layout)
+    # CASE-BLIND (Ajami ALTO states `ELIT_WAN_00130_003r.JPG` for `..._003r.jpg`): exports keep the
+    # original camera's case and macOS does not care. Two images differing only by case are two
+    # matches, so they are refused below as ambiguous -- never one picked.
     for images in _candidates(layout, by_dir):
         if stated_name:
-            named = [image for image in images if image.name == stated_name]
+            named = [image for image in images if image.name.casefold() == stated_name.casefold()]
             if len(named) == 1:
                 return named[0]
+            if len(named) > 1:
+                return f"{len(named)} images match the stated name {stated_name!r} but for case: " + ", ".join(
+                    sorted(image.name for image in named)
+                )
         same_stem = [
             image for image in images
-            if image.stem == stem or image.name == stem  # `0001.jpg.xml` -> `0001.jpg`
+            # `0001.jpg.xml` -> `0001.jpg`
+            if image.stem.casefold() == stem.casefold() or image.name.casefold() == stem.casefold()
         ]
         if len(same_stem) == 1:
             return same_stem[0]
