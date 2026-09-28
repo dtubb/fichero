@@ -19,9 +19,11 @@ minute, see it, keep it or throw it away. That gives four requirements, RULED in
   picture;
 - **methods behind one seam**: projection, grouping, labelling, layout, linking, each a named
   method with its settings shown, so two can be compared and a result says how it was made;
-- **local by default, outside by choice**: everything computes on the researcher's machine;
-  sending anything to a hosted service is an explicit act, each time, with the rights check;
-- **easy in and out**: one command exports what is showing, and the command line and agents can
+- **local, always**: everything computes on the researcher's machine. **No hosted service is
+  used for visualisation, ever** (RULED 2026-09-20; this replaces the brief's "outside by
+  choice"): doing locally what a hosted embedding-map service does is the purpose of the app;
+- **easy in and out**: one command exports what is showing as FILES in standard formats (what
+  a researcher does with a file outside the app is theirs), and the command line and agents can
   run the same experiments.
 
 This file also holds the two things that make the work leave the machine well: **publishing**
@@ -29,7 +31,8 @@ This file also holds the two things that make the work leave the machine well: *
 
 ## Prior art
 
-Nomic Atlas's developer flow (embed, map, label, explore, share) is the model of ease.
+Nomic Atlas's developer flow (embed, map, label, explore, share) is the model of ease, and
+only a model: it is hosted, and nothing here uses it.
 Observable and Jupyter are the model of "the picture is a program that can be run again".
 Enslaved.org is the model for publishable, joinable linked open data with provenance on every
 statement and deliberate care about people recorded as property. The CARE principles for
@@ -90,7 +93,7 @@ Keeping, comparing
   renamed labels and any pinned positions. It never stores the picture as the truth.
 - `explore.saved.is-a-node` — **[GAP]** (#5032) a saved view is a node in the sidebar beside
   saved searches (nodes, not modes): selecting it shows that set in that view in the Library
-  pane. PROPOSED: it is a saved search that also remembers its view (question 4).
+  pane. PROPOSED: it is a saved search that also remembers its view (open; see the questions file).
 - `explore.saved.re-run-says-what-changed` — **[GAP]** (#5032) opening a saved view runs it
   again on the project as it is now, and says what is different since it was kept (items added,
   claims changed, vectors remade).
@@ -100,8 +103,8 @@ Keeping, comparing
   (`source.rights.purge-reaches-derivatives`).
 - `explore.saved.compare-two` — **[GAP]** (#5032) two experiments on the same set (two methods,
   two settings, two dates) open side by side in two panes with the same selection, so that the
-  same items can be found in both. This uses the existing compare workspace and the explicit
-  pane link (→ #4881); no new comparison surface.
+  same items can be found in both. No new comparison surface. Two panes side by side work
+  today; the SHARED selection is BLOCKED on the pane-linking design session (#4881).
 - `explore.saved.shareable-as-a-file` — **[GAP]** (#5032) a saved view can be exported and
   imported as a small readable file (its description only, no research data), so a colleague
   with the same kind of project can run it. This follows the ruling that recipes are files.
@@ -140,16 +143,16 @@ Publishing
   another project, can be imported, arriving as claims asserted by that dataset (never as the
   researcher's own), so that two projects can be joined and looked at together.
 
-Never without asking
-- `explore.outside.nothing-by-default` — **[GAP]** (#5032) no behaviour in this set sends
-  project content, vectors, names or positions anywhere. Labels, groups and summaries are made
-  by local methods. If a researcher has configured a cloud model, this set still does not use
-  it unless the project's rights record allows model use (`source.rights.model-use`) AND the
-  researcher chooses it for that experiment.
-- `explore.outside.hosted-service-is-per-export` — **[GAP]** (#5032) sending a dataset to a
-  hosted service (Nomic Atlas is the example given) is possible only as an explicit export,
-  each time, that names the service, lists what will be sent, runs the rights check, and is
-  recorded. It is never remembered as a default.
+Never (RULED 2026-09-20)
+- `explore.outside.no-hosted-service-ever` — **[GAP]** (#5032) no behaviour in this set sends
+  project content, vectors, names, positions or labels to any hosted service, and there is no
+  setting, export target or per-act exception that does. Labels, groups, layouts and summaries
+  are made by local methods only. A cloud model a researcher has configured for other work is
+  never used by this set.
+- `explore.outside.files-are-the-way-out` — **[GAP]** (#5032) what leaves, leaves as FILES in
+  standard formats that the researcher saves (`explore.out.export-what-is-showing`) or as a
+  publication they perform (`explore.publish.is-an-explicit-act`). The app uploads nothing to a
+  visualisation service on anyone's behalf.
 - `explore.outside.existing-calls-are-named` — **[GAP]** (#5032) the calls that already leave the
   machine near this layer (Wikidata reconciliation sends names; Apple's map fetches tiles for
   the region in view) are stated to the researcher where they happen, and each has an off
@@ -189,6 +192,5 @@ round-trips); click-around (try, discard, nothing remains; keep, reopen, same pi
 
 ## Open questions for the creative director
 
-Questions 4 (how a saved view is stored), 5 (what may ever go to a hosted service), 12 (the
-word "recipe"), 15 (vocabulary of care: whose job, and when). Full text in
-`agent-work/dh-layer/questions-for-the-maintainer.md`.
+Still open, not blocking: whether a saved view is a saved search that remembers its view; the
+word "recipe"; the vocabulary of care (whose job, and when). Full text in `agent-work/dh-layer/questions-for-the-maintainer.md`.

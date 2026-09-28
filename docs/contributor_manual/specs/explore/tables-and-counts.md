@@ -127,9 +127,16 @@ Out
   built (`export.one-stream-feeds-every-record-emitter`); CSV, "what is showing", and an app
   command are not.
 
-## How it is drawn
+## How it is drawn (decided per kind; RULED 2026-09-20)
 
-Native: the existing tables, Swift Charts for bars, histograms and grids; a native Sankey. The
+- **Tables, facets, summaries, bars, histograms, grids: native.** The tables exist and Swift
+  Charts draws the rest; nothing here needs the web.
+- **Flows (Sankey): HTML is a fair first choice; native if the memory cost is judged too
+  high**, for the same reasons as storylines (`time.md`): the layout is solved in the open web
+  libraries, the sets are small, and a flow chart is likely to be published. The cost is
+  about 500 MB for its WebKit process, as measured on the 16 GB M1 the app is tested on (#4999, #4997)
+  while it is open.
+ The
 NLG side of the engine (`knowledge/readable.py`) may later SAY a summary in a sentence ("312
 entries, 1924 to 1931, most from Quibdó"); that is noted, not specified, here.
 
@@ -143,5 +150,4 @@ computed by the engine, bounded).
 
 ## Open questions for the creative director
 
-Question 14 (how far into distant reading the first version goes). Full text in
-`agent-work/dh-layer/questions-for-the-maintainer.md`.
+Not blocking: how far into distant reading the first version goes. Full text in `agent-work/dh-layer/questions-for-the-maintainer.md`.

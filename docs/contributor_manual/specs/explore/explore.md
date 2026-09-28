@@ -37,19 +37,22 @@ them:
 1. **Always back to the source.** Every mark on every view opens the claims and the places on
    the page it was built from.
 2. **Research data does not leave the machine** unless the researcher publishes it. Everything
-   is computed by the engine on the researcher's own computer.
+   is computed by the engine on the researcher's own computer. **No hosted service is used for
+   visualisation, ever** (RULED 2026-09-20): doing locally what a hosted embedding-map service
+   does is the purpose of the app. Files in standard formats can be exported; what a researcher
+   does with a file outside the app is theirs.
 3. **Easy to experiment.** A view is tried in a minute on a selection, a folder or a search
    result; it changes nothing in the project; it can be thrown away without trace, kept as
    something that can be run again, compared with another, and exported with its data. These
    are working tools, not museum pieces (though one can be published as such).
 4. **Inferred is shown as inferred.** Confidence, method and who asserted it travel with every
    inferred mark and can be filtered on.
-5. **Several linked views of one selection, through the panes that exist.** No dashboard, no
-   second navigator, no new surface.
+5. **Several views of one selection, through the panes that exist.** No dashboard, no second
+   navigator, no new surface. How panes link is for a design session, not this set.
 
 The files this will live in are named in each family file. The frame it extends is already in
 the app: the Library's view modes (`fichero/fichero/App/ViewDisplayMode.swift`,
-`Views/Library/ViewModes/`), the canvas channels (`Views/Library/ViewModes/Canvas/Engine/`), the
+`Views/Library/ViewModes/`), the
 knowledge-graph views (`Views/Library/ViewModes/Graph/`), the engine's graph, search, vector and
 export routes (`fichero-server/src/fichero_server/api/routes/`). The inventory, with paths, is
 `agent-work/dh-layer/what-exists.md`.
@@ -64,7 +67,7 @@ export routes (`fichero-server/src/fichero_server/api/routes/`). The inventory, 
 | `place.md` | place maps, uncertain and changing places, journeys over time, historical maps |
 | `networks.md` | people and other networks, "as of when", confidence and asserter as controls, export to Gephi |
 | `tables-and-counts.md` | the table with facets and counts, distributions, flows, word use across a corpus, the hermeneutic layers |
-| `experiments-and-sharing.md` | methods behind one seam, experiments, saved views, comparing, export, publishing, hosted services, care in representation |
+| `experiments-and-sharing.md` | methods behind one seam, experiments, saved views, comparing, export, publishing, what never leaves the machine, care in representation |
 
 ## Prior art / best practices (don't invent from scratch)
 
@@ -78,7 +81,7 @@ The maintainer's references, and what each is a model FOR (full notes in the bri
 | The Digital Panopticon | one life assembled from many records; cohorts as flows; the honest problem of drawing very many lives |
 | nodegoat (dynamic networks; temporal data) | every relation has dates; the network is always "as of when"; dates are uncertain, open-ended, periods, relative |
 | HGIS de las Indias | places and jurisdictions that change over time; maps tied to sources |
-| Kindred Britain | one dataset as network, timeline and map AT ONCE, linked. In Fichero that is three panes |
+| Kindred Britain | one dataset as network, timeline and map AT ONCE, linked. In Fichero that is three panes; how they link awaits a design session |
 | Enslaved.org | publishable, joinable linked open data with provenance on every statement; care in how people are represented |
 | SlaveVoyages | the everyday form is a TABLE with facets and summary statistics; charts and maps are made from it; datasets download |
 | Nomic Atlas | the map by meaning: zoomable, topic labels that change with zoom, lasso, colour by any field. Hosted, so NOT depended on |
@@ -91,7 +94,7 @@ the factoid model and W3C Web Annotation already used by the knowledge graph. De
 different from every reference above: **the mark leads back to the ink**. Most of those projects
 cannot do this, because their data was separated from its sources long ago. Fichero's was not.
 
-Reused rather than rebuilt: the Library view-mode dispatch, the canvas's four channels, the
+Reused rather than rebuilt: the Library view-mode dispatch and its one set of chrome, the
 selection and pane model, the search query and its legs, the claim's time and place fields, the
 engine's graph routes, the one export record stream, the one audited action layer, the
 background-work throttle.
@@ -101,12 +104,11 @@ background-work throttle.
 | Word | Means |
 |---|---|
 | **set** | what a view draws: a folder, a whole project, a search result, a hand-made selection, or a collection of entities or claims. A set is always described by something that can be run again (a folder, a query, a list of ids) |
-| **view** | one way of drawing a set: table, timeline, place map, network, storyline, arc diagram, map by meaning, distribution, flow |
+| **view** | one way of drawing a set: table, timeline, place map, network, storyline, arc diagram, map by meaning, distribution, flow. Each is its own Library view mode |
 | **mark** | one drawn thing: a point, a bar, an arc, a line, a band, a row |
 | **evidence** | the claims, and through them the places on the page, that a mark was built from. Every mark has evidence |
 | **aggregate** | a mark that stands for many things (a bar of 300 entries, a cluster of 2,000 pages). It opens to a list, and the list opens to the ink |
-| **channel** | one way a view encodes a fact without moving anything: colour, size or depth, highlight. Already the canvas's word |
-| **arrangement** | where items sit in the Canvas and the Space. Already the canvas's word. "By meaning" is an arrangement |
+| **encoding** | what a mark's colour, size or emphasis says (its kind, its date, who asserted it). Changing an encoding moves nothing |
 | **method** | a named computation with its settings shown: a projection, a clustering, a labelling, a network layout, a link inference |
 | **experiment** | a view of a set made with a method, not yet kept. Throwing it away leaves nothing behind |
 | **saved view** | an experiment that was kept: the set's description, the view, the method and its settings. It stores how to make the picture, never the picture |
@@ -114,49 +116,57 @@ background-work throttle.
 
 The brief says "a saved query plus a recipe". The word **recipe** is already ruled in the source
 model to mean a shareable file that makes a WORKFLOW. This set says **method and settings**
-instead, so one word keeps one meaning. If the maintainer prefers "recipe" here too, that is a
-naming ruling (question 12).
+instead, so one word keeps one meaning. If "recipe" is preferred here too, that is a naming
+ruling (see the questions file).
 
 Words taken from the source-model set and used the same way: **project**, **source**,
 **segment**, **reading**, **pass**, **campaign**, **Source view**. Until that set lands, "the
 place on the page" means a claim's source anchor and excerpt.
 
-## Where it lives (PROPOSED; question 1 is blocking)
+## Where it lives (RULED 2026-09-20)
 
-The maintainer asked whether this is a new layer or part of the Reader, and wants the answer
-argued, not assumed. Weighed against the ratified pane rulings (`ui/modes-to-panes.md`,
-`ui/panes-workspaces.md`), the proposal is: **neither. It is not a place.** It is a family of
-LIBRARY VIEW MODES and ARRANGEMENTS for sets, plus Reader and Inspector renditions for one
-selected thing.
+**Not a new layer, and not the Reader. Views of a set are LIBRARY VIEW MODES.** New view modes
+may be added for them, and a view mode may render HTML where that makes sense.
 
 | The thing being looked at | Where its view lives | Why |
 |---|---|---|
-| a SET (folder, project, search result, entities, claims) | a **Library view mode**, or an arrangement inside Canvas and Space | a view of a set is navigation: things are picked on it and the Source view, Reader and Inspector follow, exactly as they follow the icon grid. Ratified: the Library is always the navigator |
+| a SET (folder, project, search result, entities, claims) | its own **Library view mode** | a view of a set is navigation: things are picked on it and the Source view, Reader and Inspector follow, exactly as they follow the icon grid. Ratified: the Library is always the navigator |
 | ONE selected thing (a person's life, one document's people) | a **Reader or Inspector rendition** of that selection | ratified: each surface renders its own rendition of the selected kind. The Reader's per-document graph, timeline and map tabs already work this way |
-| several views at once | **panes**, linked | ruled: no dashboard surface |
+| several views at once | **panes** | ruled: no dashboard surface. How panes are linked is NOT decided here; see below |
 
-What each alternative would give up:
+**The Canvas and the Space are not explore views (RULED 2026-09-20).** The 2D space and the 3D
+canvas are a spatial workspace: a node's things laid out PHYSICALLY, by the researcher's own
+hand. Exploring feels different: the picture is computed, disposable and re-made. So the explore
+views are their OWN view modes. None of them is an arrangement inside the Canvas or the Space,
+and none borrows the canvas's arrange, colour, depth and highlight controls. A first draft of
+this set proposed "Arrange by: Meaning" as a case of the canvas's arrangement; that is withdrawn.
 
-- **A new layer (its own sidebar entry or window).** Gives a clear home and a name to teach.
-  Gives up: it would be a second navigator, which the pane rulings forbid; it would need its own
-  selection, its own search scope and its own chrome, which is the duplicate-code-path problem
-  the maintainer has named as a standing worry; and search results, the most useful first set,
-  live in the Library.
-- **Part of the Reader.** The Reader already draws HTML, so charts would be quick to make. Gives
-  up: the Reader shows READINGS of what is selected; a map of 4,000 pages is not a reading of
-  anything. Picking things on it would make the Reader a navigator. It would also put every
-  chart in a WebKit process (see the cost below).
-- **Library view modes (proposed).** Gives up: a single named destination. The name "Explore"
-  survives as the name of this spec set, of a group in the View menu, and (PROPOSED) of a
-  built-in workspace that opens two or three Library panes beside the Source view.
+What the two rejected alternatives would have given up, kept for the record:
 
-**One conflict with a ratified ruling, stated plainly.** Kindred Britain's "pick a person and
-all three views move" needs Library panes that share a selection. `panes.library.not-linked-to-
-each-other` is RULED: Library panes are independent, and linking is explicit
-(`panes.library.explicit-link-to-one-preview`, drag-to-connect, awaiting design, → #4881). This
-set does not reopen that ruling. It asks that the explicit link, when designed, can ALSO join
-one Library pane to another, so that a linked group shares one selection and one "as of". Until
-then, views work one pane at a time (question 2, blocking for linked views only).
+- **A new layer (its own sidebar entry or window).** A clear home and a name to teach; but a
+  second navigator, with its own selection, search scope and chrome (a duplicate code path),
+  and apart from search results, which are the most useful first set.
+- **Part of the Reader.** Charts would be quick to make in HTML; but the Reader shows READINGS
+  of what is selected, a map of 4,000 pages is not a reading of anything, and picking things on
+  it would make the Reader a navigator.
+
+The name "Explore" survives as the name of this spec set and of the group these view modes form
+in the Library's view-mode control and the View menu.
+
+**Linked Library panes: a design session first; nothing is ruled here.** Kindred Britain's "pick
+a person and the network, the timeline and the map all move" needs Library panes that affect one
+another. `panes.library.not-linked-to-each-other` is RULED (Library panes are independent;
+linking is explicit; drag-to-connect awaits design, #4881). What is wanted, and does not work
+today, is recorded for that session:
+
+- one Library pane UPDATING another: choose an entity in one pane, and the other pane shows the
+  pages it appears in (#4881; today a second Library pane's kind and its list can even disagree,
+  #5009);
+- for this set: a linked group of view modes sharing one selection and one "as of".
+
+Every behaviour in this set that depends on that design is marked **blocked on the pane-linking
+design** and is not to be built, or cut into an issue, before the session. Everything else works
+one pane at a time.
 
 A second thing found: `m2p.kg-graph-retires-as-library-takeover` says the knowledge-graph
 timeline and map are already Library view modes on the Entities collection. On disk they are
@@ -165,33 +175,38 @@ entities and claims in the Library are tables only (#5037; that spec file is not
 branch, so its line keeps its tag until #5037 is worked). This set treats the ruling as the intent
 and the code as not there yet.
 
-## How it is drawn (PROPOSED; question 3 is blocking)
+## How it is drawn (RULED 2026-09-20: decided PER KIND of view, not by one rule)
 
 Two routes, each with a real advantage.
 
-| | Apple native | HTML in a WebKit view |
+| | Apple native | HTML in a WebKit view, inside a Library view mode |
 |---|---|---|
-| What exists | Canvas (2D) and Space (3D) with selection, marquee, zoom, animation, four channels; Swift Charts (the KG timeline); MapKit (two map views); a native force-directed graph | the Reader; an Eleventy static-site export |
-| Best at | selection that is the app's own selection; animation; the Pencil; 3D; no extra process; accessibility and keyboard for free | very many points (WebGL); mature chart, network and map libraries; **the same code can be published on the web**, which fits the static-site and IIIF publishing vision |
-| Cost | each new kind of chart is written by hand; a very large network or scatter may be too heavy | **a WebKit content process measured at about 500 MB** on the maintainer's 16 GB M1, and the machine was starved (#4999, #4997); a message bridge for selection; must never flash white; libraries must be bundled, never fetched |
+| What exists | Swift Charts (the knowledge-graph timeline); MapKit (two map views); a native force-directed graph; SwiftUI's single-surface drawing | the Reader; an Eleventy static-site export |
+| Best at | selection that is the app's own; animation; the Pencil; no extra process; accessibility and keyboard for free | very many points (WebGL); mature layout libraries for networks, storylines, arcs and flows; **the same drawing can be published on the web**, which fits the static-site and IIIF publishing vision |
+| Cost | each new kind of drawing, and its layout, is written by hand | **a WebKit content process measured at about 500 MB** on the 16 GB M1 the app is tested on, where the machine was starved (#4999, #4997); a message bridge so that a chosen mark becomes the app's selection; must never flash white; every library bundled, never fetched |
 
-**Proposed: native in the app, HTML for publishing, and one data contract between them.**
+The rules for ANY HTML view mode, whatever the kind: at most ONE such WebKit view alive at a
+time across the app; it is released when its view mode is left; its libraries are bundled; its
+selection is the app's selection; and it draws the same data the engine gives every other
+caller.
 
-- In the app, every view is native. Arrangements (by meaning, by date) go to the Canvas and
-  Space, which already exist. Timelines and distributions use Swift Charts. Storylines, arcs
-  and networks are drawn natively for the sizes a researcher works at (a diary year, a person's
-  neighbourhood, a search result). This costs no extra process and the Pencil, animation and 3D
-  come with it.
-- The engine computes every view's DATA once and returns it in one plain shape (marks, their
-  positions or values, their evidence ids, how they were made). The native view draws that. The
-  **published** form of a saved view is the same data drawn by a small HTML page inside the
-  static-site export. So the web advantage is kept where it matters (sharing) without paying
-  500 MB while working.
-- The WebGL route inside the app is held in reserve for ONE case: a whole-project map or
-  network too heavy for the native renderer. It is decided by MEASURING, per family, not by
-  habit, and never more than one such WebKit view is alive at a time.
+**Every view's data has one shape.** The engine computes a view once and returns marks, their
+positions or values, their evidence ids and how they were made. A native view mode draws that;
+an HTML view mode draws that; the PUBLISHED form of a saved view (RULED: HTML, in the static
+site) draws that. This is what lets the choice be made per kind, and changed later, without a
+second computation.
 
-Per family, the proposal and the measured trigger are in each family file and in question 3.
+Recommended per kind (each family file gives the reasons in full):
+
+| View mode | Recommended | Why |
+|---|---|---|
+| table, facets, counts, distributions | **native** | the tables exist; Swift Charts draws bars and bins; nothing here needs the web |
+| timeline | **native** | Swift Charts already draws the knowledge-graph timeline; binning keeps it small |
+| place map | **native** | two MapKit views exist; overlays for uncertainty, journeys and flows are native |
+| map by meaning | **native for a search result or a folder** (points drawn on one surface, never a view per point); **HTML with WebGL for a whole project**, if measuring shows the native drawing cannot keep up | the first case is hundreds of points, which needs no 500 MB; the second is tens of thousands of points with labels that change with zoom, which is what the WebGL libraries are for |
+| network | **export to Gephi first; native for a neighbourhood or a diary year; HTML (sigma.js, bundled) for a whole project** | small networks are already drawn natively; a whole-project network is where native is weakest and the web libraries strongest |
+| storylines, arcs, flows | **HTML is a fair first choice; native if the memory cost is judged too high** | their layouts are hard and already solved in the open web libraries; the sets are small (a year, a volume); they are the views most likely to be published, and the published HTML drawing has to be written anyway. The price is 500 MB while one is open |
+
 
 ## Behaviors — the rules every view obeys
 
@@ -231,15 +246,27 @@ Sets, selection and panes
 - `explore.set.search-scopes-every-view` — **[PARTIAL]** (#5032) an active search narrows what a
   view draws, as it does for the icon grid. Built for the spatial modes
   (`library.search.spatial-modes-share-one-projection`).
-- `explore.panes.views-are-library-view-modes` — **[GAP]** (#5032) a view of a set is a Library
-  view mode or a Canvas arrangement, mounted from the one dispatch switch; it is never a new
-  pane kind, a new sidebar mode or a window of its own.
+- `explore.panes.views-are-library-view-modes` — **[GAP]** (#5032) a view of a set is its OWN Library
+  view mode, mounted from the one dispatch switch; it is never a new pane kind, a new sidebar
+  mode, a window of its own, or an arrangement inside the Canvas or the Space, which stay the
+  researcher's hand-made spatial workspace.
+- `explore.panes.html-view-mode-rules` — **[GAP]** (#5032) a view mode drawn in HTML keeps at most
+  one WebKit view alive across the app, releases it when the view mode is left, bundles its
+  libraries, never flashes white, and makes a chosen mark the app's own selection.
+- `explore.panes.one-data-shape` — **[GAP]** (#5032) the engine returns every view's data in one
+  shape (marks, positions or values, evidence ids, how it was made), drawn alike by a native
+  view mode, an HTML view mode and a published page.
 - `explore.panes.one-thing-is-a-rendition` — **[PARTIAL]** (#5032) a view of ONE selected thing
   is a Reader or Inspector rendition of that selection. Built for a document's graph, timeline
   and map (`DocumentKGSurface.swift`); not built for a person, a place or a claim.
-- `explore.panes.linked-views-share-selection-and-time` — **[GAP]** (#5032, waits on → #4881)
-  Library panes joined by an explicit link share one selection and one "as of"; unlinked panes
-  stay independent, as ruled.
+- `explore.panes.linked-views-share-selection-and-time` — **[GAP]** (#5032, #4881; BLOCKED on the
+  pane-linking design session) a linked group of view modes shares one selection and one "as
+  of". Whether and how Library panes link is not ruled here; unlinked panes stay independent,
+  as ruled.
+- `explore.panes.one-library-pane-updates-another` — **[GAP]** (#4881, #5009; BLOCKED on the
+  pane-linking design session) recorded as wanted and not working today: choosing an entity in
+  one Library pane makes another show the pages it appears in. It belongs to the panes spec;
+  it is listed here because every linked explore view stands on it.
 - `explore.panes.same-chrome` — **[GAP]** (#5032) every new view keeps the Library's one bottom
   bar, one row menu, select-all and drag, as `library.chrome.*` requires of every mode.
 
@@ -257,7 +284,7 @@ Scale and the machine
 
 Local, audited, one code path
 - `explore.local.computed-on-this-machine` — **[GAP]** (#5032) every method runs in the engine on
-  the researcher's machine. No view, label or layout calls a hosted service.
+  the researcher's machine. No view, label, group or layout calls a hosted service, under any setting (RULED).
 - `explore.local.no-fetched-code` — **[GAP]** (#5032) any drawing library is bundled in the app;
   nothing is fetched at run time.
 - `explore.action.reads-write-nothing` — **[GAP]** (#5032) looking at a view writes nothing to
@@ -286,14 +313,14 @@ Engine before app. Each slice names what it needs that is not built.
 | 1 | **More like this** | from any page or entry: its nearest neighbours by meaning, as an ordinary Library listing | one engine lookup (extends the existing related-documents route); one menu item. No new view |
 | 2 | **Export what I see** | the current set as CSV or Parquet; a network as GEXF; places as GeoJSON | three small exporters on the existing record stream. Gives Gephi, Retina and QGIS before any new view is drawn |
 | 3 | **Group my search results** | the results list in headed groups with labels | cluster-and-label for a set (scikit-learn, declared). No map |
-| 4 | **Map by meaning, search results, 2D** | "Arrange by: Meaning" in the Canvas, coloured by group or by which search leg found it | one projection method; one new `CanvasArrangement` case; slice 3's groups as the colour |
+| 4 | **Map by meaning, search results** | a new "Meaning" view mode: the results as points, like by like, coloured by group or by which search leg found it | one projection method; one new native view mode drawing all points on one surface; slice 3's groups as the colour |
 | 5 | **Timeline of claims and entries** | the knowledge graph's timeline as a Library view mode for claims and entities, with uncertain dates drawn honestly and binned when large | promote `KGTimelineView`; lift the 500 cap by aggregating |
-| 6 | **Place map** | the same for places, with uncertainty radius; then journeys over time | promote `KGMapView`; basemap ruling (question 7) |
-| 7 | **People network with a time slider** | a person's or a folder's network "as of", with confidence and asserter controls | an "as of" argument on the engine graph routes; truthful provenance (→ #4868, → #4869) |
+| 6 | **Place map** | the same for places, with uncertainty radius; then journeys over time | promote `KGMapView`; basemap ruling (open; see the questions file) |
+| 7 | **People network with a time slider** | a person's or a folder's network "as of", with confidence and asserter controls | an "as of" argument on the engine graph routes; truthful provenance (#4868, #4869) |
 | 8 | **Storylines for a diary year**, then arcs | who is with whom, through the year | co-presence from dated claims; a native storyline drawing |
-| 9 | **Saved views, compare, publish** | keep, re-run, compare two methods, publish to the static site | the saved-view record (question 4); the HTML drawing of the data contract |
-| 10 | **Whole project, 3D, odd ones out, near-duplicates, topics over time** | the larger and rarer uses | cached background layouts; measuring native against WebGL |
-| 11 | **Counts, flows, word use across the corpus; hands and certainty** | the distant-reading and hermeneutic views | tables from sources (→ #5026); the source model (milestone 322) |
+| 9 | **Saved views, compare, publish** | keep, re-run, compare two methods, publish to the static site | the saved-view record (open; see the questions file); the HTML drawing of the data contract |
+| 10 | **Whole project, odd ones out, near-duplicates, topics over time** | the larger and rarer uses | cached background layouts; measuring the native drawing against an HTML (WebGL) view mode |
+| 11 | **Counts, flows, word use across the corpus; hands and certainty** | the distant-reading and hermeneutic views | tables from sources (#5026); the source model (milestone 322) |
 
 Slices 1 to 4 need nothing that is not already on disk. Slices 7 and 11 wait on other work and
 say so.
@@ -302,7 +329,7 @@ say so.
 
 | Leg | This set? | Pins |
 |-----|-----------|------|
-| Pure rule (Swift) | y | arrangement order, binning, asserted-against-inferred drawing rule, "what was left out" counts |
+| Pure rule (Swift) | y | binning, asserted-against-inferred drawing rule, "what was left out" counts |
 | Availability (Swift) | y | each view is reachable from the Library's view-mode control for the sets it serves |
 | Backend (pytest) | y | every method returns marks WITH evidence ids and its own method and settings; deterministic for a fixed seed |
 | MCP | y | an agent can run the same experiment and export |
@@ -336,5 +363,7 @@ the same marks is that equivalent, and is always one step away.
 ## Open questions for the creative director
 
 Full text, defaults and reasons: `agent-work/dh-layer/questions-for-the-maintainer.md`.
-Blocking: 1 (where it lives), 2 (linking Library panes), 3 (native, HTML or both), 4 (how a
-saved view is stored), 5 (what may ever go to a hosted service).
+RULED 2026-09-20: where it lives; drawing decided per kind; no hosted service for
+visualisation. For a DESIGN SESSION: linking Library panes. Still open, not blocking: whether a
+saved view is a saved search that remembers its view; the place map's ground (Apple's map tiles
+come from Apple).
