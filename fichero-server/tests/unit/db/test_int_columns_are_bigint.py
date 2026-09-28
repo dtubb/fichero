@@ -390,6 +390,14 @@ INDEX_BLOCKED_INT_COLUMNS = {
 }
 
 
+def test_the_engine_skips_exactly_the_judged_columns():
+    """#5191: the engine no longer ATTEMPTS these (the ALTER always failed and warned at every
+    open). Its list must be the measured one, or a column that can overflow would be skipped."""
+    from fichero_server.db import Database
+
+    assert Database.JUDGED_NARROW_INT_COLUMNS == INDEX_BLOCKED_INT_COLUMNS
+
+
 class TestTheExemptionListIsCompleteAndJudged:
     """The residue of #5059, pinned so a seventh exemption cannot arrive silently.
 

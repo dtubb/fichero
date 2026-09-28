@@ -7233,6 +7233,16 @@ class Database(DatabaseEmbeddingMixin):
     _NARROW_INT_TYPES = frozenset({"INTEGER", "INT", "INT4", "SIGNED", "SMALLINT",
                                    "INT2", "SHORT", "TINYINT", "INT1"})
 
+    #: The INT32 columns an index keeps from widening on a pre-#5059 library, JUDGED bounded (a
+    #: year, a stacking order, revision and forwarding counters). Not attempted at all (#5191):
+    #: the ALTER always fails on them, so every library open logged six warnings and paid six
+    #: failed DDL statements for a decision already made. Pinned against a measured library by
+    #: `TestTheExemptionListIsCompleteAndJudged`, so a seventh column cannot hide here.
+    JUDGED_NARROW_INT_COLUMNS = frozenset({
+        "references.year", "canvas_layout.z_index", "segments.version", "segmentversions.version",
+        "readingorderentrys.version", "segmentforwardings.sequence",
+    })
+
     def _widen_int_columns(self, model, sql_table: str, table: str, execute) -> None:
         """Widen this table's INT32 columns to BIGINT where the model says `int`.
 
@@ -7275,6 +7285,8 @@ class Database(DatabaseEmbeddingMixin):
                 continue
             if current.get(name) not in self._NARROW_INT_TYPES:
                 continue
+            if f"{sql_table.strip(chr(34))}.{name}" in self.JUDGED_NARROW_INT_COLUMNS:
+                continue  # judged bounded; see JUDGED_NARROW_INT_COLUMNS (#5191)
             try:
                 execute(f"ALTER TABLE {sql_table} ALTER COLUMN {name} TYPE BIGINT")
                 logger.info("widened %s.%s from %s to BIGINT (#5059)", table, name, current[name])
