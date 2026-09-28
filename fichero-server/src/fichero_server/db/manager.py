@@ -68,6 +68,11 @@ class DatabaseManager:
         # globally. NEVER re-introduce a thread_ident in this key — that is the
         # exact hazard #2508 removed (see test_single_connection_guardrail).
         self._databases: dict[str, Database] = {}
+        #: One lock PER LIBRARY for its open (#5228). The manager-wide `_lock` was held for a whole
+        #: open (~1-6 s), so while one library opened, a request for any OTHER library -- and every
+        #: other launch-time open -- waited behind it. Two requests for the same library still get one
+        #: open; `_lock` now guards only the dictionaries.
+        self._open_locks: dict[str, threading.Lock] = {}
         self._lock = threading.Lock()
         logger.info("DatabaseManager initialized")
 
@@ -126,6 +131,8 @@ class DatabaseManager:
         cache_key = self._cache_key(package_path)
 
         with self._lock:
+            open_lock = self._open_locks.setdefault(cache_key, threading.Lock())
+        with open_lock:
             if cache_key not in self._databases:
                 if (
                     not create
@@ -200,7 +207,8 @@ class DatabaseManager:
                         f"Failed to initialize library database: {package_str}"
                     ) from exc
 
-                self._databases[cache_key] = db
+                with self._lock:
+                    self._databases[cache_key] = db
                 opened_in = _time.monotonic() - open_started
                 # The whole open, named when slow (#5228): the steps inside are timed one by one
                 # in Database; this catches the manager's own migrations and seeding too.

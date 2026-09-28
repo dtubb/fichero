@@ -60,3 +60,38 @@ def test_a_slow_open_step_names_itself(tmp_path, monkeypatch, caplog):
     slow = [r.getMessage() for r in caplog.records if "slow library open step" in r.getMessage()]
     assert any("_backfill_filed_entity_documents" in m for m in slow), slow
     assert any("_materialize_schema" in m for m in slow), slow
+
+
+def test_one_library_opening_does_not_block_another(tmp_path, monkeypatch):
+    """#5228: the manager held ONE lock for a whole open, so at launch every library -- and every
+    request for an already-open one -- queued behind whichever library was opening. Now each
+    library has its own open lock."""
+    import threading
+    import time
+
+    from fichero_server.db import manager as manager_module
+
+    mgr = manager_module.DatabaseManager()
+    fast, slow = tmp_path / "Fast.fichero", tmp_path / "Slow.fichero"
+    fast.mkdir(); slow.mkdir()
+    monkeypatch.setenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
+    monkeypatch.setenv("FICHERO_SKIP_DERIVATIVE_RESUME", "1")
+    mgr.get_database(fast)  # already open
+
+    real_init = Database.__init__
+
+    def slow_init(self, *args, **kwargs):
+        if "Slow.fichero" in str(kwargs.get("path") or (args[0] if args else "")):
+            time.sleep(1.5)
+        real_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(Database, "__init__", slow_init)
+    opener = threading.Thread(target=mgr.get_database, args=(slow,))
+    opener.start()
+    time.sleep(0.2)  # the slow open is under way
+    start = time.monotonic()
+    mgr.get_database(fast)
+    waited = time.monotonic() - start
+    opener.join()
+    mgr.close_all()
+    assert waited < 0.5, f"reaching an open library waited {waited:.2f}s behind another library's open"
