@@ -67,6 +67,8 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     /// The pending automatic reload after a failed engine load; cancelled by
     /// the next explicit load so a stale retry cannot race a fresh document.
     var failureRetryTask: Task<Void, Never>?
+    /// Watching for the engine's return after a typed line could not reach it (13b out of reach).
+    var reachabilityProbe: Task<Void, Never>?
 
     init(parent: DocumentKGWebPane) {
         self.parent = parent
@@ -460,8 +462,33 @@ extension DocumentKGWebPaneCoordinatorMacOS {
         )
         // The page's answer is a courtesy (it re-reads itself on a refusal), so a failure to deliver it
         // is ignored. In an async context the async-throwing overload is chosen.
-        guard let script = await runner.apply(edit) else { return }
-        _ = try? await webView?.evaluateJavaScript(script)
+        guard let answer = await runner.apply(edit) else { return }
+        _ = try? await webView?.evaluateJavaScript(answer.script)
+        if let reason = answer.unreachableReason { engineWentAway(reason, client: library.segmentService.client) }
+    }
+
+    /// The engine could not be reached (13b, "out of reach of the engine the text is read-only"): the page
+    /// holds every edit and goes read-only, and the engine's health is probed until it answers -- then the
+    /// page is told, and posts its held edits as ordinary `readingEdit`s. One probe at a time.
+    @MainActor
+    func engineWentAway(_ reason: String, client: FicheroClient) {
+        let webView = webView
+        Task { _ = try? await webView?.evaluateJavaScript(ReaderTextEdit.engineStateScript(reachable: false, reason: reason)) }
+        guard reachabilityProbe == nil else { return }
+        reachabilityProbe = Task { @MainActor [weak self] in
+            // ponytail: a fixed 3 s probe; back off if a long outage makes this chatty.
+            await ReaderTextEdit.waitForReturn(
+                isBack: {
+                    guard let response = try? await client.api.healthCheckApiHealthGet(.init()), case .ok = response else {
+                        return false
+                    }
+                    return true
+                },
+                pause: { try? await Task.sleep(nanoseconds: 3_000_000_000) },
+                tell: { script in _ = try? await self?.webView?.evaluateJavaScript(script) }
+            )
+            self?.reachabilityProbe = nil
+        }
     }
 
     /// The Reader's caret line becomes the focused Source view's selection (#5155).

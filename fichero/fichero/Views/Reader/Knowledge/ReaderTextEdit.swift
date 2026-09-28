@@ -1,4 +1,5 @@
 import Foundation
+import OpenAPIRuntime
 
 /// Typing in the Reader (#5154; `source.textedit.*`): the served page posts three messages over
 /// `ficheroBridge` -- the shape the lead ruled, the page's half in `document_view.html` -- and this turns
@@ -140,6 +141,59 @@ enum ReaderTextEdit {
         return staleScript(
             pageId: pageId, segmentId: segmentId, mine: text, theirsId: theirs?.id, theirsText: theirs?.content
         )
+    }
+
+    // MARK: - Out of reach (13b `stale-keeps-your-words`: "out of reach of the engine the text is read-only")
+
+    /// Short words for why a write did not reach the engine, or nil when it DID reach it (an HTTP refusal
+    /// is an answer, not an absence). Unwraps the generated client's `ClientError` and classifies with
+    /// the app's one rule (`AccessError.classify`): only `.engineUnreachable` counts.
+    static func unreachableReason(_ error: Error) -> String? {
+        let inner = (error as? ClientError)?.underlyingError ?? error
+        guard case .engineUnreachable = AccessError.classify(inner) else { return nil }
+        switch (inner as? URLError)?.code {
+        case .cannotConnectToHost: return "connection refused"
+        case .timedOut: return "timed out"
+        case .networkConnectionLost: return "connection lost"
+        case .notConnectedToInternet: return "offline"
+        case .cannotFindHost, .dnsLookupFailed: return "engine not found"
+        default: return "engine unreachable"
+        }
+    }
+
+    /// The answer to a `readingEdit` that never reached the engine: the page puts that line's edit back
+    /// to held. No `refreshPage` follows (there is no engine to re-read from).
+    static func unreachableScript(pageId: String, segmentId: String, reason: String) -> String {
+        script(["pageId": pageId, "segmentId": segmentId, "ok": false, "unreachable": true, "reason": reason],
+               function: "lineCommitted")
+    }
+
+    /// The engine's reachability, for the page: out of reach it holds every edit and goes read-only;
+    /// back in reach it posts the held edits as ordinary `readingEdit`s.
+    static func engineStateScript(reachable: Bool, reason: String? = nil) -> String {
+        var payload: [String: Any] = ["reachable": reachable]
+        if !reachable, let reason { payload["reason"] = reason }
+        return script(payload, function: "engineState")
+    }
+
+    /// Wait until the engine answers again, then say so to the page, once (13b out of reach). `isBack`
+    /// is the engine's health; `pause` the wait between asks. Stops when the task is cancelled.
+    @MainActor
+    static func waitForReturn(
+        isBack: @MainActor () async -> Bool, pause: @MainActor () async -> Void, tell: @MainActor (String) async -> Void
+    ) async {
+        while !Task.isCancelled {
+            await pause()
+            if await isBack() {
+                await tell(engineStateScript(reachable: true))
+                return
+            }
+        }
+    }
+
+    private static func script(_ payload: [String: Any], function: String) -> String {
+        let data = (try? JSONSerialization.data(withJSONObject: payload, options: .sortedKeys)) ?? Data()
+        return "window.fichero?.\(function)?.(\(String(bytes: data, encoding: .utf8) ?? "{}"));"
     }
 
     /// A JavaScript (UTF-16) offset into `text` as a Unicode-scalar offset -- what the engine's Python

@@ -119,6 +119,11 @@ Page From…. Every edit below should undo with ⌘Z and redo with ⇧⌘Z.
 29. **Typing in the Reader, continued** (13b). Type a run of words and pause two seconds: one reading,
     one ⌘Z. Have someone (or MCP) correct the same line while you type, then move off it. *Should:* your
     words stay on the line, marked, with **Keep Mine / Take Theirs / Compare**; Keep Mine lands.
+30. **Out of reach** (13b). Type in the Reader, then stop the engine (quit a Dev Local engine, or turn off
+    the network to a remote one) and keep typing. *Should:* one line at the top says the engine is out of
+    reach, the text goes read-only, and nothing typed is lost. Start the engine again: within a few
+    seconds editing comes back and the held words are saved (a line someone changed meanwhile comes back
+    with Keep Mine / Take Theirs / Compare).
 
 **Not built:** the menu-bar Segment menu, comparing two passes side by side, attribute edits
 on a page still read from an artifact (it is converted on first edit, #4924).
