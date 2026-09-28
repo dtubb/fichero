@@ -2108,14 +2108,15 @@ class Database(DatabaseEmbeddingMixin):
             if (hydrated := self._hydrate_row(SpatialRoom, columns, row)) is not None
         ]
 
-    def _legacy_all_knowledge_entity_rows(self) -> list[BaseModel]:
-        """Read KnowledgeEntity rows without any node-tree bridge logic."""
+    def _legacy_all_knowledge_entity_rows(self, where: str | None = None) -> list[BaseModel]:
+        """Read KnowledgeEntity rows without any node-tree bridge logic (optionally a fixed WHERE)."""
         from fichero_server.models.knowledge import KnowledgeEntity
 
         sql_table = self._sql_table_name(KnowledgeEntity)
         self._ensure_table(KnowledgeEntity)
         with self._lock:
-            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            clause = f" WHERE {where}" if where else ""
+            rows = self._execute(f"SELECT * FROM {sql_table}{clause}").fetchall()
             columns = [desc[0] for desc in self.conn.description]
         return [
             hydrated
@@ -4249,8 +4250,20 @@ class Database(DatabaseEmbeddingMixin):
         if not table_exists or int(table_exists[0] or 0) == 0:
             return
 
-        for entity in self._legacy_all_knowledge_entity_rows():
+        # FILED entities only, then one statement for the rest (#5228). This ran over EVERY entity at
+        # every open: each unfiled one cost a document lookup that found nothing to delete -- 14,721
+        # of them on the maintainer's library, ~4.5 s of a 6 s open, repeated on every launch. Filed
+        # entities are the few a person placed in the tree, so they are still re-synced one by one;
+        # an unfiled entity's stray mirror row (entity-kind documents only) goes in one DELETE.
+        for entity in self._legacy_all_knowledge_entity_rows(where="parent_id IS NOT NULL"):
             self._save_filed_entity_document(entity)
+        from fichero_server.models import Document
+
+        self._execute(
+            f"DELETE FROM {self._sql_table_name(Document)} WHERE node_kind = $kind "
+            f"AND id IN (SELECT id FROM {self._sql_table_name(KnowledgeEntity)} WHERE parent_id IS NULL)",
+            {"kind": _ENTITY_NODE_KIND},
+        )
 
     def _backfill_note_documents(self) -> None:
         """Backfill legacy notes into same-id document nodes."""
