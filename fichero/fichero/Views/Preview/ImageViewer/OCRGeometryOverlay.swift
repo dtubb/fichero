@@ -360,7 +360,7 @@ private enum InlineWordText {
             height: CGFloat.greatestFiniteMagnitude
         )
         var size = clamp(rect.height * heightFillRatio)
-        var resolved = context.resolve(Text(string).font(BundledFonts.shared.font(size: size)))
+        var resolved = context.resolve(Text(string).font(BundledFonts.font(size: size, cascade: BundledFonts.loadedCascade)))
         var measured = resolved.measure(in: unbounded)
         var passes = 0
         while measured.width > rect.width, measured.width > 0,
@@ -368,7 +368,7 @@ private enum InlineWordText {
             // 0.98: bias UNDER the box so metric nonlinearity can't push the
             // corrected size back over the edge it was correcting for.
             size = clamp(size * (rect.width / measured.width) * 0.98)
-            resolved = context.resolve(Text(string).font(BundledFonts.shared.font(size: size)))
+            resolved = context.resolve(Text(string).font(BundledFonts.font(size: size, cascade: BundledFonts.loadedCascade)))
             measured = resolved.measure(in: unbounded)
             passes += 1
         }

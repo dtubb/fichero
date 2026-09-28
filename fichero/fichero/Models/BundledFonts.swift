@@ -25,7 +25,14 @@ final class BundledFonts {
     ]
 
     /// The faces fetched so far; empty until an engine has answered.
-    private(set) var cascade: [CTFontDescriptor] = []
+    private(set) var cascade: [CTFontDescriptor] = [] {
+        didSet { Self.loadedCascade = cascade }
+    }
+
+    /// The same cascade for drawing code that runs off the main actor (the Canvas that fits text
+    /// into boxes). ponytail: written once on the main actor when the faces load; CTFontDescriptor
+    /// is immutable and thread-safe, so a reader sees either the empty list or the loaded one.
+    nonisolated(unsafe) static private(set) var loadedCascade: [CTFontDescriptor] = []
 
     /// Fetch the faces once, from the first engine that serves them. A face the engine does not serve is
     /// left out (an older engine has no route): the text still draws, with the system's fonts.
