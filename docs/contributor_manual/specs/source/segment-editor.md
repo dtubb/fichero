@@ -557,6 +557,11 @@ The editor
   (two same-direction regions still stay two blocks; a segment with no region parent gets a null
   region) is covered by `::TestRegionGrouping`. No Source-view surface exists yet either way —
   this is the derivation and packaging only.
+  **Built 2026-09-28 (bugs lane), the Reader page's half:** the served page lays each page out in
+  its direction and is editable where it has a line map (see `every-direction` and
+  `typing-is-a-new-reading` below); a line move patches the page in place
+  (`fichero-server/tests/unit/api/test_reader_directions.py::test_after_a_move_the_caret_is_on_the_moved_line`). Still
+  PARTIAL: "each line shows its picture" is not built, and the screen path is not run end to end.
 - `source.textedit.typing-is-a-new-reading` — **[PARTIAL]** (#5001) typing corrects the reading of the segment under the
   caret as a new reading whose maker is the person, set by the engine; the earlier reading
   stays. **The engine primitive is whole**, tested against the request the app would actually send
@@ -573,6 +578,15 @@ The editor
   actor name, a client-supplied maker refused outright, the earlier reading unchanged by a
   correction). **What is not built is the SURFACE** — a text edit that calls this action on
   keystroke-commit does not exist; that is #5001's UI half, tracked separately.
+  **Built 2026-09-28 (bugs lane, #5154), the page's half:** the Reader is editable where it has a
+  line map; a line's typing is posted once, on leaving the line, blur, or before a split, join or
+  move, as `readingEdit {pageId, segmentId, text, previous, basedOn}`, `basedOn` being the line's
+  counting reading; an edit that reaches another line is refused and the text put back
+  (`fichero-server/tests/unit/api/test_reader_typing.py::test_typing_in_a_line_is_that_line_and_nothing_else`,
+  `::test_an_edit_across_two_lines_is_refused`, `::test_the_edit_message_names_the_reading_it_corrects`,
+  `::test_the_edit_message_is_enough_for_the_call_swift_makes`). The correction then COUNTS
+  (#5175, `fichero-server/tests/unit/api/test_a_correction_counts.py`). **Still PARTIAL:** the Swift bridge (archive, #5154)
+  and one end-to-end run from the screen.
 - `source.textedit.return-splits-the-line` — **[PARTIAL]** (#5001) Return inside a line splits that segment at the caret
   in one action: the reading divides at the caret; the cut falls between words when their
   places are known, otherwise by proportion along the baseline and marked estimated; the
@@ -585,6 +599,15 @@ The editor
   word-aligned when word children exist, proportional-along-the-baseline and marked estimated
   otherwise. This is a design decision (what the estimate looks like, how it behaves for RTL and
   boustrophedon text) and is not implemented anywhere in the tree.
+  **Built 2026-09-28 (bugs lane, #5154):** the proportional estimate. `segment.split(at_offset=)`
+  cuts the counting reading at the character and the box in proportion to it along the line's
+  resolved direction -- rtl from the right edge, ttb from the top -- both parts marked
+  `metadata.cut = "estimated"` (`fichero-server/tests/unit/api/test_return_splits_the_line.py::test_an_rtl_line_splits_from_the_right`,
+  `::test_a_column_splits_from_the_top`, `::test_an_offset_outside_the_line_is_refused`); the
+  absence pin became `test_textedit_engine_primitives.py::TestReturnSplitsTheLineSegmentSplitPrimitive::test_the_one_offset_to_geometry_mapping_is_the_estimated_cut`.
+  The page posts `lineSplit {pageId, segmentId, offset}` on Return
+  (`fichero-server/tests/unit/api/test_reader_typing.py::test_return_splits_at_the_caret_in_the_lines_own_text`). **Still
+  PARTIAL:** the word-aligned cut when word children exist, boustrophedon, and the Swift call.
 - `source.textedit.backspace-joins-in-reading-order` — **[PARTIAL]** (#5001) Backspace at a line's start joins it to the line
   before it in the reading order, in one action, keeping the earlier line's id; refused with
   the reason across regions or passes. **`segment.merge` is the primitive, and as of 2026-09-27
@@ -599,14 +622,31 @@ The editor
   caller-chosen (proven by `TestMergeKeepsTheKeptRowUntouchedForOrdering::test_merge_accepts_the_caller_chosen_keep_id_verbatim`),
   so a Backspace handler choosing "the earlier line" is the caller's job, not this primitive's; no
   Source-view surface exists to call it from either way.
+  **Built 2026-09-28 (bugs lane, #5154), the page's half:** Backspace at a line's start (never the
+  page's first line) posts `lineJoin {pageId, segmentId, intoSegmentId}`, `intoSegmentId` the
+  line before it in the page's text order, for `segment.merge` keeping it
+  (`fichero-server/tests/unit/api/test_reader_typing.py::test_backspace_joins_only_at_a_lines_start_and_never_the_first`).
+  **Still PARTIAL:** the Swift call.
 - `source.textedit.deleting-words-keeps-ink` — **[GAP]** (#5001) removing text is a new reading without those words;
   no segment is deleted by it; a word segment left without a reading, or an emptied line, is
   shown as such; deleting a segment is a separate, named command.
-- `source.textedit.lines-move-in-the-order` — **[GAP]** (#5001) cutting and pasting whole lines changes the named
+- `source.textedit.lines-move-in-the-order` — **[PARTIAL]** (#5001) cutting and pasting whole lines changes the named
   reading order and nothing on the page; other pasted text is typing, its line breaks
   turned to spaces.
-- `source.textedit.one-selection` — **[GAP]** (#5001) the caret's line (and word) is the selection in the Source
+  **Partly built (2026-09-27/28):** ⌥⌘↑/↓/⇞/⇟ on the caret's line posts `lineMove`, which the app
+  turns into the Inspector's `reading_order.place` (archive, 3c:
+  `fichero-server/tests/unit/api/test_reader_line_map.py::test_the_move_keys_name_the_caret_line_and_a_step_the_app_knows`); the
+  page is then patched in place with the caret back on the moved line, not reloaded (#5170,
+  `fichero-server/tests/unit/api/test_reader_directions.py::test_after_a_move_the_caret_is_on_the_moved_line`). **Still
+  PARTIAL:** cutting and pasting whole lines is not built.
+- `source.textedit.one-selection` — **[PARTIAL]** (#5001) the caret's line (and word) is the selection in the Source
   view, and a selection there selects the text; one shared selection.
+  **Built 2026-09-28 (bugs lane, #5155), the page's half:** the page posts `lineFocused` once per
+  change of the caret's line, and `window.fichero.showLines(ids)` draws the app's selection over
+  those lines as a CSS Custom Highlight -- no element wraps a line, the caret does not move
+  (`fichero-server/tests/unit/api/test_reader_selection.py::test_focus_is_posted_once_per_line_change`,
+  `::test_the_apps_selection_names_exactly_those_lines_text`). **Still PARTIAL:** the app's half
+  (archive, f5f580761) and a run from the screen; the word-level selection is not built.
 - `source.textedit.a-run-of-keys-is-one-action` — **[GAP]** (#5001) typing in one line commits as one reading, one
   audit record and one undo step, on leaving the line, a structural key, loss of focus, Save,
   or two seconds' pause; structural edits are their own action at once.
@@ -624,9 +664,22 @@ The editor
   coexist — a version number, a last-known `representation_id`, a timestamp — is a design
   decision, the same shape as `return-splits-the-line`'s caret-to-geometry gap above, and needs a
   ruling before it is built.
-- `source.textedit.every-direction` — **[GAP]** (#5001) each block is laid out and edited in its own direction;
+- `source.textedit.every-direction` — **[PARTIAL]** (#5001) each block is laid out and edited in its own direction;
   line starts, joins and cuts follow reading order and the baseline; a direction the platform
   cannot lay out is labelled, never reordered.
+  **Built 2026-09-28 (bugs lane, #5147 Reader half, #5171, #5172):** each Reader page is laid out
+  in its direction -- `rtl` as `dir="rtl"`, `ttb` as `writing-mode: vertical-rl`, a run in the other
+  horizontal direction as a `<span dir>` isolate -- resolved at render so a setting shows at once
+  (`fichero-server/tests/unit/api/test_reader_directions.py::test_an_rtl_page_is_laid_out_right_to_left`,
+  `::test_a_latin_line_on_a_syriac_page_is_its_own_isolate`,
+  `::test_a_page_of_columns_is_laid_out_in_columns`,
+  `::test_a_direction_set_on_the_page_reaches_the_reader_at_once`); a line with no letters takes its
+  block's direction, else its page's, and says so
+  (`fichero-server/tests/unit/api/test_a_line_without_letters_takes_its_pages_direction.py`); a Return cut follows the
+  direction (`return-splits-the-line`). Matrix on real corpus files:
+  `acceptance-2026-09-27.md` § Directions in the Reader. **Still PARTIAL:** columns that advance
+  left to right (Mongolian) cannot be said (#5173); "a direction the platform cannot lay out is
+  labelled" is not built; not run on the screen.
 - `source.textedit.no-second-path` — **[GAP]** (#5001) every change made from the text is one of the existing
   segment, reading and reading-order actions; the text surface defines none of its own.
 - `source.segments-pane.exists` — **[GAP]** (#4942) **Superseded in direction 2026-09-20 by `source.textedit.*`;
