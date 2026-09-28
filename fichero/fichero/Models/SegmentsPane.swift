@@ -6,6 +6,17 @@ import Foundation
 /// this is what the pane adds -- where it is in the page, and which rows open to their children.
 /// Pure: the rules live where a test can reach them.
 enum SegmentsPane {
+    /// What the list half of the pane shows. Never an indefinite spinner: loading only while the order
+    /// store is being made from a service that is THERE; a window whose environment lacks the service
+    /// says so (2026-09-28: the main window's tree lacked ReadingOrderService and the pane spun forever).
+    enum ListState: Equatable { case noPage, loading, list, unavailable }
+
+    static func listState(hasDocument: Bool, hasOrders: Bool, hasOrderService: Bool) -> ListState {
+        guard hasDocument else { return .noPage }
+        if hasOrders { return .list }
+        return hasOrderService ? .loading : .unavailable
+    }
+
     /// How the pane shows its segments: a list, or a strip or a grid of their pictures
     /// (`source.segments-pane.views`).
     enum Lens: String, CaseIterable, Identifiable, Hashable {

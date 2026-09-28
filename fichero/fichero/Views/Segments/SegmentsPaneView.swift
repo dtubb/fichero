@@ -44,21 +44,8 @@ struct SegmentsPaneView: View {
                     open: { parentId = $0 },
                     opens: { SegmentsPane.hasChildren($0, in: segments) }
                 )
-            } else if let document, let orders {
-                // Only once the ONE store exists: the list keeps the store it is first given, so handing
-                // it nil would make it build a second one the strip and grid would not see.
-                ReadingOrderList(
-                    documentId: document.id, parentSegmentId: parentId, store: orders,
-                    onOpen: { parentId = $0 }, opens: { SegmentsPane.hasChildren($0, in: segments) },
-                    rowLabel: { id, index in SegmentsPane.rowLabel(segments.first { $0.id == id }, at: index) }
-                )
-            } else if document != nil {
-                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ContentUnavailableView(
-                    "No Page", systemImage: "list.bullet.rectangle",
-                    description: Text("Select a page in the Library to list its segments.")
-                )
+                listHalf
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -75,6 +62,37 @@ struct SegmentsPaneView: View {
                 InspectorPath.select(segmentIds: [pending.segmentId], into: selection, documentId: document.id, store: store)
                 pendingSelect = nil
             }
+        }
+    }
+
+    /// The list, by `SegmentsPane.listState` -- never a spinner with nothing coming.
+    @ViewBuilder
+    private var listHalf: some View {
+        switch SegmentsPane.listState(
+            hasDocument: document != nil, hasOrders: orders != nil, hasOrderService: readingOrderService != nil
+        ) {
+        case .list:
+            if let document, let orders {
+                // Only once the ONE store exists: the list keeps the store it is first given, so handing
+                // it nil would make it build a second one the strip and grid would not see.
+                ReadingOrderList(
+                    documentId: document.id, parentSegmentId: parentId, store: orders,
+                    onOpen: { parentId = $0 }, opens: { SegmentsPane.hasChildren($0, in: segments) },
+                    rowLabel: { id, index in SegmentsPane.rowLabel(segments.first { $0.id == id }, at: index) }
+                )
+            }
+        case .loading:
+            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .unavailable:
+            ContentUnavailableView(
+                "Segments Unavailable", systemImage: "exclamationmark.triangle",
+                description: Text("This window cannot read the page's order, so its segments cannot be listed.")
+            )
+        case .noPage:
+            ContentUnavailableView(
+                "No Page", systemImage: "list.bullet.rectangle",
+                description: Text("Select a page in the Library to list its segments.")
+            )
         }
     }
 
