@@ -105,6 +105,30 @@ def legacy_segment_id(artifact_id: str, box_index: int) -> str:
     return f"{LEGACY_ID_PREFIX}{artifact_id}:{box_index}"
 
 
+class TableCellPlace(BaseModel):
+    """A table cell's place (#5168, `source.segment.table-cells`): 1 for a span not stated."""
+
+    row: int
+    column: int
+    row_span: int = 1
+    column_span: int = 1
+
+
+#: Where a format reader KEPT a cell's place (`foreign`): PAGE's `TableCell` attributes. Read-only:
+#: the model still has no cell fields (the spec owes them), so this reads what the file said.
+_CELL_KEYS = {"row": "pagexml:row", "column": "pagexml:col", "row_span": "pagexml:rowSpan", "column_span": "pagexml:colSpan"}
+
+
+def table_cell_place(metadata: dict[str, Any] | None) -> TableCellPlace | None:
+    """The cell's place from what its file said, or None when it states no row and column."""
+    foreign = (metadata or {}).get("foreign") or {}
+    try:
+        values = {name: int(foreign[key]) for name, key in _CELL_KEYS.items() if foreign.get(key) is not None}
+    except (TypeError, ValueError):
+        return None
+    return TableCellPlace(**values) if "row" in values and "column" in values else None
+
+
 class SegmentRead(BaseModel):
     """One segment, read either from today's blob or (later) a real row.
 
@@ -171,6 +195,9 @@ class SegmentRead(BaseModel):
     #: STORE, so it must stay clean): raw pixel values from a tool
     #: (``raw_polygon_px``, ``raw_baseline_px``, ``raw_pixel_frame``), and
     #: ``geometry_problem`` when the anchor could not hold this box's shape.
+    #: A table cell's row, column and spans, one shape whatever the file (#5168); None when the
+    #: segment is not a cell. Read from what the file said -- see `table_cell_place`.
+    cell: TableCellPlace | None = None
     metadata: dict[str, Any] = {}
     #: The row's version (#5152): what an edit sends back as `expected_version`, so an edit made
     #: against a copy somebody else has since changed is REFUSED (`source.edit.stale-is-refused`)
@@ -875,6 +902,7 @@ def segment_read_from_row(
             else None
         ),
         metadata=dict(row.metadata),
+        cell=table_cell_place(row.metadata),
         version=row.version,
     )
 
