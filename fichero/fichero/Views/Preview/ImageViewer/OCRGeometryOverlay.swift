@@ -141,7 +141,8 @@ struct OCRGeometryOverlay: View {
                         .offset(x: hit.rect.minX, y: max(0, hit.rect.minY - 26))
                 }
             }
-            .frame(width: geo.size.width, height: geo.size.height)
+            // Top-leading: the hover label is placed by `.offset` from the origin (#5214's class).
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
         }
         // The layer is ON by default (#4418). On a dense page the boxes cover
         // most of the image, and each has an opaque `.background`, so an

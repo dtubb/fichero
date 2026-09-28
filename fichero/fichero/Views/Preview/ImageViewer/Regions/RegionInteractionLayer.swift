@@ -131,6 +131,8 @@ struct RegionInteractionLayer: View {
                             .background(Color.accentColor.opacity(0.12))
                             .frame(width: rect.width, height: rect.height)
                             .offset(x: rect.minX, y: rect.minY)
+                            .accessibilityElement()
+                            .accessibilityIdentifier(Self.liveBandIdentifier)
                     }
                 }
                 .allowsHitTesting(false)
@@ -138,7 +140,10 @@ struct RegionInteractionLayer: View {
                 // 20pt button claims only its own square.
                 marqueeBadges(in: geo.size)
             }
-            .frame(width: geo.size.width, height: geo.size.height)
+            // TOP-LEADING, never the default centre (#5214): every child is placed by `.offset` from the
+            // layer's origin, and a centred frame put the content's (smaller) bounds in the MIDDLE -- with
+            // only the rubber band drawn, the band landed below and right of the pointer by half the gap.
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
             .onChange(of: pointer?.sequence) { _, _ in
                 guard let event = pointer?.latest else { return }
                 handlePointer(event, in: geo.size)
@@ -259,6 +264,9 @@ struct RegionInteractionLayer: View {
             set: { presented in if !presented { naming.clear() } }
         )
     }
+
+    /// The rubber band's accessibility identifier: where it is drawn, read by a test the way a script reads it.
+    static let liveBandIdentifier = "RegionLiveBand"
 
     private var liveBandRect: CGRect? {
         guard let start = bandStart, let current = bandCurrent else { return nil }
