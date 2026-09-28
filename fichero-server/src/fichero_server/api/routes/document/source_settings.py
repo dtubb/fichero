@@ -372,6 +372,20 @@ def _text_of(db: Database, segment: Segment | None, document: Document | None) -
     return getattr(document, "page_content", None) or None
 
 
+def _page_lines(db: Database, segment: Segment | None, document: Document) -> list[Segment]:
+    """The lines whose shapes vote on whether the page is columns: the selected segment's pass,
+    else the page's working pass -- the pass the Reader draws (#5202)."""
+    if segment is not None:
+        pass_id = segment.pass_id
+    else:
+        from fichero_server.actions.page_text_cache import _working_pass_id
+
+        pass_id = _working_pass_id(db, document.id)
+    if pass_id is None:
+        return []
+    return [row for row in db.query(Segment, pass_id=pass_id) if row.deleted_at is None]
+
+
 @router.get("/resolve", response_model=ResolvedSourceSettings)
 async def resolve_source_settings(
     document_id: Optional[str] = Query(None, description="The document, when no segment"),
@@ -406,11 +420,15 @@ async def resolve_source_settings(
         document=document, segment=segment, detect=False,
         script=script.language if script.source == SOURCE_DETECTED else None,
     )
-    from fichero_server.api.routes.document.segment_readings import direction_rungs
+    from fichero_server.api.routes.document.segment_readings import _lines_are_vertical, direction_rungs
 
-    # The rungs above the page from the SAME function the derivation and the Reader use (#5172).
+    # The rungs above the page from the SAME function the derivation and the Reader use (#5172),
+    # and the page's line SHAPES as they do (#5202): without them a Hani column page answered
+    # "ltr from the script" here while the Reader drew it top to bottom.
+    vertical = _lines_are_vertical(_page_lines(db, segment, document), document) if document else None
     direction = resolve_direction(
-        segment=segment, document=document, text=text, **direction_rungs(db, document)
+        segment=segment, document=document, text=text, lines_are_vertical=vertical,
+        **direction_rungs(db, document),
     )
     encoding = resolve_encoding(
         db, segment=segment, document=document, project=project, script=script.language

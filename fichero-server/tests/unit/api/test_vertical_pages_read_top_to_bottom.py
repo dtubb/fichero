@@ -105,3 +105,23 @@ def test_latin_in_columns_is_not_turned(db, client, tmp_path):
     latin = [(pts, "Anno Domini") for pts, _t in COLUMNS]
     doc_id = _import_bytes(db, tmp_path, "latin.xml", _page(latin))
     assert {b["direction"] for b in _text_blocks(client, doc_id)} == {"ltr"}
+
+
+def test_the_inspector_and_the_reader_agree_on_the_real_page(db, client):
+    """#5202: the Inspector's Language & Script (`/api/source-settings/resolve`) said "Left to
+    Right, from the script" for a line of this page while the Reader drew it top to bottom -- the
+    route never gave the resolver the page's line shapes. One line, one answer: both `ttb`, and
+    the basis names the shape. Asked for the line AND for the page with no line selected."""
+    from fichero_server.models import Document, Segment
+
+    doc_id = _import(db, VERTICAL)
+    doc = db.get(Document, doc_id)
+    doc.metadata = {**(doc.metadata or {}), "width": 2876, "height": 4926}
+    db.save(doc)
+    line = next(s for s in db.all(Segment) if s.document_id == doc_id and s.kind == "line")
+    reader = {b["direction"] for b in _text_blocks(client, doc_id) if b.get("spans")}
+    for params in ({"segment_id": line.id}, {"document_id": doc_id}):
+        settings = client.get("/api/source-settings/resolve", params=params).json()["settings"]
+        direction = next(s for s in settings if s["key"] == "direction")
+        assert reader == {direction["value"]} == {"ttb"}, (params, direction)
+        assert "shape of the lines" in direction["basis"]
