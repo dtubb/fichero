@@ -441,18 +441,30 @@ extension DocumentKGWebPaneCoordinatorMacOS {
 
     @MainActor
     func moveLine(_ request: ReaderLineMove.Request) async {
-        // ponytail: a whole-page reload (scroll and caret are lost); patching the one page in place,
-        // with its fresh line map, is the upgrade once moves are frequent.
         guard let library else { return }
         let store = lineOrderStore ?? ReadingOrderStore(transport: library.readingOrderService)
         lineOrderStore = store
         guard let auditId = await ReaderLineMove.perform(request, store: store) else { return }
         let webView = webView
+        let pageId = request.pageId
         store.registerUndo(
             auditId: auditId, undoManager: webView?.undoManager, actionsService: library.actionsService,
-            afterUndo: { webView?.reload() }
+            afterUndo: { Task { @MainActor in await DocumentKGWebPaneCoordinatorMacOS.refreshPage(pageId, in: webView) } }
         )
-        webView?.reload()
+        await DocumentKGWebPaneCoordinatorMacOS.refreshPage(pageId, in: webView)
+    }
+
+    /// Patch the one page in place (`window.fichero.refreshPage` in `document_view.html`), so the
+    /// scroll and the caret's line survive a move and its ⌘Z; a whole reload only when the page
+    /// could not patch itself.
+    @MainActor
+    static func refreshPage(_ pageId: String, in webView: WKWebView?) async {
+        guard let webView else { return }
+        let patched = try? await webView.callAsyncJavaScript(
+            "return await window.fichero.refreshPage(pageId);",
+            arguments: ["pageId": pageId], in: nil, contentWorld: .page
+        )
+        if (patched as? Bool) != true { webView.reload() }
     }
 
     /// A reader page click (#4373). Validates the bridge payload and publishes

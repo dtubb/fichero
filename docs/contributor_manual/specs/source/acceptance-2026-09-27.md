@@ -225,3 +225,41 @@ export writes its lines in that order. It is the only order problem left on thes
   one-file TEI import after the folder drop gets a 409, because the folder drop now imports the
   file itself. `dump.py` could not write into a fresh `ACCEPTANCE_OUT`; `save()` now makes the
   folder.
+
+## Directions in the Reader (2026-09-27, night)
+
+The Reader now lays each page out in its own direction (2eba3a6dd, #5147 Reader half). An `rtl`
+page gets `dir="rtl"` and a `ttb` page gets `writing-mode: vertical-rl`. A run in the other
+horizontal direction becomes a `<span dir>` isolate, and the Unicode bidi algorithm orders the
+text inside a line. A line move and its ⌘Z patch the one page in place instead of reloading it
+(8e891c1ec, #5170).
+
+Each file below is a real page from the Fichero Test Corpus, copied into a temporary library and
+run through `format.import` with the scan size ingest records. The page's own `pageBodyMarkup` was
+cut from the served `/view/document/{id}` and run in node. "Map" is the set of directions in the
+served line map; "body" is the page element the Reader draws.
+
+| Case | File | Expected | Result |
+|---|---|---|---|
+| a. RTL page, Maghrebi Arabic | `BULAC_MS_ARA_417_0003.xml` | rtl | PASS: map {rtl}, body `dir="rtl"`, 13 lines |
+| a. RTL page, Urdu | `7219_1668198.xml` | rtl | PASS: map {rtl}, `dir="rtl"` |
+| a. RTL page, Ottoman Turkish | `2939_598100.xml` | rtl | PASS: map {rtl}, `dir="rtl"`, 20 lines |
+| b. Persian nastaliq with English on the page | `136_21220.xml` | rtl page; `Herbert LLoyd`, `Chunar` ltr isolates | PASS for the English lines. The digit-only line `1773` also resolves `ltr`: **FAIL, #5172** (it renders correctly, but it is reported as an English line) |
+| b. LTR inside an RTL line (Hebrew line with a Latin letter) | `btv1b10539358v.xml` | the line stays rtl; bidi orders the letter | PASS: map {rtl}, one text node, bidi orders the run |
+| c. Arabic with interlinear Persian (two hands, both RTL) | `1461_184094.xml` | rtl throughout | PASS: map {rtl} |
+| c. Syriac with a Latin folio number | `0001_00000016.xml` (Vienna Syr. 1) | rtl page; `1v` an ltr isolate | PASS: body `dir="rtl"`, one `<span dir="ltr">1v` |
+| c. Latin with Hebrew | none | ltr page, Hebrew rtl isolate | NOT RUN: the corpus has no Latin page with Hebrew on it (the Eutyches and Notre-Dame pages have none). The isolate path is covered by the Syriac case in reverse |
+| d. Aljamiado (Spanish in Arabic script) | `BNE_MSS5301_Hadiz-de-los-dos-amigos.pdf_page_1.xml` | rtl, decided by the letters | PASS: its 17 text lines are rtl. Its digit-only lines `2` and `1` are `ltr`: **#5172**. The `BNE_MSS:5302_Historias_*` pages have no text in the file (every `String` has an empty `CONTENT`), so they show nothing |
+| e. Chinese classical, vertical | `BULAC_BIULO_CHI_1087_1_0068.xml` | ttb from the line shapes, vertical-rl | PASS: map {ttb}, body `data-direction="ttb"` |
+| e. Genji, direction stated on the source | `kouigenji-01-kiritsubo.tei.xml` + `source_setting.set direction=ttb` | ttb | **FAIL, #5171**: `document_text` blocks are `ttb`, but the served line map stays `ltr`, because the setting does not refresh the page-text cache |
+| f. Mongolian, vertical-lr | none | vertical-lr | NOT RUN: the corpus has no Mongolian page. **Model gap, #5173**: `ttb` cannot say which way columns advance, so the Reader draws every `ttb` page `vertical-rl` and does not guess from the script |
+| g. Caret and ⌥⌘↑ in an RTL block | `BULAC_MS_ARA_417_0003.xml` | the caret's line is the one `lineMove` names; after a real move the caret is back on it | PASS: `segmentAtOffset` names the caret's line, `lineMoveMessage` returns `{segmentId, pageId, step: "up"}`, and `caretAfterMove` lands on the moved line in the new offsets |
+| g. Caret and ⌥⌘↑ in a vertical block | `BULAC_BIULO_CHI_1087_1_0068.xml` | same | PASS, same three checks; map {ttb} |
+
+The caret and move checks are logical offsets and do not depend on direction. The DOM step (the
+selection put back with `selection.collapse`) was not run in a browser here. Nothing in the
+engine or in node exercises it, so it needs one look in the app.
+
+In the repo, `test_reader_directions.py` pins the rtl page, the Syriac folio isolate, the page of
+columns and the caret after a move (rtl and vertical) on the vendored fixture pages. All six tests
+fail on the code before 2eba3a6dd and 8e891c1ec.
