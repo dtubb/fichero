@@ -30,7 +30,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 || path.hasPrefix("/api/actions/") || path.hasPrefix("/api/segments/passes/")
                 || (path.hasPrefix("/api/segments/") && path.hasSuffix("/readings"))
                 || path == "/api/source-settings/resolve" || path.hasPrefix("/api/hands")
-                || path.hasPrefix("/api/editorial/")
+                || path.hasPrefix("/api/editorial/") || path.hasPrefix("/api/signs")
+                || path.hasPrefix("/api/letterforms")
         }
 
         /// What `GET /api/hands` and `GET /api/hands/segment/{id}` answer (set by the test that asks).
@@ -48,6 +49,13 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
 
         /// What `GET /api/editorial/segment/{id}` answers (set by the test that asks).
         nonisolated(unsafe) static var editorialReply = Data()
+
+        /// What `/api/signs`, `/api/signs/{id}/instances`, `/api/letterforms/segment/{id}` and
+        /// `/api/letterforms/allographs` answer (set by the test that asks).
+        nonisolated(unsafe) static var signsReply = Data()
+        nonisolated(unsafe) static var instancesReply = Data()
+        nonisolated(unsafe) static var letterformReply = Data()
+        nonisolated(unsafe) static var allographsReply = Data()
 
         private static func actionReply(auditId: String) -> Data {
             Data(#"{"ok":true,"result":{},"audit_id":"\#(auditId)","changed_domains":["segment"]}"#.utf8)
@@ -73,6 +81,14 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 actionBody = Self.readingsReply
             } else if path.hasPrefix("/api/editorial/segment/") {
                 actionBody = Self.editorialReply
+            } else if path == "/api/signs" {
+                actionBody = Self.signsReply
+            } else if path.hasPrefix("/api/signs/"), path.hasSuffix("/instances") {
+                actionBody = Self.instancesReply
+            } else if path.hasPrefix("/api/letterforms/segment/") {
+                actionBody = Self.letterformReply
+            } else if path == "/api/letterforms/allographs" {
+                actionBody = Self.allographsReply
             } else if path.hasPrefix("/api/segments/passes/"), path.hasSuffix("/original") {
                 actionBody = Self.originalReply
             } else if path == "/api/actions/invoke" {
@@ -111,6 +127,10 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             readingsReply = Data()
             originalReply = Data()
             editorialReply = Data()
+            signsReply = Data()
+            instancesReply = Data()
+            letterformReply = Data()
+            allographsReply = Data()
         }
 
         /// URLSession hands a protocol its body as a stream, not as `httpBody`.
@@ -599,6 +619,59 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         manager.undo()
         for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(RecordedEngine.undone, ["audit-1"], "⌘Z withdraws the withdrawal by its own audit row")
+    }
+
+    /// `source.sign.declared`, `list-authority`, `gather-instances` end to end on the real MUFI page
+    /// (Clm 13027 fol. 38r): a sign declared from its first line that uses U+F1AC, read through
+    /// `SignService` over the engine's recorded answers. The line's Signs row names the sign, its code
+    /// point and list number, that it is used once here and 50 times on the page, and that it was
+    /// declared from this line.
+    func testTheSignsSectionNamesTheMUFISignTheLineUsesAndHowOften() async throws {
+        _ = try await loadedStore()
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("mufi_clm13027-38r.signs.json")
+        )) as? [String: Any])
+        RecordedEngine.signsReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["signs"]))
+        RecordedEngine.instancesReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["instances"]))
+        let readings = try XCTUnwrap(recorded["readings"] as? [String: Any])
+        let line = try XCTUnwrap((readings["items"] as? [[String: Any]])?.first?["content"] as? String)
+
+        let service = SignService(client: try XCTUnwrap(storeClient))
+        let signs = try await service.signs()
+        let total = try await service.totalUses(signId: "sign-0001")
+        XCTAssertEqual(total, 50, "every use on the page, by one query")
+        let rows = InspectorSigns.rows(
+            signs: signs, segmentId: "seg-mufi-0001", reading: line, usedInProject: ["sign-0001": total]
+        )
+        XCTAssertEqual(rows.map(\.title), ["MUFI abbreviation sign"])
+        XCTAssertEqual(rows.first?.detail, "U+F1AC · MUFI F1AC · 1 here · 50 in the project · declared from this segment")
+        XCTAssertEqual(rows.first?.glyph, "\u{F1AC}")
+        XCTAssertEqual(InspectorSigns.rows(signs: signs, segmentId: "seg-other", reading: "no sign").count, 0)
+    }
+
+    /// `source.letterform.chain`, `features` end to end: one letter's box on the imported Syriac page,
+    /// described as the Estrangela alaph of hand B with a wedged stem and a curved foot, read through
+    /// `SignService` and `HandService` over the engine's recorded answers -- the chain in names, never
+    /// ids.
+    func testTheSignsSectionReadsACharactersLetterformInWords() async throws {
+        _ = try await loadedStore()
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-mark-letterform.json")
+        )) as? [String: Any])
+        RecordedEngine.letterformReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["description"]))
+        RecordedEngine.allographsReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["allographs"]))
+        RecordedEngine.handsReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["hands"]))
+        let client = try XCTUnwrap(storeClient)
+
+        let forms = try await SignService(client: client).letterforms(segmentId: "seg-mark")
+        let allographs = try await SignService(client: client).allographNames()
+        let hands = try await HandService(client: client).hands()
+        let lines = InspectorSigns.lines(
+            forms, allographs: allographs,
+            hands: Dictionary(uniqueKeysWithValues: hands.map { ($0.id, $0.label) })
+        )
+        XCTAssertEqual(lines.map(\.chain), ["\u{0710} › Estrangela alaph › hand B"])
+        XCTAssertEqual(lines.map(\.detail), ["stem wedged · foot curved · by owner"])
     }
 
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {

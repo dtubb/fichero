@@ -288,3 +288,104 @@ def test_a_line_s_editorial_facts_are_recorded_for_the_app(db, client):
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         EDITORIAL_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
     assert json.loads(EDITORIAL_FIXTURE.read_text()) == recorded, "the app's editorial fixture drifted"
+
+
+MUFI_PAGE = Path(__file__).resolve().parents[1] / "formats" / "fixtures" / "corpus" / "escriptorium_latin-mufi_clm13027-38r.alto.xml"
+SIGNS_FIXTURE = FIXTURES / "mufi_clm13027-38r.signs.json"
+
+
+def _stabilizer(ids: dict):
+    def stable(value):
+        if isinstance(value, dict):
+            return {k: ("2026-09-27T12:00:00Z" if k == "created_at" and v else stable(v)) for k, v in value.items()}
+        if isinstance(value, list):
+            return [stable(v) for v in value]
+        return ids.get(value, value) if isinstance(value, str) else value
+    return stable
+
+
+def test_a_declared_sign_on_the_mufi_page_is_recorded_for_the_app(db, client):
+    """`source.sign.declared`, `list-authority`, `gather-instances` (the Inspector's Signs section, 5.6):
+    the app reads GET /api/signs (the project's sign list), GET /api/signs/{id}/instances (every use of
+    one sign) and the inspected line's readings. Recorded on the real MUFI page (Clm 13027 fol. 38r,
+    eScriptorium's ALTO), which carries U+F1AC, after a person declares the sign from a line that uses
+    it -- through the calls the app makes."""
+    doc_id = _import(db, MUFI_PAGE)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    from fichero_server.models import ContentRepresentation
+
+    # The sign lives in the readings (the file's strings): the first segment on the page, top-left
+    # first, whose reading uses it.
+    using = {r.segment_id for r in db.all(ContentRepresentation)
+             if r.document_id == doc_id and "\uf1ac" in (r.content or "")}
+    line = min((s for s in body["segments"] if s["id"] in using), key=lambda s: s["anchor"]["rect"])
+    declared = client.post("/api/actions/invoke", json={"name": "sign.declare", "params": {
+        "name": "MUFI abbreviation sign", "picture_segment_id": line["id"], "code_point": "U+F1AC",
+        "list_references": [{"authority": "MUFI", "number": "F1AC"}]}})
+    assert declared.status_code == 200, declared.text
+    sign_id = declared.json()["result"]["sign_id"]
+    signs = client.get("/api/signs").json()
+    instances = client.get(f"/api/signs/{sign_id}/instances").json()
+    readings = client.get(f"/api/segments/{line['id']}/readings").json()
+    assert [s["id"] for s in signs["items"]] == [sign_id]
+    assert instances["total"] >= 50, instances["total"]  # the page uses it 50 times
+
+    ids = {doc_id: "doc-mufi", line["id"]: "seg-mufi-0001", sign_id: "sign-0001"}
+    # Numbered by where each segment is on the page (ids are random; places are not).
+    rect_of = {s["id"]: s["anchor"]["rect"] for s in body["segments"]}
+    placed = sorted(instances["items"], key=lambda i: (rect_of.get(i.get("segment_id"), [2.0]), i["count"]))
+    for index, item in enumerate(placed, start=1):
+        ids.setdefault(item["representation_id"], f"rep-{index:04d}")
+        if item.get("segment_id"):
+            ids.setdefault(item["segment_id"], f"seg-mufi-{index:04d}")
+    stable = _stabilizer(ids)
+    instances["items"] = placed
+    recorded = {"signs": stable(signs), "instances": stable(instances), "readings": stable(readings)}
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        SIGNS_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(SIGNS_FIXTURE.read_text()) == recorded, "the app's signs fixture drifted"
+
+
+LETTERFORM_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.first-mark-letterform.json"
+
+
+def test_a_described_letterform_is_recorded_for_the_app(db, client):
+    """`source.letterform.chain`, `features` (shown read-only inside the Signs section, 5.6, ruled
+    2026-09-28 pending the maintainer): the app reads GET /api/letterforms/segment/{id}, GET
+    /api/letterforms/allographs and GET /api/hands. Recorded for one letter's box on the imported
+    Syriac page's first line, described as the Estrangela alaph of hand B with a wedged stem."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    line = min((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+               key=lambda s: s["anchor"]["rect"])
+    x, y, w, h = line["anchor"]["rect"]
+
+    def invoke(name, params):
+        answer = client.post("/api/actions/invoke", json={"name": name, "params": params})
+        assert answer.status_code == 200, answer.text
+        return answer.json()["result"]
+
+    mark_id = invoke("segment.create", {
+        "document_id": doc_id, "pass_id": real["id"], "kind": "character",
+        "anchor": {"document_id": doc_id, "rect": [x + w - w / 20, y, w / 20, h]},
+    })["segment_ids"][0]
+    allograph_id = invoke("allograph.create", {"character": "ܐ", "name": "Estrangela alaph"})["allograph_id"]
+    hand_id = invoke("hand.create", {"label": "hand B"})["hand_id"]
+    invoke("letterform.describe", {
+        "segment_id": mark_id, "character": "ܐ", "allograph_id": allograph_id, "hand_id": hand_id,
+        "features": [{"component": "stem", "feature": "wedged"}, {"component": "foot", "feature": "curved"}],
+    })
+    description = client.get(f"/api/letterforms/segment/{mark_id}").json()
+    allographs = client.get("/api/letterforms/allographs").json()
+    hands = client.get("/api/hands").json()
+    assert [d["allograph_id"] for d in description["items"]] == [allograph_id]
+
+    ids = {mark_id: "seg-mark", allograph_id: "allograph-0001", hand_id: "hand-0001"}
+    for item in description["items"]:
+        ids[item["id"]] = "desc-0001"
+    stable = _stabilizer(ids)
+    recorded = {"description": stable(description), "allographs": stable(allographs), "hands": stable(hands)}
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        LETTERFORM_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(LETTERFORM_FIXTURE.read_text()) == recorded, "the app's letterform fixture drifted"

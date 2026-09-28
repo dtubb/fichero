@@ -71,6 +71,10 @@ struct SegmentInspectorView: View {
                         InspectorEditorialSection(
                             segmentId: inspected, reading: text?.countingReading(ofKind: "transcription")
                         )
+                        // Declared signs, and a character's letterform (5.6).
+                        InspectorSignsSection(
+                            segmentId: inspected, reading: text?.countingContent(ofKind: "transcription")
+                        )
                     }
                     if level == .page {
                         // Page level: how the page's passes were made (#5149).
