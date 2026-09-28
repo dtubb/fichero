@@ -265,10 +265,17 @@ extension LibraryView {
             "\(doc.id) type=\(doc.docType.rawValue) search=\(activeSearchQuery != nil) "
                 + "-> \(cursorOnly ? "onPageFocus(cursor)" : "detailDocument=doc")"
         )
-        if cursorOnly {
-            onPageFocus(doc)
-        } else {
-            detailDocument = doc
+        // INSTANT FEEDBACK (Daniel, 2026-09-28: clicking an item "takes too long"; the click should
+        // answer at once even if the item takes a moment). The selection highlight is set by the
+        // caller in THIS event; the panes that follow the preview (Preview, Inspector, Reader) rebuild
+        // on the NEXT turn of the main run loop, so the highlight draws first instead of waiting for
+        // the heaviest pane. FIFO: a quicker second click still lands last.
+        DispatchQueue.main.async {
+            if cursorOnly {
+                onPageFocus(doc)
+            } else {
+                detailDocument = doc
+            }
         }
     }
 
