@@ -293,6 +293,20 @@
             font-size: 0.9em;
         }
         .stale-bar button { margin-left: 0.4em; }
+
+        /* Out of reach of the engine (13b, `stale-keeps-your-words`, ruled 2026-09-20): the text is
+           read-only and says why, and words typed but not yet taken are kept, marked, and sent
+           when the engine is back. */
+        .engine-banner {
+            margin: 0 0 0.6em 0;
+            padding: 0.4em 0.6em;
+            border-left: 3px solid var(--muted);
+            color: var(--text);
+            font-size: 0.9em;
+        }
+        ::highlight(fichero-unsent-lines) {
+            text-decoration: underline dotted var(--muted);
+        }
         .stale-bar .stale-compare del { color: var(--muted); }
         .stale-bar .stale-compare ins { text-decoration: none; font-weight: 600; }
 
@@ -814,6 +828,7 @@
         <button type="button" data-tab="map">Map</button>
     </nav>
     <main class="content">
+        <div id="engine-banner" class="engine-banner" role="status" hidden></div>
         <section id="transcript-panel" class="panel"></section>
         <section id="digest-panel" class="panel hidden"></section>
         <section id="graph-panel" class="panel hidden"></section>
@@ -942,12 +957,43 @@ function makeEditable(article) {
     const body = article.querySelector(".transcript-page-body");
     const lines = pageLineMaps.get(article.dataset.pageId);
     if (body && Array.isArray(lines) && lines.length) {
-        body.setAttribute("contenteditable", "plaintext-only");
+        body.setAttribute("contenteditable", engine.reachable ? "plaintext-only" : "false");
         body.spellcheck = false;
     }
 }
 
 let pendingEdit = null;   // {pageId, segmentId} of the line being typed in
+const engine = engineLink();
+
+// Every readingEdit leaves through here: posted, or held while the engine is out of reach.
+function postEdit(message) {
+    const outgoing = engine.edit(message);
+    if (outgoing) {
+        notify("readingEdit", outgoing);
+        editsSent += 1;
+    } else {
+        applyEngineState();
+    }
+}
+
+function applyEngineState() {
+    const banner = document.getElementById("engine-banner");
+    if (banner) {
+        banner.hidden = engine.reachable;
+        banner.textContent = engine.reachable ? "" : engineBannerText(engine.reason, engine.unsent().length);
+    }
+    document.querySelectorAll("article[data-page-id]").forEach((article) => makeEditable(article));
+    if (!(window.CSS && CSS.highlights && window.Highlight)) return;
+    const ranges = [];
+    for (const m of engine.unsent()) {
+        const line = (pageLineMaps.get(m.pageId) || []).find((item) => item.segment_id === m.segmentId);
+        const body = document.querySelector(`article[data-page-id="${CSS.escape(m.pageId)}"] .transcript-page-body`);
+        const range = line && body && rangeInBody(body, line.char_start, line.char_end);
+        if (range) ranges.push(range);
+    }
+    if (ranges.length) CSS.highlights.set("fichero-unsent-lines", new Highlight(...ranges));
+    else CSS.highlights.delete("fichero-unsent-lines");
+}
 let editsSent = 0;        // readingEdit messages posted, so `commitPending` can say whether it sent one
 
 // Send the typed line as a new reading (or refuse and put the page text back). Returns true when
@@ -983,8 +1029,7 @@ function commitPendingEdit() {
     }
     pageTexts.set(pageId, body.textContent);
     pageLineMaps.set(pageId, shiftLines(lines, segmentId, edit.delta));
-    notify("readingEdit", edit.message);
-    editsSent += 1;
+    postEdit(edit.message);
     return true;
 }
 
@@ -1031,7 +1076,7 @@ document.addEventListener("click", (event) => {
     if (action === "compare") { stale.comparing = !stale.comparing; showStale(pageId, segmentId); return; }
     staleLines.delete(key);
     showStale(pageId, segmentId);
-    if (action === "mine") { notify("readingEdit", keepMineMessage(pageId, segmentId, stale)); editsSent += 1; }
+    if (action === "mine") postEdit(keepMineMessage(pageId, segmentId, stale));
     else refreshPage(pageId);   // Take Theirs: the library's line, the local words dropped
 });
 
@@ -1641,6 +1686,54 @@ function overlayLines(fresh, overlays) {
         lines = shiftLines(lines, segmentId, text.length - (line.char_end - line.char_start));
     }
     return { ...fresh, content, lines };
+}
+
+// Out of reach of the engine (13b; ruled 2026-09-20: "out of reach of the engine the text is
+// read-only and says why; an edit still gathering when the connection drops is kept and
+// committed, with its version check, when it returns"). The page's rules as one small state:
+//   edit(message)      -> the message to post now, or null: HELD while out of reach
+//   lost(reason, ans?) -> out of reach; an `unreachable` answer moves that line's last-sent edit
+//                         back to held, so words the library never took are not lost
+//   back()             -> in reach again; the held edits, to post now (each still carries its
+//                         `basedOn`, so a line changed meanwhile is refused as stale, never overwritten)
+function engineLink() {
+    const held = new Map();
+    const lastSent = new Map();
+    const key = (m) => `${m.pageId}\u0000${m.segmentId}`;
+    let reachable = true, reason = null;
+    return {
+        get reachable() { return reachable; },
+        get reason() { return reason; },
+        unsent() { return [...held.values()]; },
+        edit(message) {
+            if (!reachable) { held.set(key(message), message); return null; }
+            lastSent.set(key(message), message);
+            return message;
+        },
+        lost(why, answer) {
+            reachable = false;
+            reason = why || null;
+            const sent = answer && lastSent.get(key(answer));
+            if (sent) held.set(key(answer), sent);
+        },
+        back() {
+            reachable = true;
+            reason = null;
+            const out = [...held.values()];
+            held.clear();
+            for (const m of out) lastSent.set(key(m), m);
+            return out;
+        },
+    };
+}
+
+// The one line at the top while out of reach: why, and what happens to the words.
+function engineBannerText(reason, unsentCount) {
+    const why = reason ? ` (${reason})` : "";
+    const kept = unsentCount
+        ? ` ${unsentCount} unsent ${unsentCount === 1 ? "edit is" : "edits are"} kept and will be sent when it is back.`
+        : "";
+    return `The library can't be reached${why}, so the text is read-only.${kept}`;
 }
 
 function staleBarMarkup(segmentId, stale, comparing) {
@@ -2756,6 +2849,22 @@ window.fichero = {
 
     // Send the line being typed now (13b): the app's Save, and before the window closes or the
     // page is swapped. Nothing pending -> nothing sent. {committed, segmentId}.
+    // The engine's reachability, from the app (13b): `{reachable: false, reason?}` makes the text
+    // read-only and says why -- the line being typed is committed first, and held; `{reachable:
+    // true}` gives editing back and sends every held edit, each with its version check.
+    engineState(state) {
+        if (state && state.reachable === false) {
+            engine.lost(state.reason);
+            commitPendingEdit();
+            applyEngineState();
+            return { reachable: false, unsent: engine.unsent().length };
+        }
+        const resend = engine.back();
+        applyEngineState();
+        for (const message of resend) postEdit(message);
+        return { reachable: true, resent: resend.length };
+    },
+
     commitPending() {
         const segmentId = pendingEdit ? pendingEdit.segmentId : null;
         const sent = editsSent;
@@ -2771,6 +2880,13 @@ window.fichero = {
             pageLineMaps.set(answer.pageId, withReading(pageLineMaps.get(answer.pageId), answer.segmentId, answer.representationId));
         }
         if (!answer || answer.ok) return true;
+        if (answer.unreachable) {
+            // The edit never reached the library: its words stay on the line, held, and the page
+            // goes read-only until the app says the engine is back.
+            engine.lost(answer.reason, answer);
+            applyEngineState();
+            return true;
+        }
         if (answer.stale && answer.pageId && answer.segmentId && answer.theirs) {
             // Kept, not re-read: re-reading would put their words over the person's.
             staleLines.set(staleKey(answer.pageId, answer.segmentId),

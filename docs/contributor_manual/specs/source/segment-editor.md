@@ -727,8 +727,19 @@ The editor
   recorded Syriac readings: token sent, 409 answered with the words kept and `rep-0002` named, Keep Mine
   re-sent against it). A line whose text came from its words sends no `basedOn`, so no check.
   **The joint (2026-09-28):** the served page's OWN script, run in node on the imported Syriac page, posts through its own `notify` (`test_imported_page_draws_its_boxes.py::test_the_served_page_s_own_messages_are_recorded_for_the_app_s_bridge`, regenerated every run, failing on drift), and those exact bodies go through the bridge's own parse and `ReaderTextEditRunner` -- what `applyTextEdit` runs -- to the requests the engine takes (`ImportedPageDrawsItsBoxesTests.testTheServedPagesOwnMessagesBecomeTheRequestsTheEngineTakes`): Keep Mine's own message is `representation.create` against what counts now.
-  **Not yet, so PARTIAL:** "out of reach of the engine the text is read-only" -- nothing makes the Reader
-  read-only when the engine cannot be reached.
+  **Out of reach, the page half (2026-09-28, bugs lane):** on `window.fichero.engineState({reachable:
+  false, reason})`, or a `lineCommitted({ok: false, unreachable: true, pageId, segmentId, reason})`
+  answer, the page commits the line being typed, holds it and every later edit (`engineLink`), makes
+  every page body non-editable, marks the unsent lines, and says so in one line at the top ("The
+  library can't be reached (reason), so the text is read-only. N unsent edits are kept and will be
+  sent when it is back."); on `engineState({reachable: true})` editing comes back and each held
+  edit is posted as it was -- its `basedOn` intact, so a line changed meanwhile comes back stale
+  (`fichero-server/tests/unit/api/test_reader_out_of_reach_is_read_only.py::test_out_of_reach_the_page_holds_every_edit_and_posts_nothing`,
+  `::test_back_in_reach_every_held_edit_is_sent_again_with_its_version_check`,
+  `::test_a_held_edit_whose_line_moved_on_meanwhile_comes_back_stale`,
+  `::test_through_the_page_s_own_bridge_nothing_is_posted_out_of_reach_and_the_resend_is_the_same_body`).
+  **Not yet, so PARTIAL:** the app sending `engineState` and answering an unreachable edit with
+  `unreachable: true` (archive's Swift half).
 - `source.textedit.every-direction` — **[PARTIAL]** (#5001) each block is laid out and edited in its own direction;
   line starts, joins and cuts follow reading order and the baseline; a direction the platform
   cannot lay out is labelled, never reordered.
