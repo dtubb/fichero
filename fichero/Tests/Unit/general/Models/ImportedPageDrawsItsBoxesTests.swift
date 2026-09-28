@@ -28,21 +28,13 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         /// The `result` an invoke answers with (the engine's is per action; `{}` unless a test says).
         nonisolated(unsafe) static var invokeResult = "{}"
 
+        /// EVERY request to the test host is answered here, never only a list of paths: a path left
+        /// off a list went to the real network (the versions and resolve calls, 2026-09-28), so a
+        /// passing run depended on an engine happening to be up. A path with no branch below gets the
+        /// recorded route's answer, which the test asserting on it will not mistake for its own.
         // swiftlint:disable:next static_over_final_class
         override class func canInit(with request: URLRequest) -> Bool {
-            guard request.url?.host == "127.0.0.1", let path = request.url?.path else { return false }
-            return path.hasPrefix("/api/segments/document/") || path == "/api/annotations"
-                || path.hasPrefix("/api/actions/") || path.hasPrefix("/api/segments/passes/")
-                || (path.hasPrefix("/api/segments/") && path.hasSuffix("/readings"))
-                || path == "/api/source-settings/resolve" || path.hasPrefix("/api/hands")
-                || path.hasPrefix("/api/editorial/") || path.hasPrefix("/api/signs")
-                || path.hasPrefix("/api/letterforms") || path.hasPrefix("/api/links/")
-                || (path.hasPrefix("/api/segments/") && path.hasSuffix("/reference"))
-                || path == "/api/rights/effective"
-                || (path.hasPrefix("/api/segments/") && path.hasSuffix("/statements"))
-                || path.hasPrefix("/api/reading-orders/")
-                || path.split(separator: "/").count == 3 && path.hasPrefix("/api/segments/")
-                || (path.hasPrefix("/api/segments/") && path.hasSuffix("/picture"))
+            request.url?.host == "127.0.0.1"
         }
 
         /// What `GET /api/hands` and `GET /api/hands/segment/{id}` answer (set by the test that asks).
