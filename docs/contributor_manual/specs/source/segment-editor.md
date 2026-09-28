@@ -676,7 +676,10 @@ The editor
   turns into the Inspector's `reading_order.place` (archive, 3c:
   `fichero-server/tests/unit/api/test_reader_line_map.py::test_the_move_keys_name_the_caret_line_and_a_step_the_app_knows`); the
   page is then patched in place with the caret back on the moved line, not reloaded (#5170,
-  `fichero-server/tests/unit/api/test_reader_directions.py::test_after_a_move_the_caret_is_on_the_moved_line`). **Still
+  `fichero-server/tests/unit/api/test_reader_directions.py::test_after_a_move_the_caret_is_on_the_moved_line`),
+  and across a move AND its ⌘Z the scroll is kept by name and the caret ends where it began
+  (`::test_a_move_and_its_undo_keep_the_scroll_and_the_caret`, the page's own `refreshPage` on a
+  stand-in DOM; how WebKit scrolls still needs a look in the app). **Still
   PARTIAL:** cutting and pasting whole lines is not built.
 - `source.textedit.one-selection` — **[PARTIAL]** (#5001) the caret's line (and word) is the selection in the Source
   view, and a selection there selects the text; one shared selection.
