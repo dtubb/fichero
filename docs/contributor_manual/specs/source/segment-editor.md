@@ -656,9 +656,16 @@ The editor
   line before it in the page's text order, for `segment.merge` keeping it
   (`fichero-server/tests/unit/api/test_reader_typing.py::test_backspace_joins_only_at_a_lines_start_and_never_the_first`).
   **Still PARTIAL:** the Swift call.
-- `source.textedit.deleting-words-keeps-ink` — **[GAP]** (#5001) removing text is a new reading without those words;
+- `source.textedit.deleting-words-keeps-ink` — **[PARTIAL]** (#5001) removing text is a new reading without those words;
   no segment is deleted by it; a word segment left without a reading, or an emptied line, is
   shown as such; deleting a segment is a separate, named command.
+  **Page half built (2026-09-28):** an emptied line is a new, empty reading through
+  `representation.create`, stays in the line map as a zero-width line, and is drawn in its place as
+  an empty line under its segment (`.line-empty`, a drawn placeholder, so no offset moves); a caret
+  there is on that line (`fichero-server/tests/unit/api/test_reader_runs_and_empty_lines.py::test_a_line_whose_words_are_all_deleted_stays_on_the_page`).
+  PARTIAL: the Swift half (a `readingEdit` only ever becomes `representation.create`) is archive's;
+  a word segment left without a reading is not in the Reader's line map, so it is shown by the
+  Source view, not here.
 - `source.textedit.lines-move-in-the-order` — **[PARTIAL]** (#5001) cutting and pasting whole lines changes the named
   reading order and nothing on the page; other pasted text is typing, its line breaks
   turned to spaces.
@@ -676,9 +683,17 @@ The editor
   (`fichero-server/tests/unit/api/test_reader_selection.py::test_focus_is_posted_once_per_line_change`,
   `::test_the_apps_selection_names_exactly_those_lines_text`). **Still PARTIAL:** the app's half
   (archive, f5f580761) and a run from the screen; the word-level selection is not built.
-- `source.textedit.a-run-of-keys-is-one-action` — **[GAP]** (#5001) typing in one line commits as one reading, one
+- `source.textedit.a-run-of-keys-is-one-action` — **[PARTIAL]** (#5001) typing in one line commits as one reading, one
   audit record and one undo step, on leaving the line, a structural key, loss of focus, Save,
   or two seconds' pause; structural edits are their own action at once.
+  **Page half built (2026-09-28):** the page sends one `readingEdit` per run: on leaving the line, a
+  structural key, blur (#5154), two seconds without a key, and ⌘S or the app's Save
+  (`window.fichero.commitPending()`); a key after a commit starts a new run based on the reading the
+  commit made (`lineCommitted.representationId`); words typed while the page is re-read are kept
+  on their line and sent with their run (`fichero-server/tests/unit/api/test_reader_runs_and_empty_lines.py::test_a_pause_of_two_seconds_ends_the_run_and_the_next_key_starts_another`,
+  `::test_the_next_run_is_based_on_the_reading_the_last_one_made`,
+  `::test_words_being_typed_survive_the_page_being_re_read`). PARTIAL: one audit record and one
+  ⌘Z step per run are the Swift half (archive).
 - `source.textedit.stale-keeps-your-words` — **[PARTIAL]** (#5001) an edit against a version that has moved on is refused
   and the typed words are kept and offered: keep mine, take theirs, compare; out of reach of
   the engine the text is read-only. **The token (decided 2026-09-28 by the lead as a default; the

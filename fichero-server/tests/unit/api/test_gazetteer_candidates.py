@@ -12,7 +12,7 @@ network without the switch; and a geocoder that pinned "paris" to a coordinate i
 about WHERE, not a person's word about WHICH place -- if it became a `same_as` link, the guess
 would be an identity. If this regresses, one of those comes back.
 
-Real, licensed, recorded data (`tests/unit/formats/fixtures/PROVENANCE.md`): Wikidata's search
+Real, licensed, recorded data (`tests/unit/api/fixtures/gazetteer/PROVENANCE.md`): Wikidata's search
 answer for "Paris" (CC0), replayed through Fichero's own Wikidata refresh parser, and the Pleiades
 record for Lutetia (CC BY 3.0). Nothing is fetched.
 """
@@ -33,7 +33,7 @@ from fichero_server.knowledge.authorities import same_as_links
 from fichero_server.models import DocType, Document
 from fichero_server.models.knowledge import AuthoritySnapshot, EntityType, KnowledgeClaim, KnowledgeEntity
 
-FIXTURES = Path(__file__).resolve().parents[1] / "formats" / "fixtures"
+FIXTURES = Path(__file__).resolve().parent / "fixtures" / "gazetteer"
 Q90 = "http://www.wikidata.org/entity/Q90"
 DIFFERENT_FROM = "different_from"  # the link type a rejection is recorded as
 LUTETIA = "https://pleiades.stoa.org/places/109126"

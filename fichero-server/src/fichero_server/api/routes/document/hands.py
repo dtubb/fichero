@@ -12,12 +12,13 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import action_context
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.library_header import optional_library_path
+from fichero_server.api.main import get_library_database, get_library_database_for_write, readable_documents
 from fichero_server.api.routes.document.segments import provenance_kind_from_ctx
 from fichero_server.core.timeutil import utc_now
 from fichero_server.db import Database
@@ -260,6 +261,8 @@ async def list_hands(db: Database = Depends(get_library_database)) -> HandListRe
 
 class AttributionListResponse(BaseModel):
     items: list[HandAttribution]
+    #: Attributions left out because this caller may not read their page (#5180): counted, never silent.
+    withheld: int = 0
 
 
 @router.get("/segment/{segment_id}", response_model=AttributionListResponse)
@@ -275,15 +278,22 @@ async def hands_of_segment(
 
 @router.get("/{hand_id}/attributions", response_model=AttributionListResponse)
 async def everything_in_a_hand(
-    hand_id: str, db: Database = Depends(get_library_database)
+    hand_id: str,
+    request: Request,
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    db: Database = Depends(get_library_database),
 ) -> AttributionListResponse:
-    """Everything in one hand, across every source ("everything in hand B")."""
+    """Everything in one hand, across every source ("everything in hand B") -- that this caller may
+    read: a hand is library-level, its attributions are on pages, and one on a page this caller may
+    not read is left out and counted (#5180)."""
     if db.get(Hand, hand_id) is None:
         raise HTTPException(status_code=404, detail=f"Hand not found: {hand_id}")
-    return AttributionListResponse(items=sorted(
-        (a for a in db.query(HandAttribution, hand_id=hand_id) if a.withdrawn_at is None),
-        key=lambda a: a.created_at,
-    ))
+    every = [a for a in db.query(HandAttribution, hand_id=hand_id) if a.withdrawn_at is None]
+    page_of = {a.id: getattr(db.get(Segment, a.segment_id), "document_id", None) for a in every}
+    readable = set(readable_documents(request, x_fichero_library_path,
+                                      sorted({d for d in page_of.values() if d})))
+    items = [a for a in every if page_of[a.id] in readable]
+    return AttributionListResponse(items=sorted(items, key=lambda a: a.created_at), withheld=len(every) - len(items))
 
 
 def hands_from_file(

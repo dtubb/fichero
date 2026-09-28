@@ -2424,6 +2424,8 @@ class DocumentListResponse(BaseModel):
 
     items: list[Document]
     count: int
+    #: Documents left out because this caller may not read them (#5180): counted, never silent.
+    withheld: int = 0
 
 
 class RelatedDocumentsResponse(BaseModel):

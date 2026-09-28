@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from fichero_server.api.auth import action_context
 from fichero_server.api.change_stream import emit_change
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import get_library_database, get_library_database_for_write, readable_rows
 from fichero_server.api.routes.ingest.iiif import build_document_annotation_page
 from fichero_server.db import Database
 from fichero_server.db.node_levels import NodeLevel, resolve_level
@@ -577,6 +577,7 @@ async def list_documents(
     ),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     db: Database = Depends(get_library_database),
+    readable=Depends(readable_rows),
 ) -> DocumentListResponse:
     """List documents with optional filters from the current library."""
     with perf_span(
@@ -636,7 +637,7 @@ async def list_documents(
             # positions survive a refresh and clients don't re-sort (#572).
             return _ordered_by_sort_order(rows)
 
-        docs = await asyncio.to_thread(_fetch)
+        docs, withheld = readable(await asyncio.to_thread(_fetch))
 
         if limit is not None:
             items = docs[offset : offset + limit]
@@ -646,7 +647,7 @@ async def list_documents(
         perf["matched_rows"] = len(docs)
         perf["returned_rows"] = len(items)
         perf["filters"] = ",".join(sorted(filters.keys())) or "none"
-        return DocumentListResponse(items=items, count=len(items))
+        return DocumentListResponse(items=items, count=len(items), withheld=withheld)
 
 
 @router.get("/collections")
@@ -704,6 +705,7 @@ async def list_roots(
         None, description="Optional server-side ordering; only 'document_date'."
     ),
     sort_direction: str = Query("asc", description="'asc' or 'desc'"),
+    readable=Depends(readable_rows),
 ) -> DocumentListResponse:
     """List root documents (no parent)."""
     # Both sides of this are load-bearing and neither replaces the other:
@@ -712,15 +714,16 @@ async def list_roots(
     # (#3355). Counts last because it mutates in place and preserves order,
     # so sorting after it would be the same list — but doing it in this order
     # says which step owns the ordering. Mirrors /{doc_id}/children.
-    items = _ordered_by_sort_order(_list_documents(db, parent_id=None))
+    items, withheld = readable(_ordered_by_sort_order(_list_documents(db, parent_id=None)))
     items = _apply_listing_sort(items, sort_by, sort_direction)
     items = _with_child_counts(db, items)
-    return DocumentListResponse(items=items, count=len(items))
+    return DocumentListResponse(items=items, count=len(items), withheld=withheld)
 
 
 @router.get("/workspaces")
 async def list_workspaces(
     db: Database = Depends(get_library_database),
+    readable=Depends(readable_rows),
 ) -> DocumentListResponse:
     """List document workspaces, excluding agent-session workspaces.
 
@@ -734,7 +737,8 @@ async def list_workspaces(
         if not isinstance(document.metadata, dict)
         or document.metadata.get("workspace_kind") != "agent"
     )
-    return DocumentListResponse(items=items, count=len(items))
+    items, withheld = readable(items)
+    return DocumentListResponse(items=items, count=len(items), withheld=withheld)
 
 
 @router.get("/trash")
@@ -744,11 +748,12 @@ async def list_deleted_documents(
         None, ge=1, description="Max results (no limit if not specified)"
     ),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
+    readable=Depends(readable_rows),
 ) -> DocumentListResponse:
     """List soft-deleted documents for the future Trash view."""
-    docs = _ordered_by_sort_order(_list_documents(db, only_deleted=True))
+    docs, withheld = readable(_ordered_by_sort_order(_list_documents(db, only_deleted=True)))
     items = docs[offset : offset + limit] if limit is not None else docs[offset:]
-    return DocumentListResponse(items=items, count=len(items))
+    return DocumentListResponse(items=items, count=len(items), withheld=withheld)
 
 
 @router.get("/{doc_id}")
@@ -1054,6 +1059,7 @@ async def get_children(
         ),
     ),
     db: Database = Depends(get_library_database),
+    readable=Depends(readable_rows),
 ) -> DocumentListResponse:
     """Get child documents.
 
@@ -1109,17 +1115,18 @@ async def get_children(
                 raise HTTPException(
                     status_code=404, detail=f"Document not found: {doc_id}"
                 )
+        children, withheld = readable(children)
         if limit is not None:
             children = children[:limit]
         perf["returned_rows"] = len(children)
         return DocumentListResponse(
-            items=_with_child_counts(db, children), count=len(children)
+            items=_with_child_counts(db, children), count=len(children), withheld=withheld
         )
 
 
 @router.get("/{doc_id}/ancestors")
 async def get_ancestors(
-    doc_id: str, db: Database = Depends(get_library_database)
+    doc_id: str, db: Database = Depends(get_library_database), readable=Depends(readable_rows),
 ) -> DocumentListResponse:
     """Get all ancestors (parent chain) of a document."""
     ancestors = []
@@ -1145,7 +1152,10 @@ async def get_ancestors(
         else:
             break
 
-    return DocumentListResponse(items=ancestors, count=len(ancestors))
+    # A folder this caller may not read is left out of the chain and counted (#5180) -- a grant on a
+    # page inside a denied folder does not hand over the folder.
+    ancestors, withheld = readable(ancestors)
+    return DocumentListResponse(items=ancestors, count=len(ancestors), withheld=withheld)
 
 
 class EffectiveAttributesResponse(BaseModel):

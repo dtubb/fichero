@@ -6069,7 +6069,7 @@
           "hands"
         ],
         "summary": "Everything In A Hand",
-        "description": "Everything in one hand, across every source (\"everything in hand B\").",
+        "description": "Everything in one hand, across every source (\"everything in hand B\") -- that this caller may\nread: a hand is library-level, its attributions are on pages, and one on a page this caller may\nnot read is left out and counted (#5180).",
         "operationId": "everything_in_a_hand_api_hands__hand_id__attributions_get",
         "parameters": [
           {
@@ -8492,7 +8492,7 @@
           "bookmarks"
         ],
         "summary": "Resolve Bookmark",
-        "description": "Resolve a bookmark node to its live target document.",
+        "description": "Resolve a bookmark node to its live target document -- which the caller must be able to read\nitself: the router checked the BOOKMARK, and a bookmark to a denied page must not hand the page\nover (#5180).",
         "operationId": "resolve_bookmark_api_bookmarks__bookmark_id__resolve_get",
         "parameters": [
           {
@@ -29086,6 +29086,48 @@
         }
       }
     },
+    "/api/citations/document/{document_id}.bib": {
+      "get": {
+        "tags": [
+          "citation-rendering"
+        ],
+        "summary": "Download a single document's BibTeX entry as text",
+        "operationId": "cite_document_bibtex_api_citations_document__document_id__bib_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/citations/document/{document_id}": {
       "get": {
         "tags": [
@@ -29129,48 +29171,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/fichero_server__api__routes__citation__rendering__CitationResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/citations/document/{document_id}.bib": {
-      "get": {
-        "tags": [
-          "citation-rendering"
-        ],
-        "summary": "Download a single document's BibTeX entry as text",
-        "operationId": "cite_document_bibtex_api_citations_document__document_id__bib_get",
-        "parameters": [
-          {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Document Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
                 }
               }
             }
@@ -42463,6 +42463,11 @@
             },
             "type": "array",
             "title": "Items"
+          },
+          "withheld": {
+            "type": "integer",
+            "title": "Withheld",
+            "default": 0
           }
         },
         "type": "object",
@@ -67086,6 +67091,11 @@
             "type": "object",
             "nullable": true,
             "title": "Script Meta"
+          },
+          "expected_counting_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Expected Counting Id"
           }
         },
         "additionalProperties": false,
@@ -71667,6 +71677,11 @@
           "total": {
             "type": "integer",
             "title": "Total"
+          },
+          "withheld": {
+            "type": "integer",
+            "title": "Withheld",
+            "default": 0
           }
         },
         "type": "object",
@@ -77847,6 +77862,11 @@
           "count": {
             "type": "integer",
             "title": "Count"
+          },
+          "withheld": {
+            "type": "integer",
+            "title": "Withheld",
+            "default": 0
           }
         },
         "type": "object",
