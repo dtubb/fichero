@@ -1179,7 +1179,14 @@ class Database(DatabaseEmbeddingMixin):
             InterpretiveFramework,
             PatternInstance,
         )
+        from fichero_server.db.migrations.runner import MigrationRunRecord
         from fichero_server.models.knowledge import (
+            AuthoritySnapshot,
+            EntityMergeAudit,
+            KnowledgeGraphInclusion,
+            KnowledgePredictionReview,
+            LibrarySetting,
+            NoteLink,
             Annotation,
             BookStructureNode,
             ClaimMergeAudit,
@@ -1235,6 +1242,7 @@ class Database(DatabaseEmbeddingMixin):
             SegmentPass,
             SegmentPassChoice,
             PageLineMap,
+            Rendition,
             SegmentVersion,
             Trace,
             Workflow,
@@ -1384,6 +1392,19 @@ class Database(DatabaseEmbeddingMixin):
             SpatialViewport,
             Trace,
             Workflow,
+            # #5178: tables that were created on FIRST SAVE instead of declared, found by
+            # archive's sweep and pinned by `test_every_used_model_is_declared.py`: an undeclared
+            # table bypasses the schema, migration, snapshot and export walkers. Declared, an
+            # existing library gains each on open. (`SourceSupport`, also listed, is not a row:
+            # it is embedded in an entity's `source_supports` and has no table to declare.)
+            AuthoritySnapshot,
+            EntityMergeAudit,
+            KnowledgeGraphInclusion,
+            KnowledgePredictionReview,
+            LibrarySetting,
+            MigrationRunRecord,
+            NoteLink,
+            Rendition,
         )
 
     def _materialize_schema(self) -> None:
@@ -4707,6 +4728,56 @@ class Database(DatabaseEmbeddingMixin):
             previous[0][0] if previous else None,
             following[0][0] if following else None,
         )
+
+    def segment_ids_with_box_index(self, pass_id: str) -> list[str]:
+        """The ids of one pass's segments that recorded their box in a machine artifact
+        (`metadata.box_index`) -- the rows whose provisional reading the page text needs.
+
+        One scan, ids only: the derivation (`_text_bearing_rows`, slice 12) must not hydrate a
+        20,000-shape pass to find the few hundred rows that can carry text. Here, not in the
+        route, per #1876."""
+        from fichero_server.models.segments import Segment
+
+        self._ensure_table(Segment)
+        rows = self.execute_fetchall(
+            f"SELECT id FROM {self._sql_table_name(Segment)} WHERE pass_id = $pass_id "
+            "AND json_extract(metadata, '$.box_index') IS NOT NULL",
+            {"pass_id": pass_id},
+        )
+        return [row[0] for row in rows]
+
+    def reading_order_entry_rows(self, order_id: str) -> list[tuple[str, str, str | None, float]]:
+        """Every entry of one reading order as `(entry_id, segment_id, parent_entry_id,
+        position)`, unhydrated: the as-written walk needs only these four columns, for every
+        entry of a dense page (#1876: SQL lives here, behind a typed method)."""
+        from fichero_server.models.reading_orders import ReadingOrderEntry
+
+        self._ensure_table(ReadingOrderEntry)
+        return [
+            (row[0], row[1], row[2], row[3])
+            for row in self.execute_fetchall(
+                f"SELECT id, segment_id, parent_entry_id, position FROM "
+                f"{self._sql_table_name(ReadingOrderEntry)} WHERE order_id = $order_id",
+                {"order_id": order_id},
+            )
+        ]
+
+    def live_readings_containing(self, text: str) -> list[tuple[str, str | None, str | None, str]]:
+        """Every live (unretracted) reading whose content contains `text`, as `(id, segment_id,
+        document_id, content)`, by one query ordered by document then id (a declared sign's
+        instances, `source.sign.gather-instances`)."""
+        from fichero_server.models import ContentRepresentation
+
+        self._ensure_table(ContentRepresentation)
+        return [
+            (row[0], row[1], row[2], row[3])
+            for row in self.execute_fetchall(
+                f"SELECT id, segment_id, document_id, content FROM "
+                f"{self._sql_table_name(ContentRepresentation)} "
+                "WHERE retracted_at IS NULL AND strpos(content, $text) > 0 ORDER BY document_id, id",
+                {"text": text},
+            )
+        ]
 
     def table_row_counts(self) -> dict[str, int]:
         """Every table in this library and its row count.

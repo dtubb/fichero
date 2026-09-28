@@ -307,6 +307,7 @@ def read_pages(data: bytes) -> list[SourcePage]:
         from lxml import etree
 
         header_xml = etree.tostring(header, encoding="unicode")
+    stated_makers = _responsibilities(header)
     text_el = next((c for c in root if _tag(c) == "text"), None)
 
     pages: list[dict[str, Any]] = []
@@ -554,6 +555,7 @@ def read_pages(data: bytes) -> list[SourcePage]:
     out: list[SourcePage] = []
     for index, raw_page in enumerate(pages):
         page = SourcePage()
+        page.producer = stated_makers
         page.signs = [dict(sign) for sign in declared_signs]
         pb = raw_page["pb"]
         surface: _Surface | None = None
@@ -643,6 +645,22 @@ def read_pages(data: bytes) -> list[SourcePage]:
             if "page" in page.foreign.get("tei", {}):
                 page.foreign["tei"]["page"] = f"{index + 1} of {len(out)}"
     return out
+
+
+def _responsibilities(header: Any) -> str | None:
+    """Who the FILE says made it (#5150): its `<respStmt>`s, `resp: name, name; resp: name`, in
+    the header's order -- the Digital Genji names three transcribers, an encoder and an advisor.
+    The file's claim, recorded as such."""
+    if header is None:
+        return None
+    by_resp: dict[str, list[str]] = {}
+    for stmt in header.iter(f"{{{TEI_NS}}}respStmt"):
+        resp = next((c for c in stmt if _tag(c) == "resp"), None)
+        role = " ".join("".join(resp.itertext()).split()) if resp is not None else ""
+        names = [" ".join("".join(n.itertext()).split()) for n in stmt if _tag(n) in ("name", "persName", "orgName")]
+        for name in (n for n in names if n):
+            by_resp.setdefault(role or "responsible", []).append(name)
+    return "; ".join(f"{role}: {', '.join(names)}" for role, names in by_resp.items()) or None
 
 
 def describe_page(page: SourcePage, number: int) -> str:

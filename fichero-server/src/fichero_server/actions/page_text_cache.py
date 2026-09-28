@@ -146,7 +146,9 @@ def _sha(text: str) -> str:
 
 def line_map(db: Any, derived: Any) -> list[dict[str, Any]]:
     """The derived text's spans folded to LINES: a word's span joins its line's, because a line is
-    what an order moves and what a caret on it names."""
+    what an order moves and what a caret on it names. No direction is stored here: the Reader
+    resolves each line's at render (`views._with_directions`), because a direction setting changes
+    no text and so would never refresh a stored one (#5171)."""
     from fichero_server.models import Segment
 
     if not derived.spans:
@@ -165,8 +167,14 @@ def line_map(db: Any, derived: Any) -> list[dict[str, Any]]:
                 line_id = parent.id
         if lines and lines[-1]["segment_id"] == line_id:
             lines[-1]["char_end"] = span.end
+            lines[-1]["representation_id"] = None   # read from its words: no ONE reading to correct
         else:
-            lines.append({"segment_id": line_id, "char_start": span.start, "char_end": span.end})
+            lines.append({
+                "segment_id": line_id, "char_start": span.start, "char_end": span.end,
+                # The counting reading the line's text came from (#5154): what a correction typed
+                # in the Reader corrects (`basedOn`). None when the text came from its words.
+                "representation_id": span.representation_id if span.segment_id == line_id else None,
+            })
     return lines
 
 
@@ -179,6 +187,63 @@ def cached_line_map(db: Any, document_id: str, text: str) -> list[dict[str, Any]
     if row is None:
         return None
     return row.lines if row.text_sha == _sha(text) else []
+
+
+#: `Document.metadata` key holding the `DERIVATION_VERSION` the stored `page_content` was derived
+#: under. Absent means "before stamping existed": as stale as any older number.
+DERIVATION_STAMP = "page_text_derivation"
+
+
+def _store(db: Any, doc: Any, text: str, now: Any) -> bool:
+    """Write the cache and stamp it with the derivation that produced it. True when the TEXT
+    changed (a page to re-embed); a stamp-only update is saved but is not a text change."""
+    from fichero_server.api.routes.document.segment_readings import DERIVATION_VERSION
+
+    metadata = dict(doc.metadata or {})
+    text_changed = text != (doc.page_content or "")
+    if not text_changed and metadata.get(DERIVATION_STAMP) == DERIVATION_VERSION:
+        return False
+    metadata[DERIVATION_STAMP] = DERIVATION_VERSION
+    doc.metadata = metadata
+    if text_changed:
+        doc.page_content = text
+        doc.updated_at = now
+    db.save(doc)
+    return text_changed
+
+
+def ensure_current(db: Any, document_ids: list[str]) -> list[str]:
+    """Re-derive, ONCE, any of these pages whose cached text predates the current derivation.
+
+    Called on read (the Reader's page, #5148 follow-up). A changed derivation used to leave every
+    page cached under the old one wrong until something else happened to touch it: the doubled
+    Chinese text stayed doubled in libraries imported before the fix. The stamp makes a cache say
+    which derivation wrote it; a read that finds an older one refreshes it, stamps it, and the
+    next read costs one dict lookup. Pages that are not a derived cache -- no working pass, or a
+    person's own edit of `page_content` -- are left alone. Returns the ids whose text changed."""
+    from fichero_server.api.routes.document.segment_readings import DERIVATION_VERSION, document_text
+    from fichero_server.core.timeutil import utc_now
+    from fichero_server.models import Document
+    from fichero_server.workflows.curation_guard import page_content_is_user_edited
+
+    changed: list[str] = []
+    for document_id in document_ids:
+        doc = db.get(Document, document_id)
+        if doc is None or (doc.metadata or {}).get(DERIVATION_STAMP) == DERIVATION_VERSION:
+            continue
+        if page_content_is_user_edited(doc) or _working_pass_id(db, document_id) is None:
+            continue
+        derived = document_text(db, document_id)
+        if derived.pass_id is None:
+            continue
+        text = cache_text(derived)
+        # The map is re-stored with the text: a stale stamp means a stale map too.
+        from fichero_server.models import PageLineMap
+
+        db.save(PageLineMap(id=document_id, text_sha=_sha(text), lines=line_map(db, derived)))
+        if _store(db, doc, text, utc_now()):
+            changed.append(document_id)
+    return changed
 
 
 def refresh_in_transaction(db: Any, spec: Any, action_name: str = "", params: Any = None) -> list[str]:
@@ -214,12 +279,8 @@ def refresh_in_transaction(db: Any, spec: Any, action_name: str = "", params: An
         text = cache_text(derived)
         # Stored even when the text is unchanged: two lines that read alike can swap places.
         db.save(PageLineMap(id=document_id, text_sha=_sha(text), lines=line_map(db, derived)))
-        if text == (doc.page_content or ""):
-            continue
-        doc.page_content = text
-        doc.updated_at = utc_now()
-        db.save(doc)
-        changed.append(document_id)
+        if _store(db, doc, text, utc_now()):
+            changed.append(document_id)
     return changed
 
 

@@ -174,3 +174,97 @@ Each defect below is one line: the call, what came back, and what was expected.
 15. `FicheroClient(library_path="")` is documented as "explicit no library", but
     `library_path or os.environ[...]` turns `""` back into the environment's path. Expected: the
     empty string honoured.
+
+## Re-run after the fixes (2026-09-27, evening)
+
+The same selection and scripts, from integration at `fbc059708`, into a FRESH library,
+`~/Fichero Test Library/Acceptance 2026-09-27b.fichero`. The first run's library was not
+touched: `_engine.py` now takes `ACCEPTANCE_LIBRARY` (a package name under the test-library
+folder), and `create_library.py` refuses an existing package rather than an existing folder.
+The steps run were create_library, import_corpus, readback, mcp_check, dump, export_check and
+`validate_exports.py` over the exports. speed.py was not run, because the machine's load stood
+at 40-140 and its timings would have been void.
+
+Every page that went in reads back exactly: **4,997 of 4,997 segment texts are exact**, every
+count matches at every level, and every one of the 1,072 stated baselines on those pages
+survives (the other 1,323 in the source files are on the Reichsanzeiger pages, which did not go
+in). Checked through each segment's `parent_segment_id` against plain lxml's parents, nesting is
+right for all 6,229 child segments, with none wrong. The 19 exports all validate
+(`validate_exports.py`: 19 exported, 0 invalid), and none writes an invented region.
+
+| # | Defect | Now | Evidence from the re-run | Fixed by |
+|---|---|---|---|---|
+| 1 | Folder import `completed` while its scans were refused | FIXED (reporting) | Reichsanzeiger: task `failed`, `error` names both scans (9448x6520, 9632x6648) and both PAGE files left out. Importing a 64 MP scan is still refused; downscaling or raising the cap is with the maintainer. | 447fe14b1 |
+| 2 | No pairing report in the task status | FIXED | status carries `imported_as_passes`, `not_imported`, `unpaired` | 447fe14b1 |
+| 3 | Genji TEI refused ("outside the page") | FIXED | the Genji folder drop pairs its pages with its scans: R0000022 gets page 1 (14 lines), R0000023 pages 2 and 3 (28 lines), each line anchored in its zone (left or right half). A later one-file import of the same file is a 409, because it is already there. | 8fb3c9ef1, e229e4aad, e3680c831, 1bf7fe4b3 |
+| 4 | YOLO class 2 stored as `word`, no class name | FIXED | `kind_raw` DropCapitalZone, MainZone, RunningTitleZone; `classes.txt` sent with the labels | d3a08c01f, 7428fc536 |
+| 5 | ALTO baselines dropped, on import and export | FIXED | 647 of 647 on the five ALTO page sets, kept and written back (`BASELINE` on every exported TextLine) | d3a08c01f |
+| 6 | ALTO TAGREFS types dropped | FIXED | `kind_raw` MainZone, DefaultLine, InterlinearLine, LatinLine, MarginTextZone | d3a08c01f |
+| 7 | Syriac and Hebrew blocks `ltr` | FIXED | Hebrew: every block `rtl`; Syriac: the text blocks `rtl`, the numbering zone (digits) `ltr` | 62c62fbbd |
+| 8 | Clm columns interleaved; Cherokee out of order | FIXED | 0 backward steps on Clm 38r and 41v; Cherokee 0 backward steps in 3,910 spans, 600 blocks for 600 lines (was 2,234 and 1,243) | 62c62fbbd, fdfdc8fae, 76953b774 |
+| 9 | Vertical Chinese lines scrambled | FIXED | 0 backward steps on both pages | 62c62fbbd |
+| 10 | PAGE export invents `implicit` regions | FIXED | Syriac 3, 2, 2, Chinese 3, 4, Albatross 438 regions written, as in the source; `implicit:true` appears 0 times | d3a08c01f |
+| 11 | Segment lists `text: null`, no parent | FIXED | every text-bearing segment has its text (a line whose text lives in its words, and a region, stay null); `parent_segment_id` on every segment | b16db7917 |
+| 12 | MCP cannot read text | FIXED | `fichero_segment_readings`, `fichero_document_text`, `fichero_reading_orders`, `fichero_reading_order_entries`, `fichero_segments_in_scope` | 7765cbf7c |
+| 13 | No source element id | FIXED | `metadata.source_id` on every segment whose element has an id; ALTO `String`s in these files carry none | d3a08c01f |
+| 14 | A library header creates the package | FIXED | `GET /api/health` naming a missing package answers `unhealthy` ("Library does not exist ..."); `GET /api/documents` answers 404; nothing on disk, parent folder included | 0d777f05a |
+| 15 | `FicheroClient(library_path="")` falls back to the env | FIXED | `library_path == ""` with `FICHERO_LIBRARY_PATH` set | 0d777f05a |
+
+**New, filed:** #5145. The Albatross page reads its text region first. The file's
+`<ReadingOrder>` names only that region, at index 2, and its two tables carry index 0 and 1 in
+`custom="readingOrder {index:n;}"`. That leaves one backward step in the page text, and the PAGE
+export writes its lines in that order. It is the only order problem left on these pages.
+
+**Not defects, noted:**
+* The vertical Chinese and Genji blocks report `ltr`. The files state no direction, and the
+  engine's ruling (`language_policy._MAYBE_VERTICAL_SCRIPTS`) resolves a script that *may* be
+  vertical to `ltr` rather than guessing.
+* Two of the harness's own checks are now out of date. `readback.py`'s nesting check maps words
+  to regions through the text route's blocks, and the blocks are now one per line, so it reports
+  0 for words. Nesting checked through `parent_segment_id` is 100% right. `import_corpus.py`'s
+  one-file TEI import after the folder drop gets a 409, because the folder drop now imports the
+  file itself. `dump.py` could not write into a fresh `ACCEPTANCE_OUT`; `save()` now makes the
+  folder.
+
+## Directions in the Reader (2026-09-27, night)
+
+The Reader now lays each page out in its own direction (2eba3a6dd, #5147 Reader half). An `rtl`
+page gets `dir="rtl"` and a `ttb` page gets `writing-mode: vertical-rl`. A run in the other
+horizontal direction becomes a `<span dir>` isolate, and the Unicode bidi algorithm orders the
+text inside a line. A line move and its ⌘Z patch the one page in place instead of reloading it
+(8e891c1ec, #5170).
+
+Each file below is a real page from the Fichero Test Corpus, copied into a temporary library and
+run through `format.import` with the scan size ingest records. The page's own `pageBodyMarkup` was
+cut from the served `/view/document/{id}` and run in node. "Map" is the set of directions in the
+served line map; "body" is the page element the Reader draws.
+
+| Case | File | Expected | Result |
+|---|---|---|---|
+| a. RTL page, Maghrebi Arabic | `BULAC_MS_ARA_417_0003.xml` | rtl | PASS: map {rtl}, body `dir="rtl"`, 13 lines |
+| a. RTL page, Urdu | `7219_1668198.xml` | rtl | PASS: map {rtl}, `dir="rtl"` |
+| a. RTL page, Ottoman Turkish | `2939_598100.xml` | rtl | PASS: map {rtl}, `dir="rtl"`, 20 lines |
+| b. Persian nastaliq with English on the page | `136_21220.xml` | rtl page; `Herbert LLoyd`, `Chunar` ltr isolates | PASS for the English lines. The digit-only line `1773` also resolves `ltr`: **FAIL, #5172** (it renders correctly, but it is reported as an English line) |
+| b. LTR inside an RTL line (Hebrew line with a Latin letter) | `btv1b10539358v.xml` | the line stays rtl; bidi orders the letter | PASS: map {rtl}, one text node, bidi orders the run |
+| c. Arabic with interlinear Persian (two hands, both RTL) | `1461_184094.xml` | rtl throughout | PASS: map {rtl} |
+| c. Syriac with a Latin folio number | `0001_00000016.xml` (Vienna Syr. 1) | rtl page; `1v` an ltr isolate | PASS: body `dir="rtl"`, one `<span dir="ltr">1v` |
+| c. Latin with Hebrew | none | ltr page, Hebrew rtl isolate | NOT RUN: the corpus has no Latin page with Hebrew on it (the Eutyches and Notre-Dame pages have none). The isolate path is covered by the Syriac case in reverse |
+| d. Aljamiado (Spanish in Arabic script) | `BNE_MSS5301_Hadiz-de-los-dos-amigos.pdf_page_1.xml` | rtl, decided by the letters | PASS: its 17 text lines are rtl. Its digit-only lines `2` and `1` are `ltr`: **#5172**. The `BNE_MSS:5302_Historias_*` pages have no text in the file (every `String` has an empty `CONTENT`), so they show nothing |
+| e. Chinese classical, vertical | `BULAC_BIULO_CHI_1087_1_0068.xml` | ttb from the line shapes, vertical-rl | PASS: map {ttb}, body `data-direction="ttb"` |
+| e. Genji, direction stated on the source | `kouigenji-01-kiritsubo.tei.xml` + `source_setting.set direction=ttb` | ttb | **FAIL, #5171**: `document_text` blocks are `ttb`, but the served line map stays `ltr`, because the setting does not refresh the page-text cache |
+| f. Mongolian, vertical-lr | none | vertical-lr | NOT RUN: the corpus has no Mongolian page. **Model gap, #5173**: `ttb` cannot say which way columns advance, so the Reader draws every `ttb` page `vertical-rl` and does not guess from the script |
+| g. Caret and ⌥⌘↑ in an RTL block | `BULAC_MS_ARA_417_0003.xml` | the caret's line is the one `lineMove` names; after a real move the caret is back on it | PASS: `segmentAtOffset` names the caret's line, `lineMoveMessage` returns `{segmentId, pageId, step: "up"}`, and `caretAfterMove` lands on the moved line in the new offsets |
+| g. Caret and ⌥⌘↑ in a vertical block | `BULAC_BIULO_CHI_1087_1_0068.xml` | same | PASS, same three checks; map {ttb} |
+
+The caret and move checks are logical offsets and do not depend on direction. The DOM step (the
+selection put back with `selection.collapse`) was not run in a browser here. Nothing in the
+engine or in node exercises it, so it needs one look in the app.
+
+**Fixed after the run:** #5171 in a156fd9fd (the Reader resolves each line's direction at render, so the Genji
+set to `ttb` is columns at once), and #5172 in b01e0eb47 and e7b608a01 (a line with no letters takes its block's direction, else its
+page's, and the Reader's map says which: the Persian `1773` is `rtl` from its block, the Aljamiado `2`
+and `1` and the Vienna Syriac `2` are `rtl` from the page; `1v` and the English notes stay `ltr`).
+
+In the repo, `test_reader_directions.py` pins the rtl page, the Syriac folio isolate, the page of
+columns and the caret after a move (rtl and vertical) on the vendored fixture pages. All six tests
+fail on the code before 2eba3a6dd and 8e891c1ec.

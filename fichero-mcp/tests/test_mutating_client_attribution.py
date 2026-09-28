@@ -36,7 +36,11 @@ def test_mutating_client_falls_back_to_owner_only_when_no_agent_session():
         assert server._mutating_client() is owner
 
 
-def test_both_client_builders_tag_the_mcp_surface():
+def test_both_client_builders_tag_the_mcp_surface(isolated_mcp_env, monkeypatch):
+    # A plain-http base URL: this test is about the surface TAG, and must not depend on an
+    # engine happening to listen on the default TLS port (building a TLS client dials it
+    # for its certificate).
+    monkeypatch.setitem(server._CONFIG, "base_url", "http://127.0.0.1:9")
     owner = server._client()
     try:
         assert owner.client_name == "fichero-mcp", (

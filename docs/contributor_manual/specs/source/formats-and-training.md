@@ -202,6 +202,10 @@ Rules for every format
   does NOT become the working pass** (arriving is not winning — promoting it would answer a
   scholarly question with a file operation) and that a pre-existing pass's segments are identical
   afterwards.
+  **Provenance (#5150, 2026-09-28):** the pass, its segments and readings are `external_import`,
+  never `human`; `actor` is who brought the file and `provider` what the FILE says made it (PAGE
+  Creator / Comments Producer / TranskribusMetadata, ALTO processingSoftware, TEI respStmt); it
+  ranks in the imported tier (`fichero-server/tests/unit/api/test_an_import_is_the_files.py`).
 - `source.format.reimport-recognised` — **[OK]** (→ #4943) importing the same file again is recognised, not
   duplicated silently — by the mechanism the spec names, the content hash on
   `SegmentPass.import_checksum`, and **no second dedupe table**. Pinned by

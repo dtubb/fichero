@@ -1,0 +1,286 @@
+"""A georeferencing pass's transformation and its worked-out transform (#5122, slice 15 B).
+
+* `georef.set_transformation` -- the pass's transformation type, one audited, undoable action;
+  a type the pass has too few GCPs for is refused with the number it needs
+  (`source.geo.transformation-type`).
+* `GET /api/georeference/passes/{pass_id}/transform` -- the transform WORKED OUT from the pass's
+  GCPs and type, never stored (`source.geo.transform-is-derived`), with every GCP's residual in
+  metres and pixels (`source.geo.residuals`) and the GCP-set version a caller may cache it by.
+
+A GCP is usable when it is live and its counted `world-point` reading has a place in WGS 84; one
+held as `unknown` (a CRS not converted yet) is listed in `not_used`, never guessed.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from typing import Any, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, ConfigDict
+
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero_server.api.auth import action_context
+from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.db import Database
+from fichero_server.models import ContentRepresentation, Document, Segment
+from fichero_server.models.geo import (
+    MIN_GCPS,
+    TRANSFORMATIONS,
+    WORLD_POINT,
+    TooFewControlPoints,
+    UnknownTransformation,
+    WorkedOutTransform,
+    inside_polygon,
+    residuals,
+    world_points,
+)
+from fichero_server.models.segments import SegmentPass
+from fichero_server.models.typed_links import TypedLink
+
+router = APIRouter(prefix="/georeference")
+
+GCP_KIND = "control-point"
+MASK_KIND = "mask"
+
+
+def _live_pass(db: Database, pass_id: str) -> SegmentPass:
+    row = db.get(SegmentPass, pass_id)
+    if row is None or row.deleted_at is not None:
+        raise LookupError(f"Pass not found: {pass_id}")
+    return row
+
+
+def control_points(
+    db: Database, pass_row: SegmentPass, mask_id: str | None = None
+) -> tuple[list[tuple[str, tuple[float, float], tuple[float, float]]], list[dict[str, str]], str]:
+    """(usable GCPs as (segment id, pixel, (lon, lat)), those left out and why, GCP-set version).
+
+    With a `mask_id`, only the GCPs that `control` that mask (a sheet with two maps has two)."""
+    from fichero_server.api.routes.document.segment_readings import counting_by_kind, readings_of_segment
+
+    document = db.get(Document, pass_row.document_id)
+    metadata = (document.metadata if document is not None else None) or {}
+    width, height = metadata.get("width"), metadata.get("height")
+    if not (isinstance(width, (int, float)) and isinstance(height, (int, float)) and width > 0 and height > 0):
+        raise ValueError("the page's pixel size is not recorded, so a GCP's pixel end cannot be measured")
+    gcps = [s for s in db.query(Segment, pass_id=pass_row.id) if s.kind == GCP_KIND and s.deleted_at is None]
+    if mask_id is not None:
+        controlling = {l.from_id for l in db.query(TypedLink, to_id=mask_id)
+                       if l.link_type == "controls" and l.deleted_at is None}
+        gcps = [g for g in gcps if g.id in controlling]
+    usable, not_used, fingerprint = [], [], []
+    for gcp in sorted(gcps, key=lambda s: s.id):
+        items = readings_of_segment(db, gcp.id)
+        counted = counting_by_kind(db, gcp.id, items).get(WORLD_POINT)
+        reading = db.get(ContentRepresentation, counted.representation_id) if counted and counted.representation_id else None
+        fingerprint.append(f"{gcp.id}:{gcp.version}:{reading.id if reading else '-'}")
+        if reading is None:
+            not_used.append({"segment_id": gcp.id, "reason": "no world position counts for it"})
+            continue
+        world = json.loads(reading.content)
+        if world.get("lon") is None or world.get("lat") is None:
+            not_used.append({"segment_id": gcp.id, "reason": f"its place is held as {world.get('crs')}: {world.get('conversion')}"})
+            continue
+        shapes = gcp.anchor.shapes or []
+        point = next((sh.points[0] for sh in shapes if str(getattr(sh.kind, "value", sh.kind)) == "point" and sh.points), None)
+        if point is None:
+            not_used.append({"segment_id": gcp.id, "reason": "it has no point on the image"})
+            continue
+        usable.append((gcp.id, (point[0] * width, point[1] * height), (world["lon"], world["lat"])))
+    version = hashlib.sha256(f"{pass_row.transformation}|{mask_id}|{'|'.join(fingerprint)}".encode()).hexdigest()[:16]
+    return usable, not_used, version
+
+
+def _masks(db: Database, pass_row: SegmentPass) -> list[str]:
+    return [s.id for s in db.query(Segment, pass_id=pass_row.id) if s.kind == MASK_KIND and s.deleted_at is None]
+
+
+class TransformationSetParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    pass_id: str
+    #: One of `models.geo.TRANSFORMATIONS`. None only as an undo's way back to a pass that had
+    #: none.
+    transformation: Optional[str]
+
+
+def _invert_set_transformation(before, after, ctx: ActionContext):
+    if not before:
+        return None
+    return ("georef.set_transformation", {"pass_id": before["pass_id"], "transformation": before["transformation"]})
+
+
+@action(
+    "georef.set_transformation",
+    TransformationSetParams,
+    domains=["georeference"],
+    undoable=True,
+    invert=_invert_set_transformation,
+)
+def _action_set_transformation(db: Database, params: TransformationSetParams, ctx: ActionContext):
+    """Choose a georeferencing pass's transformation type (`source.geo.transformation-type`)."""
+    pass_row = _live_pass(db, params.pass_id)
+    if params.transformation is not None:
+        if params.transformation not in TRANSFORMATIONS:
+            raise UnknownTransformation(f"{params.transformation!r} is not one of {', '.join(TRANSFORMATIONS)}")
+        # Every map on the sheet must be fittable: each mask's GCPs, or the pass's when it has none.
+        for mask_id in _masks(db, pass_row) or [None]:
+            usable, _not_used, _version = control_points(db, pass_row, mask_id)
+            if len(usable) < MIN_GCPS[params.transformation]:
+                raise TooFewControlPoints(params.transformation, len(usable))
+    before = {"pass_id": pass_row.id, "transformation": pass_row.transformation}
+    pass_row.transformation = params.transformation
+    db.save(pass_row)
+    return (
+        {"pass_id": pass_row.id, "transformation": pass_row.transformation},
+        ChangeSpec(
+            domains=["georeference"], target_ids=[pass_row.id], before=before,
+            after={"pass_id": pass_row.id, "transformation": pass_row.transformation},
+            emit_type="segment.pass_updated", pass_ids=[pass_row.id], document_ids=[pass_row.document_id],
+        ),
+    )
+
+
+def worked_out_transform(db: Database, pass_id: str, mask_id: str | None = None) -> WorkedOutTransform:
+    pass_row = _live_pass(db, pass_id)
+    if not pass_row.transformation:
+        raise ValueError(f"pass {pass_id} georeferences nothing: it has no transformation")
+    masks = _masks(db, pass_row)
+    if mask_id is None and len(masks) > 1:
+        raise ValueError(f"this sheet has {len(masks)} maps; name one (mask_id): {', '.join(masks)}")
+    mask_id = mask_id or (masks[0] if masks else None)
+    usable, not_used, version = control_points(db, pass_row, mask_id)
+    rows, rms_m, rms_px = residuals(pass_row.transformation, usable) if usable else ([], 0.0, 0.0)
+    return WorkedOutTransform(
+        pass_id=pass_row.id, mask_id=mask_id, transformation=pass_row.transformation,
+        gcp_set_version=version, gcps=rows, rms_m=rms_m, rms_px=rms_px, not_used=not_used,
+    )
+
+
+def _http(exc: Exception) -> HTTPException:
+    if isinstance(exc, LookupError):
+        return HTTPException(404, str(exc))
+    return HTTPException(422, str(exc))
+
+
+class TransformationBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    transformation: str
+
+
+@router.put("/passes/{pass_id}/transformation", response_model=dict)
+async def set_transformation(
+    pass_id: str,
+    body: TransformationBody,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> dict[str, Any]:
+    """`PUT /api/georeference/passes/{pass_id}/transformation` -- choose the type; 422 with the
+    number of GCPs it needs when the pass has too few."""
+    try:
+        result = registry.invoke(db, "georef.set_transformation",
+                                 {"pass_id": pass_id, "transformation": body.transformation}, ctx)
+    except (LookupError, ValueError) as exc:
+        raise _http(exc) from exc
+    return {**result.result, "audit_id": result.audit_id}
+
+
+@router.get("/passes/{pass_id}/transform", response_model=WorkedOutTransform)
+async def get_transform(
+    pass_id: str,
+    mask_id: Optional[str] = Query(None, description="Which map on the sheet, when it has several"),
+    db: Database = Depends(get_library_database),
+) -> WorkedOutTransform:
+    """`GET /api/georeference/passes/{pass_id}/transform` -- worked out now, with residuals."""
+    try:
+        return worked_out_transform(db, pass_id, mask_id)
+    except (LookupError, ValueError) as exc:
+        raise _http(exc) from exc
+
+
+class WorldShape(BaseModel):
+    """A segment's place in the world, WORKED OUT through a georeferencing pass and never stored
+    as the segment's truth (`source.geo.world-shape`). `outside_the_map` instead of a shape when
+    any of it lies outside the map's mask (`source.geo.outside-the-mask`): never extrapolated."""
+
+    segment_id: str
+    pass_id: str
+    mask_id: str | None = None
+    transformation: str
+    gcp_set_version: str
+    crs: str = "EPSG:4326"
+    #: RFC 7946 geometry, lon/lat, or None when outside the map.
+    geometry: dict[str, Any] | None = None
+    #: The fit's RMS residual on the ground: how far off the answer may be.
+    error_m: float
+    outside_the_map: bool = False
+    reason: str | None = None
+
+
+def _segment_shape(segment: Segment) -> tuple[str, list[list[float]]]:
+    """(GeoJSON type, normalised points) for a segment's own shape."""
+    anchor = segment.anchor
+    for shape in anchor.shapes or []:
+        kind = str(getattr(shape.kind, "value", shape.kind))
+        if kind == "point" and shape.points:
+            return "Point", [shape.points[0]]
+        if kind == "path" and shape.points:
+            return "LineString", shape.points
+        if kind in ("polygon", "rect") and shape.points:
+            return "Polygon", shape.points
+    if anchor.polygon:
+        return "Polygon", anchor.polygon
+    if anchor.rect:
+        x, y, w, h = anchor.rect
+        return "Polygon", [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]
+    raise ValueError(f"segment {segment.id} has no shape on the image")
+
+
+def world_shape(db: Database, segment_id: str, pass_id: str | None = None) -> WorldShape:
+    segment = db.get(Segment, segment_id)
+    if segment is None or segment.deleted_at is not None:
+        raise LookupError(f"Segment not found: {segment_id}")
+    if pass_id is None:
+        georef = [p for p in db.query(SegmentPass, document_id=segment.document_id)
+                  if p.transformation and p.deleted_at is None]
+        if not georef:
+            raise ValueError("this image is not georeferenced: no pass on it has a transformation")
+        if len(georef) > 1:
+            raise ValueError(f"{len(georef)} georeferencing passes on this image; name one (pass_id): "
+                             + ", ".join(p.id for p in georef))
+        pass_id = georef[0].id
+    pass_row = _live_pass(db, pass_id)
+    if pass_row.document_id != segment.document_id:
+        raise ValueError(f"pass {pass_id} georeferences another image")
+    kind, points = _segment_shape(segment)
+    masks = [db.get(Segment, m) for m in _masks(db, pass_row)]
+    containing = [m for m in masks if m is not None and m.anchor.polygon
+                  and all(inside_polygon((x, y), m.anchor.polygon) for x, y in points)]
+    transform = worked_out_transform(db, pass_row.id, containing[0].id if containing else (masks[0].id if len(masks) == 1 else None))
+    common = {"segment_id": segment.id, "pass_id": pass_row.id, "transformation": transform.transformation,
+              "gcp_set_version": transform.gcp_set_version, "error_m": transform.rms_m}
+    if masks and not containing:
+        return WorldShape(**common, mask_id=None, outside_the_map=True,
+                          reason="the segment is not wholly inside any of this sheet's maps (masks)")
+    document = db.get(Document, segment.document_id)
+    width, height = document.metadata["width"], document.metadata["height"]
+    usable, _not_used, _version = control_points(db, pass_row, transform.mask_id)
+    lonlat = [list(p) for p in world_points(transform.transformation, usable, [(x * width, y * height) for x, y in points])]
+    coordinates: Any = lonlat[0] if kind == "Point" else lonlat if kind == "LineString" else [lonlat + [lonlat[0]]]
+    return WorldShape(**common, mask_id=transform.mask_id, geometry={"type": kind, "coordinates": coordinates})
+
+
+@router.get("/segments/{segment_id}/world-shape", response_model=WorldShape)
+async def get_world_shape(
+    segment_id: str,
+    pass_id: Optional[str] = Query(None, description="The georeferencing pass, when the image has several"),
+    db: Database = Depends(get_library_database),
+) -> WorldShape:
+    """`GET /api/georeference/segments/{segment_id}/world-shape` -- worked out now."""
+    try:
+        return world_shape(db, segment_id, pass_id)
+    except (LookupError, ValueError) as exc:
+        raise _http(exc) from exc

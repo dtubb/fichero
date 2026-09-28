@@ -105,6 +105,30 @@ def legacy_segment_id(artifact_id: str, box_index: int) -> str:
     return f"{LEGACY_ID_PREFIX}{artifact_id}:{box_index}"
 
 
+class TableCellPlace(BaseModel):
+    """A table cell's place (#5168, `source.segment.table-cells`): 1 for a span not stated."""
+
+    row: int
+    column: int
+    row_span: int = 1
+    column_span: int = 1
+
+
+#: Where a format reader KEPT a cell's place (`foreign`): PAGE's `TableCell` attributes. Read-only:
+#: the model still has no cell fields (the spec owes them), so this reads what the file said.
+_CELL_KEYS = {"row": "pagexml:row", "column": "pagexml:col", "row_span": "pagexml:rowSpan", "column_span": "pagexml:colSpan"}
+
+
+def table_cell_place(metadata: dict[str, Any] | None) -> TableCellPlace | None:
+    """The cell's place from what its file said, or None when it states no row and column."""
+    foreign = (metadata or {}).get("foreign") or {}
+    try:
+        values = {name: int(foreign[key]) for name, key in _CELL_KEYS.items() if foreign.get(key) is not None}
+    except (TypeError, ValueError):
+        return None
+    return TableCellPlace(**values) if "row" in values and "column" in values else None
+
+
 class SegmentRead(BaseModel):
     """One segment, read either from today's blob or (later) a real row.
 
@@ -171,6 +195,9 @@ class SegmentRead(BaseModel):
     #: STORE, so it must stay clean): raw pixel values from a tool
     #: (``raw_polygon_px``, ``raw_baseline_px``, ``raw_pixel_frame``), and
     #: ``geometry_problem`` when the anchor could not hold this box's shape.
+    #: A table cell's row, column and spans, one shape whatever the file (#5168); None when the
+    #: segment is not a cell. Read from what the file said -- see `table_cell_place`.
+    cell: TableCellPlace | None = None
     metadata: dict[str, Any] = {}
     #: The row's version (#5152): what an edit sends back as `expected_version`, so an edit made
     #: against a copy somebody else has since changed is REFUSED (`source.edit.stale-is-refused`)
@@ -210,6 +237,8 @@ class PassRead(BaseModel):
     import_checksum: str | None = None
     import_format: str | None = None
     has_original: bool = False
+    #: A georeferencing pass's transformation type (#5122); None for any other pass.
+    transformation: str | None = None
     #: Whether this is the page's WORKING pass -- the one its text and edits come from -- and why
     #: (#5156; `PassBasis`: "chosen" when a person chose it, else the rule that picked it). The app
     #: shows it, draws a CHOSEN working pass first, and offers the choice. Only the working pass has a
@@ -563,6 +592,11 @@ class SegmentPass(BaseModel):
     #: Where the file's own bytes are kept, relative to the library package (`files/...`), exactly
     #: as imported (#5149): the pass is a reading OF that file, and the file is the evidence.
     import_original: str | None = None
+    #: A georeferencing pass's transformation type (#5122, `source.geo.transformation-type`): one
+    #: of `models.geo.TRANSFORMATIONS`, `polynomial-1` (affine) by default; None for a pass that
+    #: georeferences nothing. The transform itself is WORKED OUT from the pass's GCPs and this,
+    #: never stored as the truth. A typed column: existing libraries gain it on open (reconcile).
+    transformation: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
     #: Soft delete -- a pass is never removed (`segment.pass_delete`'s
     #: inverse, `segment.pass_restore`, clears this).
@@ -881,6 +915,7 @@ def segment_read_from_row(
             else None
         ),
         metadata=dict(row.metadata),
+        cell=table_cell_place(row.metadata),
         version=row.version,
     )
 
@@ -1384,6 +1419,7 @@ def pass_read_from_row(
         import_checksum=row.import_checksum,
         import_format=row.import_format,
         has_original=row.import_original is not None,
+        transformation=row.transformation,
         # Readings of their own arrive in slice 8; until then a converted
         # pass's text is the block's own (`source_block`).
         text=(source_block.text or None) if source_block is not None else None,

@@ -399,5 +399,6 @@
   "POST /api/hands": "slice 14 hands (#4952): the ENGINE undo exists (audited, undoable create/withdraw/restore, attribute/unattribute); no Swift caller registers it yet because the hands UI waits for its wireframes",
   "POST /api/hands/attributions": "slice 14 hands (#4952): the ENGINE undo exists (audited, undoable create/withdraw/restore, attribute/unattribute); no Swift caller registers it yet because the hands UI waits for its wireframes",
   "POST /api/hands/attributions/{attribution_id}/withdraw": "slice 14 hands (#4952): the ENGINE undo exists (audited, undoable create/withdraw/restore, attribute/unattribute); no Swift caller registers it yet because the hands UI waits for its wireframes",
-  "POST /api/hands/{hand_id}/withdraw": "slice 14 hands (#4952): the ENGINE undo exists (audited, undoable create/withdraw/restore, attribute/unattribute); no Swift caller registers it yet because the hands UI waits for its wireframes"
+  "POST /api/hands/{hand_id}/withdraw": "slice 14 hands (#4952): the ENGINE undo exists (audited, undoable create/withdraw/restore, attribute/unattribute); no Swift caller registers it yet because the hands UI waits for its wireframes",
+  "PUT /api/georeference/passes/{pass_id}/transformation": "slice 15 maps (#5122): the ENGINE undo exists (georef.set_transformation is audited and undoes to the previous type); no Swift caller registers it until the map screens"
 }

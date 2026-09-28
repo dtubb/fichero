@@ -79,6 +79,9 @@ SOURCE_LINK_TYPES: tuple[tuple[str, str, str], ...] = (
     ("same_as", "Same as", "Same as"),
     ("names", "Names", "Is named by"),
     ("interprets", "Interprets", "Is interpreted by"),
+    # A ground control point controls the mask it georeferences (#5122): a sheet with two maps has
+    # two masks, each with its own GCPs, tied by this link rather than by being drawn inside it.
+    ("controls", "Controls", "Is controlled by"),
 )
 
 #: The words the four existing records use that the KG does NOT have. `follows`,

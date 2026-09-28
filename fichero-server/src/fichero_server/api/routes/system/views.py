@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse
 from fichero_server.api.main import get_library_database
 from fichero_server.db import Database
 from fichero_server.models.knowledge import Annotation, KnowledgeClaim, KnowledgeEntity
-from fichero_server.models import Artifact, DocType, Document
+from fichero_server.models import Artifact, DocType, Document, Segment
 
 router = APIRouter(prefix="/view", tags=["views"])
 
@@ -614,16 +614,58 @@ def page_line_map(db: Database, page_id: str, content: str) -> list[dict[str, ob
     Read from the page-text cache, which stores the map with the text from ONE derivation, so a
     render derives nothing (a derivation of a dense page is 0.5-1 s).
     """
-    from fichero_server.actions.page_text_cache import cached_line_map, line_map
-    from fichero_server.api.routes.document.segment_readings import document_text
+    from fichero_server.actions.page_text_cache import cached_line_map
 
-    cached = cached_line_map(db, page_id, content)
-    if cached is not None:
-        return cached
-    # ponytail: a page cached before maps were stored derives once per render until its next
-    # refresh; a one-time fill at library open is the upgrade if that is ever measured to matter.
-    derived = document_text(db, page_id)
-    return line_map(db, derived) if derived.text == content else []
+    # No stored map means the page is not a derived cache (no working pass, or a person's own
+    # edit): `ensure_current` ran before this and stores the map with every text it refreshes.
+    # Deriving here would rewrite what is not this derivation's to rewrite (test_derivation_version).
+    lines = cached_line_map(db, page_id, content) or []
+    return _with_directions(db, page_id, content, lines)
+
+
+def _with_directions(
+    db: Database, page_id: str, content: str, lines: list[dict[str, object]]
+) -> list[dict[str, object]]:
+    """Each mapped line's direction, resolved NOW (#5147 Reader half, #5171).
+
+    Resolved at render, not stored with the map: a direction is a setting as much as a fact of
+    the text, and a person setting a page to `ttb` changes no text, so nothing would refresh a
+    stored copy -- the Genji stayed in rows after `source_setting.set direction=ttb`. The same
+    `_direction_of` the derivation uses, on the line's own row and text and the page's line
+    shapes: two queries per page, no readings read."""
+    if not lines:
+        return lines
+    from fichero_server.api.routes.document.segment_readings import (
+        _direction_of,
+        _has_no_direction_of_its_own,
+        _lines_are_vertical,
+        settle_neutral_directions,
+    )
+
+    rows = {row.id: row for row in db.query_in(Segment, "id", [str(line["segment_id"]) for line in lines])}
+    page = db.get(Document, page_id)
+    pass_ids = {row.pass_id for row in rows.values()}
+    shapes = [row for row in db.query_in(Segment, "pass_id", sorted(pass_ids)) if row.deleted_at is None]
+    vertical = _lines_are_vertical(shapes, page)
+    directions: list[str | None] = []
+    neutral: list[bool] = []
+    blocks: list[str | None] = []
+    for line in lines:
+        row = rows.get(str(line["segment_id"]))
+        text = content[int(line["char_start"]):int(line["char_end"])]
+        direction, level = _direction_of(row, page, text, vertical) if row is not None else (None, None)
+        directions.append(direction)
+        neutral.append(row is not None and _has_no_direction_of_its_own(text, level))
+        blocks.append(row.parent_segment_id if row is not None else None)
+    sizes = [int(line["char_end"]) - int(line["char_start"]) for line in lines]
+    settled, inherited = settle_neutral_directions(directions, neutral, blocks, sizes)
+    return [
+        {**line, "direction": direction,
+         # Said, not left to look like the line's own answer (#5172): the line has no letters.
+         **({"direction_basis": f"inherited from the {where}: no letters, only digits or marks"}
+            if where else {})}
+        for line, direction, where in zip(lines, settled, inherited)
+    ]
 
 
 #: How the reader should obtain the document's flat transcript. A closed set,
@@ -794,6 +836,15 @@ async def document_view(
     if selected_page_ids is not None:
         child_pages = [p for p in child_pages if p.id in selected_page_ids]
     region_scoped = any(p.region_in_parent is not None for p in child_pages)
+    # A page cached under an older derivation is re-derived once, here, before it is shown
+    # (`page_text_cache.ensure_current`): the Reader is where a stale text is seen.
+    from fichero_server.actions.page_text_cache import ensure_current
+
+    refreshed = set(ensure_current(db, [document.id, *(p.id for p in child_pages)]))
+    if refreshed:
+        if document.id in refreshed:
+            document = db.get(Document, document.id) or document
+        child_pages = [db.get(Document, p.id) or p if p.id in refreshed else p for p in child_pages]
     pages = transcript_pages(document, child_pages)
     annotations_payload: list[dict[str, object]] | None = None
     compare_payload: dict[str, object] | None = None

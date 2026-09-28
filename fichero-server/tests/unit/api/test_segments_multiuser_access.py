@@ -363,6 +363,9 @@ _READ_ROUTE_CHECKS: dict[tuple[str, str], object] = {
 #: from "forgotten".
 _READ_ONLY_ROUTES = {
     ("GET", "/segments/document/{doc_id}"),
+    # A page's matches (#5165): read-only, and checked the same way -- `doc_id` in the path is the
+    # read dependency's target (`authz.target_id_from_request`).
+    ("GET", "/segments/document/{doc_id}/matches"),
     # The scoped listing takes MANY documents, so it does not refuse -- it withholds the ones
     # the caller may not read and counts them (#5135). Its checks are
     # `TestTheScopedListingWithholdsWhatTheCallerMayNotRead` below, not the 403 table.

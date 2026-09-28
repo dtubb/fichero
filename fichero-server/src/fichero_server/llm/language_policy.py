@@ -39,7 +39,10 @@ substitution rule).
 
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any, Literal
 
 # Resolution statuses. RESOLVED carries a concrete language; UNKNOWN means the
@@ -447,6 +450,46 @@ def _stated_fact(
     return None
 
 
+#: Unicode character names whose first word is not their script's ISO 15924 English name.
+_SCRIPT_NAME_ALIASES = {"cjk": "Hani", "canadian": "Cans"}
+
+
+@lru_cache(maxsize=1)
+def _script_codes_by_first_word() -> dict[str, str]:
+    """`{first word of a script's English name, lowercased: ISO 15924 code}`, from the ISO 15924
+    list the PAGE schema already ships (`pagexml._schema_vocabularies`), never a hand copy. Where
+    several codes share a first word (`Syrc - Syriac`, `Syre - Syriac (Estrangelo variant)`), the
+    plain one -- the name that IS the word -- wins."""
+    from fichero_server.formats.pagexml import _schema_vocabularies
+
+    table: dict[str, str] = {}
+    for code, value in sorted(_schema_vocabularies()[1].items()):
+        name = value.split(" - ", 1)[-1].strip()
+        word = re.split(r"[\s,(]", name, maxsplit=1)[0].lower()
+        if word and (word not in table or name.lower() == word):
+            table[word] = code
+    return {**table, **_SCRIPT_NAME_ALIASES}
+
+
+def script_of_text(text: str | None) -> str | None:
+    """The ISO 15924 code most of the text's LETTERS are written in, or None (#5176).
+
+    A Unicode letter's name starts with its script ("SYRIAC LETTER ALAPH", "LATIN SMALL LETTER
+    A", "CJK UNIFIED IDEOGRAPH-4E00"), which is the stdlib's only view of the Script property.
+    Evidence about the text, not a statement about the source: the rung that uses it says so."""
+    import unicodedata
+
+    counts: dict[str, int] = {}
+    table = _script_codes_by_first_word()
+    for ch in text or "":
+        if not ch.isalpha():
+            continue
+        code = table.get(unicodedata.name(ch, "").split(" ", 1)[0].lower())
+        if code:
+            counts[code] = counts.get(code, 0) + 1
+    return max(counts, key=lambda code: counts[code]) if counts else None
+
+
 def resolve_script(
     *,
     requested: str | None = None,
@@ -454,8 +497,13 @@ def resolve_script(
     segment: Any = None,
     document: Any = None,
     project: Any = None,
+    text: str | None = None,
 ) -> LanguageResolution:
     """Which script a thing is written in, and which rung said so (#4938).
+
+    With nothing stated at any rung and `text` given, the text's own LETTERS answer (#5176):
+    `source=detected`, basis "from the letters of its text". A Syriac line said "not
+    determined" while its reading was Syriac.
 
     A SIMPLER cascade than language's, deliberately, and not a copy of it:
     there is no script policy to consult and no script detector to run, so the
@@ -500,6 +548,15 @@ def resolve_script(
         if stated is not None:
             return stated
 
+    from_letters = script_of_text(text)
+    if from_letters:
+        return LanguageResolution(
+            language=from_letters,
+            status=RESOLVED,
+            source=SOURCE_DETECTED,
+            basis=f"from the letters of its text: most are {from_letters}",
+            level=None,
+        )
     return LanguageResolution(
         language=None,
         status=UNKNOWN,
@@ -549,8 +606,15 @@ def resolve_language(
     text: str = "",
     policy: LanguagePolicy | None = None,
     detect: bool = True,
+    script: str | None = None,
 ) -> LanguageResolution:
     """Resolve the language to use for one document, or one segment of one.
+
+    `script` (#5176): the script the text's letters are in, when the caller knows it. Where the
+    legacy path would fall back to English, a text whose script is known is answered "not
+    determined" and names the script instead -- a Syriac line is never a confident English.
+    A language is never GUESSED from a script: Syriac script is Syriac, Aramaic, Arabic
+    (Garshuni) or Malayalam (Suriyani Malayalam).
 
     Precedence, highest first:
 
@@ -668,6 +732,13 @@ def resolve_language(
                 source=SOURCE_DETECTED,
                 basis="detected from the text (no language policy is set)",
             )
+        if script:
+            return LanguageResolution(
+                language=None,
+                status=UNKNOWN,
+                source=NEVER_DETERMINED,
+                basis=f"not determined: nothing states a language and none was detected; its letters are {script}",
+            )
         return LanguageResolution(
             language="English",
             status=RESOLVED,
@@ -783,6 +854,46 @@ def script_may_be_vertical(script: str | None) -> bool:
     return bool(script) and script in _MAYBE_VERTICAL_SCRIPTS
 
 
+#: Unicode name prefixes of the letters of the scripts in `_MAYBE_VERTICAL_SCRIPTS`.
+_MAYBE_VERTICAL_LETTER_NAMES = (
+    "CJK UNIFIED IDEOGRAPH", "CJK COMPATIBILITY IDEOGRAPH", "HIRAGANA", "KATAKANA",
+    "HANGUL", "MONGOLIAN", "PHAGS-PA",
+)
+
+
+def text_may_be_vertical(text: str | None) -> bool:
+    """Whether most of the text's letters belong to a script that may be written vertically.
+
+    For a reading with no script recorded: the letters are the only evidence of the script."""
+    import unicodedata
+
+    letters = [ch for ch in (text or "") if ch.isalpha()]
+    if not letters:
+        return False
+    vertical = sum(
+        1 for ch in letters if unicodedata.name(ch, "").startswith(_MAYBE_VERTICAL_LETTER_NAMES)
+    )
+    return vertical * 2 > len(letters)
+
+
+#: A line is a COLUMN when it is at least this many times taller than wide, in pixels.
+COLUMN_RATIO = 2.0
+
+
+def lines_are_columns(boxes: list[tuple[float, float]]) -> bool | None:
+    """Whether a page's lines, as `(width, height)` in pixels, are columns (#5147).
+
+    None when there is too little to say (fewer than two lines with a shape of their own). True
+    when more than half are at least `COLUMN_RATIO` times taller than wide: a vertical page's
+    lines are narrow columns, and a horizontal page's lines are wide rows, so the vote is rarely
+    close. A line with no shape of its own (placed only by its page's zone) is not a vote."""
+    measured = [(w, h) for w, h in boxes if w > 0 and h > 0]
+    if len(measured) < 2:
+        return None
+    columns = sum(1 for w, h in measured if h >= COLUMN_RATIO * w)
+    return columns * 2 > len(measured)
+
+
 def direction_is_known(direction: str | None) -> bool:
     """Whether a value is one of the six directions."""
     return direction in DIRECTIONS
@@ -837,8 +948,12 @@ def resolve_direction(
     project: Any = None,
     script: str | None = None,
     text: str | None = None,
+    lines_are_vertical: bool | None = None,
 ) -> LanguageResolution:
     """Which direction a thing is written in, and which rung said so (#4938).
+
+    `lines_are_vertical` is the page's own geometry (`lines_are_columns`): with nothing stated
+    and a script that may be vertical, columns mean `ttb` (#5147).
 
     With no script recorded either, `text` -- the reading itself -- decides, by the Unicode
     Bidirectional Algorithm's own paragraph rule (P2: the first strongly directional character).
@@ -886,16 +1001,41 @@ def resolve_direction(
         if stated is not None:
             return stated
 
+    script_from_letters = False
     if script is None:
         resolved_script = resolve_script(
-            reading=reading, segment=segment, document=document, project=project
+            reading=reading, segment=segment, document=document, project=project, text=text
         )
         script = resolved_script.language
+        # A script READ FROM THE LETTERS (#5176) is the letters' evidence, not a statement: the
+        # letters' own bidi class still decides the direction below, exactly as before it was
+        # named, so this changes the basis a caller sees and not the answer.
+        script_from_letters = resolved_script.source == SOURCE_DETECTED
 
-    from_text = None if script else first_strong_direction(text)
+    if lines_are_vertical and (
+        script_may_be_vertical(script) or (script is None and text_may_be_vertical(text))
+    ):
+        # A script that MAY be vertical resolves `ltr` because "may be" is not a direction
+        # (see `_MAYBE_VERTICAL_SCRIPTS`). But a page whose lines are columns -- far taller than
+        # wide -- has answered the question itself (#5147: the BULAC Chinese pages came out
+        # horizontal). The shape is evidence about THIS page, so it decides; anything stated
+        # anywhere still wins above, and the basis says where the answer came from.
+        return LanguageResolution(
+            language=DIRECTION_TTB,
+            status=RESOLVED,
+            source=SOURCE_DERIVED_FROM_SCRIPT,
+            basis="from the shape of the lines: this page's lines are columns, taller than wide",
+            level=None,
+        )
+
+    from_text = first_strong_direction(text) if (script is None or script_from_letters) else None
     if from_text is not None:
         derived = from_text
-        basis = "no script is recorded, so the text's first strongly directional character decides (Unicode bidi P2)"
+        basis = (
+            f"from the letters of its text ({script}): the first strongly directional character decides (Unicode bidi P2)"
+            if script else
+            "no script is recorded, so the text's first strongly directional character decides (Unicode bidi P2)"
+        )
     else:
         derived = DIRECTION_RTL if script in _RTL_SCRIPTS else DIRECTION_LTR
         basis = (

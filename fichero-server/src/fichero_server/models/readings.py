@@ -65,6 +65,9 @@ BUILTIN_READING_KINDS: tuple[tuple[str, str], ...] = (
     ("as_read_aloud", "As read aloud"),
     ("description", "Description"),
     ("coordinate", "Coordinate"),
+    # A place on the earth (#5122): a ground control point's world end, stored in WGS 84 with the
+    # CRS it arrived in (`models/geo.py`). Its content is checked on write.
+    ("world-point", "World point"),
     ("music", "Music"),
     ("drawing", "Drawing"),
 )
@@ -301,6 +304,10 @@ class CountingBasis(str, Enum):
     chosen = "chosen"
     #: Nobody chose; this is the newest reading a person made.
     newest_human = "newest-human"
+    #: Nobody chose; a person CORRECTED another reading and this is the correction (#5175). It
+    #: outranks the reading it corrects, and a correction of it outranks it in turn -- the
+    #: person's judgement over that reading. Independent readings stay equal alternatives.
+    correction = "correction"
     #: Nobody chose; this is the newest reading and a machine made it. In a
     #: strict project it is SHOWN, LABELLED, and is not the record.
     newest_machine_unchosen = "newest-machine-unchosen"
@@ -332,6 +339,8 @@ class ReadingCandidate(BaseModel):
     retracted: bool = False
     #: True for a `legacy-reading:` candidate read out of an artifact.
     provisional: bool = False
+    #: The reading this one explicitly corrects (#5175), if any.
+    corrects_representation_id: str | None = None
 
     @property
     def by_a_person(self) -> bool:
@@ -412,6 +421,29 @@ def resolve_counting(
                 labelled_machine=not chosen.by_a_person,
             )
 
+    # A PERSON'S correction retires the reading it corrects (#5175). Without this a person
+    # correcting an imported line made the file's reading and theirs equal alternatives, and in a
+    # strict project nothing counted: the line's text vanished. A chain retires every link but the
+    # last; a withdrawn correction (retracted, ⌘Z) retires nothing, so the corrected reading is
+    # back. A machine's "correction" retires nothing: a machine's reading is never the record
+    # over a reading it disagrees with.
+    corrected = {
+        row.corrects_representation_id for row in usable
+        if row.by_a_person and row.corrects_representation_id in by_id
+    }
+    if corrected:
+        usable = [row for row in usable if row.representation_id not in corrected]
+        answer = _uncorrected_answer(project_rule, usable)
+        counted = by_id.get(answer.representation_id or "")
+        if counted is not None and counted.by_a_person and counted.corrects_representation_id in by_id:
+            answer = answer.model_copy(update={"basis": CountingBasis.correction})
+        return answer
+    return _uncorrected_answer(project_rule, usable)
+
+
+def _uncorrected_answer(project_rule: ProjectRecordRule, usable: list[ReadingCandidate]) -> CountingAnswer:
+    """`resolve_counting`'s rules 2 and 3, over readings no person has corrected."""
+
     people = _newest_first([row for row in usable if row.by_a_person])
     machines = _newest_first([row for row in usable if not row.by_a_person])
 
@@ -461,6 +493,10 @@ class PassBasis(str, Enum):
     #: it. THE 2026-09-03 CASE: this is what stops a newer machine run hiding
     #: a region somebody drew by hand.
     human_touched = "human-touched"
+    #: Nobody chose and nobody touched a pass; this one was imported from a file (PAGE, ALTO,
+    #: TEI, hOCR, YOLO) -- the #5146 ladder's second tier, above anything a machine ran here
+    #: (#5150). Before, an import was stamped `human` and ranked as hand-curated.
+    imported = "imported"
     #: Nobody chose and nobody has touched any pass; this one came from the
     #: file's own text layer, which is at least the author's own words.
     text_layer = "text-layer"
@@ -518,7 +554,8 @@ def resolve_working_pass(
     out in the engine means the app's ranking can read this answer and delete
     its own copy, so the two can no longer disagree about which pass is shown.
 
-    The order: a live human choice; then a pass a person made or touched; then
+    The order: a live human choice; then a pass a person made or touched; then a pass
+    imported from a file (#5150); then
     a pass from the file's own text layer; then the newest.
 
     The project rule does NOT withhold a pass -- the Reader has to show
@@ -547,6 +584,10 @@ def resolve_working_pass(
     touched = [row for row in passes_with_makers if row.touched_by_a_person]
     if touched:
         return PassAnswer(pass_id=newest(touched).pass_id, basis=PassBasis.human_touched)
+
+    imported = [row for row in passes_with_makers if row.provenance_kind is ProvenanceKind.external_import]
+    if imported:
+        return PassAnswer(pass_id=newest(imported).pass_id, basis=PassBasis.imported)
 
     text_layer = [row for row in passes_with_makers if row.from_text_layer]
     if text_layer:

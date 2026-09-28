@@ -245,6 +245,11 @@ Readings
   run) and any guideline it follows.
 - `source.reading.corrections-are-new` — **[OK]** (#4934; pinned by `tests/unit/api/test_segment_readings.py::TestReadingsAreWritten::test_a_correction_names_its_target_and_leaves_its_text_alone`) a correction is a new reading that names what it
   corrects.
+  **And it counts (#5175, 2026-09-28):** a person's correction outranks the reading it names, basis
+  `correction`; a chain leaves its last link; ⌘Z brings the corrected reading back; a choice still
+  wins; independent readings stay equal alternatives
+  (`fichero-server/tests/unit/api/test_a_correction_counts.py::test_a_correction_of_a_persons_reading_does_not_blank_the_line`
+  and five more).
 - `source.reading.equal-alternatives` — **[OK]** (#4934; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestStrictProject::test_three_peoples_readings_coexist_and_nothing_counts_until_one_is_chosen`) several readings of one kind can stand as equally
   valid, apart from a machine's ranked guesses.
 - `source.reading.chosen-is-worked-out` — **[OK]** (#4934; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestALiveHumanChoiceWinsInAnyProject::test_a_superseded_choice_is_history_not_a_vote`) "which reading counts" is worked out from recorded

@@ -47,6 +47,7 @@ from fichero_server.llm.language_policy import (
     DIRECTION_ALTERNATING,
     DIRECTION_FOLLOWS_BASELINE,
     STATUS_UNKNOWN,
+    first_strong_direction,
     resolve_direction,
 )
 from fichero_server.models import Artifact, ContentRepresentation, Document
@@ -361,14 +362,7 @@ def _text_bearing_rows(
     ids = {rep_row.segment_id for rep_row in readings if rep_row.segment_id}
     pass_row = db.get(SegmentPass, pass_id)
     if pass_row is not None and pass_row.source_artifact_id:
-        table = db._sql_table_name(Segment)
-        ids.update(
-            row[0] for row in db.execute_fetchall(
-                f"SELECT id FROM {table} WHERE pass_id = $pass_id "
-                "AND json_extract(metadata, '$.box_index') IS NOT NULL",
-                {"pass_id": pass_id},
-            )
-        )
+        ids.update(db.segment_ids_with_box_index(pass_id))
     if not ids:
         return []
     return [row for row in db.query_in(Segment, "id", sorted(ids)) if row.pass_id == pass_id]
@@ -462,6 +456,7 @@ def _candidate(item: ReadingRead) -> ReadingCandidate:
         created_at=item.created_at,
         retracted=item.retracted,
         provisional=item.provisional,
+        corrects_representation_id=item.corrects_representation_id,
     )
 
 
@@ -696,18 +691,12 @@ def _as_written_sequence(db: Database, pass_id: str) -> dict[str, int] | None:
     by position (a block, then its lines, then their words), or None when the pass has no such
     order. One query for the order's entries, read as four columns, not hydrated rows."""
     from fichero_server.api.routes.document.reading_orders import as_written_order
-    from fichero_server.models.reading_orders import ReadingOrderEntry
 
     order = as_written_order(db, pass_id)
     if order is None:
         return None
-    table = db._sql_table_name(ReadingOrderEntry)
-    db._ensure_table(ReadingOrderEntry)
     children: dict[str | None, list[tuple[float, str, str]]] = {}
-    for entry_id, segment_id, parent_id, position in db.execute_fetchall(
-        f"SELECT id, segment_id, parent_entry_id, position FROM {table} WHERE order_id = $order_id",
-        {"order_id": order.id},
-    ):
+    for entry_id, segment_id, parent_id, position in db.reading_order_entry_rows(order.id):
         children.setdefault(parent_id, []).append((position, entry_id, segment_id))
     sequence: dict[str, int] = {}
     pending: list[tuple[float, str, str]] = sorted(children.get(None, []), reverse=True)
@@ -780,11 +769,111 @@ def _why_omitted(
     return OmittedSegment(segment_id=segment_id, reason="unknown")
 
 
-def _direction_of(row: Segment, document: Any, text: str | None) -> tuple[str | None, str | None]:
+#: WHICH DERIVATION wrote a cached page text (`page_text_cache.DERIVATION_STAMP`). Bump it in the
+#: same commit as any change to what `document_text` produces, and re-pin the digest below.
+#:
+#: Why a number and not "the cache is refreshed when something changes": #5148 changed the
+#: derivation (a region's own text stopped doubling its lines), and every page cached before the
+#: fix kept the doubled text, because nothing on those pages changed. A changed derivation under
+#: an unchanged stamp is exactly that bug; a bumped stamp makes the next read re-derive the page,
+#: once. 1: before stamping. 2: text once (#5148) and direction from line shapes (#5147).
+#: 3: the stored line map carried each line's direction (#5147); since #5171 the Reader resolves
+#: it at render, and the map stores none again -- 3 stays, a bump is never undone.
+#: 4: a line with no direction of its own (digits) takes its neighbours' (#5172).
+#: 5: the stored line map carries each line's counting reading, `representation_id` (#5154).
+#: 6: a line with no letters takes its BLOCK's direction, else its page's (#5172, as ruled).
+#: 7: a person's correction outranks the reading it corrects (#5175).
+DERIVATION_VERSION = 7
+#: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
+#: change to the code without a bump fails `test_derivation_version.py`.
+DERIVATION_SOURCE_SHA256 = "cb942546b66e6dd0b869cbffb8f127dda7e63d2f46e1d824c1f8765b6adc31d4"
+
+
+def derivation_source_digest() -> str:
+    """sha256 over the source of the functions that decide a page's derived text."""
+    import hashlib
+    import inspect
+
+    functions = (
+        document_text, _text_bearing_rows, _readings_for_live_rows, _document_readings,
+        _segment_order_key, _direction_of, _lines_are_vertical,
+        _has_no_direction_of_its_own, settle_neutral_directions,
+    )
+    return hashlib.sha256("\n".join(inspect.getsource(f) for f in functions).encode()).hexdigest()
+
+
+def _direction_of(
+    row: Segment, document: Any, text: str | None, lines_are_vertical: bool | None = None
+) -> tuple[str | None, str | None]:
     """A span's direction and the rung that said so. With nothing stated anywhere, the text's own
-    characters decide (#5137: Syriac and Hebrew lines came out `ltr`)."""
-    resolved = resolve_direction(segment=row, document=document, text=text)
+    characters decide (#5137: Syriac and Hebrew lines came out `ltr`), and for a script that may
+    be vertical, the page's line shapes (#5147)."""
+    resolved = resolve_direction(
+        segment=row, document=document, text=text, lines_are_vertical=lines_are_vertical
+    )
     return (resolved.language if resolved.status != STATUS_UNKNOWN else None), resolved.level
+
+
+def _has_no_direction_of_its_own(text: str | None, level: str | None) -> bool:
+    """A text nothing stated a direction for and that has no strongly directional character: a
+    folio number, a year, a line of punctuation (#5172). The cascade can only ASSUME `ltr` for it."""
+    return level is None and bool((text or "").strip()) and first_strong_direction(text) is None
+
+
+def settle_neutral_directions(
+    directions: list[str | None],
+    neutral: list[bool],
+    blocks: list[str | None],
+    sizes: list[int],
+) -> tuple[list[str | None], list[str | None]]:
+    """Each neutral line takes its BLOCK's direction, else its PAGE's (#5172, ruled 2026-09-28):
+    the direction most of the other lines' characters have, in its region, else on the page.
+    `1773` heads a Persian block (under three English notes and nine Persian lines) and is
+    `rtl`; `2` alone in a numbering zone on a Syriac folio takes the page's `rtl`. Digits have no
+    direction of their own (Unicode bidi: EN/AN are weak); the text around them has one. Returns
+    the directions and, per line, where an inherited one came from ("block" / "page") or None.
+    Shared by the derivation and the Reader's render, so the two cannot disagree."""
+
+    def dominant(indexes: list[int]) -> str | None:
+        weight: dict[str, int] = {}
+        for i in indexes:
+            if not neutral[i] and directions[i]:
+                weight[directions[i]] = weight.get(directions[i], 0) + sizes[i]
+        return max(weight, key=lambda d: weight[d]) if weight else None
+
+    everything = list(range(len(directions)))
+    page = dominant(everything)
+    out, basis = list(directions), [None] * len(directions)
+    for index in everything:
+        if not neutral[index]:
+            continue
+        block = dominant([i for i in everything if blocks[i] == blocks[index]]) if blocks[index] else None
+        chosen, where = (block, "block") if block else (page, "page")
+        if chosen:
+            out[index], basis[index] = chosen, where
+    return out, basis
+
+
+def _lines_are_vertical(rows: list[Segment], document: Any) -> bool | None:
+    """Whether this page's lines are columns (`lines_are_columns`), measured in the page's pixels
+    when its size is known. Lines with no shape of their own -- `shape: unstated`, or placed only
+    by their page's TEI zone -- are not measured: their box is not the line's."""
+    from fichero_server.formats.tei import PAGE_ZONE
+    from fichero_server.llm.language_policy import lines_are_columns
+
+    metadata = getattr(document, "metadata", None) or {}
+    width = metadata.get("width") if isinstance(metadata.get("width"), (int, float)) else 1
+    height = metadata.get("height") if isinstance(metadata.get("height"), (int, float)) else 1
+    boxes: list[tuple[float, float]] = []
+    for row in rows:
+        if row.kind != "line" or row.anchor is None or not row.anchor.rect:
+            continue
+        meta = row.metadata or {}
+        if meta.get("shape") == "unstated" or (meta.get("foreign") or {}).get(PAGE_ZONE):
+            continue
+        _x, _y, w, h = row.anchor.rect
+        boxes.append((w * width, h * height))
+    return lines_are_columns(boxes)
 
 
 def document_text(
@@ -916,17 +1005,30 @@ def document_text(
     # carries, IN ORDER -- the same order `blocks` groups by; built alongside `spans`
     # rather than re-walked from them, so the two can never read the page differently.
     span_directions: list[tuple[str | None, str | None, str | None, DerivedTextSpan]] = []
+    span_neutral: list[bool] = []   # #5172: a span with no direction of its own
     cursor = 0
     page_readings = _readings_for_live_rows(
         db, rows, document_id, artifact_memo, readings=document_readings
     )
+    # EACH CHARACTER ONCE (#5148). PAGE XML carries text at every level: a region's own
+    # TextEquiv is usually its lines joined. Reading both put the page's text on the page twice
+    # -- line by line, then again as one paragraph (the Chinese table of contents). A row whose
+    # children carry text of this kind is a rival reading of those children, not more of the
+    # page: the finest level that has text is the page's text, and the coarser reading stays a
+    # reading of its own segment (readings route, export), just not a second copy here.
+    carrying = {row.id for row in rows if any(item.kind == kind for item in page_readings[row.id])}
+    read_through_children = {
+        row.parent_segment_id for row in rows if row.id in carrying and row.parent_segment_id
+    }
+    # Once per page: are its lines columns? Only asked of a text whose script may be vertical.
+    vertical = _lines_are_vertical(rows, document)
     record_rule = project_record_rule(db)
     choices_by_segment: dict[str, list[ReadingChoice]] = {}
     for choice in db.query_in(ReadingChoice, "segment_id", [row.id for row in rows]):
         choices_by_segment.setdefault(choice.segment_id, []).append(choice)
     for row in rows:
         items = [item for item in page_readings[row.id] if item.kind == kind]
-        if not items:
+        if not items or row.id in read_through_children:
             continue
         counted = counting_by_kind(
             db, row.id, items, rule=record_rule, choices=choices_by_segment.get(row.id, []),
@@ -938,14 +1040,15 @@ def document_text(
             span = DerivedTextSpan(
                 segment_id=row.id, representation_id=None, start=cursor, end=cursor
             )
-            direction, direction_level = _direction_of(row, document, None)
+            direction, direction_level = _direction_of(row, document, None, vertical)
             spans.append(span)
             span_directions.append((row.parent_segment_id, direction, direction_level, span))
+            span_neutral.append(False)
             continue
         text = next(
             item.content for item in items if item.id == counted.representation_id
         )
-        direction, direction_level = _direction_of(row, document, text)
+        direction, direction_level = _direction_of(row, document, text, vertical)
         start = cursor
         pieces.append(text)
         cursor += len(text)
@@ -957,10 +1060,16 @@ def document_text(
         )
         spans.append(span)
         span_directions.append((row.parent_segment_id, direction, direction_level, span))
+        span_neutral.append(_has_no_direction_of_its_own(text, direction_level))
         cursor += 1  # the separator below
 
     joined = " ".join(pieces)
 
+    settled, _basis = settle_neutral_directions(
+        [d for _r, d, _l, _s in span_directions], span_neutral,
+        [r for r, _d, _l, _s in span_directions], [sp.end - sp.start for _r, _d, _l, sp in span_directions],
+    )
+    span_directions = [(r, d, l, sp) for (r, _d, l, sp), d in zip(span_directions, settled)]
     blocks: list[TextBlock] = []
     for region_id, direction, direction_level, span in span_directions:
         non_orientable = direction in _NON_ORIENTABLE

@@ -1434,6 +1434,44 @@
         "response_model": "Document"
       }
     ],
+    "campaigns": [
+      {
+        "method": "GET",
+        "path": "/campaigns/document/{document_id}",
+        "operation_id": "campaigns_of_document_api_campaigns_document__document_id__get",
+        "summary": "Campaigns Of Document",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "CampaignListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/campaigns/reading/{representation_id}",
+        "operation_id": "campaigns_of_reading_api_campaigns_reading__representation_id__get",
+        "summary": "Campaigns Of Reading",
+        "path_params": [
+          "representation_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ReadingCampaignsResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/campaigns/segment/{segment_id}",
+        "operation_id": "campaign_of_segment_api_campaigns_segment__segment_id__get",
+        "summary": "Campaign Of Segment",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SegmentCampaignResponse"
+      }
+    ],
     "canvas": [
       {
         "method": "POST",
@@ -3287,6 +3325,20 @@
         "response_model": "DocumentRollupResponse"
       }
     ],
+    "editorial": [
+      {
+        "method": "GET",
+        "path": "/editorial/segment/{segment_id}",
+        "operation_id": "facts_of_segment_api_editorial_segment__segment_id__get",
+        "summary": "Facts Of Segment",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EditorialListResponse"
+      }
+    ],
     "entities": [
       {
         "method": "GET",
@@ -3779,6 +3831,56 @@
         "query_params": [],
         "request_model": null,
         "response_model": "FormatListResponse"
+      }
+    ],
+    "georeference": [
+      {
+        "method": "GET",
+        "path": "/georeference/passes/{pass_id}/transform",
+        "operation_id": "get_transform_api_georeference_passes__pass_id__transform_get",
+        "summary": "Get Transform",
+        "path_params": [
+          "pass_id"
+        ],
+        "query_params": [
+          {
+            "name": "mask_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "WorkedOutTransform"
+      },
+      {
+        "method": "PUT",
+        "path": "/georeference/passes/{pass_id}/transformation",
+        "operation_id": "set_transformation_api_georeference_passes__pass_id__transformation_put",
+        "summary": "Set Transformation",
+        "path_params": [
+          "pass_id"
+        ],
+        "query_params": [],
+        "request_model": "TransformationBody",
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/georeference/segments/{segment_id}/world-shape",
+        "operation_id": "get_world_shape_api_georeference_segments__segment_id__world_shape_get",
+        "summary": "Get World Shape",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [
+          {
+            "name": "pass_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "WorldShape"
       }
     ],
     "hands": [
@@ -5961,6 +6063,72 @@
         "query_params": [],
         "request_model": null,
         "response_model": "RecomputeResponse"
+      }
+    ],
+    "letterforms": [
+      {
+        "method": "GET",
+        "path": "/letterforms",
+        "operation_id": "gather_api_letterforms_get",
+        "summary": "Gather",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "allograph_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "character",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "hand_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "DescriptionListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/letterforms/allographs",
+        "operation_id": "list_allographs_api_letterforms_allographs_get",
+        "summary": "List Allographs",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "character",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "AllographListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/letterforms/features",
+        "operation_id": "features_in_use_api_letterforms_features_get",
+        "summary": "Features In Use",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "FeatureListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/letterforms/segment/{segment_id}",
+        "operation_id": "description_of_segment_api_letterforms_segment__segment_id__get",
+        "summary": "Description Of Segment",
+        "path_params": [
+          "segment_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "DescriptionListResponse"
       }
     ],
     "libraries": [
@@ -9007,6 +9175,24 @@
       },
       {
         "method": "GET",
+        "path": "/segments/document/{doc_id}/matches",
+        "operation_id": "list_document_matches_api_segments_document__doc_id__matches_get",
+        "summary": "List Document Matches",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [
+          {
+            "name": "state",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "SegmentMatchListResponse"
+      },
+      {
+        "method": "GET",
         "path": "/segments/document/{document_id}/text",
         "operation_id": "get_document_text_api_segments_document__document_id__text_get",
         "summary": "Get Document Text",
@@ -9103,6 +9289,18 @@
         "query_params": [],
         "request_model": null,
         "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/segments/passes/{pass_id}/original",
+        "operation_id": "get_pass_original_api_segments_passes__pass_id__original_get",
+        "summary": "Get Pass Original",
+        "path_params": [
+          "pass_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PassOriginalResponse"
       },
       {
         "method": "POST",

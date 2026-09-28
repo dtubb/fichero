@@ -14,12 +14,10 @@ Findings, per behaviour, reported alongside these tests:
   per-block direction, so "one block for each region and direction" is not built. Pinned as what
   IS true today; the packaging gap is not invented here.
 * `source.textedit.return-splits-the-line` -- PARTIAL. `segment.split` takes an independent
-  `reading_span` (text offset) and `anchor` (geometry) per part -- proven below -- but nothing
-  computes one from the other. A caret index into a reading, mapped to a geometric cut point
-  along a baseline (word-aligned when word children exist, proportional and marked estimated
-  otherwise, direction-aware for RTL/boustrophedon), does not exist anywhere in the tree. Not
-  invented here: the "estimated" proportional algorithm is a design decision, not a gap to fill
-  freehand.
+  `reading_span` (text offset) and `anchor` (geometry) per part -- proven below. Since #5154
+  (ruled 2026-09-28: the honest first version) `at_offset` alone cuts the box in proportion to
+  the characters, along the line's direction (ltr, rtl, ttb), marked `cut: estimated`. A
+  word-aligned cut when word children exist, and boustrophedon, are still not built.
 * `source.textedit.stale-keeps-your-words` -- GAP, confirmed absent. `Segment` writes all
   compare-and-set against `expected_version` (`SegmentStale`); `representation.create` -- the
   action a text edit actually calls -- takes no such field and has no conflict machinery at all,
@@ -126,10 +124,9 @@ class TestReaderShowsSegmentsUsesTheWorkingPassAndNamedOrder:
 
 
 class TestReturnSplitsTheLineSegmentSplitPrimitive:
-    """What IS built: `segment.split` takes an independent geometric `anchor` and an independent
-    text `reading_span` per part -- the primitive the spec's Return handler would call. NOT built,
-    and not invented here: computing one from a caret offset (word-aligned or proportional,
-    direction-aware)."""
+    """`segment.split` takes an independent geometric `anchor` and an independent text
+    `reading_span` per part; since #5154 it also takes `at_offset` alone and cuts the box in
+    proportion along the line's direction, marked estimated. A word-aligned cut is still not built."""
 
     def test_a_split_takes_an_independent_anchor_and_reading_span_per_part(self, db, client):
         page, art, row = _converted(db, client)
@@ -151,26 +148,23 @@ class TestReturnSplitsTheLineSegmentSplitPrimitive:
         assert len(result["new_segment_ids"]) == 1
         assert result["kept_id"] == row.id
 
-    def test_no_caret_to_geometry_mapping_exists_in_the_tree(self):
-        """Confirms absence rather than assuming it: grepped for the shapes the spec's fallback
-        names (word-aligned cut, proportional-along-baseline estimate) and found none. This is
-        the one piece of `return-splits-the-line` that is genuinely unbuilt, not merely unwired.
-
-        CORRECTED 2026-09-27: `parents[4]` from this file is the WORKTREE ROOT, one level above
-        `fichero-server` -- `server_src` resolved to a directory that does not exist, so
-        `rglob` silently walked nothing and `hits == []` passed VACUOUSLY, proving nothing. Fixed
-        to `parents[3]`, verified by asserting the directory the search walks actually exists."""
+    def test_the_one_offset_to_geometry_mapping_is_the_estimated_cut(self):
+        """Was `test_no_caret_to_geometry_mapping_exists_in_the_tree` (confirmed absent, 2026-09-27).
+        #5154 built the spec's fallback: `segment.split(at_offset=)` cuts the box in proportion to
+        the characters along the line's direction, marked `cut: estimated`
+        (`test_return_splits_the_line.py`). This pins that there is ONE such mapping, so a second,
+        disagreeing one is noticed. The search root is asserted to exist (the 2026-09-27 vacuous
+        pass: a wrong `parents[n]` walked nothing)."""
         import re
         from pathlib import Path
 
         server_src = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
         assert server_src.is_dir(), f"search root does not exist, would search nothing: {server_src}"
-        hits = []
-        for path in scan_rglob(server_src, "*.py"):
-            text = path.read_text(errors="ignore")
-            if re.search(r"proportion.*baseline|baseline.*proportion|caret.*offset|offset.*caret", text, re.I):
-                hits.append(str(path))
-        assert hits == [], f"a caret-to-geometry mapping may already exist: {hits}"
+        hits = sorted(
+            path.name for path in scan_rglob(server_src, "*.py")
+            if re.search(r"^def estimated_cut\(|proportion.*baseline|baseline.*proportion", path.read_text(errors="ignore"), re.M)
+        )
+        assert hits == ["segments.py"], hits
 
 
 class TestStaleKeepsYourWordsHasNoCompareAndSetOnAReadingWrite:
