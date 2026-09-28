@@ -508,8 +508,17 @@ Formats
   georef context and uses `pixelCoords`. That is true of the file, and it is why the reader is
   tolerant and the writer strict
   (`::TestReadingTheEarlierDialect::test_the_published_checker_rejects_it_for_the_stated_reasons`).
-- `source.geo.gcp-tables` — **[GAP]** (#4946) GCPs go in and out as a QGIS `.points` file and a
+- `source.geo.gcp-tables` — **[PARTIAL]** (#4946) GCPs go in and out as a QGIS `.points` file and a
   Mapwarper GCP CSV with the CRS carried or declared.
+  **QGIS `.points` built 2026-09-28 (#5122, maps C4):** format `qgis-points` reads and writes the
+  QGIS georeferencer's file; imported, its GCPs' pixel ends are placed by the page's recorded size
+  (the file has none; with none recorded the import is refused by name), and the world ends keep
+  the file's `#CRS` -- none stated is held `unknown`, a projected CRS is held until PROJ ships; a
+  person's correction declaring the CRS makes them usable; the export writes a WGS 84 `#CRS` and
+  the file's own numbers back (`fichero-server/tests/unit/api/test_gcp_tables_qgis_points.py`, two
+  real files from the Allmaps CLI's tests, MIT). **Mapwarper GCP CSV: not built** -- no real
+  export with a licence was found (mapwarper.net states none for its data; NYPL's warper is
+  retired), and a format is built on a real file or not at all.
 - `source.geo.world-file-geotiff` — **[GAP]** (#4946) an affine pass exports as a world file with
   its `.prj`, and any pass as a GeoTIFF of the unwarped image with GCP tie points and the CRS.
 - `source.geo.kml` — **[GAP]** (#4946, → #5125) a warped map goes in and out as Mapwarper's KML

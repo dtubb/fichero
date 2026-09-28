@@ -248,10 +248,15 @@ def _georeference_ends(db: Any, row: Any, segment: PageSegment, controls: dict[s
             segment.point = None
     counted = counting_by_kind(db, row.id, readings_of_segment(db, row.id)).get(WORLD_POINT)
     reading = db.get(ContentRepresentation, counted.representation_id) if counted and counted.representation_id else None
+    # What the file SAID at import is not what counts now (a person may have declared the CRS since):
+    # the world end written is the counted one, in WGS 84, and it says so.
+    for key in ("gcp:crs", "gcp:axis_order"):
+        segment.foreign.pop(key, None)
     if reading is not None:
         world = json.loads(reading.content)
         if world.get("lon") is not None and world.get("lat") is not None:
             segment.world = (world["lon"], world["lat"])
+            segment.foreign["gcp:crs"], segment.foreign["gcp:axis_order"] = "EPSG:4326", "lon,lat"
 
 
 def _declared_signs_used(db: Any, segments: list[PageSegment]) -> list[dict[str, Any]]:
@@ -281,10 +286,10 @@ def export_page(
     spec = format_named(format_name)  # UnknownFormat names what this build has
     page, choices = page_from_library(
         db, document_id, pass_id=pass_id, order_id=order_id, reading_kind=reading_kind,
-        georeference=spec.name == "iiif-georef",
+        georeference=spec.name in ("iiif-georef", "qgis-points"),
     )
     data, report = write_page(spec.name, page)
     stem = PurePosixPath(page.image_name or document_id).stem or document_id
     extension = {"tei": ".tei.xml", "pagexml": ".page.xml", "alto": ".alto.xml",
-                 "iiif-georef": ".georef.json"}.get(spec.name, ".xml")
+                 "iiif-georef": ".georef.json", "qgis-points": ".points"}.get(spec.name, ".xml")
     return PageExport(data=data, filename=f"{stem}{extension}", format=spec.name, choices=choices, report=report)

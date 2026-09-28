@@ -233,6 +233,20 @@ def _action_format_import(db: Database, params: FormatImportParams, ctx: ActionC
 
         names = class_names_beside(path, walk_up=not params.uploaded)
         page = read_yolo(data, names)
+    elif spec.name == "qgis-points":
+        # A .points file gives GCP pixel ends and no image size (#5122 maps C4): the page's own
+        # recorded size places them; without one they cannot be placed, and that is said.
+        from fichero_server.formats.qgis_points import read_points
+
+        target = db.get(Document, params.document_id)
+        width, height = (target.width, target.height) if target is not None else (None, None)
+        if not (width and height):
+            raise HTTPException(
+                status_code=422,
+                detail=f"{path.name} gives control points in pixels and no image size, and this page's "
+                       "size is not recorded, so they cannot be placed on it",
+            )
+        page = read_points(data, (int(width), int(height)))
     elif spec.name == "tei":
         page, pages_in_file, left_out = _tei_pages_taken(data, params.pages, path.name)
     else:
@@ -683,8 +697,11 @@ def write_page_into_library(
                 continue
             readings.append(ContentRepresentation(
                 document_id=document_id, segment_id=ids_by_ref[ref], kind=WORLD_POINT,
-                content=world_point({"coordinates": list(segment.world), "crs": "EPSG:4326",
-                                     "axis_order": "lon,lat"}).model_dump_json(),
+                # The CRS the FILE states (a .points file's `#CRS`, or none: `unknown`), EPSG:4326
+                # where the format fixes it (IIIF georef); held unconverted when it is not WGS 84.
+                content=world_point({"coordinates": list(segment.world),
+                                     "crs": segment.foreign.get("gcp:crs", "EPSG:4326"),
+                                     "axis_order": segment.foreign.get("gcp:axis_order", "lon,lat")}).model_dump_json(),
                 source_anchor=SourceAnchor(document_id=document_id, granularity=segment.kind),
                 provenance_kind=imported, created_by=ctx.actor or None,
             ))
