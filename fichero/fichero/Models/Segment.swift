@@ -195,6 +195,9 @@ struct Segment: Codable, Hashable, Identifiable {
     /// The segment this one sits in (a word's line, a line's block), or nil at the top of the page.
     /// It is how the Inspector walks up a level (`build-notes-inspector.md`, the path head).
     var parentSegmentId: String?
+    /// The version the app read (#5152): an edit sends it back as `expected_version`, so an edit
+    /// against a copy somebody has since changed is refused. Nil for a provisional segment.
+    var version: Int?
     /// Who made THIS segment — `.human` when the BOX ITSELF proves a person
     /// drew it (the engine's own `_box_is_hand_drawn`, not re-derived here),
     /// else the owning pass's kind. **A segment is hand-drawn exactly when
@@ -308,6 +311,7 @@ extension Segment {
         self.kind = generated.kind
         self.kindRaw = generated.kindRaw
         self.parentSegmentId = generated.parentSegmentId
+        self.version = generated.version
         self.provenanceKind = generated.provenanceKind
         self.anchor = SourceAnchorValue(generated: generated.anchor)
         self.baseline = generated.baseline

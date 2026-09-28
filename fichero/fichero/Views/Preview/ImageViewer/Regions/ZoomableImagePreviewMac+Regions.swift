@@ -165,11 +165,13 @@ extension ZoomableImagePreview {
                 .help("Discard the drawn selections without saving them")
         }
         let selection = regionSelection
-        if isEditingSegments, let artifactId = ocrGeometryArtifactId, selection.artifactId == artifactId {
+        // Scoped like the selection (#5152): an imported page's boxes are joined and deleted through
+        // the segment actions; promoting words is an artifact verb and stays with an artifact.
+        if isEditingSegments, let scope = ocrGeometrySelectionScope, selection.artifactId == scope {
             if selection.count >= 2 {
                 Button("Join \(selection.count) Regions") { combineSelectedRegions() }
             }
-            if selectionIsWordLevel {
+            if selectionIsWordLevel, ocrGeometryArtifactId != nil {
                 // Word-boundary marquee (Daniel, 2026-08-30, ruling 2): the
                 // selected WORDS become regions — one strip per line, the
                 // same grammar as promoting marquees.
@@ -204,6 +206,7 @@ extension ZoomableImagePreview {
     /// MOVE: committed on mouse-up. Indices are stable across a move, so the
     /// selection survives; the boxes re-render from the response geometry.
     func commitRegionMove(index: Int, bbox: [Double]) {
+        if moveSegment(index: index, bbox: bbox) { return }   // an imported page (#5152)
         guard let artifactId = RegionEditTarget.forDirectEdit(shownArtifactId: ocrGeometryArtifactId),
               let documentId, let artifactService else { return }
         Task {
@@ -223,6 +226,7 @@ extension ZoomableImagePreview {
     /// DELETE: server-side soft (undoable action + curation log). The held
     /// indices are meaningless afterwards, so the selection clears.
     func deleteSelectedRegions() {
+        if deleteSelectedSegments() { return }   // an imported page (#5152)
         let selection = regionSelection
         guard let artifactId = RegionEditTarget.forSelectionEdit(
                   shownArtifactId: ocrGeometryArtifactId,
@@ -251,6 +255,7 @@ extension ZoomableImagePreview {
     /// COMBINE: union bbox + texts in reading order — the ORDER is the
     /// server's call, so click order stays free.
     func combineSelectedRegions() {
+        if joinSelectedSegments() { return }   // an imported page (#5152)
         let selection = regionSelection
         guard let artifactId = RegionEditTarget.forSelectionEdit(
                   shownArtifactId: ocrGeometryArtifactId,

@@ -18,19 +18,38 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
     private final class RecordedEngine: URLProtocol {
         nonisolated(unsafe) static var body = Data()
         nonisolated(unsafe) static var annotationRequests: [Data] = []
+        /// Every audited action the app invoked (`POST /api/actions/invoke`) and every audit row it
+        /// asked to undo, in order -- answered as the engine would, with a fresh audit id.
+        nonisolated(unsafe) static var invoked: [Data] = []
+        nonisolated(unsafe) static var undone: [String] = []
 
         // swiftlint:disable:next static_over_final_class
         override class func canInit(with request: URLRequest) -> Bool {
             guard request.url?.host == "127.0.0.1", let path = request.url?.path else { return false }
             return path.hasPrefix("/api/segments/document/") || path == "/api/annotations"
+                || path.hasPrefix("/api/actions/")
+        }
+
+        private static func actionReply(auditId: String) -> Data {
+            Data(#"{"ok":true,"result":{},"audit_id":"\#(auditId)","changed_domains":["segment"]}"#.utf8)
         }
 
         // swiftlint:disable:next static_over_final_class
         override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
         override func startLoading() {
-            let isAnnotation = request.url?.path == "/api/annotations"
+            let path = request.url?.path ?? ""
+            let isAnnotation = path == "/api/annotations"
             if isAnnotation { Self.annotationRequests.append(Self.bodyOf(request)) }
+            var actionBody: Data?
+            if path == "/api/actions/invoke" {
+                Self.invoked.append(Self.bodyOf(request))
+                actionBody = Self.actionReply(auditId: "audit-\(Self.invoked.count)")
+            } else if path.hasPrefix("/api/actions/audit/"), path.hasSuffix("/undo") {
+                let auditId = path.split(separator: "/").dropLast().last.map(String.init) ?? ""
+                Self.undone.append(auditId)
+                actionBody = Self.actionReply(auditId: "undo-of-\(auditId)")
+            }
             guard let url = request.url,
                   let response = HTTPURLResponse(
                       url: url, statusCode: isAnnotation ? 422 : 200, httpVersion: "HTTP/1.1",
@@ -40,7 +59,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 return
             }
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            client?.urlProtocol(self, didLoad: isAnnotation ? Data("{}".utf8) : Self.body)
+            client?.urlProtocol(self, didLoad: actionBody ?? (isAnnotation ? Data("{}".utf8) : Self.body))
             client?.urlProtocolDidFinishLoading(self)
         }
 
@@ -152,6 +171,48 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         // Each strip names exactly the line it is drawn over, and together they are the two picked.
         XCTAssertEqual(targetIds.map(\.count), [1, 1])
         XCTAssertEqual(Set(targetIds.flatMap { $0 }), Set(picked.map(\.id)))
+    }
+
+    /// #5152 edit half, end to end: on the recorded imported Syriac page, two lines picked the way
+    /// RegionInteractionLayer picks them are JOINED through the calls the Preview's Join makes
+    /// (`SegmentEdit.join` -> `SegmentEditRunner.run` -> `ActionsService.invokeAction`): the engine
+    /// is asked for `segment.merge` with exactly those two ids and the versions the list said, and
+    /// ⌘Z asks it to undo THAT audit row.
+    func testJoiningTwoImportedLinesSendsSegmentMergeAndUndoInvertsIt() async throws {
+        let store = try await loadedStore()
+        let selected = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
+        let scope = try XCTUnwrap(SegmentDisplay.selectionScope(artifactId: selected.artifactId, passId: selected.passId))
+        let boxes = selected.geometry.boxes
+        let lines = Array(boxes.indices.filter { boxes[$0].level == "line" }.prefix(2))
+        let selection = RegionSelection()
+        selection.selectAll(lines, artifactId: scope, documentId: "doc-0001", in: boxes)
+        let ids = InspectorPath.selectedSegmentIds(selection: selection, documentId: "doc-0001", store: store)
+        let picked = ids.compactMap { id in store.segments(documentId: "doc-0001").first { $0.id == id } }
+        XCTAssertEqual(picked.count, 2)
+
+        RecordedEngine.invoked = []
+        RecordedEngine.undone = []
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        let runner = SegmentEditRunner(actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store)
+        manager.beginUndoGrouping()
+        let auditId = try await runner.run(
+            try SegmentEdit.join(picked).get(), documentId: "doc-0001", actionName: "Join Segments", undoManager: manager
+        )
+        manager.endUndoGrouping()
+
+        XCTAssertEqual(auditId, "audit-1")
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        XCTAssertEqual(sent["name"] as? String, "segment.merge")
+        let params = try XCTUnwrap(sent["params"] as? [String: Any])
+        XCTAssertEqual(params["segment_ids"] as? [String], ids)
+        XCTAssertEqual(params["keep_id"] as? String, ids.first)
+        XCTAssertEqual(params["expected_versions"] as? [String: Int], Dictionary(uniqueKeysWithValues: ids.map { ($0, 1) }))
+
+        XCTAssertTrue(manager.canUndo)
+        manager.undo()
+        for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(RecordedEngine.undone, ["audit-1"], "⌘Z inverts the Join's own audit row")
     }
 
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {

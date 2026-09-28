@@ -88,7 +88,7 @@ struct SegmentMappingTests {
             "id", "provisional", "document_id", "pass_id", "kind", "kind_raw", "parent_segment_id",
             "provenance_kind", "anchor", "baseline", "text", "confidence",
             "language", "script", "direction",
-            "source_artifact_id", "box_index", "page_index", "metadata"
+            "source_artifact_id", "box_index", "page_index", "metadata", "version"
         ]
         #expect(
             declared == accounted,
@@ -453,7 +453,7 @@ struct SegmentMappingTests {
             kind: "line", kindRaw: "textline", parentSegmentId: "block-7",
             provenanceKind: Components.Schemas.ProvenanceKind.human, anchor: anchor,
             baseline: [[0.0, 0.5], [1.0, 0.5]], text: "hola", confidence: 0.87,
-            sourceArtifactId: "a1", boxIndex: 3, pageIndex: 1, metadata: metadata
+            sourceArtifactId: "a1", boxIndex: 3, pageIndex: 1, metadata: metadata, version: 4
         )
 
         let segment = Segment(generated: generated)
@@ -465,6 +465,7 @@ struct SegmentMappingTests {
         #expect(segment.kind == "line")
         #expect(segment.kindRaw == "textline")
         #expect(segment.parentSegmentId == "block-7")
+        #expect(segment.version == 4)
         #expect(segment.provenanceKind == Components.Schemas.ProvenanceKind.human)
         #expect(segment.isHandCurated)
         #expect(segment.anchor.documentId == "doc-1")
