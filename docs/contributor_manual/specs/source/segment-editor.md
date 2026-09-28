@@ -168,7 +168,7 @@ reading orders, for cut and paste), the speed trial (12) and the one store, sele
 input seam of the editor (13). It is placed as **slice 13b, after 13**; typing, splitting and
 joining could come before cut and paste if 10 is late.
 
-### The earlier Segments pane record (kept for the history; superseded by the direction above)
+### The earlier Segments pane record (kept for the history; superseded by the ruling of 2026-09-27 above)
 
 On 2026-09-19 the
 maintainer asked for a surface of its own for getting to a source's segments: to see them with
@@ -181,6 +181,33 @@ segments; a strip or grid is a Library view mode) beside the Source view, not a 
 pane. That is the maintainer's to rule; it is in the morning file. **Nothing is built for it
 until then.** What holds whichever way it goes: selecting a segment selects it everywhere;
 every change is the same audited action the Source view makes; it draws on the one store.
+
+### The Segments pane (approved 2026-09-27; first slice being built)
+
+The maintainer approved a Segments pane on 2026-09-27 (`source-model.md`, "Ruled 2026-09-27"), and it
+belongs with slice 13. It is a **pane kind** that lists the segments of the page or source in scope,
+**beside** the Preview, never inside it. The Preview stays the page; the Reader stays the words; the
+Inspector stays the facts. The Segments pane is **the list**: many segments at once, which none of the
+three is for.
+
+- **What it shows.** The segments as a **list** (a row each: its kind, its reading, where it is in the
+  order), a **strip**, or a **grid** of their pictures with their readings. The first slice is the
+  list; strip and grid follow with segment pictures (`### Segment pictures`).
+- **Where it looks.** Like every pane it follows the window's current selection unless its scope is
+  pinned: the page the Library selected, or a source's pages. At its top, the page's top level
+  (its regions, in the page's reading order); a row can be opened to its children (a region's lines,
+  a line's words), with a path back up, as the Inspector's path head works.
+- **Selection follows the focused-pane rule.** Picking rows makes them the selection of the focused
+  Source view on that page. It is the same selection the Order list and the Reader's caret write
+  (`InspectorPath.select`, #5155), so the boxes light up and the Inspector follows. One selection,
+  never a copy.
+- **Reordering here is Q5's third place** (the Reader, the Inspector's Order list, and this pane): by
+  drag-and-drop and by ⌥⌘↑ / ⌥⌘↓ / ⌥⌘⇞ / ⌥⌘⇟. It uses the SAME store and verbs as the Order list
+  (`ReadingOrderStore`, `ReadingOrderMove`), with ⌘Z. One implementation, never a third.
+- **Gathering.** It is where a gathered set is shown when it is not one page's: "everything in
+  hand B", every instance of a declared sign (`source.sign.gather-instances`), marks of one character
+  gathered to compare (`source.letterform.compare`). These come after the first slice.
+- **Every change is an existing audited action.** The pane defines none of its own.
 
 ### One overlay, one editor
 
@@ -684,13 +711,21 @@ The editor
   labelled" is not built; not run on the screen.
 - `source.textedit.no-second-path` — **[GAP]** (#5001) every change made from the text is one of the existing
   segment, reading and reading-order actions; the text surface defines none of its own.
-- `source.segments-pane.exists` — **[GAP]** (#4942) **Superseded in direction 2026-09-20 by `source.textedit.*`;
-  still not to be built** (a Segments pane, or a view of
-  the Library): a surface shows a source's segments with their pictures and readings, and lets
-  them be stepped through, reordered and moved. Not to be built or tested until ruled.
-- `source.segments-pane.same-actions` — **[GAP]** (#4942) **BLOCKED with the one above**: whatever that surface
-  is, every change it makes is the same audited action the Source view's editor makes, and
-  selection is shared.
+- `source.segments-pane.exists` — **[GAP]** (#4942; approved 2026-09-27) a Segments pane kind lists the segments
+  of the page (or source) in scope beside the Preview, never inside it, as rows of kind, reading and
+  place in the order; a row opens to its children, with a path back up.
+- `source.segments-pane.selection-shared` — **[GAP]** (#4942) picking rows in the Segments pane makes them the
+  focused Source view's selection on that page, the same selection the Order list and the Reader
+  write, so the boxes light up and the Inspector follows.
+- `source.segments-pane.reorders` — **[GAP]** (#4942; Q5) the Segments pane reorders by drag-and-drop and by
+  ⌥⌘↑ / ⌥⌘↓ / ⌥⌘⇞ / ⌥⌘⇟ through the same reading-order store and verbs as the Inspector's Order list,
+  each change undoable with ⌘Z.
+- `source.segments-pane.views` — **[GAP]** (#4942) the Segments pane shows its segments as a list, a strip or a
+  grid of their pictures with their readings.
+- `source.segments-pane.gathers` — **[GAP]** (#4942) the Segments pane shows a gathered set that is not one
+  page's: every segment in one hand, every instance of a sign, marks of one character.
+- `source.segments-pane.same-actions` — **[GAP]** (#4942) every change the Segments pane makes is an existing
+  audited action (the same the Source view's editor and the Order list make); it defines none of its own.
 - `source.editor.library-lists-segments` — **[GAP]** (#4941) the Library can list segments as rows, so
   project-wide questions about segments are ordinary Library searches.
   **Genuinely absent on BOTH sides, and the engine side blocks the app side** (read on disk
