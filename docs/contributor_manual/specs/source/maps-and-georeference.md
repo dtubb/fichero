@@ -540,8 +540,9 @@ Places over time and in words
 - `source.geo.boundary-from-map` — **[PARTIAL]** (#5120) a boundary segment's worked-out world shape
   can be adopted as a place geometry that remembers the segment and map it came from.
   **Built 2026-09-28 (maps D8):** `entity.adopt_boundary` (audited, undoable) works the segment's
-  world shape out now and adds it to the place's geometries with `source_segment_id`,
-  `source_pass_id` and `source_document_id`, its error on the ground as `precision_m`, and `when` =
+  world shape out now and adds it to the place's geometries with `adopted_from_segment_id`,
+  `adopted_from_pass_id` and `source_document_id` (renamed from `source_segment_id` /
+  `source_pass_id`, the claims' legacy artifact-entry name; older rows read back), its error on the ground as `precision_m`, and `when` =
   the map's depicted date (undated when nobody has said); a shape outside the map is refused
   (`fichero-server/tests/unit/api/test_a_boundary_from_a_map.py::test_a_boundary_drawn_on_the_map_becomes_the_places_dated_geometry`,
   `::test_a_map_nobody_has_dated_gives_an_undated_geometry`, `::test_a_boundary_outside_the_map_is_refused`).

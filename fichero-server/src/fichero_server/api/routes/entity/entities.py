@@ -2475,7 +2475,7 @@ def _action_adopt_boundary(db: Database, params: EntityAdoptBoundaryParams, ctx:
         lon=point[0] if point else None, lat=point[1] if point else None,
         geojson=shape.geometry, precision_m=shape.error_m,
         when=pass_row.depicts, basis=EvidenceBasis.source_anchored,
-        source_document_id=segment.document_id, source_segment_id=segment.id, source_pass_id=pass_row.id,
+        source_document_id=segment.document_id, adopted_from_segment_id=segment.id, adopted_from_pass_id=pass_row.id,
         rationale=(f"adopted from the world shape of segment {segment.id} through georeferencing pass "
                    f"{pass_row.id} ({shape.transformation}, ±{shape.error_m:.0f} m)"),
         created_by=ctx.actor or "human",
