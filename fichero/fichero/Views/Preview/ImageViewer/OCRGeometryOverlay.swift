@@ -18,6 +18,8 @@ struct OCRGeometryOverlay: View {
     /// Whether this layer draws the inline words. False on the Mac image canvas since the document
     /// overlay draws them on the page (#5142); this layer then keeps only the hover readout.
     var drawsInlineText: Bool = true
+    /// A box's resolved direction, for its hover label (#5199); nil lays every label out as isolated text.
+    var labelDirection: ((OCRGeometryBox) -> String?)?
 
     /// Draw each word's recognised text INSIDE its box (Daniel, 2026-08-31).
     /// The hover readout answers "what does this ONE box say"; this answers
@@ -132,13 +134,18 @@ struct OCRGeometryOverlay: View {
 
                 if let hit = hoveredBox(at: hoverPoint, in: geo.size),
                    !hit.box.text.isEmpty {
-                    Text(hit.box.text)
+                    let label = SegmentLabel.layout(hit.box.text, direction: labelDirection?(hit.box))
+                    Text(label.text)
                         .font(BundledFonts.shared.font(.caption))
+                        .multilineTextAlignment(label.vertical ? .center : (label.rightToLeft ? .trailing : .leading))
+                        .environment(\.layoutDirection, label.rightToLeft ? .rightToLeft : .leftToRight)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 4))
                         .fixedSize()
-                        .offset(x: hit.rect.minX, y: max(0, hit.rect.minY - 26))
+                        // A column's label stands beside it, reading down; a row's sits above it.
+                        .offset(x: label.vertical ? hit.rect.maxX + 4 : hit.rect.minX,
+                                y: label.vertical ? hit.rect.minY : max(0, hit.rect.minY - 26))
                 }
             }
             // Top-leading: the hover label is placed by `.offset` from the origin (#5214's class).

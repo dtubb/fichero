@@ -79,7 +79,14 @@ struct SegmentsPaneView: View {
                 ReadingOrderList(
                     documentId: document.id, parentSegmentId: parentId, store: orders,
                     onOpen: { parentId = $0 }, opens: { SegmentsPane.hasChildren($0, in: segments) },
-                    rowLabel: { id, index in SegmentsPane.rowLabel(segments.first { $0.id == id }, at: index) }
+                    rowLabel: { id, index in
+                        SegmentsPane.rowLabel(
+                            segments.first { $0.id == id }, at: index,
+                            direction: segmentService.flatMap {
+                                SegmentStore.shared(for: $0).direction(of: id, documentId: document.id)
+                            }
+                        )
+                    }
                 )
             }
         case .loading:

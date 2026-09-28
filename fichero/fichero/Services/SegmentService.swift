@@ -79,6 +79,16 @@ final class SegmentService {
 }
 
 extension SegmentService {
+    /// Each segment's RESOLVED direction on one page, from the page text's blocks (#5199): what the
+    /// on-image labels lay out in. Empty when the page has no text of its own.
+    func lineDirections(documentId: String) async throws -> [String: String] {
+        let response = try await client.api.getDocumentTextApiSegmentsDocumentDocumentIdTextGet(
+            path: .init(documentId: documentId)
+        )
+        guard case .ok(let okResponse) = response else { return [:] }
+        return SegmentLabel.directions(from: try okResponse.body.json)
+    }
+
     /// Every reading of one segment and which counts per kind, WITH its basis (the Inspector's Text
     /// section). Nil for 422: an id this build cannot resolve has no readings to show.
     func readings(segmentId: String) async throws -> InspectorText? {

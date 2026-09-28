@@ -17,6 +17,12 @@ struct SegmentsPictureGrid: View {
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @State private var pictures: [String: PlatformImage] = [:]
 
+    /// A segment's resolved direction, from its page's text (#5199).
+    private func direction(of id: String) -> String? {
+        guard let segmentService, let documentId = segments[id]?.documentId else { return nil }
+        return SegmentStore.shared(for: segmentService).direction(of: id, documentId: documentId)
+    }
+
     var body: some View {
         ScrollView(isStrip ? .horizontal : .vertical) {
             if isStrip {
@@ -45,7 +51,8 @@ struct SegmentsPictureGrid: View {
             }
             .frame(width: 140, height: 90)
             .clipShape(RoundedRectangle(cornerRadius: 4))
-            Text(SegmentsPane.rowLabel(segments[id], at: index)).font(BundledFonts.shared.font(.caption)).lineLimit(2)
+            Text(SegmentsPane.rowLabel(segments[id], at: index, direction: direction(of: id)))
+                .font(BundledFonts.shared.font(.caption)).lineLimit(2)
                 .frame(width: 140, alignment: .leading)
             if opens(id) {
                 Text("Double-click to open").font(.caption2).foregroundStyle(.tertiary)
