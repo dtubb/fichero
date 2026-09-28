@@ -247,6 +247,23 @@ def _action_format_import(db: Database, params: FormatImportParams, ctx: ActionC
                        "size is not recorded, so they cannot be placed on it",
             )
         page = read_points(data, (int(width), int(height)))
+    elif spec.name == "tesseract-box":
+        # Pixels from a BOTTOM-left origin and no image size (#5174): the page's own recorded size
+        # places them, as for .points; without one they cannot be placed, and that is said.
+        from fichero_server.formats.tesseract_box import read_box
+
+        target = db.get(Document, params.document_id)
+        width, height = (target.width, target.height) if target is not None else (None, None)
+        if not (width and height):
+            raise HTTPException(
+                status_code=422,
+                detail=f"{path.name} gives character boxes in pixels from the bottom of an image of no "
+                       "stated size, and this page's size is not recorded, so they cannot be placed on it",
+            )
+        try:
+            page = read_box(data, (int(width), int(height)))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=f"{path.name}: {exc}") from exc
     elif spec.name == "tei":
         page, pages_in_file, left_out = _tei_pages_taken(data, params.pages, path.name)
     else:

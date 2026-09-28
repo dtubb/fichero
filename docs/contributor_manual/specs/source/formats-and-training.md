@@ -194,6 +194,21 @@ Rules for every format
   **Not built, and why PARTIAL:** a **zip** of the same (the folder ingest does not unpack
   archives); a **METS** file's page order and grouping; and showing the unpaired names in the app,
   which today sees them only in the action's result and the engine log.
+- `source.format.corpus-sidecars` — **[OK]** (→ #5174, ruled 2026-09-28) two sidecars that are not
+  interchange formats still reach their page, through the same folder pairing and `format.import`:
+  **a Tesseract `.box` file** (`glyph left bottom right top page`, pixels from the BOTTOM-left) becomes
+  one `character` segment per line carrying its letter, placed on the size the page has recorded, and
+  refused by name when the page has no recorded size
+  (`fichero-server/tests/unit/importers/test_a_box_file_becomes_character_segments.py`, on a real
+  Cree syllabics page, CC-BY-4.0). **A `.txt` with the same stem as an image beside it** becomes that
+  page's transcription: one reading on one segment with no box, anchored to the page and marked
+  `shape: unstated` (`fichero-server/tests/unit/importers/test_a_txt_beside_its_image_becomes_its_transcription.py::test_the_text_becomes_one_reading_on_its_page_with_no_box`;
+  the Florentine Codex page, CC BY-NC-ND, runs from the local corpus only:
+  `::test_the_florentine_codex_page_arrives_whole`). A `.txt` is never recognised by its extension:
+  one with no image of its stem, or YOLO labels, is left as before
+  (`::test_a_txt_with_no_image_of_its_stem_stays_an_ordinary_file`,
+  `::test_yolo_labels_named_after_their_image_are_not_read_as_a_transcription`). One file can be
+  forced with `fichero import-page DOC FILE --format plain-text`. Both are read only.
 - `source.format.import-is-pass` — **[OK]** (→ #4943) an import arrives as a new pass with its provenance and
   overwrites nothing. `format.import` writes a pass, its segments, their readings and the file's
   order in four batches; the pass records `import_file` and `import_checksum` (fields slice 1 had
