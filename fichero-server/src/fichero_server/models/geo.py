@@ -300,6 +300,14 @@ class WorkedOutTransform(BaseModel):
     rms_px: float
     #: GCPs left out, and why (a place held as `unknown`, no counted world end).
     not_used: list[dict[str, str]] = []
+    #: Who made the pass, whether it is the image's WORKING georeferencing pass and why
+    #: (`chosen`, `human-touched`, `imported`, `newest`...), and `unchosen`: a machine's GCPs
+    #: that no person has chosen are shown LABELLED, never as the record
+    #: (`source.geo.machine-gcps-unchosen`).
+    pass_provenance: str | None = None
+    working: bool = False
+    pass_basis: str | None = None
+    unchosen: bool = False
 
 
 def residuals(transformation: str, gcps: list[tuple[str, tuple[float, float], tuple[float, float]]]):

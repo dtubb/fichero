@@ -338,6 +338,11 @@ Control points and the transform
   transformation (`fichero-server/tests/unit/api/test_a_georeferencing_file_imports_as_a_pass.py`). PARTIAL: two
   georeferencings of one sheet are two passes by construction, but the working-pass rule has not
   been exercised on georeferencing passes, and no screen shows them.
+  **Working pass (2026-09-28, maps C1):** georeferencing passes are ranked by the working-pass rule
+  AMONG THEMSELVES, apart from text passes: an imported georeference no longer outranks a page's
+  transcription (its text went blank), and a choice of one kind no longer retires the other's
+  (`fichero-server/tests/unit/api/test_machine_gcps_are_unchosen.py::test_a_georeference_imported_onto_a_page_leaves_its_text_alone`,
+  `::test_with_two_georeferences_the_rule_picks_and_says_why`).
 - `source.geo.mask` — **[PARTIAL]** (#4933) the part of an image that is the map is an area segment in
   the pass, and a sheet with several maps has several masks each with its own GCPs.
   **Built 2026-09-28 (#5122):** the mask is a `mask` area segment and each GCP `controls` its mask
@@ -370,8 +375,12 @@ PARTIAL: no screen offers the choice.
   ten times the honest RMS (`fichero-server/tests/unit/api/test_the_transform_is_worked_out_from_the_gcps.py::test_affine_misses_by_a_little_and_a_gcp_typed_wrong_misses_by_most`);
   a thin-plate spline is exact at its GCPs, by construction (`::test_the_files_thin_plate_spline_is_exact_at_its_gcps`).
   PARTIAL: no screen shows them.
-- `source.geo.machine-gcps-unchosen` — **[GAP]** (#4933) GCPs a machine proposes arrive in a
+- `source.geo.machine-gcps-unchosen` — **[PARTIAL]** (#4933) GCPs a machine proposes arrive in a
   machine pass and are labelled unchosen until a person chooses them.
+  **Built 2026-09-28 (#5122, maps C1):** the transform and every world shape say whose pass it is,
+  whether it is the image's working georeferencing pass and why, and `unchosen: true` for a
+  machine's pass no person has chosen; `pass.choose_working` makes it chosen
+  (`fichero-server/tests/unit/api/test_machine_gcps_are_unchosen.py::test_a_machines_gcps_are_unchosen_until_a_person_chooses_them`). PARTIAL: no screen shows the label.
 - `source.geo.gcp-other-image` — **[GAP]** (#4933) GCPs measured on one image apply to another
   image of the page only through a recorded alignment, and otherwise Fichero says they do not.
 
@@ -382,8 +391,8 @@ A segment's place in the world
   **Built 2026-09-28 (#5122):** `GET /api/georeference/segments/{segment_id}/world-shape` answers
   an RFC 7946 geometry in EPSG:4326 with the pass, transformation, `gcp_set_version` and the fit's
   RMS as `error_m`, worked out on every read (`fichero-server/tests/unit/api/test_a_segments_place_in_the_world.py::test_a_label_at_a_gcps_pixel_is_at_that_gcps_place`,
-  `::test_a_corrected_gcp_moves_the_answer`). PARTIAL: with several georeferencing passes on one
-  image the caller must name one (the working-pass rule is not applied to them yet); no screen.
+  `::test_a_corrected_gcp_moves_the_answer`). With several georeferencing passes on one
+  image the working-pass rule picks and the answer says why (maps C1). PARTIAL: no screen.
 - `source.geo.outside-the-mask` — **[PARTIAL]** (#4933) a segment outside the map's mask is answered
   "outside the map", never extrapolated.
   **Built 2026-09-28 (#5122):** a segment not wholly inside any mask is answered

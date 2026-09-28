@@ -649,7 +649,13 @@ class DerivedText(BaseModel):
     blocks: list[TextBlock] = []
 
 
-def _pass_candidates(db: Database, document_id: str) -> list[PassCandidate]:
+def georeferences(pass_row: Any) -> bool:
+    """A georeferencing pass (#5122): one with a transformation type. Its working pass is
+    chosen among its own kind; a text pass's among text passes."""
+    return getattr(pass_row, "transformation", None) is not None
+
+
+def _pass_candidates(db: Database, document_id: str, georeferencing: bool = False) -> list[PassCandidate]:
     """Every live pass of a document, with what the ranking needs to know.
 
     `has_human_segment` is worked out HERE and passed in, because
@@ -659,6 +665,11 @@ def _pass_candidates(db: Database, document_id: str) -> list[PassCandidate]:
     candidates: list[PassCandidate] = []
     for pass_row in db.query(SegmentPass, document_id=document_id):
         if pass_row.deleted_at is not None:
+            continue
+        if georeferences(pass_row) != georeferencing:
+            # TWO ROLES, ranked apart (#5122): a georeferencing pass holds control points and a
+            # mask, no text. Ranked with the text passes, an imported georeference (the imported
+            # tier) outranked a machine transcription and the page's text went blank.
             continue
         # ONLY the human rows are fetched: the question is "does this pass hold a person's
         # segment", and hydrating every row of a 20,000-segment import to ask it made the
@@ -783,7 +794,8 @@ def _why_omitted(
 #: 5: the stored line map carries each line's counting reading, `representation_id` (#5154).
 #: 6: a line with no letters takes its BLOCK's direction, else its page's (#5172, as ruled).
 #: 7: a person's correction outranks the reading it corrects (#5175).
-DERIVATION_VERSION = 7
+#: 8: a georeferencing pass is never the page's text pass (#5122, maps C1).
+DERIVATION_VERSION = 8
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
 DERIVATION_SOURCE_SHA256 = "cb942546b66e6dd0b869cbffb8f127dda7e63d2f46e1d824c1f8765b6adc31d4"
