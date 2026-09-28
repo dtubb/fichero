@@ -216,6 +216,17 @@ def start_access_or_inherited(path: str, bookmark: bytes, foundation: Any) -> bo
     resolution attempt AND its logging for a path already settled, not just
     ``grant_access``'s own idempotency check.
     """
+    if not _engine_is_sandboxed():
+        # Nothing to grant (#5251): an unsandboxed engine reads by its allowed roots, never by a
+        # bookmark. A path already inside them is readable, so say so rather than resolve a bookmark
+        # and refuse -- every Finder drop from the test corpus, and every stored bookmark sent at
+        # connect, logged "Security-scoped access DENIED" for a folder the engine could already read.
+        from fichero_server.security.path_security import is_allowed_ingest_path
+
+        if is_allowed_ingest_path(path):
+            logger.debug("No grant needed (unsandboxed engine, inside the allowed roots): %s", path)
+            return True
+
     if path in _GRANTED:
         logger.debug("Security-scoped access already held for %s — not re-resolving", path)
         return True

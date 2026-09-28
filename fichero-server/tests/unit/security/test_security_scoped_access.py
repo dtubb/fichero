@@ -325,12 +325,25 @@ def test_unsandboxed_engine_never_grants_via_the_probe(monkeypatch, tmp_path):
     existed.
     """
     monkeypatch.delenv("APP_SANDBOX_CONTAINER_ID", raising=False)
-    lib = tmp_path / "Anything.fichero"
-    lib.mkdir()
+    # OUTSIDE every allowed root (a temp dir is inside them: /var/folders).
+    lib = "/Volumes/Elsewhere/Anything.fichero"
     f = FakeFoundation(error="NSError 259: isn't in the correct format")
     monkeypatch.setattr(ssa, "_load_foundation", lambda: f)
     with pytest.raises(ssa.BookmarkGrantError):
-        ssa.grant_access(str(lib), _b64(b"junk"))
+        ssa.grant_access(lib, _b64(b"junk"))
+    assert lib not in ssa.granted_paths()
+
+
+def test_unsandboxed_engine_answers_a_path_it_can_already_read_without_granting(monkeypatch, tmp_path):
+    """#5251: a Finder drop from the test corpus (inside FICHERO_LIBRARY_ALLOWED_ROOTS) and every
+    stored bookmark sent at connect logged "Security-scoped access DENIED" for a folder the engine
+    could already read. Inside the allowed roots the answer is "readable" -- and still NOT a grant:
+    nothing is added to the allowlist, so audit A1 holds."""
+    monkeypatch.delenv("APP_SANDBOX_CONTAINER_ID", raising=False)
+    lib = tmp_path / "Corpus set"
+    lib.mkdir()
+    monkeypatch.setattr(ssa, "_load_foundation", lambda: FakeFoundation(error="unresolvable"))
+    assert ssa.grant_access(str(lib), _b64(b"junk")) is True
     assert str(lib) not in ssa.granted_paths()
 
 
