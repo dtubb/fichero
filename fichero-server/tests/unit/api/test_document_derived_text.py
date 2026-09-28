@@ -24,6 +24,7 @@ import pytest
 from fastapi import HTTPException
 
 from fichero_server.actions.registry import ActionContext, registry
+from fichero_server.core.timeutil import utc_now
 from fichero_server.api.routes.document.segment_conversion import (
     converted_pass_id,
     live_rows_in_order,
@@ -527,7 +528,36 @@ class TestWhatAnOrderNamesAndTheTextDoesNotHold:
     def test_a_deleted_line_and_a_missing_continuation_no_longer_look_the_same(
         self, db, client
     ):
-        """The point of the whole change: two omissions, two reasons."""
+        """The point of the whole change: two omissions, two reasons.
+
+        Since 2026-09-28 (1052fda4a, 9347daedb) `segment.delete`, `segment.merge` and
+        `segment.unsplit` take a retired segment's entries OUT of every order, so an action
+        no longer leaves an order naming a deleted line. A library written BEFORE that still
+        holds such entries -- nothing migrates them -- so `deleted` is still a reason a real
+        order can give, and this builds exactly that library: the line is retired the old way,
+        its entry left behind."""
+        from fichero_server.actions.registry import registry
+
+        doc, _, rows, flow, continuation, _ = self._flow_onto_a_second_pass(db, client)
+        registry.invoke(
+            db, "reading_order.place",
+            {"order_id": flow["order_id"], "segment_id": rows[1].id, "at_end": True},
+            self._person(),
+        )
+        # An older library: the segment soft-deleted, its order entry still there.
+        retired = db.get(Segment, rows[1].id)
+        retired.deleted_at = utc_now()
+        db.save(retired)
+
+        derived = document_text(db, doc.id, order=flow["order_id"])
+
+        reasons = {o.segment_id: o.reason for o in derived.omitted}
+        assert reasons == {continuation.id: "other_pass", rows[1].id: "deleted"}
+
+    def test_a_line_deleted_now_leaves_the_order_and_is_simply_absent(self, db, client):
+        """The same line deleted through `segment.delete` today: its entry leaves the order with
+        it, so the text neither holds it nor names it as an omission -- nothing is missing. The
+        continuation on the other pass is still reported."""
         from fichero_server.actions.registry import registry
 
         doc, _, rows, flow, continuation, _ = self._flow_onto_a_second_pass(db, client)
@@ -544,8 +574,8 @@ class TestWhatAnOrderNamesAndTheTextDoesNotHold:
 
         derived = document_text(db, doc.id, order=flow["order_id"])
 
-        reasons = {o.segment_id: o.reason for o in derived.omitted}
-        assert reasons == {continuation.id: "other_pass", rows[1].id: "deleted"}
+        assert rows[1].id not in [span.segment_id for span in derived.spans]
+        assert {o.segment_id: o.reason for o in derived.omitted} == {continuation.id: "other_pass"}
 
     def test_box_order_omits_nothing_because_it_names_nothing(self, db, client):
         doc = _make_doc(db)
