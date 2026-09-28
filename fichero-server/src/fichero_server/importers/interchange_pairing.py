@@ -205,9 +205,16 @@ def _match(layout: Path, stated: str | None, by_dir: dict[Path, list[Path]]) -> 
     stem = _layout_stem(layout)
     for images in _candidates(layout, by_dir):
         if stated_name:
-            named = [image for image in images if image.name == stated_name]
+            # Case-insensitive, as the Mac's file system is: eScriptorium and Transkribus keep
+            # the name as first recorded (`…_003r.JPG`) while the file on disk may be `…_003r.jpg`
+            # (#5220). Two images differing only by case are ambiguous and are NOT guessed.
+            named = [image for image in images if image.name.casefold() == stated_name.casefold()]
             if len(named) == 1:
                 return named[0]
+            if len(named) > 1:
+                return f"{len(named)} images match {stated_name!r} but for letter case: " + ", ".join(
+                    sorted(image.name for image in named)
+                )
         same_stem = [
             image for image in images
             if image.stem == stem or image.name == stem  # `0001.jpg.xml` -> `0001.jpg`
