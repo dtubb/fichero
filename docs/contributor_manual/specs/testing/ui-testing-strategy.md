@@ -177,9 +177,10 @@ the engine holds.**
     dictionary ships in Release.
 - **App Intents exist:** `Intents/FicheroActionIntents.swift`, `FicheroAppEntities.swift`,
   `FicheroShortcuts.swift`.
-- **Drawn boxes have NO identity today.** `Views/Preview/ImageViewer/BoundingBoxOverlay.swift` draws
-  them in a `ForEach` keyed by offset, with no accessibility element or identifier. No channel,
-  whichever is chosen, can currently say which segments a page drew.
+- **Drawn boxes had NO identity** (as found 2026-09-28). No accessibility element or identifier, so
+  no channel could say which segments a page drew. (The `ForEach` keyed by offset first cited here,
+  `BoundingBoxOverlay.swift`, had no callers and is deleted; the boxes are drawn by
+  `DocumentOverlayView`, where `drawn-boxes-are-elements` now puts the elements.)
 
 **The options.** Each is judged on whether it can observe the DRAWN boxes, whether it can be kept out
 of Release, its security story, and its cost.
