@@ -88,6 +88,10 @@ class WindowState {
     /// Source views split in one window edit together.
     var isEditingSegments = false
 
+    /// What the Segments pane shows instead of the page: a set gathered from the Inspector --
+    /// "Everything in This Hand", "Every Instance" of a sign (#4942). Nil shows the page.
+    var segmentsGather: SegmentsGather?
+
     /// The FOCUSED Source-view pane's region selection (#5020, ruled 2026-09-27): each pane owns
     /// its own, and the Inspector and the markup row act on this one. Strong, not weak (an
     /// `@Observable` property), so the pane releases it when it goes (`releaseRegionSelection`).

@@ -10,9 +10,12 @@ struct SegmentsPaneView: View {
     let document: Document?
 
     @Environment(SegmentService.self) private var segmentService: SegmentService?
+    @Environment(WindowState.self) private var windowState: WindowState?
     @State private var lens: SegmentsPane.Lens = .list
     /// The segment whose children are listed; nil lists the page's top level.
     @State private var parentId: String?
+    /// A gathered row asked to open: its segment is selected once its page is the one shown.
+    @State private var pendingSelect: (documentId: String, segmentId: String)?
 
     private var segments: [Segment] {
         guard let document, let segmentService else { return [] }
@@ -23,7 +26,9 @@ struct SegmentsPaneView: View {
         VStack(spacing: 0) {
             head
             Divider()
-            if let document {
+            if let gather = windowState?.segmentsGather {
+                SegmentsGatheredList(gather: gather, open: open)
+            } else if let document {
                 ReadingOrderList(
                     documentId: document.id, parentSegmentId: parentId,
                     onOpen: { parentId = $0 }, opens: { SegmentsPane.hasChildren($0, in: segments) },
@@ -40,26 +45,59 @@ struct SegmentsPaneView: View {
         .task(id: document?.id) {
             parentId = nil
             guard let document, let segmentService else { return }
-            await SegmentStore.shared(for: segmentService).load(documentId: document.id)
+            let store = SegmentStore.shared(for: segmentService)
+            await store.load(documentId: document.id)
+            // A gathered row's page has arrived: select its segment in the focused Source view.
+            if let pending = pendingSelect, pending.documentId == document.id,
+               let selection = windowState?.focusedRegionSelection {
+                InspectorPath.select(segmentIds: [pending.segmentId], into: selection, documentId: document.id, store: store)
+                pendingSelect = nil
+            }
         }
     }
 
+    /// Open a gathered row: reveal its page in the Library (the same seam a click uses, so the Preview
+    /// follows) and select the segment when the page arrives.
+    private func open(_ row: SegmentsGathered.Row) {
+        guard let documentId = row.documentId else { return }
+        if let segmentId = row.segmentId { pendingSelect = (documentId, segmentId) }
+        NotificationCenter.default.post(name: .sidebarRevealDocument, object: nil, userInfo: ["documentId": documentId])
+    }
+
     private var head: some View {
+        if let gather = windowState?.segmentsGather {
+            return AnyView(PaneHead(
+                crumbs: [
+                    PaneCrumb(id: "page", title: document?.name ?? "Page", icon: "doc"),
+                    PaneCrumb(id: "gather", title: gather.title, icon: "square.stack")
+                ],
+                onCrumb: { crumb in if crumb.id == "page" { windowState?.segmentsGather = nil } },
+                selector: { kindSelector },
+                controls: { EmptyView() },
+                tools: { EmptyView() }
+            ))
+        }
+        return AnyView(pageHead)
+    }
+
+    private var kindSelector: some View {
+        PaneKindSelector(
+            kindTitle: PaneSpec.Kind.segments.title, kindIcon: PaneSpec.Kind.segments.icon,
+            currentKind: .segments, lenses: SegmentsPane.Lens.allCases,
+            lensTitle: { (lens: SegmentsPane.Lens) in lens.title },
+            lensIcon: { (lens: SegmentsPane.Lens) in lens.icon },
+            lens: $lens
+        )
+    }
+
+    private var pageHead: some View {
         let steps = SegmentsPane.path(pageTitle: document?.name ?? "Segments", to: parentId, in: segments)
         return PaneHead(
             crumbs: steps.map { PaneCrumb(id: $0.id, title: $0.title, icon: $0.segmentId == nil ? "doc" : "rectangle.dashed") },
             onCrumb: { crumb in
                 parentId = steps.first { $0.id == crumb.id }?.segmentId
             },
-            selector: {
-                PaneKindSelector(
-                    kindTitle: PaneSpec.Kind.segments.title, kindIcon: PaneSpec.Kind.segments.icon,
-                    currentKind: .segments, lenses: SegmentsPane.Lens.allCases,
-                    lensTitle: { (lens: SegmentsPane.Lens) in lens.title },
-                    lensIcon: { (lens: SegmentsPane.Lens) in lens.icon },
-                    lens: $lens
-                )
-            },
+            selector: { kindSelector },
             controls: { EmptyView() },
             tools: { EmptyView() }
         )

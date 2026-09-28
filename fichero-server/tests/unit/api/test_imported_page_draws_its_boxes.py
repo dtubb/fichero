@@ -551,3 +551,36 @@ def test_the_page_s_reading_order_is_recorded_for_the_segments_pane(db, client):
     if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
         ORDER_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
     assert json.loads(ORDER_FIXTURE.read_text()) == recorded, "the app's reading-order fixture drifted"
+
+
+HAND_GATHER_FIXTURE = FIXTURES / "syriac_onb-syr1-0001.everything-in-hand.json"
+
+
+def test_everything_in_a_hand_is_recorded_for_the_segments_pane(db, client):
+    """`source.segments-pane.gathers` (#4942): "Everything in This Hand" reads GET
+    /api/hands/{id}/attributions. Recorded for the imported Syriac page after a person attributes its
+    first two lines to hand B, one of them only 60% sure -- through the calls the app makes."""
+    doc_id = _import(db, SYRIAC)
+    body = client.get(f"/api/segments/document/{doc_id}").json()
+    real = next(p for p in body["passes"] if not p["provisional"])
+    first, second = sorted((s for s in body["segments"] if s["pass_id"] == real["id"] and s["kind"] == "line"),
+                           key=lambda s: s["anchor"]["rect"])[:2]
+    hand_id = client.post("/api/actions/invoke", json={"name": "hand.create", "params": {"label": "hand B"}}).json()["result"]["hand_id"]
+    for line, certainty in ((first, 0.8), (second, 0.6)):
+        answer = client.post("/api/actions/invoke", json={"name": "hand.attribute", "params": {
+            "hand_id": hand_id, "segment_id": line["id"], "certainty": certainty}})
+        assert answer.status_code == 200, answer.text
+    everything = client.get(f"/api/hands/{hand_id}/attributions").json()
+    assert sorted(a["segment_id"] for a in everything["items"]) == sorted([first["id"], second["id"]])
+
+    stable_route = json.loads(ROUTE_FIXTURE.read_text())
+    by_rect = {repr(s["anchor"]["rect"]): s["id"] for s in stable_route["segments"]}
+    ids = {hand_id: "hand-0001", first["id"]: by_rect[repr(first["anchor"]["rect"])],
+           second["id"]: by_rect[repr(second["anchor"]["rect"])]}
+    everything["items"] = sorted(everything["items"], key=lambda a: ids[a["segment_id"]])
+    for index, item in enumerate(everything["items"], start=1):
+        ids[item["id"]] = f"attr-{index:04d}"
+    recorded = _stabilizer(ids)(everything)
+    if os.environ.get("FICHERO_UPDATE_FIXTURES") == "1":
+        HAND_GATHER_FIXTURE.write_text(json.dumps(recorded, indent=1, ensure_ascii=True) + "\n")
+    assert json.loads(HAND_GATHER_FIXTURE.read_text()) == recorded, "the app's everything-in-hand fixture drifted"

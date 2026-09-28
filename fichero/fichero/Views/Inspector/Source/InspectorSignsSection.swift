@@ -8,6 +8,7 @@ struct InspectorSignsSection: View {
     let reading: String?
 
     @Environment(SegmentService.self) private var segmentService: SegmentService?
+    @Environment(WindowState.self) private var windowState: WindowState?
     @State private var rows: [InspectorSigns.Row] = []
     @State private var letterforms: [InspectorSigns.LetterformLine] = []
 
@@ -34,8 +35,12 @@ struct InspectorSignsSection: View {
                         Text(row.title).font(.body)
                         Text(row.detail).font(.caption).foregroundStyle(.secondary)
                     }
+                    Spacer()
+                    Button("Every Instance") { windowState?.segmentsGather = .sign(id: row.signId, name: row.title) }
+                        .buttonStyle(.borderless)
+                        .font(.caption)
+                        .help("List every use of this sign in the Segments pane")
                 }
-                .accessibilityElement(children: .combine)
             }
             ForEach(letterforms) { line in
                 VStack(alignment: .leading, spacing: 1) {

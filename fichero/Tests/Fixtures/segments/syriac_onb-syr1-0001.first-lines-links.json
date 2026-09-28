@@ -94,6 +94,12 @@
     "builtin": true
    },
    {
+    "key": "different_from",
+    "label": "Different from",
+    "inverse_label": "Different from",
+    "builtin": true
+   },
+   {
     "key": "duplicate_of",
     "label": "Duplicate of",
     "inverse_label": "Is duplicate of of",

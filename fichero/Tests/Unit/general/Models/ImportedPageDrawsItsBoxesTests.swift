@@ -36,6 +36,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 || path == "/api/rights/effective"
                 || (path.hasPrefix("/api/segments/") && path.hasSuffix("/statements"))
                 || path.hasPrefix("/api/reading-orders/")
+                || path.split(separator: "/").count == 3 && path.hasPrefix("/api/segments/")
         }
 
         /// What `GET /api/hands` and `GET /api/hands/segment/{id}` answer (set by the test that asks).
@@ -76,6 +77,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         nonisolated(unsafe) static var childEntriesReply = Data()
         nonisolated(unsafe) static var childrenOf = ""
         nonisolated(unsafe) static var placed: [Data] = []
+        /// What `GET /api/hands/{id}/attributions` answers, and `GET /api/segments/{id}` per id.
+        nonisolated(unsafe) static var everythingReply = Data()
+        nonisolated(unsafe) static var segmentReplies: [String: Data] = [:]
 
         private static func actionReply(auditId: String) -> Data {
             Data(#"{"ok":true,"result":{},"audit_id":"\#(auditId)","changed_domains":["segment"]}"#.utf8)
@@ -91,7 +95,11 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             // recording it made the highlight test parse empty data when a store reloaded.
             if isAnnotation, request.httpMethod == "POST" { Self.annotationRequests.append(Self.bodyOf(request)) }
             var actionBody: Data?
-            if path == "/api/hands" {
+            if path.hasPrefix("/api/hands/"), path.hasSuffix("/attributions") {
+                actionBody = Self.everythingReply
+            } else if path.split(separator: "/").count == 3, path.hasPrefix("/api/segments/") {
+                actionBody = Self.segmentReplies[String(path.split(separator: "/").last ?? "")]
+            } else if path == "/api/hands" {
                 actionBody = Self.handsReply
             } else if path.hasPrefix("/api/hands/segment/") {
                 actionBody = Self.attributionsReply
@@ -180,6 +188,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             childEntriesReply = Data()
             childrenOf = ""
             placed = []
+            everythingReply = Data()
+            segmentReplies = [:]
         }
 
         /// URLSession hands a protocol its body as a stream, not as `httpBody`.
@@ -893,6 +903,50 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let selection = RegionSelection()
         XCTAssertEqual(InspectorPath.select(segmentIds: [line.id], into: selection, documentId: "doc-0001", store: segmentStore), [line.id])
         XCTAssertEqual(InspectorPath.selectedSegmentIds(selection: selection, documentId: "doc-0001", store: segmentStore), [line.id])
+    }
+
+    /// `source.segments-pane.gathers` end to end, a hand (#4942): the imported Syriac page's first two
+    /// lines attributed to hand B (the engine's recorded answer), gathered through the pane's own load
+    /// (`SegmentsGatheredList.load` -> `HandService.everything` -> each segment read). Each row is the
+    /// line's words with who judged and how sure, and opens the page it is on; nothing is withheld.
+    func testEverythingInHandBIsGatheredWithEachLineAndItsJudgement() async throws {
+        let store = try await loadedStore()
+        RecordedEngine.everythingReply = try Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.everything-in-hand.json")
+        )
+        for segment in store.segments(documentId: "doc-0001") {
+            let route = try XCTUnwrap(JSONSerialization.jsonObject(with: RecordedEngine.body) as? [String: Any])
+            let raw = try XCTUnwrap((route["segments"] as? [[String: Any]])?.first { $0["id"] as? String == segment.id })
+            RecordedEngine.segmentReplies[segment.id] = try JSONSerialization.data(withJSONObject: ["segment": raw])
+        }
+        let service = SegmentService(ficheroClient: try XCTUnwrap(storeClient))
+        let answer = await SegmentsGatheredList.load(.hand(id: "hand-0001", label: "hand B"), segmentService: service)
+        let lines = store.segments(documentId: "doc-0001")
+        let first = try XCTUnwrap(lines.first { $0.id == "seg-0003" })
+        XCTAssertEqual(answer.rows.count, 2)
+        XCTAssertEqual(answer.rows.first?.title, SegmentsPane.rowLabel(first, at: 0))
+        XCTAssertEqual(answer.rows.map(\.detail), ["judged by owner · sure 80%", "judged by owner · sure 60%"])
+        XCTAssertEqual(answer.rows.map(\.documentId), ["doc-0001", "doc-0001"], "each opens the page it is on")
+        XCTAssertEqual(answer.withheld, 0)
+        XCTAssertNil(SegmentsGathered.withheldNote(answer.withheld))
+    }
+
+    /// `source.segments-pane.gathers` end to end, a sign (#4942): every instance of the MUFI sign
+    /// declared on the real Clm 13027 page (the engine's recorded answer), gathered through the pane's
+    /// own load -> `SignService.instances`: forty readings, each row how often the sign occurs in it,
+    /// each opening its page.
+    func testEveryInstanceOfTheMUFISignIsGathered() async throws {
+        _ = try await loadedStore()
+        let recorded = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(
+            contentsOf: fixtures().appendingPathComponent("mufi_clm13027-38r.signs.json")
+        )) as? [String: Any])
+        RecordedEngine.instancesReply = try JSONSerialization.data(withJSONObject: XCTUnwrap(recorded["instances"]))
+        let service = SegmentService(ficheroClient: try XCTUnwrap(storeClient))
+        let answer = await SegmentsGatheredList.load(.sign(id: "sign-0001", name: "MUFI abbreviation sign"), segmentService: service)
+        XCTAssertEqual(answer.rows.count, 40, "the page's forty readings that use U+F1AC")
+        XCTAssertEqual(answer.rows.first?.detail, "once")
+        XCTAssertTrue(answer.rows.allSatisfy { $0.documentId == "doc-mufi" }, "each opens the page it is on")
+        XCTAssertEqual(answer.withheld, 0)
     }
 
     func testTheImportedSyriacPageDrawsTheFilesRegionsAndLines() async throws {

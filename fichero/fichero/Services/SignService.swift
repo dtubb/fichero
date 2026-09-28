@@ -40,6 +40,26 @@ struct SignService {
         }
     }
 
+    /// Every use of one sign that this reader may read, and how many were left out (#5180) -- what
+    /// "Every Instance" gathers in the Segments pane (#4942).
+    func instances(signId: String) async throws -> (uses: [SegmentsGathered.SignUse], withheld: Int) {
+        let response = try await client.api.listSignInstancesApiSignsSignIdInstancesGet(path: .init(signId: signId))
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            let uses = body.items.map {
+                SegmentsGathered.SignUse(
+                    representationId: $0.representationId, segmentId: $0.segmentId, documentId: $0.documentId, count: $0.count
+                )
+            }
+            return (uses, body.withheld ?? 0)
+        case .unprocessableContent:
+            return ([], 0)
+        case .undocumented(let statusCode, _):
+            throw SegmentServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
     /// The live description of one mark, and the project's allographs by id, to name it.
     func letterforms(segmentId: String) async throws -> [InspectorSigns.Letterform] {
         let response = try await client.api.descriptionOfSegmentApiLetterformsSegmentSegmentIdGet(
