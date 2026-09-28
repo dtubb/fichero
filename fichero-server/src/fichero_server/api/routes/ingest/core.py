@@ -758,6 +758,80 @@ async def ingest_file(
     return Document.model_validate(result.result)
 
 
+class IngestFilesRequest(BaseModel):
+    """Several files dropped together (#5220): ingested as ONE set so layout files pair."""
+
+    paths: list[str]
+    parent_id: Optional[str] = None
+    mode: Literal["link", "copy", "move"] | None = None
+    extract_text: bool = True
+    auto_embed: bool = False
+
+
+class IngestFilesResponse(BaseModel):
+    documents: list[Document]
+    imported_as_passes: list[str] = []
+    not_imported: dict[str, str] = {}
+    unpaired: dict[str, str] = {}
+
+
+@router.post("/files")
+async def ingest_files(
+    request: IngestFilesRequest,
+    http_request: Request,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+) -> IngestFilesResponse:
+    """Ingest several files as one set: a layout file (PAGE, ALTO, hOCR, TEI, .box, a .txt
+    beside its image) that pairs with an image in the set becomes a PASS on that image, never a
+    document of its own -- the same pairing and report a folder drop gets (#5132, #5220).
+
+    Before this, a drop of loose files went to /file one by one, the engine never saw the image
+    and its layout together, and every .xml landed as a raw text document beside its image.
+    """
+    _require_ingest_owner(http_request, x_fichero_library_path)
+    if not request.paths:
+        raise HTTPException(status_code=400, detail="No files given")
+    files: list[Path] = []
+    for raw in request.paths:
+        _validate_ingest_path(raw)
+        path = Path(raw)
+        if path.is_symlink():
+            raise HTTPException(status_code=400, detail=f"Refusing to ingest a symlinked file: {raw}")
+        if not path.is_file():
+            raise HTTPException(status_code=400, detail=f"Not a file: {raw}")
+        files.append(path.resolve())
+
+    def run() -> IngestFilesResponse:
+        from fichero_server.importers.interchange_pairing import plan_pairs
+
+        ctx = _ingest_action_context(http_request, x_fichero_library_path)
+        plan = plan_pairs(files)
+        paired = set(plan.pairs) | set(plan.pages)
+        docs: list[Document] = []
+        for path in files:
+            if path in paired:
+                continue
+            result = registry.invoke(
+                db,
+                "import.file",
+                {
+                    "path": str(path),
+                    "parent_id": request.parent_id,
+                    "copy_mode": request.mode == "copy",
+                    "mode": request.mode,
+                    "extract_text": request.extract_text,
+                    "auto_embed": request.auto_embed,
+                },
+                ctx,
+            )
+            docs.append(Document.model_validate(result.result))
+        report = _import_paired_layout(db, docs, plan, ctx)
+        return IngestFilesResponse(documents=docs, **report)
+
+    return await asyncio.to_thread(run)
+
+
 @router.post("/folder")
 async def ingest_folder(
     request: IngestFolderRequest,

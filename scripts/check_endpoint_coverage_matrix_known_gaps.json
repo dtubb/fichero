@@ -177,6 +177,7 @@
   "POST /api/images/{document_id}/split": "store missing — structural split (creates child Documents); no client consumer yet (#3677)",
   "POST /api/images/{document_id}/uncrop": "store missing — reverses a structural crop child; no client consumer yet (#3677)",
   "POST /api/images/{document_id}/unsplit": "store missing — reverses a structural split; no client consumer yet (#3677)",
+  "POST /api/ingest/files": "app half pending: the drop of several files calls /files as one set so layout pairs (#5220); engine and CLI now",
   "POST /api/ingest/xlsx": "no Swift call for the /api/ingest/* family (1 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "POST /api/kg/claims/dedupe": "store missing — CLI-first KG dedupe surface (2026-09-02); Swift placement awaits the KG cleanup program",
   "POST /api/kg/entity-curation/dedupe": "store missing — CLI-first KG dedupe surface (2026-09-02); Swift placement awaits the KG cleanup program",

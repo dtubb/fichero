@@ -4669,6 +4669,16 @@
       },
       {
         "method": "POST",
+        "path": "/ingest/files",
+        "operation_id": "ingest_files_api_ingest_files_post",
+        "summary": "Ingest Files",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "IngestFilesRequest",
+        "response_model": "IngestFilesResponse"
+      },
+      {
+        "method": "POST",
         "path": "/ingest/folder",
         "operation_id": "ingest_folder_api_ingest_folder_post",
         "summary": "Ingest Folder",

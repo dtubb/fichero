@@ -16908,6 +16908,48 @@
         }
       }
     },
+    "/api/ingest/files": {
+      "post": {
+        "tags": [
+          "ingest"
+        ],
+        "summary": "Ingest Files",
+        "description": "Ingest several files as one set: a layout file (PAGE, ALTO, hOCR, TEI, .box, a .txt\nbeside its image) that pairs with an image in the set becomes a PASS on that image, never a\ndocument of its own -- the same pairing and report a folder drop gets (#5132, #5220).\n\nBefore this, a drop of loose files went to /file one by one, the engine never saw the image\nand its layout together, and every .xml landed as a raw text document beside its image.",
+        "operationId": "ingest_files_api_ingest_files_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngestFilesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestFilesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/ingest/folder": {
       "post": {
         "tags": [
@@ -55574,6 +55616,88 @@
         ],
         "title": "IngestFileRequest",
         "description": "Request model for file ingestion."
+      },
+      "IngestFilesRequest": {
+        "properties": {
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Paths"
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Id"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "link",
+              "copy",
+              "move"
+            ],
+            "nullable": true,
+            "title": "Mode"
+          },
+          "extract_text": {
+            "type": "boolean",
+            "title": "Extract Text",
+            "default": true
+          },
+          "auto_embed": {
+            "type": "boolean",
+            "title": "Auto Embed",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "paths"
+        ],
+        "title": "IngestFilesRequest",
+        "description": "Several files dropped together (#5220): ingested as ONE set so layout files pair."
+      },
+      "IngestFilesResponse": {
+        "properties": {
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/Document"
+            },
+            "type": "array",
+            "title": "Documents"
+          },
+          "imported_as_passes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Imported As Passes",
+            "default": []
+          },
+          "not_imported": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Not Imported",
+            "default": {}
+          },
+          "unpaired": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Unpaired",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "documents"
+        ],
+        "title": "IngestFilesResponse"
       },
       "IngestFolderRequest": {
         "properties": {

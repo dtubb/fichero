@@ -6816,6 +6816,35 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("files")
+    def ingest_files_post(
+        ctx: typer.Context,
+        auto_embed: Optional[bool] = typer.Option(None, "--auto-embed/--no-auto-embed", help="Request field: auto_embed."),
+        extract_text: Optional[bool] = typer.Option(None, "--extract-text/--no-extract-text", help="Request field: extract_text."),
+        mode: Optional[str] = typer.Option(None, "--mode", help="Request field: mode."),
+        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Request field: parent_id."),
+        paths: str = typer.Option(..., "--paths", help="Request field: paths."),
+    ) -> None:
+        """Ingest Files (POST /api/ingest/files)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/ingest/files"
+            params = None
+            payload = _build_json_payload({
+                "auto_embed": auto_embed,
+                "extract_text": extract_text,
+                "mode": mode,
+                "parent_id": parent_id,
+                "paths": paths,
+            }, {
+                "auto_embed": {'type': 'boolean', 'title': 'Auto Embed', 'default': False, 'x-cli-required': False},
+                "extract_text": {'type': 'boolean', 'title': 'Extract Text', 'default': True, 'x-cli-required': False},
+                "mode": {'type': 'string', 'enum': ['link', 'copy', 'move'], 'nullable': True, 'title': 'Mode', 'x-cli-required': False},
+                "parent_id": {'type': 'string', 'nullable': True, 'title': 'Parent Id', 'x-cli-required': False},
+                "paths": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Paths', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("folder")
     def ingest_folder_post(
         ctx: typer.Context,
