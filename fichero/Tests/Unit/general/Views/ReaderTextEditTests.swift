@@ -46,8 +46,11 @@ struct ReaderTextEditTests {
         let message = ReaderTextEdit.Message.split(pageId: "p1", segmentId: "l1", offset: 4)
         let request = try ReaderTextEdit.split(message, of: line(), shownText: "a😀bc").get()
         #expect(request == SegmentSplitRequest(segmentId: "l1", atOffset: 3, expectedVersion: 3))
-        let json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as? [String: Int])
-        #expect(json.keys.sorted() == ["at_offset", "expected_version"], "no parts, no box: the engine cuts")
+        let json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as? [String: Any])
+        #expect(json.keys.sorted() == ["at_offset", "expected_version", "segment_id"], "no parts, no box: the engine cuts")
+        #expect(json["segment_id"] as? String == "l1")
+        #expect(json["at_offset"] as? Int == 3)
+        #expect(json["expected_version"] as? Int == 3)
         // No reading counts: the box's own text is what the page shows.
         #expect(try ReaderTextEdit.split(message, of: line(), shownText: nil).get().atOffset == 4)
         #expect(ReaderTextEdit.split(message, of: line(version: nil), shownText: "abcd") == .failure(.versionUnknown))
