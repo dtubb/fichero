@@ -51,3 +51,22 @@ struct InspectorStatementsSection: View {
             ?? InspectorStatements.Answer()
     }
 }
+
+#if DEBUG
+#Preview("Said about this: a claim anchored to the line, and the person it names") {
+    let rows = InspectorStatements.rows(.init(
+        claims: [.init(id: "c1", text: "Abraham begat Isaac", curationState: "unreviewed", confidence: 0.5,
+                       via: "anchor", excerpt: "ܐܒܪܗܡ ܐܘܠܕ")],
+        mentions: [.init(id: "e1", name: "Abraham", entityType: "person", excerpt: "ܐܒܪܗܡ")]
+    ))
+    VStack(alignment: .leading, spacing: 6) {
+        Text("Said About This").font(.headline)
+        ForEach(rows) { row in
+            Text(row.title)
+            Text(row.detail).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+    .padding()
+    .frame(width: 340)
+}
+#endif

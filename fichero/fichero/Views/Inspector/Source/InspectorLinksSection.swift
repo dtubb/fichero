@@ -1,7 +1,4 @@
 import SwiftUI
-#if canImport(AppKit)
-import AppKit
-#endif
 
 /// The Inspector's Links section (5.7, #5164): the inspected segment's typed links, both ways, each
 /// read from this end; Link (the two segments picked, first to second), Withdraw, and Copy Reference.
@@ -88,10 +85,8 @@ struct InspectorLinksSection: View {
 
     private func copyReference() async {
         guard let service, let reference = try? await service.reference(segmentId: segmentId) else { return }
-        #if canImport(AppKit)
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(reference, forType: .string)
-        #endif
+        // The one sanctioned pasteboard bridge (NSPasteboard / UIPasteboard behind one API).
+        PlatformPasteboard.writeString(reference)
     }
 
     private func run<Params: Encodable>(_ name: String, _ params: Params, _ actionName: String) {
@@ -105,3 +100,22 @@ struct InspectorLinksSection: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("Links: a line continued by the next, read from this end") {
+    let rows = InspectorLinks.rows([
+        .init(id: "k1", linkType: "continues", label: "Is continued by", otherKind: "segment", otherId: "l2",
+              inbound: true, certainty: 0.9, note: "the sentence runs on"),
+        .init(id: "k2", linkType: "glosses", label: "Glosses", otherKind: "segment", otherId: "elsewhere", inbound: false)
+    ], segments: [])
+    VStack(alignment: .leading, spacing: 6) {
+        Text("Links").font(.headline)
+        ForEach(rows) { row in
+            Text("\(row.sentence) \(row.other)")
+            if !row.detail.isEmpty { Text(row.detail).font(.caption).foregroundStyle(.secondary) }
+        }
+    }
+    .padding()
+    .frame(width: 320)
+}
+#endif

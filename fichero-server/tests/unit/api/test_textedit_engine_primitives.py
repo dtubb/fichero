@@ -167,21 +167,14 @@ class TestReturnSplitsTheLineSegmentSplitPrimitive:
         assert hits == ["segments.py"], hits
 
 
-class TestStaleKeepsYourWordsHasNoCompareAndSetOnAReadingWrite:
-    """`source.textedit.stale-keeps-your-words` -- confirmed absent, not invented here.
+class TestWithoutTheTokenTwoCorrectionsBothLand:
+    """`source.textedit.stale-keeps-your-words`, the half that must NOT change.
 
-    `Segment` writes (`segment.update`/`.merge`/`.split`/`.restore_version`) all take an
-    `expected_version` and refuse with `SegmentStale` when the live row has moved on
-    (`_VERSIONED_FIELDS`, `models/segments.py`). `ContentRepresentation` -- the row a
-    text edit actually writes -- has NO such field and NO compare-and-set anywhere:
-    `representation.create` takes no `expected_version`/`expected_representation_id`, so two
-    corrections of the same reading, one written without knowledge of the other, both simply
-    succeed as two more candidate readings. Nothing refuses the second, and nothing tells either
-    caller the other one happened. What the design needs before this can be built -- and is NOT
-    decided here, the same as the caret-to-geometry mapping -- is what a caller's 'my edit is
-    against version N' token IS for an append-only, immutable row store where three readings of
-    one line legitimately coexist: `corrects_representation_id` names what a correction targets,
-    but nothing today says whether that target is still the CURRENT candidate at write time."""
+    The compare-and-set is opt-in: a writer that sends `expected_counting_id` (the Reader does) is
+    refused with a 409 when another reading counts now (`test_stale_keeps_your_words.py`). A writer
+    that sends none -- MCP, the command line, an import -- keeps today's behaviour: two corrections of
+    one reading, neither aware of the other, both land as candidate readings. Until 2026-09-28 this
+    class pinned that NO compare-and-set existed; the token was then decided by the lead as a default."""
 
     def test_two_corrections_of_the_same_reading_both_silently_succeed(self, db, client):
         page, art, row = _converted(db, client)
@@ -198,32 +191,8 @@ class TestStaleKeepsYourWordsHasNoCompareAndSetOnAReadingWrite:
             "document_id": page.id, "segment_id": row.id, "kind": "transcription",
             "content": "In the yeere of Our Lorde",
             "corrects_representation_id": original}, ctx).result
-        # Confirms absence: no refusal, no conflict signal -- both corrections of one target
+        # No token, no refusal: both corrections of one target
         # land, and nothing in the response tells either caller the other one exists.
         assert mine["id"] != theirs["id"]
         assert "conflict" not in mine and "stale" not in mine
 
-    def test_representation_create_params_take_no_expected_version(self):
-        """`RepresentationCreateParams` (`extra="forbid"`) has no field for a caller to say
-        which version of the target it read before writing -- there is nothing to compare
-        against even if the engine wanted to."""
-        from fichero_server.api.routes.document.content_representations import (
-            RepresentationCreateParams,
-        )
-        assert "expected_version" not in RepresentationCreateParams.model_fields
-        assert "expected_representation_id" not in RepresentationCreateParams.model_fields
-
-    def test_no_stale_or_conflict_machinery_exists_in_content_representations(self):
-        """Confirms absence rather than assuming it, the same discipline as
-        `test_no_caret_to_geometry_mapping_exists_in_the_tree`."""
-        import re
-        from pathlib import Path
-
-        target = (
-            Path(__file__).resolve().parents[3]
-            / "src" / "fichero_server" / "api" / "routes" / "document"
-            / "content_representations.py"
-        )
-        assert target.is_file(), f"target file not found, would prove nothing: {target}"
-        text = target.read_text()
-        assert not re.search(r"expected_version|Stale|conflict|409", text, re.I)

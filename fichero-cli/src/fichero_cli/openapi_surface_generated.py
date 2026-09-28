@@ -3812,6 +3812,7 @@ def register_generated_openapi_commands(
         derived_from_artifact_id: Optional[str] = typer.Option(None, "--derived-from-artifact-id", help="Request field: derived_from_artifact_id."),
         derived_from_representation_id: Optional[str] = typer.Option(None, "--derived-from-representation-id", help="Request field: derived_from_representation_id."),
         document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
+        expected_counting_id: Optional[str] = typer.Option(None, "--expected-counting-id", help="Request field: expected_counting_id."),
         guideline: Optional[str] = typer.Option(None, "--guideline", help="Request field: guideline."),
         kind: str = typer.Option(..., "--kind", help="Request field: kind."),
         language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
@@ -3833,6 +3834,7 @@ def register_generated_openapi_commands(
                 "derived_from_artifact_id": derived_from_artifact_id,
                 "derived_from_representation_id": derived_from_representation_id,
                 "document_id": document_id,
+                "expected_counting_id": expected_counting_id,
                 "guideline": guideline,
                 "kind": kind,
                 "language": language,
@@ -3849,6 +3851,7 @@ def register_generated_openapi_commands(
                 "derived_from_artifact_id": {'type': 'string', 'nullable': True, 'title': 'Derived From Artifact Id', 'x-cli-required': False},
                 "derived_from_representation_id": {'type': 'string', 'nullable': True, 'title': 'Derived From Representation Id', 'x-cli-required': False},
                 "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
+                "expected_counting_id": {'type': 'string', 'nullable': True, 'title': 'Expected Counting Id', 'x-cli-required': False},
                 "guideline": {'type': 'string', 'nullable': True, 'title': 'Guideline', 'x-cli-required': False},
                 "kind": {'type': 'string', 'title': 'Kind', 'x-cli-required': True},
                 "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
@@ -13771,6 +13774,18 @@ def register_generated_openapi_commands(
                 "version": {'type': 'integer', 'title': 'Version', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("statements")
+    def segments_statements_get(
+        ctx: typer.Context,
+        segment_id: str = typer.Argument(..., help="Path parameter: segment_id."),
+    ) -> None:
+        """Segment Statements (GET /api/segments/{segment_id}/statements)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/{segment_id}/statements"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-versions")

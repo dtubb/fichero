@@ -110,6 +110,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Preview/ImageEditor/ImageEditorView+Canvas.swift": "#2713 — canvas rendering uses PlatformImage/NS* via #if canImport (moved here when ImageEditorView was split by file_length); #2101",
     "Views/Preview/ImageViewer/CursorTracking/ImageWithCursorTrackingMac.swift": "#2713 — macOS NSView cursor/zoom bridge #if canImport (split from ImageWithCursorTracking by file_length); #2101",
     "Views/Preview/ImageViewer/CursorTracking/ImageWithCursorTrackingMacCoordinator.swift": "#2713 — macOS NSView coordinator #if canImport (split); #2101",
+    "Views/Preview/ImageViewer/CursorTracking/ImageWithCursorTrackingMacCoordinator+Overlay.swift": "2026-09-28 — the same macOS NSView coordinator's syncDocumentOverlay (mounts DocumentOverlayView, an NSView, in the NSImageView), moved out whole for file_length (#5113); #if canImport(AppKit)",
     "Views/Preview/ImageViewer/Regions/DocumentOverlayView.swift": "#5020/#5142 -- the boxes are an NSView INSIDE the NSScrollView's document view, so they scroll and zoom with the page with no per-tick SwiftUI redraw; that placement is AppKit's",
     "Views/Preview/ImageViewer/Regions/SelectionStyle.swift": "#5020 -- the selection look is the Mac's own: NSColor's semantic accent / unemphasized selection colours and the window's key state have no SwiftUI equivalent",
     "Views/Preview/ImageViewer/CursorTracking/DrawnImageFrame.swift": "2026-08-12 — pure NSScrollView geometry helper (drawn-image rect for box overlays), extracted from the Mac coordinator for file_length",

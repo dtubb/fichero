@@ -164,6 +164,7 @@ struct WorkspacesMenuBody: View {
         case .reading: "Reader"
         case .inspector: "Inspector"
         case .chat: "Chat"
+        case .segments: "Segments"
         }
     }
 

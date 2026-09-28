@@ -44,6 +44,8 @@ enum PaneKind: String, Codable, CaseIterable, Sendable, Hashable {
     case reading
     case inspector
     case chat
+    /// The Segments pane (#4942): a page's segments as a list beside the Preview.
+    case segments
 }
 
 /// What a pane is scoped to. All fields optional: a `nil` field means "follow the

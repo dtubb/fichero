@@ -15,6 +15,8 @@ var textEditingHasKeyboard: Bool {
 
 enum PaneFocus: Hashable {
     case sidebar, content, preview, reading, chat, inspector
+    /// The Segments pane (#4942): a click in it claims command focus, so Split / Close act on it.
+    case segments
 
     /// Human name for the pane — VoiceOver announcements on pane moves.
     var paneTitle: String {
@@ -25,6 +27,20 @@ enum PaneFocus: Hashable {
         case .reading: return "Reader"
         case .chat: return "Chat"
         case .inspector: return "Inspector"
+        case .segments: return "Segments"
+        }
+    }
+
+    /// The pane KIND a focused pane is, for Split / Close / New Tab on the focused pane; nil for the
+    /// sidebar and the inspector, which are not leaves of the pane list.
+    var paneKind: PaneKind? {
+        switch self {
+        case .content: .library
+        case .preview: .preview
+        case .reading: .reading
+        case .chat: .chat
+        case .segments: .segments
+        case .sidebar, .inspector: nil
         }
     }
 }

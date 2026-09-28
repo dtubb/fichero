@@ -69,10 +69,13 @@ struct PreviewMarkupShortcutUniquenessTests {
         return found
     }
 
+    /// The markup ROW, where the tools, their keys and their tooltips live. This read
+    /// `PreviewHeadControls.swift` and so found nothing since the row moved out of the head
+    /// (2026-08-30) -- corrected 2026-09-28, as `editVerbsFollowTheSelection` was on 2026-09-27.
     private func headSource() throws -> String {
         try String(
             contentsOf: AppSource.root().appendingPathComponent(
-                "Views/Shell/PaneHead/PreviewHeadControls.swift"
+                "Views/Shell/PaneHead/PreviewMarkupToolsRow.swift"
             ), encoding: .utf8
         )
     }
@@ -112,10 +115,13 @@ struct PreviewMarkupShortcutUniquenessTests {
 /// preference, so a later edit that reshuffles the row has to argue with a
 /// test rather than land quietly.
 struct PreviewMarkupRowOrderGuardTests {
+    /// The markup ROW, where the tools, their keys and their tooltips live. This read
+    /// `PreviewHeadControls.swift` and so found nothing since the row moved out of the head
+    /// (2026-08-30) -- corrected 2026-09-28, as `editVerbsFollowTheSelection` was on 2026-09-27.
     private func headSource() throws -> String {
         try String(
             contentsOf: AppSource.root().appendingPathComponent(
-                "Views/Shell/PaneHead/PreviewHeadControls.swift"
+                "Views/Shell/PaneHead/PreviewMarkupToolsRow.swift"
             ), encoding: .utf8
         )
     }
@@ -235,8 +241,9 @@ struct PreviewMarkupSelectionVerbGuardTests {
         #expect(viewer.contains("case .check: _ = checkSelectedBoxes()"))
         // The check button has to POST for the canvas to hear it at all —
         // sticky-mode-only was why checks needed a separate click.
-        let head = try source("Views/Shell/PaneHead/PreviewHeadControls.swift")
-        #expect(head.contains("object: PreviewMarkupTool.check.rawValue"))
+        // The markup row (it left the head on 2026-08-30).
+        let row = try source("Views/Shell/PaneHead/PreviewMarkupToolsRow.swift")
+        #expect(row.contains("object: PreviewMarkupTool.check.rawValue"))
     }
 
     @Test("selection marks snap to one strip per line, from either selection seam")
@@ -261,20 +268,22 @@ struct PreviewMarkupSelectionVerbGuardTests {
 /// switch on by default — Daniel's container had the key stuck at 0, so every
 /// mark the markup row drew saved correctly and rendered invisible.
 struct PreviewWhatToShowMenuGuardTests {
-    @Test("the menu offers exactly the four display switches")
-    func fourSwitchesByName() throws {
+    /// Five since 2026-09-27 (Q2, ruled: the switches are LAYERS -- the image on or off, the overlays
+    /// on or off; af98d696b added Show Image).
+    @Test("the menu offers exactly the five display switches: the image and the four overlays")
+    func fiveSwitchesByName() throws {
         let toolbar = try String(
             contentsOf: AppSource.root().appendingPathComponent(
                 "Views/Reader/ReaderToolbar.swift"
             ), encoding: .utf8
         )
         for title in [
-            "Show Annotations", "Show Word Bounding Boxes", "Show Regions", "Show Text Inline"
+            "Show Image", "Show Annotations", "Show Word Bounding Boxes", "Show Regions", "Show Text Inline"
         ] {
             #expect(toolbar.contains("Toggle(\"\(title)\", isOn:"), "missing \(title)")
         }
         let toggles = toolbar.components(separatedBy: "Toggle(\"Show ").count - 1
-        #expect(toggles == 4, "the what-to-show menu grew or lost a switch (\(toggles))")
+        #expect(toggles == 5, "the what-to-show menu grew or lost a switch (\(toggles))")
     }
 
     @Test("annotation overlays default to ON")
