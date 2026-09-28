@@ -51,7 +51,7 @@ class UnknownFormat(ValueError):
         self.name = name
         super().__init__(
             f"unknown interchange format {name!r}; this build has: "
-            + ", ".join(sorted(_REGISTRY))
+            + ", ".join(sorted(_registry()))
         )
 
 
@@ -98,12 +98,13 @@ def register(spec: FormatSpec) -> FormatSpec:
 
 
 def known_formats() -> list[FormatSpec]:
-    return [_REGISTRY[name] for name in sorted(_REGISTRY)]
+    registry = _registry()
+    return [registry[name] for name in sorted(registry)]
 
 
 def format_named(name: str) -> FormatSpec:
     try:
-        return _REGISTRY[name]
+        return _registry()[name]
     except KeyError as exc:
         raise UnknownFormat(name) from exc
 
@@ -227,17 +228,24 @@ def validate(spec: FormatSpec, data: bytes) -> list[str]:
     return validate_xml(data, path)
 
 
-def _load_builtin_formats() -> None:
-    """Import the shipped formats so they register themselves.
+_builtins_loaded = False
 
-    Called at the bottom of this module so `from fichero_server.formats import
-    known_formats` is enough -- a caller that had to import each format first would
-    be a caller that can forget one, and `first-four` would stop being data.
+
+def _registry() -> dict[str, FormatSpec]:
+    """The registry, with the shipped formats in it.
+
+    Loaded on FIRST USE, not when this package is imported: the import route imports
+    this package at app start, and loading every format there put seven format modules
+    (and their XML stack) on the engine's start-up path (#3950). Every reader of the
+    registry comes through here, so `from fichero_server.formats import known_formats`
+    is still enough -- a caller that had to import each format first would be a caller
+    that can forget one, and `first-four` would stop being data.
     """
-    from fichero_server.formats import alto, hocr, iiif_georef, pagexml, qgis_points, tei, yolo  # noqa: F401
-
-
-_load_builtin_formats()
+    global _builtins_loaded
+    if not _builtins_loaded:
+        _builtins_loaded = True
+        from fichero_server.formats import alto, hocr, iiif_georef, pagexml, qgis_points, tei, yolo  # noqa: F401
+    return _REGISTRY
 
 
 # ---------------------------------------------------------------------------
