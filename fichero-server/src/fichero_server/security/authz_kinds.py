@@ -69,8 +69,8 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
     "citation_id": (RECORD, ("DocumentCitation",)),
     # Ends of a typed link, and generic targets: any id at all, each resolved by its own kind.
     **{name: (RECORD, ("*",)) for name in ("from_id", "to_id", "end_id", "target_id", "source_id", "source_ids", "id", "remove_ids", "reorder_ids", "bookmark_id")},
-    # --- rights: archive's work in progress (#5177 thread) ---------------------------------------
-    "record_id": (LIBRARY, "rights records (and agent audit records): the RightsRecord resolver is being added with archive's rights work; until then itself-only -- tracked on #5177"),
+    # --- rights (#5177: archive's semantics) ---------------------------------------------------------
+    "record_id": (RECORD, ("RightsRecord",)),   # agent audit records are app-database rows, checked by their own route
     # --- the knowledge graph ---------------------------------------------------------------------
     **{name: (LIBRARY, _KG) for name in (
         "claim_id", "claim_ids", "absorbed_claim_ids", "surviving_claim_id", "related_claim_id",
@@ -107,5 +107,4 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
 LIBRARY_SCOPED_MODELS: dict[str, str] = {
     "KnowledgeClaim": _KG,
     "BookStructureNode": "a node of the book-structure outline built over many documents; its source document is where it was read from",
-    "RightsRecord": "resolved with archive's rights work (#5177 thread); itself-only until then",
 }

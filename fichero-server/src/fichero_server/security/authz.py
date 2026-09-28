@@ -33,6 +33,7 @@ from fichero_server.models.knowledge import (
     ReferenceProvenance,
 )
 from fichero_server.models.reading_orders import ReadingOrder, ReadingOrderEntry
+from fichero_server.models.rights import RightsRecord
 from fichero_server.models.readings import ReadingChoice
 from fichero_server.models.typed_links import TypedLink
 from fichero_server.models import (
@@ -446,6 +447,10 @@ _DOCUMENT_ID_RESOLVERS: tuple[tuple[type, Callable[[Any, Any], "str | None"]], .
     (TypedLink, lambda db, row: _owning_document(db, row.from_id) or _owning_document(db, row.to_id) or NO_DOCUMENT),
     (LibraryItemLink, lambda db, row: _owning_document(db, row.target_id) or NO_DOCUMENT),
     (ProjectInclusion, lambda db, row: _owning_document(db, row.target_id) or NO_DOCUMENT),
+    # A rights record (archive's semantics, #5177): on the library -> no document; on a segment ->
+    # the segment's page; otherwise its target IS the document.
+    (RightsRecord, lambda db, row: NO_DOCUMENT if row.target_kind == "library"
+        else _document_id_of_segment(db, row.target_id) if row.target_kind == "segment" else row.target_id),
     # Declared with #5178; including a document in the knowledge graph is a fact about that document.
     (KnowledgeGraphInclusion, lambda db, row: _owning_document(db, row.target_id) or NO_DOCUMENT),
 )
