@@ -44,6 +44,45 @@ final class ConnectionPoolSegmentationTests: XCTestCase {
     /// The configured `HTTPClient` must actually carry the chosen soft limit —
     /// building the configuration and forgetting to apply it is the silent way
     /// to ship the default.
+    /// #5228 / #5269: a dial to a local socket nothing listens on fails at once. With
+    /// AsyncHTTPClient's 10 s default connect timeout the pool retried for the whole 10 s, so a
+    /// launch learned late that its engine had bound, and one whose engine had died spent 10 s
+    /// on every readiness poll. A real socket file that nothing accepts on is the case that
+    /// matters (a stale socket left by a dead engine).
+    func testADialToASocketNobodyListensOnFailsWithinTheConnectTimeout() async throws {
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent("fichero-dead-\(UUID().uuidString.prefix(8)).sock").path
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        XCTAssertGreaterThanOrEqual(fd, 0)
+        var address = sockaddr_un()
+        address.sun_family = sa_family_t(AF_UNIX)
+        _ = withUnsafeMutableBytes(of: &address.sun_path) { buffer in
+            path.utf8CString.withUnsafeBytes { buffer.copyBytes(from: $0.prefix(buffer.count - 1)) }
+        }
+        let bound = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        XCTAssertEqual(bound, 0, "bind the stale socket file")
+        close(fd)  // the file stays; nothing listens: ECONNREFUSED, like a dead engine's socket
+        defer { unlink(path) }
+
+        let client = HTTPClient(
+            eventLoopGroupProvider: .singleton,
+            configuration: LocalTransportPool.configuration(softLimit: 4)
+        )
+        let request = try HTTPClient.Request(url: URL(httpURLWithSocketPath: path, uri: "/api/health")!)
+        let started = Date()
+        do {
+            _ = try await client.execute(request: request).get()
+            XCTFail("nothing listens; the request must fail")
+        } catch {}
+        let took = Date().timeIntervalSince(started)
+        try await client.shutdown()
+        XCTAssertLessThan(took, 3, "a dead local socket took \(took) s to fail -- the 10 s default is back")
+    }
+
     func testLocalConfigurationAppliesTheChosenSoftLimit() {
         let configuration = LocalTransportPool.configuration(softLimit: 37)
         XCTAssertEqual(configuration.connectionPool.concurrentHTTP1ConnectionsPerHostSoftLimit, 37)

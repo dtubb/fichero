@@ -172,6 +172,9 @@ public enum LocalTransportPool {
 
     // MARK: - Clients
 
+    /// How long one connect to the local engine socket may take (#5228). See ``configuration(softLimit:)``.
+    static let connectTimeout: TimeAmount = .seconds(1)
+
     /// `HTTPClient` configuration for a local UDS pool with an explicit ceiling.
     static func configuration(softLimit: Int) -> HTTPClient.Configuration {
         var configuration = HTTPClient.Configuration()
@@ -180,8 +183,14 @@ public enum LocalTransportPool {
             concurrentHTTP1ConnectionsPerHostSoftLimit: softLimit
         )
         // No read timeout: an idle SSE subscription is healthy, not stalled, and
-        // a read deadline would kill every quiet stream. Connect timeouts stay at
-        // AsyncHTTPClient's default.
+        // a read deadline would kill every quiet stream.
+        //
+        // A 1 s CONNECT timeout, not AsyncHTTPClient's 10 s (#5228, #5269). A local socket's connect
+        // succeeds at once when the engine listens (the kernel queues it even while the engine is
+        // busy) or fails at once when it does not; the pool instead retried with backoff for the
+        // whole 10 s. A launch then learned its engine had bound ~2 s late, and a launch whose
+        // engine had died spent 10 s on every readiness poll.
+        configuration.timeout = HTTPClient.Configuration.Timeout(connect: connectTimeout, read: nil)
         //
         // NOTE (#4379): this alone does NOT make streams deadline-free. The
         // `AsyncHTTPClientTransport` wrapping this client applies its own
