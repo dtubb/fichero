@@ -80,30 +80,31 @@ console.log(JSON.stringify({json.dumps([o for _, o in probes])}.map((o) => segme
 
 @pytest.mark.skipif(NODE is None, reason="needs node to run the page's own script")
 def test_a_claim_across_two_lines_still_has_one_text_to_paint(db, client):
-    """A highlight is painted by offsets into the page body's text. With the map a sidecar, the
-    body is still ONE run of the page text, so a claim from the middle of line 1 to the middle of
-    line 2 covers both parts -- where a per-line element would have split it at the boundary."""
+    """A highlight is painted by offsets into the page body's text. Each manuscript line now ends at a
+    `.line-break` element (#5208), so the body is several text nodes -- and a claim from the middle of
+    line 1 to the middle of line 2 must still be found and lit whole: its excerpt is looked for in the
+    nodes' text JOINED (`excerptPieces`), one piece per node. WHY: the highlighters looked in one node
+    at a time, and a claim crossing a line would silently stop being highlighted."""
     doc_id = _import(db, CLM)
     payload, html = _view(client, doc_id)
     page = payload["pages"][0]
     first, second = page["lines"][0], page["lines"][1]
     claim = ((first["char_start"] + first["char_end"]) // 2, (second["char_start"] + second["char_end"]) // 2)
+    assert claim[0] < first["char_end"] <= second["char_start"] < claim[1]   # it really crosses the line
+    excerpt = page["content"][claim[0]:claim[1]]
     page_js = {"id": page["id"], "number": 1, "content": page["content"], "hasContent": True}
     rendered = _node(_page_script(html) + f"""
 const page = {json.dumps(page_js)};
 const withMap = transcriptPageMarkup({{...page, lines: {json.dumps(page["lines"])}}});
-const without = transcriptPageMarkup({{...page, lines: []}});
-console.log(JSON.stringify({{withMap, without}}));
+const body = withMap.match(/<div class="transcript-page-body">([\\s\\S]*?)<\\/div>/)[1];
+const texts = body.split(/<[^>]+>/).map((t) => t.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&"));
+const pieces = excerptPieces(texts, {json.dumps(excerpt)});
+console.log(JSON.stringify({{ texts, pieces }}));
 """)
-    assert rendered["withMap"] == rendered["without"]
-    body = re.search(r'<div class="transcript-page-body">(.*?)</div>', rendered["withMap"], re.S).group(1)
-    assert "<" not in body                                          # no element inside the body
-    text = body.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
-    assert text == page["content"]
-    painted = text[claim[0]:claim[1]]
-    assert page["content"][first["char_start"]:first["char_end"]][-1] in painted
-    assert page["content"][second["char_start"]:second["char_end"]][0] in painted
-    assert claim[0] < first["char_end"] <= second["char_start"] < claim[1]   # it really crosses the line
+    texts, pieces = rendered["texts"], rendered["pieces"]
+    assert "".join(texts) == page["content"], "tags stripped, the body is the page text to the character"
+    assert len(pieces) >= 2, "the claim crosses the line break, so it touches more than one node"
+    assert "".join(texts[p["index"]][p["start"]:p["end"]] for p in pieces) == excerpt, "and is lit whole"
 
 
 def test_a_stale_page_text_gets_no_map_rather_than_a_wrong_one(db, client):

@@ -16,6 +16,7 @@ run in node (a source scan would pass with them broken).
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import unicodedata
 from pathlib import Path
@@ -96,7 +97,7 @@ def test_an_rtl_page_is_laid_out_right_to_left(db, client):
     payload, html = _view(client, doc_id)
     body = _body(html, payload["pages"][0])
     assert body.startswith('<div class="transcript-page-body" dir="rtl">')
-    assert "<span" not in body                       # one direction: one text node, as before
+    assert "<span dir" not in body                   # one direction: no isolate, as before
 
 
 @needs_node
@@ -112,7 +113,8 @@ def test_a_latin_line_on_a_syriac_page_is_its_own_isolate(db, client):
     for text in latin:
         assert f'<span dir="ltr">{text}' in body, body[:400]
     inner = body[body.index(">") + 1:body.rindex("</div>")]
-    stripped = inner.replace('<span dir="ltr">', "").replace("</span>", "")
+    # Every tag stripped -- the isolates and the line breaks (#5208) -- leaves the page text.
+    stripped = re.sub(r"<[^>]+>", "", inner)
     assert stripped.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&") == page["content"]
 
 
@@ -284,3 +286,24 @@ def pagePayload(html: str, page_id: str) -> dict:
     import re
     data = json.loads(re.search(r"const documentData = (\{.*?\});\n", html, re.S).group(1))
     return next(p for p in data["pages"] if p["id"] == page_id)
+
+
+@needs_node
+def test_each_manuscript_line_is_its_own_line_and_the_text_is_unchanged(db, client):
+    """#5208 (Daniel): the Reader flowed a region's lines as one paragraph, but a diplomatic reading keeps
+    the manuscript's lines. Each separator between two lines of the map is wrapped as a `.line-break`,
+    which the page's CSS follows with a line break (a new column in a `ttb` page). WHY the text must be
+    unchanged: every caret, claim and search offset walks these text nodes; if the break were a
+    character, or dropped the separator, each of them would land one place off per line."""
+    import html as html_module
+
+    doc_id = _import(db, SYRIAC)
+    payload, html = _view(client, doc_id)
+    page = payload["pages"][0]
+    body = _body(html, page)
+    lines = page["lines"]
+    joined = sum(1 for a, b in zip(lines, lines[1:]) if b["char_start"] == a["char_end"] + 1)
+    assert joined >= 2, "the recorded page has several lines to break between"
+    assert body.count('<span class="line-break">') == joined, "one break per boundary, no more"
+    assert html_module.unescape(re.sub(r"<[^>]+>", "", body)) == page["content"], "not one character moved"
+    assert ".line-break::after" in html and 'content: "\\A"' in html, "the served page draws the break"

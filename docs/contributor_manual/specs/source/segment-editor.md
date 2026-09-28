@@ -869,6 +869,20 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   while out of reach, and the resend is byte-identical). App half: the page's own typing message through the
   real generated client with the transport failing, and the return probe
   (`ImportedPageDrawsItsBoxesTests.testATypedLineThatCannotReachTheEngineIsHeldNotLost`).
+- `source.textedit.a-line-per-line` — **[PARTIAL]** (#5208) the Reader shows one line per manuscript line,
+  each in its direction; a region's lines never flow together as a paragraph (Daniel, 2026-09-28: a
+  diplomatic reading keeps the manuscript's lines). In a `ttb` page each line is its own column.
+  **Built 2026-09-28, the page's half:** each separator between two consecutive lines of the line map
+  is wrapped as a `.line-break`, and the page's CSS draws a line break after it. The break is never a
+  character, so the text nodes are the page text to the character and no caret, claim or search offset
+  moves. The three highlighters (claim, span, search) looked for their text in ONE text node; they now
+  find it across nodes, one mark per node it touches (`excerptPieces`, `offsetPieces`, `wrapPieces`),
+  so a claim across a line boundary is still lit whole.
+  Pinned by `test_reader_directions.py::test_each_manuscript_line_is_its_own_line_and_the_text_is_unchanged`
+  (the recorded Syriac page) and
+  `test_reader_line_map.py::test_a_claim_across_two_lines_still_has_one_text_to_paint`.
+  **Still PARTIAL:** a look in the app. The caret's movement across a break in WebKit is unverified, as
+  is typing with the caret at a line's end.
 - `source.textedit.every-direction` — **[PARTIAL]** (#5001) each block is laid out and edited in its own direction;
   line starts, joins and cuts follow reading order and the baseline; a direction the platform
   cannot lay out is labelled, never reordered.
