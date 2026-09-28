@@ -17,7 +17,9 @@
    "import_file": "escriptorium_syriac_onb-syr1-0001.page.xml",
    "import_checksum": "abd92d4208786f45667c698ffc1b22873f6c23cc7bc2d176edd69eda379bcea7",
    "import_format": "pagexml",
-   "has_original": true
+   "has_original": true,
+   "working": true,
+   "working_basis": "human-touched"
   }
  ],
  "segments": [
