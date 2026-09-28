@@ -36,44 +36,6 @@ from fichero_server.workflows.tools.vision_base import (
 )
 
 
-def _existing_transcription_context(
-    library_path: str, documents: list
-) -> list[str] | None:
-    """Each document's existing text, for a review run with no wired draft.
-
-    ``page_content`` first (it is what the user reads), else the newest
-    transcription-family artifact. A document with neither contributes an
-    empty string — the review prompt then works from the image alone for
-    that page, which is honest, not an error.
-    """
-    if not library_path or not documents:
-        return None
-    from fichero_server.db import db_manager
-    from fichero_server.models import Artifact
-
-    db = db_manager.get_database(library_path)
-    texts: list[str] = []
-    found_any = False
-    for doc in documents:
-        doc_id = doc.get("id") if isinstance(doc, dict) else getattr(doc, "id", None)
-        content = (
-            doc.get("page_content") if isinstance(doc, dict)
-            else getattr(doc, "page_content", None)
-        )
-        if not content and doc_id:
-            rows = db.query(Artifact, document_id=doc_id)
-            transcriptions = [
-                a for a in rows
-                if (a.artifact_type or "").startswith("transcription")
-                and (a.content or "").strip()
-            ]
-            transcriptions.sort(key=lambda a: a.created_at, reverse=True)
-            content = transcriptions[0].content if transcriptions else None
-        texts.append(content or "")
-        found_any = found_any or bool(content)
-    return texts if found_any else None
-
-
 # =============================================================================
 # Tool Configuration
 # =============================================================================
@@ -201,9 +163,11 @@ async def transcribe_review(
         # transcription artifact. This is what lets "transcribe with one
         # model today, review with another tomorrow" exist as two separate
         # user acts instead of one welded pipeline.
-        prior_text = _existing_transcription_context(
-            state.get("library_path", ""), documents
-        )
+        # One builder for a page's context (#5026): the page's lines, else its text, else its
+        # newest transcription -- what `_existing_transcription_context` sent, and the lines too.
+        from fichero_server.tool_context import with_page_context
+
+        prior_text = with_page_context(None, documents, files, state.get("library_path", ""))
     input_metadata = inputs.get("metadata")
 
     update_page_content = inputs.get("update_page_content", True)

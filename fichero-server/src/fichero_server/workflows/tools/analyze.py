@@ -90,15 +90,11 @@ async def analyze(
     if not context and documents:
         # Same standalone seam as transcribe_review (2026-08-26): an analysis
         # preset run directly on a document (Regesto, Modernización,
-        # Translate) reads the document's EXISTING transcription as context
+        # Translate) reads the document's EXISTING reading as context (the one page-context builder, #5026)
         # instead of working from the image alone.
-        from fichero_server.workflows.tools.transcribe_review import (
-            _existing_transcription_context,
-        )
+        from fichero_server.tool_context import with_page_context
 
-        context = _existing_transcription_context(
-            state.get("library_path", ""), documents
-        )
+        context = with_page_context(None, documents, files, state.get("library_path", ""))
     input_metadata = inputs.get("metadata")
 
     # Get prompt - required for analyze
