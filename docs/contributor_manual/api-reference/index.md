@@ -801,3 +801,74 @@ below goes through the one audited action layer, so each answer carries an
 - The loss report is not a warning to be skipped. A format that cannot carry fine
   geometry, or direction, or a rival reading says so by name, and the round trip
   subtracts exactly what the report names.
+
+## Page-model and paleography routes (2026-09)
+
+Each line is drawn from the route's own summary in `openapi.json`.
+
+**Campaigns**, the order in which a source's work was laid down:
+
+- `GET /api/campaigns/document/{document_id}`: a source's campaigns, first laid down first.
+- `GET /api/campaigns/reading/{representation_id}`: the campaigns of one reading.
+- `GET /api/campaigns/segment/{segment_id}`: the campaign one segment belongs to.
+
+**Conversion** of older results to the page model when a library opens:
+
+- `GET /api/conversion/status`: what the conversion has done, is doing, and has left.
+- `POST /api/conversion/{run_id}/seen`: a person has seen this run's report.
+
+**Import**, pairing images with their layout files:
+
+- `POST /api/documents/import-batch`: files dropped together (multipart), paired exactly as when their folder is dropped.
+- `POST /api/ingest/files`: several files ingested as one set; a layout file that pairs with an image in the set becomes a pass on that image.
+
+**Editorial, statements and matches:**
+
+- `GET /api/editorial/segment/{segment_id}`: a segment's live editorial facts, and its counting reading.
+- `GET /api/segments/{segment_id}/statements`: what is said about a segment.
+- `GET /api/segments/document/{doc_id}/matches`: the matches recorded on one page, for review.
+- `GET /api/segments/passes/{pass_id}/original`: the file an imported pass was read from, byte for byte.
+
+**Places and georeferencing:**
+
+- `GET /api/entities/{entity_id}/place`: a place as of a date, never the nearest geometry.
+- `GET /api/entities/{entity_id}/linked-places`: a place as Linked Places Format.
+- `GET /api/links/naming`: every segment that names a place `same_as` a URI.
+- `GET /api/georeference/documents/{doc_id}/geojson`: an image's segments placed in the world, as GeoJSON.
+- `GET /api/georeference/passes/{pass_id}/transform`: a pass's transform, with residuals.
+- `PUT /api/georeference/passes/{pass_id}/transformation`: choose the transformation type; returns 422 with the number of GCPs needed when a pass has too few.
+- `GET /api/georeference/segments/{segment_id}/world-shape`: one segment's shape in the world.
+
+**Hands, meaning who wrote what:**
+
+- `GET|POST /api/hands`: list the project's hands, or create one.
+- `POST /api/hands/{hand_id}/withdraw`: withdraw a hand.
+- `POST /api/hands/attributions`: attribute a segment to a hand.
+- `POST /api/hands/attributions/{attribution_id}/withdraw`: withdraw an attribution.
+- `GET /api/hands/segment/{segment_id}`: every live judgement of a segment's hand, rivals side by side.
+- `GET /api/hands/{hand_id}/attributions`: everything in one hand that the caller may read.
+
+**Letterforms and signs:**
+
+- `GET /api/letterforms`: every live mark of a character, allograph or hand; at least one of the three must be named.
+- `GET /api/letterforms/allographs`, `GET /api/letterforms/features`: the allographs, and the features in use.
+- `GET /api/letterforms/segment/{segment_id}`: the letterform description of one segment.
+- `GET|POST /api/signs`: list signs, or declare one.
+- `GET /api/signs/{sign_id}/instances`: a sign's instances.
+- `POST /api/signs/{sign_id}/withdraw`: withdraw a sign.
+
+**Reading orders:**
+
+- `GET /api/reading-orders/flows/onto/{document_id}`: the flows this page's segments could join, nearest earlier page first.
+- `POST /api/reading-orders/{order_id}/place`: the single reorder call made by the Reader, the Inspector and the Segments pane. It is audited and undoable.
+
+**Rights:**
+
+- `POST /api/rights`: set rights on a target.
+- `GET /api/rights/effective`: what applies to a target; every record above it, combined tighten-only.
+- `POST /api/rights/{record_id}/withdraw`: withdraw a rights record.
+
+**Fonts:**
+
+- `GET /api/fonts`: the bundled fallback fonts, in fallback order.
+- `GET /api/fonts/{name}`: one bundled font file, or its licence.
