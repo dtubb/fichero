@@ -379,9 +379,38 @@ def _allowed(
     effect = _matching_override_effect(resolved.id, library_path, target_id)
     if effect == EFFECT_DENY:
         return False
-    if effect == EFFECT_GRANT:
-        return base_allowed if write else True
-    return base_allowed
+    allowed = (base_allowed if write else True) if effect == EFFECT_GRANT else base_allowed
+    return allowed and not _rights_refuse(resolved.id, library_path, target_id)
+
+
+def _rights_refuse(user_id: str, library_path: str, target_id: str | None) -> bool:
+    """ACCESS CONTROL, `source.rights.one-check` (slice 14, #4953): a rights record that RESTRICTS
+    its target refuses every account it does not name -- owner and editor included (ruled
+    2026-09-20) -- for reads and writes alike, on the target and everything under it.
+
+    Records pass downward and only tighten (`models/rights.py`), so the records that apply are
+    those on the library and on the target and each of its document ancestors, and an account
+    must be named by EVERY restricting one among them: the intersection, as `combine` computes it.
+
+    The cheap question first, as for overrides (#4917): a library with no live restricting record
+    -- every real library today -- costs one query and behaves exactly as before. Fails CLOSED: a
+    lookup error refuses rather than reading as "no restriction".
+    """
+    from fichero_server.db.manager import db_manager
+
+    try:
+        db = db_manager.get_database(library_path)
+        restricting = [r for r in db.query(RightsRecord, restricted=True) if r.withdrawn_at is None]
+        if not restricting:
+            return False
+        applies = {"library"}  # `rights.LIBRARY_TARGET`
+        if target_id:
+            applies.update(_target_ancestor_ids(library_path, target_id) or [target_id])
+    except Exception as exc:  # AuthzResolutionError included: fail closed
+        logger.warning("authz: rights lookup failed for %r in %r, refusing: %s", target_id, library_path, exc)
+        return True
+    return any(user_id not in r.readers for r in restricting if r.target_id in applies)
+
 
 
 def _matching_override_effect(
