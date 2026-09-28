@@ -16,7 +16,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from typing import Any
+from typing import Any, Literal
 
 
 def _new_id() -> str:
@@ -498,6 +498,11 @@ class GeoPoint(BaseModel):
         description="Radius of locational uncertainty in metres (None = exact).",
     )
     place_name: str | None = None
+    #: Declared, not converted (maps D5, `source.geo.crs-declared-on-existing`): every lat/lon this
+    #: record has ever held is WGS 84 -- the geocoders and the map speak nothing else -- so a row an
+    #: older build wrote reads back saying so. A coordinate in any other CRS is refused here; it goes
+    #: through the world-point path, which records the CRS it arrived in (`models.geo`).
+    crs: Literal["EPSG:4326"] = "EPSG:4326"
 
 
 class EvidenceBasis(str, Enum):
@@ -539,6 +544,10 @@ class EvidentialDateRange(BaseModel):
     circa: bool = False
     precision: str | None = None
     label: str | None = None
+    #: How the source numbers its years before 1 AD (maps D6/D7): "historical" has no year 0
+    #: (-330 is 330 BC -- Pleiades), "astronomical" has one (-329 is 330 BC -- ISO 8601, Wikidata).
+    #: The years are kept as the source wrote them; only comparison converts (`knowledge.places`).
+    numbering: Literal["historical", "astronomical"] | None = None
     basis: EvidenceBasis
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     source_document_id: str | None = None
@@ -570,12 +579,24 @@ class EvidentialPlace(BaseModel):
     # image-anchor type. The name now says which kind it is.
     geo_bbox: list[float] | None = None
     geojson: dict | None = None
+    #: When this geometry held (maps D7, `source.geo.geometry-over-time`): a span, or a point in time
+    #: (start == end). None: undated -- listed apart, never taken as valid at a given date.
+    when: EvidentialDateRange | None = None
+    #: Declared, not converted (maps D5, `source.geo.crs-declared-on-existing`): every lat/lon this
+    #: record has ever held is WGS 84 -- the geocoders and the map speak nothing else -- so a row an
+    #: older build wrote reads back saying so. A coordinate in any other CRS is refused here; it goes
+    #: through the world-point path, which records the CRS it arrived in (`models.geo`).
+    crs: Literal["EPSG:4326"] = "EPSG:4326"
     basis: EvidenceBasis
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     source_document_id: str | None = None
     source_page_label: str | None = None
     source_field: str | None = None
     source_excerpt: str | None = None
+    #: A geometry ADOPTED from a map (maps D8, `source.geo.boundary-from-map`): the boundary segment
+    #: it was worked out from and the georeferencing pass (so, the transformation) that placed it.
+    source_segment_id: str | None = None
+    source_pass_id: str | None = None
     rationale: str | None = None
     created_by: str = "extractor"
 
@@ -754,6 +775,31 @@ class PredictionMetadata(BaseModel):
     predicted_links: list[PredictionLink] | None = None
 
 
+class EntityName(BaseModel):
+    """One name of an entity, as a source attests it (maps D6, `source.geo.names-over-time`): the
+    form in its own script, its language and script, when it was used, and who says so. The
+    entity's `aliases` is DERIVED from these (plus older plain aliases): one answer to "what is it
+    called", read the old way or the new."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    #: As attested, in its own script ("Λουκοτοκία").
+    text: str = Field(min_length=1)
+    #: A romanized form, when the source gives one ("Loutokotia").
+    romanized: str | None = None
+    #: BCP 47, as the source gives it -- never guessed from the script (#5176).
+    language: str | None = None
+    #: ISO 15924: the source's, else the text's own letters (`script_of_text`).
+    script: str | None = None
+    when: EvidentialDateRange | None = None
+    #: The record attesting it: a URI or a document id.
+    source: str | None = None
+    provenance_kind: ProvenanceKind = ProvenanceKind.unknown
+    created_by: str | None = None
+    created_at: datetime = Field(default_factory=utc_now)
+
+
 class KnowledgeEntity(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
@@ -765,6 +811,8 @@ class KnowledgeEntity(BaseModel):
     description: str | None = None
     language: str | None = None
     metadata: dict = Field(default_factory=dict)
+    #: Dated, sourced names (maps D6). `aliases` reads them too (below).
+    names: list[EntityName] = Field(default_factory=list)
     date_values: list[EvidentialDateRange] = Field(default_factory=list)
     place_values: list[EvidentialPlace] = Field(default_factory=list)
     attribution_chain: list[AttributionStep] = Field(default_factory=list)
@@ -778,6 +826,28 @@ class KnowledgeEntity(BaseModel):
     merged_into_id: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
+
+    @model_validator(mode="after")
+    def _aliases_read_the_names(self) -> "KnowledgeEntity":
+        """`aliases` is DERIVED (ruled 2026-09-28): the older plain aliases, then every name's text
+        and romanized form -- so each reader of `aliases` (search, matching, dedupe, the inspector)
+        sees the names, and "what is it called" has one answer. A name's metadata lives only in
+        `names`; `aliases` never holds anything a name does not, except the older plain ones."""
+        seen = dict.fromkeys(self.aliases or [])
+        for name in self.names:
+            for form in (name.text, name.romanized):
+                if form and form != self.canonical_name:
+                    seen.setdefault(form, None)
+        self.aliases = list(seen)
+        return self
+
+    def drop_names(self, texts) -> None:
+        """Take names whose text is one of `texts` off the entity -- with their aliases (a split or an
+        unmerge moves a name away; leaving it in `names` would put it straight back into `aliases`)."""
+        gone = set(texts)
+        dropped = {form for n in self.names if n.text in gone for form in (n.text, n.romanized) if form}
+        self.names = [n for n in self.names if n.text not in gone]
+        self.aliases = [a for a in self.aliases if a not in gone and a not in dropped]
 
 
 class AuthoritySnapshot(BaseModel):

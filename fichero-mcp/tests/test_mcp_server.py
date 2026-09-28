@@ -70,6 +70,7 @@ EXPECTED_TOOLS = {
     # and could read none of them.
     "fichero_segment_readings",
     "fichero_segments_naming_place",
+    "fichero_place_as_of",
     "fichero_document_text",
     "fichero_segments_in_scope",
     "fichero_reading_orders",
