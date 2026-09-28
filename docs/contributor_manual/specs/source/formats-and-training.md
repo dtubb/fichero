@@ -172,7 +172,9 @@ Rules for every format
   gives **pages carrying their passes**. It does not give a text document of raw XML beside each
   image, which is what `ingest.py` did before (it maps `.xml` to text). An image and its layout file
   are paired by the file's own `imageFilename` first, then by the same stem, looking in the same
-  folder and then its parent (Transkribus writes a `page/` subfolder). Each pair is imported through
+  folder and then its parent (Transkribus writes a `page/` subfolder). Both keys ignore CASE (the Ajami ALTO
+  states `.JPG` for a `.jpg`); two images differing only by case are refused by name
+  (`fichero-server/tests/unit/importers/test_pairing_ignores_case.py`). Each pair is imported through
   the audited `format.import` action, the same path as the one-file menu import, so the pass is the
   same record. Pinned by
   `fichero-server/tests/unit/importers/test_folder_of_images_and_layout.py::TestDroppingTheFolder::test_the_images_become_pages_with_their_passes` and

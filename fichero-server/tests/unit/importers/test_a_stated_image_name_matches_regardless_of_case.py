@@ -25,7 +25,7 @@ def test_a_stated_name_in_another_case_still_finds_its_image():
 def test_images_differing_only_by_case_are_reported_not_guessed():
     images = [FOLDER / "Scan_0003.jpg", FOLDER / "scan_0003.JPG"]
     match = _match(FOLDER / "p3.xml", "SCAN_0003.jpg", {FOLDER: images})
-    assert isinstance(match, str) and "letter case" in match, match
+    assert isinstance(match, str) and "but for case" in match, match
 
 
 def test_an_exact_stated_name_still_wins():
