@@ -1918,6 +1918,7 @@ from fichero_server.api.routes.document import (  # noqa: E402
     documents,
     folders,
     format_import as document_format_import,
+    georeference as document_georeference,
     inspector as document_inspector,
     renditions,
     notes,
@@ -2040,6 +2041,8 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # the four existing link records converge one per later slice, and this
     # vocabulary is seeded from all of them so no word is lost when they do.
     (document_typed_links.router, "/api", ["links"]),
+    # Slice 15 (#5122): a georeferencing pass's transformation and its worked-out transform.
+    (document_georeference.router, "/api", ["georeference"]),
     # Slice 14 (#4939): declared signs -- the project sign list and every instance of a sign.
     (document_signs.router, "/api", ["signs"]),
     # Slice 14 (#4953): rights and consent records, and what applies to a target (tighten-only).

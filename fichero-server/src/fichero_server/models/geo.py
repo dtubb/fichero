@@ -129,3 +129,166 @@ def transformation_from_iiif(value: dict[str, Any] | None) -> str:
             "nothing was imported rather than guess one"
         )
     return name
+
+
+# ---------------------------------------------------------------------------
+# The transform: WORKED OUT from a pass's GCPs and its transformation type, never stored
+# (`source.geo.transform-is-derived`), with each GCP's residual (`source.geo.residuals`).
+# ---------------------------------------------------------------------------
+
+#: The fewest GCPs each transformation can be fitted from. A polynomial of order n has
+#: (n+1)(n+2)/2 terms per axis; helmert (similarity) 2 points; projective 4; a thin-plate spline
+#: carries an affine part, so 3.
+MIN_GCPS = {"polynomial-1": 3, "polynomial-2": 6, "polynomial-3": 10, "helmert": 2, "projective": 4,
+            "thin-plate-spline": 3}
+
+#: Metres per degree of latitude (a sphere of the mean Earth radius): residuals are reported in
+#: metres on a local equirectangular plane about the GCPs' centre -- an ERROR measure over a
+#: map's extent, not a survey computation.
+_EARTH_RADIUS_M = 6_371_008.8
+
+
+class TooFewControlPoints(ValueError):
+    """A transformation that cannot be fitted from the GCPs there are: says how many it needs."""
+
+    def __init__(self, transformation: str, have: int) -> None:
+        self.needed = MIN_GCPS[transformation]
+        super().__init__(
+            f"{transformation} needs at least {self.needed} control points with a known place; "
+            f"this has {have}"
+        )
+
+
+def _local_metres(worlds: list[tuple[float, float]]):
+    """(to_metres, centre): lon/lat -> x/y metres on a plane about the points' centre."""
+    import math
+
+    lon0 = sum(p[0] for p in worlds) / len(worlds)
+    lat0 = sum(p[1] for p in worlds) / len(worlds)
+    k = math.pi / 180 * _EARTH_RADIUS_M
+
+    def to_metres(lon: float, lat: float) -> tuple[float, float]:
+        return ((lon - lon0) * k * math.cos(math.radians(lat0)), (lat - lat0) * k)
+
+    return to_metres
+
+
+def _poly_terms(x, y, order: int):
+    import numpy as np
+
+    return np.column_stack([x ** i * y ** j for n in range(order + 1) for i in range(n + 1) for j in [n - i]])
+
+
+def fit(transformation: str, sources: list[tuple[float, float]], targets: list[tuple[float, float]]):
+    """A function mapping source points to target points, fitted by `transformation`.
+
+    Least squares for the polynomials, helmert and projective; a thin-plate spline interpolates,
+    so it is exact at its GCPs (its residuals are zero by construction -- that is the method,
+    not a finding)."""
+    import numpy as np
+
+    if transformation not in MIN_GCPS:
+        raise UnknownTransformation(f"{transformation!r} is not one of {', '.join(TRANSFORMATIONS)}")
+    if len(sources) < MIN_GCPS[transformation]:
+        raise TooFewControlPoints(transformation, len(sources))
+    src = np.asarray(sources, dtype=float)
+    dst = np.asarray(targets, dtype=float)
+    # Normalise the sources: pixel coordinates cubed overflow the conditioning of a polynomial.
+    mean, scale = src.mean(axis=0), max(float(np.abs(src - src.mean(axis=0)).max()), 1e-12)
+
+    def norm(points):
+        return (np.asarray(points, dtype=float).reshape(-1, 2) - mean) / scale
+
+    s = norm(src)
+    if transformation.startswith("polynomial-"):
+        order = int(transformation.rsplit("-", 1)[1])
+        coeffs, *_ = np.linalg.lstsq(_poly_terms(s[:, 0], s[:, 1], order), dst, rcond=None)
+        return lambda p: _poly_terms(norm(p)[:, 0], norm(p)[:, 1], order) @ coeffs
+    if transformation == "helmert":
+        # x' = a x - b y + tx ; y' = b x + a y + ty -- a similarity, which cannot reflect. An
+        # image's y runs DOWN and a map's north UP, so the source's y is turned round first
+        # (otherwise the best "fit" is a rotation by half a turn, hundreds of metres off).
+        flip = np.array([1.0, -1.0])
+        f = s * flip
+        rows = np.vstack([np.column_stack([f[:, 0], -f[:, 1], np.ones(len(f)), np.zeros(len(f))]),
+                          np.column_stack([f[:, 1], f[:, 0], np.zeros(len(f)), np.ones(len(f))])])
+        (a, b, tx, ty), *_ = np.linalg.lstsq(rows, np.concatenate([dst[:, 0], dst[:, 1]]), rcond=None)
+
+        def helmert(p):
+            q = norm(p) * flip
+            return np.column_stack([a * q[:, 0] - b * q[:, 1] + tx, b * q[:, 0] + a * q[:, 1] + ty])
+        return helmert
+    if transformation == "projective":
+        rows, rhs = [], []
+        for (x, y), (u, v) in zip(s, dst):
+            rows.append([x, y, 1, 0, 0, 0, -u * x, -u * y]); rhs.append(u)
+            rows.append([0, 0, 0, x, y, 1, -v * x, -v * y]); rhs.append(v)
+        h, *_ = np.linalg.lstsq(np.asarray(rows), np.asarray(rhs), rcond=None)
+
+        def projective(p):
+            q = norm(p)
+            w = h[6] * q[:, 0] + h[7] * q[:, 1] + 1
+            return np.column_stack([(h[0] * q[:, 0] + h[1] * q[:, 1] + h[2]) / w,
+                                    (h[3] * q[:, 0] + h[4] * q[:, 1] + h[5]) / w])
+        return projective
+    # thin-plate spline: U(r) = r^2 log r^2, plus an affine part
+    n = len(s)
+
+    def kernel(a, b):
+        r2 = ((a[:, None, :] - b[None, :, :]) ** 2).sum(-1)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return np.where(r2 > 0, r2 * np.log(r2), 0.0)
+
+    P = np.column_stack([np.ones(n), s])
+    system = np.zeros((n + 3, n + 3))
+    system[:n, :n], system[:n, n:], system[n:, :n] = kernel(s, s), P, P.T
+    weights = np.linalg.solve(system, np.vstack([dst, np.zeros((3, 2))]))
+    return lambda p: kernel(norm(p), s) @ weights[:n] + np.column_stack([np.ones(len(norm(p))), norm(p)]) @ weights[n:]
+
+
+class ControlPointResidual(BaseModel):
+    segment_id: str
+    #: The pixel end (in the image's pixels) and the world end (WGS 84 lon, lat).
+    pixel: list[float]
+    world: list[float]
+    #: How far the fitted transform misses this GCP: on the ground (metres), and on the image
+    #: (pixels, through the inverse fit of the same type).
+    residual_m: float
+    residual_px: float
+
+
+class WorkedOutTransform(BaseModel):
+    """A georeferencing pass's transform as worked out now. Never stored as the truth: a caller
+    that caches it keys the cache on `gcp_set_version`, which changes when any GCP does."""
+
+    pass_id: str
+    mask_id: str | None = None
+    transformation: str
+    gcp_set_version: str
+    gcps: list[ControlPointResidual]
+    rms_m: float
+    rms_px: float
+    #: GCPs left out, and why (a place held as `unknown`, no counted world end).
+    not_used: list[dict[str, str]] = []
+
+
+def residuals(transformation: str, gcps: list[tuple[str, tuple[float, float], tuple[float, float]]]):
+    """Each GCP's residual in metres and pixels under `transformation`: [(id, pixel, world), ...]."""
+    import math
+
+    import numpy as np
+
+    pixels = [g[1] for g in gcps]
+    to_metres = _local_metres([g[2] for g in gcps])
+    metres = [to_metres(*g[2]) for g in gcps]
+    forward = fit(transformation, pixels, metres)
+    backward = fit(transformation, metres, pixels)
+    miss_m = np.linalg.norm(forward(pixels) - np.asarray(metres), axis=1)
+    miss_px = np.linalg.norm(backward(metres) - np.asarray(pixels), axis=1)
+    rows = [
+        ControlPointResidual(segment_id=g[0], pixel=list(g[1]), world=list(g[2]),
+                             residual_m=round(float(m), 3), residual_px=round(float(px), 3))
+        for g, m, px in zip(gcps, miss_m, miss_px)
+    ]
+    rms = lambda values: round(math.sqrt(sum(v * v for v in values) / len(values)), 3)  # noqa: E731
+    return rows, rms([r.residual_m for r in rows]), rms([r.residual_px for r in rows])
