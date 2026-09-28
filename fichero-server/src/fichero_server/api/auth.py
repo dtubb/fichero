@@ -24,6 +24,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from fichero_server.core.timeutil import utc_now
+import hashlib
 import logging
 import os
 import secrets
@@ -643,6 +644,32 @@ def _resolve_single_user_owner():
         return None
 
 
+def _refused(
+    request: Request, status: int, body: dict, branch: str, is_loopback: bool,
+    *, detail: str | None = None,
+) -> JSONResponse:
+    """Refuse a request, and say WHICH check refused it, in one log line (2026-09-28).
+
+    A live 401 on some requests over a socket where others got 200 took twenty minutes to trace
+    to a rewritten bootstrap token; this line would have said "bootstrap_mismatch" at once. The
+    response is exactly what each branch always returned; only the log is new. No token material
+    beyond the first 6 hex characters of its SHA-256, enough to tell two tokens apart.
+    """
+    header = request.headers.get("authorization") or ""
+    shape = "missing" if not header else ("bearer" if header.startswith("Bearer ") else "other-scheme")
+    raw = header.removeprefix("Bearer ").strip() if shape == "bearer" else ""
+    token = hashlib.sha256(raw.encode()).hexdigest()[:6] if raw else "-"
+    client = request.headers.get("X-Fichero-Client")
+    logger.warning(
+        "auth refused %d branch=%s path=%s transport=%s loopback=%s header=%s token_sha256=%s "
+        "client=%r%s",
+        status, branch, request.scope.get("path") or request.url.path,
+        request.scope.get("fichero.transport") or "tcp", is_loopback, shape, token,
+        (client or "")[:64] or None, f" detail={detail!r}" if detail else "",
+    )
+    return JSONResponse(body, status_code=status)
+
+
 def attach_auth_middleware(
     app: FastAPI,
     token: str | None = None,
@@ -717,26 +744,30 @@ def attach_auth_middleware(
                     if is_loopback and _is_stale_sandbox_bootstrap_token(
                         raw_token, expected_header.removeprefix("Bearer ").strip()
                     ):
-                        return JSONResponse(
+                        return _refused(
+                            request, 401,
                             {
                                 "detail": "local bootstrap token is stale",
                                 "code": "stale_bootstrap_token",
                             },
-                            status_code=401,
+                            "stale_bootstrap_token", is_loopback,
                         )
                     if detail == "device token expired" or device is not None:
-                        return JSONResponse(
+                        return _refused(
+                            request, 401,
                             {"detail": detail or "missing or invalid Authorization header"},
-                            status_code=401,
+                            "device_token_expired" if detail == "device token expired" else "device_token_rejected",
+                            is_loopback, detail=detail,
                         )
             if not is_loopback:
                 client_host = request.client.host if request.client else None
-                logger.warning("Reject non-loopback request from %s", client_host)
-                return JSONResponse({"detail": "loopback only"}, status_code=403)
+                return _refused(request, 403, {"detail": "loopback only"}, "non_loopback",
+                                is_loopback, detail=f"from {client_host}")
             if not secrets.compare_digest(provided, expected_header):
-                return JSONResponse(
+                return _refused(
+                    request, 401,
                     {"detail": "missing or invalid Authorization header"},
-                    status_code=401,
+                    "missing_header" if not provided else "bootstrap_mismatch", is_loopback,
                 )
             request.state.bootstrap_auth = True
             request.state.user = _resolve_single_user_owner()
@@ -745,10 +776,8 @@ def attach_auth_middleware(
         provided = request.headers.get("authorization", "")
         if secrets.compare_digest(provided, expected_header):
             if not is_loopback:
-                return JSONResponse(
-                    {"detail": "bootstrap auth is loopback only"},
-                    status_code=401,
-                )
+                return _refused(request, 401, {"detail": "bootstrap auth is loopback only"},
+                                "bootstrap_not_loopback", is_loopback)
             # Bootstrap superuser path: the shared secret remains owner-capable
             # only for direct same-Mac loopback clients.
             request.state.bootstrap_auth = True
@@ -756,16 +785,16 @@ def attach_auth_middleware(
             return await call_next(request)
 
         if not provided.startswith("Bearer "):
-            return JSONResponse(
-                {"detail": "missing or invalid Authorization header"},
-                status_code=401,
+            return _refused(
+                request, 401, {"detail": "missing or invalid Authorization header"},
+                "missing_header" if not provided else "not_bearer", is_loopback,
             )
 
         raw_token = provided.removeprefix("Bearer ").strip()
         if not raw_token:
-            return JSONResponse(
-                {"detail": "missing or invalid Authorization header"},
-                status_code=401,
+            return _refused(
+                request, 401, {"detail": "missing or invalid Authorization header"},
+                "empty_bearer", is_loopback,
             )
 
         user, session = _authenticate_session_token(raw_token)
@@ -775,12 +804,13 @@ def attach_auth_middleware(
             request.state.bootstrap_auth = False
             return await call_next(request)
         if session is not None and not session.revoked and session.expires_at <= utc_now():
-            return JSONResponse(
+            return _refused(
+                request, 401,
                 {
                     "detail": "missing or invalid Authorization header",
                     "code": "session_expired",
                 },
-                status_code=401,
+                "session_expired", is_loopback,
             )
 
         user, device, detail = _authenticate_device_token(raw_token)
@@ -788,16 +818,19 @@ def attach_auth_middleware(
             if is_loopback and _is_stale_sandbox_bootstrap_token(
                 raw_token, expected_header.removeprefix("Bearer ").strip()
             ):
-                return JSONResponse(
+                return _refused(
+                    request, 401,
                     {
                         "detail": "local bootstrap token is stale",
                         "code": "stale_bootstrap_token",
                     },
-                    status_code=401,
+                    "stale_bootstrap_token", is_loopback,
                 )
-            return JSONResponse(
+            return _refused(
+                request, 401,
                 {"detail": detail or "missing or invalid Authorization header"},
-                status_code=401,
+                "device_token_expired" if detail == "device token expired" else "token_unknown",
+                is_loopback, detail=detail,
             )
 
         request.state.user = user
