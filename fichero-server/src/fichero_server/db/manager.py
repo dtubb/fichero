@@ -137,6 +137,9 @@ class DatabaseManager:
                 logger.info(
                     f"Creating shared database connection for package: {package_str}"
                 )
+                import time as _time
+
+                open_started = _time.monotonic()
 
                 db = Database(path=db_path)
                 try:
@@ -198,6 +201,14 @@ class DatabaseManager:
                     ) from exc
 
                 self._databases[cache_key] = db
+                opened_in = _time.monotonic() - open_started
+                # The whole open, named when slow (#5228): the steps inside are timed one by one
+                # in Database; this catches the manager's own migrations and seeding too.
+                if opened_in > 2.0:
+                    logger.warning(
+                        "slow library open: %.2fs for %s -- see the 'slow library open step' lines (#5228)",
+                        opened_in, package_str,
+                    )
                 logger.info(f"Database connection created: {db_path}")
 
                 # Resume interrupted post-ingest work (user, live 2026-08-19):

@@ -47,3 +47,16 @@ def test_reopening_looks_up_filed_entities_only_and_clears_an_unfiled_mirror(tmp
         assert original(db, Document, unfiled[0].id) is None, "the unfiled entity's stray mirror must go"
     finally:
         db.close()
+
+
+def test_a_slow_open_step_names_itself(tmp_path, monkeypatch, caplog):
+    """The guard the maintainer asked for (2026-09-28): if opening ever gets slow, the log says WHICH
+    step. With the threshold at zero every step is 'slow', so each must be named."""
+    import logging
+
+    monkeypatch.setattr(Database, "SLOW_OPEN_STEP_SECONDS", 0.0)
+    with caplog.at_level(logging.WARNING, logger="fichero_server.db"):
+        Database(tmp_path / "lib.duckdb").close()
+    slow = [r.getMessage() for r in caplog.records if "slow library open step" in r.getMessage()]
+    assert any("_backfill_filed_entity_documents" in m for m in slow), slow
+    assert any("_materialize_schema" in m for m in slow), slow

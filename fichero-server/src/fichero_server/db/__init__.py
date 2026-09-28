@@ -1066,29 +1066,49 @@ class Database(DatabaseEmbeddingMixin):
         migrate_spatial_node_layout_fields(self.conn, self.migration_failures)
         migrate_references_table(self.conn, self.migration_failures)
         migrate_reference_provenance_table(self.conn, self.migration_failures)
-        self._materialize_schema()
-        self._seed_builtin_document_prototypes()
-        self._seed_builtin_node_classes()
-        self._seed_builtin_reading_kinds()
-        self._seed_builtin_link_types()
-        self._migrate_authority_links_to_typed_links()
-        self._backfill_claim_links_to_library_links()
-        self._backfill_filed_entity_documents()
-        self._backfill_note_documents()
-        self._backfill_milestone_documents()
-        self._backfill_saved_search_documents()
-        self._backfill_spatial_room_documents()
-        self._backfill_research_workspace_documents()
-        self._backfill_research_plan_task_step_documents()
-        # NOTE: no unconditional `_seed_default_workflows_container()` call
-        # here — unlike the backfills above, the container has no underlying
-        # row of its own to backfill from. It's created lazily, the first
-        # time an `is_system=True` Workflow is saved (see
-        # `_save_workflow_document`), so a library with zero default
-        # workflows doesn't grow a permanent empty "Default Workflows" node
-        # (and so raw `documents` row counts in tests/tooling stay
-        # predictable for libraries that never touch workflows).
-        self._backfill_workflow_documents()
+        # Every open-time step TIMED (#5228, maintainer: "if it ever takes more than [a moment], figure
+        # out why"). A step that walks every row of a big table at every open made opening a large
+        # library take 6 s, found only by profiling. Now a slow step names itself in the log.
+        # NOTE: no unconditional `_seed_default_workflows_container()` here -- the container is
+        # created lazily, the first time an `is_system=True` Workflow is saved
+        # (`_save_workflow_document`), so a library with no default workflows has no empty node.
+        self._timed_open_steps((
+            self._materialize_schema,
+            self._seed_builtin_document_prototypes,
+            self._seed_builtin_node_classes,
+            self._seed_builtin_reading_kinds,
+            self._seed_builtin_link_types,
+            self._migrate_authority_links_to_typed_links,
+            self._backfill_claim_links_to_library_links,
+            self._backfill_filed_entity_documents,
+            self._backfill_note_documents,
+            self._backfill_milestone_documents,
+            self._backfill_saved_search_documents,
+            self._backfill_spatial_room_documents,
+            self._backfill_research_workspace_documents,
+            self._backfill_research_plan_task_step_documents,
+            self._backfill_workflow_documents,
+        ))
+
+    #: An open-time step slower than this is logged as a warning, named (#5228).
+    SLOW_OPEN_STEP_SECONDS = 0.5
+
+    def _timed_open_steps(self, steps) -> None:
+        """Run the open-time steps in order, timing each; a slow one is named in a warning."""
+        import time as _time
+
+        total_start = _time.monotonic()
+        for step in steps:
+            start = _time.monotonic()
+            step()
+            took = _time.monotonic() - start
+            if took > self.SLOW_OPEN_STEP_SECONDS:
+                logger.warning(
+                    "slow library open step %s took %.2fs on %s -- it should not grow with the library (#5228)",
+                    step.__name__, took, self.path,
+                )
+        total = _time.monotonic() - total_start
+        logger.info("library open steps took %.2fs on %s", total, self.path)
 
     def _connect(self) -> duckdb.DuckDBPyConnection:
         """Open a DuckDB connection for this library path."""
