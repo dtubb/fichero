@@ -53,7 +53,7 @@ def test_status_reports_local_provider_without_reading_keychain(monkeypatch):
     monkeypatch.setattr(routes, "has_supplied_api_key", lambda _name: pytest.fail("local status must not probe supplied keys"))
     monkeypatch.setattr(routes, "keychain_available", lambda: False)
 
-    response = asyncio.run(routes.check_api_key_status("ollama"))
+    response = routes.check_api_key_status("ollama")  # a plain def since #5257
 
     assert response.model_dump(exclude_none=True) == {
         "provider_type": "ollama",
@@ -260,3 +260,45 @@ def test_connection_test_key_never_appears_in_response_or_logs(monkeypatch, capl
     assert sentinel not in result.message
     assert sentinel not in (result.model_dump_json())
     assert sentinel not in caplog.text
+
+
+def test_a_slow_keychain_write_does_not_stall_the_engine(monkeypatch):
+    """#5257: every connect sends each provider's key; the keychain write shells out to `security`
+    (up to 10 s a call). As an `async def` it blocked the event loop, so the launch's health checks
+    and library opens waited 20-30 s behind three keys. Now a slow write delays only its own request."""
+    import time
+
+    from fastapi import FastAPI
+
+    from fichero_server.api.routes.auth.accounts import _require_owner_or_bootstrap
+
+    monkeypatch.setattr(routes, "set_provider_api_key_impl", lambda *_: time.sleep(1.0))
+    monkeypatch.setattr(routes, "supply_api_key", lambda *_: None)
+    app = FastAPI()
+    app.include_router(routes.router)
+    app.dependency_overrides[_require_owner_or_bootstrap] = lambda: None
+
+    @app.get("/ping")
+    async def ping() -> dict:
+        return {"ok": True}
+
+    key_path = next(r.path for r in routes.router.routes if r.path.endswith("/{provider_type}/api-key"))
+
+    async def run() -> tuple[float, float]:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://engine") as client:
+            start = time.monotonic()
+
+            async def timed(coro):
+                await coro
+                return time.monotonic() - start
+
+            slow = asyncio.create_task(timed(client.post(key_path.replace("{provider_type}", "openai"),
+                                                         json={"api_key": "sk-test"})))
+            await asyncio.sleep(0.05)  # the key write is under way
+            ping = await timed(client.get("/ping"))
+            return ping, await slow
+
+    ping_s, key_s = asyncio.run(run())
+    assert key_s >= 0.9, key_s
+    assert ping_s < 0.5, f"another request waited {ping_s:.2f}s behind a slow keychain write"

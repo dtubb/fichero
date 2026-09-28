@@ -133,12 +133,18 @@ def delete_provider_api_key_impl(provider_type: str) -> None:
 
 
 @router.post("/{provider_type}/api-key")
-async def set_provider_api_key(
+def set_provider_api_key(  # plain def (#5257): FastAPI runs it off the event loop
     provider_type: str,
     request: APIKeyRequest,
     _owner: None = Depends(_require_owner_or_bootstrap),
 ) -> APIKeyStoredResponse:
     """Accept a provider API key from an owning app (#4534).
+
+    A plain ``def``, not ``async def`` (#5257): the keychain write below shells out to
+    ``security`` (up to 10 s a call), and inside ``async def`` that blocked the whole
+    engine -- every connect sends each provider's key, and a launch's health and
+    library opens waited 20-30 s behind them. FastAPI runs a plain ``def`` in its
+    thread pool, so a slow keychain delays only this request.
 
     Held in MEMORY for this process's lifetime, not written to a keychain: the
     app owns the item, and a second persisted copy here would be a second
@@ -157,7 +163,7 @@ async def set_provider_api_key(
 
 
 @router.delete("/{provider_type}/api-key")
-async def delete_provider_api_key(
+def delete_provider_api_key(
     provider_type: str,
     _owner: None = Depends(_require_owner_or_bootstrap),
 ) -> APIKeyDeletedResponse:
@@ -177,7 +183,7 @@ async def delete_provider_api_key(
 
 
 @router.get("/{provider_type}/api-key/status")
-async def check_api_key_status(provider_type: str) -> APIKeyStatusResponse:
+def check_api_key_status(provider_type: str) -> APIKeyStatusResponse:
     """Check if API key exists for a provider type."""
     info = get_provider_info(provider_type)
     if not info:
