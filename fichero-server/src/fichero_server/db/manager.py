@@ -37,29 +37,6 @@ class LibraryNotFoundError(FileNotFoundError):
         )
 
 
-def _threads_in_a_database_call() -> list[str]:
-    """Other threads executing a DuckDB statement right now, as "thread: engine frame" -- the
-    evidence a busy refusal carries when the writer is a connection the manager does not own
-    (#5185): which code, on which thread, is writing at that moment."""
-    import sys
-    import threading
-    import traceback
-
-    names = {thread.ident: thread.name for thread in threading.enumerate()}
-    out = []
-    for ident, frame in sys._current_frames().items():
-        if ident == threading.get_ident():
-            continue
-        stack = traceback.extract_stack(frame)
-        if not stack or "execute" not in (stack[-1].line or ""):
-            continue
-        ours = [f for f in stack if "/fichero_server/" in f.filename.replace("\\", "/")]
-        where = ours[-1] if ours else stack[-1]
-        path = where.filename.replace("\\", "/").rsplit("/fichero_server/", 1)[-1]
-        out.append(f"{names.get(ident, ident)}: {path}:{where.lineno} {where.name}")
-    return out
-
-
 class DatabaseBusy(RuntimeError):
     """A consistent copy of a library's database could not be taken in time: another connection
     held a write transaction open past the wait (#5185). Named, so a caller refuses with the reason
@@ -423,7 +400,10 @@ class DatabaseManager:
                 if holders:
                     holder = f"; holding it: {'; '.join(holders)}"
                 else:
-                    writing = _threads_in_a_database_call()
+                    # Only on a refusal: not worth a module at every engine start (#3950 budget).
+                    from fichero_server.db.busy_evidence import threads_in_a_database_call
+
+                    writing = threads_in_a_database_call()
                     holder = ("; no managed transaction is open; in a database call now: "
                               + ("; ".join(writing) or "no thread"))
                 raise DatabaseBusy(
