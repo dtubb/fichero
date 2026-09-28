@@ -14,13 +14,12 @@ import pytest
 from fichero_server.db import Database
 from fichero_server.models.campaigns import Campaign, CampaignMembership, ReadingCampaigns
 from fichero_server.models.editorial import EditorialFact
-from fichero_server.models.georeference import ControlPointPlace, GeoreferencingSettings
 from fichero_server.models.hands import Hand, HandAttribution
 from fichero_server.models.letterforms import Allograph, LetterformDescription
 from fichero_server.models.rights import RightsRecord
 from fichero_server.models.signs import DeclaredSign
 
-MODELS = [ControlPointPlace, GeoreferencingSettings, Hand, HandAttribution, RightsRecord, DeclaredSign, EditorialFact, Allograph, LetterformDescription,
+MODELS = [Hand, HandAttribution, RightsRecord, DeclaredSign, EditorialFact, Allograph, LetterformDescription,
           Campaign, CampaignMembership, ReadingCampaigns]
 
 

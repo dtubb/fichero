@@ -22,7 +22,6 @@ from fichero_server.db.library_paths import nfc_path
 from fichero_server.models.editorial import EditorialFact
 from fichero_server.models.hands import HandAttribution
 from fichero_server.models.letterforms import LetterformDescription
-from fichero_server.models.georeference import ControlPointPlace
 from fichero_server.models.campaigns import Campaign, CampaignMembership, ReadingCampaigns
 from fichero_server.models import (
     AccountUser,
@@ -403,8 +402,6 @@ _DOCUMENT_ID_RESOLVERS: tuple[tuple[type, Callable[[Any, Any], "str | None"]], .
     (EditorialFact, lambda db, row: _document_id_of_segment(db, row.segment_id)),
     (HandAttribution, lambda db, row: _document_id_of_segment(db, row.segment_id)),
     (LetterformDescription, lambda db, row: _document_id_of_segment(db, row.segment_id)),
-    # A control point's place in the world (#4933) hangs on the control-point segment.
-    (ControlPointPlace, lambda db, row: _document_id_of_segment(db, row.segment_id)),
     # Campaigns of writing (#4935): a campaign is of a document; a membership hangs on a segment; which
     # campaigns a reading takes in hangs on the reading, which (like every reading) is of a document --
     # so a `representation_id` alone (reading.take_in, and the older reading actions that name only

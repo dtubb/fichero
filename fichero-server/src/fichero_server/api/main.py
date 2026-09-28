@@ -1934,7 +1934,6 @@ from fichero_server.api.routes.document import (  # noqa: E402
     hands as document_hands,
     editorial as document_editorial,
     letterforms as document_letterforms,
-    georef as document_georef,
     campaigns as document_campaigns,
     view as document_view,
 )
@@ -2054,8 +2053,6 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (document_editorial.router, "/api", ["editorial"]),
     # Slice 14 (#4935): letterforms -- allographs, described marks, gathered to compare.
     (document_letterforms.router, "/api", ["letterforms"]),
-    # Slice 15 (#4933): georeferencing -- control points' world ends, the worked-out transform.
-    (document_georef.router, "/api", ["georef"]),
     # Slice 14 (#4935): campaigns of writing -- what lies over what.
     (document_campaigns.router, "/api", ["campaigns"]),
     # Source-model (#4943): a file becomes a pass. The export half lives in
