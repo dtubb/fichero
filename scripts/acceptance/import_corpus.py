@@ -164,7 +164,18 @@ def main() -> None:
                     "one_file_imports": [],
                 }
                 by_stem = {Path(p["name"]).stem: p for p in image_pages}
-                if key == "genji-tei":
+                tei_in_folder = any(
+                    name.startswith("kouigenji-01-kiritsubo.tei.xml")
+                    for name in run["task"].get("imported_as_passes") or []
+                )
+                row["imported_as_passes"] = run["task"].get("imported_as_passes") or []
+                if key == "genji-tei" and tei_in_folder:
+                    # The folder drop pairs a TEI edition's pages with its scans (#5143); importing
+                    # the file again onto one of them is correctly a 409, not a finding.
+                    row["one_file_imports"].append(
+                        {"file": "kouigenji-01-kiritsubo.tei.xml", "skipped": "imported by the folder drop"}
+                    )
+                elif key == "genji-tei":
                     target = by_stem.get("R0000022")
                     if target:
                         row["one_file_imports"].append(
@@ -182,7 +193,7 @@ def main() -> None:
                 print(
                     f"  {row['status']} {row['seconds']}s pages={row['pages_created']} "
                     f"with_pass={row['pages_with_pass']} segments={row['segments']} "
-                    f"other_docs={row['non_image_documents']} one_file={[(i['file'], i['ok']) for i in row['one_file_imports']]}",
+                    f"other_docs={row['non_image_documents']} one_file={[(i['file'], i.get('ok', i.get('skipped'))) for i in row['one_file_imports']]}",
                     flush=True,
                 )
                 results.append(row)

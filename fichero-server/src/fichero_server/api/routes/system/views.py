@@ -614,16 +614,12 @@ def page_line_map(db: Database, page_id: str, content: str) -> list[dict[str, ob
     Read from the page-text cache, which stores the map with the text from ONE derivation, so a
     render derives nothing (a derivation of a dense page is 0.5-1 s).
     """
-    from fichero_server.actions.page_text_cache import cached_line_map, line_map
-    from fichero_server.api.routes.document.segment_readings import document_text
+    from fichero_server.actions.page_text_cache import cached_line_map
 
-    cached = cached_line_map(db, page_id, content)
-    if cached is not None:
-        return cached
-    # ponytail: a page cached before maps were stored derives once per render until its next
-    # refresh; a one-time fill at library open is the upgrade if that is ever measured to matter.
-    derived = document_text(db, page_id)
-    return line_map(db, derived) if derived.text == content else []
+    # No stored map means the page is not a derived cache (no working pass, or a person's own
+    # edit): `ensure_current` ran before this and stores the map with every text it refreshes.
+    # Deriving here would rewrite what is not this derivation's to rewrite (test_derivation_version).
+    return cached_line_map(db, page_id, content) or []
 
 
 #: How the reader should obtain the document's flat transcript. A closed set,
@@ -794,6 +790,15 @@ async def document_view(
     if selected_page_ids is not None:
         child_pages = [p for p in child_pages if p.id in selected_page_ids]
     region_scoped = any(p.region_in_parent is not None for p in child_pages)
+    # A page cached under an older derivation is re-derived once, here, before it is shown
+    # (`page_text_cache.ensure_current`): the Reader is where a stale text is seen.
+    from fichero_server.actions.page_text_cache import ensure_current
+
+    refreshed = set(ensure_current(db, [document.id, *(p.id for p in child_pages)]))
+    if refreshed:
+        if document.id in refreshed:
+            document = db.get(Document, document.id) or document
+        child_pages = [db.get(Document, p.id) or p if p.id in refreshed else p for p in child_pages]
     pages = transcript_pages(document, child_pages)
     annotations_payload: list[dict[str, object]] | None = None
     compare_payload: dict[str, object] | None = None

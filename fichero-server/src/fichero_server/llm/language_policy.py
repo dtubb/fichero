@@ -783,6 +783,46 @@ def script_may_be_vertical(script: str | None) -> bool:
     return bool(script) and script in _MAYBE_VERTICAL_SCRIPTS
 
 
+#: Unicode name prefixes of the letters of the scripts in `_MAYBE_VERTICAL_SCRIPTS`.
+_MAYBE_VERTICAL_LETTER_NAMES = (
+    "CJK UNIFIED IDEOGRAPH", "CJK COMPATIBILITY IDEOGRAPH", "HIRAGANA", "KATAKANA",
+    "HANGUL", "MONGOLIAN", "PHAGS-PA",
+)
+
+
+def text_may_be_vertical(text: str | None) -> bool:
+    """Whether most of the text's letters belong to a script that may be written vertically.
+
+    For a reading with no script recorded: the letters are the only evidence of the script."""
+    import unicodedata
+
+    letters = [ch for ch in (text or "") if ch.isalpha()]
+    if not letters:
+        return False
+    vertical = sum(
+        1 for ch in letters if unicodedata.name(ch, "").startswith(_MAYBE_VERTICAL_LETTER_NAMES)
+    )
+    return vertical * 2 > len(letters)
+
+
+#: A line is a COLUMN when it is at least this many times taller than wide, in pixels.
+COLUMN_RATIO = 2.0
+
+
+def lines_are_columns(boxes: list[tuple[float, float]]) -> bool | None:
+    """Whether a page's lines, as `(width, height)` in pixels, are columns (#5147).
+
+    None when there is too little to say (fewer than two lines with a shape of their own). True
+    when more than half are at least `COLUMN_RATIO` times taller than wide: a vertical page's
+    lines are narrow columns, and a horizontal page's lines are wide rows, so the vote is rarely
+    close. A line with no shape of its own (placed only by its page's zone) is not a vote."""
+    measured = [(w, h) for w, h in boxes if w > 0 and h > 0]
+    if len(measured) < 2:
+        return None
+    columns = sum(1 for w, h in measured if h >= COLUMN_RATIO * w)
+    return columns * 2 > len(measured)
+
+
 def direction_is_known(direction: str | None) -> bool:
     """Whether a value is one of the six directions."""
     return direction in DIRECTIONS
@@ -837,8 +877,12 @@ def resolve_direction(
     project: Any = None,
     script: str | None = None,
     text: str | None = None,
+    lines_are_vertical: bool | None = None,
 ) -> LanguageResolution:
     """Which direction a thing is written in, and which rung said so (#4938).
+
+    `lines_are_vertical` is the page's own geometry (`lines_are_columns`): with nothing stated
+    and a script that may be vertical, columns mean `ttb` (#5147).
 
     With no script recorded either, `text` -- the reading itself -- decides, by the Unicode
     Bidirectional Algorithm's own paragraph rule (P2: the first strongly directional character).
@@ -891,6 +935,22 @@ def resolve_direction(
             reading=reading, segment=segment, document=document, project=project
         )
         script = resolved_script.language
+
+    if lines_are_vertical and (
+        script_may_be_vertical(script) or (script is None and text_may_be_vertical(text))
+    ):
+        # A script that MAY be vertical resolves `ltr` because "may be" is not a direction
+        # (see `_MAYBE_VERTICAL_SCRIPTS`). But a page whose lines are columns -- far taller than
+        # wide -- has answered the question itself (#5147: the BULAC Chinese pages came out
+        # horizontal). The shape is evidence about THIS page, so it decides; anything stated
+        # anywhere still wins above, and the basis says where the answer came from.
+        return LanguageResolution(
+            language=DIRECTION_TTB,
+            status=RESOLVED,
+            source=SOURCE_DERIVED_FROM_SCRIPT,
+            basis="from the shape of the lines: this page's lines are columns, taller than wide",
+            level=None,
+        )
 
     from_text = None if script else first_strong_direction(text)
     if from_text is not None:

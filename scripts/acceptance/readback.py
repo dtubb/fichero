@@ -117,37 +117,31 @@ def compare_page(c, key: str, page: dict, source: Path, raw_samples: dict) -> di
         row["custom_kept"] = sum(1 for s in got if (s.get("metadata") or {}).get("foreign", {}).get("custom"))
         out["levels"][level] = row
 
-    # Nesting: the only parent the public surface exposes is the text route's
-    # block -> region_segment_id (lines under their region).
     text = c.request("GET", f"/api/segments/document/{page['id']}/text")
     out["text_route"] = {k: text.get(k) for k in ("pass_id", "pass_basis", "kind", "order", "omitted")}
     out["block_directions"] = dict(Counter(b.get("direction") for b in text.get("blocks") or []))
     detail = c.request("GET", f"/api/segments/{segs[1]['id']}") if len(segs) > 1 else {}
     out["detail_has_parent"] = "parent_segment_id" in (detail.get("segment") or {})
-    seg_region: dict[str, str] = {}
-    for b in text.get("blocks") or []:
-        for sp in b.get("spans") or []:
-            seg_region[sp["segment_id"]] = b.get("region_segment_id")
-    parent_of = {e.id: e.parent for e in truth.elements}
-    level_of = {e.id: e.level for e in truth.elements}
 
-    def region_ancestor(src_id):
-        cur = parent_of.get(src_id)
-        while cur is not None and level_of.get(cur) != "region":
-            cur = parent_of.get(cur)
-        return cur
-
-    region_map = dict(zip([s["id"] for s in by_level.get("region", [])], [e.id for e in truth.level("region")]))
+    # Nesting: each segment's own `parent_segment_id` (the listing carries it since #5139),
+    # against the source element's parent. Before it did, the only parent visible was the text
+    # route's block -> region; the blocks are now one per line, so that proxy counted nothing
+    # for words.
+    ours_to_source: dict[str, str] = {}
+    for level in ("region", "line", "word", "glyph"):
+        for e, s in zip(truth.level(level), by_level.get(level, [])):
+            ours_to_source[s["id"]] = e.id
     nesting = {}
     for level in ("line", "word", "glyph"):
         ok = checked = 0
         for e, s in zip(truth.level(level), by_level.get(level, [])):
-            if s["id"] in seg_region:
-                checked += 1
-                ok += region_map.get(seg_region[s["id"]]) == region_ancestor(e.id)
+            if e.parent is None:
+                continue
+            checked += 1
+            ok += ours_to_source.get(s.get("parent_segment_id")) == e.parent
         if checked:
             nesting[level] = {"checked": checked, "ok": ok}
-    out["nesting_in_regions"] = nesting
+    out["nesting"] = nesting
 
     # Order: the derived page text's spans, each mapped back to its source element's
     # position in the file. With no ReadingOrder in the file, the file's own order is the

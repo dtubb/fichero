@@ -780,11 +780,64 @@ def _why_omitted(
     return OmittedSegment(segment_id=segment_id, reason="unknown")
 
 
-def _direction_of(row: Segment, document: Any, text: str | None) -> tuple[str | None, str | None]:
+#: WHICH DERIVATION wrote a cached page text (`page_text_cache.DERIVATION_STAMP`). Bump it in the
+#: same commit as any change to what `document_text` produces, and re-pin the digest below.
+#:
+#: Why a number and not "the cache is refreshed when something changes": #5148 changed the
+#: derivation (a region's own text stopped doubling its lines), and every page cached before the
+#: fix kept the doubled text, because nothing on those pages changed. A changed derivation under
+#: an unchanged stamp is exactly that bug; a bumped stamp makes the next read re-derive the page,
+#: once. 1: before stamping. 2: text once (#5148) and direction from line shapes (#5147).
+DERIVATION_VERSION = 2
+#: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
+#: change to the code without a bump fails `test_derivation_version.py`.
+DERIVATION_SOURCE_SHA256 = "044b0bc0843899e31a49c6f24a833b8450a4ba2109535164743abf6a80df5d0d"
+
+
+def derivation_source_digest() -> str:
+    """sha256 over the source of the functions that decide a page's derived text."""
+    import hashlib
+    import inspect
+
+    functions = (
+        document_text, _text_bearing_rows, _readings_for_live_rows, _document_readings,
+        _segment_order_key, _direction_of, _lines_are_vertical,
+    )
+    return hashlib.sha256("\n".join(inspect.getsource(f) for f in functions).encode()).hexdigest()
+
+
+def _direction_of(
+    row: Segment, document: Any, text: str | None, lines_are_vertical: bool | None = None
+) -> tuple[str | None, str | None]:
     """A span's direction and the rung that said so. With nothing stated anywhere, the text's own
-    characters decide (#5137: Syriac and Hebrew lines came out `ltr`)."""
-    resolved = resolve_direction(segment=row, document=document, text=text)
+    characters decide (#5137: Syriac and Hebrew lines came out `ltr`), and for a script that may
+    be vertical, the page's line shapes (#5147)."""
+    resolved = resolve_direction(
+        segment=row, document=document, text=text, lines_are_vertical=lines_are_vertical
+    )
     return (resolved.language if resolved.status != STATUS_UNKNOWN else None), resolved.level
+
+
+def _lines_are_vertical(rows: list[Segment], document: Any) -> bool | None:
+    """Whether this page's lines are columns (`lines_are_columns`), measured in the page's pixels
+    when its size is known. Lines with no shape of their own -- `shape: unstated`, or placed only
+    by their page's TEI zone -- are not measured: their box is not the line's."""
+    from fichero_server.formats.tei import PAGE_ZONE
+    from fichero_server.llm.language_policy import lines_are_columns
+
+    metadata = getattr(document, "metadata", None) or {}
+    width = metadata.get("width") if isinstance(metadata.get("width"), (int, float)) else 1
+    height = metadata.get("height") if isinstance(metadata.get("height"), (int, float)) else 1
+    boxes: list[tuple[float, float]] = []
+    for row in rows:
+        if row.kind != "line" or row.anchor is None or not row.anchor.rect:
+            continue
+        meta = row.metadata or {}
+        if meta.get("shape") == "unstated" or (meta.get("foreign") or {}).get(PAGE_ZONE):
+            continue
+        _x, _y, w, h = row.anchor.rect
+        boxes.append((w * width, h * height))
+    return lines_are_columns(boxes)
 
 
 def document_text(
@@ -920,13 +973,25 @@ def document_text(
     page_readings = _readings_for_live_rows(
         db, rows, document_id, artifact_memo, readings=document_readings
     )
+    # EACH CHARACTER ONCE (#5148). PAGE XML carries text at every level: a region's own
+    # TextEquiv is usually its lines joined. Reading both put the page's text on the page twice
+    # -- line by line, then again as one paragraph (the Chinese table of contents). A row whose
+    # children carry text of this kind is a rival reading of those children, not more of the
+    # page: the finest level that has text is the page's text, and the coarser reading stays a
+    # reading of its own segment (readings route, export), just not a second copy here.
+    carrying = {row.id for row in rows if any(item.kind == kind for item in page_readings[row.id])}
+    read_through_children = {
+        row.parent_segment_id for row in rows if row.id in carrying and row.parent_segment_id
+    }
+    # Once per page: are its lines columns? Only asked of a text whose script may be vertical.
+    vertical = _lines_are_vertical(rows, document)
     record_rule = project_record_rule(db)
     choices_by_segment: dict[str, list[ReadingChoice]] = {}
     for choice in db.query_in(ReadingChoice, "segment_id", [row.id for row in rows]):
         choices_by_segment.setdefault(choice.segment_id, []).append(choice)
     for row in rows:
         items = [item for item in page_readings[row.id] if item.kind == kind]
-        if not items:
+        if not items or row.id in read_through_children:
             continue
         counted = counting_by_kind(
             db, row.id, items, rule=record_rule, choices=choices_by_segment.get(row.id, []),
@@ -938,14 +1003,14 @@ def document_text(
             span = DerivedTextSpan(
                 segment_id=row.id, representation_id=None, start=cursor, end=cursor
             )
-            direction, direction_level = _direction_of(row, document, None)
+            direction, direction_level = _direction_of(row, document, None, vertical)
             spans.append(span)
             span_directions.append((row.parent_segment_id, direction, direction_level, span))
             continue
         text = next(
             item.content for item in items if item.id == counted.representation_id
         )
-        direction, direction_level = _direction_of(row, document, text)
+        direction, direction_level = _direction_of(row, document, text, vertical)
         start = cursor
         pieces.append(text)
         cursor += len(text)
