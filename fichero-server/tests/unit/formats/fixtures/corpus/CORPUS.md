@@ -238,6 +238,17 @@ marginal entries (Zenodo 7575693, CC-BY-4.0, 914 MB), Pracalit Sanskrit/Newar GT
 (Zenodo 6967421, CC-BY-4.0, 504 MB), CREMMA Medieval / CREMMA-Medieval-LAT / HTRogène
 Spanish and Occitan (GitHub, CC-BY-4.0, clone), TRIDIS (Zenodo 10788591, MIT).
 
+## More sets the 2026-09-27 research lanes found (not vendored, not yet fetched)
+
+Read by the research lanes on the pages named; each still needs its licence re-read before anything is fetched.
+
+- **Classical Armenian, Calfa Dulaurier** (`github.com/calfa-co/datalab-dulaurier`, `page/`, 50 PAGE 2013 files): the repo says Apache-2.0, but the images are Gallica's (`list-images.tsv` maps each file to an ark), which allows non-commercial reuse only. So the XML could be vendored, the images could not.
+- **Classical Armenian, nomikos-project/armenian-manuscript-htr** (Hugging Face; PAGE 2019 with baselines, 2×17 pages with their images): the transcriptions are CC BY 4.0; the images are under BnF's (NC) and UCLA's terms. Local testing only.
+- **EPARCHOS** (Greek codex BL Add. 6791) and **ICDAR 2023 Greek letters on papyri, EGRAPSA** (Zenodo 13825619, COCO JSON per letter, not PAGE): the reports were cut off before their licences, so re-read these first.
+- **AnnoPage** (Zenodo 12788420, 5.0 GB, CC-BY 4.0): YOLO `labels/` + `dataset.yaml`, 25 non-text classes, mostly from Czech libraries; 1,860 entries point at external sets rather than shipping images. Rejected for YOLO: DocLayNet (COCO, modern), `magistermilitum/YOLO_historical` (oriented boxes in parquet).
+- **Kōi Genji Monogatari TEI** (`github.com/kouigenjimonogatari`, `xml/master/*.xml`, CC0): vertical typeset Japanese with `<surface>`/`<zone>` per page on NDL IIIF images (the images are not in the repo, and no line zones). Tests a IIIF graphic URL (`.../R0000022/full/full/0/default.jpg`), which `_names_in` already handles.
+- **Burchards Dekret Digital** (`github.com/michaelscho/bdd-segmentation-data`, CC-BY 4.0 per HTR-United): canon law with glosses; the report was cut off at its region types.
+
 ## Gaps this search could not fill
 
 - **No real CJK, Mongolian or Manchu file that STATES vertical** (`readingDirection="top-to-bottom"`
