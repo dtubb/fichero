@@ -460,6 +460,7 @@ extension DocumentKGWebPaneCoordinatorMacOS {
             await DocumentKGWebPaneCoordinatorMacOS.refreshPage(pageId, in: webView)
         }
         var reason: String?
+        var staleAnswer: String?
         do {
             switch edit {
             case .edited:
@@ -490,13 +491,18 @@ extension DocumentKGWebPaneCoordinatorMacOS {
                     afterChange: { await DocumentKGWebPaneCoordinatorMacOS.refreshPage(pageId, in: webView) }
                 )
             }
+        } catch APIError.httpError(409, _) {
+            // Stale (#5001): another reading counts now. Nothing was written; tell the page what counts
+            // so it keeps the typed words and offers Keep Mine / Take Theirs / Compare. No refresh.
+            reason = "stale"  // a split or join refused as stale has no typed words: a plain refusal
+            staleAnswer = await ReaderTextEdit.staleAnswer(to: edit, readings: library.segmentService)
         } catch {
             reason = String(describing: error)
         }
         // The page's answer is a courtesy (it re-reads itself on a refusal), so a failure to deliver it
         // is ignored. In an async context the async-throwing overload is chosen.
         _ = try? await webView?.evaluateJavaScript(
-            ReaderTextEdit.committedScript(pageId: pageId, segmentId: edit.segmentId, reason: reason)
+            staleAnswer ?? ReaderTextEdit.committedScript(pageId: pageId, segmentId: edit.segmentId, reason: reason)
         )
     }
 

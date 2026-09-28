@@ -7,7 +7,9 @@ import Foundation
 /// - `readingEdit` {pageId, segmentId, text, previous, basedOn}: a run of keys on one line is a NEW
 ///   READING (`representation.create`, correcting `basedOn`, the reading it was typed over), never an
 ///   overwrite. `basedOn` is null when the line's text came from its words: there is no one reading to
-///   correct. `previous` is kept for the stale check (#5001), not sent.
+///   correct. `basedOn` is also the stale check's token (#5001, `expected_counting_id`): if another
+///   reading counts by the time it lands, the engine refuses with 409 and the page is told
+///   (`staleScript`), the typed words kept. No `basedOn`, no check.
 /// - `lineSplit` {pageId, segmentId, offset}: Return inside a line is `segment.split {at_offset}`. The
 ///   ENGINE cuts the reading and the box at that character, along the line's direction (`cut:
 ///   estimated`) -- one implementation of the cut, not one here too. The app's job is the offset: the
@@ -58,7 +60,7 @@ enum ReaderTextEdit {
         guard case .edited(let pageId, let segmentId, let text, let basedOn) = message else { return nil }
         return NewReadingParams(
             documentId: pageId, segmentId: segmentId, kind: "transcription", content: text,
-            correctsRepresentationId: basedOn
+            correctsRepresentationId: basedOn, expectedCountingId: basedOn
         )
     }
 
@@ -99,6 +101,37 @@ enum ReaderTextEdit {
         return "window.fichero?.lineCommitted?.(\(json));"
     }
 
+    /// The answer to a `readingEdit` the engine refused as stale (409): what the person typed (`mine`)
+    /// and what counts now (`theirs`), so the page can offer Keep Mine / Take Theirs / Compare. The
+    /// page is NOT refreshed after this -- that would replace the typed words. Keep Mine is the page
+    /// posting `readingEdit` again with `basedOn` = `theirs.representationId`.
+    static func staleScript(
+        pageId: String, segmentId: String, mine: String, theirsId: String?, theirsText: String?
+    ) -> String {
+        var theirs: [String: Any] = [:]
+        theirs["representationId"] = theirsId ?? NSNull()
+        theirs["text"] = theirsText ?? NSNull()
+        let payload: [String: Any] = [
+            "pageId": pageId, "segmentId": segmentId, "ok": false, "stale": true,
+            "reason": "another reading counts now", "mine": mine, "theirs": theirs
+        ]
+        let data = (try? JSONSerialization.data(withJSONObject: payload, options: .sortedKeys)) ?? Data()
+        let json = String(bytes: data, encoding: .utf8) ?? "{}"
+        return "window.fichero?.lineCommitted?.(\(json));"
+    }
+
+    /// The stale answer for a refused `readingEdit`: re-reads the line's readings (the 409's body is not
+    /// in the contract, so the app asks what counts now) and says it with `staleScript`. Nil for the
+    /// other two messages, which carry no typed words.
+    @MainActor
+    static func staleAnswer(to message: Message, readings: SegmentService) async -> String? {
+        guard case .edited(let pageId, let segmentId, let text, _) = message else { return nil }
+        let theirs = (try? await readings.readings(segmentId: segmentId))?.countingReading(ofKind: "transcription")
+        return staleScript(
+            pageId: pageId, segmentId: segmentId, mine: text, theirsId: theirs?.id, theirsText: theirs?.content
+        )
+    }
+
     /// A JavaScript (UTF-16) offset into `text` as a Unicode-scalar offset -- what the engine's Python
     /// strings count. They differ past any character outside the Basic Multilingual Plane.
     static func codePointOffset(_ utf16Offset: Int, in text: String) -> Int {
@@ -117,10 +150,13 @@ struct NewReadingParams: Encodable, Equatable {
     let kind: String
     let content: String
     let correctsRepresentationId: String?
+    /// The reading that counted when typing began; the engine refuses (409) if another counts now.
+    var expectedCountingId: String?
 
     enum CodingKeys: String, CodingKey {
         case documentId = "document_id", segmentId = "segment_id", kind, content
         case correctsRepresentationId = "corrects_representation_id"
+        case expectedCountingId = "expected_counting_id"
     }
 
     func encode(to encoder: any Encoder) throws {
@@ -130,6 +166,7 @@ struct NewReadingParams: Encodable, Equatable {
         try container.encode(kind, forKey: .kind)
         try container.encode(content, forKey: .content)
         try container.encodeIfPresent(correctsRepresentationId, forKey: .correctsRepresentationId)
+        try container.encodeIfPresent(expectedCountingId, forKey: .expectedCountingId)
     }
 }
 

@@ -22,6 +22,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         /// asked to undo, in order -- answered as the engine would, with a fresh audit id.
         nonisolated(unsafe) static var invoked: [Data] = []
         nonisolated(unsafe) static var undone: [String] = []
+        /// What `POST /api/actions/invoke` answers with; 409 is the engine's stale refusal (#5001).
+        nonisolated(unsafe) static var invokeStatus = 200
 
         // swiftlint:disable:next static_over_final_class
         override class func canInit(with request: URLRequest) -> Bool {
@@ -154,7 +156,8 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             }
             guard let url = request.url,
                   let response = HTTPURLResponse(
-                      url: url, statusCode: isAnnotation ? 422 : 200, httpVersion: "HTTP/1.1",
+                      url: url, statusCode: isAnnotation ? 422 : (path == "/api/actions/invoke" ? Self.invokeStatus : 200),
+                      httpVersion: "HTTP/1.1",
                       headerFields: ["Content-Type": isPicture ? "image/png" : "application/json"]
                   ) else {
                 client?.urlProtocol(self, didFailWithError: URLError(.badURL))
@@ -174,6 +177,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             annotationRequests = []
             invoked = []
             undone = []
+            invokeStatus = 200
             handsReply = Data()
             attributionsReply = Data()
             settingsReply = Data()
@@ -1002,6 +1006,64 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(RecordedEngine.undone, ["audit-1"], "one ⌘Z undoes the whole run")
         XCTAssertFalse(manager.canUndo, "and there is no second step to undo")
+    }
+
+    /// `source.textedit.stale-keeps-your-words` end to end, the app's half, on the imported Syriac page's
+    /// first line: typing against the file's reading (`rep-0001`) sends it as `expected_counting_id`;
+    /// meanwhile a correction (`rep-0002`, the recorded readings) counts, so the engine refuses with 409.
+    /// The page is told what counts now, with the typed words kept. Keep Mine is the same words sent
+    /// against `rep-0002`, and it lands. Breaks if the token is not sent (a silent second candidate), or
+    /// if the answer loses the words or names the wrong reading.
+    func testATypedLineAgainstAReadingThatNoLongerCountsKeepsTheWordsAndNamesWhatCounts() async throws {
+        _ = try await loadedStore()
+        RecordedEngine.readingsReply = try Data(
+            contentsOf: fixtures().appendingPathComponent("syriac_onb-syr1-0001.first-line-readings.json")
+        )
+        let typed = "ܡܢ ܕܝܠܝ"
+        let edit = try XCTUnwrap(ReaderTextEdit.message(from: [
+            "kind": "readingEdit", "pageId": "doc-0001", "segmentId": "seg-0003", "text": typed,
+            "previous": "", "basedOn": "rep-0001"
+        ]))
+        let actions = ActionsService(client: try XCTUnwrap(storeClient))
+        RecordedEngine.invoked = []
+        RecordedEngine.invokeStatus = 409
+        do {
+            _ = try await actions.invokeAction(
+                name: "representation.create", params: try XCTUnwrap(ReaderTextEdit.newReading(for: edit))
+            )
+            XCTFail("a stale write must be refused")
+        } catch APIError.httpError(409, _) {}
+        let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
+        let params = try XCTUnwrap(sent["params"] as? [String: Any])
+        XCTAssertEqual(params["expected_counting_id"] as? String, "rep-0001", "the token is the reading typed over")
+
+        let service = SegmentService(ficheroClient: try XCTUnwrap(storeClient))
+        let answered = await ReaderTextEdit.staleAnswer(to: edit, readings: service)
+        let script = try XCTUnwrap(answered)
+        let json = try XCTUnwrap(
+            script.dropFirst("window.fichero?.lineCommitted?.(".count).dropLast(2).data(using: .utf8)
+        )
+        let answer = try XCTUnwrap(JSONSerialization.jsonObject(with: json) as? [String: Any])
+        XCTAssertEqual(answer["stale"] as? Bool, true)
+        XCTAssertEqual(answer["ok"] as? Bool, false)
+        XCTAssertEqual(answer["mine"] as? String, typed, "the typed words are kept")
+        let theirs = try XCTUnwrap(answer["theirs"] as? [String: Any])
+        XCTAssertEqual(theirs["representationId"] as? String, "rep-0002", "what counts now is named")
+        XCTAssertEqual((theirs["text"] as? String)?.hasSuffix("(corrected)"), true, "and its words")
+
+        // Keep Mine: the page sends the same words again, against what counts now.
+        RecordedEngine.invokeStatus = 200
+        let keep = try XCTUnwrap(ReaderTextEdit.message(from: [
+            "kind": "readingEdit", "pageId": "doc-0001", "segmentId": "seg-0003", "text": typed,
+            "previous": "", "basedOn": "rep-0002"
+        ]))
+        let kept = try await actions.invokeAction(
+            name: "representation.create", params: try XCTUnwrap(ReaderTextEdit.newReading(for: keep))
+        )
+        XCTAssertTrue(kept.succeeded)
+        let resent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.last)) as? [String: Any])
+        XCTAssertEqual((resent["params"] as? [String: Any])?["expected_counting_id"] as? String, "rep-0002")
+        XCTAssertEqual((resent["params"] as? [String: Any])?["content"] as? String, typed)
     }
 
     /// `source.textedit.deleting-words-keeps-ink` end to end, the app's half: deleting words from the

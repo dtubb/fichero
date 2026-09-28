@@ -692,8 +692,13 @@ The editor
   3 tests on the imported Syriac page: a stale write writes nothing and names what counts; Keep Mine
   against the new basis lands and counts; no token behaves as today; a token without a segment is
   refused), plus `test_textedit_engine_primitives.py::TestWithoutTheTokenTwoCorrectionsBothLand`.
-  **Not yet:** the app sending the token and turning the 409 into the page's stale answer, and the
-  page's inline Keep Mine / Take Theirs / Compare (bugs2's half).
+  **Built: the app** sends `basedOn` as the token (`ReaderTextEdit.newReading`); a 409 is answered to
+  the page as `lineCommitted({ok:false, stale:true, mine, theirs:{representationId, text}})`, with what
+  counts re-read from the engine and no page refresh over the typed words (`ReaderTextEdit.staleAnswer`;
+  `ImportedPageDrawsItsBoxesTests.testATypedLineAgainstAReadingThatNoLongerCountsKeepsTheWordsAndNamesWhatCounts`,
+  recorded Syriac readings: token sent, 409 answered with the words kept and `rep-0002` named, Keep Mine
+  re-sent against it). A line whose text came from its words sends no `basedOn`, so no check.
+  **Not yet:** the page's inline Keep Mine / Take Theirs / Compare (the page half, bugs2).
 - `source.textedit.every-direction` — **[PARTIAL]** (#5001) each block is laid out and edited in its own direction;
   line starts, joins and cuts follow reading order and the baseline; a direction the platform
   cannot lay out is labelled, never reordered.
