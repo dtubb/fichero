@@ -269,6 +269,7 @@ extension ZoomableImagePreview {
     func loadOCRGeometry() async {
         ocrGeometry = nil
         ocrGeometryArtifactId = nil
+        ocrGeometrySelectionScope = nil
         // Loads regardless of the boxes TOGGLE (2026-08-23): the reader's
         // word-selection linking needs the geometry even when the full box
         // layer is off — the toggle gates drawing that layer, not knowing.
@@ -295,6 +296,10 @@ extension ZoomableImagePreview {
                 // answer as the geometry rather than looked up again, because a lookup
                 // could name a different pass.
                 ocrGeometryArtifactId = selected.artifactId
+                // What a click selects in: the artifact, or the pass itself when it has none (#5152).
+                ocrGeometrySelectionScope = SegmentDisplay.selectionScope(
+                    artifactId: selected.artifactId, passId: selected.passId
+                )
                 return
             }
         }
@@ -311,6 +316,7 @@ extension ZoomableImagePreview {
             )
             ocrGeometry = selected?.geometry
             ocrGeometryArtifactId = selected?.artifactId
+            ocrGeometrySelectionScope = selected?.artifactId
         } catch {
             // Surface in the log, render nothing — the toggle stays honest
             // (no boxes ≠ silent success).

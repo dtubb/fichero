@@ -34,7 +34,7 @@ extension ZoomableImagePreview {
         let shown = displayedGeometryBoxes
         let all = frameMatchedGeometryBoxes
         let selection = regionSelection
-        let selected: [[Double]] = (ocrGeometryArtifactId != nil && selection.artifactId == ocrGeometryArtifactId)
+        let selected: [[Double]] = (ocrGeometrySelectionScope != nil && selection.artifactId == ocrGeometrySelectionScope)
             ? selection.resolvedIndices(in: all).map { all[$0].bbox }
             : []
         // The same frame gates the SwiftUI washes had: the entry wash is anchored on the page's
@@ -73,7 +73,7 @@ extension ZoomableImagePreview {
     /// you select what you can see), falling back to the whole geometry when
     /// the overlay is off.
     func selectAllGeometryForArmedTool() {
-        guard let artifactId = ocrGeometryArtifactId else { return }
+        guard let artifactId = ocrGeometrySelectionScope else { return }
         let all = frameMatchedGeometryBoxes
         guard !all.isEmpty else { return }
         let indices: [Int]
@@ -103,7 +103,10 @@ extension ZoomableImagePreview {
                 // rendition's frame scattered its boxes beside the page.
                 allBoxes: frameMatchedGeometryBoxes,
                 visible: geometry.visible,
-                artifactId: ocrGeometryArtifactId,
+                // The selection's scope, not the edit target: an imported pass has no artifact and
+                // its boxes must still be selectable (#5152). Edits are refused there by
+                // `RegionEditTarget` until they go through the segment actions.
+                artifactId: ocrGeometrySelectionScope,
                 documentId: documentId,
                 marquees: windowState?.previewMarquees,
                 imagePixelSize: imageSize == .zero ? nil : imageSize,
