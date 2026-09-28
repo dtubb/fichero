@@ -57,12 +57,16 @@ Page From…. Every edit below should undo with ⌘Z and redo with ⇧⌘Z.
 17. **Links** (5.7, #5164). Select two lines (first, then second) ▸ Links ▸ **Link** ▸ Continues.
     Then inspect the first line. *Should:* "Is continued by Line · ‹the second line's words›"; the
     second line reads "Continues Line · ‹the first›". **Withdraw**; ⌘Z. **Copy Reference** puts
-    `fichero:segment/…` on the clipboard. **Not built:** opening a `fichero:segment` link (#5164).
+    `fichero:segment/…` on the clipboard. Paste that link into Safari's address bar (or `open
+    'fichero:segment/…'` in Terminal): *Should:* Fichero opens the page with that line selected; a line
+    since joined into another opens the one that absorbed it (#5164, macOS only).
 18. **Rights** (5.8). Select a line ▸ Rights ▸ **Set** ▸ Local Models Only; then Add Label…
     ("TK Attribution"). *Should:* "Models: Local models only", "Labels: TK Attribution", and a record
     "On this segment"; at Page level the page's own records; **Withdraw**; ⌘Z. Records only tighten: a
     page rule of "No Models" wins over a line's "Local or Cloud". **Not built:** restricting to named
-    readers from the app (it cannot list accounts yet); enforcement stays on its branch.
+    readers from the app (it cannot list accounts yet). **Enforced (4f2ad2ec9):** in a multi-user
+    library, a restriction naming only other accounts hides the line from you (owner included), and
+    setting one that does not name you is refused with a sentence saying why.
 19. **Said about this** (5.7). On a page with claims, anchor one to a line (`claim.patch` with a
     `source_anchor` naming the line's `segment_id`, from MCP or the command line), then select that line. *Should:* "Said About This" lists the
     claim ("anchored here", its excerpt) and the entities mentioned on the line; clicking one opens it
@@ -80,6 +84,41 @@ Page From…. Every edit below should undo with ⌘Z and redo with ⇧⌘Z.
 15. **A georeference beside a transcription** (#5122). On a page with an imported transcription AND an
     imported IIIF georeference: *Should:* the Source view draws the transcription's lines, never the
     control points; Making lists the georeference under **Georeferencing**.
+
+21. **A segment's history, picture and baseline** (#5163). Select a line, move its box, set its language,
+    then look at Inspector ▸ **Making**. *Should:* the line's picture; "Curved baseline, N points" (or
+    Straight); "Version 3, now", then Version 2 "then language unset → syc" and Version 1 "then moved or
+    reshaped". **Restore** on Version 1 puts it back; ⌘Z, and ⌘Z again after two edits (both undo now).
+22. **Shapes drawn as themselves** (#5163 residue). Open the Syriac page. *Should:* each line is drawn as
+    its outline (not a rectangle) with its baseline as a heavier line under the ink; a selected line is
+    outlined in the accent colour, Finder-style dim when the window is not in front.
+23. **Reshape** (Edit Segments on, ONE line selected). *Should:* a square handle on every point of the
+    outline and the baseline, a small round one on each side. Drag a square: the point moves. Press a
+    round one and drag: a point is added there. ⌥-click a square: the point is removed (never below 3
+    for an outline, 2 for a baseline). Click a square without dragging, then the arrow keys: the point
+    moves one pixel, ten with ⇧ (without a selected point the arrows page as before). Each is one ⌘Z.
+24. **Draw a polygon or a baseline** (Edit Segments on). The chevron beside **Shape** ▸ Polygon: click
+    points, then click the first one (or double-click) to close. ▸ Baseline: click points, double-click to
+    finish. **Escape** while drawing abandons just the drawing. *Should:* a new region (polygon) or line
+    (baseline) on the page, drawn as itself; ⌘Z removes it. ▸ Box drags a box as before.
+25. **Table cells** (#5168). Import a Transkribus table page (`transkribus_abp_table_0019.page.xml`) and
+    select a cell. *Should:* the path reads **Page › Table › Cell, Rows 3–4, Column 1** (counted from 1);
+    the Segments pane's rows name cells the same way.
+26. **Proposed matches** (#5165). With matches proposed on a page (`segment.match_propose` from MCP or the
+    command line), the Segments pane head shows **N Proposed Matches**. *Should:* each row the newer
+    line, "was ‹the older› · proposed by ‹who› · sure N%"; **Accept** / **Reject**; ⌘Z.
+27. **Reading orders and flows** (#5160). Inspector ▸ Order (or the Segments pane) head: the order
+    picker. **New Order…** makes a copy to rearrange; **New Flow…** a flow. Select a line and use
+    ▲ ▼ (Previous / Next in Order). On the NEXT page of the same source: picker ▸ **Continue a Flow Here**
+    ▸ the flow. *Should:* this page's lines join the flow's end, in the page's order (one ⌘Z); from the
+    first page, Next off its last line opens this page with its first line selected.
+28. **Export choices** (#5162). Page level ▸ Making ▸ a pass's **Export** menu. *Should:* As Edited ▸ PAGE
+    XML, ALTO, TEI, hOCR, YOLO for a text pass (IIIF Georeference and QGIS Points for a georeferencing
+    pass), saved as `‹page›.page.hocr` etc. with the report; **As Imported…** saves the original file byte
+    for byte.
+29. **Typing in the Reader, continued** (13b). Type a run of words and pause two seconds: one reading,
+    one ⌘Z. Have someone (or MCP) correct the same line while you type, then move off it. *Should:* your
+    words stay on the line, marked, with **Keep Mine / Take Theirs / Compare**; Keep Mine lands.
 
 **Not built:** the menu-bar Segment menu, comparing two passes side by side, attribute edits
 on a page still read from an artifact (it is converted on first edit, #4924).
