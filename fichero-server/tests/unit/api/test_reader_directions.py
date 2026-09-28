@@ -194,3 +194,93 @@ def test_undoing_the_direction_puts_the_reader_back_at_once(db, client):
     payload, html = _view(client, doc_id)
     assert {line["direction"] for line in payload["pages"][0]["lines"]} != {"ttb"}
     assert _body(html, payload["pages"][0]).startswith('<div class="transcript-page-body">')
+
+
+# A fake DOM just big enough for the page's OWN refreshPage/caretInBody/bodyOffset: one article,
+# one page body holding one text node, a selection and a scroll container. Swapping the body drops
+# the scroll to the top -- what a browser may do when the focused element leaves the page and the
+# caret is put back -- so a kept scroll is kept by the page, not by the stand-in.
+_FAKE_DOM = r"""
+const scroller = { scrollTop: 0 };
+const textOf = (html) => html.replace(/<[^>]*>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+const article = { querySelector: () => article.body, closest: () => article };
+function makeBody(html) {
+    const body = { nodeType: 1, closest: (sel) => sel.startsWith("article") ? article : body };
+    body.text = { nodeType: 3, nodeValue: textOf(html), parentElement: body };
+    Object.defineProperty(body, "textContent", { get: () => body.text.nodeValue });
+    Object.defineProperty(body, "outerHTML", { set: (markup) => { article.body = makeBody(markup); scroller.scrollTop = 0; } });
+    return body;
+}
+const selection = { focusNode: null, focusOffset: 0, collapse(node, offset) { this.focusNode = node; this.focusOffset = offset; } };
+globalThis.Node = { TEXT_NODE: 3 };
+globalThis.NodeFilter = { SHOW_TEXT: 4 };
+globalThis.CSS = { escape: (s) => s };
+globalThis.document = {
+    querySelector: () => article,
+    createTreeWalker: (body) => { let done = false; return { nextNode: () => (done ? null : (done = true, body.text)) }; },
+};
+window.getSelection = () => selection;
+var pendingEdit = null;
+const staleLines = new Map();
+const documentData = { pages: [] };
+function sourceHeaders() { return {}; }
+function scrollParent() { return scroller; }
+function makeEditable() {}
+function applyShownLines() {}
+function applyStaleHighlight() {}
+const served = [];
+globalThis.fetch = async () => ({ ok: true, text: async () => served.shift() });
+"""
+
+
+@needs_node
+def test_a_move_and_its_undo_keep_the_scroll_and_the_caret(db, client):
+    """#5170 through the page's OWN refreshPage, across a real move AND its ⌘Z (the audit undo the
+    app calls): the scroll stays where the person left it and the caret stays on the moved line,
+    the same distance in -- and after the undo it is back at the very offset it started from. If
+    this regresses, every ⌥⌘↑/↓ or ⌘Z throws the person back to the top, or off the line."""
+    from tests.unit.api.test_text_follows_the_order import _move_last_line_of_a_block_to_its_start
+
+    doc_id = _import(db, ARABIC)
+    before, html_before = _view(client, doc_id)
+    page = before["pages"][0]
+    audit_id, moved, _first = _move_last_line_of_a_block_to_its_start(db, client, doc_id)
+    _, html_moved = _view(client, doc_id)
+    undone = client.post(f"/api/actions/audit/{audit_id}/undo")
+    assert undone.status_code == 200, undone.text
+    _, html_undone = _view(client, doc_id)
+    line = next(l for l in page["lines"] if l["segment_id"] == moved)
+    start = line["char_start"] + (line["char_end"] - line["char_start"]) // 2
+    got = _node(_page_functions(html_before) + _FAKE_DOM + f"""
+const page = {json.dumps(page)};
+pageLineMaps.set(page.id, page.lines);
+pageTexts.set(page.id, page.content);
+article.dataset = {{ pageId: page.id }};
+article.body = makeBody(pageBodyMarkup(page));
+const premise = article.body.text.nodeValue === page.content;
+selection.collapse(article.body.text, {start});
+scroller.scrollTop = 1234;
+const where = () => {{ const at = lineAtCaret(); return {{ scroll: scroller.scrollTop, on: at && at.segmentId,
+    offset: selection.focusOffset, lines: pageLineMaps.get(page.id).map((l) => l.segment_id) }}; }};
+(async () => {{
+    served.push({json.dumps(html_moved)}, {json.dumps(html_undone)});
+    const movedOk = await refreshPage(page.id);
+    const afterMove = where();
+    const undoneOk = await refreshPage(page.id);
+    console.log(JSON.stringify({{ premise, movedOk, afterMove, undoneOk, afterUndo: where() }}));
+}})();
+""")
+    assert got["premise"] and got["movedOk"] and got["undoneOk"]
+    ids = [l["segment_id"] for l in page["lines"]]
+    assert got["afterMove"]["lines"] != ids                          # the move really moved the line
+    moved_line = next(l for l in pagePayload(html_moved, page["id"])["lines"] if l["segment_id"] == moved)
+    assert got["afterMove"] == {**got["afterMove"], "scroll": 1234, "on": moved,
+                                "offset": moved_line["char_start"] + (start - line["char_start"])}
+    assert got["afterUndo"] == {"scroll": 1234, "on": moved, "offset": start, "lines": ids}   # back where it began
+
+
+def pagePayload(html: str, page_id: str) -> dict:
+    import re
+    data = json.loads(re.search(r"const documentData = (\{.*?\});\n", html, re.S).group(1))
+    return next(p for p in data["pages"] if p["id"] == page_id)

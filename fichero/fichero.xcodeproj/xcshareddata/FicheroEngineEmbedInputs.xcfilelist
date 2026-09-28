@@ -204,6 +204,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/core/timeutil.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/utf16_offsets.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/app.py
+$(SRCROOT)/../fichero-server/src/fichero_server/db/busy_evidence.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/dataset_query.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/embeddings.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/library_paths.py

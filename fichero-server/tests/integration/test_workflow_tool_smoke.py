@@ -53,7 +53,6 @@ FIXTURE_TEXT = (
 # workflows.
 CANNED_INPUT_GAPS: dict[str, str] = {
     "agent": "needs a configured agent loop / chat context",
-    "cli_agent": "needs an interactive CLI agent session",
     "mcp": "needs a live MCP server connection",
     "multi_agent": "needs a configured multi-agent ensemble",
     "sub_workflow": "needs a saved child workflow id in config (typed ValidationError)",
@@ -68,6 +67,11 @@ CANNED_INPUT_GAPS: dict[str, str] = {
     "audio_transcribe": "needs the optional openai-whisper install",
     "organize_same_documents": "consumes upstream similarity clusters",
 }
+
+
+# A test never launches the real `claude` CLI (#5186, as #5188 for the engine): the cli_agent row
+# runs a stand-in on PATH that answers at once, offline and the same every time.
+CLI_STAND_IN_ANSWER = "stand-in cli answer"
 
 
 # Tools whose canonical input is a second shape than "one text file":
@@ -227,6 +231,7 @@ def test_registered_tool_survives_one_canned_invocation(
     tool_name: str,
     smoke_library: dict,
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
 ) -> None:
     from fichero_server.llm import LLMConfig
     from fichero_server.workflows import registry as workflow_registry
@@ -299,6 +304,10 @@ def test_registered_tool_survives_one_canned_invocation(
     state["task_id"] = f"tool-smoke-{tool_name}"
 
     llm_config = LLMConfig(provider="mock", model="mock")
+    if tool_name == "cli_agent":
+        from tests.unit.workflows.test_cli_agent_never_reads_the_engines_stdin import _fake_cli
+
+        _fake_cli(tmp_path, monkeypatch, f"echo '{CLI_STAND_IN_ANSWER}'\n")
 
     async def invoke():
         return await asyncio.wait_for(
@@ -327,3 +336,5 @@ def test_registered_tool_survives_one_canned_invocation(
     )
     error = result.get("error")
     assert not error, f"{tool_name}: canned invocation returned error: {error!r}"
+    if tool_name == "cli_agent":
+        assert result["text"] == CLI_STAND_IN_ANSWER      # the stand-in answered, not a real CLI

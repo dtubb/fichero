@@ -1502,6 +1502,10 @@ async function refreshPage(pageId) {
     const selection = window.getSelection();
     const oldOffset = at && at.pageId === pageId ? bodyOffset(body, selection.focusNode, selection.focusOffset) : null;
     const oldLines = pageLineMaps.get(pageId);
+    // Scroll is kept BY NAME, not left to the browser (#5170): swapping the body takes the focused
+    // element out of the page, and putting the caret back may scroll to it.
+    const scroller = scrollParent(article);
+    const scrolledTo = scroller ? scroller.scrollTop : null;
     // Words typed and not yet sent are NEVER re-read over (13b): a commit's re-read can land while
     // the next run is being typed. They stay on their line, on top of the library's page, and go
     // with that run's commit.
@@ -1528,6 +1532,7 @@ async function refreshPage(pageId) {
             rest -= node.nodeValue.length;
         }
     }
+    if (scroller && scroller.scrollTop !== scrolledTo) scroller.scrollTop = scrolledTo;
     return true;
 }
 

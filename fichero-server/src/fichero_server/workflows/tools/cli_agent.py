@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import os
+import signal
 from typing import Any
 
 from fichero_server.workflows.registry import register_tool
@@ -196,15 +197,24 @@ async def cli_agent(
     )
     logger.info("cli_agent running: %s", command[0])
 
+    # #5186: the task is on the command line, so the child gets NO stdin -- given the engine's fd 0
+    # (often a pipe nobody closes) `claude -p` waits for EOF until the timeout. Its own process
+    # group, so a timeout kills everything it started: killing only the CLI left a grandchild
+    # holding stdout, and the drain after the kill never returned.
     proc = await asyncio.create_subprocess_exec(
         *command,
+        stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        start_new_session=True,
     )
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout_seconds)
     except asyncio.TimeoutError:
-        proc.kill()
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
         await proc.communicate()
         return {
             "error": f"CLI timed out after {timeout_seconds}s",
