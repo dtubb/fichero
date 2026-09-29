@@ -10,7 +10,16 @@ let sidebarViewLogger = Logger(subsystem: "app.fichero.fichero", category: "Side
 /// Mode bar at top, content changes based on selected mode
 /// Each mode shows content grouped by library
 struct SidebarView: View {
-    @Binding var sidebarMode: SidebarMode
+    /// The mode as a VALUE plus a setter, not a `Binding` (#5228): the host's mode is
+    /// `@SceneStorage`, whose projected binding is a new identity on every render, so SwiftUI saw it
+    /// as changed and re-ran this whole sidebar on every render of the window (~50-90 times in one
+    /// launch). An unchanged value compares equal. Every `sidebarMode = x` below still works.
+    let sidebarModeValue: SidebarMode
+    let onSetSidebarMode: (SidebarMode) -> Void
+    var sidebarMode: SidebarMode {
+        get { sidebarModeValue }
+        nonmutating set { onSetSidebarMode(newValue) }
+    }
     @Binding var viewMode: AppViewMode
     @Bindable var selectionState: SidebarSelectionState
 
@@ -100,7 +109,8 @@ struct SidebarView: View {
     @State var pendingCrossLibraryRoute: CrossLibraryRoute.Pending?
 
     init(
-        sidebarMode: Binding<SidebarMode>,
+        sidebarMode: SidebarMode,
+        setSidebarMode: @escaping (SidebarMode) -> Void,
         viewMode: Binding<AppViewMode>,
         selectionState: SidebarSelectionState,
         libraryManager: LibraryManager,
@@ -111,7 +121,8 @@ struct SidebarView: View {
         onRunSavedSearch: ((SavedSearch) -> Void)? = nil,
         onRequestNextPaneFocus: (() -> Void)? = nil
     ) {
-        self._sidebarMode = sidebarMode
+        self.sidebarModeValue = sidebarMode
+        self.onSetSidebarMode = setSidebarMode
         self._viewMode = viewMode
         self.selectionState = selectionState
         self.libraryManager = libraryManager
@@ -374,7 +385,8 @@ struct SidebarView: View {
 
     NavigationStack {
         SidebarView(
-            sidebarMode: $sidebarMode,
+            sidebarMode: sidebarMode,
+            setSidebarMode: { sidebarMode = $0 },
             viewMode: $viewMode,
             selectionState: selectionState,
             libraryManager: LibraryManager.shared,

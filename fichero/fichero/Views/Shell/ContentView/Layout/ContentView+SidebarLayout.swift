@@ -121,7 +121,8 @@ extension ContentView {
     @ViewBuilder
     private var sidebarTree: some View {
         SidebarView(
-            sidebarMode: sidebarModeBinding,
+            sidebarMode: sidebarMode,
+            setSidebarMode: { sidebarMode = $0 },
             viewMode: $viewMode,
             selectionState: sidebarSelectionState,
             libraryManager: LibraryManager.shared,
