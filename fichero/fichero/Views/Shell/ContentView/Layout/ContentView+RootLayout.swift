@@ -325,11 +325,6 @@ extension ContentView {
                 clearTransientSearch()
             }
         }
-        // Hiding the field clears it and exits search (#4521). Here, not in a binding's setter, so
-        // the library pane is handed `$showSearchField` -- the same binding every render (#5228).
-        .onChange(of: showSearchField) { _, isVisible in
-            if !isVisible { setSearchFieldVisible(false) }
-        }
         // RE-clicking the current sidebar folder exits search (Daniel,
         // 2026-09-02): the sidebar can't reach the transient-search state,
         // so it posts and this window answers.

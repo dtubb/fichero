@@ -26,9 +26,6 @@ extension ContentView {
     /// in the row's chat pane while this column keeps the workspace).
     @ViewBuilder
     func libraryContentColumn(pinnedLibrary: Binding<PinnedLibraryScope?>) -> some View {
-        // #2960: @Observable via @Environment has no projected binding —
-        // @Bindable gives `$viewSettings.libraryLayout`.
-        @Bindable var viewSettings = viewSettings
         // Space (3D) has no renderer yet (#3081) — .space normalizes to an
         // available mode upstream, so the library path renders LibraryView.
         // AnyView is load-bearing (#4331): the fully composed library-case
@@ -56,7 +53,6 @@ extension ContentView {
             libraryToolbar: libraryToolbarState,
             selection: $browserSelection,
             detailDocument: $detailDocument,
-            viewMode: $viewSettings.libraryLayout,
             // The HINT is part of "focused" (2026-08-11, Daniel's Mail
             // comparison): focusedPane is FocusState and stays nil unless
             // a view carries a matching .focused binding — only the
@@ -116,13 +112,10 @@ extension ContentView {
             // #4407: the search field lives in the library's mini toolbar
             // now, so its text and mode are handed to the pane that owns it.
             searchFieldText: $toolbarSearchText,
-            // Stable bindings (#5228): these two were `Binding(get:set:)`, new on every render, so
-            // every render of this view re-ran the whole library pane (~50 times in one launch).
+            // A stable key-path binding (#5228): a `Binding(get:set:)` here was new on every render,
+            // so every render of this view re-ran the whole library pane (~50 times in one launch).
+            // The unused `viewMode` and `searchFieldVisible` inputs did the same; they are gone.
             searchFieldMode: searchFieldModeBinding,
-            // #4521: the field is summoned by the toolbar search toggle;
-            // a Binding so in-pane dismissal can flip the same state (its
-            // clean-up runs from `.onChange(of: showSearchField)`).
-            searchFieldVisible: $showSearchField,
             // #4403: the grid renders only the document leg, so it must be
             // told what the search actually found — otherwise its empty
             // state contradicts the header counting every kind.

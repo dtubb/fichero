@@ -268,7 +268,6 @@ extension LibraryView {
             libraryToolbar: LibraryToolbarState(),
             selection: .constant(Set<String>()),
             detailDocument: .constant(nil),
-            viewMode: .constant(.icons),
             defaultDisplayMode: .icon,
             folderId: nil
         )
@@ -288,7 +287,6 @@ extension LibraryView {
             libraryToolbar: LibraryToolbarState(),
             selection: .constant(Set<String>()),
             detailDocument: .constant(nil),
-            viewMode: .constant(.icons),
             defaultDisplayMode: .icon,
             folderId: nil
         )

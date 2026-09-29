@@ -30,7 +30,6 @@ struct LibraryView: View {
     @Bindable var libraryToolbar: LibraryToolbarState
     @Binding var selection: Set<String>
     @Binding var detailDocument: Document?
-    @Binding var viewMode: LibraryLayout
     var isPaneFocused: Bool = false
     /// The WINDOW's mode — the default a pane starts from.
     let defaultDisplayMode: ViewDisplayMode
@@ -90,11 +89,6 @@ struct LibraryView: View {
     /// Defaulted so the previews construct unchanged.
     var searchFieldText: Binding<String> = .constant("")
     var searchFieldMode: Binding<SearchFieldMode> = .constant(.ask)
-    /// Summoned search (#4521): the field renders in the mini toolbar only
-    /// while this is on. A Binding (not a plain Bool) so the field's own
-    /// dismiss affordances can flip it. Defaulted ON so previews and non-shell
-    /// hosts keep the field without extra wiring.
-    var searchFieldVisible: Binding<Bool> = .constant(true)
     /// The transient search this grid is showing results for, if any (#4403).
     /// Non-nil means the empty state must talk about the SEARCH — never about
     /// choosing a collection, which is what it used to fall back to under a

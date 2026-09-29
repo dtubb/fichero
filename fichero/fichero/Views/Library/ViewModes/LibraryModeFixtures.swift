@@ -63,7 +63,6 @@ enum LibraryPreviewFixtures {
                 libraryToolbar: LibraryToolbarState(),
                 selection: .constant(["pdf-1"]),
                 detailDocument: .constant(nil),
-                viewMode: .constant(layout),
                 isPaneFocused: true,
                 defaultDisplayMode: displayMode,
                 folderId: nil
