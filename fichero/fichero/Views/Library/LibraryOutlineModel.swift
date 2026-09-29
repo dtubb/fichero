@@ -41,10 +41,9 @@ final class LibraryOutlineModel {
     /// Internal (not private) so tests can inject state directly.
     var artifactsByDocumentId: [String: [Artifact]] = [:]
     private var artifactRequested: Set<String> = []
-    var entitiesByDocumentId: [String: [Components.Schemas.KnowledgeEntity]] = [:]
-    private var entityRequested: Set<String> = []
-    var claimsByDocumentId: [String: [Components.Schemas.KnowledgeClaim]] = [:]
-    private var claimRequested: Set<String> = []
+    /// A folder's child documents (#5282), from `DocumentStore.cacheSidebarChildren`: the cache the
+    /// sidebar already fills, so expanding in either place fetches once.
+    var childDocumentsByParentId: [String: [Document]] = [:]
 
     private let service: EntityService
     private let artifactService: ArtifactService
@@ -87,63 +86,28 @@ final class LibraryOutlineModel {
         }
     }
 
-    func loadEntities(for documentId: String) async {
-        guard entitiesByDocumentId[documentId] == nil,
-              !entityRequested.contains(documentId) else { return }
-        entityRequested.insert(documentId)
-        do {
-            entitiesByDocumentId[documentId] = try await service.listInspectorEntitiesForDocument(
-                documentId: documentId
-            )
-        } catch {
-            logger.debug("Entity load failed for \(documentId): \(error)")
-        }
-    }
-
-    func loadClaims(for documentId: String) async {
-        guard claimsByDocumentId[documentId] == nil,
-              !claimRequested.contains(documentId) else { return }
-        claimRequested.insert(documentId)
-        do {
-            claimsByDocumentId[documentId] = try await service.listClaims(
-                sourceDocumentId: documentId,
-                includeDescendants: false,
-                limit: 500
-            )
-        } catch {
-            logger.debug("Claim load failed for \(documentId): \(error)")
-        }
-    }
-
-    /// Build the typed child nodes for one document from its cached rollup.
-    /// - Pages → individual page item rows (from pagesByParentId, already loaded).
+    /// Build the child rows for one document.
+    /// - Child documents (a folder's contents) → document rows, first, as Finder lists them (#5282).
+    /// - Pages → individual page item rows (pagesByParentId, else the fetched children).
     /// - Artifacts → individual artifact item rows once loaded; count-group fallback until then.
-    /// - Entities / notes / claims → count-group rows as before.
-    /// Returns `nil` if the rollup has not loaded yet (disclosure shows but is empty).
+    /// - Notes → a count-group row.
+    /// Entities and claims are not library rows (#5282, maintainer ruling 2026-09-29); they live in
+    /// the inspector and the knowledge views.
+    /// Returns `nil` while nothing is known yet (the disclosure shows but is empty).
     func childNodes(for document: Document) -> [LibraryOutlineNode]? {
-        guard let rollup = rollups[document.id] else { return nil }
-        var nodes: [LibraryOutlineNode] = []
-        for type in LibraryOutlineNode.ChildType.allCases {
-            switch type {
-            case .pages:
-                nodes += pageChildNodes(for: document)
-            case .artifacts:
-                nodes += artifactChildNodes(for: document, rollup: rollup, type: type)
-            case .entities:
-                nodes += entityChildNodes(for: document, rollup: rollup, type: type)
-            case .claims:
-                nodes += claimChildNodes(for: document, rollup: rollup, type: type)
-            case .notes:
-                nodes += noteChildNodes(for: document, rollup: rollup, type: type)
-            }
+        let fetched = childDocumentsByParentId[document.id]
+        let rollup = rollups[document.id]
+        if fetched == nil && rollup == nil { return nil }
+        var nodes = (fetched ?? []).filter { $0.docType != .page }
+            .map { LibraryOutlineNode.document($0, children: nil) }
+        let pages = pagesByParentId[document.id] ?? (fetched ?? []).filter { $0.docType == .page }
+        nodes += pages.sorted { ($0.sequence ?? 0) < ($1.sequence ?? 0) }
+            .map { LibraryOutlineNode.pageItem($0, parent: document) }
+        if let rollup {
+            nodes += artifactChildNodes(for: document, rollup: rollup, type: .artifacts)
+            nodes += noteChildNodes(for: document, rollup: rollup, type: .notes)
         }
         return nodes
-    }
-
-    private func pageChildNodes(for document: Document) -> [LibraryOutlineNode] {
-        let pages = (pagesByParentId[document.id] ?? [])
-            .sorted { ($0.sequence ?? 0) < ($1.sequence ?? 0) }
-        return pages.map { LibraryOutlineNode.pageItem($0, parent: document) }
     }
 
     private func artifactChildNodes(
@@ -156,36 +120,6 @@ final class LibraryOutlineModel {
         } else if rollup.artifacts > 0 {
             // Show count summary until per-document fetch completes.
             return [LibraryOutlineNode.childGroup(type, document: document, count: rollup.artifacts)]
-        }
-        return []
-    }
-
-    private func entityChildNodes(
-        for document: Document,
-        rollup: Components.Schemas.DocumentRollupResponse,
-        type: LibraryOutlineNode.ChildType
-    ) -> [LibraryOutlineNode] {
-        let count = type.count(in: rollup)
-        if let entities = entitiesByDocumentId[document.id] {
-            let children = entities.map { LibraryOutlineNode.entityItem($0, parent: document) }
-            return [LibraryOutlineNode.childGroup(type, document: document, count: count, children: children)]
-        } else if count > 0 {
-            return [LibraryOutlineNode.childGroup(type, document: document, count: count)]
-        }
-        return []
-    }
-
-    private func claimChildNodes(
-        for document: Document,
-        rollup: Components.Schemas.DocumentRollupResponse,
-        type: LibraryOutlineNode.ChildType
-    ) -> [LibraryOutlineNode] {
-        let count = type.count(in: rollup)
-        if let claims = claimsByDocumentId[document.id] {
-            let children = claims.map { LibraryOutlineNode.claimItem($0, parent: document) }
-            return [LibraryOutlineNode.childGroup(type, document: document, count: count, children: children)]
-        } else if count > 0 {
-            return [LibraryOutlineNode.childGroup(type, document: document, count: count)]
         }
         return []
     }

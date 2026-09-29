@@ -175,33 +175,33 @@ struct LibraryOutlineModelTests {
         #expect(node.id == "parent-2:artifact:art-z")
     }
 
-    @Test("Entity and claim groups expose loaded children instead of leaf count rows")
-    @MainActor func entityAndClaimGroupsExposeChildren() throws {
+    /// #5282: entities and claims are not library rows (ruling 2026-09-29). Expanding a document
+    /// in the table showed "0 entities / 0 claims" groups instead of what the document holds.
+    @Test("Entities and claims never appear as library outline rows")
+    @MainActor func entitiesAndClaimsAreNotOutlineRows() throws {
         let model = makeModel()
         let doc = makeDoc(id: "doc-e")
         model.rollups["doc-e"] = try makeRollup(entities: 2, claims: 1)
-        model.entitiesByDocumentId["doc-e"] = [
-            makeEntity(id: "entity-1", name: "Ada"),
-            makeEntity(id: "entity-2", name: "Grace")
-        ]
-        model.claimsByDocumentId["doc-e"] = [
-            makeClaim(id: "claim-1", text: "Ada cites Grace")
-        ]
 
         let children = model.childNodes(for: doc) ?? []
-        let entityGroup = children.first {
+        #expect(!children.contains {
             if case .childGroup(.entities) = $0.kind { return true }
-            return false
-        }
-        let claimGroup = children.first {
             if case .childGroup(.claims) = $0.kind { return true }
             return false
-        }
+        })
+    }
 
-        #expect(entityGroup?.count == 2)
-        #expect(entityGroup?.children?.count == 2)
-        #expect(claimGroup?.count == 1)
-        #expect(claimGroup?.children?.count == 1)
+    /// #5282: expanding a folder shows its contents, as Finder's list view does; before the fix the
+    /// folder's child documents never reached the outline at all.
+    @Test("An expanded folder lists its child documents first, as document rows")
+    @MainActor func folderListsItsChildDocuments() {
+        let model = makeModel()
+        let folder = Document(id: "folder", docType: .folder, name: "Letters")
+        model.childDocumentsByParentId["folder"] = [makeDoc(id: "letter-1"), makeDoc(id: "letter-2")]
+
+        let children = model.childNodes(for: folder) ?? []
+        #expect(children.map(\.id) == ["letter-1", "letter-2"])
+        #expect(children.allSatisfy { if case .document = $0.kind { return true }; return false })
     }
 
     @Test("Entity and claim child node IDs are stable")

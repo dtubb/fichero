@@ -29,13 +29,16 @@ extension LibraryView {
             set: { isOpen in
                 if isOpen {
                     outlineExpanded.insert(node.id)
-                    let docId = node.document.id
+                    let document = node.document
                     if case .document = node.kind {
                         Task {
-                            await outlineModel?.loadRollup(for: docId)
-                            await outlineModel?.loadArtifacts(for: docId)
-                            await outlineModel?.loadEntities(for: docId)
-                            await outlineModel?.loadClaims(for: docId)
+                            // A folder's contents first: they are what an expand is for (#5282).
+                            if document.childCount > 0 {
+                                outlineModel?.childDocumentsByParentId[document.id] =
+                                    await documentStore.cacheSidebarChildren(of: document)
+                            }
+                            await outlineModel?.loadRollup(for: document.id)
+                            await outlineModel?.loadArtifacts(for: document.id)
                         }
                     }
                 } else {
