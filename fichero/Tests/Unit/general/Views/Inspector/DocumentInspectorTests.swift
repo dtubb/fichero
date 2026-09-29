@@ -225,7 +225,11 @@ final class DocumentInspectorTests: XCTestCase {
         // #file_length: LibraryView+TableMapViews split into +TableView / +TableColumns.
         let source = try Self.appSource("Views/Library/ViewModes/Table/LibraryView+TableView.swift")
 
-        XCTAssertTrue(source.contains("handleOutlineDoubleClickSelection()"))
+        XCTAssertTrue(source.contains("} primaryAction: { items in"))
+        XCTAssertTrue(source.contains("handleOutlineOpen(items)"))
+        // #5278: a double-tap recognizer over the Table delays every single click and opens
+        // the selection instead of the rows AppKit reports.
+        XCTAssertFalse(source.contains(".onTapGesture(count: 2)"))
         XCTAssertTrue(source.contains("if let artifactSelection = artifactSelectionForNodeId(firstId)"))
         XCTAssertTrue(source.contains("openWindow(id: \"artifact-detail\")"))
     }

@@ -29,15 +29,17 @@ extension LibraryView {
             // Child-group rows carry "<docId>:<type>" ids — drop the
             // suffix so a context-menu on a child still targets its doc.
             if let firstId = primaryNodeId(in: items),
-               let doc = filteredDocuments.first(where: { $0.id == LibraryOutlineNode.parse(nodeId: firstId).documentId }) {
+               let doc = outlineDocument(forNodeId: firstId) {
                 // Deferred to OPEN time like Icon, List and Columns (#4544):
                 // Table was the one browse mode still building its menu on
                 // every render pass.
                 SidebarDeferredMenuContent { documentContextMenu(for: doc) }
             }
-        }
-        .onTapGesture(count: 2) {
-            handleOutlineDoubleClickSelection()
+        } primaryAction: { items in
+            // The Table's own double-click / Return (#5278). An onTapGesture(count: 2) over the
+            // whole table made every single click wait out the double-click interval, and
+            // acted on `selection` rather than the rows AppKit says were opened.
+            handleOutlineOpen(items)
         }
         .padding(.leading, browserLeadingInset)
     }
@@ -70,19 +72,28 @@ extension LibraryView {
         }
     }
 
-    private func handleOutlineDoubleClickSelection() {
+    private func handleOutlineOpen(_ items: Set<String>) {
         // Act on the deterministic primary ROW id, not the document-level
         // cursor: child ids ("<doc>:artifact:<id>") aren't in
         // filteredDocuments, so the step-2 cursor swap silently killed the
         // artifact-detail-window path for child rows (#4160 step 3).
-        guard let firstId = primaryNodeId(in: selection) else { return }
+        guard let firstId = primaryNodeId(in: items) else { return }
         if let artifactSelection = artifactSelectionForNodeId(firstId) {
             openArtifactDetailWindow(for: artifactSelection)
             return
         }
-        if let doc = filteredDocuments.first(where: { $0.id == LibraryOutlineNode.parse(nodeId: firstId).documentId }) {
+        if let doc = outlineDocument(forNodeId: firstId) {
             handleDoubleClick(doc)
         }
+    }
+
+    /// The document an outline row names: a listed document, or a folder's child that an expand
+    /// fetched (#5282). Child rows are not in `filteredDocuments`, so without the second lookup
+    /// double-click and the context menu did nothing on them.
+    func outlineDocument(forNodeId id: String) -> Document? {
+        let documentId = LibraryOutlineNode.parse(nodeId: id).documentId
+        return filteredDocuments.first { $0.id == documentId }
+            ?? outlineModel?.childDocumentsByParentId.values.lazy.flatMap { $0 }.first { $0.id == documentId }
     }
 
     /// Deterministic primary node id for a set of outline-row ids: the
