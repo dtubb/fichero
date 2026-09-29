@@ -213,6 +213,14 @@ def main(argv: list[str] | None = None):
     """Start the Fichero API backend server."""
 
     _stamp("main() entry")
+    # The interpreter's own start-up, before any line of ours (#5228): the app stamps the wall
+    # clock it spawned us at, so the run-up is a number rather than a guess.
+    spawned_at = os.environ.get("FICHERO_SPAWNED_AT")
+    if spawned_at:
+        try:
+            logger.info("engine-launch: interpreter start-up took %.0fms (spawn -> main)", (time.time() - float(spawned_at)) * 1000)
+        except ValueError:
+            pass
 
     # The installed command-line tools (Fichero ▸ Install Command-Line
     # Tools…, 2026-08-27) exec THIS binary with FICHERO_RUN_MODULE set:
@@ -466,8 +474,6 @@ def main(argv: list[str] | None = None):
                     exc,
                 )
             if tcp_sockets:
-                import threading
-
                 tcp_kwargs = dict(
                     app="fichero_server.api.tcp_transport:app",
                     workers=1,

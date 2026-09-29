@@ -53,6 +53,7 @@ extension EmbeddedBackendService {
         )
 
         // Launch the process
+        process.environment?["FICHERO_SPAWNED_AT"] = String(Date().timeIntervalSince1970)
         try process.run()
         // The gap between "engine spawn requested" and this marker is everything
         // the app does BEFORE the engine gets to start: the port pre-flight and
@@ -103,6 +104,7 @@ extension EmbeddedBackendService {
             Self.terminateOrphanEngines()
             LaunchProfile.milestone("orphan engine sweep finished (off-main)")
             if EngineSocketConflict.isLive(socketPath: socketPath) { return false }
+            unstarted.process.environment?["FICHERO_SPAWNED_AT"] = String(Date().timeIntervalSince1970)
             try unstarted.process.run()
             LaunchProfile.milestone("engine process launched", detail: "pid \(unstarted.process.processIdentifier)")
             return true
