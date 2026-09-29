@@ -343,7 +343,9 @@ def main(argv: list[str] | None = None):
     # into a child process (#3747). Resolve them BEFORE anything opens a DuckDB
     # file — a plain open() on ~/Documents would be denied. A no-op when the env
     # var is unset, i.e. every non-sandboxed (DMG) run.
+    _stamp("uvicorn imported, faulthandler set")
     activate_library_bookmarks()
+    _stamp("library bookmarks activated")
 
     # UDS transport (additive, env-driven): when FICHERO_UDS_PATH is set, bind a
     # plaintext Unix-domain socket instead of TCP — no port, no TLS, no network

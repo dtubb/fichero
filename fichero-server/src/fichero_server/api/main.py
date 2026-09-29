@@ -1031,14 +1031,20 @@ async def lifespan(app: FastAPI):
 
     bonjour_started = asyncio.get_running_loop().run_in_executor(None, _start_bonjour)
 
-    # Warm the AI stack AFTER the socket is bound, never before it (#3950).
+    # Warm the AI stack AFTER the app is ready and quiet, never before (#3950, #5228).
     #
     # langchain / langgraph / MCP / the ~60 tools / Quartz are no longer
     # imported at module scope, so the engine binds without them. They are
     # still wanted in memory before the user clicks Workflows, so import them
-    # here: the user is reading their library while this runs and never sees
-    # it. Lazy-on-click would instead put a multi-second spinner in front of
-    # the one interaction that should feel instant.
+    # once the launch is over: lazy-on-click would put a multi-second spinner
+    # in front of the one interaction that should feel instant.
+    #
+    # NOT at bind (#5228): started there, this 1.2 s of CPU-bound import held
+    # the GIL exactly while the app loaded its libraries, the same contention
+    # #4690 measured and removed for the embeddings load. It now runs from
+    # `_prewarm_embeddings_after_ready`, after the readiness signal and quiet,
+    # and before the embeddings load, so neither competes with the launch or
+    # with each other.
     #
     # In an executor, NOT via call_soon: importing is blocking, CPU-bound work
     # and would starve the event loop it ran on — the same mistake, and the
@@ -1090,10 +1096,6 @@ async def lifespan(app: FastAPI):
             # _ensure_tools_loaded(), which does not catch (#3951).
             logger.warning("Workflow tool warm-up failed: %r", exc)
 
-    warm_started = asyncio.get_running_loop().run_in_executor(
-        None, _warm_workflow_stack
-    )
-
     async def _prewarm_embeddings_after_ready() -> None:
         """Wait for `_first_registry_200_signal`, THEN for the request stream
         to go quiet, then run the embeddings load on its own executor
@@ -1117,10 +1119,11 @@ async def lifespan(app: FastAPI):
 
         A short-lived process (a test, a CLI import) may never see a real
         `/api/registry` 200 or ever go quiet — shutdown CANCELS this task
-        rather than awaiting it, so that case can't hang teardown (contrast
-        with `warm_started` above, which shutdown DOES await: that one is
-        unconditional and bounded, this one is conditional on live traffic
-        that may never come).
+        rather than awaiting it, so that case can't hang teardown: it is
+        conditional on live traffic that may never come.
+
+        The workflow tool-stack warm-up runs here too, first (#5228): at bind
+        it held the GIL through the app's own launch loads.
         """
         _api_stamp("embeddings prewarm waiting for readiness signal")
         await app.state.first_registry_200_signal.wait()
@@ -1131,6 +1134,7 @@ async def lifespan(app: FastAPI):
             if remaining <= 0:
                 break
             await asyncio.sleep(remaining)
+        await asyncio.get_running_loop().run_in_executor(None, _warm_workflow_stack)
         _api_stamp("embeddings prewarm start")
         try:
             if _should_prewarm_embeddings():
@@ -1171,11 +1175,6 @@ async def lifespan(app: FastAPI):
     await bonjour_started
     if app.state.bonjour_advertiser is not None:
         app.state.bonjour_advertiser.stop()
-    # Same reasoning as bonjour_started: a short-lived process (most tests)
-    # reaches shutdown before the warm-up executor has run. Awaiting it here
-    # keeps the import from racing interpreter teardown, and costs nothing once
-    # it has already finished.
-    await warm_started
     # #4690: CANCEL rather than await — this task may be parked forever on
     # `_first_registry_200_signal.wait()` (a short-lived process that never
     # saw a real `/api/registry` 200), and awaiting an un-cancelled wait here

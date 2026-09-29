@@ -46,17 +46,13 @@ async def test_embeddings_prewarm_waits_for_first_registry_200_signal(
     caplog.set_level(logging.INFO, logger="fichero_server.api.main")
 
     async with api_main.lifespan(api_main.app):
-        # Wait for the REAL tool-stack warm-up to finish — observed via its own
-        # stamp, not a guessed sleep — before asserting embeddings hasn't run.
-        for _ in range(200):  # up to 10s; real warm-up measured ~1.3s
-            if any(
-                "workflow tool stack warm-up complete" in r.message
-                for r in caplog.records
-            ):
-                break
-            await asyncio.sleep(0.05)
-        else:
-            pytest.fail("tool-stack warm-up never completed — can't test ordering")
+        # #5228: NOTHING warms before the readiness signal -- neither the tool
+        # stack (it used to start at bind, holding the GIL through the app's
+        # launch loads) nor embeddings. Give a bind-time warm-up time to show.
+        await asyncio.sleep(0.3)
+        assert not any(
+            "workflow tool stack warm-up start" in r.message for r in caplog.records
+        ), "the tool-stack warm-up started before the app was ready (#5228 regression)"
 
         assert calls == [], (
             "embeddings prewarm ran before the readiness signal — the #4690 "
@@ -71,7 +67,7 @@ async def test_embeddings_prewarm_waits_for_first_registry_200_signal(
         # same `app` object `lifespan()` above was entered with.
         api_main._mark_first_registry_200(api_main.app)
 
-        for _ in range(100):  # up to 2s
+        for _ in range(500):  # up to 10s: the real tool-stack warm-up (~1.3 s) runs first (#5228)
             if calls:
                 break
             await asyncio.sleep(0.02)
@@ -110,7 +106,7 @@ async def test_embeddings_prewarm_waits_for_idle_after_signal(
 
         # Traffic stops here. It should fire within idle (0.3s) + a small
         # margin for scheduling.
-        for _ in range(100):  # up to 2s
+        for _ in range(500):  # up to 10s: the real tool-stack warm-up (~1.3 s) runs first (#5228)
             if calls:
                 break
             await asyncio.sleep(0.02)

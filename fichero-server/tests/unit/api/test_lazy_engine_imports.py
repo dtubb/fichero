@@ -71,7 +71,12 @@ HEAVY_MODULES = [
 # should ALLOW; what it exists to catch is an eager edge back into
 # langchain/httpx/PIL, none of which this adds. Raised by one, deliberately,
 # rather than loosened.
-MODULE_BUDGET = 851
+#
+# 854 from 2026-09-28: three new route modules -- `api.routes.system.conversion`
+# (+ its `models.conversion`, #5222) and `api.routes.system.fonts` (#5210). Routes
+# are registered at app build by design; none adds an edge into langchain/httpx/PIL
+# (diffed module-for-module against 18cfc4aec). Raised by exactly three.
+MODULE_BUDGET = 854
 
 
 def _run(code: str) -> str:
@@ -228,24 +233,31 @@ def test_warm_up_runs_after_bind_and_loads_the_stack() -> None:
     first click on Workflows pays the whole bill with a spinner in front of it.
 
     Asserts the warm-up is wired into the lifespan AND that running it
-    actually populates sys.modules with the heavy stack.
+    actually populates sys.modules with the heavy stack. Since #5228 it runs
+    once the app is READY and quiet (not at bind, where it held the GIL through
+    the app's launch loads), so the test gives it that signal.
     """
     out = _run(
         """
-        import asyncio, sys
+        import asyncio, os, sys
+        os.environ["FICHERO_EMBEDDINGS_PREWARM_IDLE_S"] = "0.01"
+        os.environ["FICHERO_SKIP_EMBEDDINGS_PREWARM"] = "1"
         from fastapi import FastAPI
+        from fichero_server.api import main as api_main
         from fichero_server.api.main import lifespan
+
+        def loaded():
+            return "langgraph" in sys.modules or any(m.startswith("langgraph.") for m in sys.modules)
 
         async def main():
             app = FastAPI()
             async with lifespan(app):
-                # Socket would be bound here. The stack must NOT be loaded yet
-                # for the warm-up to be meaningful, but it runs in an executor
-                # so we cannot assert absence without a race. Just drive it.
-                pass
-            # Lifespan exit awaits the warm-up future, so by here it has run.
-            print("langgraph" in sys.modules or
-                  any(m.startswith("langgraph.") for m in sys.modules))
+                api_main._mark_first_registry_200(app)
+                for _ in range(600):  # up to 30 s
+                    if loaded():
+                        break
+                    await asyncio.sleep(0.05)
+            print(loaded())
 
         asyncio.run(main())
         """
