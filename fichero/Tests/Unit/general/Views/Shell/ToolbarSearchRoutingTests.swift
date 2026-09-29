@@ -228,7 +228,7 @@ final class ToolbarSearchRoutingTests: XCTestCase {
         XCTAssertTrue(toolbarSearch.contains(
             ".searchScopes(searchFieldModeBinding, activation: .onSearchPresentation)"
         ))
-        XCTAssertTrue(toolbarSearch.contains("searchFieldModeRaw = $0.rawValue"))
+        XCTAssertTrue(toolbarSearch.contains("$searchFieldModeRaw.asSearchFieldMode"))
         // Chat-the-search: the result set becomes the conversation's scope,
         // through the SAME router the sidebar chat entry uses.
         XCTAssertTrue(resultsSource.contains("func openChatWithSearchResults"))

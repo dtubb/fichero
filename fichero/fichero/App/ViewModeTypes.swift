@@ -88,6 +88,16 @@ enum SidebarMode: String, CaseIterable {
     }
 }
 
+extension String {
+    /// The persisted raw sidebar mode as a `SidebarMode`, for a KEY-PATH binding (#5228):
+    /// `$sidebarModeRaw.asSidebarMode` is the same binding on every render, where a
+    /// `Binding(get:set:)` is new each time and re-runs every view it is handed to.
+    var asSidebarMode: SidebarMode {
+        get { SidebarMode.restored(from: self) }
+        set { self = newValue.rawValue }
+    }
+}
+
 /// Library layout modes
 enum LibraryLayout: String, CaseIterable, Codable {
     case icons = "Icons"

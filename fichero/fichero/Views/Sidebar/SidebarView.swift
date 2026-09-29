@@ -140,7 +140,9 @@ struct SidebarView: View {
     }
 
     var body: some View {
-        sidebarContent
+        // Opt-in (FICHERO_PRINT_CHANGES=1): names the property that re-evaluated this body (#5228).
+        if RenderDiagnostics.printChanges { Self._printChanges() }
+        return sidebarContent
             .sidebarStyle()
             // Reveal-in-sidebar (2026-08-23, Daniel: "sidebar should have the
             // appropriate folder selected, once library loads"): the restore

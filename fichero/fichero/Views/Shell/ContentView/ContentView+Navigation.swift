@@ -116,16 +116,13 @@ extension ContentView {
             // #4407: the search field lives in the library's mini toolbar
             // now, so its text and mode are handed to the pane that owns it.
             searchFieldText: $toolbarSearchText,
-            searchFieldMode: Binding(
-                get: { SearchFieldMode(rawValue: searchFieldModeRaw) ?? .ask },
-                set: { searchFieldModeRaw = $0.rawValue }
-            ),
+            // Stable bindings (#5228): these two were `Binding(get:set:)`, new on every render, so
+            // every render of this view re-ran the whole library pane (~50 times in one launch).
+            searchFieldMode: searchFieldModeBinding,
             // #4521: the field is summoned by the toolbar search toggle;
-            // a Binding so in-pane dismissal can flip the same state.
-            searchFieldVisible: Binding(
-                get: { showSearchField },
-                set: { setSearchFieldVisible($0) }
-            ),
+            // a Binding so in-pane dismissal can flip the same state (its
+            // clean-up runs from `.onChange(of: showSearchField)`).
+            searchFieldVisible: $showSearchField,
             // #4403: the grid renders only the document leg, so it must be
             // told what the search actually found — otherwise its empty
             // state contradicts the header counting every kind.

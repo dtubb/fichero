@@ -62,7 +62,9 @@ extension LibraryView {
     // See memory: librarywindow-body-typecheck-timeout.
 
     var body: some View {
-        withKeyboardShortcuts(eventWiredContent)
+        // Opt-in (FICHERO_PRINT_CHANGES=1): names the property that re-evaluated this body (#5228).
+        if RenderDiagnostics.printChanges { Self._printChanges() }
+        return withKeyboardShortcuts(eventWiredContent)
             // The island's bolt (v1 suggest chip) opens THIS pane's picker —
             // same sheet, same batch path as the bottom bar's bolt. Direct
             // @Observable seam (§6b): the toolbar bumps the token, this pane

@@ -578,10 +578,9 @@ struct ContentView: View {
     /// project a DIFFERENT, same-named `@Binding`/`@State` local to those
     /// scopes, not this property; they are untouched.)
     var sidebarModeBinding: Binding<SidebarMode> {
-        Binding(
-            get: { sidebarMode },
-            set: { sidebarMode = $0 }
-        )
+        // A key-path binding, the same one every render (#5228): a `Binding(get:set:)` here re-ran
+        // the whole sidebar every time this view's body did -- ~94 times in one launch.
+        $sidebarModeRaw.asSidebarMode
     }
 
     // Column visibility persistence

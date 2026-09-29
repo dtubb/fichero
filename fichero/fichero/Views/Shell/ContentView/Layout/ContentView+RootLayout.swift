@@ -325,6 +325,11 @@ extension ContentView {
                 clearTransientSearch()
             }
         }
+        // Hiding the field clears it and exits search (#4521). Here, not in a binding's setter, so
+        // the library pane is handed `$showSearchField` -- the same binding every render (#5228).
+        .onChange(of: showSearchField) { _, isVisible in
+            if !isVisible { setSearchFieldVisible(false) }
+        }
         // RE-clicking the current sidebar folder exits search (Daniel,
         // 2026-09-02): the sidebar can't reach the transient-search state,
         // so it posts and this window answers.
@@ -586,6 +591,14 @@ private struct NavigationSubtitleCompat: ViewModifier {
 enum SearchFieldMode: String, CaseIterable, Hashable {
     case ask
     case keyword
+}
+
+extension String {
+    /// The persisted raw search mode, for a KEY-PATH binding (#5228) -- see `asSidebarMode`.
+    var asSearchFieldMode: SearchFieldMode {
+        get { SearchFieldMode(rawValue: self) ?? .ask }
+        set { self = newValue.rawValue }
+    }
 }
 
 // `ToolbarSearchableModifier` is DELETED (#4407). It applied `.searchable` +

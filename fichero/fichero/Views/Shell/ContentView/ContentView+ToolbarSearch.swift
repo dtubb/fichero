@@ -28,10 +28,8 @@ import SwiftUI
 extension ContentView {
     /// Ask/Keyword (#4117) as a typed binding over the persisted raw mode.
     var searchFieldModeBinding: Binding<SearchFieldMode> {
-        Binding(
-            get: { SearchFieldMode(rawValue: searchFieldModeRaw) ?? .ask },
-            set: { searchFieldModeRaw = $0.rawValue }
-        )
+        // A key-path binding, the same one every render (#5228).
+        $searchFieldModeRaw.asSearchFieldMode
     }
 
     /// The native search registration, applied to the detail/inspector

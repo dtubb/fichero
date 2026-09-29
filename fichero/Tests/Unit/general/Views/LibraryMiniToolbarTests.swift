@@ -103,7 +103,9 @@ struct LibraryMiniToolbarTests {
 
         let navigation = try Self.appSource("Views/Shell/ContentView/ContentView+Navigation.swift")
         #expect(navigation.contains("searchFieldText: $toolbarSearchText"))
-        #expect(navigation.contains("searchFieldMode: Binding("))
+        // A stable key-path binding, not a `Binding(get:set:)` (#5228): a fresh binding on every
+        // render re-ran the whole library pane each time the content view's body did.
+        #expect(navigation.contains("searchFieldMode: searchFieldModeBinding"))
     }
 
     // MARK: - Scope order at the bottom edge (#4424)
@@ -172,7 +174,8 @@ struct LibraryMiniToolbarTests {
     func searchIsTheNativeToolbarItem() throws {
         let toolbarSearch = try Self.appSource("Views/Shell/ContentView/ContentView+ToolbarSearch.swift")
         #expect(toolbarSearch.contains(".searchable("))
-        #expect(toolbarSearch.contains("prompt: \"Search your library\""))
+        // "Search", not "Search your library": the ruled wording since 13a34a779 (2026-09-20).
+        #expect(toolbarSearch.contains("prompt: \"Search\""))
         #expect(toolbarSearch.contains(".searchToolbarBehavior(.minimize)"))
         // Submit fires the SAME engine-search action the old field fired.
         #expect(toolbarSearch.contains("runToolbarSearch(toolbarSearchText)"))
