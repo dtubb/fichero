@@ -28,7 +28,6 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
-from rdflib import Graph
 
 from fichero_server.api.main import get_library_database
 from fichero_server.db import Database
@@ -305,6 +304,8 @@ def _validate_jsonld_export(payload: bytes, context_name: str) -> None:
     attempted here.
     """
     try:
+        from rdflib import Graph  # ponytail: first SPARQL query pays rdflib's ~80 ms, not every launch (#5228)
+
         Graph().parse(data=payload, format="json-ld")
     except Exception as e:
         logger.error(f"KG JSON-LD export failed validation (context={context_name}): {e}")

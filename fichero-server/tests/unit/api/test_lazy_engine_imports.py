@@ -76,7 +76,11 @@ HEAVY_MODULES = [
 # (+ its `models.conversion`, #5222) and `api.routes.system.fonts` (#5210). Routes
 # are registered at app build by design; none adds an edge into langchain/httpx/PIL
 # (diffed module-for-module against 18cfc4aec). Raised by exactly three.
-MODULE_BUDGET = 854
+#
+# 798 from 2026-09-28 (#5228): rdflib (56 modules, ~80 ms of every launch) no longer rides in at app
+# build -- the SPARQL route's JSON-LD context needed only two namespace IRIs, now plain strings in
+# `knowledge.namespaces`. Lowered to lock that in.
+MODULE_BUDGET = 798
 
 
 def _run(code: str) -> str:

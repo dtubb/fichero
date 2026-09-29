@@ -46,6 +46,8 @@ from urllib.parse import quote
 from rdflib import Graph, Literal, Namespace, URIRef
 from rdflib.namespace import FOAF, RDF, RDFS, SKOS, XSD
 
+from fichero_server.knowledge.namespaces import FICHERO_IRI, SCHEMA_IRI
+
 from fichero_server.knowledge._common import enum_value, extract_svo, slug_verb
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -54,13 +56,9 @@ if TYPE_CHECKING:  # pragma: no cover
 logger = logging.getLogger(__name__)
 
 
-# Fichero's own namespace for IDs and predicates that don't have a
-# standard schema.org / FOAF equivalent. Stable URI — don't rename
-# after the first export ships, or external consumers' queries break.
-FICHERO = Namespace("https://fichero.app/ns#")
-
-# schema.org — vocab for events, places, organizations.
-SCHEMA = Namespace("https://schema.org/")
+# The IRIs live in `namespaces` (#5228) -- see there for why they must not be renamed.
+FICHERO = Namespace(FICHERO_IRI)
+SCHEMA = Namespace(SCHEMA_IRI)
 
 
 def _entity_uri(entity_id: str) -> URIRef:

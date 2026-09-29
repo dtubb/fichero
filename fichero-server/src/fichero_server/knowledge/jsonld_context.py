@@ -22,14 +22,14 @@ tracked as a follow-up issue on the kg-enrichment milestone instead.
 
 from __future__ import annotations
 
-from fichero_server.knowledge.triples import FICHERO, SCHEMA
+from fichero_server.knowledge.namespaces import FICHERO_IRI, SCHEMA_IRI
 
 #: The context `knowledge.triples.make_graph()` already binds, made
 #: explicit. Order matches `make_graph()`'s bind() calls for easy diffing.
 SCHEMA_ORG_CONTEXT: dict[str, str] = {
-    "fichero": str(FICHERO),
+    "fichero": FICHERO_IRI,
     "foaf": "http://xmlns.com/foaf/0.1/",
-    "schema": str(SCHEMA),
+    "schema": SCHEMA_IRI,
     "skos": "http://www.w3.org/2004/02/skos/core#",
     "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
     "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
