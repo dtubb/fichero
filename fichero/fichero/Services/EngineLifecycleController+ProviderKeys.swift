@@ -31,8 +31,11 @@ extension EngineLifecycleController {
         }
 
         var supplied = 0
-        for provider in ProviderKeyStore.candidateProviders {
-            switch ProviderKeyStore.migrateFromLegacyIfNeeded(provider: provider) {
+        // The keychain is read off the main actor (#5265): it answers slowly or not at all while it is
+        // locked, and this runs at every connect, in the middle of launch.
+        let found = await Task.detached(priority: .userInitiated) { ProviderKeyStore.keysForEngineSupply() }.value
+        for (provider, migration, key) in found {
+            switch migration {
             case .migrated:
                 logger.info("Adopted engine-written key for \(provider, privacy: .public) (#4534)")
             case .refused(let status):
@@ -49,7 +52,7 @@ extension EngineLifecycleController {
                 break
             }
 
-            guard let key = ProviderKeyStore.key(for: provider) else { continue }
+            guard let key else { continue }
             do {
                 // #4815: ENGINE-ONLY — never `setAPIKey` here, which would
                 // also re-write the Keychain item this loop just read from

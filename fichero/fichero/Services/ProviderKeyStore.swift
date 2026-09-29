@@ -17,7 +17,7 @@ import Security
 /// This is the same `SecItem` shape `AuthTokenMiddleware` already uses for
 /// session and device tokens — a third service on an established pattern, not
 /// a second keychain mechanism.
-enum ProviderKeyStore {
+nonisolated enum ProviderKeyStore {
 
     private static let logger = Logger(subsystem: "app.fichero.fichero", category: "ProviderKeys")
 
@@ -214,4 +214,15 @@ enum ProviderKeyStore {
             return .refused(status)
         }
     }
+
+    /// Every candidate provider's key for the engine, a legacy engine-written item adopted first
+    /// (#4534). Synchronous keychain calls, one pair per provider: call it OFF the main actor (#5265),
+    /// or a slow or locked keychain freezes the app at every connect.
+    static func keysForEngineSupply() -> [(provider: String, migration: MigrationOutcome, key: String?)] {
+        candidateProviders.map { provider in
+            let migration = migrateFromLegacyIfNeeded(provider: provider)
+            return (provider, migration, key(for: provider))
+        }
+    }
+
 }

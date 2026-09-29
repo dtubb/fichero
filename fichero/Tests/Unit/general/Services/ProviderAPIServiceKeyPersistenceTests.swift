@@ -151,8 +151,8 @@ final class ProviderAPIServiceKeyPersistenceTests: XCTestCase {
 
     /// `deleteAPIKey` success -> the remove closure fires once, and the
     /// launch push's own read-then-supply shape
-    /// (`EngineLifecycleController+ProviderKeys.swift:52`:
-    /// `guard let key = ProviderKeyStore.key(for: provider) else { continue }`)
+    /// (`EngineLifecycleController+ProviderKeys.swift`: a provider whose
+    /// `ProviderKeyStore.keysForEngineSupply()` key is nil is skipped)
     /// sends NOTHING for that provider afterward, simulated against the same
     /// fake store `setAPIKey`'s success test above uses.
     func testDeleteAPIKeySuccessRemovesTheKeyAndLeavesNothingForTheNextLaunchPush() async throws {

@@ -32,6 +32,16 @@ final class ProviderKeyStoreTests: XCTestCase {
         XCTAssertEqual(ProviderKeyStore.key(for: testProvider), "sk-test-abc")
     }
 
+    /// #5265: the connect path reads every provider's key OFF the main actor (a locked keychain
+    /// stalls whoever asks). This compiles only while the store is nonisolated, and proves a read
+    /// from a detached task returns what was stored.
+    func testTheStoreIsReadableOffTheMainActor() async {
+        let provider = testProvider
+        XCTAssertTrue(ProviderKeyStore.store("sk-off-main", for: provider))
+        let read = await Task.detached { ProviderKeyStore.key(for: provider) }.value
+        XCTAssertEqual(read, "sk-off-main")
+    }
+
     func testAbsentKeyIsNilRatherThanEmpty() {
         XCTAssertNil(ProviderKeyStore.key(for: testProvider))
     }
