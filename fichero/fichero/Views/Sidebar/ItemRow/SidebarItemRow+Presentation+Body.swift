@@ -8,6 +8,14 @@ func sidebarNeedsDeferredDisclosureContent(_ item: SidebarItem) -> Bool {
     item.isExpandable && item.children == nil
 }
 
+/// A DisclosureGroup builds its content even while collapsed, so a folder whose children are
+/// loaded but closed used to build its whole subtree anyway: on every new tab, for every such
+/// folder (#5270). Children are built only when the group is open; a closed group keeps the
+/// invisible slot instead, which is what holds the chevron (#3355).
+func sidebarBuildsChildRows(_ item: SidebarItem, isExpanded: Bool) -> Bool {
+    isExpanded && !(item.children ?? []).isEmpty
+}
+
 /// VoiceOver hint for a sidebar row. Kept terse so users don't hear a long
 /// recitation each time they land on a row; power actions like export /
 /// duplicate stay discoverable via the context menu itself. Wording is
@@ -112,11 +120,12 @@ extension SidebarItemRow {
 
     @ViewBuilder
     private var disclosureContent: some View {
-        if let children = item.children, !children.isEmpty {
+        if sidebarBuildsChildRows(item, isExpanded: expandedItems.contains(item.id)),
+           let children = item.children {
             childrenList(children)
-        } else if sidebarNeedsDeferredDisclosureContent(item) {
-            // Children are known to exist (childCount) but not fetched yet.
-            // NO synthetic spinner ROW any more (Daniel, 2026-08-09: "it adds
+        } else if sidebarNeedsDeferredDisclosureContent(item) || !(item.children ?? []).isEmpty {
+            // Children are known to exist (childCount) but not fetched yet, or
+            // are loaded but the group is closed (#5270). NO synthetic spinner ROW any more (Daniel, 2026-08-09: "it adds
             // row for spinner then adds in files. the spinner should be on
             // the icon of the row I am opening") — the row's OWN iconView
             // shows the spinner while this state holds (see childrenLoading

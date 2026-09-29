@@ -300,6 +300,25 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertFalse(sidebarNeedsDeferredDisclosureContent(item))
     }
 
+    /// #5270: a closed folder must not build its loaded children. A DisclosureGroup evaluates its
+    /// content while collapsed, and building every closed subtree made each new tab stall.
+    func testClosedFolderDoesNotBuildItsLoadedChildren() {
+        let folder = makeDoc(id: "folder-1", name: "Folder", childCount: 1)
+        let child = SidebarItem.folder(name: "Child", folderPath: "/child", category: .folder, libraryId: UUID())
+        let item = SidebarItem.fromDocument(folder, libraryId: UUID(), children: [child])
+
+        XCTAssertFalse(sidebarBuildsChildRows(item, isExpanded: false))
+        XCTAssertTrue(sidebarBuildsChildRows(item, isExpanded: true))
+    }
+
+    func testOpenFolderWithoutLoadedChildrenBuildsNoRows() {
+        let folder = makeDoc(id: "folder-1", name: "Folder", childCount: 2)
+        let item = SidebarItem.fromDocument(folder, libraryId: UUID())
+
+        XCTAssertFalse(sidebarBuildsChildRows(item, isExpanded: true))
+        XCTAssertTrue(sidebarNeedsDeferredDisclosureContent(item))
+    }
+
     func testSidebarBuilderKeepsUnloadedFolderExpandableFromChildCount() {
         let folder = makeDoc(id: "folder-1", name: "Folder", childCount: 1)
         let result = SidebarItemBuilder.buildLibraryHierarchy(from: [folder], libraryId: UUID())
