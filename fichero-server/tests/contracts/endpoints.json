@@ -3900,7 +3900,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[BundledFont]"
+        "response_model": "BundledFontList"
       },
       {
         "method": "GET",

@@ -28,7 +28,7 @@
     "/api/health": {
       "get": {
         "summary": "Health Check",
-        "description": "Health check endpoint.\n\nIf library path is provided, returns stats for that library.\nOtherwise, returns general backend health.",
+        "description": "Health check endpoint -- answered on the event loop, never queued behind other work (#5228).\n\nAt launch the app sends ~350 requests at once; a thread-pool health check waited behind all of\nthem (7-9 s measured), and the app's readiness waits on health. Everything here is cheap except\nreading an OPEN library's count, which goes to the thread pool.",
         "operationId": "health_check_api_health_get",
         "parameters": [
           {
@@ -20014,7 +20014,7 @@
           "providers"
         ],
         "summary": "Set Provider Api Key",
-        "description": "Accept a provider API key from an owning app (#4534).\n\nHeld in MEMORY for this process's lifetime, not written to a keychain: the\napp owns the item, and a second persisted copy here would be a second\nlifetime and a second thing to go stale. `set_provider_api_key_impl` still\nruns so an engine that no app has taken ownership from keeps working \u2014\nthe cutover is the app starting to supply, not a flag day.",
+        "description": "Accept a provider API key from an owning app (#4534): checked, then held in MEMORY for this\nprocess's lifetime. NEVER written to the keychain (maintainer, 2026-09-28): the app owns that item,\nand a second copy written by the engine is a second lifetime and a risk to the user's keychain.\n\nA plain ``def`` (#5257): FastAPI runs it off the event loop, so nothing here can stall the engine.",
         "operationId": "set_provider_api_key_api_providers__provider_type__api_key_post",
         "parameters": [
           {
@@ -27435,11 +27435,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/BundledFont"
-                  },
-                  "type": "array",
-                  "title": "Response List Fonts Api Fonts Get"
+                  "$ref": "#/components/schemas/BundledFontList"
                 }
               }
             }
@@ -44030,6 +44026,28 @@
           "licence_url"
         ],
         "title": "BundledFont"
+      },
+      "BundledFontList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BundledFont"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "BundledFontList",
+        "description": "The `{items, count}` envelope every list route returns (#5263), never a bare array."
       },
       "CacheClearResponse": {
         "properties": {

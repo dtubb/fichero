@@ -52,13 +52,21 @@ class BundledFont(BaseModel):
     licence_url: str
 
 
-@router.get("", response_model=list[BundledFont])
-async def list_fonts() -> list[BundledFont]:
+class BundledFontList(BaseModel):
+    """The `{items, count}` envelope every list route returns (#5263), never a bare array."""
+
+    items: list[BundledFont]
+    count: int
+
+
+@router.get("", response_model=BundledFontList)
+async def list_fonts() -> BundledFontList:
     """The bundled fallback fonts, in fallback order."""
-    return [
+    items = [
         BundledFont(family=family, url=f"/api/fonts/{file}", covers=covers, licence_url=f"/api/fonts/{licence}")
         for family, file, covers, licence in FONTS
     ]
+    return BundledFontList(items=items, count=len(items))
 
 
 @router.get("/{name}")

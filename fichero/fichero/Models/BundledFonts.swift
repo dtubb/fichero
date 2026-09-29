@@ -18,15 +18,9 @@ import SwiftUI
 final class BundledFonts {
     static let shared = BundledFonts()
 
-    /// One entry of the engine's `GET /api/fonts` list (fonts.py `BundledFont`), in fallback order.
-    struct Listed: Decodable, Equatable {
-        let family: String
-        let url: String
-    }
-
-    /// The engine's list, decoded; empty when it is not a list of fonts (an older engine has no route).
-    nonisolated static func listed(from data: Data) -> [Listed] {
-        (try? JSONDecoder().decode([Listed].self, from: data)) ?? []
+    /// Where to fetch each font, in the engine's fallback order (fonts.py `BundledFontList`, #5263).
+    nonisolated static func fontURLs(in list: Components.Schemas.BundledFontList) -> [String] {
+        list.items.map(\.url)
     }
 
     /// The faces fetched so far; empty until an engine has answered.
@@ -43,10 +37,14 @@ final class BundledFonts {
     /// left out (an older engine has no route): the text still draws, with the system's fonts.
     func load(from client: FicheroClient) async {
         guard cascade.isEmpty else { return }
-        guard let (status, listData) = try? await client.requestData(path: "/api/fonts"), status == 200 else { return }
+        // The list through the generated client (#5263), never a hand-built path. An older engine
+        // with no route answers 404, which is not `.ok`: no fonts, no crash.
+        guard case .ok(let ok)? = try? await client.api.listFontsApiFontsGet(.init()),
+              let list = try? ok.body.json else { return }
         var found: [CTFontDescriptor] = []
-        for font in Self.listed(from: listData) {
-            guard let (status, data) = try? await client.requestData(path: font.url), status == 200 else { continue }
+        // Each file is fetched from the url the engine's list names -- the engine's own path, as data.
+        for url in Self.fontURLs(in: list) {
+            guard let (status, data) = try? await client.requestData(path: url), status == 200 else { continue }
             found += Self.descriptors(in: data)
         }
         cascade = found

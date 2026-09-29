@@ -1,5 +1,6 @@
 import CoreText
 @testable import Fichero
+import FicheroAPIClient
 import SwiftUI
 import XCTest
 
@@ -51,12 +52,18 @@ final class BundledFontsTests: XCTestCase {
 
     /// The app reads the engine's own list (`GET /api/fonts`, fonts.py `BundledFont`), never a hard-coded one:
     /// the list names each font's url, so a font the engine adds reaches the app with no app change.
+    /// Since #5263 the list is the `{items, count}` envelope, read through the generated client.
     func testTheEnginesFontListIsReadInItsOrder() {
-        let body = #"[{"family":"Junicode","url":"/api/fonts/Junicode-Regular.otf","format":"opentype","covers":"MUFI","licence_url":"/api/fonts/OFL-Junicode.txt"},{"family":"Noto Sans Syriac","url":"/api/fonts/NotoSansSyriac-Regular.otf","format":"opentype","covers":"Syriac","licence_url":"/api/fonts/OFL-NotoSansSyriac.txt"}]"#
+        let list = Components.Schemas.BundledFontList(
+            items: [
+                .init(family: "Junicode", url: "/api/fonts/Junicode-Regular.otf", covers: "MUFI", licenceUrl: "/api/fonts/OFL-Junicode.txt"),
+                .init(family: "Noto Sans Syriac", url: "/api/fonts/NotoSansSyriac-Regular.otf", covers: "Syriac", licenceUrl: "/api/fonts/OFL-NotoSansSyriac.txt")
+            ],
+            count: 2
+        )
         XCTAssertEqual(
-            BundledFonts.listed(from: Data(body.utf8)).map(\.url),
+            BundledFonts.fontURLs(in: list),
             ["/api/fonts/Junicode-Regular.otf", "/api/fonts/NotoSansSyriac-Regular.otf"]
         )
-        XCTAssertEqual(BundledFonts.listed(from: Data("{\"detail\":\"Not Found\"}".utf8)), [], "an older engine: no fonts, no crash")
     }
 }

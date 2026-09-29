@@ -103,7 +103,9 @@ def test_every_mufi_letter_on_clm_13027_38r_has_a_bundled_font():
 
 
 def test_the_routes_serve_the_files_and_nothing_else(client):
-    listed = client.get("/api/fonts").json()
+    body = client.get("/api/fonts").json()
+    listed = body["items"]                                    # the {items, count} envelope (#5263)
+    assert body["count"] == len(listed)
     assert [f["family"] for f in listed] == [family for family, *_ in FONTS]
     for entry in listed:
         response = client.get(entry["url"])
