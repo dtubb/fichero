@@ -40,6 +40,12 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
         // side effects for previews; this is the delegate half of that guard.
         guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" else { return }
         logger.info("App will finish launching — starting engine app-scoped (#3945, #5228)")
+        // Self-measured main-thread stalls (#4550): FICHERO_STALL_LOG=1 in the
+        // scheme makes every ordinary ⌘R a ratchet-grade perf session — no
+        // Instruments, no minutes of "modeling data". Started HERE, not at
+        // DidFinish (#5228): the launch's own ~2 s main-thread stall happens
+        // between the two, where a DidFinish start could never see it.
+        MainThreadStallSampler.startIfEnabled()
         LaunchProfile.milestone("applicationWillFinishLaunching — engine connect starts")
         // The engine's async startup lives in the delegate, not in a scene `.task`: `@main
         // App.init` is synchronous and `.task` is per-scene, so the delegate is the
@@ -51,10 +57,6 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
         guard !isRunningXCTests() else { return }
         guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" else { return }
         LaunchProfile.milestone("applicationDidFinishLaunching")
-        // Self-measured main-thread stalls (#4550): FICHERO_STALL_LOG=1 in the
-        // scheme makes every ordinary ⌘R a ratchet-grade perf session — no
-        // Instruments, no minutes of "modeling data".
-        MainThreadStallSampler.startIfEnabled()
     }
 
     /// True once a quit has been accepted, so a second ⌘Q (or a Dock quit while

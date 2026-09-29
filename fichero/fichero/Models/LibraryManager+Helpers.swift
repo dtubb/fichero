@@ -110,7 +110,9 @@ extension LibraryManager {
         // cannot race the engine's socket bind.
         backendIsReady = true
         restoreSavedLibraries()
+        LaunchProfile.milestone("saved libraries restored")
         await KnownLibraryRegistryStore.shared.refresh()
+        LaunchProfile.milestone("library registry refreshed")
         adoptPairedRemoteLibrary()
         reconcileOpenLibrariesFromRegistry()
         await backendDidBecomeReady()

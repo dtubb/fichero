@@ -299,6 +299,7 @@ final class EngineLifecycleController {
         // embedded/local host (loopback has no stored expiry); a failed renew
         // keeps the old token (the expired → re-pair path is the safety net).
         await DeviceTokenRenewal.renewIfNeeded(host: EngineConfig.host)
+        LaunchProfile.milestone("device token checked")
         // #4534: push the app-owned provider keys to the engine, EVERY connect.
         //
         // This sits here rather than at a user action on purpose. The engine
@@ -327,6 +328,7 @@ final class EngineLifecycleController {
         // every-connect rationale as the provider keys above: a respawned
         // engine starts with zero grants.
         await FolderAccessManager.shared.resendAllGrantsToEngine()
+        LaunchProfile.milestone("folder grants resent")
         #endif
         // The one shared post-ready side-effect block (#3113); adopt is a no-op
         // on an embedded/local host, so no `usesExternal` branch here.
