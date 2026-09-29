@@ -15,6 +15,7 @@ import pathlib
 import signal
 import socket
 import sys
+import threading
 import time
 import faulthandler
 import tracemalloc
@@ -344,9 +345,18 @@ def main(argv: list[str] | None = None):
     # into a child process (#3747). Resolve them BEFORE anything opens a DuckDB
     # file — a plain open() on ~/Documents would be denied. A no-op when the env
     # var is unset, i.e. every non-sandboxed (DMG) run.
+    #
+    # On a thread, beside the app import rather than before it (#5228): resolving each bookmark
+    # is a round trip to the system (0.33 s for six, measured) while the import is CPU work, and
+    # importing the app opens no library. Joined before anything serves -- the lifespan is what
+    # opens DuckDB files.
     _stamp("uvicorn imported, faulthandler set")
-    activate_library_bookmarks()
-    _stamp("library bookmarks activated")
+    bookmarks = threading.Thread(target=activate_library_bookmarks, name="library-bookmarks", daemon=True)
+    bookmarks.start()
+
+    def _bookmarks_activated() -> None:
+        bookmarks.join()
+        _stamp("library bookmarks activated")
 
     # UDS transport (additive, env-driven): when FICHERO_UDS_PATH is set, bind a
     # plaintext Unix-domain socket instead of TCP — no port, no TLS, no network
@@ -359,6 +369,7 @@ def main(argv: list[str] | None = None):
         from fichero_server.api.uds_transport import app as uds_app
 
         _stamp("FastAPI app imported")
+        _bookmarks_activated()
 
         uds_kwargs = dict(
             app=uds_app,
@@ -507,6 +518,7 @@ def main(argv: list[str] | None = None):
             _release_uds_path(uds_path, bound_inode)
         return
 
+    _bookmarks_activated()
     bind_host = resolve_bind_host()
     listener_hosts = _listener_hosts(bind_host)
 
