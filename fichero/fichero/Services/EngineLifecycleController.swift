@@ -327,8 +327,22 @@ final class EngineLifecycleController {
         // restoration below, so restored libraries open first try. Same
         // every-connect rationale as the provider keys above: a respawned
         // engine starts with zero grants.
-        await FolderAccessManager.shared.resendAllGrantsToEngine()
-        LaunchProfile.milestone("folder grants resent")
+        //
+        // Except for an engine WE spawned (#5228): it was handed the library grants in its
+        // environment and holds them before it serves (inherited sandbox scope, logged per library
+        // at its start), so the re-send runs beside the library loads instead of in front of them.
+        // Any other engine -- adopted, external -- gets them first, as before.
+        let grantsAlreadyHeld = backendService.spawnedWithLibraryGrants
+            && backendService.lastPortResolution == .spawnOurs
+        let grantsResent = Task {
+            await FolderAccessManager.shared.resendAllGrantsToEngine()
+            LaunchProfile.milestone("folder grants resent")
+        }
+        if grantsAlreadyHeld {
+            libraryManager.engineHoldsLibraryGrants()
+        } else {
+            await grantsResent.value
+        }
         #endif
         // The one shared post-ready side-effect block (#3113); adopt is a no-op
         // on an embedded/local host, so no `usesExternal` branch here.
@@ -336,6 +350,9 @@ final class EngineLifecycleController {
         await libraryManager.refreshAfterBackendBecameReady()
         let restorationMs = Date().timeIntervalSince(restorationStart) * 1000
         logger.info("⏱ post-ready library restoration: \(restorationMs, format: .fixed(precision: 1))ms")
+        #if os(macOS)
+        await grantsResent.value
+        #endif
         await keysSupplied
     }
 

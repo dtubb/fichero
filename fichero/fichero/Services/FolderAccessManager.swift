@@ -171,7 +171,12 @@ class FolderAccessManager {
     /// could be served, which is what "creating a library doesn't work" was
     /// (2026-08-04). Asked at RUNTIME now, so it cannot go stale again.
     func engineBookmarkPayload() -> String? {
-        let stored = UserDefaults.standard.dictionary(forKey: bookmarksKey) as? [String: Data] ?? [:]
+        let all = UserDefaults.standard.dictionary(forKey: bookmarksKey) as? [String: Data] ?? [:]
+        // Only the grants a library needs, the rule the post-ready sweep uses (#5251, #5228): the engine
+        // resolves every bookmark it is handed before it imports anything (0.33 s measured), and a
+        // folder once dropped for import is granted again by the drop itself (#5219).
+        let libraryPaths = LibraryManager.shared.openLibraries.map(\.url.path) + LibraryManager.shared.getSavedLibraryPaths()
+        let stored = all.filter { Self.grantCoversALibrary($0.key, libraryPaths: libraryPaths) }
         return Self.engineBookmarkPayload(
             stored: stored, isSandboxed: SandboxEnvironment.isSandboxed
         )
@@ -402,16 +407,22 @@ class FolderAccessManager {
             LibraryManager.shared.grantSweepDidComplete()
             return
         }
-        var granted = 0
-        for (path, bookmark) in stored {
-            do {
-                try await grantEngineAccess(path: path, bookmark: bookmark)
-                granted += 1
-            } catch {
-                // grantEngineAccess already logged the refusal and surfaced
-                // engineAccessFailure; the sweep reports the tally below.
+        // All at once, not one after another (#5228): each grant is one independent engine call, and
+        // the whole sweep stands between "engine ready" and the first library load (0.43 s measured).
+        let grants = stored.map { path, bookmark in
+            Task { () -> Bool in
+                do {
+                    try await grantEngineAccess(path: path, bookmark: bookmark)
+                    return true
+                } catch {
+                    // grantEngineAccess already logged the refusal and surfaced
+                    // engineAccessFailure; the sweep reports the tally below.
+                    return false
+                }
             }
         }
+        var granted = 0
+        for grant in grants where await grant.value { granted += 1 }
         logger.info(
             "Post-ready grant sweep: \(granted) of \(stored.count) bookmark(s) granted to the live engine"
         )

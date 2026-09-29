@@ -189,6 +189,7 @@ extension EmbeddedBackendService {
         // it to stop. terminationHandler runs off the main actor, so hop back.
         intentionalStop = false
         process.terminationHandler = makeTerminationHandler()
+        spawnedWithLibraryGrants = process.environment?["FICHERO_LIBRARY_BOOKMARKS"] != nil
         return process
     }
 

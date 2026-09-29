@@ -117,6 +117,10 @@ final class EmbeddedBackendService {
     /// socket for minutes instead of showing why.
     var backendProcess: Process?
 
+    /// The engine we spawned was handed the library grants in its environment (#5228): it holds
+    /// them before it serves, so re-sending them need not delay the first library load.
+    var spawnedWithLibraryGrants = false
+
     /// Timestamps of recent unexpected engine exits — used to auto-restart a
     /// crashed embedded engine while bailing out of a hot crash loop (#18). A
     /// transient crash self-heals without a manual Retry; one that keeps dying

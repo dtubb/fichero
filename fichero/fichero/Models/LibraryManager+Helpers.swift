@@ -73,8 +73,13 @@ extension LibraryManager {
         guard let frontId = order.first, let front = byId[frontId] else { return }
         await loadLibraryDataIfNeeded(for: front)
         // The two moments a launch is measured by (maintainer, 2026-09-28: "then you know when it's
-        // ready"): the front library usable, then every open library loaded.
-        LaunchProfile.milestone("front library ready")
+        // ready"): the front library usable, then every open library loaded. A load parked on a
+        // grant returns at once; that is not "ready", so it says so.
+        if loadedLibraryIds.contains(front.id) {
+            LaunchProfile.milestone("front library ready")
+        } else {
+            LaunchProfile.milestone("front library load deferred", detail: front.displayName)
+        }
         let rest = order.dropFirst().compactMap { byId[$0] }
         guard !rest.isEmpty else {
             LaunchProfile.milestone("all libraries ready", detail: "1 library")
@@ -111,11 +116,16 @@ extension LibraryManager {
         backendIsReady = true
         restoreSavedLibraries()
         LaunchProfile.milestone("saved libraries restored")
-        await KnownLibraryRegistryStore.shared.refresh()
+        // The libraries the app restored load NOW, beside the registry fetch, not after it (#5228):
+        // a restored library is never dropped by the reconcile (3cf1e94cf), so its load needs
+        // nothing the registry says. The reconcile then adds the engine's other open libraries,
+        // each of which loads itself as it opens (`openLibrary` -> `loadAndRegister`).
+        async let registryRefreshed: Void = KnownLibraryRegistryStore.shared.refresh()
+        await backendDidBecomeReady()
+        await registryRefreshed
         LaunchProfile.milestone("library registry refreshed")
         adoptPairedRemoteLibrary()
         reconcileOpenLibrariesFromRegistry()
-        await backendDidBecomeReady()
     }
 
     /// The open set the app shows must MIRROR the backend registry — the set of
@@ -286,6 +296,14 @@ extension LibraryManager {
     /// engine will ever accept has now been re-sent. Any library still gated
     /// on `libraryIdsAwaitingGrant` is stuck on a pre-auth grant failure
     /// (the 401 race, 2026-08-21): clear the gates and rerun the loads.
+    /// The engine already holds every library's grant, because it was spawned with them (#5228). A
+    /// library's pre-ready grant attempt fails against the not-yet-authenticated engine and parks its
+    /// load until the post-ready grant sweep, which put the whole sweep in front of the first load.
+    /// Nothing is waiting on a grant here, so nothing is parked; `backendDidBecomeReady` loads them.
+    func engineHoldsLibraryGrants() {
+        libraryIdsAwaitingGrant.removeAll()
+    }
+
     func grantSweepDidComplete() {
         guard !libraryIdsAwaitingGrant.isEmpty else { return }
         let stuck = libraryIdsAwaitingGrant
