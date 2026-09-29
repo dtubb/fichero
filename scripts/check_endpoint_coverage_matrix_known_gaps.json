@@ -246,5 +246,7 @@
   "PUT /api/segments/{segment_id}": "no Swift call for the /api/segments/* family (20 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "PUT /api/settings/model-profiles/{profile_id}": "store missing - #2058 backend model-profile API; Settings UI/store wiring deferred",
   "PUT /api/source-settings": "no Swift call for the /api/source-settings/* family (2 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
-  "PUT /api/triggers/{trigger_id}": "no Swift call for the /api/triggers/* family (1 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet"
+  "PUT /api/triggers/{trigger_id}": "no Swift call for the /api/triggers/* family (1 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
+  "GET /api/conversion/status": "#5222: the library-conversion report has a CLI but no app surface yet (the app's conversion status view is the next slice of #5222)",
+  "POST /api/conversion/{run_id}/seen": "#5222: the library-conversion report has a CLI but no app surface yet (the app's conversion status view is the next slice of #5222)"
 }

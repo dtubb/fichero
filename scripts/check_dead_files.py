@@ -32,7 +32,7 @@ RULE_DOC = "agents/ROADMAP.md"
 
 TYPE_DECL = re.compile(
     r"^\s*(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?\s*)*"
-    r"(?:(?:public|private|fileprivate|internal|open|final)\s+)*"
+    r"(?:(?:public|private|fileprivate|internal|open|final|nonisolated)\s+)*"
     r"(?:struct|class|enum)\s+([A-Za-z_][A-Za-z0-9_]*)\b",
     re.MULTILINE,
 )

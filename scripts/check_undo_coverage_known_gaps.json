@@ -402,5 +402,6 @@
   "POST /api/hands/{hand_id}/withdraw": "slice 14 hands (#4952): the ENGINE undo exists (audited, undoable create/withdraw/restore, attribute/unattribute); no Swift caller registers it yet because the hands UI waits for its wireframes",
   "PUT /api/georeference/passes/{pass_id}/transformation": "slice 15 maps (#5122): the ENGINE undo exists (georef.set_transformation is audited and undoes to the previous type); no Swift caller registers it until the map screens",
   "POST /api/ingest/files": "as /api/ingest/file and /folder: no undo registration; each imported page and pass is individually deletable (#5220)",
-  "POST /api/documents/import-batch": "as /api/documents/import: no undo registration; each imported page and pass is individually deletable (#5220)"
+  "POST /api/documents/import-batch": "as /api/documents/import: no undo registration; each imported page and pass is individually deletable (#5220)",
+  "POST /api/conversion/{run_id}/seen": "#5222: records that a person saw a conversion report; a view receipt, not an edit, so there is nothing to take back (it only lets the run's snapshot be tidied later)"
 }

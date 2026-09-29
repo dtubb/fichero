@@ -243,3 +243,16 @@ class TestTheScanStillReportsAnUnpresentedView:
             ),
         })
         assert "Views/OrphanSheet.swift" not in found
+
+
+class TestATypesModifiersDoNotHideIt:
+    def test_a_nonisolated_type_is_its_files_primary_type(self):
+        """2026-09-28: `nonisolated enum ProviderKeyStore` (#5265) was not read as a declaration, so
+        the guard took the nested `MigrationOutcome` for the file's primary type and flagged a live
+        file as dead. A modifier before `enum` must not hide the type."""
+        source = """
+nonisolated enum ProviderKeyStore {
+    enum MigrationOutcome: Equatable { case migrated }
+}
+"""
+        assert dead.primary_types(Path("Services/ProviderKeyStore.swift"), source)[0] == "ProviderKeyStore"

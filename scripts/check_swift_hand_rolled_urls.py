@@ -79,6 +79,10 @@ _APIPATH_RE = re.compile(r'"/api/')
 # Keys are `relpath#sha1(normalized-line)[:10]`. Several call sites share an
 # identical line (and thus hash) within a file — that is expected.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    "Models/LibraryManager.swift#f02453c07a": (
+        "NOT a transport bypass: `session: URLSession?` is a TEST seam (2026-09-28) through which a "
+        "hosted-view test serves a library's clients from a recorded engine. Production passes nil."
+    ),
     "Views/Components/FicheroWebView.swift#72bc3c3d1f": "§6b baseline — hand-built URLRequest(url:)",
     "Views/Reader/Knowledge/DocumentKGWebPane+Route.swift#94530504ad": (
         "NOT a transport bypass: this URLRequest loads a `fichero-server://` "

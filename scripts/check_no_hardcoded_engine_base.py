@@ -68,6 +68,11 @@ REMOTE_ALLOWLIST: dict[str, str] = {
     # Failover probe of a DIFFERENT paired host (not the local engine); the
     # default pinned session resolves that host's SPKI trust over HTTPS.
     "App/AppState/AppState+Heartbeat.swift:207": "remote failover-candidate probe (HTTPS pinned)",
+    # A TEST seam (2026-09-28, "Tests that inject services miss the real host"): a hosted-view test
+    # serves every client of a library from a recorded engine through an injected session, which
+    # only an HTTPS transport honours. Production passes `session: nil` and takes the UDS path.
+    "Models/LibraryManager.swift:375": "test seam — recorded-engine session (production passes nil)",
+    "Models/LibraryManager.swift:391": "test seam — recorded-engine session (production passes nil)",
 }
 
 

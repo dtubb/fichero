@@ -16,6 +16,8 @@ import re
 import sys
 from pathlib import Path
 
+from _scan_files import scan_rglob
+
 ROOT = Path(__file__).resolve().parent.parent
 APP = ROOT / "fichero" / "fichero"
 #: The surfaces that show names one to a line.
@@ -58,7 +60,7 @@ def violations(files: list[Path]) -> list[str]:
 def files_under(targets: list[Path]) -> list[Path]:
     out: list[Path] = []
     for target in targets:
-        out.extend(sorted(target.rglob("*.swift")) if target.is_dir() else [target])
+        out.extend(sorted(scan_rglob(target, "*.swift")) if target.is_dir() else [target])
     return out
 
 

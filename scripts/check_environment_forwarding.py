@@ -253,7 +253,7 @@ def hand_copied_lists(prop_types: dict[str, str]) -> list[str]:
     `.libraryServiceEnvironment(library)`. (One or two named services -- a sheet that needs just the
     document store -- are not a list.)"""
     found: list[str] = []
-    for path in sorted(APP.rglob("*.swift")):
+    for path in sorted(scan_rglob(APP, "*.swift")):
         if path == SHARED_HELPER:
             continue
         run, start = 0, 0

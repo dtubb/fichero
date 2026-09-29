@@ -92,6 +92,10 @@ STRING_RE = re.compile(r'\"([^\"]+)\"')
 # Deferred gaps to fix later.
 KNOWN_GAPS: set[str] = {
     "fichero-server/src/fichero_server/api/routes/document/documents.py::import_file",
+    # Like import_file: the route hands off to a helper (`import_dropped_set`) whose
+    # `registry.invoke("import.upload_file")` / `format.import` calls emit through the action
+    # layer; this route-body scan cannot see one call down (2026-09-28).
+    "fichero-server/src/fichero_server/api/routes/document/documents.py::import_files_together",
     "fichero-server/src/fichero_server/api/routes/workflow/workflows.py::create_node",
 }
 
