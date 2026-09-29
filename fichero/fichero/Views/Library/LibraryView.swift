@@ -43,7 +43,7 @@ struct LibraryView: View {
     /// The layout an applied workspace requests for THIS library pane (Read = table, Browse = icons,
     /// …), published by `ContentView.paneNodeView`; nil outside a workspace. Preferred over the
     /// window's global mode, but a per-pane override the user set still wins.
-    @Environment(\.paneLibraryLayout) private var paneLibraryLayout
+    @Environment(\.paneLibraryLayout) var paneLibraryLayout
     /// What THIS pane shows: its own user override, else the workspace's requested layout, else the
     /// window's mode.
     var displayMode: ViewDisplayMode { paneDisplayModeOverride ?? paneLibraryLayout ?? defaultDisplayMode }

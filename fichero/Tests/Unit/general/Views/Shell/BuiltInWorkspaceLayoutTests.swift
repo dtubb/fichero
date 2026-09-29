@@ -339,4 +339,13 @@ struct BuiltInWorkspaceLayoutTests {
             "Read's library leaf must have no explicit kind, or LibraryView.effectiveKind would stop following the window's sidebar collection for it — a real behavior change #4884 must not cause"
         )
     }
+
+    /// #5281: a library pane a workspace laid out ranks that layout above the window mode, so a
+    /// lens pick written only to the window mode never showed: the pane looked stuck on its layout.
+    @Test("a lens pick in a workspace-laid-out pane stays in that pane")
+    func workspacePaneLensPickIsThePanes() {
+        #expect(libraryLensPickStaysInPane(isSecondarySplitPane: false, workspaceLayout: .table))
+        #expect(libraryLensPickStaysInPane(isSecondarySplitPane: true, workspaceLayout: nil))
+        #expect(!libraryLensPickStaysInPane(isSecondarySplitPane: false, workspaceLayout: nil))
+    }
 }

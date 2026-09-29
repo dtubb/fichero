@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// Whether a lens pick belongs to THIS pane rather than the window's shared mode.
+/// - A split's secondary pane keeps its own mode (ruling 2026-08-23: choosing 3D in one must not
+///   flip both).
+/// - A pane whose layout a workspace set (#5281): `displayMode` ranks the workspace layout above
+///   the window mode, so writing only the window mode left the pick invisible.
+func libraryLensPickStaysInPane(isSecondarySplitPane: Bool, workspaceLayout: ViewDisplayMode?) -> Bool {
+    isSecondarySplitPane || workspaceLayout != nil
+}
+
 // MARK: - The library pane's floating head (Daniel, 2026-08-23)
 //
 // [library icon : view-mode picker] [breadcrumb] [split] — the same grammar
@@ -12,9 +21,8 @@ extension LibraryView {
         Binding(
             get: { displayMode },
             set: { mode in
-                if isSecondarySplitPane {
-                    // A split's secondary pane keeps its OWN mode (Daniel,
-                    // 2026-08-23: choosing 3D in one must not flip both).
+                if libraryLensPickStaysInPane(isSecondarySplitPane: isSecondarySplitPane,
+                                              workspaceLayout: paneLibraryLayout) {
                     paneDisplayModeOverride = mode
                 } else {
                     paneDisplayModeOverride = nil
