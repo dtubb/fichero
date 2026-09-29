@@ -141,6 +141,28 @@ def test_a_socket_this_process_already_holds_is_ours(sock_path):
         mine.close()
 
 
+def test_the_socket_the_launcher_bound_is_ours_even_past_fd_1023(sock_path):
+    """#5269 follow-up: a real launch's engine refused to start, "another engine is live" -- the
+    other engine was itself. The launcher binds before the lifespan's claim, and the claim's fd scan
+    (3..1023) cannot see a descriptor past 1023. The launcher now records what it bound, so the
+    claim recognises it however many files the engine has open."""
+    from fichero_server.__main__ import _bind_uds_socket
+
+    spare = [open(os.devnull) for _ in range(1100)]             # push the next fd past 1023
+    try:
+        mine = _bind_uds_socket(sock_path)
+        assert mine.fileno() > 1023
+        try:
+            claim_uds_path(sock_path)                           # ours: no refusal
+            assert Path(sock_path).exists()
+        finally:
+            mine.close()
+    finally:
+        for handle in spare:
+            handle.close()
+        uds_claim._BOUND_HERE.clear()
+
+
 def test_no_path_at_all_is_free(sock_path):
     claim_uds_path(sock_path)
 

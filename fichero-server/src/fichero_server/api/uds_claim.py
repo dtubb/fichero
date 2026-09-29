@@ -37,6 +37,18 @@ logger = logging.getLogger(__name__)
 _PROBE_TIMEOUT_S = 2.0
 
 
+# The socket this process bound itself, path -> inode (#5269 follow-up). The embedded launcher binds
+# before the lifespan's claim runs, and that claim must see its own socket as ours. The fd scan below
+# alone missed it once on a real launch -- the engine refused to start, "another engine is live",
+# with itself as the other engine -- and it cannot see a descriptor past 1023 at all.
+_BOUND_HERE: dict[str, int] = {}
+
+
+def note_bound_by_this_process(path: str) -> None:
+    """Record that this process bound `path` (its inode), so a later claim knows it is ours."""
+    _BOUND_HERE[path] = os.stat(path).st_ino
+
+
 class EngineAlreadyServing(RuntimeError):
     """Another engine is live on this socket path; this one must not start."""
 
@@ -98,7 +110,7 @@ def claim_uds_path(path: str) -> None:
         raise EngineAlreadyServing(
             f"refusing to start: {path} exists and is not a socket; it was left alone"
         )
-    if _held_by_this_process(path):
+    if _BOUND_HERE.get(path) == os.lstat(path).st_ino or _held_by_this_process(path):
         return
     probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:

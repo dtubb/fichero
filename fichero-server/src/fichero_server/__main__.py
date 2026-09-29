@@ -95,7 +95,7 @@ def _bind_uds_socket(uds_path: str) -> socket.socket:
     is still LIVE on the path is never unlinked: that was two engines on one
     socket (2026-09-28). `claim_uds_path` refuses, naming it, and this exits.
     """
-    from fichero_server.api.uds_claim import EngineAlreadyServing, claim_uds_path
+    from fichero_server.api.uds_claim import EngineAlreadyServing, claim_uds_path, note_bound_by_this_process
 
     try:
         claim_uds_path(uds_path)
@@ -103,6 +103,7 @@ def _bind_uds_socket(uds_path: str) -> socket.socket:
         raise SystemExit(str(refusal)) from refusal
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.bind(uds_path)
+    note_bound_by_this_process(uds_path)
     sock.listen(socket.SOMAXCONN)
     sock.setblocking(False)
     return sock
