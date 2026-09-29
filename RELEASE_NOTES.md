@@ -2,6 +2,35 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.09.29
+
+- Launch: Fichero is usable in about half the time it took, and the engine starts while the window is still opening.
+- Editing pages: draw, reshape and resize segments the way Preview does, with a Segment menu and a pass you can delete.
+- Import: files dropped together pair with their layout files, as a folder does; Tesseract .box and plain-text transcriptions import.
+- Reading: one line per manuscript line in its own direction, and fonts for scripts macOS lacks.
+
+**Launch is about twice as fast.** On a Mac with five libraries open, the first library is usable
+at about five and a half seconds and all of them at about seven, where it took ten or more. The
+engine now starts before the window is drawn rather than after it; the first library loads the
+moment the engine answers, without waiting for other housekeeping; the other libraries load
+together rather than one after another; and work that can wait (warming the workflow tools, the
+search index) waits until the libraries are open. Opening a library no longer visits every entity
+in it, which made a large knowledge graph slow to open.
+
+**Editing a page.** Segments are drawn as their shapes. The Shape tool draws a polygon or a
+baseline, Reshape moves, adds and removes points, and a selected segment resizes by eight handles
+as in Preview. A Segment menu in the menu bar holds Delete, Join, Split, Direction and Language.
+The Inspector's Making section can delete a pass, and asks first if it is the pass you are working
+in. Every one of these can be undone.
+
+**Importing.** Files dropped together are imported as one set, so an image and its PAGE, ALTO,
+hOCR, TEI, .box or .txt file pair exactly as they do when their folder is dropped. A Tesseract
+.box becomes character segments, and a .txt beside its image becomes its transcription.
+
+**Reading.** The Reader shows one line per manuscript line, each in its own direction, and
+highlights find their text across line breaks. Medieval abbreviations (MUFI), Syriac, Mongolian,
+Coptic and Cherokee draw with bundled fonts instead of boxes.
+
 ## 2026.09.26
 
 - Connections: pairing a second Mac works again, over Tailscale and on a signed build.

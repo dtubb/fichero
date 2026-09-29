@@ -23,6 +23,34 @@ take one flag, `include_descendants`, and default to **true** (#5065). What chan
 - Not changed: the bulk-write requests that also carry `include_descendants` (assign time period,
   prototype assign, library-item columns) still default to false. Recursing a WRITE by default is a different decision.
 
+## 2026-09-29
+
+**Launch.** Measured on a Release build with five real libraries: the front library is usable at
+about 5.5 s (was 9.3 s) and all libraries at about 6.9 s (was 10.1 s).
+- The engine is spawned from `applicationWillFinishLaunching`. Its pre-spawn work (orphan sweep, socket
+  check, cached TLS material) runs in one off-main task, so it no longer waits for the first window to
+  be built.
+- For an engine the app spawned, the first library loads straight after ready. The library grants
+  (already held from the spawn) and the registry refresh run beside the load; the other libraries load
+  in parallel.
+- The engine warms its workflow tools only once the app is ready and quiet. Its library bookmarks
+  resolve during its import, and rdflib is no longer loaded to build the app.
+- A dial to the local engine socket gives up after 1 s, not 10 s. An engine that dies at start is
+  reported within seconds instead of after minutes (#5269), and an engine never refuses to start over
+  its own socket.
+- Opening a library no longer visits every entity (6 s to 0.9 s on a large one), and workflow sidebar
+  entries are rewritten only when they change.
+- The library pane and the sidebar no longer re-render on every window render: they are handed stable
+  values instead of fresh bindings.
+- The app reads provider keys off the main thread (#5265); `GET /api/fonts` returns `{items, count}` and
+  the app reads it through the generated client (#5263).
+
+**Editing, importing, reading.** Segments drawn as shapes, with Reshape, eight resize handles and a
+Segment menu (#4941, #5215, #5229); Delete Pass in the Inspector (#5227). Dropped files import as one
+paired set (#5220); Tesseract .box and .txt import (#5174). One Reader line per manuscript line
+(#5208), and bundled fonts for MUFI, Syriac, Mongolian, Coptic and Cherokee (#5210). Page text is
+re-derived where a person's reading or correction now counts (#5224, #5222).
+
 ## 2026-09-26
 
 **Pairing a second Mac works again.** A signed build could not save the key it had just been
