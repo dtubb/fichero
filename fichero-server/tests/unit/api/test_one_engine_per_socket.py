@@ -163,6 +163,26 @@ def test_the_socket_the_launcher_bound_is_ours_even_past_fd_1023(sock_path):
         uds_claim._BOUND_HERE.clear()
 
 
+def test_a_socket_this_process_holds_past_fd_1023_is_ours(sock_path):
+    """The full unit run (2026-09-28): after thousands of tests the process had so many files open
+    that a socket it bound itself sat past descriptor 1023, the old scan's end -- and the claim
+    refused to start over its own socket. The scan now reads every descriptor the process holds."""
+    spare = [open(os.devnull) for _ in range(1100)]
+    try:
+        mine = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        mine.bind(sock_path)
+        mine.listen(1)
+        assert mine.fileno() > 1023
+        try:
+            assert claim_uds_path(sock_path) is None             # ours: no refusal
+            assert Path(sock_path).exists()
+        finally:
+            mine.close()
+    finally:
+        for handle in spare:
+            handle.close()
+
+
 def test_no_path_at_all_is_free(sock_path):
     assert claim_uds_path(sock_path) is None                    # no refusal
     assert not Path(sock_path).exists()                         # and nothing created

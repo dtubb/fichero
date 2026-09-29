@@ -69,7 +69,15 @@ def engine_owner() -> str:
 
 def _held_by_this_process(path: str) -> bool:
     wanted = {path, os.path.realpath(path)}
-    for fd in range(3, 1024):
+    # Every descriptor this process holds, not a fixed 3..1023 (#5228): past a thousand open files
+    # a socket's descriptor is higher, and the scan would miss the process's own socket.
+    try:
+        open_fds = sorted(int(name) for name in os.listdir("/dev/fd") if name.isdigit())
+    except OSError:
+        open_fds = list(range(3, 1024))
+    for fd in open_fds:
+        if fd < 3:
+            continue
         try:
             if not stat.S_ISSOCK(os.fstat(fd).st_mode):
                 continue
