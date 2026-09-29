@@ -29,7 +29,7 @@ SMALL = MANAGED_MLX_MODELS["Qwen2.5-VL-3B"]
 NORMAL, WARN, CRITICAL = 1, 2, 4
 
 
-def _check(spec, free_gb, level=NORMAL):
+def assert_fits(spec, free_gb, level=NORMAL):
     assert_memory_available_for_model(
         spec, available_bytes=lambda: int(free_gb * GB), pressure_level=lambda: level,
     )
@@ -41,12 +41,12 @@ def test_the_need_grows_with_the_model():
 
 
 def test_a_model_that_fits_loads():
-    _check(BIG, free_gb=12)
+    assert_fits(BIG, free_gb=12)
 
 
 def test_short_memory_is_refused_with_what_it_needs_what_is_free_and_a_smaller_model():
     with pytest.raises(LocalModelMemoryUnavailableError) as refusal:
-        _check(BIG, free_gb=6)
+        assert_fits(BIG, free_gb=6)
     said = str(refusal.value)
     need = mlx_memory_need_bytes(BIG) / GB
     assert f"needs about {need:.1f} GB" in said and "6.0 GB free" in said
@@ -56,18 +56,18 @@ def test_short_memory_is_refused_with_what_it_needs_what_is_free_and_a_smaller_m
 
 def test_no_smaller_model_is_suggested_when_none_fits():
     with pytest.raises(LocalModelMemoryUnavailableError) as refusal:
-        _check(BIG, free_gb=1)
+        assert_fits(BIG, free_gb=1)
     assert "smaller model" not in str(refusal.value)
 
 
 def test_critical_pressure_refuses_even_with_room():
     with pytest.raises(LocalModelMemoryUnavailableError, match="critical"):
-        _check(SMALL, free_gb=40, level=CRITICAL)
+        assert_fits(SMALL, free_gb=40, level=CRITICAL)
 
 
 def test_warn_pressure_with_room_still_loads():
     """Ruled 2026-09-28 for Kraken, and the same here: a busy Mac sits at warn much of the day."""
-    _check(SMALL, free_gb=40, level=WARN)
+    assert_fits(SMALL, free_gb=40, level=WARN)
 
 
 @pytest.mark.asyncio

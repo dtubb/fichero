@@ -41,6 +41,13 @@
     "validated": true
    },
    {
+    "name": "plain-text",
+    "extensions": [],
+    "reads": true,
+    "writes": false,
+    "validated": false
+   },
+   {
     "name": "qgis-points",
     "extensions": [
      ".points"
@@ -58,6 +65,15 @@
     "reads": true,
     "writes": true,
     "validated": true
+   },
+   {
+    "name": "tesseract-box",
+    "extensions": [
+     ".box"
+    ],
+    "reads": true,
+    "writes": false,
+    "validated": false
    },
    {
     "name": "yolo",

@@ -80,7 +80,7 @@ def test_kg_persist_finalize_preset_recomputes_and_is_idempotent(tmp_path: Path)
 
 def _seed_finalize_library(tmp_path: Path) -> tuple[Path, str, list[str]]:
     library_path = tmp_path / "kg-finalize-stage.fichero"
-    db = db_manager.get_database(library_path)
+    db = db_manager.get_database(library_path, create=True)  # a new library (#5136)
 
     source_file = tmp_path / "marshall-imported.pdf"
     source_file.write_bytes(b"%PDF-1.4\n% kg finalize fixture\n")

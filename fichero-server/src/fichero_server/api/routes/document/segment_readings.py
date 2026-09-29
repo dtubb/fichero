@@ -837,10 +837,12 @@ def _why_omitted(
 #: 8: a georeferencing pass is never the page's text pass (#5122, maps C1).
 #: 9: a direction stated on the page's source (file/folder) reaches its lines (#5172).
 #: 10: ...and the project's, the last stated rung (#5172, one order for every caller).
-DERIVATION_VERSION = 10
+#: 11: a line a person read reads from their reading, not its imported words, and the words under
+#:     it are not read twice (#5224); a person's older-format correction ranks as a person's (#5222).
+DERIVATION_VERSION = 11
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
-DERIVATION_SOURCE_SHA256 = "b3146cce75ef20009d36cd285f241f14babcbe13a04475a9332d70401dbdedb8"
+DERIVATION_SOURCE_SHA256 = "982fdf43ded9e9bf92753a958eafed16aa5676cfae4ebd113cb4552f55341f03"
 
 
 def derivation_source_digest() -> str:

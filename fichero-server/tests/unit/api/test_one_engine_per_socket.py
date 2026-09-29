@@ -164,7 +164,8 @@ def test_the_socket_the_launcher_bound_is_ours_even_past_fd_1023(sock_path):
 
 
 def test_no_path_at_all_is_free(sock_path):
-    claim_uds_path(sock_path)
+    assert claim_uds_path(sock_path) is None                    # no refusal
+    assert not Path(sock_path).exists()                         # and nothing created
 
 
 def test_the_embedded_launcher_refuses_a_live_socket_and_binds_a_stale_one(sock_path):

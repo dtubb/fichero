@@ -56,7 +56,7 @@ def test_auto_crop_border_records_a_reversible_derivative_without_mutating_sourc
     _fixture_image(source)
     before = hashlib.sha256(source.read_bytes()).digest()
     library_path = tmp_path / "Library.fichero"
-    db = db_manager.get_database(library_path)
+    db = db_manager.get_database(library_path, create=True)  # a new library (#5136)
     document = Document(name=source.name, path=str(source), file_type=FileType.image)
     db.save(document)
 

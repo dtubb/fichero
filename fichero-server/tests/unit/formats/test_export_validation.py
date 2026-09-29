@@ -143,7 +143,8 @@ class TestTheScriptSaysWhatItDidNotCheck:
         is right: the script reports files, it does not forgive other tools."""
         assert script.main([str(_FIXTURES), "--inputs"]) == 1
         out = capsys.readouterr().out
-        assert "7 valid, 3 INVALID, 1 other version, 2 no schema, 1 unrecognised" in out
+        # 3 no schema: the Tesseract .box (#5174) is a known, read-only format with no schema (2026-09-28).
+        assert "7 valid, 3 INVALID, 1 other version, 3 no schema, 1 unrecognised" in out
 
 
 class TestTheDefaultIsOurExport:
@@ -154,7 +155,8 @@ class TestTheDefaultIsOurExport:
     def test_the_fixtures_pass_because_every_one_of_our_exports_validates(self, capsys):
         assert script.main([str(_FIXTURES)]) == 0
         out = capsys.readouterr().out
-        assert "13 exported, 0 EXPORT INVALID, 0 UNREADABLE, 0 UNWRITABLE, 1 not exported" in out
+        # 2 not exported: PROVENANCE.md, and the read-only Tesseract .box (#5174), which we import but never write.
+        assert "13 exported, 0 EXPORT INVALID, 0 UNREADABLE, 0 UNWRITABLE, 2 not exported" in out
         assert "3 INVALID" in out  # the inputs, reported as information
 
     def test_one_invalid_export_of_ours_is_a_red(self, tmp_path, monkeypatch):
