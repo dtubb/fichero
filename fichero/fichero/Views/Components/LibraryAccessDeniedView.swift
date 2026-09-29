@@ -41,7 +41,7 @@ struct LibraryAccessDeniedView: View {
     /// The one next-step this denial resolves to, from error × identity.
     /// The concrete next-action a denial resolves to. Internal (not private) so
     /// the decision can be unit-tested for every failure case without rendering.
-    enum PrimaryAction: Equatable {
+    nonisolated enum PrimaryAction: Equatable {
         case signIn, grantAccess, requestAccess, restartEngine, resetPin, rePair, retry
     }
 
@@ -57,7 +57,7 @@ struct LibraryAccessDeniedView: View {
     /// Pure decision: failure × identity → the one next action. Extracted so the
     /// "right next-action for EACH case" invariant is testable. `isAuthenticated`
     /// is `nil` when identity hasn't loaded (can't disambiguate a bare forbidden).
-    static func resolvePrimaryAction(
+    nonisolated static func resolvePrimaryAction(
         for error: AccessError,
         isAuthenticated: Bool?,
         isOwnerAccess: Bool

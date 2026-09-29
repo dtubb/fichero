@@ -54,6 +54,7 @@ struct SegmentsPaneLensTests {
 /// A folder of laid-out pages with no named order (#5204, #5205, Daniel 2026-09-28: the Segments pane said
 /// "No Reading Order" and the Reader showed only the folder while the Preview drew page 1's boxes). What
 /// breaks without these: the panes beside the Preview read the FOLDER, or a page with no order lists nothing.
+@MainActor
 struct FolderOfPagesPanesTests {
     private func segment(_ id: String, kind: String, parent: String? = nil) -> Segment {
         Segment(

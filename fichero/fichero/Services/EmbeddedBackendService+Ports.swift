@@ -222,6 +222,24 @@ extension EmbeddedBackendService {
     }
     #endif  // !FICHERO_APP_STORE — end of the non-child process machinery
 
+    /// Whether this build starts its engine ahead of the first window (#5228). Not the App Store
+    /// build: it may not sweep or signal other processes (#3749), so its ordinary pre-flight decides.
+    /// The flag lives here, the one file allowed to read it (check_mas_flag_containment).
+    nonisolated static var launchesAheadOfTheWindow: Bool {
+        #if FICHERO_APP_STORE
+        false
+        #else
+        true
+        #endif
+    }
+
+    /// The orphan sweep, callable from either build: a no-op in the App Store build, which has none.
+    nonisolated static func sweepOrphanEnginesIfAllowed() {
+        #if !FICHERO_APP_STORE
+        terminateOrphanEngines()
+        #endif
+    }
+
     nonisolated static func waitForPortToClear(_ port: UInt16, timeout: TimeInterval) async {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {

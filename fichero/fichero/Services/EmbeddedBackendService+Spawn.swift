@@ -62,7 +62,6 @@ extension EmbeddedBackendService {
         recordLaunchedEngine(process)
     }
 
-    #if !FICHERO_APP_STORE
     /// Start the engine BEFORE the first window is built, when nothing stands in the way (#5228).
     ///
     /// Every step of the ordinary path (`resolvePortConflict` then `launchEmbeddedBackend`) awaits
@@ -79,7 +78,8 @@ extension EmbeddedBackendService {
     /// address, no cached TLS material yet (the first launch of a version), or a live engine on the
     /// socket (somebody else's -- the conflict path handles it).
     func launchEngineAheadOfTheWindow() async throws -> Bool {
-        guard pendingPortConflictResolution == nil,
+        guard Self.launchesAheadOfTheWindow,
+              pendingPortConflictResolution == nil,
               case .uds(let socketPath) = EngineConfig.transportMode else { return false }
         // The same material `prepareAccessMaterial` would pick, but only from its cache.
         let publicBaseURL: URL?
@@ -101,7 +101,7 @@ extension EmbeddedBackendService {
         )
         let unstarted = UnstartedEngineProcess(process: process)
         let started = try await Task.detached(priority: .userInitiated) { () throws -> Bool in
-            Self.terminateOrphanEngines()
+            Self.sweepOrphanEnginesIfAllowed()
             LaunchProfile.milestone("orphan engine sweep finished (off-main)")
             if EngineSocketConflict.isLive(socketPath: socketPath) { return false }
             unstarted.process.environment?["FICHERO_SPAWNED_AT"] = String(Date().timeIntervalSince1970)
@@ -113,7 +113,6 @@ extension EmbeddedBackendService {
         recordLaunchedEngine(process)
         return true
     }
-    #endif
 
     /// The engine executable inside the app bundle (#3749 locations).
     private func resolveEngineExecutablePath() throws -> String {

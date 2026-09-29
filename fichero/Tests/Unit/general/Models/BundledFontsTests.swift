@@ -13,8 +13,7 @@ import XCTest
 final class BundledFontsTests: XCTestCase {
     /// The faces from the SAME files the engine serves, so this cannot pass on a copy that drifted.
     private func cascade() throws -> [CTFontDescriptor] {
-        let fonts = try AppSource.root().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("fichero-server/src/fichero_server/resources/fonts")
+        let fonts = try AppSource.sibling("../fichero-server/src/fichero_server/resources/fonts").standardized
         let otf = try FileManager.default.contentsOfDirectory(atPath: fonts.path).filter { $0.hasSuffix(".otf") }.sorted()
         let files = otf.filter { $0.hasPrefix("Junicode") } + otf.filter { !$0.hasPrefix("Junicode") }
         XCTAssertFalse(files.isEmpty, "the engine bundles its fonts under resources/fonts")

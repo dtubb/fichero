@@ -242,7 +242,6 @@ extension EmbeddedBackendService {
     private func spawnAndAdoptEmbeddedEngine() async throws {
         logger.info("Starting embedded backend...")
         status = .starting
-        #if !FICHERO_APP_STORE
         if try await launchEngineAheadOfTheWindow() {
             lastPortResolution = .spawnOurs
             try await waitForSpawnedBackend()
@@ -250,7 +249,6 @@ extension EmbeddedBackendService {
             logger.info("Embedded backend started ahead of the first window (#5228)")
             return
         }
-        #endif
         // Pre-flight the port (#2863). Sweep our own orphans, then if the port
         // is STILL held by a process we can't claim, ask the user (Stop it /
         // Use it / Quit) rather than silently adopting an engine that may
