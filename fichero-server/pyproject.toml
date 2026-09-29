@@ -455,6 +455,11 @@ dev = [
 # ACROSS runs instead: retention_count=1 + the startup sweep keep steady
 # state at one directory.
 tmp_path_retention_count = "1"
+# A hung test fails and prints every thread's stack instead of stalling the gate: the unit
+# step twice hit its 3 h watchdog on one order-dependent hang with no name attached. 300 s
+# clears the slowest honest test (engine spawn + 30 s health wait + a minute idle).
+timeout = 300
+timeout_method = "thread"
 markers = [
     "asyncio: mark async tests that run with the asyncio event loop",
     "anyio: mark async tests compatible with anyio backends",
