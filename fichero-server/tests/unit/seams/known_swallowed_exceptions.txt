@@ -67,7 +67,7 @@ db/embeddings.py::DatabaseEmbeddingMixin._schedule_embedding_task 1
 db/embeddings.py::DatabaseEmbeddingMixin._schedule_embedding_task._runner 1
 db/embeddings.py::DatabaseEmbeddingMixin.flush_deferred_embeddings._flush 1
 db/embeddings.py::DatabaseEmbeddingMixin.migrate_embedding_space 1
-db/manager.py::DatabaseManager.get_database 1
+db/manager.py::DatabaseManager.get_database 2
 db/migrations/schema.py::migrate_knowledge_indices 2
 db/migrations/schema.py::migrate_segment_indices 1
 db/storage.py::_generate_image 1
@@ -134,6 +134,7 @@ loaders/kreuzberg_cache.py::prewarm_for_extraction 1
 loaders/pdf_loader.py::PDFTextLoader.load 1
 loaders/xmp_loader.py::_extract_xmp_fields 1
 loaders/xmp_loader.py::_parse_xmp_file 1
+maintenance/conversion_on_open.py::_run 1
 maintenance/project_conversion.py::convert_project 1
 mcp/manager.py::MCPManager.load_all_tools 1
 security/keychain.py::_invalidate_llm_api_key_cache 1
