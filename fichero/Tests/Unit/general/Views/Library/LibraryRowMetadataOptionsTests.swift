@@ -37,7 +37,7 @@ struct LibraryRowMetadataOptionsTests {
         // reads the constant rather than a second literal that can drift.
         #expect(LibraryRowAttribute.storageKey == "library.rowAttributes.v2")
         let view = try AppSource.text("Views/Library/LibraryView.swift")
-        #expect(view.contains("@AppStorage(LibraryRowAttribute.storageKey)"))
+        #expect(view.contains("@PaneStorage(LibraryRowAttribute.storageKey)"))
         #expect(!view.contains("@AppStorage(\"library.rowAttributes\")"),
                 "the un-versioned key would keep serving the pre-ruling value")
     }
@@ -142,8 +142,8 @@ struct LibraryRowMetadataOptionsTests {
         #expect(source.components(separatedBy: "ForEach(LibraryRowContentLines.allCases)").count - 1 == 2)
 
         let bar = try AppSource.text("Views/Library/LibraryView+MiniToolbar.swift")
-        #expect(bar.contains("contentLines: rowContentLinesBinding"))
+        #expect(bar.contains("contentLines: $rowContentLinesRaw"))
         let overflow = try AppSource.text("Views/Library/LibraryView+BottomActionBar.swift")
-        #expect(overflow.contains("contentLines: rowContentLinesBinding"))
+        #expect(overflow.contains("contentLines: $rowContentLinesRaw"))
     }
 }

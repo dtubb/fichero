@@ -25,7 +25,7 @@ struct OCRGeometryOverlay: View {
     /// The hover readout answers "what does this ONE box say"; this answers
     /// "what does the machine think the whole page says" without leaving the
     /// image — which is the only way to see a bad page at a glance.
-    @AppStorage("imagePreview.inlineTextEnabled") private var inlineTextEnabled = false
+    @PaneStorage("imagePreview.inlineTextEnabled") private var inlineTextEnabled = false
 
     @State private var hoverPoint: CGPoint?
     @Environment(\.colorScheme) private var colorScheme

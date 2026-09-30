@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 
 /// A view option kept per pane (#5280). Two panes of one kind used to share a single
 /// `@AppStorage` key, so changing one pane's option changed the other's.
@@ -26,4 +26,47 @@ enum PaneScopedOption {
     private static func decode<V: Codable>(_ json: String, as _: V.Type) -> [String: V]? {
         try? JSONDecoder().decode([String: V].self, from: Data(json.utf8))
     }
+}
+
+/// `@AppStorage`, kept per pane (#5280): a drop-in for a pane view's option. The shared value
+/// stays at the option's existing key (so nobody's current setting is lost); the per-pane map sits
+/// at `<key>.byPane`. See `PaneScopedOption` for the read and write rules.
+@propertyWrapper
+struct PaneStorage<Value: Codable>: DynamicProperty {
+    @Environment(\.paneLeafId) private var pane
+    private let shared: AppStorage<Value>
+    private let map: AppStorage<String>
+
+    var wrappedValue: Value {
+        get { PaneScopedOption.value(map.wrappedValue, pane: pane, shared: shared.wrappedValue) }
+        nonmutating set {
+            map.wrappedValue = PaneScopedOption.setting(newValue, in: map.wrappedValue, pane: pane)
+            shared.wrappedValue = newValue
+        }
+    }
+
+    var projectedValue: Binding<Value> {
+        Binding(get: { wrappedValue }, set: { wrappedValue = $0 })
+    }
+
+    private init(shared: AppStorage<Value>, key: String) {
+        self.shared = shared
+        self.map = AppStorage(wrappedValue: "{}", key + ".byPane")
+    }
+}
+
+extension PaneStorage where Value == Bool {
+    init(wrappedValue: Bool, _ key: String) { self.init(shared: AppStorage(wrappedValue: wrappedValue, key), key: key) }
+}
+
+extension PaneStorage where Value == Int {
+    init(wrappedValue: Int, _ key: String) { self.init(shared: AppStorage(wrappedValue: wrappedValue, key), key: key) }
+}
+
+extension PaneStorage where Value == Double {
+    init(wrappedValue: Double, _ key: String) { self.init(shared: AppStorage(wrappedValue: wrappedValue, key), key: key) }
+}
+
+extension PaneStorage where Value == String {
+    init(wrappedValue: String, _ key: String) { self.init(shared: AppStorage(wrappedValue: wrappedValue, key), key: key) }
 }

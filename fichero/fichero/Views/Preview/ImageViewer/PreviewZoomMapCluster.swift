@@ -13,8 +13,8 @@ import SwiftUI
 // pane-header button owns; this view only READS it.
 
 struct PreviewZoomMapCluster<Map: View>: View {
-    @AppStorage("imagePreview.zoomControlsVisible") private var controlsVisible = true
-    @AppStorage("imagePreview.miniMapVisible") private var miniMapVisible = true
+    @PaneStorage("imagePreview.zoomControlsVisible") private var controlsVisible = true
+    @PaneStorage("imagePreview.miniMapVisible") private var miniMapVisible = true
 
     var scalePercent: Int
     var zoomIn: () -> Void

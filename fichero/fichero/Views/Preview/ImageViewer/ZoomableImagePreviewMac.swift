@@ -180,15 +180,15 @@ struct ZoomableImagePreview: View {
     /// so every mark the markup row drew saved correctly and then rendered
     /// invisible — indistinguishable from markup that doesn't work. The
     /// dead-simple-UX rule settles it: the feature is on.
-    @AppStorage("preview.annotationsEnabled") var annotationsEnabled = true
+    @PaneStorage("preview.annotationsEnabled") var annotationsEnabled = true
     /// Saved region marks show/hide (2026-08-31) — the untyped/legacy boxes
     /// in the mark layer, as distinct from the typed markup kinds. Separate
     /// from `annotationsEnabled` because "hide my highlights" and "hide the
     /// region grid" are different questions.
-    @AppStorage("preview.regionsEnabled") var regionsEnabled = true
+    @PaneStorage("preview.regionsEnabled") var regionsEnabled = true
     /// Draw each recognised word's text inside its box (2026-08-31). The
     /// display lives in `OCRGeometryOverlay`, which reads the same key.
-    @AppStorage("imagePreview.inlineTextEnabled") var inlineTextEnabled = false
+    @PaneStorage("imagePreview.inlineTextEnabled") var inlineTextEnabled = false
     /// The image layer (ruled 2026-09-27, Q2). On by default: a page with its picture hidden
     /// is a deliberate view, never where a person should land by accident.
     /// PER-PANE, like the word boxes: seeded from the remembered default, then from the pane's

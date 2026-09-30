@@ -87,8 +87,8 @@ extension LibraryView {
             // attributes list rows display. Sits with sort/filter because it,
             // too, acts on the library list.
             LibraryRowAttributesButton(
-                raw: rowAttributesBinding,
-                contentLines: rowContentLinesBinding,
+                raw: $rowAttributesRaw,
+                contentLines: $rowContentLinesRaw,
                 datasetStore: displayMode.group == .dataset ? datasetStore : nil
             )
 

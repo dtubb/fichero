@@ -97,7 +97,7 @@ struct PreviewHeadLensControls: View {
 
     /// Whether the floating magnification cluster (mini-map / zoom pill /
     /// loupe + magnifier toggles) is showing over the canvas.
-    @AppStorage("imagePreview.zoomControlsVisible") private var zoomControlsVisible = true
+    @PaneStorage("imagePreview.zoomControlsVisible") private var zoomControlsVisible = true
 
     var body: some View {
         editSegmentsToggle

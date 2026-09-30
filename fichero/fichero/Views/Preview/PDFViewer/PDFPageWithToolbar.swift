@@ -124,9 +124,9 @@ struct PDFPageWithToolbar: View {
     /// ON by default (#4418) — same reasoning as the image surface: geometry
     /// that exists but is never drawn is geometry nobody can check a
     /// transcription against.
-    @AppStorage("pdfPreview.ocrBoxesEnabled") var ocrBoxesEnabled = true
+    @PaneStorage("pdfPreview.ocrBoxesEnabled") var ocrBoxesEnabled = true
     /// Annotation overlays show/hide (what-to-show menu, 2026-08-30).
-    @AppStorage("preview.annotationsEnabled") var annotationsEnabled = true
+    @PaneStorage("preview.annotationsEnabled") var annotationsEnabled = true
     @State var ocrGeometry: OCRGeometry?
     @State private var isDrawingRegion = false
     @State private var pendingTool: ReaderAnnotationTool = .highlight
