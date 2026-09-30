@@ -52,30 +52,40 @@ logger = logging.getLogger(__name__)
 # < 1 falls back to the default with a loud warning — the cap must never
 # silently become unbounded.
 _DEFAULT_VISION_FAN_OUT_CONCURRENCY = 4
+# A node whose model is a HOSTED provider (#5264): pages wait on the network, not this machine,
+# and local inference is serialized anyway (MLX job lock, Kraken inference lock). Measured with a
+# 2 s model: 48 pages took 28.2 s at the shared cap of 4 and 10.2 s at 16. Overridable via
+# FICHERO_REMOTE_VISION_FAN_OUT_CONCURRENCY; the provider's own 429s are the circuit breaker's.
+_DEFAULT_REMOTE_VISION_FAN_OUT_CONCURRENCY = 12
 
 
-def _vision_fan_out_concurrency() -> int:
-    raw = os.environ.get("FICHERO_VISION_FAN_OUT_CONCURRENCY")
+def _vision_fan_out_concurrency(
+    env: str = "FICHERO_VISION_FAN_OUT_CONCURRENCY",
+    default: int = _DEFAULT_VISION_FAN_OUT_CONCURRENCY,
+) -> int:
+    raw = os.environ.get(env)
     if raw is None or raw.strip() == "":
-        return _DEFAULT_VISION_FAN_OUT_CONCURRENCY
+        return default
     try:
         value = int(raw.strip())
     except ValueError:
         value = 0
     if value < 1:
         logger.warning(
-            "FICHERO_VISION_FAN_OUT_CONCURRENCY=%r is not a positive integer — "
-            "using default cap %d",
-            raw,
-            _DEFAULT_VISION_FAN_OUT_CONCURRENCY,
+            "%s=%r is not a positive integer — using default cap %d", env, raw, default
         )
-        return _DEFAULT_VISION_FAN_OUT_CONCURRENCY
+        return default
     return value
 
 
 VISION_FAN_OUT_CONCURRENCY: int = _vision_fan_out_concurrency()
+REMOTE_VISION_FAN_OUT_CONCURRENCY: int = _vision_fan_out_concurrency(
+    "FICHERO_REMOTE_VISION_FAN_OUT_CONCURRENCY", _DEFAULT_REMOTE_VISION_FAN_OUT_CONCURRENCY
+)
 _vision_fan_out_sem: asyncio.Semaphore | None = None
 _vision_fan_out_sem_loop: asyncio.AbstractEventLoop | None = None
+_remote_vision_sem: asyncio.Semaphore | None = None
+_remote_vision_sem_loop: asyncio.AbstractEventLoop | None = None
 
 
 def _get_vision_semaphore() -> asyncio.Semaphore:
@@ -104,6 +114,19 @@ def _get_vision_semaphore() -> asyncio.Semaphore:
     return _vision_fan_out_sem
 
 
+def _get_remote_vision_semaphore() -> asyncio.Semaphore:
+    """The hosted-provider twin of ``_get_vision_semaphore`` (#5264), rebound per loop the same way."""
+    global _remote_vision_sem, _remote_vision_sem_loop
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if _remote_vision_sem is None or _remote_vision_sem_loop is not loop:
+        _remote_vision_sem = asyncio.Semaphore(REMOTE_VISION_FAN_OUT_CONCURRENCY)
+        _remote_vision_sem_loop = loop
+    return _remote_vision_sem
+
+
 # True while the current task already holds the shared vision slot (#4553).
 # Each Send branch runs in its own asyncio Task, and asyncio.gather copies the
 # context into each per-file task, so this is per-branch state, not global.
@@ -113,7 +136,7 @@ _vision_slot_held: ContextVar[bool] = ContextVar(
 
 
 @asynccontextmanager
-async def vision_slot():
+async def vision_slot(remote: bool = False):
     """Hold exactly ONE shared vision/LLM concurrency slot, RE-ENTRANTLY.
 
     ``asyncio.Semaphore`` is not reentrant, and two layers both wrap vision
@@ -138,13 +161,23 @@ async def vision_slot():
     if _vision_slot_held.get():
         yield
         return
-    semaphore = _get_vision_semaphore()
+    # A hosted model's branch draws from its own, wider pool (#5264).
+    semaphore = _get_remote_vision_semaphore() if remote else _get_vision_semaphore()
     token = _vision_slot_held.set(True)
     try:
         async with semaphore:
             yield
     finally:
         _vision_slot_held.reset(token)
+
+
+def _is_remote_model(config: LLMConfig | None) -> bool:
+    """A node whose model is a hosted provider waits on the network, not this machine (#5264)."""
+    if config is None or not getattr(config, "provider", None):
+        return False
+    from fichero_server.llm import _is_local_or_builtin_provider
+
+    return not _is_local_or_builtin_provider(config.provider)
 
 
 def _required_llm_capability_for_category(category: str | None) -> str:
@@ -1950,7 +1983,7 @@ def _make_parallel_node_function(
             # #4553: re-entrant slot — the tool acquires the same shared
             # semaphore internally, and a plain `async with semaphore` here
             # self-deadlocked every fan-out of 4+ files.
-            async with vision_slot():
+            async with vision_slot(remote=_is_remote_model(node_llm_config)):
                 # #4317: branches queued behind the semaphore re-check after
                 # acquiring it, so a cancel stops the queue within one file
                 # boundary instead of draining every waiting branch.

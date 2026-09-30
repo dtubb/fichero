@@ -133,7 +133,9 @@ _run_model_choice: contextvars.ContextVar[tuple[str, str] | None] = (
     contextvars.ContextVar("fichero_run_model_choice", default=None)
 )
 
-_DEFAULT_MAX_INFLIGHT_LLM = 6
+# Matches the hosted fan-out cap in workflows/builder.py (#5264): at 6 a 12-wide fan-out ran in
+# two rounds anyway.
+_DEFAULT_MAX_INFLIGHT_LLM = 12
 _LANGCHAIN_MODEL_CACHE_SIZE = 16
 
 _REMOTE_LLM_SEMAPHORE: asyncio.Semaphore | None = None

@@ -617,11 +617,13 @@ class TestVisionFanOutConcurrencyCap:
         from fichero_server.workflows.types import NodeDef
         from fichero_server.llm import LLMConfig
 
-        # Replace the module-level semaphore with a tight cap of 2 for the test.
+        # Replace BOTH pools with a tight cap of 2: this node's model is hosted (openai), so it
+        # draws from the remote pool (#5264); the local pool is pinned too so neither can leak.
         test_cap = 2
-        test_sem = asyncio.Semaphore(test_cap)
-        monkeypatch.setattr(builder_mod, "_vision_fan_out_sem", test_sem)
+        monkeypatch.setattr(builder_mod, "_vision_fan_out_sem", asyncio.Semaphore(test_cap))
         monkeypatch.setattr(builder_mod, "VISION_FAN_OUT_CONCURRENCY", test_cap)
+        monkeypatch.setattr(builder_mod, "_remote_vision_sem", asyncio.Semaphore(test_cap))
+        monkeypatch.setattr(builder_mod, "REMOTE_VISION_FAN_OUT_CONCURRENCY", test_cap)
 
         # Track the high-water mark of concurrent executions.
         inflight = 0

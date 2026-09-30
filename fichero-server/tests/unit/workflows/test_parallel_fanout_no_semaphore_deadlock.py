@@ -28,7 +28,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from fichero_server.models import DocType, Document, FileType, Status
-from fichero_server.workflows.builder import VISION_FAN_OUT_CONCURRENCY, build_graph
+from fichero_server.workflows.builder import REMOTE_VISION_FAN_OUT_CONCURRENCY, build_graph
+
+# The workflow below runs on a HOSTED provider (openai), so its branches share the remote pool
+# (#5264). The fan-out must be wider than THAT cap or the #4553 deadlock is never reached.
+VISION_FAN_OUT_CONCURRENCY = REMOTE_VISION_FAN_OUT_CONCURRENCY
 from fichero_server.workflows.types import WorkflowDef
 
 
