@@ -159,9 +159,9 @@ struct EnvironmentOptionalObservableGuardrailTests {
         // #4703 follow-up
         "Views/Inspector/DisplayAttributesStrip.swift:57 ClaimStore->claimStore",
         // #4703 follow-up
-        "Views/Inspector/Document/DocumentInspector+Sections.swift:125 APIClient->apiClient",
+        "Views/Inspector/Document/DocumentInspector+Sections.swift:127 APIClient->apiClient",
         // #4703 follow-up
-        "Views/Inspector/Document/DocumentInspector+Sections.swift:126 StorageService->storageService",
+        "Views/Inspector/Document/DocumentInspector+Sections.swift:128 StorageService->storageService",
         // #4703 follow-up
         // #4902: line pins re-synced to source (+3, unrelated growth above them)
         "Views/Inspector/Document/DocumentInspector.swift:76 DocumentStore->documentStore",
@@ -174,7 +174,7 @@ struct EnvironmentOptionalObservableGuardrailTests {
         // #4703 follow-up
         "Views/Inspector/Document/DocumentInspector.swift:80 ClaimFocusState->claimFocusState",
         // #4703 follow-up
-        "Views/Inspector/Document/DocumentInspector.swift:84 KGFocusState->kgFocusState",
+        "Views/Inspector/Document/DocumentInspector.swift:92 KGFocusState->kgFocusState",
         // #4703 follow-up
         "Views/Inspector/Document/DocumentInspectorRelatedTab.swift:17 DocumentStore->documentStore",
         // #4703 follow-up
