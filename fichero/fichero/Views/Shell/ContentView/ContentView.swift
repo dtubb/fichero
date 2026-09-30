@@ -393,6 +393,8 @@ struct ContentView: View {
     /// show it while the Preview keeps the folder's board. Honoured only while its parent is the
     /// folder being shown, so a stale one from another folder is ignored.
     @State var folderCanvasFocus: Document?
+    /// Every card selected on that canvas, for Group (#5303).
+    @State var folderCanvasSelection: [Document] = []
     /// Coalesces the swipe→sidebar-highlight write (2026-08-09): re-rendering
     /// the sidebar per page-turn is a ~250ms childrenList pass, which is the
     /// white-flash budget. The library selection still moves per turn; the

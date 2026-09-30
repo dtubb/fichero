@@ -14,6 +14,8 @@ extension EnvironmentValues {
     /// several), so the Inspector and the Reader show that item while the Preview keeps the board
     /// (2026-09-30, #5305). Set by ContentView on the Preview pane.
     @Entry var onFolderCanvasFocus: ((Document?) -> Void)?
+    /// Every card selected on that canvas, so Group (⌥⌘G) can gather them (#5303).
+    @Entry var onFolderCanvasSelection: (([Document]) -> Void)?
 }
 
 struct FolderContentsPreview: View {
@@ -27,6 +29,7 @@ struct FolderContentsPreview: View {
     @State private var loaded = false
     @State private var selectedNodeIds: Set<String> = []
     @Environment(\.onFolderCanvasFocus) private var onFolderCanvasFocus
+    @Environment(\.onFolderCanvasSelection) private var onFolderCanvasSelection
     /// The strip's Colour by, the same key the library's Canvas reads.
     @AppStorage(CanvasColourBy.storageKey) private var colourByRaw = CanvasColourBy.off.rawValue
 
@@ -55,8 +58,13 @@ struct FolderContentsPreview: View {
                             .flatMap { id in items.first { $0.id == id } }
                         : nil
                     onFolderCanvasFocus?(focused)
+                    onFolderCanvasSelection?(ids.compactMap(SpatialLibraryProjector.documentId(fromNodeId:))
+                        .compactMap { id in items.first { $0.id == id } })
                 }
-                .onDisappear { onFolderCanvasFocus?(nil) }
+                .onDisappear {
+                    onFolderCanvasFocus?(nil)
+                    onFolderCanvasSelection?([])
+                }
             } else if loaded {
                 ContentUnavailableView(
                     "Empty Folder",

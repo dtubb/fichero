@@ -31,4 +31,16 @@ struct RotateImageCommandsTests {
     func nothingToRotate() {
         #expect(rotatableImageIds(selection: ["fold"], canvasFocus: nil, lookUp: lookUp).isEmpty)
     }
+
+    /// #5303 (maintainer, 2026-09-30): select cards and group them into one node that holds them,
+    /// like a letter of several pages. Group gathers IMAGES, at least two; the canvas selection wins
+    /// over the library selection (the Preview canvas has its own); one image is not a group.
+    @Test("Group takes two or more images, the canvas selection first")
+    func groupTargets() {
+        #expect(groupableImageIds(selection: ["img-1", "img-2", "fold"], canvasSelection: [], lookUp: lookUp) == ["img-1", "img-2"])
+        #expect(groupableImageIds(selection: ["fold"], canvasSelection: [photo2, photo, folder], lookUp: lookUp) == ["img-2", "img-1"],
+                "the canvas order is kept: it is the order the pages were picked")
+        #expect(groupableImageIds(selection: ["img-1"], canvasSelection: [], lookUp: lookUp).isEmpty, "one image is not a group")
+        #expect(groupableImageIds(selection: ["img-1", "pdf-1"], canvasSelection: [], lookUp: lookUp).isEmpty, "a PDF is not a page of a letter here")
+    }
 }

@@ -279,6 +279,8 @@ extension ContentView {
             )
             .focusedSceneValue(\.rotateImagesLeft, rotateImagesAction(degrees: 90))
             .focusedSceneValue(\.rotateImagesRight, rotateImagesAction(degrees: -90))
+            .focusedSceneValue(\.groupSelectedItems, groupItemsAction)
+            .focusedSceneValue(\.ungroupSelectedItem, ungroupItemAction)
     }
 
     /// NavigationSplitView + the FIRST half of its modifier chain.

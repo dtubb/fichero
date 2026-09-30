@@ -440,3 +440,51 @@ extension ContentView {
         }
     }
 }
+
+// MARK: - Group / Ungroup (#5303)
+
+extension ContentView {
+    private func shellDocument(_ id: String) -> Document? {
+        documentStore.currentDocuments.first { $0.id == id }
+            ?? documentStore.childrenCache.values.lazy.flatMap({ $0 }).first { $0.id == id }
+    }
+
+    /// Edit ▸ Group: the library's own group node (`POST /api/documents/groups`, "Group as Stack"): one item
+    /// that holds the selected images, in order, where the first of them was; reversible.
+    var groupItemsAction: FocusedLibraryAction {
+        let ids = groupableImageIds(selection: browserSelection, canvasSelection: folderCanvasSelection, lookUp: shellDocument)
+        let library = libraryManager.getLibrary(id: windowState.libraryId)
+        let store = documentStore
+        return FocusedLibraryAction(isEnabled: !ids.isEmpty, target: focusedActionTarget(mode: "group", ids: ids)) {
+            guard let library else { return }
+            Task { @MainActor in
+                do {
+                    _ = try await library.documentService.createGroup(name: "Group of \(ids.count)", childIds: ids)
+                    await store.refresh()
+                } catch {
+                    store.error = error
+                }
+            }
+        }
+    }
+
+    /// Edit ▸ Ungroup: return the selected group's members to where they were (`…/groups/{id}/ungroup`).
+    var ungroupItemAction: FocusedLibraryAction {
+        let group = browserSelection.count == 1
+            ? browserSelection.first.flatMap(shellDocument).flatMap { $0.docType == .group ? $0 : nil }
+            : nil
+        let library = libraryManager.getLibrary(id: windowState.libraryId)
+        let store = documentStore
+        return FocusedLibraryAction(isEnabled: group != nil, target: group?.id ?? "") {
+            guard let group, let library else { return }
+            Task { @MainActor in
+                do {
+                    try await library.documentService.ungroupDocument(groupId: group.id)
+                    await store.refresh()
+                } catch {
+                    store.error = error
+                }
+            }
+        }
+    }
+}

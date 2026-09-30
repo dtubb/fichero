@@ -34,3 +34,39 @@ struct RotateImageMenuSection: View {
             .disabled(right?.isEnabled != true)
     }
 }
+
+// MARK: - Group / Ungroup (#5303)
+
+/// The images a Group gathers into one group node (a letter of several pages): the cards selected on
+/// a folder's canvas in the Preview when there are any, else the selected items; images only, as the
+/// library's Group as Stack takes them, and at least two.
+func groupableImageIds(selection: Set<String>, canvasSelection: [Document], lookUp: (String) -> Document?) -> [String] {
+    let canvasImages = canvasSelection.filter { $0.fileType == .image }.map(\.id)
+    let ids = canvasImages.count >= 2
+        ? canvasImages
+        : selection.sorted().filter { lookUp($0)?.fileType == .image }
+    return ids.count >= 2 ? ids : []
+}
+
+extension FocusedValues {
+    /// Group — gather the selected images into one group node (#5303).
+    @Entry var groupSelectedItems: FocusedLibraryAction?
+    /// Ungroup — return a selected group's members to where they were.
+    @Entry var ungroupSelectedItem: FocusedLibraryAction?
+}
+
+/// Group / Ungroup in the Edit menu. The same group node the library's "Group as Stack" makes: one item that
+/// holds its pages, reversibly.
+struct GroupItemsMenuSection: View {
+    @FocusedValue(\.groupSelectedItems) private var group
+    @FocusedValue(\.ungroupSelectedItem) private var ungroup
+
+    var body: some View {
+        // No chords yet: ⌥⌘G, the Keynote/Freeform Group chord, is the Preview markup Line tool
+        // (PreviewMarkupToolsRow). Whether Group takes it back is the maintainer's call (#5303).
+        Button("Group") { group?.run() }
+            .disabled(group?.isEnabled != true)
+        Button("Ungroup") { ungroup?.run() }
+            .disabled(ungroup?.isEnabled != true)
+    }
+}

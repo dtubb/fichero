@@ -394,9 +394,15 @@ homeless until a map-view UI spec exists (#5128).
 - `library.canvas.a-board-remembers-its-camera` — **[OK]** (572719bca) a board opens fitted to the pane
   with margin; coming back to a folder returns to the centre and zoom the person left it at (kept per
   Mac, not in the library).
-- `library.canvas.group-into-one-node` — **[MISSING]** (#5303) selecting cards and grouping them (⌘G)
-  makes one compound node that contains them in order (a letter of several pages), shown and moved as
-  one unit on the canvas. Spec first: it is a node-model change.
+- `library.canvas.group-into-one-node` — **[PARTIAL]** (#5303) selecting images and choosing Edit ▸
+  Group (no chord yet: ⌥⌘G, Keynote's and Freeform's, is the Preview markup Line tool today) makes ONE group node that holds them in
+  order, in the place of the first, as a letter holds its pages; Edit ▸ Ungroup returns each to
+  where it was. The node already existed: `DocType.group` ("logical document: a letter = multiple
+  pages"), made by the library's context-menu **Group as Stack** through `POST /api/documents/groups`
+  and undone by `…/groups/{id}/ungroup`, which records every member's old place. The menu items and the
+  canvas selection are new (2026-09-30). Still to design: how a group's card looks on the canvas (a
+  stack of its first pages), what double-click opens, whether the Reader reads the pages as one
+  document, and making group/ungroup audited actions so ⌘Z undoes them.
 - `library.rotate.command-r-and-l` — **[PARTIAL]** (#5304; built, not yet seen in the app) ⌘R / ⌘L rotate the selected images 90°
   right / left in the library (every mode), the Preview and the canvas, through the image editor's
   one rotate action.

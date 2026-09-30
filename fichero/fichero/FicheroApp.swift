@@ -505,6 +505,8 @@ struct FicheroApp: App {
                 FocusedDeleteButton()
                     .keyboardShortcut(.delete, modifiers: [.command])
 
+                GroupItemsMenuSection()
+
                 Divider()
 
                 // Find section (CD 2026-09-16): ⌘F "Search" is the native library
