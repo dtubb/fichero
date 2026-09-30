@@ -125,4 +125,17 @@ struct SidebarPrefetchBatchingTests {
         // cannot republish.
         #expect(DocumentStore.mergingChildren(fetched, into: merged) == merged)
     }
+
+    // MARK: - Parallel look-ahead (#5277)
+
+    /// N folders were N sequential round trips; they now go `width` at a time, in order, with
+    /// none dropped.
+    @Test("prefetch batches cover every pending folder, in order, at most four at a time")
+    func batchesAreBoundedAndComplete() {
+        let pending = (1...10).map { folder("f\($0)") }
+        let batches = DocumentStore.prefetchBatches(pending)
+        #expect(batches.map(\.count) == [4, 4, 2])
+        #expect(batches.flatMap { $0 }.map(\.id) == pending.map(\.id))
+        #expect(DocumentStore.prefetchBatches([]).isEmpty)
+    }
 }

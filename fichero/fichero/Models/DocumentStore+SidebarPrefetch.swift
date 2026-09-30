@@ -60,6 +60,12 @@ extension DocumentStore {
             // land, independent of the grid's heavy work: expand opens now.
             revision += 1
         }
+        // ONE LEVEL AHEAD, after the rows are drawn (#5277). The grandchild prefetch removed on
+        // 2026-09-06 ran BEFORE the expand settled and serially; this one starts once the rows
+        // are on screen, is not awaited, and fetches in parallel, so the next expand of a
+        // subfolder draws from the cache instead of a round trip.
+        let visible = childrenCache[document.id] ?? []
+        Task { await self.prefetchChildContainerChildren(of: visible) }
     }
 
     /// Fetch and cache a document's immediate children (idempotent). Does NOT
@@ -91,13 +97,17 @@ extension DocumentStore {
         let pending = Self.containersNeedingChildren(in: documents, cache: childrenCache)
         guard !pending.isEmpty else { return }
 
-        // ponytail: still sequential — the cost that showed up was the republish
-        // per fetch, not the fetches; parallelize only if a wide fan-out
-        // measurably lags after this.
+        // Parallel in bounded batches (#5277): N folders were N sequential round trips.
+        // ponytail: fixed width, not adaptive; tune if the engine or the machine objects.
         var fetched: [String: [Document]] = [:]
-        for container in pending {
-            guard let children = await fetchSidebarChildren(of: container) else { continue }
-            fetched[container.id] = children
+        for batch in Self.prefetchBatches(pending) {
+            let inFlight = batch.map { container in
+                Task { (container.id, await self.fetchSidebarChildren(of: container)) }
+            }
+            for task in inFlight {
+                let (id, children) = await task.value
+                if let children { fetched[id] = children }
+            }
         }
 
         let merged = Self.mergingChildren(fetched, into: childrenCache)
@@ -108,6 +118,13 @@ extension DocumentStore {
             // observer must be ticked or the prefetched chevrons never rebuild
             // into the tree (#4318).
             revision += 1
+        }
+    }
+
+    /// The pending containers in fetch order, `width` at a time. Pure so the bound is testable.
+    static func prefetchBatches(_ pending: [Document], width: Int = 4) -> [[Document]] {
+        stride(from: 0, to: pending.count, by: max(1, width)).map {
+            Array(pending[$0 ..< min($0 + max(1, width), pending.count)])
         }
     }
 
