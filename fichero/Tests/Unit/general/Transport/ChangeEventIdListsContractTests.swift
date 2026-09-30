@@ -19,8 +19,10 @@ struct ChangeEventIdListsContractTests {
     // MARK: - Fixture access
 
     private static func fixtureData() throws -> Data {
-        let url = try AppSource.sibling("fichero-server")
-            .appendingPathComponent("tests/contracts/change_event_all_id_lists.json")
+        // The engine sits at the REPO root, one level above the app target's siblings
+        // (`sibling("fichero-server")` named fichero/fichero-server, which does not exist).
+        let url = try AppSource.sibling("..").standardizedFileURL
+            .appendingPathComponent("fichero-server/tests/contracts/change_event_all_id_lists.json")
         return try Data(contentsOf: url)
     }
 

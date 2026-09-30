@@ -177,7 +177,8 @@ struct ToolbarSymbolsTests {
         // magnifier+TextField lozenge is gone — the SYSTEM `.searchable`
         // carries the field, same placeholder, old phrasing stays retired.
         let field = try Self.appSource("Views/Shell/ContentView/ContentView+ToolbarSearch.swift")
-        #expect(field.contains("prompt: \"Search your library\""))
+        // #4971: just "Search", as Finder's field says; scope rides on the Ask/Keyword scopes.
+        #expect(field.contains("prompt: \"Search\""))
         #expect(field.contains(".searchable("))
         #expect(!field.contains("Ask your library"))
     }
