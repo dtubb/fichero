@@ -126,7 +126,10 @@ def _claim_on(db, doc: Document, artifact: Artifact) -> KnowledgeClaim:
 # conversion is allowed to change stripped -- and only those three.
 # --------------------------------------------------------------------------
 
-_MAY_DIFFER = ("id", "pass_id", "provisional")
+# Machinery, not content: ids, the pass a row now lives in, and `version`, the edit counter a
+# write's `expected_version` is checked against (#5268). A derived row (a page not converted yet)
+# has no stored row, so its version is None; a converted row starts at 1. Nobody reads it.
+_MAY_DIFFER = ("id", "pass_id", "provisional", "version")
 
 
 def _seam(client, doc_id: str) -> dict:
