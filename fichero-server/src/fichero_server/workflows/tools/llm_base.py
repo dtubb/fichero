@@ -766,24 +766,15 @@ def _save_artifact_sync(
                 )
 
                 if tool_config.trigger_embedding:
-                    # Embedding is a best-effort TAIL: the artifact and the
-                    # promoted page_content are already durably saved above, so
-                    # the result is not lost. A failed embed must NOT fail the
-                    # whole save (that would mask a successful write and report
-                    # false failure) — but it must be LOUD, never silently
-                    # swallowed, so a missing/stale vector is diagnosable
-                    # (#2510, no silent fallback).
-                    try:
-                        db.embed(doc)
-                        logger.info(f"Updated page_content and embedding for {doc.id}")
-                    except Exception as embed_exc:
-                        logger.error(
-                            "Embedding FAILED for %s after artifact + "
-                            "page_content saved — save still SUCCEEDED "
-                            "(best-effort embed tail): %s",
-                            doc.id,
-                            embed_exc,
-                        )
+                    # Embedding is a best-effort TAIL, queued rather than run here (#5264): the
+                    # artifact and the promoted page_content are durably saved above, and the
+                    # embed stage records its own failure LOUDLY on the document
+                    # (`metadata["embedding_error"]`, #2510, no silent fallback). Inline, it
+                    # serialized ~45 ms of ONNX behind every page of the run.
+                    from fichero_server.importers.derivatives import queue_embedding
+
+                    queue_embedding(doc.id, library_path=library_path, db=db)
+                    logger.info(f"Updated page_content for {doc.id}; embedding queued")
             elif tool_config.trigger_embedding and not tool_config.update_page_content:
                 # Artifact-content embedding (e.g. translations): embed the
                 # artifact text with a scoped label so it's searchable alongside

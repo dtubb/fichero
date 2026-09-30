@@ -523,3 +523,24 @@ class TestQueueEmitsCoalescedTrackerActivity:
         derivatives._progress_add("/lib/B.fichero", 1, db_path=None)
         derivatives._progress_tick("/lib/B.fichero")
         assert logged == []
+
+
+def test_queue_embedding_submits_only_the_embed_stage_after_commit(monkeypatch):
+    """#5264: a workflow's saved page is embedded on the pool, once its save commits, and gets
+    no thumbnail or NLP pass (it has neither new pixels nor a new import)."""
+    from unittest.mock import MagicMock
+
+    from fichero_server.importers import derivatives
+
+    executor = MagicMock()
+    monkeypatch.setattr(derivatives, "_get_executor", lambda: executor)
+    monkeypatch.setattr(derivatives, "_progress_add", lambda *a, **k: None)
+    db = MagicMock()
+    hooks = []
+    db.add_after_commit_hook.side_effect = hooks.append
+
+    derivatives.queue_embedding("page-1", library_path="/lib.fichero", db=db)
+    executor.submit.assert_not_called()  # nothing before the commit
+
+    hooks[0]()
+    executor.submit.assert_called_once_with(derivatives._embed_stage, "page-1", "/lib.fichero")

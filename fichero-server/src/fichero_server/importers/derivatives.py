@@ -169,6 +169,35 @@ def queue_derivatives(
     return futures
 
 
+def queue_embedding(
+    doc_id: str,
+    *,
+    library_path: str | Path,
+    db: "Database | None" = None,
+) -> None:
+    """Embed ONE saved document on the derivative pool, after its save commits (#5264).
+
+    A workflow's save used to embed inline, in the thread that saves the page: ~45 ms of ONNX
+    per page, serialized behind every other page's save (48 pages: 5.3 s of runner time with an
+    instant model, 3.0 s without it). The import path moved its embedding here on 2026-08-09 for
+    the same reason. The stage re-reads the document, so it embeds the text as saved, and it is
+    gated by ``embed_concurrency()`` like every other embed.
+    """
+    library = str(library_path)
+    if not library:
+        logger.warning("Not queueing an embedding for %s: no library path given", doc_id)
+        return
+
+    def submit() -> None:
+        _progress_add(library, 1, db_path=str(db.path) if db is not None else None)
+        _get_executor().submit(_embed_stage, doc_id, library)
+
+    if db is not None:
+        db.add_after_commit_hook(submit)
+    else:
+        submit()
+
+
 # ---------------------------------------------------------------------------
 # Queue progress → backend.work.* events (user, live 2026-08-19): the status
 # island said "Ready" while hundreds of pages were still embedding. One

@@ -1367,14 +1367,14 @@ class TestSaveArtifact:
             assert mock_db.save.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_save_artifact_embed_failure_is_best_effort(self, caplog):
-        """Step-3 (embed) failure must NOT fail the save, but must log loud.
+    async def test_save_artifact_queues_the_embedding_instead_of_running_it(self):
+        """#5264: the save queues its embedding; it never runs ONNX inline.
 
-        The artifact + page_content are already durable, so a failed embed is a
-        best-effort tail: save_artifact still returns the artifact_id (success)
-        and emits a loud error — never a silent swallow (#2510).
+        Inline, each page's embed (~45 ms) ran in the save, serialized behind every
+        other page of the run. The embed stage now does it off the save path, and
+        records its own failure loudly on the document (`embedding_error`, #2510),
+        so a broken vector index can no longer fail or slow the save at all.
         """
-        import logging
         from fichero_server.workflows.tools.llm_base import save_artifact, LLMToolConfig
 
         mock_doc = MagicMock()
@@ -1383,39 +1383,36 @@ class TestSaveArtifact:
 
         mock_db = MagicMock()
         mock_db.get.return_value = mock_doc
-        mock_db.save.return_value = None            # artifact + doc writes OK
-        mock_db.embed.side_effect = RuntimeError("vector index offline")
+        mock_db.save.return_value = None
+        mock_db.embed.side_effect = AssertionError("embedded inline in the save")
 
         tool_config = LLMToolConfig(
             artifact_type="transcription",
             update_page_content=True,
-            trigger_embedding=True,                 # forces step-3 db.embed
+            trigger_embedding=True,
         )
         llm_config = LLMConfig(provider="test", model="test-model")
 
-        with patch("fichero_server.db.db_manager") as mock_manager:
+        with patch("fichero_server.db.db_manager") as mock_manager, patch(
+            "fichero_server.importers.derivatives.queue_embedding"
+        ) as queued:
             mock_manager.get_database.return_value = mock_db
-
-            with caplog.at_level(logging.ERROR):
-                result = await save_artifact(
-                    document_id="doc-embed",
-                    file_path=None,
-                    content="Promoted text",
-                    data=None,
-                    library_path="/test/library.fichero",
-                    llm_config=llm_config,
-                    task_id="task-embed",
-                    tool_config=tool_config,
-                )
-
-            # Save still succeeds (artifact id returned) despite the embed blowing up.
-            assert result is not None
-            mock_db.embed.assert_called_once()
-            # …and the embed failure was logged LOUD, not silently swallowed.
-            assert any(
-                "Embedding FAILED" in rec.message and rec.levelno == logging.ERROR
-                for rec in caplog.records
+            result = await save_artifact(
+                document_id="doc-embed",
+                file_path=None,
+                content="Promoted text",
+                data=None,
+                library_path="/test/library.fichero",
+                llm_config=llm_config,
+                task_id="task-embed",
+                tool_config=tool_config,
             )
+
+        assert result is not None
+        mock_db.embed.assert_not_called()
+        queued.assert_called_once_with(
+            "doc-embed", library_path="/test/library.fichero", db=mock_db
+        )
 
 
 class TestSaveToFile:
