@@ -1217,7 +1217,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(lines.count, 1)
         let line = try XCTUnwrap(segments.first { $0.id == lines.first })
         XCTAssertEqual(line.kind, "line")
-        XCTAssertEqual(SegmentsPane.rowLabel(line, at: 0), "Line · " + (line.text ?? "").trimmingCharacters(in: .whitespaces))
+        // Bidi-isolated since #5199, so a right-to-left reading cannot reorder "Line ·".
+        XCTAssertEqual(SegmentsPane.rowLabel(line, at: 0),
+                       "Line · \u{2068}" + (line.text ?? "").trimmingCharacters(in: .whitespaces) + "\u{2069}")
         XCTAssertEqual(SegmentsPane.path(pageTitle: "page", to: region, in: segments).map(\.title), ["page", "Region"])
 
         await orders.show(childrenOf: nil)
@@ -2122,7 +2124,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         await store.load(documentId: "doc-0001", force: true)
         let typed = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.id == "seg-drawn-0001" })
         XCTAssertFalse(SegmentsPane.lacksReading(typed), "the mark goes once it has a reading")
-        XCTAssertEqual(SegmentsPane.rowLabel(typed, at: 16), "Line · ܫܠܡܐ")
+        XCTAssertEqual(SegmentsPane.rowLabel(typed, at: 16), "Line · \u{2068}ܫܠܡܐ\u{2069}")  // isolated, #5199
         let redrawn = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
         XCTAssertFalse(redrawn.geometry.boxes[try XCTUnwrap(typed.boxIndex)].noReading)
     }
@@ -2233,8 +2235,15 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         for _ in 0..<200 where RecordedEngine.undone.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(RecordedEngine.undone, ["audit-1"])
 
-        // ⌥: a baseline point cannot be spared; an outline corner can.
-        XCTAssertEqual(session.press(at: drawnAt, on: box, boxIndex: index, scale: 4, option: true), .refused)
+        // ⌥ removes a baseline point only while the baseline keeps its minimum of two
+        // (`SegmentShapes.Target.minimumPoints`); an outline corner can go too.
+        let pressed = session.press(at: drawnAt, on: box, boxIndex: index, scale: 4, option: true)
+        if baseline.count > 2 {
+            guard case .remove(.baseline, let kept) = pressed else { return XCTFail("a spare baseline point can go") }
+            XCTAssertEqual(kept.count, baseline.count - 1)
+        } else {
+            XCTAssertEqual(pressed, .refused, "a two-point baseline cannot spare one")
+        }
         let polygon = try XCTUnwrap(line.anchor.polygon)
         let corner = try XCTUnwrap(PDFRegionGeometry.pagePoint(normalized: polygon[0], rotation: page.rotation, crop: crop))
         guard case .remove(.polygon, let fewer) = session.press(at: corner, on: box, boxIndex: index, scale: 4, option: true) else {
