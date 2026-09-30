@@ -310,8 +310,17 @@ struct SpawnedEngineLivenessWaitTests {
         // +Lifecycle split file; read it so the single-liveness-path assertions still match.
         let source = try Self.appSource("Services/EmbeddedBackendService+Lifecycle.swift")
 
-        let livenessCalls = source.components(separatedBy: "try await waitForSpawnedBackend()").count - 1
-        #expect(livenessCalls == 1, "only .spawnOurs may wait on liveness — every other path has no child to watch")
+        // Two spawn paths since #5228 (the engine launched ahead of the window, and the ordinary
+        // one); each waits on liveness, and each is a .spawnOurs resolution. The rule is that
+        // every liveness wait belongs to an engine we spawned, whatever the count.
+        let chunks = source.components(separatedBy: "try await waitForSpawnedBackend()")
+        let livenessCalls = chunks.count - 1
+        #expect(livenessCalls >= 1, "the spawned path must wait on liveness")
+        for chunk in chunks.dropLast() {
+            let lead = chunk.split(separator: "\n").suffix(8).joined(separator: "\n")
+            #expect(lead.contains("lastPortResolution = .spawnOurs"),
+                    "only .spawnOurs may wait on liveness — every other path has no child to watch")
+        }
 
         // The clock-bounded wait still serves remote / dev-external / adopted.
         #expect(source.contains("try await waitForBackend(timeout: 5)"), "remote + dev-external keep their timeout")

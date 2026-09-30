@@ -31,14 +31,15 @@ struct PreviewHostGuardTests {
     func delegateGuardsPreviewHost() throws {
         let source = try appSource()
         // The delegate half of the guard — FicheroApp.init's skip covers only
-        // installer/restore; the engine spawn lives in
-        // applicationDidFinishLaunching and needs its own bail-out.
-        let didFinish = source.range(of: "func applicationDidFinishLaunching")
+        // installer/restore; the engine start lives in
+        // applicationWillFinishLaunching (moved there for launch speed, #5228)
+        // and needs its own bail-out.
+        let didFinish = source.range(of: "func applicationWillFinishLaunching")
         let controllerStart = source.range(of: "controller.start()")
         let previewGuard = source.range(
             of: "guard ProcessInfo.processInfo.environment[\"XCODE_RUNNING_FOR_PREVIEWS\"] != \"1\" else { return }"
         )
-        #expect(didFinish != nil, "applicationDidFinishLaunching moved — repoint this pin")
+        #expect(didFinish != nil, "applicationWillFinishLaunching moved — repoint this pin")
         #expect(controllerStart != nil, "engine start moved — repoint this pin")
         #expect(previewGuard != nil, "the preview-host guard is gone")
         if let didFinish, let controllerStart, let previewGuard {
