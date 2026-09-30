@@ -176,6 +176,31 @@ final class SidebarPrefetchBehavioralTests: XCTestCase {
         )
     }
 
+    /// A reload supersedes the pending root warm: the old task is cancelled and, since its delay
+    /// swallows the cancellation, it checks before fetching. Without this a stale warm ran after
+    /// every reload and ticked a whole-sidebar rebuild (review, 2026-09-30).
+    func testAReloadCancelsThePendingRootPrefetch() async throws {
+        let store = makeStore(stubs: [
+            Stub(pathSuffix: "/api/documents/roots", body: listJSON([
+                docJSON("rootA", parent: nil, docType: "folder")
+            ])),
+            Stub(pathSuffix: "/documents/rootA/view", body: viewJSON(
+                docJSON("rootA", parent: nil, docType: "folder"), children: []
+            )),
+            Stub(pathSuffix: "/documents/rootA/children", body: listJSON([]))
+        ])
+        DocumentStore.rootPrefetchDelay = .seconds(30)
+        defer { DocumentStore.rootPrefetchDelay = .seconds(5) }
+
+        await store.loadCollections()
+        let first = try XCTUnwrap(store.rootPrefetch)
+        await store.loadCollections()
+
+        XCTAssertTrue(first.isCancelled, "the superseded warm is cancelled")
+        XCTAssertFalse(store.rootPrefetch?.isCancelled ?? true, "the new one is not")
+        store.rootPrefetch?.cancel()
+    }
+
     func testPrefetchedChildrenSurfaceInSidebarDocuments() async throws {
         // The tree builder and the rebuild signature both read
         // `sidebarDocuments`; a cache fill that never reached it would render

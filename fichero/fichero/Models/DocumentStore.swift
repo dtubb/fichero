@@ -397,8 +397,12 @@ final class DocumentStore {
             // launch: ~40 fetches across seven libraries, all competing with the front library.
             let collections = self.collections
             let delay = Self.rootPrefetchDelay
+            // A reload supersedes the previous prefetch: cancel it, and check after the delay,
+            // since `try? await Task.sleep` swallows the cancellation (review, 2026-09-30).
+            rootPrefetch?.cancel()
             rootPrefetch = Task(priority: .utility) { [weak self] in
                 if delay > .zero { try? await Task.sleep(for: delay) }
+                guard !Task.isCancelled else { return }
                 await self?.prefetchChildContainerChildren(of: collections)
             }
 
