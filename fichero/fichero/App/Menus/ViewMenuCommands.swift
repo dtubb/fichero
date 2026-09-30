@@ -61,20 +61,22 @@ struct ViewMenuCommands: View {
     var body: some View {
         // RATIFIED 2026-09-15 (CD): the View menu's groups are SUBMENUS, not a
         // stack of ~12 flat sections. Opening View now shows a short list —
-        // Layout ▸ / Sort ▸ / Preview ▸ / Workspaces ▸ plus the top-level
+        // Sort ▸ / Preview ▸ / Workspaces ▸ (and, since #5297, the view modes inline at the top) plus the top-level
         // Sidebar / Inspector / Pane toggles — instead of a junk drawer. The
         // ⌘1–6 / ⌘⌥1–5 / ⌃⌘I shortcuts live on the LEAF items inside the
         // submenus, so muscle memory is unchanged. Reading/annotating verbs
         // (Reader Lens, Zoom/Magnifier) moved to the Read menu and the KG
         // view-mode switcher moved to the Knowledge menu (menus-and-commands
         // spec); this menu is appearance & layout only now.
-        SidebarModeSection()
+        // The library's view modes lead the View menu, inline, as Finder's do ("as Icons ⌘1 …"),
+        // not in a Layout submenu (maintainer, 2026-09-30, #5297; our names kept).
+        LibraryLayoutSection(viewSettings: viewSettings)
 
         Divider()
 
-        Menu("Layout") {
-            LibraryLayoutSection(viewSettings: viewSettings)
-        }
+        SidebarModeSection()
+
+        Divider()
 
         Menu("Sort") {
             SortSection()

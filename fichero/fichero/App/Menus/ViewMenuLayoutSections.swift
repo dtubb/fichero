@@ -124,6 +124,14 @@ struct LibraryLayoutSection: View {
                     ) { selectLayout(.canvas) }
                 }
 
+                // "Space" (⌘5) — the RealityKit 3D renderer restored (#3088), a
+                // second renderer on the same shared canvas stores as ⌘4 Canvas.
+                if availableLayouts.contains(.space) {
+                    LibraryLayoutButton(
+                        layout: .space, label: "as Space", icon: "cube.transparent",
+                        shortcut: "5", current: effectiveCurrent
+                    ) { selectLayout(.space) }
+                }
                 // Miller columns (⌘6, #4160 step 4) — APPENDED so ⌘1-5 muscle
                 // memory is untouched; the table reverts to "as Table" now a
                 // real columns mode exists.
@@ -134,14 +142,6 @@ struct LibraryLayoutSection: View {
                     ) { selectLayout(.columns) }
                 }
 
-                // "Space" (⌘5) — the RealityKit 3D renderer restored (#3088), a
-                // second renderer on the same shared canvas stores as ⌘4 Canvas.
-                if availableLayouts.contains(.space) {
-                    LibraryLayoutButton(
-                        layout: .space, label: "as Space", icon: "cube.transparent",
-                        shortcut: "5", current: effectiveCurrent
-                    ) { selectLayout(.space) }
-                }
             }
         }
     }
@@ -157,16 +157,11 @@ struct LibraryLayoutButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                if current == layout {
-                    Image(systemName: "checkmark")
-                        .frame(width: 12)
-                }
-                Image(systemName: icon)
-                    .frame(width: 16)
-                Text(label)
-            }
+        // A Toggle with a Label, not a Button around an HStack: macOS menus flatten an HStack and
+        // drop its images, so the icons never showed and the checkmark was hand-drawn. As a
+        // native item the menu draws the checkmark and the icon itself, as Finder's View menu does.
+        Toggle(isOn: Binding(get: { current == layout }, set: { _ in action() })) {
+            Label(label, systemImage: icon)
         }
         .keyboardShortcut(
             KeyEquivalent(Character(shortcut)),
