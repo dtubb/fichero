@@ -194,6 +194,45 @@ def test_unknown_item_is_reported_but_other_rows_persist(client, db):
     assert loaded == [body["items"][0]]
 
 
+def test_the_apps_own_card_ids_are_saved_and_read_back(client, db):
+    """#5301: a card dragged on the Canvas or in Space never kept its place.
+
+    The app names every card by its node id, `doc:<id>` for a document and `entity:<id>` for an
+    entity (`SpatialLibraryProjector.nodeId`), and saves and reads positions under that id. The
+    engine only saved an id that was a bare row id, so every card was skipped inside a 200 and the
+    card snapped back. Every earlier test here used bare ids, which is why none caught it. If this
+    goes red, dragging a card on the canvas is lost again.
+    """
+    _make_doc(db, "folder-cards", "0f3a")
+    db.save(KnowledgeEntity(id="e7", canonical_name="Pasqual de Vergara"))
+
+    resp = client.put(
+        f"{BASE}/folder-cards/canvas-layout",
+        json={"items": [
+            {"item_id": "doc:0f3a", "x": 120.0, "y": -40.0},
+            {"item_id": "entity:e7", "x": 5.0, "y": 6.0},
+        ]},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["skipped"] == []
+
+    loaded = {row["item_id"]: row for row in client.get(f"{BASE}/folder-cards/canvas-layout").json()["items"]}
+    # Read back under the SAME id the app looks rows up by (`CanvasSceneState.resolve`).
+    assert loaded["doc:0f3a"]["x"] == 120.0
+    assert loaded["doc:0f3a"]["y"] == -40.0
+    assert loaded["entity:e7"]["x"] == 5.0
+
+
+def test_a_node_id_for_nothing_is_still_skipped(client, db):
+    """The prefix is not a pass: `doc:<id>` for a document that does not exist is skipped."""
+    resp = client.put(
+        f"{BASE}/folder-ghost/canvas-layout",
+        json={"items": [{"item_id": "doc:no-such-doc", "x": 1.0}]},
+    )
+    assert resp.status_code == 200, resp.text
+    assert [row["item_id"] for row in resp.json()["skipped"]] == ["doc:no-such-doc"]
+
+
 def test_empty_save_batch_returns_empty_success(client):
     resp = client.put(f"{BASE}/empty-scope/canvas-layout", json={"items": []})
     assert resp.status_code == 200

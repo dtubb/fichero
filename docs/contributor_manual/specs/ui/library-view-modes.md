@@ -362,6 +362,23 @@ homeless until a map-view UI spec exists (#5128).
 
 ### I. Canvas & Space (legacy milestones "Library View - Spatial", "Library View - Canvas")
 
+- `library.canvas.positions-persist` — **[BROKEN]** (#5301) a card dropped on the Canvas or in Space
+  stays where it was dropped: after the save returns, after leaving and re-entering the folder, and
+  after a relaunch. One layout per folder scope (the whole library is `__library__`), stored in the
+  library, so the arrangement travels with the library file.
+  - **Why it broke (2026-09-30):** the app saves and reads a card under its node id (`doc:<id>`,
+    `entity:<id>`), and the engine accepted only bare row ids, so it skipped every card inside a
+    200 and the card snapped back. The engine now accepts the app's node ids and stores them as sent;
+    the app reads rows back under the same id.
+  - A card the engine cannot place (a node id for nothing) is reported, not silently dropped: the
+    app does not treat a skipped card as saved.
+  - Pinned by `test_the_apps_own_card_ids_are_saved_and_read_back` (engine, real `doc:` ids through
+    the real route).
+- `library.canvas.a-folder-previews-as-its-canvas` — **[MISSING]** (#5300) a selected folder shows in
+  the Preview as its own 2D canvas: its items as cards where they were last placed, movable there,
+  and the move is the same saved move as in the library's Canvas mode (one layout per folder, one
+  write path). Clicking a card selects that item, and the Preview then shows the item. Depends on
+  `library.canvas.positions-persist`: a canvas that forgets what you moved teaches the wrong thing.
 - `library.canvas.trackpad-scroll-pans` — **[BROKEN]** (#4408) two-finger trackpad scroll
   should pan the canvas with no modifier — the platform convention every Mac trackpad app
   (Preview, Maps, Freeform, Figma, Photos) follows — while panning today requires holding

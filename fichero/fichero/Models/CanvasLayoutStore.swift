@@ -237,9 +237,19 @@ final class CanvasLayoutStore {
             case .ok(let okResponse):
                 // Reconcile, but only while this is still the newest save — a
                 // slower earlier response must not overwrite a later drag.
-                let echoed = try okResponse.body.json.items.map(CanvasItemLayout.init(schema:))
+                let json = try okResponse.body.json
+                let echoed = try json.items.map(CanvasItemLayout.init(schema:))
                 if saveSequence[folderId] == sequence {
                     layouts[folderId] = echoed
+                }
+                // A 200 can still leave cards unsaved: the engine skips an id it cannot place. That
+                // was read as success, so every card snapped back with no word said (#5301).
+                if let skipped = json.skipped, !skipped.isEmpty {
+                    loadError = skipped.count == 1
+                        ? "A card could not be placed."
+                        : "\(skipped.count) cards could not be placed."
+                    log.error("Canvas layout skipped \(skipped.map(\.itemId).joined(separator: ", "), privacy: .public)")
+                    return false
                 }
                 log.info("Saved \(echoed.count, privacy: .public) canvas items")
                 return true

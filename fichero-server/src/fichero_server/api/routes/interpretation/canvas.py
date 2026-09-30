@@ -103,7 +103,21 @@ def _load_canvas_layout(db: Database, folder_id: str) -> list[CanvasLayout]:
     return list(rows.values())
 
 
+#: The app names a card by its canvas NODE id: `doc:<id>` for a document, `entity:<id>` for an
+#: entity (`SpatialLibraryProjector.nodeId`), and saves and reads its position under that id. Each
+#: prefix names the one table the rest of the id must be a row of (#5301).
+_CANVAS_NODE_PREFIXES = {"doc:": Document, "entity:": KnowledgeEntity}
+
+
 def _canvas_placeable_exists(db: Database, item_id: str) -> bool:
+    """Whether `item_id` names something a canvas can place: a bare row id, or the app's node id.
+
+    A node id was never accepted (#5301): every document card was skipped inside a 200 and snapped
+    back after the drop. It is stored as sent, so the app reads it back under the id it looks for.
+    """
+    for prefix, model in _CANVAS_NODE_PREFIXES.items():
+        if item_id.startswith(prefix):
+            return db.get(model, item_id[len(prefix):]) is not None
     return (
         db.get(Document, item_id) is not None
         or db.get(CanvasItem, item_id) is not None
