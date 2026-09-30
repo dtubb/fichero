@@ -22,7 +22,9 @@ struct SegmentsGatherTests {
             .init(id: "a2", handId: "h1", certainty: nil, judgedBy: nil, fromFile: "file: 0065.xml", segmentId: "l9"),
             .init(id: "a3", handId: "h1", certainty: nil, judgedBy: "owner", fromFile: nil, segmentId: "gone")
         ], segments: ["l1": segment("l1", document: "p1", text: "ܐܒܪܗܡ"), "l9": segment("l9", document: "p2", text: "ܝܥܩܘܒ")])
-        #expect(rows.map(\.title) == ["Line · ܐܒܪܗܡ", "Line · ܝܥܩܘܒ", "Segment 3"])
+        // A segment's words are always bidi-isolated in its label (#5199), so a right-to-left word
+        // cannot reorder the "Line ·" around it.
+        #expect(rows.map(\.title) == ["Line · \u{2068}ܐܒܪܗܡ\u{2069}", "Line · \u{2068}ܝܥܩܘܒ\u{2069}", "Segment 3"])
         #expect(rows.map(\.documentId) == ["p1", "p2", nil])
         #expect(rows.map(\.detail) == ["judged by owner · sure 80%", "from the file 0065.xml",
                                        "judged by owner · its segment could not be read"])

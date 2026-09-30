@@ -241,7 +241,9 @@ struct WorkflowRunScopeTests {
         // The preserve-write moved into `rememberRunSelection`
         // (ContentView+SidebarRunSelection.swift, 2026-08-15): StateEvents
         // routes through it, and the write itself lives with the #4523 rule.
-        #expect(events.contains("rememberRunSelection(newSelection)"))
+        // The selection handlers moved out of StateEvents in a file-length split.
+        let selectionEvents = try Self.appSource("Views/Shell/ContentView/ContentView+SelectionAndDetailEvents.swift")
+        #expect(selectionEvents.contains("rememberRunSelection(newSelection)"))
         let runSelection = try Self.appSource("Views/Shell/ContentView/ContentView+SidebarRunSelection.swift")
         #expect(runSelection.contains("windowState.preservedDocumentSelection = Array(newSelection)"))
 
