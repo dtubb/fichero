@@ -1,3 +1,5 @@
+@testable import Fichero
+import SwiftUI
 import XCTest
 
 /// Source-surface test for the sidebar bottom toolbar's mini-toolbar
@@ -18,7 +20,7 @@ final class SidebarBottomToolbarSurfaceTests: XCTestCase {
         XCTAssertTrue(source.contains("overflowMenu: {"))
         XCTAssertTrue(source.contains("private var overflowMenu: some View"))
         // PaneFilterBar owns the shared Liquid Glass/material chrome.
-        XCTAssertTrue(source.contains("PaneFilterBar { adaptiveActionRow }"))
+        XCTAssertTrue(source.contains("PaneFilterBar {"))
     }
 
     func testOverflowMirrorsSecondaryActions() throws {
@@ -74,8 +76,9 @@ final class SidebarBottomToolbarSurfaceTests: XCTestCase {
     /// #4061: the sidebar filter field lives inside the shared bottom
     /// `MiniToolbar` — one unified bottom toolbar owns the filter + the
     /// sidebar-scoped actions. The filter `TextField` + its clear button
-    /// must be members of `SidebarBottomToolbar`, routed through the shared
-    /// `AdaptiveMiniToolbarRow` essential tier.
+    /// must be members of `SidebarBottomToolbar`, in the same bar as the
+    /// verbs. NOT inside the `AdaptiveMiniToolbarRow` tiers (#5293): see
+    /// `SidebarFilterFieldKeepsFocusTests` for what that broke.
     func testSidebarFilterLivesInSharedBottomMiniToolbar() throws {
         let source = try Self.appSource("Views/Sidebar/Sections/SidebarBottomToolbar.swift")
         // The toolbar holds a binding to the filter text — same state/bindings
@@ -88,12 +91,10 @@ final class SidebarBottomToolbarSurfaceTests: XCTestCase {
         // The clear button is part of the same field, shown only with text.
         XCTAssertTrue(source.contains("help(\"Clear filter\")"))
         XCTAssertTrue(source.contains("accessibilityLabel(\"Clear filter\")"))
-        // The filter field is placed in the essential tier, ahead of the
-        // New-item / Delete verbs — one unified row, not a separate bar.
+        // The New-item / Delete verbs stay in the essential tier of the same bar.
         let essentialStart = try XCTUnwrap(source.range(of: "private var essentialButtons: some View"))
         let essentialEnd = try XCTUnwrap(source.range(of: "private var secondaryButtons: some View"))
         let essentialBlock = String(source[essentialStart.upperBound..<essentialEnd.lowerBound])
-        XCTAssertTrue(essentialBlock.contains("filterField"), "filter field must live in the essential tier")
         XCTAssertTrue(essentialBlock.contains("New Item"), "New Item verb stays in the essential tier")
         XCTAssertTrue(essentialBlock.contains("Remove selected item"), "Delete verb stays in the essential tier")
     }
@@ -115,3 +116,83 @@ final class SidebarBottomToolbarSurfaceTests: XCTestCase {
                       "SidebarBottomToolbar must receive the sidebarFilterText binding")
     }
 }
+
+#if os(macOS)
+/// #5293: the sidebar Filter field beeped and did not filter.
+///
+/// WHY this test exists: the field used to sit inside `AdaptiveMiniToolbarRow`,
+/// a `ViewThatFits` ladder whose rungs are separate copies of their content. A
+/// text field's ideal width grows as you type, so at sidebar widths of roughly
+/// 228 to 320 pt a keystroke moved the row to the next rung; that mounted a NEW
+/// field without focus, and the next key went nowhere (the beep). If this test
+/// goes red, a text field is back inside a rung: move the field out, do not
+/// loosen the test.
+///
+/// It types into the REAL toolbar, in a window that is never shown.
+@MainActor
+final class SidebarFilterFieldKeepsFocusTests: XCTestCase {
+    private struct Host: View {
+        @State var text = ""
+        let width: CGFloat
+
+        var body: some View {
+            SidebarBottomToolbar(
+                itemRegistry: ItemTypeRegistry(),
+                importFiles: { _ in },
+                sidebarFilterText: $text
+            )
+            .frame(width: width)
+        }
+    }
+
+    private func editableField(in view: NSView) -> NSTextField? {
+        if let field = view as? NSTextField, field.isEditable { return field }
+        return view.subviews.lazy.compactMap { self.editableField(in: $0) }.first
+    }
+
+    /// What landed in the field when `typed` is keyed in one character at a time.
+    private func type(_ typed: String, atWidth width: CGFloat) throws -> String {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: width, height: 60),
+            styleMask: [.borderless], backing: .buffered, defer: false
+        )
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        let host = NSHostingView(rootView: Host(width: width))
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+
+        let field = try XCTUnwrap(editableField(in: host), "no filter field at width \(width)")
+        window.makeFirstResponder(field)
+        var landed = ""
+        for character in typed {
+            guard let editor = window.firstResponder as? NSTextView, editor.isFieldEditor else { break }
+            editor.insertText(String(character), replacementRange: NSRange(location: NSNotFound, length: 0))
+            landed.append(character)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.03))
+        }
+        return landed
+    }
+
+    func testTypingAFilterKeepsTheFieldFocusedAtEverySidebarWidth() throws {
+        let typed = "marshall diary"
+        // From narrower than the sidebar's minimum to wider than its default,
+        // in steps small enough to land on every rung boundary.
+        for width in stride(from: CGFloat(160), through: 420, by: 8) {
+            XCTAssertEqual(
+                try type(typed, atWidth: width), typed,
+                "at a \(Int(width)) pt sidebar the filter field lost focus mid-word"
+            )
+        }
+    }
+
+    func testTheFieldKeepsRoomToTypeInANarrowSidebar() throws {
+        let host = NSHostingView(rootView: Host(width: 160))
+        host.frame = NSRect(x: 0, y: 0, width: 160, height: 60)
+        host.layoutSubtreeIfNeeded()
+        let field = try XCTUnwrap(editableField(in: host))
+        XCTAssertGreaterThanOrEqual(field.frame.width, 24, "the verbs squeezed the filter field away")
+    }
+}
+#endif

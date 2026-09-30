@@ -48,8 +48,24 @@ struct SidebarBottomToolbar: View {
     }
 
     var body: some View {
-        PaneFilterBar { adaptiveActionRow }
+        // The filter field sits BESIDE the adaptive row, never inside it
+        // (#5293). `AdaptiveMiniToolbarRow` is a `ViewThatFits` ladder: each
+        // rung is a separate copy of its content, and a field's ideal width
+        // grows as you type, so typing moved the row to the next rung, which
+        // mounted a NEW unfocused field — the next key beeped. Out here the
+        // field is one view for the life of the bar. The row takes priority
+        // so it picks its rung from the full width less the field's minimum;
+        // the field gets whatever is left.
+        PaneFilterBar {
+            filterField
+                .frame(minWidth: Self.filterFieldMinWidth)
+            adaptiveActionRow
+                .layoutPriority(1)
+        }
     }
+
+    /// Room for the magnifier and a few typed characters in the narrowest sidebar.
+    private static var filterFieldMinWidth: CGFloat { 60 }
 
     /// The action row on the shared AdaptiveMiniToolbarRow (#3058, parent #2670):
     /// essential verbs inline, secondary verbs into a trailing '…' menu when the
@@ -64,8 +80,8 @@ struct SidebarBottomToolbar: View {
         }
     }
 
-    /// The sidebar filter field, integrated into the bottom toolbar's essential
-    /// tier (#4061). Replaces the old standalone `sidebarFilterBar` so the
+    /// The sidebar filter field, integrated into the bottom toolbar (#4061),
+    /// leading the action row. Replaces the old standalone `sidebarFilterBar` so the
     /// sidebar has one unified bottom toolbar owning the filter + actions,
     /// matching the shared Surface Chrome pattern. The clear button appears
     /// only when there's text to clear — a small in-place update, no list
@@ -91,15 +107,10 @@ struct SidebarBottomToolbar: View {
         }
     }
 
-    /// Essential verbs — always inline (#3058): the filter field, then the
-    /// New-item menu + Delete. The leading `Spacer` separates the filter from
-    /// the actions so the filter sits on the left and the verbs on the right.
+    /// Essential verbs — always inline (#3058): the New-item menu + Delete.
+    /// No text field in here: every rung of the ladder is its own copy (#5293).
     @ViewBuilder
     private var essentialButtons: some View {
-        filterField
-
-        Spacer(minLength: 12)
-
         // New item menu (dropdown) — ONE source of truth (#4121).
         Menu {
                 AddItemMenu(registry: itemRegistry, style: .contextual)
