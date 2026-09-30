@@ -187,7 +187,9 @@ extension LibraryView {
                         acceptsDrop: doc.acceptsItemDrops,
                         onDropProviders: { providers in handleFolderCellDrop(providers, into: doc) }
                     ))
-                    .onTapGesture(count: 2) { handleDoubleClick(doc) }
+                    // Simultaneous, so the single click below selects at once instead of waiting out
+                    // the double-click interval (#5276); the double still opens (#5278).
+                    .simultaneousGesture(TapGesture(count: 2).onEnded { handleDoubleClick(doc) })
                     .onTapGesture { handleColumnTap(doc, depth: depth) }
                     // Menu built at OPEN, not per render (#4544 pattern).
                     .contextMenu { SidebarDeferredMenuContent { documentContextMenu(for: doc) } }

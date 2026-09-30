@@ -234,6 +234,21 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertTrue(source.contains("openWindow(id: \"artifact-detail\")"))
     }
 
+    /// #5276/#5278: `onTapGesture(count: 2)` stacked over `onTapGesture` makes SwiftUI hold every
+    /// single click until the double-click interval passes, so selecting a tile or row lagged.
+    /// Every library browse mode opens on a SIMULTANEOUS double tap instead.
+    func testLibraryBrowseModesDoNotHoldSingleClicks() throws {
+        for path in [
+            "Views/Library/ViewModes/List/LibraryView+ListView.swift",
+            "Views/Library/ViewModes/Icon/LibraryView+IconMode.swift",
+            "Views/Library/ViewModes/Columns/LibraryView+ColumnsView.swift",
+        ] {
+            let source = try Self.appSource(path)
+            XCTAssertFalse(source.contains(".onTapGesture(count: 2)"), path)
+            XCTAssertTrue(source.contains(".simultaneousGesture(TapGesture(count: 2)"), path)
+        }
+    }
+
     func testInspectorListsUseFullRowContentShapes() throws {
         let inspectorSource = try Self.appSource("Views/Inspector/Document/DocumentInspector.swift")
         let artifactList = try Self.appSource("Views/Inspector/Artifacts/ArtifactListView.swift")

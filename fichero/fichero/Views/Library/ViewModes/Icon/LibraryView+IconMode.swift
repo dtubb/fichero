@@ -97,9 +97,11 @@ extension LibraryView {
                                     scale: CGFloat(effectiveIconScale)
                                 )
                                 .id(entityId)
-                                .onTapGesture(count: 2) {
+                                // Simultaneous, so the single click below selects at once instead of waiting out
+                                // the double-click interval (#5276); the double still opens (#5278).
+                                .simultaneousGesture(TapGesture(count: 2).onEnded {
                                     handleEntityDoubleClick(entity)
-                                }
+                                })
                                 .onTapGesture {
                                     handleEntityTap(entity)
                                 }
@@ -168,9 +170,11 @@ extension LibraryView {
                                         handleFolderCellDrop(providers, into: doc)
                                     }
                                 ))
-                                .onTapGesture(count: 2) {
+                                // Simultaneous, so the single click below selects at once instead of waiting out
+                                // the double-click interval (#5276); the double still opens (#5278).
+                                .simultaneousGesture(TapGesture(count: 2).onEnded {
                                     handleDoubleClick(doc)
-                                }
+                                })
                                 .onTapGesture {
                                     handleTap(doc)
                                     onRequestFocus()
