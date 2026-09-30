@@ -138,7 +138,8 @@ struct ReaderSearchPassageLandingTests {
     func theShellMarksItsSearchAnchor() throws {
         let source = try String(
             contentsOf: AppSource.root()
-                .appendingPathComponent("Views/Shell/ContentView/ContentView+StateEvents.swift"),
+                // Moved out of StateEvents in a file-length split.
+                .appendingPathComponent("Views/Shell/ContentView/ContentView+SelectionAndDetailEvents.swift"),
             encoding: .utf8
         )
         let post = try #require(

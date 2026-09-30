@@ -256,7 +256,8 @@ struct ReportedSymptomRegressionPins {
 
     @Test("F2: page focus clears only when the document IDENTITY changes")
     func pageFocusClearIsIdentityGated() throws {
-        let events = try source("fichero/Views/Shell/ContentView/ContentView+StateEvents.swift")
+        // The detail-document handler moved to its own file in a file-length split.
+        let events = try source("fichero/Views/Shell/ContentView/ContentView+SelectionAndDetailEvents.swift")
         #expect(
             events.contains("if oldDoc?.id != newDoc?.id {"),
             "the unconditional pageFocusDocument clear is back — every background refresh snaps the reader to page 1 (#4558)"

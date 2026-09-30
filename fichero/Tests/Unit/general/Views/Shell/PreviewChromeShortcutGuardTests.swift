@@ -1,3 +1,4 @@
+@testable import Fichero
 import Foundation
 import Testing
 
@@ -179,8 +180,13 @@ struct PreviewMarkupRowOrderGuardTests {
         // against nothing (ruling 2). Join additionally needs two.
         // The FOCUSED pane's selection (#5020): never an app-wide one.
         #expect(source.contains("let selection = windowState?.focusedRegionSelection ?? RegionSelection()"))
-        #expect(source.contains("if !selection.isEmpty"))
-        #expect(source.contains("if selection.count >= 2 {"))
+        // The gate moved into SegmentVerbs.offered, which the row shows as given: pin the rule itself.
+        #expect(source.contains("SegmentVerbs.offered("))
+        #expect(!SegmentVerbs.offered(.all, isEditing: true, selectionCount: 0).contains("previewMarkupDelete"))
+        #expect(SegmentVerbs.offered(.all, isEditing: true, selectionCount: 1).contains("previewMarkupDelete"))
+        #expect(!SegmentVerbs.offered(.all, isEditing: true, selectionCount: 1).contains("previewMarkupCombine"))
+        #expect(SegmentVerbs.offered(.all, isEditing: true, selectionCount: 2).contains("previewMarkupCombine"))
+        #expect(SegmentVerbs.offered(.all, isEditing: false, selectionCount: 2).isEmpty, "reading, a selection is for reading")
     }
 }
 

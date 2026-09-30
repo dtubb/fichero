@@ -381,7 +381,8 @@ struct SearchPassageAnchorTests {
 
     @Test("hit selection posts the excerpt anchor on the readerTextSelection seam")
     func selectionPostsAnchor() throws {
-        let events = try appSource("Views/Shell/ContentView/ContentView+StateEvents.swift")
+        // The selection and detail handlers moved to their own file in a file-length split.
+        let events = try appSource("Views/Shell/ContentView/ContentView+SelectionAndDetailEvents.swift")
         #expect(events.contains("func postSearchPassageAnchor"))
         #expect(events.contains("guard activeSearchQuery != nil"),
                 "the passage light must engage only while results show")
