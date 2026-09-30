@@ -25,7 +25,11 @@ def test_group_and_ungroup_restore_each_child_parent_and_order(client, db, monke
     group = db.get(Document, group_id)
     assert group.parent_id == left_parent.id
     assert group.sort_order == 3
-    assert emitted == [{
+    # Since #5303 the group is an audited action, and its event carries who did it (actor,
+    # origin) like every other audited document edit; what the windows act on is below.
+    assert [
+        {key: event[key] for key in ("library_path", "type", "document_ids")} for event in emitted
+    ] == [{
         "library_path": str(db.path.parent),
         "type": "document.updated",
         "document_ids": [group_id, first.id, second.id],
@@ -38,7 +42,7 @@ def test_group_and_ungroup_restore_each_child_parent_and_order(client, db, monke
     assert db.get(Document, second.id).parent_id == right_parent.id
     assert db.get(Document, second.id).sort_order == 7
     assert db.get(Document, group_id) is None
-    assert emitted[1] == {
+    assert {key: emitted[1][key] for key in ("library_path", "type", "document_ids")} == {
         "library_path": str(db.path.parent),
         "type": "document.updated",
         "document_ids": [group_id, first.id, second.id],

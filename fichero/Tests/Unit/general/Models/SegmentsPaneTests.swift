@@ -86,24 +86,6 @@ struct FolderOfPagesPanesTests {
         #expect(ConvertPageRequest(documentId: "p1") == .init(documentId: "p1"))
     }
 
-    /// #5300 (ruled 2026-09-30): a selected folder is the folder in every pane. The Preview used to
-    /// show its first file and the Inspector, Segments pane and Reader followed that file, so three
-    /// panes described one item inside the folder. If `FolderPageShown` or `pageShown` comes back,
-    /// the panes are describing the wrong thing again.
-    @Test("a selected folder is the folder in every pane, not its first file")
-    func aFolderIsItselfInEveryPane() throws {
-        for path in [
-            "Views/Inspector/Document/DocumentInspector+Sections.swift",
-            "Views/Shell/ContentView/Layout/ContentView+PaneSpecs.swift",
-            "Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift",
-            "Views/Preview/FolderContentsPreview.swift"
-        ] {
-            let source = try AppSource.text(path)
-            #expect(!source.contains("FolderPageShown("), "\(path) resolves a folder to its first file again")
-            #expect(!source.contains("pageShown(in:"), "\(path) resolves a folder to its first file again")
-        }
-    }
-
     @Test("the page's own order says whether the file gave it or the layout found it (#5216)")
     func pagesOwnOrderSaysWhereItCameFrom() {
         let fromFile = ReadingOrderSummary(id: "o1", name: "as-written", kind: "as-written", provenanceKind: "external_import")

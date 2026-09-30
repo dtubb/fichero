@@ -3727,20 +3727,32 @@ class DocumentGroupRequest(BaseModel):
     child_ids: list[str] = Field(min_length=2)
 
 
-@router.post("/groups", response_model=Document)
-async def create_document_group(
-    payload: DocumentGroupRequest,
-    db: Database = Depends(get_library_database_for_write),
-) -> Document:
-    """Create a reversible logical stack without modifying source children."""
-    child_ids = list(dict.fromkeys(payload.child_ids))
+class DocumentGroupParams(DocumentGroupRequest):
+    """Params for document.group."""
+
+    group_id: str | None = Field(
+        default=None,
+        description="Id for the group node; set by the undo of an ungroup so the letter comes back under the id everything points at",
+    )
+
+
+class DocumentUngroupParams(BaseModel):
+    """Params for document.ungroup."""
+
+    group_id: str
+
+
+def group_documents_impl(db: Database, params: DocumentGroupParams) -> Document:
+    """Make one reversible group node (a letter that holds its pages) without touching the pages."""
+    child_ids = list(dict.fromkeys(params.child_ids))
     if len(child_ids) < 2:
         raise HTTPException(status_code=422, detail="A group requires two distinct children")
     children = [db.get(Document, child_id) for child_id in child_ids]
     if any(child is None for child in children):
         raise HTTPException(status_code=404, detail="One or more group children were not found")
     group = Document(
-        name=payload.name,
+        **({"id": params.group_id} if params.group_id else {}),
+        name=params.name,
         doc_type=DocType.group,
         node_kind="group",
         # The stack takes the children's place (user, live 2026-08-19): it
@@ -3760,20 +3772,11 @@ async def create_document_group(
     for child in children:
         child.parent_id = group.id
         db.save(child)
-    emit_change(
-        str(db.path.parent),
-        type="document.updated",
-        document_ids=[group.id, *child_ids],
-    )
     return group
 
 
-@router.post("/groups/{group_id}/ungroup", response_model=list[Document])
-async def ungroup_document(
-    group_id: str,
-    db: Database = Depends(get_library_database_for_write),
-) -> list[Document]:
-    """Restore every stack member to its original parent and order."""
+def ungroup_document_impl(db: Database, group_id: str) -> tuple[Document, list[Document]]:
+    """Return every member to its original parent and order, and remove the group node."""
     group = db.get(Document, group_id)
     if group is None or group.doc_type != DocType.group:
         raise HTTPException(status_code=404, detail=f"Document group not found: {group_id}")
@@ -3788,9 +3791,94 @@ async def ungroup_document(
         db.save(child)
         restored.append(child)
     db.delete(group)
-    emit_change(
-        str(db.path.parent),
-        type="document.updated",
-        document_ids=[group.id, *(child.id for child in restored)],
+    return group, restored
+
+
+def _invert_group(before: dict | None, after: dict | None, ctx: ActionContext) -> tuple[str, dict] | None:
+    group_id = (after or {}).get("id")
+    return ("document.ungroup", {"group_id": group_id}) if group_id else None
+
+
+def _invert_ungroup(before: dict | None, after: dict | None, ctx: ActionContext) -> tuple[str, dict] | None:
+    # Re-group the same members, in the same order, under the SAME id.
+    if not before or not before.get("member_ids"):
+        return None
+    return (
+        "document.group",
+        {"name": before["name"], "child_ids": before["member_ids"], "group_id": before["id"]},
     )
-    return restored
+
+
+@action(
+    "document.group",
+    DocumentGroupParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_group,
+)
+def _action_group_documents(
+    db: Database, params: DocumentGroupParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Group selected items into one node, a letter of several pages (#3535, #5303)."""
+    group = group_documents_impl(db, params)
+    member_ids = [member["id"] for member in (group.metadata or {}).get("group_members", [])]
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=[group.id, *member_ids],
+        after=group.model_dump(mode="json"),
+        emit_type="document.updated",
+        document_ids=[group.id, *member_ids],
+        emit_fn=_emit_document_change_spec,
+    )
+    return group.model_dump(mode="json"), spec
+
+
+@action(
+    "document.ungroup",
+    DocumentUngroupParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_ungroup,
+)
+def _action_ungroup_document(
+    db: Database, params: DocumentUngroupParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Return a group's members to where they were (#3535, #5303)."""
+    group, restored = ungroup_document_impl(db, params.group_id)
+    member_ids = [member["id"] for member in (group.metadata or {}).get("group_members", [])]
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=[group.id, *member_ids],
+        before={"id": group.id, "name": group.name, "member_ids": member_ids},
+        after={"restored_ids": [child.id for child in restored]},
+        emit_type="document.updated",
+        document_ids=[group.id, *(child.id for child in restored)],
+        emit_fn=_emit_document_change_spec,
+    )
+    return {"restored": [child.model_dump(mode="json") for child in restored]}, spec
+
+
+@router.post("/groups", response_model=Document)
+async def create_document_group(
+    payload: DocumentGroupRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> Document:
+    """Create a reversible logical stack without modifying source children (audited, undoable)."""
+    result = await _run_document_write(
+        registry.invoke, db, "document.group", payload.model_dump(mode="json"), ctx
+    )
+    return Document.model_validate(result.result)
+
+
+@router.post("/groups/{group_id}/ungroup", response_model=list[Document])
+async def ungroup_document(
+    group_id: str,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> list[Document]:
+    """Restore every stack member to its original parent and order (audited, undoable)."""
+    result = await _run_document_write(
+        registry.invoke, db, "document.ungroup", {"group_id": group_id}, ctx
+    )
+    return [Document.model_validate(child) for child in result.result["restored"]]

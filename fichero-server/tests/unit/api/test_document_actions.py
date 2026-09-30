@@ -884,3 +884,49 @@ class TestDocumentPurgeAndTrashActions:
         item_ids = [item["id"] for item in result.result["items"]]
         assert deleted.id in item_ids
         assert active.id not in item_ids
+
+
+class TestGroupActionsAreUndoable:
+    """#5303: a group node (a letter that holds its pages) is made and unmade by audited actions,
+    each the other's inverse, so ⌘Z undoes a Group and a Ungroup like any other edit. The routes
+    wrote straight to the database with no audit row: nothing could undo them, and nothing recorded
+    who grouped what. If this goes red, Edit ▸ Group is an edit ⌘Z cannot take back."""
+
+    def _letter(self, db):
+        left = _save_doc(db, name="Left", doc_type=DocType.folder)
+        right = _save_doc(db, name="Right", doc_type=DocType.folder)
+        first = _save_doc(db, name="Page one", parent_id=left.id, sort_order=3)
+        second = _save_doc(db, name="Page two", parent_id=right.id, sort_order=7)
+        return left, right, first, second
+
+    def test_group_is_audited_and_undo_puts_every_page_back(self, db, spy_emit):
+        left, right, first, second = self._letter(db)
+        ctx = _ctx()
+        result = registry.invoke(
+            db, "document.group", {"name": "Letter", "child_ids": [first.id, second.id]}, ctx
+        )
+        group_id = result.result["id"]
+        assert db.get(Document, group_id).doc_type == DocType.group
+        assert db.get(Document, first.id).parent_id == group_id
+        assert db.get(ActionAudit, result.audit_id).action_name == "document.group"
+
+        assert _invoke_inverse(db, result.audit_id, ctx) == "document.ungroup"
+        assert db.get(Document, group_id) is None
+        assert (db.get(Document, first.id).parent_id, db.get(Document, first.id).sort_order) == (left.id, 3)
+        assert (db.get(Document, second.id).parent_id, db.get(Document, second.id).sort_order) == (right.id, 7)
+
+    def test_ungroup_is_audited_and_undo_regroups_under_the_same_id(self, db, spy_emit):
+        _, _, first, second = self._letter(db)
+        ctx = _ctx()
+        group_id = registry.invoke(
+            db, "document.group", {"name": "Letter", "child_ids": [first.id, second.id]}, ctx
+        ).result["id"]
+        ungrouped = registry.invoke(db, "document.ungroup", {"group_id": group_id}, ctx)
+        assert db.get(Document, group_id) is None
+
+        assert _invoke_inverse(db, ungrouped.audit_id, ctx) == "document.group"
+        # The same id: anything that pointed at the letter (a note, a canvas position, a claim's
+        # source) still points at it after the undo.
+        regrouped = db.get(Document, group_id)
+        assert regrouped is not None and regrouped.name == "Letter"
+        assert [db.get(Document, i).parent_id for i in (first.id, second.id)] == [group_id, group_id]
