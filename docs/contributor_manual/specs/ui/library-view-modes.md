@@ -362,7 +362,7 @@ homeless until a map-view UI spec exists (#5128).
 
 ### I. Canvas & Space (legacy milestones "Library View - Spatial", "Library View - Canvas")
 
-- `library.canvas.positions-persist` — **[BROKEN]** (#5301) a card dropped on the Canvas or in Space
+- `library.canvas.positions-persist` — **[OK]** (c0fc9af1f, #5301) a card dropped on the Canvas or in Space
   stays where it was dropped: after the save returns, after leaving and re-entering the folder, and
   after a relaunch. One layout per folder scope (the whole library is `__library__`), stored in the
   library, so the arrangement travels with the library file.
@@ -382,11 +382,24 @@ homeless until a map-view UI spec exists (#5128).
   by one ⌘Z. Both canvases read the same saved places.
 - `library.canvas.arrange-by-date` — **[MISSING]** (#5302) *Date* orders cards by the document's own
   date where it is known (the Date column's key), else by when it was added, undated last.
-- `library.canvas.a-folder-previews-as-its-canvas` — **[MISSING]** (#5300) a selected folder shows in
+- `library.canvas.a-folder-previews-as-its-canvas` — **[PARTIAL]** (#5300) a selected folder shows in
   the Preview as its own 2D canvas: its items as cards where they were last placed, movable there,
   and the move is the same saved move as in the library's Canvas mode (one layout per folder, one
   write path). Clicking a card selects that item, and the Preview then shows the item. Depends on
   `library.canvas.positions-persist`: a canvas that forgets what you moved teaches the wrong thing.
+- `library.canvas.cards-take-clicks-and-drags` — **[PARTIAL]** (#5305) a press on a card selects it,
+  drags it or (twice) zooms it; a press on the empty board draws a rubber band; pressing one card of a
+  multiple selection moves the whole selection. Built 572719bca from the canvas's own hit test (the
+  entity-targeted gestures stopped reaching the cards); the resize handles are not on it yet.
+- `library.canvas.a-board-remembers-its-camera` — **[OK]** (572719bca) a board opens fitted to the pane
+  with margin; coming back to a folder returns to the centre and zoom the person left it at (kept per
+  Mac, not in the library).
+- `library.canvas.group-into-one-node` — **[MISSING]** (#5303) selecting cards and grouping them (⌘G)
+  makes one compound node that contains them in order (a letter of several pages), shown and moved as
+  one unit on the canvas. Spec first: it is a node-model change.
+- `library.rotate.command-r-and-l` — **[MISSING]** (#5304) ⌘R / ⌘L rotate the selected images 90°
+  right / left in the library (every mode), the Preview and the canvas, through the image editor's
+  one rotate action.
 - `library.canvas.trackpad-scroll-pans` — **[BROKEN]** (#4408) two-finger trackpad scroll
   should pan the canvas with no modifier — the platform convention every Mac trackpad app
   (Preview, Maps, Freeform, Figma, Photos) follows — while panning today requires holding
