@@ -164,3 +164,48 @@ def test_openapi_30_has_no_numeric_exclusive_bounds():
                 walk(item)
 
     walk(exporter.build_openapi_schema())
+
+
+def test_committed_contract_matches_the_code():
+    """The committed contract IS what the engine serves, request and response shapes included (#4989).
+
+    What breaks without it: on 2026-09-20 three routes (segments merge/split/carry) each gained a
+    REQUIRED request field and every contract check stayed green, because they compared names,
+    routes or the copies with each other, never the committed document with the code. The
+    generated Swift client and the command-line surface went stale with nothing red. On 2026-09-30
+    the same blind spot hid two new request headers on the group routes.
+
+    ``info.version`` is left out: it is stamped from pyproject and has its own guard
+    (``check_openapi_version_current.py``). The fix for a failure is the regeneration, never an edit:
+    ``FICHERO_PYTHON_BIN=<venv>/bin/python ./fichero-server/scripts/sync_openapi_schema.sh``.
+    """
+    exporter = _load_exporter()
+    live = json.loads(json.dumps(exporter.build_openapi_schema()))
+    contract_path = Path(__file__).resolve().parents[2] / "contracts" / "openapi.json"
+    committed = json.loads(contract_path.read_text(encoding="utf-8"))
+    for document in (live, committed):
+        document.get("info", {}).pop("version", None)
+
+    drift = [
+        f"{method.upper()} {path}"
+        for path in sorted(set(live["paths"]) | set(committed["paths"]))
+        for method in sorted(set(live["paths"].get(path, {})) | set(committed["paths"].get(path, {})))
+        if live["paths"].get(path, {}).get(method) != committed["paths"].get(path, {}).get(method)
+    ]
+    live_schemas = live.get("components", {}).get("schemas", {})
+    committed_schemas = committed.get("components", {}).get("schemas", {})
+    drift += [
+        f"schema {name}"
+        for name in sorted(set(live_schemas) | set(committed_schemas))
+        if live_schemas.get(name) != committed_schemas.get(name)
+    ]
+    drift += [
+        f"top-level {key}"
+        for key in sorted(set(live) | set(committed))
+        if key not in {"paths", "components"} and live.get(key) != committed.get(key)
+    ]
+    assert not drift, (
+        "The committed contract differs from the code at: " + ", ".join(drift[:25])
+        + (f" (+{len(drift) - 25} more)" if len(drift) > 25 else "")
+        + ". Regenerate with fichero-server/scripts/sync_openapi_schema.sh; never hand-edit."
+    )
