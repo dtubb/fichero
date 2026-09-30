@@ -9,16 +9,18 @@ from fichero_server.models.knowledge import Annotation, AnnotationKind
 from fichero_server.workflows.tools import annotations_source as tool
 
 
+
+
 def test_source_without_library_path_is_empty():
     result = asyncio.run(tool.annotations_source_tool({}, {}, object()))
 
     assert result == {"files": [], "documents": [], "count": 0}
 
 
-def test_source_without_selected_documents_is_empty(monkeypatch):
+def test_source_without_selected_documents_is_empty(monkeypatch, tmp_path):
     result = asyncio.run(
         tool.annotations_source_tool(
-            {}, {"library_path": "/tmp/lib", "selected_doc_ids": []}, object()
+            {}, {"library_path": _new_library(tmp_path), "selected_doc_ids": []}, object()
         )
     )
 
@@ -69,3 +71,13 @@ def test_source_emits_text_crop_with_annotation_metadata(monkeypatch):
     assert result["documents"][0]["crop_kind"] == "text"
     assert result["documents"][0]["annotation_text"] == "marked"
     assert result["files"][0].endswith(".txt")
+
+
+def _new_library(tmp_path) -> str:
+    """A real, empty library. Opening a path no longer creates a library (#5136), so a made-up
+    path like "/tmp/lib" now fails the lookup the code does before it gets to what is tested."""
+    from fichero_server.db import db_manager
+
+    path = tmp_path / "lib.fichero"
+    db_manager.get_database(path, create=True)
+    return str(path)

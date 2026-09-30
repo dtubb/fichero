@@ -15,6 +15,8 @@ import pytest
 
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.tools.vision_base import (
+
+
     VisionToolConfig,
     _is_non_retriable_provider_error,
     process_vision,
@@ -116,7 +118,7 @@ async def test_pdf_with_existing_page_content_skips_vision(tmp_path: Path) -> No
             documents=documents,
             prompt="Transcribe.",
             llm_config=_make_llm_config(),
-            library_path="/tmp/lib",
+            library_path=_new_library(tmp_path),
             task_id=None,
             tool_config=_tool_config(),
             vision_mode="llm",
@@ -489,7 +491,7 @@ async def test_per_page_fan_out_uses_page_content_when_path_is_nil(tmp_path: Pat
             documents=documents,
             prompt="Transcribe.",
             llm_config=_make_llm_config(),
-            library_path="/tmp/lib",
+            library_path=_new_library(tmp_path),
             task_id=None,
             tool_config=_tool_config(),
             vision_mode="llm",
@@ -642,3 +644,13 @@ async def test_matching_transcription_not_replaced(tmp_path: Path) -> None:
 
     ml.assert_not_called()
     assert full_text.strip() in result["text"]
+
+
+def _new_library(tmp_path) -> str:
+    """A real, empty library. Opening a path no longer creates a library (#5136), so a made-up
+    path like "/tmp/lib" now fails the lookup the code does before it gets to what is tested."""
+    from fichero_server.db import db_manager
+
+    path = tmp_path / "lib.fichero"
+    db_manager.get_database(path, create=True)
+    return str(path)

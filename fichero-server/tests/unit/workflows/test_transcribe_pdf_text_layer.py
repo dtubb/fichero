@@ -20,6 +20,8 @@ import pytest
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.tools.vision_base import VisionToolConfig, process_vision
 
+
+
 # process_vision renders PDF pages to images via Quartz (macOS-only); on Linux
 # CI the render fails ("No module named 'Quartz'") before the mocked vision call
 # is reached. Use a built-in skipif (always honored at collection) rather than a
@@ -291,7 +293,7 @@ async def test_image_only_pdf_page_child_routes_to_apple_vision_page(
             documents=documents,
             prompt="Transcribe.",
             llm_config=_apple_llm_config(),
-            library_path="/tmp/fichero-test-lib-1274",
+            library_path=_new_library(tmp_path),
             task_id=None,
             tool_config=_tool_config(),
             vision_mode="auto",
@@ -349,7 +351,7 @@ async def test_pdf_text_layer_page_child_uses_only_that_page(
             documents=documents,
             prompt="Transcribe.",
             llm_config=_apple_llm_config(),
-            library_path="/tmp/fichero-test-lib-1274",
+            library_path=_new_library(tmp_path),
             task_id=None,
             tool_config=_tool_config(),
             vision_mode="auto",
@@ -412,7 +414,7 @@ async def test_llm_vision_multipage_pdf_processes_all_pages(tmp_path: Path) -> N
             documents=[{"id": "parent-pdf", "path": str(pdf)}],
             prompt="Transcribe.",
             llm_config=_llm_config(),
-            library_path="/tmp/fichero-test-2215",
+            library_path=_new_library(tmp_path),
             task_id=None,
             tool_config=_tool_config(),
             vision_mode="llm",
@@ -472,3 +474,13 @@ async def test_user_edited_page_content_outranks_stored_raw_ocr(tmp_path: Path) 
 
     assert result["text"] == "CORRECTED by hand"
     vision_mock.assert_not_awaited()
+
+
+def _new_library(tmp_path) -> str:
+    """A real, empty library. Opening a path no longer creates a library (#5136), so a made-up
+    path like "/tmp/lib" now fails the lookup the code does before it gets to what is tested."""
+    from fichero_server.db import db_manager
+
+    path = tmp_path / "lib.fichero"
+    db_manager.get_database(path, create=True)
+    return str(path)

@@ -11,6 +11,8 @@ from fichero_server.llm.multilingual import LanguageDetectionResult
 from fichero_server.workflows.tools import language_identification as tool
 
 
+
+
 def test_split_text_preserves_paragraphs_and_splits_oversized_content():
     assert tool._split_text("", 10) == []
     assert tool._split_text("one\n\ntwo", 20) == ["one\n\ntwo"]
@@ -67,7 +69,7 @@ async def test_language_identification_returns_explicit_empty_input_error():
 
 
 @pytest.mark.asyncio
-async def test_language_identification_persists_first_document_artifact(monkeypatch):
+async def test_language_identification_persists_first_document_artifact(monkeypatch, tmp_path):
     saved = AsyncMock(return_value="artifact-1")
     monkeypatch.setattr(tool, "save_artifact", saved)
     monkeypatch.setattr(
@@ -78,10 +80,20 @@ async def test_language_identification_persists_first_document_artifact(monkeypa
 
     result = await tool.language_identification(
         {"text": "bonjour", "documents": [{"id": "doc-1", "path": "/tmp/a.txt"}]},
-        {"library_path": "/tmp/library.fichero", "task_id": "task-1"},
+        {"library_path": _new_library(tmp_path), "task_id": "task-1"},
         LLMConfig(provider="test", model="test"),
     )
 
     assert result["artifacts"] == ["artifact-1"]
     assert saved.await_args.kwargs["document_id"] == "doc-1"
     assert saved.await_args.kwargs["metadata_field"] == "language_detection"
+
+
+def _new_library(tmp_path) -> str:
+    """A real, empty library. Opening a path no longer creates a library (#5136), so a made-up
+    path like "/tmp/lib" now fails the lookup the code does before it gets to what is tested."""
+    from fichero_server.db import db_manager
+
+    path = tmp_path / "lib.fichero"
+    db_manager.get_database(path, create=True)
+    return str(path)
