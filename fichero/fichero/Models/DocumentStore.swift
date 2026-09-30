@@ -473,6 +473,11 @@ final class DocumentStore {
         let libraryPath = self.api.currentLibraryPath ?? "nil"
         logger.info("loadChildren called for document: \(document.id), library path: \(libraryPath)")
 
+        // Show what is already known at once (#5276): a folder visited before, or one the
+        // sidebar prefetched, draws its rows this frame; the fetch below refreshes them in place.
+        let cached = childrenCache[document.id]
+        if let cached { currentDocuments = cached }
+
         do {
             let children = applyStatusOverrides(
                 try await fetchWithRetry {
@@ -504,7 +509,8 @@ final class DocumentStore {
                     currentDocuments = applyStatusOverrides(collections)
                 } else {
                     self.error = error
-                    self.currentDocuments = []
+                    // Rows already on screen from the cache stay; only an unknown folder blanks.
+                    self.currentDocuments = cached ?? []
                 }
             }
         }
