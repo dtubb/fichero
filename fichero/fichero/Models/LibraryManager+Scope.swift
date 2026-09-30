@@ -77,7 +77,11 @@ extension LibraryManager.LibraryReference {
             noteService,
             annotationService,
             actionsService,
-            renditionService
+            renditionService,
+            // Scoped too (DocumentScopeGuardTests): a view reaching its library through either
+            // one found none, silently, because they were missing here.
+            segmentService,
+            readingOrderService
         ]
     }
 }
