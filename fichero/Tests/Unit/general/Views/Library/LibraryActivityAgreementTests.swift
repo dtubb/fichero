@@ -136,6 +136,14 @@ final class LibraryActivityAgreementTests: XCTestCase {
         XCTAssertEqual(LibraryRowStatusMark.resting(for: .failed), .failed)
     }
 
+    /// A folder's own record is never run, so it sits at `pending` for good. A clock beside every
+    /// folder (the Inbox, 2026-09-30) said "queued" about nothing.
+    func testAFolderHasNoRestingMark() {
+        for status in Status.allCases {
+            XCTAssertEqual(LibraryRowStatusMark.resting(for: status, isFolder: true), .nothing, "\(status)")
+        }
+    }
+
     /// A running row is the activity indicator's, never a second resting mark
     /// beside it: a leaf that is processing resolves to its own spinner.
     func testARunningRowIsTheActivityIndicators() {

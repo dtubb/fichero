@@ -394,11 +394,9 @@ extension ContentView {
             // selection erased the head, lens selector and crumbs. Now the
             // Page lens renders the multi list INSIDE the pane's chrome.
             // AnyView stays load-bearing (#4331).
-            // A selected folder of pages reads as the page the Preview shows (#5205); the open folder
-            // with nothing selected has no Preview page, so it stays the folder.
-            AnyView(FolderPageShown(document: readerDocument, resolves: readerDocument?.id == previewDocument?.id) { page in
-            ReadingPaneView(
-                liveDocument: page,
+            // A selected folder reads as the folder (its folder view), not its first file (#5300).
+            AnyView(ReadingPaneView(
+                liveDocument: readerDocument,
                 // NOT gated on the PDF canvas (Daniel, 2026-09-04): an image
                 // page never uses that canvas, so the reader was handed no
                 // active page and never scrolled to a search hit.
@@ -431,8 +429,7 @@ extension ContentView {
                 // selected" sentence for when there isn't one.
                 readerSubject: PaneContentPlan.ReaderSubject.from(viewMode),
                 readerRunHistoryEmptyReason: viewMode.runHistoryEmptyReason
-            )
-            })
+            ))
         }
         // Native focus rings OFF in this pane: macOS 14+ makes scroll views
         // keyboard-focusable and rings them natively, which painted a

@@ -84,8 +84,8 @@ extension ContentView {
     private func segmentsPane(splitKey: String, modelSplit: PaneModelSplitHook?, fixedWidth: CGFloat?) -> AnyView {
         AnyView(
             adaptiveSplittablePane(storageKey: splitKey, modelSplit: modelSplit) {
-                // A folder's segments are those of the page the Preview shows for it (#5204).
-                FolderPageShown(document: previewDocument) { SegmentsPaneView(document: $0) }
+                // A selected folder is itself here, not its first file (#5300).
+                SegmentsPaneView(document: previewDocument)
             }
             .frame(width: fixedWidth)
             .frame(maxWidth: fixedWidth == nil ? .infinity : nil)

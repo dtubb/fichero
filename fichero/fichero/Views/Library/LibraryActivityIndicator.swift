@@ -137,7 +137,7 @@ struct LibraryRowStatusMark: View {
         if LibraryActivityIndicator.activity(for: document, in: documentStore) != .idle {
             LibraryActivityIndicator(document: document)
         } else {
-            switch Self.resting(for: document.status) {
+            switch Self.resting(for: document.status, isFolder: document.docType == .folder) {
             case .nothing:
                 EmptyView()
             case .queued:
@@ -158,8 +158,13 @@ struct LibraryRowStatusMark: View {
 
     /// `.processing` never reaches this: `ContainerActivity` has already taken
     /// it (the spinner, or the contents ring), so it has no resting mark.
-    static func resting(for status: Status) -> Resting {
-        switch status {
+    ///
+    /// A folder has no resting mark: its own record is never run, so it sits at `pending` for good,
+    /// and a clock beside every folder said "queued" about nothing (2026-09-30). Work on its contents
+    /// shows through `ContainerActivity` instead.
+    static func resting(for status: Status, isFolder: Bool = false) -> Resting {
+        if isFolder { return .nothing }
+        return switch status {
         case .completed, .processing: .nothing
         case .pending: .queued
         case .failed: .failed

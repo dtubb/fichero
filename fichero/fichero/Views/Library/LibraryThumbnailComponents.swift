@@ -62,11 +62,14 @@ struct DocumentThumbnail: View {
     var folderSymbolSize: CGFloat = 20
 
     var body: some View {
+        let kind = DocumentThumbnailKind.forDocument(document)
         ZStack {
+            // The well backs a picture or a text card. A folder's symbol stands on the row itself,
+            // as in Finder: backed, it drew as a white tile around the icon (2026-09-30).
             RoundedRectangle(cornerRadius: 4)
-                .fill(Color(.windowBackgroundColor))
+                .fill(kind == .folder ? Color.clear : Color(.windowBackgroundColor))
 
-            switch DocumentThumbnailKind.forDocument(document) {
+            switch kind {
             case .folder:
                 // The one symbol ladder the sidebar reads (#4516), lock-aware
                 // (#4514): purple gear-badged treatment for read-only system

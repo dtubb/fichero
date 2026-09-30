@@ -86,25 +86,22 @@ struct FolderOfPagesPanesTests {
         #expect(ConvertPageRequest(documentId: "p1") == .init(documentId: "p1"))
     }
 
-    @Test("a plain folder's panes read the page the Preview shows; a folder of folders stays itself")
-    func folderResolvesToThePreviewsPage() {
-        let folder = Document(id: "paderov-mm10", docType: .folder, name: "paderov-mm10")
-        let sub = Document(id: "sub", parentId: folder.id, docType: .folder, name: "sub")
-        let page13 = Document(id: "00000013", parentId: folder.id, docType: .page, name: "00000013")
-        let page14 = Document(id: "00000014", parentId: folder.id, docType: .page, name: "00000014")
-        #expect(FolderContentsPreview.pageShown(in: [sub, page13, page14])?.id == "00000013")
-        #expect(FolderContentsPreview.pageShown(in: [sub]) == nil)
-        #expect(FolderContentsPreview.previewsAnItem(folder))
-        #expect(!FolderContentsPreview.previewsAnItem(page13))
-
-        #expect(FolderContentsPreview.shown(folder, isFolder: true, found: (folder.id, page13))?.id == "00000013")
-        #expect(FolderContentsPreview.shown(folder, isFolder: true, found: (folder.id, nil))?.id == folder.id,
-                "a folder with no page item reads as itself (the 2026-09-05 folder proxy)")
-        #expect(FolderContentsPreview.shown(folder, isFolder: true, found: ("another-folder", page14))?.id == folder.id,
-                "a page found for another folder is never shown for this one")
-        #expect(FolderContentsPreview.shown(folder, isFolder: false, found: (folder.id, page13))?.id == folder.id,
-                "the open folder with nothing selected has no Preview page to follow")
-        #expect(FolderContentsPreview.shown(page14, isFolder: false, found: nil)?.id == "00000014")
+    /// #5300 (ruled 2026-09-30): a selected folder is the folder in every pane. The Preview used to
+    /// show its first file and the Inspector, Segments pane and Reader followed that file, so three
+    /// panes described one item inside the folder. If `FolderPageShown` or `pageShown` comes back,
+    /// the panes are describing the wrong thing again.
+    @Test("a selected folder is the folder in every pane, not its first file")
+    func aFolderIsItselfInEveryPane() throws {
+        for path in [
+            "Views/Inspector/Document/DocumentInspector+Sections.swift",
+            "Views/Shell/ContentView/Layout/ContentView+PaneSpecs.swift",
+            "Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift",
+            "Views/Preview/FolderContentsPreview.swift"
+        ] {
+            let source = try AppSource.text(path)
+            #expect(!source.contains("FolderPageShown("), "\(path) resolves a folder to its first file again")
+            #expect(!source.contains("pageShown(in:"), "\(path) resolves a folder to its first file again")
+        }
     }
 
     @Test("the page's own order says whether the file gave it or the layout found it (#5216)")
