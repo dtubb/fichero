@@ -50,13 +50,15 @@ case "$MODE" in
     mkdir -p "$(dirname "$SOCK")" 2>/dev/null
     if uds_alive; then echo "dev-engine: reusing warm UDS engine on $SOCK"; exit 0; fi
     echo "dev-engine: starting UDS engine on $SOCK (reload) -> $LOG"
-    ( FICHERO_UDS_PATH="$SOCK" nohup "$SCRIPT_DIR/start_fichero_server.sh" --uds --reload >"$LOG" 2>&1 & )
+    # FICHERO_PARENT_PID=none (#5298): this subshell exits at once, and an engine watching it
+    # self-terminated within 5 s, leaving a socket nothing answered.
+    ( FICHERO_PARENT_PID=none FICHERO_UDS_PATH="$SOCK" nohup "$SCRIPT_DIR/start_fichero_server.sh" --uds --reload >"$LOG" 2>&1 & )
     for _ in $(seq 1 90); do uds_alive && break; sleep 0.5; done
     ;;
   https)
     if https_alive; then echo "dev-engine: reusing warm HTTPS engine on :8765"; exit 0; fi
     echo "dev-engine: starting HTTPS engine on :8765 (reload) -> $LOG"
-    ( nohup "$SCRIPT_DIR/start_fichero_server.sh" --fast --reload >"$LOG" 2>&1 & )
+    ( FICHERO_PARENT_PID=none nohup "$SCRIPT_DIR/start_fichero_server.sh" --fast --reload >"$LOG" 2>&1 & )
     for _ in $(seq 1 90); do https_alive && break; sleep 0.5; done
     ;;
   *)

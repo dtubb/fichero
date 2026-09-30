@@ -412,3 +412,20 @@ def test_notarize_short_flag_n() -> None:
     )
     assert result.returncode == 0
     assert "[DRY RUN]" in result.stdout
+
+
+def test_the_xcode_pre_action_engine_is_not_tied_to_its_throwaway_shell() -> None:
+    """#5298: ⌘R in Xcode said the app could not reach the server.
+
+    The Dev Local pre-action (`dev-uds-engine.sh`) starts the engine from a subshell that exits at
+    once. `start_fichero_server.sh` made that subshell the engine's owner (FICHERO_PARENT_PID), so
+    the engine's parent watchdog killed it within 5 s and left a socket nothing answered. The
+    pre-action now opts out with FICHERO_PARENT_PID=none, which the start script turns into "no
+    owner". Checked live 2026-09-30: the engine still answered /api/health 40 s after the
+    pre-action exited. If this goes red, ⌘R stops working again.
+    """
+    pre_action = (REPO_ROOT / "fichero-server" / "scripts" / "dev-uds-engine.sh").read_text()
+    start = START_BACKEND.read_text()
+    assert pre_action.count("( FICHERO_PARENT_PID=none ") == 2, "both detached launches (uds and https) opt out"
+    assert 'if [ "${FICHERO_PARENT_PID:-}" = "none" ]; then\n  unset FICHERO_PARENT_PID' in start
+    assert 'export FICHERO_PARENT_PID="${FICHERO_PARENT_PID:-$PPID}"' in start, "every other launch is still owned"

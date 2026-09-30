@@ -218,7 +218,16 @@ export FICHERO_DEBUG_APP_BUNDLE_ID
 # UDS branch's `exec` would be the engine itself), so closing that terminal
 # takes the engine with it instead of leaving an immortal process holding the
 # socket and serving hours-old code. An explicit FICHERO_PARENT_PID wins.
-export FICHERO_PARENT_PID="${FICHERO_PARENT_PID:-$PPID}"
+#
+# FICHERO_PARENT_PID=none opts out, for a launcher that detaches on purpose (the
+# Xcode pre-action, dev-uds-engine.sh, #5298): its subshell exits at once, so
+# watching it killed the engine within 5 s and left a dead socket behind. The
+# engine then logs its UNSUPERVISED warning; that dev engine runs with --reload.
+if [ "${FICHERO_PARENT_PID:-}" = "none" ]; then
+  unset FICHERO_PARENT_PID
+else
+  export FICHERO_PARENT_PID="${FICHERO_PARENT_PID:-$PPID}"
+fi
 PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" - <<'PY'
 import os
 
