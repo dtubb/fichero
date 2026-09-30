@@ -327,6 +327,7 @@ nav:
       - Action Registry: contributor_manual/action-registry.md
       - Security Model: contributor_manual/security-model.md
       - Setup & Contributing: contributor_manual/setup-and-contributing.md
+      - Contributor Machine Setup: contributor_manual/contributor-machine-setup.md
       - Testing: contributor_manual/TESTING.md
       - Testing Constitution: contributor_manual/TESTING-CONSTITUTION.md
       - Test Template: contributor_manual/TEST-TEMPLATE.md

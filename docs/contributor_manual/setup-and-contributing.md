@@ -10,6 +10,9 @@
 - [Verification Expectations](#verification-expectations)
 - [CLI Harness And Importers](#cli-harness-and-importers)
 
+Setting up another Mac to contribute from (and splitting development and builds across two): see
+[Setting Up a Contributor Machine](contributor-machine-setup.md).
+
 ## Local Development Commands
 
 The commands below are the current repo-standard ones from `AGENTS.md`.

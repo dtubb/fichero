@@ -1,6 +1,11 @@
 {
   "_doc": "Repo paths named in docs that do not exist, on purpose. `absent_on_purpose` maps each path (or a prefix ending in /) to WHY, because an entry that says only 'allowlisted' is a placeholder and a file of placeholders is a wall of permissions nobody can audit (#5095: 551 of 569 paths excused by one pasted sentence). `known_absent_paths` is the older reason-less list, kept working and counted as debt: move an entry across when you know why it is there. Every other absent path is a bug. See AGENTS.md.",
   "absent_on_purpose": {
+    ".claude/worktrees": "Generated output a build or test run creates; absent from a clean checkout. Named in contributor-machine-setup.md as what NOT to copy to a new machine.",
+    "__pycache__": "Generated output a build or test run creates; absent from a clean checkout. Named in contributor-machine-setup.md as what NOT to copy to a new machine.",
+    "build": "Generated output a build or test run creates; absent from a clean checkout. Named in contributor-machine-setup.md as what NOT to copy to a new machine.",
+    "fichero-server/build": "Generated output a build or test run creates; absent from a clean checkout. Named in contributor-machine-setup.md as what NOT to copy to a new machine.",
+    "fichero/build": "Generated output a build or test run creates; absent from a clean checkout. Named in contributor-machine-setup.md as what NOT to copy to a new machine.",
     "agent-work/": "Gitignored working notes: reconnaissance, reviews and morning files. A spec or build note citing one is recording WHERE ITS REASONING CAME FROM, which is provenance rather than navigation, and deleting the citation would lose that. The standing rule this does not excuse: a spec may not keep its SUBSTANCE in an agent-work note \u2014 if the reasoning matters to a reader it moves into the spec, because nobody outside this machine can open the note.",
     "build/releases": "A build output directory, gitignored: the release docs name it to say where a notarized DMG lands, and it exists only after a release has been built.",
     "build/verify_all_report.json": "The gate's machine-readable failure report, gitignored: `scripts/verify_all.sh` writes it on every run (REPORT_JSON), and the setup guides name it to say where to look after a red gate. It exists after the gate has run on this checkout and nowhere else.",
