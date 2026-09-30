@@ -63,24 +63,26 @@ extension LibraryView {
     /// elsewhere so child rows read as a clean indented sub-list.
     @TableColumnBuilder<LibraryOutlineNode, KeyPathComparator<LibraryOutlineNode>>
     internal var outlineColumns: some TableColumnContent<LibraryOutlineNode, KeyPathComparator<LibraryOutlineNode>> {
+        // Status first, untitled, icon-wide (#5279): it shows only while something happens.
+        TableColumn("", value: \.document.status.rawValue) { node in
+            documentColumnCell(for: node, columnId: "status")
+        }
+        .width(22)
+        .customizationID("status")
+
         TableColumn("Name", value: \.document.name) { node in
             // Same per-cell boundary injection as documentColumnCell — the
             // name cell hosts the activity indicator (DocumentStore) and the
             // thumbnail well (StorageService).
             outlineNameCell(for: node)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)  // #5279
                 .modifier(tableCellServiceInjection)
         }
         .width(min: 150, ideal: 200)
         .customizationID("name")
         .disabledCustomizationBehavior(.visibility)  // Always visible
 
-        TableColumn("Status", value: \.document.status.rawValue) { node in
-            documentColumnCell(for: node, columnId: "status")
-        }
-        .width(min: 80, ideal: 100)
-        .customizationID("status")
-
-        TableColumn("Output") { node in
+        TableColumn("Content") { node in
             documentColumnCell(for: node, columnId: "output")
         }
         .width(min: 150, ideal: 250)
@@ -332,6 +334,9 @@ extension LibraryView {
         switch node.kind {
         case .document:
             tableCellView(for: columnId, document: node.document)
+                // Top-aligned (#5279): a Table centres cells vertically, so a tall cell pushed
+                // its neighbours' text to the middle of the row and drew it over other content.
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .modifier(tableCellServiceInjection)
         case .childGroup, .pageItem, .artifactItem, .entityItem, .claimItem:
             EmptyView()

@@ -14,7 +14,7 @@ struct ColumnDefinition: Identifiable, Hashable {
         ColumnDefinition(id: "name", title: "Name", defaultVisible: true, minWidth: 150, idealWidth: 200),
         ColumnDefinition(id: "status", title: "Status", defaultVisible: true, minWidth: 80, idealWidth: 100),
         ColumnDefinition(id: "progress", title: "Progress", defaultVisible: true, minWidth: 80, idealWidth: 100),
-        ColumnDefinition(id: "output", title: "Output", defaultVisible: true, minWidth: 150, idealWidth: 250),
+        ColumnDefinition(id: "output", title: "Content", defaultVisible: true, minWidth: 150, idealWidth: 250),
         ColumnDefinition(id: "fileType", title: "Type", defaultVisible: true, minWidth: 60, idealWidth: 80),
         ColumnDefinition(id: "path", title: "Path", defaultVisible: false, minWidth: 100, idealWidth: 150),
         ColumnDefinition(id: "createdDate", title: "Created", defaultVisible: true, minWidth: 80, idealWidth: 100),
@@ -65,7 +65,7 @@ extension LibraryView {
         case "name":
             nameCell(for: doc)
         case "status":
-            StatusBadge(status: doc.status)
+            LibraryTableStatusIcon(status: doc.status)
         case "progress":
             ProgressCell(document: doc)
         case "output":
@@ -164,22 +164,18 @@ extension LibraryView {
         }
     }
 
+    /// The Content column: the text alone, in exactly the lines the Metadata menu asks for
+    /// (#5276, #5279). Space for every line is reserved whether or not the text has arrived, so a
+    /// late load cannot change the row's height (rows drew tall, then shrank). Named entities
+    /// have their own columns (People, Places, …) rather than a chip strip under the text.
     @ViewBuilder
     private func outputCell(for doc: Document) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(doc.pageContent ?? "-")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .lineLimit(2)
-                .help(doc.pageContent ?? "")
-
-            ArtifactEntitiesView(
-                documentId: doc.id,
-                style: .multiLine,
-                visibleTypes: listVisibleEntityTypes
-            )
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        Text(doc.pageContent ?? "")
+            .font(.caption)
+            .foregroundColor(.secondary)
+            .lineLimit(LibraryRowContentLines.resolve(rowContentLinesRaw).rawValue, reservesSpace: true)
+            .help(doc.pageContent ?? "")
+            .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     @ViewBuilder
@@ -236,5 +232,34 @@ extension LibraryView {
         }
 
         return nil
+    }
+}
+
+/// The table's Status column (#5279): an icon, and only while something is happening (queued,
+/// running, failed). A finished item shows nothing: a green Completed pill on every row said
+/// nothing a row needs to say.
+struct LibraryTableStatusIcon: View {
+    let status: Status
+
+    var body: some View {
+        switch status {
+        case .completed:
+            Color.clear.accessibilityHidden(true)
+        case .pending:
+            Image(systemName: "clock")
+                .foregroundStyle(.secondary)
+                .help("Queued")
+                .accessibilityLabel("Queued")
+        case .processing:
+            ProgressView()
+                .controlSize(.mini)
+                .help("Running")
+                .accessibilityLabel("Running")
+        case .failed:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+                .help("Failed")
+                .accessibilityLabel("Failed")
+        }
     }
 }
