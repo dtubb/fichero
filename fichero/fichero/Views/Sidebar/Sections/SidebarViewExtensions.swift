@@ -47,6 +47,13 @@ func sidebarAuxiliaryOpenTarget(
 }
 
 #if os(macOS)
+/// The expanded set after a double-click on `item`: an expandable row toggles, anything else is
+/// left alone (#5278).
+func sidebarDoubleClickExpansion(_ expanded: Set<String>, item: SidebarItem) -> Set<String> {
+    guard item.isExpandable else { return expanded }
+    return expanded.contains(item.id) ? expanded.subtracting([item.id]) : expanded.union([item.id])
+}
+
 /// Whether an app-initiated open should join the key window's tab group,
 /// honoring the user's system-wide "Prefer tabs" setting (Finder parity).
 /// `.inFullScreen` stays a window here: the sidebar can't cheaply know the

@@ -132,4 +132,19 @@ struct SidebarOpenAffordanceTests {
             .appendingPathComponent(relativePath)
         return try String(contentsOf: url, encoding: .utf8)
     }
+
+    /// #5278 (ruling 2026-09-29): double-click in the sidebar expands or collapses, like a source
+    /// list; it used to open a new tab or window, which stays on the context menu.
+    @Test("double-click toggles an expandable row and leaves a leaf alone")
+    func doubleClickTogglesExpansion() {
+        let folder = SidebarItem.fromDocument(
+            Document(id: "f", docType: .folder, name: "Letters", childCount: 2), libraryId: libraryId
+        )
+        let opened = sidebarDoubleClickExpansion([], item: folder)
+        #expect(opened == [folder.id])
+        #expect(sidebarDoubleClickExpansion(opened, item: folder).isEmpty)
+
+        let leaf = documentItem("leaf", libraryId: libraryId)
+        #expect(sidebarDoubleClickExpansion(["other"], item: leaf) == ["other"])
+    }
 }

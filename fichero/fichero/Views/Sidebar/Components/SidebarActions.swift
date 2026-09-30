@@ -122,14 +122,19 @@ extension SidebarView {
     }
 
     #if os(macOS)
-    /// Finder-style double-click (#2496): open the primary selected row in a
-    /// new tab or window via the shared `WindowOpener` path, honoring the
-    /// system "Prefer tabs" setting. Single click keeps its existing
-    /// select-in-place semantics; multi-selection is untouched (the primary
-    /// is the routed anchor). Keyboard/VoiceOver equivalents: the row context
-    /// menu and the File-menu Open in New Tab / New Window commands.
+    /// Double-click expands or collapses the row, like a source list (#5278, ruling 2026-09-29:
+    /// it used to open a new tab or window). A new tab or window stays on the row context menu
+    /// and File > Open in New Tab / New Window. Expanding loads the children the same way the
+    /// chevron does.
     func handleSidebarDoubleClick() {
-        openPrimarySelection(asTab: sidebarOpenPrefersTab(NSWindow.userTabbingPreference))
+        guard let item = selectedItem else { return }
+        let expanded = sidebarDoubleClickExpansion(sidebarState.expandedItems, item: item)
+        let opened = expanded.contains(item.id) && !sidebarState.expandedItems.contains(item.id)
+        sidebarState.expandedItems = expanded
+        guard opened, case .document(let document) = item.itemType,
+              let store = libraryManager.openLibraries.first(where: { $0.id == item.libraryId })?.documentStore
+        else { return }
+        Task { await store.loadSidebarChildren(of: document) }
     }
 
     private func openPrimarySelection(asTab: Bool) {

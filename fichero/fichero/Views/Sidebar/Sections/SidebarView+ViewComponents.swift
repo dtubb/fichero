@@ -92,12 +92,10 @@ extension SidebarView {
         .background(SidebarNativeSelectionSilencer())
         #endif
         #if os(macOS)
-        // Finder-style double-click: open the primary selected row in a new
-        // tab or window (#2496), mirroring the library table's container-level
-        // double-click contract (#3364). Attached to the List, NOT per row —
-        // a row-level TapGesture(count: 2) holds every single click and
-        // breaks native List selection (#612). Keyboard/VoiceOver users reach
-        // the same action via the row context menu's Open in New Tab/Window.
+        // Double-click expands or collapses the row (#5278; it opened a new tab
+        // or window, which stays on the row context menu). Attached to the List,
+        // NOT per row: a row-level TapGesture(count: 2) holds every single click
+        // and breaks native List selection (#612).
         .onTapGesture(count: 2) {
             handleSidebarDoubleClick()
         }
