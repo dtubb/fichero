@@ -142,8 +142,8 @@ struct LibraryRowMetadataOptionsTests {
         #expect(source.components(separatedBy: "ForEach(LibraryRowContentLines.allCases)").count - 1 == 2)
 
         let bar = try AppSource.text("Views/Library/LibraryView+MiniToolbar.swift")
-        #expect(bar.contains("contentLines: $rowContentLinesRaw"))
+        #expect(bar.contains("contentLines: rowContentLinesBinding"))
         let overflow = try AppSource.text("Views/Library/LibraryView+BottomActionBar.swift")
-        #expect(overflow.contains("contentLines: $rowContentLinesRaw"))
+        #expect(overflow.contains("contentLines: rowContentLinesBinding"))
     }
 }

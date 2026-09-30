@@ -99,6 +99,12 @@ struct PaneKindSwitcher: Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.slotId == rhs.slotId }
 }
 
+/// The pane leaf's id, for options kept per pane (`PaneScopedOption`, #5280). nil outside a
+/// pane grid.
+extension EnvironmentValues {
+    @Entry var paneLeafId: UUID?
+}
+
 private struct PaneKindSwitcherKey: EnvironmentKey {
     static let defaultValue: PaneKindSwitcher? = nil
 }

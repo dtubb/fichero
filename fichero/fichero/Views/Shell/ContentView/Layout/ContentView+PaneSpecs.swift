@@ -263,6 +263,8 @@ extension ContentView {
                     PreviewLayerDefaults(image: config.previewImage, wordBoxes: config.previewWordBoxes)
                 ))
             }
+            // Every leaf knows its own id, so its options are its own (#5280).
+            leaf = AnyView(leaf.environment(\.paneLeafId, id))
             if let closeLeaf {
                 leaf = AnyView(leaf.environment(\.paneCloseAction, PaneCloseAction { closeLeaf(id) }))
             }

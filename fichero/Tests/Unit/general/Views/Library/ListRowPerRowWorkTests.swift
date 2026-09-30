@@ -91,9 +91,10 @@ struct ListRowPerRowWorkTests {
         let mailRow = try #require(
             components.range(of: "struct MailStyleRow: View {")
         ).upperBound
-        let end = try #require(
-            components.range(of: "// MARK: - Document Thumbnail", range: mailRow ..< components.endIndex)
-        ).lowerBound
+        // The thumbnail section that followed moved out in the #5113 split; the row now runs to
+        // the end of the file unless a later section is added after it.
+        let end = components.range(of: "// MARK: - ", range: mailRow ..< components.endIndex)?.lowerBound
+            ?? components.endIndex
         let body = String(components[mailRow ..< end])
         #expect(
             body.components(separatedBy: "DocumentTitle.displayName(for: document)").count - 1 == 1,

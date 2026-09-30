@@ -133,15 +133,21 @@ struct LibraryView: View {
     /// ruling has always been the DEFAULT, but a stored value from before it
     /// outlives a default change. `.v2` applies the ruling once on existing
     /// installs; the Metadata menu owns it from there.
-    @AppStorage(LibraryRowAttribute.storageKey) var rowAttributesRaw: String = LibraryRowAttribute.defaultRaw
+    /// The SHARED value; a pane reads its own through `rowAttributesRaw` (#5280).
+    @AppStorage(LibraryRowAttribute.storageKey) var rowAttributesSharedRaw: String = LibraryRowAttribute.defaultRaw
+    @AppStorage("library.rowAttributes.byPane") var rowAttributesByPaneJSON = "{}"
     /// Lines of body text a list row reserves — 2 / 4 / 6, from the same
     /// Metadata control (Daniel, 2026-09-02).
     @AppStorage(LibraryRowContentLines.storageKey)
-    var rowContentLinesRaw: Int = LibraryRowContentLines.defaultValue.rawValue
+    var rowContentLinesSharedRaw: Int = LibraryRowContentLines.defaultValue.rawValue
+    @AppStorage("library.rowContentLines.byPane") var rowContentLinesByPaneJSON = "{}"
     /// The Show control's narrowing half (2026-08-31): Regions / Extracted Data.
     /// Spreads-vs-Pages is NOT stored here — that is an engine tier and
     /// `DocumentStore.libraryLevel` owns it; see `LibraryShowKind`.
-    @AppStorage(LibraryShowKind.storageKey) var showKindRaw: String = LibraryShowKind.pages.rawValue
+    @AppStorage(LibraryShowKind.storageKey) var showKindSharedRaw: String = LibraryShowKind.pages.rawValue
+    @AppStorage("library.showKind.byPane") var showKindByPaneJSON = "{}"
+    /// This pane's leaf id: the key its own options are kept under (#5280).
+    @Environment(\.paneLeafId) var paneLeafId
     @FocusState var filterFieldFocused: Bool
     /// The summoned engine-search field (#4521). Tracked so the row keyboard
     /// grammar can stand down while the user is TYPING — ancestor `.onKeyPress`
