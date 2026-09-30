@@ -174,3 +174,22 @@ enum CanvasArrangement: String, CaseIterable, Identifiable, Sendable {
     /// Canvas items sit after every node kind — see `slotIndices`.
     private static let itemGroupRank = 6
 }
+
+// MARK: - Arrange by is an action (#5302)
+
+extension CanvasArrangement {
+    /// The rows that put every card where `placeables` has it: a board resolved with NO saved rows,
+    /// so every card sits in its arranged slot. Each card keeps its saved size, angle, stacking and
+    /// style; only where it sits changes. Saving these is what makes an arrangement move cards a
+    /// person has already dragged, as Finder's *Clean Up By* does.
+    static func rowsPinning(_ placeables: [CanvasPlaceable], keeping existing: [CanvasItemLayout]) -> [CanvasItemLayout] {
+        let saved = Dictionary(existing.map { ($0.itemId, $0) }, uniquingKeysWith: { _, latest in latest })
+        return placeables.map { placeable in
+            var row = saved[placeable.id] ?? CanvasItemLayout(itemId: placeable.id)
+            row.x = placeable.position.x
+            row.y = placeable.position.y
+            row.z = placeable.position.z
+            return row
+        }
+    }
+}

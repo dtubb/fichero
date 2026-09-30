@@ -131,12 +131,14 @@ struct CanvasSceneView: View {
     /// this renderer drops z, so every card in a folder collapsed onto the line
     /// `y = 0` — one row, cards on top of each other, and drops resolving as
     /// links against their own neighbours instead of as moves.
-    private func resolvedState(in viewportSize: CGSize) -> CanvasSceneState {
+    /// `savedRows` nil reads the store; `[]` resolves the board as though nothing were placed, which
+    /// is where an arrangement puts every card (#5302).
+    private func resolvedState(in viewportSize: CGSize, savedRows: [CanvasItemLayout]? = nil) -> CanvasSceneState {
         var state = CanvasSceneState.resolve(
             nodes: nodes,
             connections: connections,
             links: links,
-            layoutRows: layoutStore?.layout(for: scopeKey) ?? [],
+            layoutRows: savedRows ?? layoutStore?.layout(for: scopeKey) ?? [],
             items: itemStore?.items(for: scopeKey) ?? [],
             // Columns from the ONE shared derivation, identical in 2D and 3D
             // (user, 2026-08-20: one shared default so the two canvases show
@@ -269,6 +271,18 @@ struct CanvasSceneView: View {
             ))
             .modifier(CanvasModifierTracker(optionHeld: $optionHeld, spaceHeld: $spaceHeld))
             .onChange(of: spaceHeld) { _, held in applyPanCursor(held) }
+            // Arrange by is an ACTION (#5302, Finder's Clean Up By): choosing an order lays every
+            // card out in it and saves those places. As a default for unplaced cards only, it did
+            // nothing to any card a person had moved, and once positions save that is all of them.
+            .onChange(of: arrangementRaw) { _, raw in
+                guard CanvasArrangement.stored(raw) != .free, let layoutStore else { return }
+                let rows = CanvasArrangement.rowsPinning(
+                    resolvedState(in: geo.size, savedRows: []).placeables,
+                    keeping: layoutStore.layout(for: scopeKey)
+                )
+                let scope = scopeKey
+                Task { await layoutStore.saveLayout(folderId: scope, items: rows) }
+            }
             .task(id: folderScopeId) {
                 configureController()
                 // Frame the board once this scope has content — the default grid

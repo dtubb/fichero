@@ -374,6 +374,14 @@ homeless until a map-view UI spec exists (#5128).
     app does not treat a skipped card as saved.
   - Pinned by `test_the_apps_own_card_ids_are_saved_and_read_back` (engine, real `doc:` ids through
     the real route).
+- `library.canvas.arrange-is-an-action` — **[MISSING]** (#5302) choosing *Arrange by* (As Filed, Name,
+  Type, Date) lays EVERY card of the board out in that order and saves those places, as Finder's
+  *Clean Up By* does; after that each card can be dragged anywhere and stays there. Today an
+  arrangement only places cards that were never moved ("a saved row always wins"), so once positions
+  save, an arrangement would appear to do nothing to the cards a person has touched. One step, undone
+  by one ⌘Z. Both canvases read the same saved places.
+- `library.canvas.arrange-by-date` — **[MISSING]** (#5302) *Date* orders cards by the document's own
+  date where it is known (the Date column's key), else by when it was added, undated last.
 - `library.canvas.a-folder-previews-as-its-canvas` — **[MISSING]** (#5300) a selected folder shows in
   the Preview as its own 2D canvas: its items as cards where they were last placed, movable there,
   and the move is the same saved move as in the library's Canvas mode (one layout per folder, one

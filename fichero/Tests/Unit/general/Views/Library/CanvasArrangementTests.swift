@@ -354,4 +354,32 @@ struct CanvasArrangeWiringGuardTests {
             #expect(!(try combined(paths)).contains(".sorted {"), "\(paths) sorts a board outside CanvasArrangement")
         }
     }
+
+    /// #5302: once positions save (#5301), every card a person dragged has a row, and a row always
+    /// wins in `resolve`. An arrangement that only placed row-less cards did nothing to them. Choosing
+    /// an arrangement now SAVES every card at its arranged slot: this is the rule. If it goes red, the
+    /// Arrange menu is back to moving only the cards nobody touched.
+    @Test("choosing an arrangement puts a dragged card back in its slot, keeping its size")
+    func arrangingMovesADraggedCard() throws {
+        let pages = [
+            sourceNode("doc:3", label: "Charlie"),
+            sourceNode("doc:1", label: "alpha"),
+            sourceNode("doc:2", label: "Bravo"),
+        ]
+        let dragged = CanvasItemLayout(itemId: "doc:1", x: 99, y: -42, z: 0, w: 2.5, h: 3)
+        let arranged = CanvasSceneState.resolve(
+            nodes: pages, connections: [], links: [], layoutRows: [], items: [],
+            defaultPlacement: .grid(columns: 3), arrangement: .name
+        )
+        let rows = CanvasArrangement.rowsPinning(arranged.placeables, keeping: [dragged])
+
+        let alpha = try #require(rows.first { $0.itemId == "doc:1" })
+        let slot = try #require(arranged.placeables.first { $0.id == "doc:1" }?.position)
+        #expect(alpha.x == slot.x)
+        #expect(alpha.y == slot.y)
+        #expect(alpha.x != 99, "the dragged card moved to its slot")
+        #expect(alpha.w == 2.5, "its size is kept")
+        #expect(alpha.h == 3)
+        #expect(Set(rows.map { $0.itemId }) == ["doc:1", "doc:2", "doc:3"], "every card is placed")
+    }
 }
