@@ -258,4 +258,22 @@ final class WorkflowBarPolicyTests: XCTestCase {
         )
     }
 
+    /// #5287: a Release-tier build never loads a workflow (the feature is in a
+    /// higher tier), and the bar said "Nothing runs on this selection" for an
+    /// ordinary image page. That reads as a broken app. The bar must name the
+    /// build as the reason, for every target, so nobody hunts for a selection
+    /// that would work.
+    func testABuildWithoutWorkflowsSaysSoWhateverIsSelected() {
+        for target in [WorkflowBarPolicy.Target.nothing, .documents(count: 0), .documents(count: 3)] {
+            XCTAssertEqual(
+                WorkflowBarPolicy.emptyReason(from: [], target: target, workflowsInThisBuild: false),
+                "Workflows are not in this build"
+            )
+        }
+        // A build that has workflows keeps the selection's own reasons.
+        XCTAssertEqual(
+            WorkflowBarPolicy.emptyReason(from: [], target: .documents(count: 3), workflowsInThisBuild: true),
+            "Nothing runs on this selection"
+        )
+    }
 }

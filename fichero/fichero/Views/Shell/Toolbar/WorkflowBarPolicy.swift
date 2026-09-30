@@ -383,10 +383,17 @@ enum WorkflowBarPolicy {
 
     /// Why the bar is empty, when it is — an empty bar with no explanation
     /// reads as a broken app rather than as "nothing applies here".
+    ///
+    /// `workflowsInThisBuild` is the build's feature tier (#5287). A build
+    /// below the workflows tier never loads a workflow, so every selection
+    /// read "Nothing runs on this selection", which blames the selection for
+    /// what the build left out. It says so first, whatever is selected.
     static func emptyReason(
         from workflows: [WorkflowSidebarItem],
-        target: Target
+        target: Target,
+        workflowsInThisBuild: Bool = true
     ) -> String? {
+        guard workflowsInThisBuild else { return "Workflows are not in this build" }
         // Two words, not a sentence (Daniel, 2026-08-29: "I don't like that
         // text — maybe just Nothing selected"). The bar's presence already
         // says what it is for; the empty state only needs to say why it is

@@ -295,7 +295,11 @@ struct WorkflowBar: View {
         let families = self.families
         return HStack(spacing: 0) {
             if families.isEmpty,
-               let reason = WorkflowBarPolicy.emptyReason(from: workflows, target: target) {
+               let reason = WorkflowBarPolicy.emptyReason(
+                   from: workflows,
+                   target: target,
+                   workflowsInThisBuild: FeatureManager.shared.isVisible(.workflows)
+               ) {
                 // Centred and quiet (Daniel, 2026-08-29): an empty bar states
                 // why in two words, in the middle, rather than muttering a
                 // sentence into the left margin.
