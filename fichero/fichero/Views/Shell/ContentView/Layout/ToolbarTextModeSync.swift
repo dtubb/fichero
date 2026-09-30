@@ -14,6 +14,15 @@ import AppKit
 ///
 /// The two directions cannot chase each other: each side writes only when it
 /// actually disagrees with the other, so the second hop is always a no-op.
+/// The toolbar mode that makes the toolbar agree with the stored labels flag, or nil when it
+/// already does. Compares the LABELLED reading, so Text Only (`.labelOnly`) counts as labelled
+/// and is kept rather than rewritten to Icon and Text.
+func toolbarDisplayMode(forStoredLabels showsLabels: Bool,
+                        current: NSToolbar.DisplayMode) -> NSToolbar.DisplayMode? {
+    guard (current != .iconOnly) != showsLabels else { return nil }
+    return showsLabels ? .iconAndLabel : .iconOnly
+}
+
 struct ToolbarTextModeSync: NSViewRepresentable {
     @Binding var showsLabels: Bool
 
@@ -21,7 +30,7 @@ struct ToolbarTextModeSync: NSViewRepresentable {
         let view = NSView(frame: .zero)
         // The window (and its toolbar) exist only after mount.
         DispatchQueue.main.async { [weak view] in
-            context.coordinator.attach(to: view?.window?.toolbar) { labelled in
+            context.coordinator.attach(to: view?.window?.toolbar, showsLabels: showsLabels) { labelled in
                 if showsLabels != labelled { showsLabels = labelled }
             }
         }
@@ -30,7 +39,7 @@ struct ToolbarTextModeSync: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSView, context: Context) {
         // Re-attach if the window changed (tab moves between windows).
-        context.coordinator.attach(to: nsView.window?.toolbar) { labelled in
+        context.coordinator.attach(to: nsView.window?.toolbar, showsLabels: showsLabels) { labelled in
             if showsLabels != labelled { showsLabels = labelled }
         }
         // The PUSH half: the bars' context menu wrote the flag, so the window
@@ -47,12 +56,17 @@ struct ToolbarTextModeSync: NSViewRepresentable {
         private var onChange: ((Bool) -> Void)?
         private nonisolated static let keyPath = "displayMode"
 
-        func attach(to toolbar: NSToolbar?, onChange: @escaping (Bool) -> Void) {
+        func attach(to toolbar: NSToolbar?, showsLabels: Bool, onChange: @escaping (Bool) -> Void) {
             guard let toolbar, toolbar !== observedToolbar else { return }
             observedToolbar?.removeObserver(self, forKeyPath: Self.keyPath)
             observedToolbar = toolbar
             self.onChange = onChange
-            onChange(toolbar.displayMode != .iconOnly)
+            // PUSH the stored flag first (#5275). The SwiftUI toolbar persists nothing and starts
+            // Icon Only, so pulling its mode here overwrote the saved choice, and the flag's own
+            // default (labels on, Icon and Text) never reached a fresh window.
+            if let mode = toolbarDisplayMode(forStoredLabels: showsLabels, current: toolbar.displayMode) {
+                toolbar.displayMode = mode
+            }
             // String KVO, not a key path: `displayMode` is main-actor
             // isolated and Swift 6 refuses `\.displayMode`. ponytail: the
             // property is KVO-compliant in practice but undocumented; if a
@@ -68,9 +82,10 @@ struct ToolbarTextModeSync: NSViewRepresentable {
         /// means "labelled", and rewriting it to `.iconAndLabel` would be this
         /// bridge quietly overruling a choice it was only asked to mirror.
         func apply(showsLabels: Bool) {
-            guard let toolbar = observedToolbar else { return }
-            guard (toolbar.displayMode != .iconOnly) != showsLabels else { return }
-            toolbar.displayMode = showsLabels ? .iconAndLabel : .iconOnly
+            guard let toolbar = observedToolbar,
+                  let mode = toolbarDisplayMode(forStoredLabels: showsLabels, current: toolbar.displayMode)
+            else { return }
+            toolbar.displayMode = mode
         }
 
         // swiftlint:disable:next block_based_kvo

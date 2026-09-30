@@ -41,18 +41,28 @@ struct BarLabelsContextMenuTests {
         let sync = try Self.appSource(
             "Views/Shell/ContentView/Layout/ToolbarTextModeSync.swift")
         #expect(sync.contains("func apply(showsLabels: Bool)"))
-        #expect(sync.contains("toolbar.displayMode = showsLabels ? .iconAndLabel : .iconOnly"))
         #expect(sync.contains("context.coordinator.apply(showsLabels: showsLabels)"))
+        #expect(toolbarDisplayMode(forStoredLabels: false, current: .iconAndLabel) == .iconOnly)
     }
 
     @Test("the push compares the labelled reading, so Text Only survives")
-    func pushPreservesLabelOnly() throws {
+    func pushPreservesLabelOnly() {
         // `.labelOnly` already means "labelled". Comparing raw modes would
         // rewrite a user's Text Only toolbar to Icon and Text on every update
         // pass — the bridge overruling a choice it was only asked to mirror.
+        #expect(toolbarDisplayMode(forStoredLabels: true, current: .labelOnly) == nil)
+    }
+
+    /// #5275: a fresh window's toolbar starts Icon Only and persists nothing, so the stored flag
+    /// (default: labels on) must win on attach. Pulling the toolbar's mode first is what made
+    /// every fresh launch Icon Only.
+    @Test("on attach the stored flag decides: labels on means Icon and Text, off stays Icon Only")
+    func attachPushesTheStoredFlag() throws {
+        #expect(toolbarDisplayMode(forStoredLabels: true, current: .iconOnly) == .iconAndLabel)
+        #expect(toolbarDisplayMode(forStoredLabels: false, current: .iconOnly) == nil)
         let sync = try Self.appSource(
             "Views/Shell/ContentView/Layout/ToolbarTextModeSync.swift")
-        #expect(sync.contains("guard (toolbar.displayMode != .iconOnly) != showsLabels else { return }"))
+        #expect(sync.contains("attach(to: view?.window?.toolbar, showsLabels: showsLabels)"))
     }
 
     @Test("the menu offers nothing when the host cannot write the setting")

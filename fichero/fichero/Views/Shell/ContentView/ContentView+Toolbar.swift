@@ -412,26 +412,23 @@ extension ContentView {
     /// suggestion buttons were unlabelled mystery glyphs — if suggestions
     /// return, they belong INSIDE the bar as a recommended row, not as
     /// toolbar chrome.
-    /// Preview.app's pencil split-button: the pencil toggles the annotation
-    /// bar; the chevron menu picks the highlight style (colors, underline,
-    /// strikethrough) that rides every saved highlight.
+    /// The pencil toggles the annotation bar. One icon like its neighbours (#5275): the ⌄ menu
+    /// that sat beside it duplicated the markup bar's own highlight menu, which is where the
+    /// highlight style (colors, underline, strikethrough) is chosen.
     @ViewBuilder
     var annotationBarToggle: some View {
-        HStack(spacing: 0) {
-            Button {
-                showAnnotationBar.toggle()
-            } label: {
-                Label(
-                    showAnnotationBar ? "Hide Markup" : "Show Markup",
-                    systemImage: "pencil.tip.crop.circle"
-                )
-                .labelStyle(.iconOnly)
-                .toolbarSurfaceLit(showAnnotationBar)
-            }
-            .help(showAnnotationBar ? "Hide the markup bar" : "Show the markup bar")
-            .accessibilityLabel(showAnnotationBar ? "Hide markup bar" : "Show markup bar")
-            PreviewHighlightStyleMenu()
+        Button {
+            showAnnotationBar.toggle()
+        } label: {
+            Label(
+                showAnnotationBar ? "Hide Markup" : "Show Markup",
+                systemImage: "pencil.tip.crop.circle"
+            )
+            .labelStyle(.iconOnly)
+            .toolbarSurfaceLit(showAnnotationBar)
         }
+        .help(showAnnotationBar ? "Hide the markup bar" : "Show the markup bar")
+        .accessibilityLabel(showAnnotationBar ? "Hide markup bar" : "Show markup bar")
     }
 
     @ViewBuilder

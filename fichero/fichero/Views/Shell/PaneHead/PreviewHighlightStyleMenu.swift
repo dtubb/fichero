@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The highlight-style chevron menu, shared by the annotation bar's split
-/// button and the toolbar pencil (Daniel, 2026-08-30): colors, then
+/// The highlight-style chevron menu and its rows (the markup bar's split button uses
+/// `styleRow`; the toolbar pencil dropped its copy, #5275): colors, then
 /// Underline / Strikethrough as checkable modes. One storage key, so the
 /// choice travels with every highlight wherever it is drawn.
 struct PreviewHighlightStyleMenu: View {

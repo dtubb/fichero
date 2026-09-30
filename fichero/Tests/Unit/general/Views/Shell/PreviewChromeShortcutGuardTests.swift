@@ -36,11 +36,12 @@ struct ToolbarTextModeSyncMountGuardTests {
             "Views/Shell/ContentView/Layout/ToolbarTextModeSync.swift"
         )
         let source = try String(contentsOf: url, encoding: .utf8)
-        let mappings = source.components(separatedBy: "displayMode != .iconOnly").count - 1
-        // Attach read + KVO callback + the PUSH half (apply(showsLabels:)
-        // writes displayMode from the bars' context menu, 2026-09-02) —
-        // losing any of the three desyncs a direction.
-        #expect(mappings == 3, "the display-mode mapping lost a site (\(mappings))")
+        // KVO callback (the pull) + the one mapping both pushes use: attach (#5275: the stored
+        // flag wins on attach) and apply(showsLabels:) from the bars' context menu (2026-09-02).
+        // Losing either desyncs a direction.
+        #expect(source.contains("onChange?(toolbar.displayMode != .iconOnly)"))
+        let pushes = source.components(separatedBy: "toolbarDisplayMode(forStoredLabels: showsLabels").count - 1
+        #expect(pushes == 2, "a push site was lost (\(pushes))")
         // String KVO: Swift 6 refuses a key path to the main-actor property.
         #expect(source.contains("addObserver(self, forKeyPath: Self.keyPath"))
         // Idempotent: re-attaching to the same toolbar must not stack observers.
