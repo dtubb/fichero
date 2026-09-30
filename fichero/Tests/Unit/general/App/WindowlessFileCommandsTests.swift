@@ -37,7 +37,7 @@ final class WindowlessFileCommandsTests: XCTestCase {
     func testNoFileCommandIsGatedOnAFocusedSceneValueBeingPresent() throws {
         let source = try Self.appSource("App/Menus/FileMenuCommands.swift")
 
-        for action in ["newLibraryAction", "openLibraryAction", "newWindowAction"] {
+        for action in ["newLibraryAction", "openLibraryAction", "newWindowAction", "newTabAction"] {
             XCTAssertFalse(
                 source.contains(".disabled(\(action) == nil)"),
                 """

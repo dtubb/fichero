@@ -121,7 +121,7 @@ struct MenuShortcutUniquenessTests {
     /// `TextFormattingCommands()` (wrapped by `FormatMenuCommands`, ViewMenuPaneSections.swift), which
     /// only registers a live key equivalent while a focused text view accepts it. Denylisting them
     /// unconditionally produced false positives against always-enabled commands that happen to reuse
-    /// the same physical key while NO text editor has focus — File's "New Window" (⌘T) and Image
+    /// the same physical key while NO text editor has focus — File's "New Tab" (⌘T) and Image
     /// Preview's "Zoom In"/"Zoom Out" (⌘+/⌘-) and the sidebar's "Link Files…" (⌘I) all tripped this
     /// test though none of them can ever fire at the same moment as the Format item they were flagged
     /// against. If a REAL collision between a Format chord and a non-text command turns up, it belongs

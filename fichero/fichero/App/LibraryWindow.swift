@@ -184,13 +184,14 @@ struct LibraryWindow: View {
         }
         // Scene-scoped so the File-menu commands resolve whenever this window
         // is key — not only while a descendant view holds keyboard focus.
-        // Plain `.focusedValue` left ⌘N / "New Library…" disabled until some
+        // Plain `.focusedValue` left "New Library…" disabled until some
         // inner control happened to be focused (#2042). Matches the rest of the
         // app's menu plumbing (sidebarMode, showInspector, librarySelectAll…).
         .focusedSceneValue(
             \.openLibraryAction, FocusedLibraryAction(isEnabled: true, run: { showingFileImporter = true })
         )
         .focusedSceneValue(\.newWindowAction, FocusedLibraryAction(isEnabled: true, run: { handleNewWindow() }))
+        .focusedSceneValue(\.newTabAction, FocusedLibraryAction(isEnabled: true, run: { handleNewTab() }))
         .focusedSceneValue(\.duplicateWindowAction, duplicateWindowAction)
         .focusedSceneValue(\.newLibraryAction, FocusedLibraryAction(isEnabled: true, run: { handleNewLibrary() }))
         .focusedSceneValue(\.saveLibraryAction, FocusedLibraryAction(isEnabled: true, run: { handleSaveLibrary() }))

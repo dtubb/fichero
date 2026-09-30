@@ -155,7 +155,7 @@ producing false positives. Also found and fixed: Redo re-offering itself after r
   are REMOVED — they are NOT system-reserved. They are SwiftUI's built-in `TextFormattingCommands()`
   (wrapped by `FormatMenuCommands`), which only claims a live key equivalent while a focused text view
   accepts it; denylisting them unconditionally produced false positives against always-enabled
-  commands reusing the same key with no text editor focused — File's ⌘T "New Window", Image Preview's
+  commands reusing the same key with no text editor focused — File's ⌘T (then "New Window", now "New Tab", #5286), Image Preview's
   ⌘+/⌘- "Zoom In"/"Zoom Out", and the sidebar's ⌘I "Link Files…" all tripped the guardrail though none
   of them can ever fire at the same moment as the Format item they were flagged against.
 - **The shortcut-uniqueness guardrail is now `#if`-aware.** `MenuShortcutUniquenessTests` tracks
@@ -290,8 +290,9 @@ standards, each cleaned to its true job. Title-case labels; verbs for actions; e
 input is needed; toggled items use one changeable label (Show/Hide); icons only where they clarify,
 uniform per group.
 
-- **File** — get sources in and out (Parts III, IX). New Library…, Open…, Open Recent ▸, Close
-  Library · New Window, Duplicate Window · **Import ▸** (Link/Copy/Move Files…, New Folder) · **Export
+- **File** — get sources in and out (Parts III, IX). New Library… (no chord), Open…, Open Recent ▸, Close
+  Library · New Window (**⌘N**, always a separate window), New Tab (**⌘T**, always a tab in the key
+  window's tab group; macOS), Duplicate Window (#5286: the Finder and Safari grammar) · **Import ▸** (Link/Copy/Move Files…, New Folder) · **Export
   ▸** (Markdown…, Word…, BibTeX…, Markdown Static Site…) · Grant Folder Access… · Print…
 - **Edit** — change the selection. Undo/Redo · Cut/Copy/Paste · Delete · Select All · Rename · Find…
   (the app's own search surfaces own ⌘F; keep the routed Select All / Undo from `MenuShortcutBoundaryTests`.)

@@ -216,6 +216,12 @@ struct NewWindowActionKey: FocusedValueKey {
     typealias Value = FocusedLibraryAction
 }
 
+/// FocusedValue key for opening a new TAB on the current library, in the key
+/// window's tab group (⌘T, #5286). New Window (⌘N) is always a separate window.
+struct NewTabActionKey: FocusedValueKey {
+    typealias Value = FocusedLibraryAction
+}
+
 /// FocusedValue key for creating a new library in-place in the current window
 /// (saves to a chosen location, then selects the new library in this window's
 /// sidebar — no new window). Distinct from NewWindowActionKey, which opens a

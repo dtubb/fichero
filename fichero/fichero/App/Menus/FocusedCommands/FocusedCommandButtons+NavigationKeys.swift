@@ -71,6 +71,11 @@ extension FocusedValues {
         set { self[NewWindowActionKey.self] = newValue }
     }
 
+    var newTabAction: NewTabActionKey.Value? {
+        get { self[NewTabActionKey.self] }
+        set { self[NewTabActionKey.self] = newValue }
+    }
+
     var newLibraryAction: NewLibraryActionKey.Value? {
         get { self[NewLibraryActionKey.self] }
         set { self[NewLibraryActionKey.self] = newValue }

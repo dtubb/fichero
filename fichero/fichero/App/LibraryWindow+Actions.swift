@@ -131,9 +131,25 @@ extension LibraryWindow {
         }
     }
 
+    /// ⌘N: a new WINDOW on this window's library, never a tab (#5286). A plain
+    /// `openWindow` let the system's "Prefer tabs" setting decide which one you got.
     func handleNewWindow() {
+        openOnThisLibrary(asTab: false)
+    }
+
+    /// ⌘T: a new TAB in this window's tab group, whatever the system setting
+    /// and whatever `sidebarOpenPrefersTab` says (#5286: ⌘T is always a tab).
+    func handleNewTab() {
+        openOnThisLibrary(asTab: true)
+    }
+
+    private func openOnThisLibrary(asTab: Bool) {
         libraryManager.currentLibraryId = windowState.libraryId
+        #if os(macOS)
+        WindowOpener.open(libraryId: windowState.libraryId, asTab: asTab, using: openWindow)
+        #else
         openWindow(id: "main")
+        #endif
     }
 
     /// Resolve the library a WindowSeed refers to: prefer the already-open

@@ -16,6 +16,7 @@ struct FileMenuCommands: View {
     @FocusedValue(\.openLibraryAction) private var openLibraryAction
     @FocusedValue(\.newLibraryAction) private var newLibraryAction
     @FocusedValue(\.newWindowAction) private var newWindowAction
+    @FocusedValue(\.newTabAction) private var newTabAction
     @FocusedValue(\.duplicateWindowAction) private var duplicateWindowAction
     @FocusedValue(\.saveLibraryAction) private var saveLibraryAction
     @FocusedValue(\.closeLibraryAction) private var closeLibraryAction
@@ -46,7 +47,7 @@ struct FileMenuCommands: View {
                     createLibraryAtAppScope()
                 }
             }
-            .keyboardShortcut("n", modifiers: [.command])
+            // No chord: ⌘N is New Window, as in Finder and Safari (#5286).
 
             Button("Open...") {
                 if let openLibraryAction {
@@ -134,8 +135,23 @@ struct FileMenuCommands: View {
                         openWindow(id: "main")
                     }
                 }
-                .keyboardShortcut("t", modifiers: [.command])
+                .keyboardShortcut("n", modifiers: [.command])
                 .disabled(!supportsMultipleWindows)
+
+                // ⌘N = window, ⌘T = tab, the Finder and Safari grammar (#5286;
+                // ⌘T used to be New Window). macOS only: native window tabs.
+                // With no window key there is no tab group to join, so it
+                // opens a window, which is what Safari does.
+                #if os(macOS)
+                Button("New Tab") {
+                    if let newTabAction {
+                        newTabAction.run()
+                    } else {
+                        openWindow(id: "main")
+                    }
+                }
+                .keyboardShortcut("t", modifiers: [.command])
+                #endif
 
                 // Duplicate Window (#2262): clones the current window's library +
                 // selection + active lens into a new window via openWindow(value:).
