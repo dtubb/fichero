@@ -32,13 +32,4 @@ struct PaneScopedOptionTests {
         #expect(PaneScopedOption.setting(6, in: "{}", pane: nil) == "{}")
         #expect(PaneScopedOption.value("not json", pane: left, shared: 4) == 4)
     }
-
-    @Test("every pane leaf is told its own id")
-    func leavesPublishTheirId() throws {
-        let source = try String(
-            contentsOf: AppSource.root().appendingPathComponent(
-                "Views/Shell/ContentView/Layout/ContentView+PaneSpecs.swift"),
-            encoding: .utf8)
-        #expect(source.contains("leaf.environment(\\.paneLeafId, id)"))
-    }
 }

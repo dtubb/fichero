@@ -263,3 +263,15 @@ struct LibraryTableStatusIcon: View {
         }
     }
 }
+
+#Preview("Table status icon: only while something happens") {
+    VStack(alignment: .leading, spacing: 8) {
+        ForEach([Status.pending, .processing, .failed, .completed], id: \.self) { status in
+            HStack {
+                LibraryTableStatusIcon(status: status).frame(width: 22, height: 16)
+                Text(status.rawValue).font(.caption)
+            }
+        }
+    }
+    .padding()
+}

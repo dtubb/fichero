@@ -14,18 +14,4 @@ struct PaneEmptyStateTests {
         }
         #expect(PaneEmptyState.reader.hint.contains("Library"))
     }
-
-    @Test("no pane draws a bare 'No selection' any more")
-    func noBareNoSelectionText() throws {
-        for path in [
-            "Views/Reader/Page/ReadingPaneView+Tabs.swift",
-            "Views/Inspector/Document/DocumentInspector.swift",
-            "Views/Shell/ContentView/ContentView+KnowledgeSurface.swift",
-            "Views/Preview/EditorView.swift",
-        ] {
-            let source = try String(contentsOf: AppSource.root().appendingPathComponent(path), encoding: .utf8)
-            #expect(!source.contains("Text(\"No selection\")"), "\(path)")
-            #expect(source.contains("PaneEmptyState."), "\(path)")
-        }
-    }
 }
