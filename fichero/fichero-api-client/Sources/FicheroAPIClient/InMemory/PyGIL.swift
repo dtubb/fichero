@@ -1,4 +1,4 @@
-#if os(macOS)
+#if os(macOS) && FICHERO_INMEMORY
 import Foundation
 import PythonKit
 

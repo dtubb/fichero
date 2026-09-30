@@ -1,4 +1,4 @@
-#if os(macOS)
+#if os(macOS) && FICHERO_INMEMORY
 import Foundation
 
 /// Loads the Fichero engine's FastAPI ASGI app for the in-process (`.inMemory`)

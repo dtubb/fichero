@@ -12,6 +12,14 @@ import OpenAPIAsyncHTTPClient
 /// library over `.uds` and a remote-shared library over `.https` at the same
 /// time. The default is `.https`, preserving the existing URLSession behavior.
 public enum TransportMode: Sendable, Equatable {
+    /// Whether this build carries the in-process `.inMemory` transport. It is switched off in
+    /// Package.swift (#5271), so only HTTPS and UDS exist unless someone turns it back on.
+    #if FICHERO_INMEMORY
+    public static let inMemoryTransportAvailable = true
+    #else
+    public static let inMemoryTransportAvailable = false
+    #endif
+
     /// Default: HTTPS over URLSession (certificate-pinned where configured).
     case https
     /// Plain HTTP/1.1 over an AF_UNIX socket at `path`. TLS is intentionally
@@ -429,10 +437,16 @@ public final class FicheroClient: ObservableObject {
             )
         #if os(macOS)
         case .inMemory:
+            #if FICHERO_INMEMORY
             // Drive the engine's ASGI app in-process. `InMemoryEngineApp.shared()`
             // boots CPython once (env-driven paths, fail-loud) and imports the
             // FastAPI app; the transport ignores host/port on the server URL.
             return InMemoryASGIClientTransport(app: InMemoryEngineApp.shared())
+            #else
+            // Disabled in Package.swift (#5271). Nothing selects `.inMemory` unless
+            // `inMemoryTransportAvailable` is true, so reaching here is a programmer error.
+            preconditionFailure("the in-memory transport is not built (Package.swift inMemoryTransport = false)")
+            #endif
         #endif
         }
     }

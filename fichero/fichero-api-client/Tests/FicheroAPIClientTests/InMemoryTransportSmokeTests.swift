@@ -1,4 +1,4 @@
-#if os(macOS)
+#if os(macOS) && FICHERO_INMEMORY  // the in-memory transport is off by default (#5271)
 import XCTest
 import Foundation
 import OpenAPIRuntime

@@ -1,6 +1,14 @@
 // swift-tools-version: 5.9
 import PackageDescription
 
+// The in-process PythonKit transport (`.inMemory`) is OFF (#5271: the app ships HTTPS and UDS
+// only). It is kept, not deleted: set this to true to link PythonKit and compile
+// Sources/FicheroAPIClient/InMemory again (FICHERO_INMEMORY), then `FICHERO_FORCE_INMEMORY=1` selects it.
+let inMemoryTransport = false
+/// The compile condition the InMemory sources and their tests check. Explicit rather than
+/// `canImport(PythonKit)`, which a stale module left in .build can answer true for.
+let inMemorySettings: [SwiftSetting] = inMemoryTransport ? [.define("FICHERO_INMEMORY")] : []
+
 let package = Package(
     name: "FicheroAPIClient",
     platforms: [
@@ -29,12 +37,12 @@ let package = Package(
         // under Xcode's debug launch. Versions match the resolved pins → no churn.
         .package(url: "https://github.com/swift-server/async-http-client", from: "1.35.0"),
         .package(url: "https://github.com/apple/swift-nio", from: "2.101.0"),
-        // In-memory ASGI transport (`.inMemory`, macOS only): drives the Python
-        // engine in-process via PythonKit. iOS never resolves/links this — the
-        // product dependency below is `.when(platforms: [.macOS])`, and every
-        // source file under Sources/FicheroAPIClient/InMemory is `#if os(macOS)`.
-        .package(url: "https://github.com/pvieito/PythonKit", branch: "main"),
-    ],
+    ] + (inMemoryTransport
+        // In-memory ASGI transport (`.inMemory`, macOS only): drives the Python engine
+        // in-process via PythonKit. Every source under Sources/FicheroAPIClient/InMemory is
+        // `#if os(macOS) && FICHERO_INMEMORY`, so it compiles only when this is linked.
+        ? [.package(url: "https://github.com/pvieito/PythonKit", branch: "main")]
+        : []),
     targets: [
         .target(
             name: "FicheroAPIClient",
@@ -45,16 +53,19 @@ let package = Package(
                 .product(name: "OpenAPIAsyncHTTPClient", package: "swift-openapi-async-http-client"),
                 .product(name: "AsyncHTTPClient", package: "async-http-client"),
                 .product(name: "NIOPosix", package: "swift-nio"),
+            ] + (inMemoryTransport
                 // macOS-only: iOS builds never pull PythonKit (no in-process engine).
-                .product(name: "PythonKit", package: "PythonKit", condition: .when(platforms: [.macOS])),
-            ],
+                ? [.product(name: "PythonKit", package: "PythonKit", condition: .when(platforms: [.macOS]))]
+                : []),
+            swiftSettings: inMemorySettings,
             plugins: [
                 .plugin(name: "OpenAPIGenerator", package: "swift-openapi-generator")
             ]
         ),
         .testTarget(
             name: "FicheroAPIClientTests",
-            dependencies: ["FicheroAPIClient"]
+            dependencies: ["FicheroAPIClient"],
+            swiftSettings: inMemorySettings
         ),
     ]
 )

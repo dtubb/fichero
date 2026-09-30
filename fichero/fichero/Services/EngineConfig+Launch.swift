@@ -37,7 +37,9 @@ extension EngineConfig {
         // remote host must not redirect it away from the test engine.
         guard uiTesting || !hostRequiresRemoteConnection else { return nil }
         #if os(macOS)
-        if let flag = env["FICHERO_FORCE_INMEMORY"], isTruthy(flag) {
+        // Only when the package was built with the transport (#5271: off by default).
+        if TransportMode.inMemoryTransportAvailable,
+           let flag = env["FICHERO_FORCE_INMEMORY"], isTruthy(flag) {
             return .inMemory
         }
         #endif

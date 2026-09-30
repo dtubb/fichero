@@ -1,4 +1,4 @@
-#if os(macOS)
+#if os(macOS) && FICHERO_INMEMORY
 import Foundation
 
 /// The reusable core of the streaming bridge — a small chunk of Python that runs

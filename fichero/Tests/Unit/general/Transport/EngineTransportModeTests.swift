@@ -78,7 +78,10 @@ struct EngineTransportModeTests {
         #expect(mode == .uds(path: EngineConfig.udsSocketPath))
     }
 
-    @Test("in-memory wins when both in-memory and UDS overrides are set")
+    /// With the transport built in, the in-memory flag outranks UDS. It is off by default
+    /// (#5271), and then the flag is ignored: a build without PythonKit must never select a
+    /// transport it cannot make.
+    @Test("in-memory wins over UDS only when the transport is built in")
     func inMemoryWinsOverUDS() {
         let mode = EngineConfig.localDebugTransportOverride(
             environment: [
@@ -88,7 +91,7 @@ struct EngineTransportModeTests {
             hostRequiresRemoteConnection: false,
             uiTesting: false
         )
-        #expect(mode == .inMemory)
+        #expect(mode == (TransportMode.inMemoryTransportAvailable ? .inMemory : .uds(path: "/tmp/ignored.sock")))
     }
 
     @Test("a saved remote host is not redirected to a local override outside UI testing")

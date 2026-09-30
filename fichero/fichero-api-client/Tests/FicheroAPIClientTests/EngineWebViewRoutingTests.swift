@@ -72,6 +72,7 @@ final class EngineWebViewRoutingTests: XCTestCase {
     // per process (fatal on failure). `configureInProcessEngineEnvOrSkip()`
     // runs BEFORE the client is built so a missing toolchain skips cleanly.
 
+    #if FICHERO_INMEMORY  // the in-memory transport is off by default (#5271)
     /// End-to-end over the in-memory load: drive the handler's EXACT fetch path
     /// — `client.requestData(path:)` — through a `.inMemory` `FicheroClient` and
     /// assert the engine answers 200. This is the round-trip the user asked about
@@ -192,5 +193,6 @@ final class EngineWebViewRoutingTests: XCTestCase {
         let fallback = fm.homeDirectoryForCurrentUser.appendingPathComponent("code/fichero")
         return looksLikeRepo(fallback) ? fallback : nil
     }
+    #endif
 }
 #endif
