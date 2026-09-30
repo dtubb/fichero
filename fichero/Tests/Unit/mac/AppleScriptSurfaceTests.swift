@@ -69,7 +69,19 @@ final class AppleScriptSurfaceTests: XCTestCase {
     /// verb names a class that is not there.
     func testTheDebugDictionaryIncludesTheUserOneAndAddsDescribeWindow() throws {
         let url = try AppSource.root().appendingPathComponent("FicheroDebug.sdef")
-        let resolved = try XMLDocument(contentsOf: url, options: [.documentXInclude])
+        // Resolved by xmllint, as the system resolves it: the include uses
+        // `xpointer(/dictionary/suite)` (Apple's own sdef pattern), which Foundation's
+        // XMLDocument .documentXInclude does not implement -- it silently kept one suite.
+        let lint = Process()
+        lint.executableURL = URL(fileURLWithPath: "/usr/bin/xmllint")
+        lint.arguments = ["--xinclude", "--nowarning", url.path]
+        let out = Pipe()
+        lint.standardOutput = out
+        try lint.run()
+        let xml = out.fileHandleForReading.readDataToEndOfFile()
+        lint.waitUntilExit()
+        XCTAssertEqual(lint.terminationStatus, 0, "xmllint resolved the include")
+        let resolved = try XMLDocument(data: xml)
         let suites = try resolved.nodes(forXPath: "/dictionary/suite/@name").compactMap(\.stringValue)
         XCTAssertEqual(suites, ["Standard Suite", "Fichero Suite", "Fichero Test Suite"])
         let binding = try resolved.nodes(forXPath: "//command[@name='describe window']/cocoa/@class").first?.stringValue
@@ -88,7 +100,19 @@ final class AppleScriptSurfaceTests: XCTestCase {
     /// misread, or a segment lands without its page.
     func testTheDebugSuiteReachesBelowADocument() throws {
         let url = try AppSource.root().appendingPathComponent("FicheroDebug.sdef")
-        let resolved = try XMLDocument(contentsOf: url, options: [.documentXInclude])
+        // Resolved by xmllint, as the system resolves it: the include uses
+        // `xpointer(/dictionary/suite)` (Apple's own sdef pattern), which Foundation's
+        // XMLDocument .documentXInclude does not implement -- it silently kept one suite.
+        let lint = Process()
+        lint.executableURL = URL(fileURLWithPath: "/usr/bin/xmllint")
+        lint.arguments = ["--xinclude", "--nowarning", url.path]
+        let out = Pipe()
+        lint.standardOutput = out
+        try lint.run()
+        let xml = out.fileHandleForReading.readDataToEndOfFile()
+        lint.waitUntilExit()
+        XCTAssertEqual(lint.terminationStatus, 0, "xmllint resolved the include")
+        let resolved = try XMLDocument(data: xml)
         let bindings: [String: String] = [
             "select page": "FicheroSelectPageCommand",
             "select segment": "FicheroSelectSegmentCommand",
