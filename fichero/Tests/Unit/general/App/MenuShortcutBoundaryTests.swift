@@ -145,16 +145,18 @@ final class MenuShortcutBoundaryTests: XCTestCase {
         XCTAssertTrue(source.contains("shortcut: \"5\""))   // as Space
         XCTAssertTrue(source.contains("shortcut: \"6\""))   // as Columns
 
-        // Preview arrangements moved OFF the ⌘-number range onto ⌃⌘ letters.
-        XCTAssertTrue(source.contains("shortcut: \"j\""))   // Show Side (was "s" — the HIG sidebar chord)
-        XCTAssertTrue(source.contains("shortcut: \"b\""))   // Show Bottom
-        XCTAssertTrue(source.contains("shortcut: \"h\""))   // Hide
+        // Preview arrangements moved OFF the ⌘-number range onto ⌃⌘ letters. PreviewModeSection
+        // lives in ViewMenuSortAndModeSections.swift since the #5098 file split.
+        let modes = try Self.appSource("App/Menus/ViewMenuSortAndModeSections.swift")
+        XCTAssertTrue(modes.contains("shortcut: \"j\""))   // Show Side (was "s" — the HIG sidebar chord)
+        XCTAssertTrue(modes.contains("shortcut: \"b\""))   // Show Bottom
+        XCTAssertTrue(modes.contains("shortcut: \"h\""))   // Hide
 
         // Scoped to the PreviewModeSection declaration (review 2026-09-17, #4693): a file-wide
         // `contains("shortcut: \"s\"")` would also fail on an unrelated `shortcut: "s"` anywhere
         // else in this file, not just a regression of the sidebar toggle this test guards.
         let previewModeSection = try XCTUnwrap(
-            source.components(separatedBy: "struct PreviewModeSection").dropFirst().first
+            modes.components(separatedBy: "struct PreviewModeSection").dropFirst().first
         )
         XCTAssertFalse(
             previewModeSection.contains("shortcut: \"s\""),
@@ -169,7 +171,7 @@ final class MenuShortcutBoundaryTests: XCTestCase {
         // The two reusable buttons use DIFFERENT modifier sets, so their key
         // spaces are disjoint even where a character/number would otherwise clash.
         let previewButton = try XCTUnwrap(
-            source.components(separatedBy: "struct PreviewModeButton").dropFirst().first
+            modes.components(separatedBy: "struct PreviewModeButton").dropFirst().first
         )
         XCTAssertTrue(
             String(previewButton.prefix(1000)).contains("modifiers: [.command, .control]"),

@@ -29,7 +29,9 @@ final class LibraryImportFocusedValueTests: XCTestCase {
         // pass and the invalidation storm hung the iPhone's navigation pop.
         XCTAssertTrue(source.contains("typealias Value = FocusedLibraryImportAction"))
         XCTAssertFalse(source.contains("typealias Value = (IngestMode) -> Void"))
-        XCTAssertTrue(source.contains("var libraryImportAction: LibraryImportActionKey.Value?"))
+        // The FocusedValues accessor lives with the other navigation keys since a file split.
+        let keys = try Self.appSource("App/Menus/FocusedCommands/FocusedCommandButtons+NavigationKeys.swift")
+        XCTAssertTrue(keys.contains("var libraryImportAction: LibraryImportActionKey.Value?"))
     }
 
     func testLibraryImportActionIsEquatableAndStableAcrossInstances() {
