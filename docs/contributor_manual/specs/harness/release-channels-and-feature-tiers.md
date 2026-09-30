@@ -1,4 +1,4 @@
-# Release Channels & Feature Tiers — Design Spec (#5287)
+# Release Channels & Feature Tiers — Design Spec (#5299)
 
 > Milestone: release-channels
 > Manual: TBD — the user manual must explain the Update channel choice in Settings › General: what
@@ -9,8 +9,7 @@
 > the cited file that day). Companion to [`release-and-versioning.md`](release-and-versioning.md),
 > which owns version stamps, the release lane's steps and `release.update.*`. This spec owns
 > WHICH build a person runs, WHICH features it shows, and WHICH updates it is offered.
-> The SPEC issue is not filed yet (GitHub sign-in on the development Mac was invalid that day);
-> until it is, behaviors cite #5287, the defect that started this.
+> SPEC issue #5299. Behaviors cite #5287, the defect that started this, until each gets its own.
 
 ## Intent (the design)
 
