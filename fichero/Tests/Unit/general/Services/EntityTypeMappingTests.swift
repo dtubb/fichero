@@ -104,8 +104,10 @@ final class EntityTypeMappingTests: XCTestCase {
     }
 
     func testClaimsEntitiesAllowlistEntriesWereRemoved() throws {
+        // check_ui_wiring's allowlist was retired (#5105); its entries moved to the
+        // endpoint-coverage known-gaps baseline, keyed "METHOD /path".
         let allowlist = try Self.repoSource(
-            "fichero-server/tests/contracts/ui_wiring_allowlist_swiftui.json"
+            "scripts/check_endpoint_coverage_matrix_known_gaps.json"
         )
         // NB: /api/entities/digest is intentionally still allowlisted (WebKit
         // document view consumes it; no native Swift call site — #3765).
@@ -118,7 +120,7 @@ final class EntityTypeMappingTests: XCTestCase {
 
         for path in removedPaths {
             XCTAssertFalse(
-                allowlist.contains("\"\(path)\""),
+                allowlist.contains(" \(path)\""),
                 "Endpoint should no longer be allowlisted: \(path)"
             )
         }
@@ -130,8 +132,10 @@ final class EntityTypeMappingTests: XCTestCase {
     /// not-yet-wired allowlist. When the surface is built, wire it in
     /// ArtifactService AND drop these from the allowlist together.
     func testHermeneuticsEndpointsRemainDeferred() throws {
+        // check_ui_wiring's allowlist was retired (#5105); its entries moved to the
+        // endpoint-coverage known-gaps baseline, keyed "METHOD /path".
         let allowlist = try Self.repoSource(
-            "fichero-server/tests/contracts/ui_wiring_allowlist_swiftui.json"
+            "scripts/check_endpoint_coverage_matrix_known_gaps.json"
         )
         let deferredPaths = [
             "/api/hermeneutics/circle-state",
@@ -153,7 +157,7 @@ final class EntityTypeMappingTests: XCTestCase {
 
         for path in deferredPaths {
             XCTAssertTrue(
-                allowlist.contains("\"\(path)\""),
+                allowlist.contains(" \(path)\""),
                 "Deferred endpoint should stay allowlisted until wired: \(path)"
             )
         }
@@ -200,8 +204,10 @@ final class EntityTypeMappingTests: XCTestCase {
     /// Lock the deletion: the alias must never reappear in the allowlist,
     /// which would mean the duplicate mount came back.
     func testKnowledgeGraphInterpretationAliasStaysDeleted() throws {
+        // check_ui_wiring's allowlist was retired (#5105); its entries moved to the
+        // endpoint-coverage known-gaps baseline, keyed "METHOD /path".
         let allowlist = try Self.repoSource(
-            "fichero-server/tests/contracts/ui_wiring_allowlist_swiftui.json"
+            "scripts/check_endpoint_coverage_matrix_known_gaps.json"
         )
         XCTAssertFalse(
             allowlist.contains("/api/kg/interpretations"),
@@ -233,8 +239,10 @@ final class EntityTypeMappingTests: XCTestCase {
     }
 
     func testKnowledgeGraphAllowlistEntriesWereRemoved() throws {
+        // check_ui_wiring's allowlist was retired (#5105); its entries moved to the
+        // endpoint-coverage known-gaps baseline, keyed "METHOD /path".
         let allowlist = try Self.repoSource(
-            "fichero-server/tests/contracts/ui_wiring_allowlist_swiftui.json"
+            "scripts/check_endpoint_coverage_matrix_known_gaps.json"
         )
         let removedPaths = [
             "/api/kg/entities/{entity_id}/bio",
@@ -281,7 +289,7 @@ final class EntityTypeMappingTests: XCTestCase {
 
         for path in removedPaths {
             XCTAssertFalse(
-                allowlist.contains("\"\(path)\""),
+                allowlist.contains(" \(path)\""),
                 "Endpoint should no longer be allowlisted: \(path)"
             )
         }

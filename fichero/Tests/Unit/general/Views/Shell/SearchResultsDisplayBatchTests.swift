@@ -177,7 +177,8 @@ final class SearchResultsDisplayBatchTests: XCTestCase {
 
     func testTheViewMenuIsHandedTheEffectiveFieldAndTheSearchContext() throws {
         let publish = try Self.appSource("Views/Library/LibraryView+KeyboardShortcuts.swift")
-        let menu = try Self.appSource("App/Menus/ViewMenuLayoutSections.swift")
+        // The sort section split out of ViewMenuLayoutSections.swift into ViewMenuSortAndModeSections.swift.
+        let menu = try Self.appSource("App/Menus/ViewMenuSortAndModeSections.swift")
         XCTAssertTrue(publish.contains("value: libraryToolbar.effectiveSortField.rawValue"))
         XCTAssertTrue(publish.contains("isSearching: libraryToolbar.searchIsActive"))
         XCTAssertTrue(

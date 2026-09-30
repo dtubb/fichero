@@ -8,8 +8,9 @@ final class FocusedValueUsageTests: XCTestCase {
             Self.appSource("Views/Library/LibraryView+KeyboardShortcuts.swift"),
             Self.appSource("Views/Library/LibraryViewFocusedValues.swift")
         ].joined(separator: "\n")
-        // #4024: sortAscending focused-value wiring moved to ViewMenuLayoutSections.swift.
-        let commandsSource = try Self.appSource("App/Menus/ViewMenuLayoutSections.swift")
+        // #4024: sortAscending focused-value wiring moved to ViewMenuLayoutSections.swift,
+        // then to ViewMenuSortAndModeSections.swift in a later View-menu split.
+        let commandsSource = try Self.appSource("App/Menus/ViewMenuSortAndModeSections.swift")
 
         XCTAssertTrue(shortcutsSource.contains("struct FocusedSortAscending: Equatable"))
         XCTAssertTrue(shortcutsSource.contains("typealias Value = FocusedSortAscending"))

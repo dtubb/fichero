@@ -177,9 +177,10 @@ final class WorkspaceLayoutDefaultsTests: XCTestCase {
                 .appendingPathComponent("Views/Shell/ContentView/ContentView+LayoutChooser.swift"),
             encoding: .utf8
         )
+        // The pane-list writers moved from PaneSpec.swift into ContentView+PaneSpecs.swift (file split).
         let paneSpec = try String(
             contentsOf: AppSource.root()
-                .appendingPathComponent("Views/Shell/ContentView/Layout/PaneSpec.swift"),
+                .appendingPathComponent("Views/Shell/ContentView/Layout/ContentView+PaneSpecs.swift"),
             encoding: .utf8
         )
 
@@ -190,6 +191,10 @@ final class WorkspaceLayoutDefaultsTests: XCTestCase {
         assertFunnelFollows(layoutChooser, after: "activePaneList = activePaneList.splittingLeaf(id, axis: axis)")
         assertFunnelFollows(paneSpec, after: "activePaneList = activePaneList.removingLeaf(id)")
         assertFunnelFollows(paneSpec, after: "activePaneList = activePaneList.changingLeafKind(id, to: kind)")
+        // Writers added since the list was written — same funnel rule.
+        assertFunnelFollows(paneSpec, after: "activePaneList = activePaneList.changingLeafContentKind(id, to: contentKind?.rawValue)")
+        assertFunnelFollows(paneSpec, after: "activePaneList = activePaneList.splittingLeaf(id, axis: axis)")
+        assertFunnelFollows(layoutChooser, after: "activePaneList = activePaneList.changingLeafLibraryLayout(id, to: raw)")
     }
 
     /// `source` must contain `marker`, and `"paneListDidChange()"` must appear within `window`

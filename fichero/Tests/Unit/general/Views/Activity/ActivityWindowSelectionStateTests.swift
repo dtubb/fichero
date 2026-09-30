@@ -121,7 +121,13 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         XCTAssertTrue(monitorSource.contains(
             "openWindow(id: ActivityWindowSelectionState.detailWindowID)"
         ))
-        XCTAssertTrue(detailSource.contains(".environment(library.documentStore)"))
+        // The detail window injects the ONE shared chain now (#4284), which carries documentStore.
+        let serviceChain = try Self.appSource("Views/Shell/LibraryServiceEnvironment.swift")
+        XCTAssertTrue(
+            detailSource.contains(".environment(library.documentStore)")
+                || (detailSource.contains(".libraryServiceEnvironment(library)")
+                    && serviceChain.contains(".environment(library.documentStore)"))
+        )
         XCTAssertTrue(detailSource.contains("selectionState.selectedRun?.libraryId"))
         XCTAssertTrue(helpersSource.contains("@Environment(WorkflowExecutionStore.self)"))
         XCTAssertFalse(helpersSource.contains("@Environment(WorkflowExecutionObserver.self) private var executionObserver"))

@@ -35,7 +35,8 @@ final class ClaimDisplayContractTests: XCTestCase {
     func testTheDigestComposesEveryClaimAgainstItsGroupSubject() throws {
         let source = try AppSource.text(Self.digestProvenance)
 
-        XCTAssertTrue(source.contains("ClaimLine.text("))
+        // #4393 composer gained `ClaimLine.statement(for:groupSubject:)`, which wraps `text(...)`.
+        XCTAssertTrue(source.contains("ClaimLine.text(") || source.contains("ClaimLine.statement(for: claim, groupSubject:"))
         XCTAssertTrue(
             source.contains("groupSubject: groupSubject"),
             "the digest is grouped under one entity, so its claims must omit that subject")
@@ -49,7 +50,8 @@ final class ClaimDisplayContractTests: XCTestCase {
         let source = try AppSource.text(
             "Views/Library/ViewModes/Graph/Ontology/Entity/EntityDetailView+Claims.swift")
 
-        XCTAssertTrue(source.contains("ClaimLine.text("))
+        // #4393 composer gained `ClaimLine.statement(for:groupSubject:)`, which wraps `text(...)`.
+        XCTAssertTrue(source.contains("ClaimLine.text(") || source.contains("ClaimLine.statement(for: claim, groupSubject:"))
         XCTAssertTrue(
             source.contains("groupSubject: nil"),
             "an alert names one claim out of context — the subject is what identifies it")
@@ -176,12 +178,21 @@ final class ClaimDisplayContractTests: XCTestCase {
         let source = try AppSource.text(
             "Views/Library/ViewModes/Graph/Ontology/Claim/EditClaimSheet.swift")
 
-        XCTAssertTrue(source.contains("TextField(\"Subject\", text: $subject)"))
-        XCTAssertTrue(source.contains("TextField(\"Predicate\", text: $predicate)"))
-        XCTAssertTrue(source.contains("TextField(\"Object\", text: $object)"))
-        XCTAssertTrue(source.contains("subjectCanonical: trimmedOrNil(subject)"))
-        XCTAssertTrue(source.contains("predicateVerb: trimmedOrNil(predicate)"))
-        XCTAssertTrue(source.contains("objectPhrase: trimmedOrNil(object)"))
+        // #5092: the loose @State strings became one ClaimDraft, and the payload moved to
+        // ClaimPatchFields.sheet(_:) — so the triple is checked as a value, not as source text.
+        XCTAssertTrue(source.contains("TextField(\"Subject\", text: $draft.subject)"))
+        XCTAssertTrue(source.contains("TextField(\"Predicate\", text: $draft.predicate)"))
+        XCTAssertTrue(source.contains("TextField(\"Object\", text: $draft.object)"))
+        XCTAssertTrue(source.contains("fields: .sheet(draft)"))
+
+        let draft = ClaimDraft(
+            text: "Rendered sentence that must not be re-parsed", subject: "  Ana  ", subjectEntityId: nil,
+            predicate: " sold ", object: " the farm ", sourcePageLabel: "", claimType: "claim",
+            epistemicStatus: "tentative", timeStart: "", timeEnd: "", timePrecision: "")
+        let fields = ClaimPatchFields.sheet(draft)
+        XCTAssertEqual(fields.subjectCanonical, "Ana")
+        XCTAssertEqual(fields.predicateVerb, "sold")
+        XCTAssertEqual(fields.objectPhrase, "the farm")
     }
 
     /// A patch updates ONE row (#4389). Not a reload: the server already

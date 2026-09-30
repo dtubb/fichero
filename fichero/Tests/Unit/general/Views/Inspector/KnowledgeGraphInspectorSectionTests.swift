@@ -1113,7 +1113,13 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         let source = try Self.appSource(
             "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection+Views.swift"
         )
-        XCTAssertTrue(source.contains("digestClaimEditLinkScheme"))
+        // The scheme test moved into `digestLinkAction(for:claimsById:)` in +Grouping (#4834);
+        // the view switches on its `.edit` case.
+        let grouping = try Self.appSource(
+            "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection+Grouping.swift"
+        )
+        XCTAssertTrue(grouping.contains("if url.scheme == digestClaimEditLinkScheme { return .edit(claimId: claimId) }"))
+        XCTAssertTrue(source.contains("case .edit(let claimId):"))
         XCTAssertTrue(source.contains("editingDigestClaimId = claimId"))
         XCTAssertTrue(source.contains("InlineClaimEditor("))
     }

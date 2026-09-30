@@ -40,6 +40,12 @@ final class SegmentStoreTests: XCTestCase {
             return requests
         }
 
+        /// The segment LISTING requests only. A load also fetches `/text` for line directions
+        /// (best effort, added after these tests), which is a second request per load, not a refetch.
+        static func listingRequests() -> [URLRequest] {
+            recorded().filter { $0.url?.path.hasSuffix("/text") != true }
+        }
+
         // swiftlint:disable:next static_over_final_class
         override class func canInit(with request: URLRequest) -> Bool {
             request.url?.host == "127.0.0.1" && request.url?.path.hasPrefix("/api/") == true
@@ -212,7 +218,7 @@ final class SegmentStoreTests: XCTestCase {
         await store.load(documentId: "doc-1")  // no force — same document, already loaded, no error
 
         XCTAssertEqual(
-            MockTransportURLProtocol.recorded().count, 1,
+            MockTransportURLProtocol.listingRequests().count, 1,
             "an unforced load of an already-loaded, error-free document must not issue a second request"
         )
     }
@@ -230,7 +236,7 @@ final class SegmentStoreTests: XCTestCase {
         await store.load(documentId: "doc-1", force: true)
 
         XCTAssertEqual(
-            MockTransportURLProtocol.recorded().count, 2,
+            MockTransportURLProtocol.listingRequests().count, 2,
             "force: true must issue a second request even though the document already loaded without error"
         )
     }

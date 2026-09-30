@@ -220,7 +220,13 @@ final class SidebarPrefetchBehavioralTests: XCTestCase {
             )),
             Stub(pathSuffix: "/documents/mid/view", body: viewJSON(
                 docJSON("mid", parent: "top", docType: "folder"),
-                children: [docJSON("leaf", parent: "mid", docType: "file")]
+                children: [
+                    docJSON("leaf", parent: "mid", docType: "file"),
+                    docJSON("deep", parent: "mid", docType: "folder")
+                ]
+            )),
+            Stub(pathSuffix: "/documents/deep/view", body: viewJSON(
+                docJSON("deep", parent: "mid", docType: "folder"), children: []
             ))
         ])
 
@@ -230,17 +236,32 @@ final class SidebarPrefetchBehavioralTests: XCTestCase {
             store.childrenCache["top"]?.map(\.id), ["mid", "midFile"],
             "expanding caches the folder's own children"
         )
-        // The expanded folder's SUBfolder is NOT fetched — no grandchild
-        // prefetch. `mid`'s children load only when the user expands `mid`.
-        XCTAssertNil(
-            store.childrenCache["mid"],
-            "expand loads names only; a subfolder's children stay lazy (#4515)"
+        // #5277 (3c696d7aa) deliberately reinstated ONE level ahead: after the rows are drawn, an
+        // un-awaited background prefetch warms the revealed subfolders. It must stop there: `mid`
+        // is warmed, but `mid`'s own subfolder `deep` and the file `midFile` are never fetched.
+        await waitUntil { store.childrenCache["mid"] != nil }
+        XCTAssertEqual(
+            store.childrenCache["mid"]?.map(\.id), ["leaf", "deep"],
+            "the one-level-ahead prefetch (#5277) warms the revealed subfolder"
         )
+        try await Task.sleep(for: .milliseconds(100))
         let paths = PrefetchStubURLProtocol.recordedPaths()
         XCTAssertFalse(
-            paths.contains { $0.hasSuffix("/documents/mid/view") },
-            "expanding `top` must not fire a fetch for its subfolder `mid`"
+            paths.contains { $0.hasSuffix("/documents/deep/view") },
+            "the prefetch is ONE level ahead only — expanding `top` must not fetch `mid`'s subfolder `deep`"
         )
+        XCTAssertFalse(
+            paths.contains { $0.hasSuffix("/documents/midFile/view") },
+            "files have nothing to disclose — no round-trip"
+        )
+    }
+
+    /// Polls (bounded, ~2s) for the un-awaited #5277 background prefetch to land.
+    private func waitUntil(_ condition: () -> Bool) async {
+        let deadline = Date().addingTimeInterval(2)
+        while !condition(), Date() < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
     }
 
     func testExpansionBumpsRevisionSoTheTreeRebuilds() async throws {
@@ -286,9 +307,15 @@ final class SidebarPrefetchBehavioralTests: XCTestCase {
         ])
 
         await store.loadSidebarChildren(of: folder)
+        // Let the first expand's un-awaited one-level-ahead prefetch (#5277) cache `mid` before
+        // counting — otherwise it races the count and the second expand re-warms it.
+        await waitUntil { store.childrenCache["mid"] != nil }
+        try await Task.sleep(for: .milliseconds(50))
         let pathsAfterFirst = PrefetchStubURLProtocol.recordedPaths().count
 
         await store.loadSidebarChildren(of: folder)
+        // Give the second expand's own background prefetch its chance to (wrongly) refetch `mid`.
+        try await Task.sleep(for: .milliseconds(100))
 
         // 2026-08-23 (Daniel: sidebar showed 3 children while the grid showed
         // 151): an explicit expansion RE-FETCHES the expanded folder — a

@@ -130,7 +130,10 @@ final class LibraryBottomActionBarSurfaceTests: XCTestCase {
         let end = try XCTUnwrap(source.range(of: "private var secondaryBarButtons: some View"))
         let block = String(source[start.upperBound..<end.lowerBound])
         // New Folder / Delete / Import are the always-inline essential verbs.
-        XCTAssertTrue(block.contains("New Folder"))
+        // The add control became content-aware (#4856): its label is `addButtonLabel`, which is
+        // "New Folder" for documents.
+        XCTAssertTrue(block.contains("New Folder") || block.contains(".accessibilityLabel(addButtonLabel)"))
+        XCTAssertTrue(source.contains("case .documents: return \"New Folder\""))
         XCTAssertTrue(block.contains("Delete"))
         XCTAssertTrue(block.contains("Import"))
     }

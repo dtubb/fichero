@@ -23,8 +23,12 @@ final class ArtifactServiceInjectionTests: XCTestCase {
         // The main / Duplicate / iOS scene roots host DocumentTabView (and thus
         // ContentView, LibraryView, the inspector…) here; the service must ride
         // the same per-library environment chain.
+        // The root now injects the whole per-library chain; artifactService rides in it (scene-injection sweep).
+        let chain = try Self.appSource("Views/Shell/LibraryServiceEnvironment.swift")
         XCTAssertTrue(
-            source.contains(".environment(library.artifactService)"),
+            source.contains(".environment(library.artifactService)")
+                || (source.contains(".libraryServiceEnvironment(library)")
+                    && chain.contains(".environment(library.artifactService)")),
             "LibraryWorkspaceRoot must inject library.artifactService so ContentView and its consumers resolve it (#3386)."
         )
     }

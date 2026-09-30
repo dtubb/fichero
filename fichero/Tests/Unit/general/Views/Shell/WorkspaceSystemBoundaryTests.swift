@@ -69,7 +69,8 @@ final class WorkspaceSystemBoundaryTests: XCTestCase {
     /// `PaneHead`'s X prefers it. If either half is dropped, close silently reverts to closing the
     /// row. (View wiring isn't unit-runnable; this pins the seam at the source.)
     func testAppliedWorkspaceCloseRemovesOnlyThatLeaf() throws {
-        let paneSpec = try Self.appSource("Views/Shell/ContentView/Layout/PaneSpec.swift")
+        // paneListRow / paneNodeView moved from PaneSpec.swift into ContentView+PaneSpecs.swift (file split).
+        let paneSpec = try Self.appSource("Views/Shell/ContentView/Layout/ContentView+PaneSpecs.swift")
         XCTAssertTrue(
             paneSpec.contains("activePaneList.removingLeaf(id)"),
             "paneListRow must close a pane by removing its leaf from the stored PaneList.")

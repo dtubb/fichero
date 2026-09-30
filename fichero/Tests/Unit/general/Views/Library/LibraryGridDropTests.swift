@@ -55,14 +55,18 @@ final class LibraryGridDropTests: XCTestCase {
 
     func testSelfDropsAndNonFolderTargetsAreRejected() throws {
         let source = try Self.appSource("Views/Library/ViewModes/LibraryView+CellDrop.swift")
-        XCTAssertTrue(source.contains("$0 != folder.id"))
+        // The inline `$0 != folder.id` became the shared self-target predicate (SidebarDropFeedback.swift).
+        XCTAssertTrue(source.contains("!sidebarDropIsSelfTarget(draggedId: $0, targetId: folder.id)"))
+        let feedback = try Self.appSource("Views/Sidebar/ItemRow/SidebarDropFeedback.swift")
+        XCTAssertTrue(feedback.contains("func sidebarDropIsSelfTarget(draggedId: String, targetId: String) -> Bool {\n    draggedId == targetId\n}"))
         // #4514 (9dce01288): the bare docType check became the ONE shared
         // predicate — `acceptsItemDrops` is `.folder && !isReadOnly`, so a
         // locked system folder now refuses drops here too, not just in the
         // sidebar. The predicate itself is pinned below so a future edit
         // cannot quietly widen it back to every folder.
         XCTAssertTrue(source.contains("guard folder.acceptsItemDrops"))
-        let document = try Self.appSource("Models/Document.swift")
+        // Moved from Document.swift into Document+Behaviour.swift in a file split.
+        let document = try Self.appSource("Models/Document+Behaviour.swift")
         XCTAssertTrue(
             document.contains("var acceptsItemDrops: Bool { docType == .folder && !isReadOnly }")
         )

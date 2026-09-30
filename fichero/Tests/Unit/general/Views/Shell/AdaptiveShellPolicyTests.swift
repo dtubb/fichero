@@ -448,13 +448,16 @@ final class AdaptiveShellPolicyTests: XCTestCase {
             // The library pane construction moved into the PaneSpec table
             // (pane-system build) — same invariant, new home.
             Self.appSource("Views/Shell/ContentView/Layout/PaneSpec.swift"),
+            // The PaneSpec view builder split out into ContentView+PaneSpecs.swift.
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+PaneSpecs.swift"),
         ].joined(separator: "\n"))
 
         // The split key is per-slot now ("<slot>-<kind>", 2026-08-24), so the
         // pin follows the PaneSpec table's library case rather than the old
         // literal "library" storage key.
         XCTAssertTrue(buildersSource.contains("case .library:"))
-        XCTAssertTrue(buildersSource.contains("adaptiveSplittablePane(storageKey: splitKey)"))
+        // The call gained a `modelSplit:` argument (pane-model split hook).
+        XCTAssertTrue(buildersSource.contains("adaptiveSplittablePane(storageKey: splitKey, modelSplit: modelSplit)"))
         XCTAssertTrue(buildersSource.contains(".clipped()"))
         XCTAssertTrue(buildersSource.contains("must never paint past its own split"))
     }
