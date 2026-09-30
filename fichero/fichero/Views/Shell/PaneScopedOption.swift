@@ -40,7 +40,9 @@ struct PaneStorage<Value: Codable>: DynamicProperty {
     var wrappedValue: Value {
         get { PaneScopedOption.value(map.wrappedValue, pane: pane, shared: shared.wrappedValue) }
         nonmutating set {
-            map.wrappedValue = PaneScopedOption.setting(newValue, in: map.wrappedValue, pane: pane)
+            if pane != nil {
+                map.wrappedValue = PaneScopedOption.setting(newValue, in: map.wrappedValue, pane: pane)
+            }
             shared.wrappedValue = newValue
         }
     }

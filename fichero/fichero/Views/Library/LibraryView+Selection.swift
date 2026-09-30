@@ -124,6 +124,20 @@ extension LibraryView {
         doc.isNavigableContainer
     }
 
+    /// Go into a container unless this pane already shows it. A double-click is also two single
+    /// clicks (the double tap is simultaneous, #5276), so where a plain tap navigates (sidebar
+    /// hidden, compact width) the same folder was entered two or three times: once per click and
+    /// again by the double-click.
+    func navigateIntoUnlessThere(_ doc: Document) {
+        guard !Self.paneAlreadyShows(doc.id, folderId: folderId) else { return }
+        onNavigateInto(doc)
+    }
+
+    /// `folderId` is the sidebar item id, which prefixes documents "doc:".
+    nonisolated static func paneAlreadyShows(_ documentId: String, folderId: String?) -> Bool {
+        folderId == "doc:\(documentId)" || folderId == documentId
+    }
+
     /// Finder-style double-click: keep the source row selected in THIS window,
     /// then open it in place — navigate into containers, otherwise preview the
     /// document. Explicit New Tab / New Window affordances stay in the context
@@ -238,7 +252,7 @@ extension LibraryView {
             sidebarHidden: sidebarHidden,
             isCompactWidth: horizontalSizeClass == .compact
         ) {
-            onNavigateInto(doc)
+            navigateIntoUnlessThere(doc)
         }
     }
 
@@ -371,7 +385,7 @@ extension LibraryView {
         // which is inert here since `activeWorkflowItem` resolves first).
         apply(SelectionGrammar.select(doc.id))
         if canNavigateInto(doc) {
-            onNavigateInto(doc)
+            navigateIntoUnlessThere(doc)
         } else {
             detailDocument = doc
         }
