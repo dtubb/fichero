@@ -3,7 +3,7 @@
   "info": {
     "title": "Fichero API",
     "description": "Document processing and search API",
-    "version": "2026.9.20"
+    "version": "2026.9.29"
   },
   "paths": {
     "/api/clients": {
