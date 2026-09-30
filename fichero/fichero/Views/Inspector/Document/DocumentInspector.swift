@@ -167,10 +167,7 @@ struct DocumentInspector: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        Text("No selection")
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        PaneEmptyState.inspector.view
     }
 
     /// The entity arm, with the library's claim store injected so the digest's

@@ -296,10 +296,7 @@ struct EditorView: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        Text("No selection")
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        PaneEmptyState.preview.view
     }
 
     // MARK: - Actions

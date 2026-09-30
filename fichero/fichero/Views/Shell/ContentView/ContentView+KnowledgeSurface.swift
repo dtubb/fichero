@@ -28,10 +28,7 @@ extension ContentView {
                 scrollSync: scrollSync
             )
         } else {
-            Text("No selection")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            PaneEmptyState.reader.view
                 .background(Color(.textBackgroundColor))
         }
     }
