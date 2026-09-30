@@ -79,8 +79,10 @@ struct ReaderHeadShowsWhatItDisplaysTests {
     private var readingPaneViewPath: String {
         "fichero/fichero/Views/Reader/Page/ReadingPaneView.swift"
     }
+    /// The Showing menu and its compare entries live in ReaderArtifactLensContent.swift, split out
+    /// of ReadingPaneView+ArtifactLens.swift.
     private var artifactLensPath: String {
-        "fichero/fichero/Views/Reader/Page/Lenses/ReadingPaneView+ArtifactLens.swift"
+        "fichero/fichero/Views/Reader/Page/Lenses/ReaderArtifactLensContent.swift"
     }
     private var paneHeadPath: String {
         "fichero/fichero/Views/Shell/PaneHead/PaneHead.swift"

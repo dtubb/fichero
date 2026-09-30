@@ -173,7 +173,8 @@ struct PaneHeadWiringGuardTests {
         #expect(crumbs.contains("documentStore.resolveDocument($0)"))
         // The library is the root crumb: a path starting at a folder does not
         // say WHICH library's Inbox you are in.
-        #expect(crumbs.contains("var libraryName: String?"))
+        // A navigable library crumb since #5218 (it opens the library's top level), not a name.
+        #expect(crumbs.contains("crumbs.append(.library(library))"))
         // Breadcrumb honesty (2026-08-29): N>1 selected says "N items".
         #expect(crumbs.contains(".multiSelection(count: multiDocuments.count)"))
     }
