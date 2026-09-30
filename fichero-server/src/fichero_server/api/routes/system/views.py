@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse
 from fichero_server.api.main import get_library_database
 from fichero_server.db import Database
 from fichero_server.models.knowledge import Annotation, KnowledgeClaim, KnowledgeEntity
-from fichero_server.models import Artifact, DocType, Document, Segment
+from fichero_server.models import Artifact, DocType, Document, FileType, Segment
 
 router = APIRouter(prefix="/view", tags=["views"])
 
@@ -559,6 +559,36 @@ def compare_columns(
     return {"types": list(compare_types), "columns": columns, "grouped": grouped}
 
 
+#: The engine's upload temp-file prefix (`db/storage.py`). A name starting with it is a storage
+#: artifact, never something a person chose or would recognise (the app's
+#: `DocumentTitle.storageNamePrefix`, #4416).
+_STORAGE_NAME_PREFIX = "fichero_upload_"
+
+
+def _recognisable_name(name: str | None) -> str | None:
+    name = (name or "").strip()
+    return name if name and not name.startswith(_STORAGE_NAME_PREFIX) else None
+
+
+def page_title(document: Document, page: Document | None, number: int) -> str:
+    """What a Reader page's header says it is (#5290): not "PAGE 1".
+
+    - a page of a PDF is "<file>.pdf › Page N": its own name is a storage artifact;
+    - any other page (an image in an item) is its own file name, when it has a real one;
+    - a document that is its own single page is its own name;
+    - otherwise "Page N", never a storage name or an id.
+    """
+    fallback = f"Page {number}"
+    if page is None:
+        return _recognisable_name(document.name) or fallback
+    parent = _recognisable_name(document.name)
+    if document.file_type is not FileType.pdf:
+        own = _recognisable_name(page.name)
+        if own:
+            return own
+    return f"{parent} › {fallback}" if parent else fallback
+
+
 def transcript_pages(document: Document, child_pages: list[Document]) -> list[dict[str, object]]:
     """Every page of the document, in order — including pages with NO content.
 
@@ -584,6 +614,7 @@ def transcript_pages(document: Document, child_pages: list[Document]) -> list[di
                 "id": document.id,
                 "number": document.sequence or 1,
                 "label": document.name,
+                "title": page_title(document, None, document.sequence or 1),
                 "content": content,
                 "has_content": True,
                 "is_region": document.region_in_parent is not None,
@@ -598,6 +629,7 @@ def transcript_pages(document: Document, child_pages: list[Document]) -> list[di
                 "id": page.id,
                 "number": page.sequence or index,
                 "label": page.name,
+                "title": page_title(document, page, page.sequence or index),
                 "content": content,
                 "has_content": bool(content.strip()),
                 # A region section (a diary entry, a segment) is NAMED — the

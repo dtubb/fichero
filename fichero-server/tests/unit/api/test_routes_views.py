@@ -382,6 +382,52 @@ class TestDocumentViewRoute:
         empty = _make_document(doc_id="leaf2", name="Empty.txt", doc_type=DocType.file)
         assert transcript_pages(empty, []) == []
 
+    def test_a_page_header_says_what_the_page_is(self):
+        """#5290: every Reader page header read "PAGE 1", whatever the page was.
+
+        A page of a PDF names the PDF and the page; an image in an item is its own file
+        name; a document that is its own page is its own name. A storage temp name
+        (``fichero_upload_...``) is never shown: it falls back to "Page N". If this goes
+        red, the Reader is back to headers that do not say which file you are reading.
+        """
+        from fichero_server.api.routes.system.views import transcript_pages
+
+        pdf = _make_document(doc_id="p", name="18590129.pdf", doc_type=DocType.file, file_type=FileType.pdf)
+        pdf_page = _make_document(
+            doc_id="p1", name="fichero_upload_x1.pdf - Page 1", doc_type=DocType.page,
+            sequence=1, parent_id="p", page_content="text",
+        )
+        assert transcript_pages(pdf, [pdf_page])[0]["title"] == "18590129.pdf › Page 1"
+
+        item = _make_document(doc_id="i", name="EAP1740 box 3", doc_type=DocType.file)
+        scan = _make_document(
+            doc_id="i1", name="EAP1740_NP_T19_1700_001_03.jpg", doc_type=DocType.page,
+            sequence=1, parent_id="i", page_content="text",
+        )
+        assert transcript_pages(item, [scan])[0]["title"] == "EAP1740_NP_T19_1700_001_03.jpg"
+
+        leaf = _make_document(doc_id="l", name="Letter.jpg", doc_type=DocType.file, page_content="text")
+        assert transcript_pages(leaf, [])[0]["title"] == "Letter.jpg"
+
+        temp_parent = _make_document(doc_id="t", name="fichero_upload_x2.pdf", doc_type=DocType.file, file_type=FileType.pdf)
+        temp_page = _make_document(
+            doc_id="t1", name="fichero_upload_x2.pdf - Page 3", doc_type=DocType.page,
+            sequence=3, parent_id="t", page_content="text",
+        )
+        assert transcript_pages(temp_parent, [temp_page])[0]["title"] == "Page 3"
+
+    def test_the_page_header_shows_one_icon_and_the_title(self):
+        """#5290: the header drew the thumbnail AND the fallback glyph (WebKit's `[hidden]`
+        rule does not reach SVG), uppercased "PAGE 1" beside them. The template must hide
+        the hidden glyph and print the served title as written."""
+        import fichero_server.api.routes.system.views as views
+
+        template = (Path(views.__file__).parents[2] / "templates" / "document_view.html").read_text()
+        assert ".page-proxy svg[hidden]" in template
+        assert "page.title" in template
+        marker_rule = template.split(".page-marker {", 1)[1].split("}", 1)[0]
+        assert "uppercase" not in marker_rule, "a file name must not be shouted"
+
     def test_missing_document_returns_404(self, client):
         response = client.get("/view/document/no-such-document")
         assert response.status_code == 404

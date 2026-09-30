@@ -187,9 +187,7 @@
             display: flex;
             font: 600 0.72em/1 var(--font-system);
             gap: 0.6em;
-            letter-spacing: 0.08em;
             margin-bottom: 1em;
-            text-transform: uppercase;
         }
 
         /* The per-page proxy icon (macOS titlebar-proxy idiom, 2026-08-29):
@@ -223,7 +221,10 @@
             width: auto;
         }
 
-        .page-proxy img[hidden] { display: none; }
+        /* Both: WebKit's own `[hidden]` rule does not reach an SVG element, so the fallback
+           glyph drew beside the thumbnail (#5290: one icon, not two). */
+        .page-proxy img[hidden],
+        .page-proxy svg[hidden] { display: none; }
 
         .page-proxy:hover {
             color: var(--accent);
@@ -1307,6 +1308,7 @@ function transcriptPages() {
             return {
                 id: page.id || null,
                 label: page.label || null,
+                title: page.title || null,
                 isRegion: Boolean(page.is_region),
                 table: page.table || null,
                 markup_render: page.markup_render || null,
@@ -1874,7 +1876,7 @@ function transcriptPageMarkup(page) {
         : "";
     return `
         <article class="transcript-page${page.hasContent ? "" : " empty-page"}" data-page="${page.number}"${page.id ? ` data-page-id="${escapeHtml(page.id)}"` : ""}>
-            <div class="page-marker">${proxy}Page ${page.number}${label}</div>
+            <div class="page-marker">${proxy}${escapeHtml(page.isRegion || !page.title ? `Page ${page.number}` : page.title)}${label}</div>
             ${page.markup_render ? markupRenderMarkup(page.markup_render)
                 : page.table ? tableMarkup(page.table)
                 : pageBodyMarkup(page)}
