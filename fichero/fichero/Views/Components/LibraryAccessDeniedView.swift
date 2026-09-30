@@ -201,7 +201,7 @@ struct LibraryAccessDeniedView: View {
     @ViewBuilder
     private func retryButton(title: String, prominent: Bool = false) -> some View {
         let button = Button(title) { Task { await onRetry?() } }
-            .keyboardShortcut("r", modifiers: .command)
+            // No ⌘R: it is Rotate Right in the Read menu (#5304); the button is one click.
         if prominent {
             button.buttonStyle(.borderedProminent)
         } else {

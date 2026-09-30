@@ -402,3 +402,41 @@ extension Notification.Name {
     /// Posted when a page should be scrolled to in the PDF view
     static let scrollToPage = Notification.Name("scrollToPage")
 }
+
+// MARK: - Rotate the selected images (#5304)
+
+extension ContentView {
+    /// ⌘L (+90°) / ⌘R (−90°) on the selected images, through the image editor's own rotate edit, then
+    /// the same cache eviction the editor does after an edit so the library, Preview and canvas repaint.
+    func rotateImagesAction(degrees: Double) -> FocusedLibraryAction {
+        let ids = rotatableImageIds(
+            selection: browserSelection,
+            canvasFocus: folderCanvasFocus,
+            lookUp: { id in
+                documentStore.currentDocuments.first { $0.id == id }
+                    ?? documentStore.childrenCache.values.lazy.flatMap({ $0 }).first { $0.id == id }
+            }
+        )
+        let library = libraryManager.getLibrary(id: windowState.libraryId)
+        let client = apiClient
+        return FocusedLibraryAction(isEnabled: !ids.isEmpty, target: focusedActionTarget(mode: "rotate\(degrees)", ids: ids)) {
+            Task { @MainActor in
+                let service = ImageEditingService(apiClient: client)
+                for id in ids {
+                    do {
+                        try await service.rotate(documentId: id, angle: degrees)
+                        library?.storageService.invalidateImageCache(for: id)
+                        library?.renditionService.invalidate(documentId: id)
+                    } catch {
+                        ErrorService.shared.reportError(
+                            ErrorModel.fileSystemError(
+                                message: "Could not rotate the image.",
+                                context: ["operation": "image_rotate", "document_id": id]
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+}

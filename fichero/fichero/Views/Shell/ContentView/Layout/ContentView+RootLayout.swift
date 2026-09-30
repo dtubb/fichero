@@ -277,6 +277,8 @@ extension ContentView {
                 \.navigateForwardAction,
                 FocusedLibraryAction(isEnabled: navigationHistory.canGoForward, run: navigateForward)
             )
+            .focusedSceneValue(\.rotateImagesLeft, rotateImagesAction(degrees: 90))
+            .focusedSceneValue(\.rotateImagesRight, rotateImagesAction(degrees: -90))
     }
 
     /// NavigationSplitView + the FIRST half of its modifier chain.

@@ -29,6 +29,9 @@ struct ReadKnowledgeMenuCommands: Commands {
             // magnifier + loupe controls — reused unchanged (keeps its ⌘0/⌘9/
             // ⌘±/⌘⇧M/⌘⌥L shortcuts on the leaf items).
             ImagePreviewMenuCommands()
+
+            Divider()
+            RotateImageMenuSection()
         }
 
         // MARK: Segment -- the page's segments, on the focused Preview's selection (#5229).

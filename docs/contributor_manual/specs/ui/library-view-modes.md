@@ -397,7 +397,7 @@ homeless until a map-view UI spec exists (#5128).
 - `library.canvas.group-into-one-node` — **[MISSING]** (#5303) selecting cards and grouping them (⌘G)
   makes one compound node that contains them in order (a letter of several pages), shown and moved as
   one unit on the canvas. Spec first: it is a node-model change.
-- `library.rotate.command-r-and-l` — **[MISSING]** (#5304) ⌘R / ⌘L rotate the selected images 90°
+- `library.rotate.command-r-and-l` — **[PARTIAL]** (#5304; built, not yet seen in the app) ⌘R / ⌘L rotate the selected images 90°
   right / left in the library (every mode), the Preview and the canvas, through the image editor's
   one rotate action.
 - `library.canvas.trackpad-scroll-pans` — **[BROKEN]** (#4408) two-finger trackpad scroll

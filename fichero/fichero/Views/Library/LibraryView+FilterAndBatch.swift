@@ -417,7 +417,7 @@ extension LibraryView {
                     onRetry()
                 }
             }
-            .keyboardShortcut("r", modifiers: .command)
+            // No ⌘R: it is Rotate Right in the Read menu (#5304); the button is one click.
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
