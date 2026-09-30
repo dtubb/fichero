@@ -91,10 +91,10 @@ enum LibraryRowContentLines: Int, CaseIterable, Identifiable {
 
     var title: String { "\(rawValue) Lines" }
 
-    /// The @AppStorage key and its default — two lines, the look every
-    /// existing screenshot has.
+    /// The storage key and its default: four lines, as NetNewsWire's article
+    /// list shows (#5295; it was two).
     static let storageKey = "library.rowContentLines"
-    static let defaultValue = LibraryRowContentLines.two
+    static let defaultValue = LibraryRowContentLines.four
 
     /// Unknown/old values fall back rather than trapping, the same rule
     /// `LibraryRowAttribute.set(from:)` follows for its CSV.

@@ -213,7 +213,7 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
 
     /// The comparator for the outline table's sortable COLUMN backing this
     /// field, or nil when the table exposes no such column (`updatedAt` /
-    /// `fileType` are offered by the toolbar sort menu only). The table's
+    /// `fileType` / `status` are offered by the toolbar sort menu only). The table's
     /// `sortOrder` binding must never carry a comparator that no column
     /// declares: on macOS the Table bridges each comparator to an AppKit
     /// sort descriptor resolved against a column, and a descriptor the
@@ -225,14 +225,15 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
         switch self {
         case .name: return .init(\.document.name, order: order)
         case .createdAt: return .init(\.document.createdAt, order: order)
-        case .status: return .init(\.document.status.rawValue, order: order)
         // The Date column IS sortable, so it must declare a comparator the
         // bridge can resolve (#4282). It drives the header only.
         case .documentDate: return .init(\.document.dateHeaderSortKey, order: order)
         // Relevance has no column and no key path of its own — the rows
         // arrive ranked. A nil comparator is the honest answer, and the same
-        // one `updatedAt`/`fileType` give.
-        case .relevance, .updatedAt, .fileType: return nil
+        // one `updatedAt`/`fileType` give. Status lost its column in #5296: a
+        // folder still sorted by Status (the sort menu offers it) must hand
+        // the table NO comparator, or it is the #4282 crash.
+        case .relevance, .updatedAt, .fileType, .status: return nil
         }
     }
 }

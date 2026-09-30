@@ -228,7 +228,6 @@ struct LibraryView: View {
 
     // Column visibility for Table view (persisted per-window/scene)
     @SceneStorage("column_name") var showName = true
-    @SceneStorage("column_status") var showStatus = true
     @SceneStorage("column_progress") var showProgress = true
     @SceneStorage("column_output") var showOutput = true
     @SceneStorage("column_fileType") var showFileType = true

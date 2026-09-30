@@ -39,7 +39,6 @@ final class LibraryOutlineSortOrderTests: XCTestCase {
     func testColumnBackedFieldsProduceComparators() {
         XCTAssertNotNil(LibrarySortField.name.outlineColumnComparator(ascending: true))
         XCTAssertNotNil(LibrarySortField.createdAt.outlineColumnComparator(ascending: true))
-        XCTAssertNotNil(LibrarySortField.status.outlineColumnComparator(ascending: true))
     }
 
     func testColumnlessFieldsProduceNoComparator() {
@@ -47,6 +46,9 @@ final class LibraryOutlineSortOrderTests: XCTestCase {
         // them hands the AppKit bridge a descriptor it cannot resolve (#4282).
         XCTAssertNil(LibrarySortField.updatedAt.outlineColumnComparator(ascending: true))
         XCTAssertNil(LibrarySortField.fileType.outlineColumnComparator(ascending: false))
+        // #5296 removed the Status column. A folder whose saved sort is Status
+        // (the sort menu still offers it) must not crash the table on open.
+        XCTAssertNil(LibrarySortField.status.outlineColumnComparator(ascending: true))
     }
 
     func testOutlineComparatorActuallySortsNodes() throws {

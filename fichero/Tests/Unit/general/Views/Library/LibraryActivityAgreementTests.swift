@@ -84,7 +84,11 @@ final class LibraryActivityAgreementTests: XCTestCase {
             the other pane. Route through LibraryActivityIndicator.
             """
         )
-        XCTAssertTrue(source.contains("LibraryActivityIndicator"))
+        // The row mounts `LibraryRowStatusMark` (#5295), which asks
+        // `LibraryActivityIndicator.activity` before it draws anything else.
+        XCTAssertTrue(source.contains("LibraryRowStatusMark"))
+        let mark = Self.code(of: try AppSource.text("Views/Library/LibraryActivityIndicator.swift"))
+        XCTAssertTrue(mark.contains("LibraryActivityIndicator.activity(for: document, in: documentStore)"))
     }
 
     /// Both panes reach the rule through the same resolver, so a change to the
@@ -114,5 +118,31 @@ final class LibraryActivityAgreementTests: XCTestCase {
                 return line[line.startIndex..<marker.lowerBound]
             }
             .joined(separator: "\n")
+    }
+
+    // MARK: - #5295 / #5296: a row says nothing at rest
+
+    /// The List drew a green dot on every finished row and the Table gave the
+    /// same fact a whole column. A finished item now draws NOTHING in either;
+    /// if this goes red, the at-rest mark is back on every row of a library.
+    func testAFinishedRowDrawsNoMark() {
+        XCTAssertEqual(LibraryRowStatusMark.resting(for: .completed), .nothing)
+    }
+
+    /// Removing the Table's Status column must not hide the two states a
+    /// person acts on: waiting in the queue, and failed.
+    func testQueuedAndFailedRowsKeepAMark() {
+        XCTAssertEqual(LibraryRowStatusMark.resting(for: .pending), .queued)
+        XCTAssertEqual(LibraryRowStatusMark.resting(for: .failed), .failed)
+    }
+
+    /// A running row is the activity indicator's, never a second resting mark
+    /// beside it: a leaf that is processing resolves to its own spinner.
+    func testARunningRowIsTheActivityIndicators() {
+        XCTAssertEqual(
+            ContainerActivity.resolve(isSelfProcessing: true, busyChildren: 0, totalChildren: 0),
+            .own
+        )
+        XCTAssertEqual(LibraryRowStatusMark.resting(for: .processing), .nothing)
     }
 }

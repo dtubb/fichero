@@ -81,7 +81,10 @@ struct ListRowPerRowWorkTests {
             !components.contains("documentStore.childActivityCounts"),
             "the row went back to asking the store itself instead of through the resolver"
         )
-        #expect(components.contains("LibraryActivityIndicator.isIdle(document, in: documentStore)"))
+        // #5295: the row mounts the shared indicator and nothing else. A row at
+        // rest draws no mark, so there is no idle branch to ask the store about.
+        #expect(components.contains("LibraryRowStatusMark(document: document)"))
+        #expect(!components.contains("Circle().fill(statusColor)"), "the at-rest status dot is back")
     }
 
     /// Three calls to the same title ladder per row, for one string.

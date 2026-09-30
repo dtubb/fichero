@@ -119,7 +119,6 @@ enum LibrarySelectionStyle {
 // MARK: - Mail-Style Row (like Apple Mail)
 
 struct MailStyleRow: View {
-    @Environment(DocumentStore.self) private var documentStore
     let document: Document
     let isSelected: Bool
     /// LIBRARY selection is WHITE NAME TEXT ON A GREEN (accent) BACKGROUND
@@ -182,14 +181,13 @@ struct MailStyleRow: View {
             // sidebar (#4417): this read `document.status == .processing`, so a
             // folder spun because its CONTENTS were working — the claim the
             // sidebar stopped making. See LibraryActivityIndicator.
-            Group {
-                if LibraryActivityIndicator.isIdle(document, in: documentStore) {
-                    Circle().fill(statusColor).frame(width: 10, height: 10)
-                } else {
-                    LibraryActivityIndicator(document: document)
-                }
-            }
-            .padding(.top, 5)
+            //
+            // Nothing at rest (#5295, NetNewsWire's list): a green dot on every
+            // finished row said nothing. The 10pt slot stays, so titles line up
+            // whether or not a row carries a mark. See LibraryRowStatusMark.
+            LibraryRowStatusMark(document: document)
+                .frame(width: 10, height: 10)
+                .padding(.top, 5)
 
             // Content
             VStack(alignment: .leading, spacing: 4) {
@@ -374,15 +372,6 @@ struct MailStyleRow: View {
     /// `.secondary` in every state.
     private var titleColor: Color {
         LibrarySelectionStyle.rowContent(selected: isSelected, focused: isPaneFocused)
-    }
-
-    private var statusColor: Color {
-        switch document.status {
-        case .pending: return .gray
-        case .processing: return .blue
-        case .completed: return .green
-        case .failed: return .red
-        }
     }
 
     private var rowThumbnail: some View {

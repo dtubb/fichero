@@ -63,13 +63,6 @@ extension LibraryView {
     /// elsewhere so child rows read as a clean indented sub-list.
     @TableColumnBuilder<LibraryOutlineNode, KeyPathComparator<LibraryOutlineNode>>
     internal var outlineColumns: some TableColumnContent<LibraryOutlineNode, KeyPathComparator<LibraryOutlineNode>> {
-        // Status first, untitled, icon-wide (#5279): it shows only while something happens.
-        TableColumn("", value: \.document.status.rawValue) { node in
-            documentColumnCell(for: node, columnId: "status")
-        }
-        .width(22)
-        .customizationID("status")
-
         TableColumn("Name", value: \.document.name) { node in
             // Same per-cell boundary injection as documentColumnCell — the
             // name cell hosts the activity indicator (DocumentStore) and the

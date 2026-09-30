@@ -69,8 +69,7 @@ struct LibraryActivityIndicator: View {
         .accessibilityLabel(summary)
     }
 
-    /// The ONE resolution both the view and `isIdle` read, so the indicator
-    /// and the call site that decides whether to mount it cannot disagree.
+    /// The ONE resolution of what, if anything, this document shows.
     ///
     /// ## The leaf fast path (2026-09-01 — "scrolling list view feels slow")
     ///
@@ -116,11 +115,54 @@ struct LibraryActivityIndicator: View {
             totalChildren: counts.total
         )
     }
+}
 
-    /// Whether this document contributes any indicator at all, so a call site
-    /// can keep rendering its own idle treatment (a status dot, a checkmark)
-    /// without this view having to know about it.
-    static func isIdle(_ document: Document, in store: DocumentStore) -> Bool {
-        activity(for: document, in: store) == .idle
+/// What a library row says about its item's state, in the List and in the Table's
+/// Name cell (#5295, #5296): one rule, one component for both.
+///
+/// Nothing at rest. A finished item draws no mark: a green dot on every row said
+/// nothing a row needs to say. A mark appears only while the item is queued or
+/// being worked on, and stays if the work failed.
+struct LibraryRowStatusMark: View {
+    /// What a row that is not being worked on shows.
+    enum Resting: Equatable {
+        case nothing, queued, failed
+    }
+
+    let document: Document
+
+    @Environment(DocumentStore.self) private var documentStore
+
+    var body: some View {
+        if LibraryActivityIndicator.activity(for: document, in: documentStore) != .idle {
+            LibraryActivityIndicator(document: document)
+        } else {
+            switch Self.resting(for: document.status) {
+            case .nothing:
+                EmptyView()
+            case .queued:
+                Image(systemName: "clock")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .help("Queued")
+                    .accessibilityLabel("Queued")
+            case .failed:
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .help("Failed")
+                    .accessibilityLabel("Failed")
+            }
+        }
+    }
+
+    /// `.processing` never reaches this: `ContainerActivity` has already taken
+    /// it (the spinner, or the contents ring), so it has no resting mark.
+    static func resting(for status: Status) -> Resting {
+        switch status {
+        case .completed, .processing: .nothing
+        case .pending: .queued
+        case .failed: .failed
+        }
     }
 }

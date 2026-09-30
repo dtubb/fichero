@@ -94,19 +94,19 @@ struct LibraryRowMetadataOptionsTests {
 
     // MARK: - More lines of content per row
 
-    @Test("content lines offer 2 / 4 / 6 and default to 2")
+    @Test("content lines offer 2 / 4 / 6 and default to 4 (#5295)")
     func contentLineChoices() {
         #expect(LibraryRowContentLines.allCases.map(\.rawValue) == [2, 4, 6])
-        #expect(LibraryRowContentLines.defaultValue == .two)
+        #expect(LibraryRowContentLines.defaultValue == .four)
         #expect(LibraryRowContentLines.two.title == "2 Lines")
     }
 
     @Test("an unknown stored value falls back instead of trapping")
     func contentLinesResolveUnknown() {
-        #expect(LibraryRowContentLines.resolve(4) == .four)
-        #expect(LibraryRowContentLines.resolve(0) == .two)
-        #expect(LibraryRowContentLines.resolve(99) == .two)
-        #expect(LibraryRowContentLines.resolve(-1) == .two)
+        #expect(LibraryRowContentLines.resolve(2) == .two)
+        #expect(LibraryRowContentLines.resolve(0) == .four)
+        #expect(LibraryRowContentLines.resolve(99) == .four)
+        #expect(LibraryRowContentLines.resolve(-1) == .four)
     }
 
     @Test("the row reserves the chosen number of lines, still fixed-height")

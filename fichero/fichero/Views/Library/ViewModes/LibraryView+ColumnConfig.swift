@@ -12,7 +12,6 @@ struct ColumnDefinition: Identifiable, Hashable {
 
     static let allColumns: [ColumnDefinition] = [
         ColumnDefinition(id: "name", title: "Name", defaultVisible: true, minWidth: 150, idealWidth: 200),
-        ColumnDefinition(id: "status", title: "Status", defaultVisible: true, minWidth: 80, idealWidth: 100),
         ColumnDefinition(id: "progress", title: "Progress", defaultVisible: true, minWidth: 80, idealWidth: 100),
         ColumnDefinition(id: "output", title: "Content", defaultVisible: true, minWidth: 150, idealWidth: 250),
         ColumnDefinition(id: "fileType", title: "Type", defaultVisible: true, minWidth: 60, idealWidth: 80),
@@ -34,7 +33,6 @@ extension LibraryView {
         ColumnDefinition.allColumns.filter { col in
             switch col.id {
             case "name":         return showName
-            case "status":       return showStatus
             case "progress":     return showProgress
             case "output":       return showOutput
             case "fileType":     return showFileType
@@ -51,7 +49,7 @@ extension LibraryView {
     // MARK: - Reset
 
     func resetColumns() {
-        showName = true; showStatus = true; showProgress = true
+        showName = true; showProgress = true
         showOutput = true; showFileType = true; showPath = false
         showCreatedDate = true; showModifiedDate = false
         showSize = false; showArtifacts = false
@@ -64,8 +62,6 @@ extension LibraryView {
         switch columnId {
         case "name":
             nameCell(for: doc)
-        case "status":
-            LibraryTableStatusIcon(status: doc.status)
         case "progress":
             ProgressCell(document: doc)
         case "output":
@@ -161,6 +157,10 @@ extension LibraryView {
                 onCommit: commitRename,
                 onCancel: cancelRename
             )
+            // The table has no Status column (#5296): the row says it is being
+            // worked on here, beside its name, and says nothing at rest. The
+            // same mark as the List row.
+            LibraryRowStatusMark(document: doc)
         }
     }
 
@@ -233,45 +233,4 @@ extension LibraryView {
 
         return nil
     }
-}
-
-/// The table's Status column (#5279): an icon, and only while something is happening (queued,
-/// running, failed). A finished item shows nothing: a green Completed pill on every row said
-/// nothing a row needs to say.
-struct LibraryTableStatusIcon: View {
-    let status: Status
-
-    var body: some View {
-        switch status {
-        case .completed:
-            Color.clear.accessibilityHidden(true)
-        case .pending:
-            Image(systemName: "clock")
-                .foregroundStyle(.secondary)
-                .help("Queued")
-                .accessibilityLabel("Queued")
-        case .processing:
-            ProgressView()
-                .controlSize(.mini)
-                .help("Running")
-                .accessibilityLabel("Running")
-        case .failed:
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.red)
-                .help("Failed")
-                .accessibilityLabel("Failed")
-        }
-    }
-}
-
-#Preview("Table status icon: only while something happens") {
-    VStack(alignment: .leading, spacing: 8) {
-        ForEach([Status.pending, .processing, .failed, .completed], id: \.self) { status in
-            HStack {
-                LibraryTableStatusIcon(status: status).frame(width: 22, height: 16)
-                Text(status.rawValue).font(.caption)
-            }
-        }
-    }
-    .padding()
 }
