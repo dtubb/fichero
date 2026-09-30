@@ -49,7 +49,7 @@ struct OCRTextRegionDefaultTests {
 
         let pdf = try AppSource.text("Views/Preview/PDFViewer/PDFPageWithToolbar.swift")
         #expect(
-            pdf.contains("@AppStorage(\"pdfPreview.ocrBoxesEnabled\") var ocrBoxesEnabled = true"),
+            pdf.contains("@PaneStorage(\"pdfPreview.ocrBoxesEnabled\") var ocrBoxesEnabled = true"),  // per pane, #5280
             "pdfPreview.ocrBoxesEnabled must default on — see #4418/#4497"
         )
         #expect(

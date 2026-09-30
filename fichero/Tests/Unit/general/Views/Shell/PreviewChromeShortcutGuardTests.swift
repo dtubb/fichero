@@ -294,7 +294,7 @@ struct PreviewWhatToShowMenuGuardTests {
                 "Views/Preview/ImageViewer/ZoomableImagePreviewMac.swift"
             ), encoding: .utf8
         )
-        #expect(viewer.contains("@AppStorage(\"preview.annotationsEnabled\") var annotationsEnabled = true"))
+        #expect(viewer.contains("@PaneStorage(\"preview.annotationsEnabled\") var annotationsEnabled = true"))  // per pane, #5280
     }
 
     @Test("no file owns both the image and the PDF word-box switch")
@@ -315,7 +315,8 @@ struct PreviewWhatToShowMenuGuardTests {
             // The image switch is per-pane @State since 2026-09-02; its
             // ownership marker is the one seed-read of the shared default.
             if source.contains(".object(forKey: \"imagePreview.ocrBoxesEnabled\")") { imageOwners.append(name) }
-            if source.contains("@AppStorage(\"pdfPreview.ocrBoxesEnabled\")") { pdfOwners.append(name) }
+            // Kept per pane since #5280 (@PaneStorage), still at this one key.
+            if source.contains("@PaneStorage(\"pdfPreview.ocrBoxesEnabled\")") { pdfOwners.append(name) }
         }
         #expect(imageOwners.count == 1, "image word-box switch has \(imageOwners.count) owners: \(imageOwners)")
         #expect(pdfOwners.count == 1, "PDF word-box switch has \(pdfOwners.count) owners: \(pdfOwners)")
