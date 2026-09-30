@@ -44,10 +44,38 @@ extension CanvasOrtho2DRenderer {
     /// (#4601): orthoScale grows as the user zooms out, so the world-space
     /// bars grow by the same ratio and cancel out on screen.
     func refreshSelectionDecoration() {
+        updateSelectionPlates()
+        decorator.showsFrames = false
+        // Frame and corner handles for ONE selected card only (2026-09-30): resizing is a one-card
+        // act, and a frame per card is what made a large selection slow (every refresh rebuilds
+        // every frame's meshes). Several selected cards show their plates alone.
         decorator.update(
-            items: selectionFrameItems(),
+            items: selection.count == 1 && !isGroupDragging ? selectionFrameItems() : [],
             chromeScale: orthoScale / Self.defaultOrthoScale
         )
+    }
+
+    /// A selected card sits on an accent-coloured plate, as a selected icon does in Finder. The
+    /// plate is a CHILD of the card, so it travels with the card through any drag and scales with
+    /// it through a resize at no cost; only a card whose selection changed gains or loses one.
+    func updateSelectionPlates() {
+        let plateName = "selectionPlate"
+        for id in platedIds.subtracting(selection) {
+            placeablesRoot.findEntity(named: id)?.findEntity(named: plateName)?.removeFromParent()
+        }
+        for id in selection.subtracting(platedIds) {
+            guard let placeable = placeablesById[id], let card = placeablesRoot.findEntity(named: id) else { continue }
+            let (width, height) = cardDimensions(placeable)
+            let pad = min(width, height) * 0.08
+            let plate = ModelEntity(
+                mesh: .generatePlane(width: width + pad * 2, height: height + pad * 2, cornerRadius: pad),
+                materials: [UnlitMaterial(color: PlatformColor.controlAccentColorCompat.withAlphaComponent(0.55))]
+            )
+            plate.name = plateName
+            plate.position = SIMD3<Float>(0, 0, -0.005)
+            card.addChild(plate)
+        }
+        platedIds = selection.filter { placeablesRoot.findEntity(named: $0) != nil }
     }
 
     /// The selected placeables, projected, at their LIVE positions.
@@ -102,6 +130,31 @@ extension CanvasOrtho2DRenderer {
                 && abs(point.y - center.y) <= CGFloat(height / worldPerPoint) / 2
         }
         return hits.max { ($0.zIndex, $0.id) < ($1.zIndex, $1.id) }?.id
+    }
+
+    /// The selection frame's corner handle under a screen point (within `tolerance` points), if any.
+    /// Checked BEFORE the card: a handle sits on the card's corner, and a press there used to move
+    /// the card instead of resizing it (2026-09-30).
+    func resizeHandle(atScreenPoint point: CGPoint, viewSize: CGSize, tolerance: CGFloat = 10)
+        -> (itemId: String, corner: CanvasSelectionFrame.Corner)? {
+        var found: (itemId: String, corner: CanvasSelectionFrame.Corner)?
+        func walk(_ entity: Entity) {
+            if found == nil, let handle = CanvasSelectionFrame.handle(fromEntityName: entity.name) {
+                let screen = Canvas2DProjection.screenPoint(
+                    scene: entity.position(relativeTo: nil),
+                    cameraX: camera.position.x,
+                    cameraY: camera.position.y,
+                    orthoScale: orthoScale,
+                    viewSize: viewSize
+                )
+                if hypot(screen.x - point.x, screen.y - point.y) <= tolerance {
+                    found = (handle.itemId, handle.corner)
+                }
+            }
+            entity.children.forEach(walk)
+        }
+        walk(decorator.root)
+        return found
     }
 
     /// The placeable's current world position, so a resize can persist its row

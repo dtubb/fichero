@@ -9,6 +9,13 @@ import SwiftUI
 /// folder: one layout per folder, one write path, so a card moved here is moved there too (#5301),
 /// and *Arrange by* lays them out (#5302). A click selects a card and a drag moves it (maintainer,
 /// 2026-09-30); a click does not leave the board, or a drag could never start.
+extension EnvironmentValues {
+    /// Where a folder's canvas in the Preview reports the ONE card selected on it (nil for none or
+    /// several), so the Inspector and the Reader show that item while the Preview keeps the board
+    /// (2026-09-30, #5305). Set by ContentView on the Preview pane.
+    @Entry var onFolderCanvasFocus: ((Document?) -> Void)?
+}
+
 struct FolderContentsPreview: View {
     let folderId: String
     var onNavigateToDocument: ((String) -> Void)?
@@ -19,6 +26,7 @@ struct FolderContentsPreview: View {
     @State private var items: [Document] = []
     @State private var loaded = false
     @State private var selectedNodeIds: Set<String> = []
+    @Environment(\.onFolderCanvasFocus) private var onFolderCanvasFocus
     /// The strip's Colour by, the same key the library's Canvas reads.
     @AppStorage(CanvasColourBy.storageKey) private var colourByRaw = CanvasColourBy.off.rawValue
 
@@ -32,6 +40,8 @@ struct FolderContentsPreview: View {
                     layoutStore: library.canvasLayoutStore,
                     itemStore: library.canvasItemStore,
                     folderScopeId: folderId,
+                    // Double-click a card: the Preview shows that item.
+                    onOpenDocument: { onNavigateToDocument?($0) },
                     storageService: library.storageService,
                     tint: tint
                 )
@@ -39,6 +49,14 @@ struct FolderContentsPreview: View {
                     CanvasControlStrip()
                         .padding(8)
                 }
+                .onChange(of: selectedNodeIds) { _, ids in
+                    let focused = ids.count == 1
+                        ? ids.first.flatMap(SpatialLibraryProjector.documentId(fromNodeId:))
+                            .flatMap { id in items.first { $0.id == id } }
+                        : nil
+                    onFolderCanvasFocus?(focused)
+                }
+                .onDisappear { onFolderCanvasFocus?(nil) }
             } else if loaded {
                 ContentUnavailableView(
                     "Empty Folder",

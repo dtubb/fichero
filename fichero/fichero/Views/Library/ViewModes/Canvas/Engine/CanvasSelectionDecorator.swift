@@ -63,6 +63,11 @@ final class CanvasSelectionDecorator {
         self.handleSide = handleSide
     }
 
+    /// Whether each selected card gets a stroked frame. The 2D canvas turns it off (maintainer,
+    /// 2026-09-30): a selected card there sits on an accent plate instead, and only the resize
+    /// handles are drawn.
+    var showsFrames = true
+
     /// Redraw everything from the current selection geometry.
     ///
     /// Rebuilding this root wholesale is NOT the pattern the
@@ -95,7 +100,7 @@ final class CanvasSelectionDecorator {
         let ordered = items.sorted { $0.id < $1.id }
         let plan = CanvasSelectionFrame.plan(for: ordered)
 
-        for (index, box) in plan.itemBoxes.enumerated() {
+        for (index, box) in plan.itemBoxes.enumerated() where showsFrames {
             let itemDepth = index < ordered.count ? depth(ordered[index].id) : 0
             root.addChild(makeFrame(box, depth: itemDepth, thickness: frameThickness, alpha: 1))
         }

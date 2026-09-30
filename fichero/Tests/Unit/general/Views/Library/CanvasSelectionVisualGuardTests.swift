@@ -128,7 +128,10 @@ struct CanvasSelectionVisualGuardTests {
         // Ghost-marquee fix (2026-08-22): the marquee is @GestureState now, so
         // the resize stand-down is the combined guard in .updating rather than
         // an explicit nil assignment.
-        #expect(source.contains("guard resizeHandle == nil, draggingNodeId == nil, !spaceHeld else {"))
+        // 2026-09-30: the same guard also stands down for a press on a handle or a card, found by
+        // the canvas's own hit test, so it continues past `!spaceHeld`.
+        #expect(source.contains("guard resizeHandle == nil, draggingNodeId == nil, !spaceHeld,"))
+        #expect(source.contains("renderer.resizeHandle(atScreenPoint: value.startLocation, viewSize: size) == nil"))
         #expect(source.contains("if resizeHandle == nil, draggingNodeId == nil, !spaceHeld"))
     }
 

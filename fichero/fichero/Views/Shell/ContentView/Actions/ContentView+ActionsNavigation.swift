@@ -9,7 +9,12 @@ extension ContentView {
 
     /// Select a document by ID
     func selectDocument(withId documentId: String) {
-        guard let doc = documentStore.currentDocuments.first(where: { $0.id == documentId }) else { return }
+        // A folder's child (a card double-clicked on the folder's canvas in the Preview) is not in
+        // the open folder's listing; it is in the loaded children (2026-09-30). Without this the
+        // double-click did nothing.
+        guard let doc = documentStore.currentDocuments.first(where: { $0.id == documentId })
+            ?? documentStore.childrenCache.values.lazy.flatMap({ $0 }).first(where: { $0.id == documentId })
+        else { return }
         // Image prev/next (and any other id-based navigation) flows through
         // here. If a Page Content editor has an in-flight edit, persist it via
         // the store-owned save BEFORE the focused document changes, otherwise

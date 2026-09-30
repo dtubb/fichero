@@ -41,7 +41,9 @@ extension CanvasOrtho2DRenderer {
     /// Tell the host where the camera now is, once the board has content, so it can remember where
     /// this person left this folder's board (2026-09-30).
     func cameraDidChange() {
-        guard !placeablesById.isEmpty else { return }
-        onCameraChange?(cameraSnapshot())
+        guard !placeablesById.isEmpty, let onCameraChange else { return }
+        // A move the person made: from here the camera is theirs, remembered, never re-fitted.
+        cameraIsAutoFit = false
+        onCameraChange(cameraSnapshot())
     }
 }

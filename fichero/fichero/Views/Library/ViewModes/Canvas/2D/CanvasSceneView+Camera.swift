@@ -43,6 +43,19 @@ extension CanvasSceneView {
     /// Visible affordance for pan mode: an open hand while Space is held, so the
     /// modifier is discoverable rather than folklore (#4290). Mirrors the divider
     /// cursor idiom in `ContentViewHelperViews`.
+    /// The system's diagonal frame-resize cursor for a corner handle.
+    func applyResizeCursor(_ corner: CanvasSelectionFrame.Corner) {
+        #if canImport(AppKit)
+        let position: NSCursor.FrameResizePosition = switch corner {
+        case .topLeading: .topLeft
+        case .topTrailing: .topRight
+        case .bottomLeading: .bottomLeft
+        case .bottomTrailing: .bottomRight
+        }
+        NSCursor.frameResize(position: position, directions: .all).set()
+        #endif
+    }
+
     func applyPanCursor(_ held: Bool) {
         #if canImport(AppKit)
         if held {

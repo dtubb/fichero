@@ -201,7 +201,9 @@ extension CanvasArrangement {
 /// machine and never travels with the library file. Coming back to a folder returns to it; a folder
 /// never visited is fitted to its cards.
 enum CanvasCameraMemory {
-    static let storageKey = "fichero.canvas.cameraByScope"
+    /// v2: cameras saved before 2026-09-30 evening include automatic fits of a board that then
+    /// re-flowed, which reopened folders zoomed in on a corner; they are not read.
+    static let storageKey = "fichero.canvas.cameraByScope.v2"
 
     static func camera(for scope: String, in defaults: UserDefaults = .standard) -> (position: SIMD3<Float>, scale: Float)? {
         guard let values = (defaults.dictionary(forKey: storageKey)?[scope] as? [Double]), values.count == 4 else { return nil }

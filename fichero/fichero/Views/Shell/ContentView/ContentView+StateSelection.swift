@@ -29,6 +29,13 @@ extension ContentView {
             return nil
         }()
 
+        // 0. A card chosen on the selected folder's canvas in the Preview (#5305): the Inspector
+        //    shows that item while the Preview keeps the folder's board.
+        // Same condition the Reader uses (`readerDocument`): the card's folder is the one shown.
+        if let focus = folderCanvasFocus, let parentId = focus.parentId,
+           parentId == detailDocument?.id || browserSelection.contains(parentId) {
+            return focus
+        }
         // 1. Grid selection — but ONLY if the selected doc actually
         //    belongs to the current sidebar folder. A stale or cross-
         //    folder browserSelection (e.g. left over from a previous

@@ -24,13 +24,21 @@ extension CanvasSceneView {
             .targetedToAnyEntity()
             .onChanged { value in
                 guard let parsed = CanvasSelectionFrame.handle(fromEntityName: value.entity.name) else { return }
+                resizeChanged(itemId: parsed.itemId, corner: parsed.corner, translation: value.translation, in: size)
+            }
+            .onEnded { _ in resizeEnded() }
+    }
+
+    /// One step of a handle drag. Shared by the entity-targeted gesture above and the canvas's own
+    /// hit test (`resizeHandle(atScreenPoint:)`), which is the one that reaches the handles today.
+    func resizeChanged(itemId: String, corner: CanvasSelectionFrame.Corner, translation: CGSize, in size: CGSize) {
                 if resizeHandle == nil {
-                    resizeHandle = (parsed.itemId, parsed.corner)
-                    resizeOriginSize = renderer.persistedSize(of: parsed.itemId)
+                    resizeHandle = (itemId, corner)
+                    resizeOriginSize = renderer.persistedSize(of: itemId)
                 }
                 guard let origin = resizeOriginSize else { return }
                 let delta = Canvas2DProjection.sceneDelta(
-                    screenTranslation: value.translation,
+                    screenTranslation: translation,
                     orthoScale: renderer.orthoScale,
                     viewHeight: size.height
                 )
@@ -40,14 +48,16 @@ extension CanvasSceneView {
                 let free = CanvasInteractionController.liveSelectionModifiers().contains(.shift)
                 let updated = CanvasSelectionFrame.resizedSize(
                     from: origin,
-                    corner: parsed.corner,
+                    corner: corner,
                     sceneDelta: SIMD2<Float>(delta.x, delta.y),
                     proportional: !free
                 )
                 resizeLiveSize = updated
-                renderer.liveResize(id: parsed.itemId, toSize: updated)
-            }
-            .onEnded { _ in
+                renderer.liveResize(id: itemId, toSize: updated)
+    }
+
+    /// The end of a handle drag: persist the size and register its undo.
+    func resizeEnded() {
                 defer {
                     resizeHandle = nil
                     resizeOriginSize = nil
@@ -66,6 +76,5 @@ extension CanvasSceneView {
                     destination: final,
                     undoManager: undoManager
                 )
-            }
     }
 }

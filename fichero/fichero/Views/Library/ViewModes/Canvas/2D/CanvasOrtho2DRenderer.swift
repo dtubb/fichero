@@ -165,6 +165,18 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     /// narrow pane (the Preview) framed the board by its height and cut the columns off.
     var viewportSize: CGSize = .zero
 
+    /// True while several selected cards move together (see `setGroupDragging`).
+    var isGroupDragging = false
+
+    /// True while the camera is the automatic fit, not a place the person chose. While it is, a
+    /// board that re-flows (the grid widens as page aspects load) is fitted again, so a folder opened
+    /// for the first time shows every card; the fit is never remembered as the person's camera.
+    var cameraIsAutoFit = false
+
+    /// Cards currently carrying a selection plate (`updateSelectionPlates`).
+    var platedIds: Set<String> = []
+    var lastFittedBounds: SIMD4<Float>?
+
     /// Called after every camera move with the new pose; the host remembers it per folder.
     var onCameraChange: (((position: SIMD3<Float>, scale: Float)) -> Void)?
 
@@ -174,6 +186,9 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     func reconcile(to newState: CanvasSceneState) {
         apply(CanvasSceneDiff.compute(from: appliedState, to: newState))
         appliedState = newState
+        if cameraIsAutoFit, !needsFitOnNextContent, contentBounds() != lastFittedBounds {
+            fit()
+        }
         if needsFitOnNextContent, !placeablesById.isEmpty {
             needsFitOnNextContent = false
             if let saved = cameraToRestoreOnNextContent {
@@ -195,7 +210,27 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         camera.position = SIMD3<Float>(point.x, point.y, camera.position.z)
     }
 
+    /// The cards' centre bounds (min x, min y, max x, max y), for noticing a re-flow.
+    func contentBounds() -> SIMD4<Float>? {
+        let points = placeablesById.values.map { Canvas2DProjection.scenePosition($0.position) }
+        guard !points.isEmpty else { return nil }
+        let xs = points.map(\.x), ys = points.map(\.y)
+        return SIMD4(xs.min()!, ys.min()!, xs.max()!, ys.max()!)
+    }
+
+    /// Fit the board, as the automatic camera: not remembered, and re-fitted if the board re-flows.
     func fit() {
+        let wasCallback = onCameraChange
+        onCameraChange = nil
+        defer {
+            onCameraChange = wasCallback
+            cameraIsAutoFit = true
+            lastFittedBounds = contentBounds()
+        }
+        fitCamera()
+    }
+
+    private func fitCamera() {
         let points = placeablesById.values.map { Canvas2DProjection.scenePosition($0.position) }
         guard !points.isEmpty else {
             camera.position = SIMD3<Float>(0, 0, camera.position.z)
@@ -245,8 +280,22 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         placeablesRoot.findEntity(named: id)?.position = Canvas2DProjection.scenePosition(world)
         // The frame belongs to the card, so it travels with it mid-drag —
         // otherwise dragging a selected card leaves its selection behind,
-        // which reads as the selection having been lost.
-        if selection.contains(id) { refreshSelectionDecoration() }
+        // which reads as the selection having been lost. Not during a GROUP
+        // drag: every refresh rebuilds every selected card's frame, so moving
+        // 50 selected cards rebuilt 2,500 frames per mouse move and hung the
+        // app (sampled 2026-09-30). A group's frames are hidden while it moves.
+        if selection.contains(id), !isGroupDragging { refreshSelectionDecoration() }
+    }
+
+    /// A group drag hides the selection frames while the cards move and draws them once at the end.
+    func setGroupDragging(_ dragging: Bool) {
+        guard dragging != isGroupDragging else { return }
+        isGroupDragging = dragging
+        if dragging {
+            decorator.update(items: [], chromeScale: orthoScale / Self.defaultOrthoScale)
+        } else {
+            refreshSelectionDecoration()
+        }
     }
 
     /// The placeable dropped ONTO at `world` (nearest by world proximity,
@@ -408,7 +457,7 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
 
 // MARK: - Accent colour shim
 
-private extension PlatformColor {
+extension PlatformColor {
     /// Cross-platform accent for the selection ring (`controlAccentColor` is
     /// macOS-only; iOS uses the tint).
     static var controlAccentColorCompat: PlatformColor {

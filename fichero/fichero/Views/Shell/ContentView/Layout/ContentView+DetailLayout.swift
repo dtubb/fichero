@@ -185,6 +185,7 @@ extension ContentView {
                 selectedDocumentIDs: browserSelection
             )
             .frame(maxWidth: .infinity)
+            .environment(\.onFolderCanvasFocus) { folderCanvasFocus = $0 }
             .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
         }
     }
@@ -316,6 +317,7 @@ extension ContentView {
         // `detailDocument` below, just checked before it, so a reveal is
         // never shadowed by whatever the browser last had selected.
         if let sourceRevealDocument { return sourceRevealDocument }
+        if let focus = folderCanvasFocus, focus.parentId != nil, focus.parentId == detailDocument?.id { return focus }
         if let detailDocument { return detailDocument }
         if case .library(let folder) = viewMode { return folder }
         return nil

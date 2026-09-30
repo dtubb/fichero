@@ -35,6 +35,9 @@ struct CanvasSceneView: View {
     var layoutStore: CanvasLayoutStore?
     var itemStore: CanvasItemStore?
     var folderScopeId: String?
+    /// Double-clicking a card opens the item it stands for (a document id); nil keeps the old
+    /// double-click, zooming onto the card (2026-09-30: double-click should take you to the item).
+    var onOpenDocument: ((String) -> Void)?
     /// Spatial node ids that are containers (folder / workspace), from LibraryView
     /// — drives drag-onto move-into vs link (#3086).
     var containerIds: Set<String> = []
@@ -276,6 +279,19 @@ struct CanvasSceneView: View {
             ))
             .modifier(CanvasModifierTracker(optionHeld: $optionHeld, spaceHeld: $spaceHeld))
             .onChange(of: spaceHeld) { _, held in applyPanCursor(held) }
+            // Over a corner handle the pointer becomes the diagonal resize cursor (2026-09-30), so
+            // the handle reads as a handle before it is pressed.
+            .onContinuousHover { phase in
+                guard !spaceHeld, resizeHandle == nil else { return }
+                if case .active(let point) = phase,
+                   let handle = renderer.resizeHandle(atScreenPoint: point, viewSize: geo.size) {
+                    applyResizeCursor(handle.corner)
+                    overHandle = true
+                } else if overHandle {
+                    overHandle = false
+                    applyPanCursor(false)
+                }
+            }
             // Arrange by is an ACTION (#5302, Finder's Clean Up By): choosing an order lays every
             // card out in it and saves those places. As a default for unplaced cards only, it did
             // nothing to any card a person had moved, and once positions save that is all of them.
@@ -348,6 +364,8 @@ struct CanvasSceneView: View {
     @State var lastTapNodeId: String?
     /// True while a drag that started ON a card (found by the canvas's own hit test) moves it.
     @State var pressDragging = false
+    /// Whether the pointer is over a resize handle, so leaving it restores the arrow once.
+    @State var overHandle = false
     /// The OTHER selected cards a press-drag carries along, with where each started (2026-09-30:
     /// a rubber band selected cards and then nothing could be done with them).
     @State var groupDragOrigins: [String: SIMD3<Double>] = [:]
@@ -388,6 +406,7 @@ struct CanvasSceneView: View {
                 // would rubber-band across the board while the user resizes.
                 // A press ON a card is that card's drag, never a rubber band (2026-09-30).
                 guard resizeHandle == nil, draggingNodeId == nil, !spaceHeld,
+                      renderer.resizeHandle(atScreenPoint: value.startLocation, viewSize: size) == nil,
                       renderer.placeableId(atScreenPoint: value.startLocation, viewSize: size) == nil else {
                     state = nil
                     return
@@ -397,6 +416,13 @@ struct CanvasSceneView: View {
                 )
             }
             .onChanged { value in
+                // A press on a selected card's corner handle resizes it.
+                if !pressDragging, !spaceHeld, draggingNodeId == nil,
+                   let handle = resizeHandle.map({ (itemId: $0.itemId, corner: $0.corner) })
+                    ?? renderer.resizeHandle(atScreenPoint: value.startLocation, viewSize: size) {
+                    resizeChanged(itemId: handle.itemId, corner: handle.corner, translation: value.translation, in: size)
+                    return
+                }
                 if pressDragging || (resizeHandle == nil && draggingNodeId == nil && !spaceHeld) {
                     if pressMovesCard(value, in: size) { return }
                 }
@@ -404,6 +430,10 @@ struct CanvasSceneView: View {
                 panCamera(by: value.translation, in: size)
             }
             .onEnded { value in
+                if resizeHandle != nil {
+                    resizeEnded()
+                    return
+                }
                 if pressDragging {
                     endPressDrag(value, in: size)
                     return
@@ -434,7 +464,11 @@ struct CanvasSceneView: View {
         let now = Date()
         if let id, lastTapNodeId == id, now.timeIntervalSince(lastTapAt) < 0.35 {
             lastTapNodeId = nil
-            toggleFocusZoom(on: id)
+            if let onOpenDocument, let documentId = SpatialLibraryProjector.documentId(fromNodeId: id) {
+                onOpenDocument(documentId)
+            } else {
+                toggleFocusZoom(on: id)
+            }
             return
         }
         lastTapNodeId = id
@@ -456,6 +490,7 @@ struct CanvasSceneView: View {
                 groupDragOrigins = Dictionary(uniqueKeysWithValues: selectedNodeIds.filter { $0 != id }.compactMap { other in
                     renderer.worldPosition(of: other).map { (other, $0) }
                 })
+                renderer.setGroupDragging(true)
             } else {
                 groupDragOrigins = [:]
                 // Only a single card goes through the controller; a group is saved in one write at
@@ -484,6 +519,7 @@ struct CanvasSceneView: View {
             dragStartScene = nil
             dragOriginWorld = nil
             groupDragOrigins = [:]
+            renderer.setGroupDragging(false)
         }
         guard let id = draggingNodeId, let start = dragStartScene else { return }
         let world = draggedWorld(start: start, translation: value.translation, viewHeight: size.height, id: id)

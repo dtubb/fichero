@@ -155,6 +155,13 @@ extension LibraryView {
                 layoutStore: canvasLayoutStore,
                 itemStore: canvasItemStore,
                 folderScopeId: folderId ?? wholeLibraryRoomId,
+                // Double-click a card opens it, as a double-click on a row does.
+                onOpenDocument: { documentId in
+                    if let doc = documents.first(where: { $0.id == documentId })
+                        ?? documentStore.currentDocuments.first(where: { $0.id == documentId }) {
+                        handleDoubleClick(doc)
+                    }
+                },
                 containerIds: canvasContainerIds,
                 moveIntoContainer: moveCanvasNodeIntoContainer,
                 storageService: activeLibraryReference?.storageService,

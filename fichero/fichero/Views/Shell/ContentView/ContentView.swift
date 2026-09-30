@@ -389,6 +389,10 @@ struct ContentView: View {
     /// The page document currently in view, updated only by scroll/page-flip
     /// events. Drives the inspector without re-rooting the WebKit pane (#1463).
     @State var pageFocusDocument: Document?
+    /// The card selected on a folder's canvas in the Preview (#5305): the Inspector and the Reader
+    /// show it while the Preview keeps the folder's board. Honoured only while its parent is the
+    /// folder being shown, so a stale one from another folder is ignored.
+    @State var folderCanvasFocus: Document?
     /// Coalesces the swipe→sidebar-highlight write (2026-08-09): re-rendering
     /// the sidebar per page-turn is a ~250ms childrenList pass, which is the
     /// white-flash budget. The library selection still moves per turn; the
