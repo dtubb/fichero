@@ -383,3 +383,23 @@ struct CanvasArrangeWiringGuardTests {
         #expect(Set(rows.map { $0.itemId }) == ["doc:1", "doc:2", "doc:3"], "every card is placed")
     }
 }
+
+/// 2026-09-30: coming back to a folder returned to a fitted board, not to where the person left it.
+/// The camera (centre and zoom) is remembered per folder scope; a folder never visited has none, so
+/// it is fitted. If this goes red, every folder opens re-fitted again.
+@Suite("Canvas camera memory")
+struct CanvasCameraMemoryTests {
+    @Test("a folder's camera comes back; another folder's is its own")
+    func rememberedPerScope() throws {
+        let defaults = try #require(UserDefaults(suiteName: "CanvasCameraMemoryTests-\(UUID().uuidString)"))
+        #expect(CanvasCameraMemory.camera(for: "folder-a", in: defaults) == nil, "never visited: fit instead")
+
+        CanvasCameraMemory.remember((SIMD3<Float>(4, -2, 10), 7.5), for: "folder-a", in: defaults)
+        CanvasCameraMemory.remember((SIMD3<Float>(1, 1, 10), 2), for: "folder-b", in: defaults)
+
+        let a = try #require(CanvasCameraMemory.camera(for: "folder-a", in: defaults))
+        #expect(a.position == SIMD3<Float>(4, -2, 10))
+        #expect(a.scale == 7.5)
+        #expect(CanvasCameraMemory.camera(for: "folder-b", in: defaults)?.scale == 2)
+    }
+}

@@ -193,3 +193,24 @@ extension CanvasArrangement {
         }
     }
 }
+
+// MARK: - Where a person left each board (2026-09-30)
+
+/// The camera (centre and zoom) a person last left each folder's canvas at, per folder scope, kept
+/// in this Mac's preferences: a view preference, not library data, so it is per person and per
+/// machine and never travels with the library file. Coming back to a folder returns to it; a folder
+/// never visited is fitted to its cards.
+enum CanvasCameraMemory {
+    static let storageKey = "fichero.canvas.cameraByScope"
+
+    static func camera(for scope: String, in defaults: UserDefaults = .standard) -> (position: SIMD3<Float>, scale: Float)? {
+        guard let values = (defaults.dictionary(forKey: storageKey)?[scope] as? [Double]), values.count == 4 else { return nil }
+        return (SIMD3<Float>(Float(values[0]), Float(values[1]), Float(values[2])), Float(values[3]))
+    }
+
+    static func remember(_ camera: (position: SIMD3<Float>, scale: Float), for scope: String, in defaults: UserDefaults = .standard) {
+        var all = defaults.dictionary(forKey: storageKey) ?? [:]
+        all[scope] = [Double(camera.position.x), Double(camera.position.y), Double(camera.position.z), Double(camera.scale)]
+        defaults.set(all, forKey: storageKey)
+    }
+}

@@ -47,6 +47,12 @@ extension ContentView {
            activeSearchQuery != nil || doc.parentId == currentSidebarFolder?.id {
             return doc
         }
+        // 1b. A row the table's outline expanded (a folder's child, 2026-09-30): it is not in the
+        //     open folder's own listing, so rung 1 cannot find it and the Inspector fell through to
+        //     the folder while the Preview and Reader showed the row. It is what was selected.
+        if let detail = detailDocument, browserSelection.contains(detail.id) {
+            return detail
+        }
         // 2. Page focus — updated by scroll/page-flip via syncGridSelectionToPDFPage
         //    without touching detailDocument (#1463). Shows per-page KG/content
         //    while the WebKit pane stays pinned to the parent container.

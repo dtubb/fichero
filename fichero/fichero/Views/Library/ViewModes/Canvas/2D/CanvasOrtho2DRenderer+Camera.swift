@@ -35,5 +35,13 @@ extension CanvasOrtho2DRenderer {
         let xCoords = points.map(\.x), yCoords = points.map(\.y)
         camera.position.x = min(max(camera.position.x, xCoords.min()! - margin), xCoords.max()! + margin)
         camera.position.y = min(max(camera.position.y, yCoords.min()! - margin), yCoords.max()! + margin)
+        cameraDidChange()
+    }
+
+    /// Tell the host where the camera now is, once the board has content, so it can remember where
+    /// this person left this folder's board (2026-09-30).
+    func cameraDidChange() {
+        guard !placeablesById.isEmpty else { return }
+        onCameraChange?(cameraSnapshot())
     }
 }

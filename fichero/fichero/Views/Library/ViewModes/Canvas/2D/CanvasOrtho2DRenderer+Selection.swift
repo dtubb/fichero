@@ -80,6 +80,30 @@ extension CanvasOrtho2DRenderer {
         placeablesById[id].map { $0.size ?? Self.defaultCardSize }
     }
 
+    /// The card under a screen point, the one drawn on top when cards overlap, or nil over the board.
+    ///
+    /// The canvas's own hit test, from the geometry it draws with (2026-09-30): RealityKit's
+    /// entity-targeted gestures stopped reaching the cards, so every press fell through to the
+    /// background rubber band and no card could be clicked or dragged. This reads the same
+    /// positions and sizes the cards are drawn from, so it cannot disagree with what is on screen.
+    func placeableId(atScreenPoint point: CGPoint, viewSize: CGSize) -> String? {
+        let worldPerPoint = Canvas2DProjection.worldPerPoint(orthoScale: orthoScale, viewHeight: viewSize.height)
+        guard worldPerPoint > 0 else { return nil }
+        let hits = placeablesById.values.filter { placeable in
+            let (width, height) = cardDimensions(placeable)
+            let center = Canvas2DProjection.screenPoint(
+                scene: Canvas2DProjection.scenePosition(placeable.position),
+                cameraX: camera.position.x,
+                cameraY: camera.position.y,
+                orthoScale: orthoScale,
+                viewSize: viewSize
+            )
+            return abs(point.x - center.x) <= CGFloat(width / worldPerPoint) / 2
+                && abs(point.y - center.y) <= CGFloat(height / worldPerPoint) / 2
+        }
+        return hits.max { ($0.zIndex, $0.id) < ($1.zIndex, $1.id) }?.id
+    }
+
     /// The placeable's current world position, so a resize can persist its row
     /// without moving a card that has no saved row yet to the origin.
     func worldPosition(of id: String) -> SIMD3<Double>? {

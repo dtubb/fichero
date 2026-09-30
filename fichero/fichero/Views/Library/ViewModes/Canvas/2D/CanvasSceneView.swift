@@ -175,6 +175,7 @@ struct CanvasSceneView: View {
                 content.add(renderer.root)
                 renderer.reconcile(to: resolvedState(in: geo.size))
             } update: { _ in
+                renderer.viewportSize = geo.size
                 renderer.storageService = storageService
                 renderer.detailTier = CanvasDetailTier.forZoomScale(renderer.reportedZoomScale)
                 renderer.reconcile(to: resolvedState(in: geo.size))
@@ -198,8 +199,12 @@ struct CanvasSceneView: View {
             // .onTapGesture on an outer wrapper: the wrapper's tap fired
             // ALONGSIDE the entity tap and instantly wiped the selection it
             // had just made ("only way to select is drag", 2026-08-20).
-            .gesture(TapGesture().onEnded {
-                controller?.dispatch(.tap(id: nil, modifiers: []))
+            // A click selects the card under it, found by the canvas's own hit test
+            // (`placeableId(atScreenPoint:)`, 2026-09-30): RealityKit's entity-targeted tap
+            // stopped reaching the cards, so a click on a card cleared the selection instead.
+            .gesture(SpatialTapGesture().onEnded { value in
+                let id = renderer.placeableId(atScreenPoint: value.location, viewSize: geo.size)
+                pointTap(on: id)
             })
             .gesture(panOrMarquee(in: geo.size))
             .simultaneousGesture(zoom)
@@ -286,7 +291,9 @@ struct CanvasSceneView: View {
             .task(id: folderScopeId) {
                 configureController()
                 // Frame the board once this scope has content — the default grid
-                // is origin-anchored, so an unfitted camera shows a corner of it.
+                // is origin-anchored, so an unfitted camera shows a corner of it —
+                // or return to where this person last left this folder's board.
+                renderer.cameraToRestoreOnNextContent = CanvasCameraMemory.camera(for: scopeKey)
                 renderer.needsFitOnNextContent = true
                 guard let folderId = folderScopeId else { return }
                 await layoutStore?.loadLayout(folderId: folderId)
@@ -306,6 +313,8 @@ struct CanvasSceneView: View {
             selection: $selectedNodeIds
         )
         renderer.onIntent = { controller.dispatch($0) }
+        let scope = scopeKey
+        renderer.onCameraChange = { CanvasCameraMemory.remember($0, for: scope) }
         renderer.isDragSuppressed = { controller.isDragging($0) }
         renderer.storageService = storageService
         controller.onMoveInto = { moveIntoContainer($0, $1) }
@@ -337,6 +346,11 @@ struct CanvasSceneView: View {
     /// background-clear tap — every click selected and was instantly wiped
     /// ("you can't single click on an item"). One gesture, no interplay.
     @State var lastTapNodeId: String?
+    /// True while a drag that started ON a card (found by the canvas's own hit test) moves it.
+    @State var pressDragging = false
+    /// The OTHER selected cards a press-drag carries along, with where each started (2026-09-30:
+    /// a rubber band selected cards and then nothing could be done with them).
+    @State var groupDragOrigins: [String: SIMD3<Double>] = [:]
     @State var lastTapAt: Date = .distantPast
 
     // MARK: - Gestures
@@ -372,7 +386,9 @@ struct CanvasSceneView: View {
                 // A live resize is a drag too, and it starts on a handle rather
                 // than on a card — so `draggingNodeId` is nil and the marquee
                 // would rubber-band across the board while the user resizes.
-                guard resizeHandle == nil, draggingNodeId == nil, !spaceHeld else {
+                // A press ON a card is that card's drag, never a rubber band (2026-09-30).
+                guard resizeHandle == nil, draggingNodeId == nil, !spaceHeld,
+                      renderer.placeableId(atScreenPoint: value.startLocation, viewSize: size) == nil else {
                     state = nil
                     return
                 }
@@ -381,10 +397,17 @@ struct CanvasSceneView: View {
                 )
             }
             .onChanged { value in
+                if pressDragging || (resizeHandle == nil && draggingNodeId == nil && !spaceHeld) {
+                    if pressMovesCard(value, in: size) { return }
+                }
                 guard resizeHandle == nil, draggingNodeId == nil, spaceHeld else { return }
                 panCamera(by: value.translation, in: size)
             }
             .onEnded { value in
+                if pressDragging {
+                    endPressDrag(value, in: size)
+                    return
+                }
                 // marqueeRect is already reset here (@GestureState), so the
                 // commit rect is recomputed from the gesture's own value.
                 if resizeHandle == nil, draggingNodeId == nil, !spaceHeld {
@@ -401,5 +424,100 @@ struct CanvasSceneView: View {
                 }
                 panBaseline = .zero
             }
+    }
+
+    // MARK: - Card press and drag by the canvas's own hit test (2026-09-30)
+
+    /// A click on a card, or on the board (`id` nil): select it, or zoom on a double-click, exactly
+    /// as the entity-targeted `tapSelect` did.
+    private func pointTap(on id: String?) {
+        let now = Date()
+        if let id, lastTapNodeId == id, now.timeIntervalSince(lastTapAt) < 0.35 {
+            lastTapNodeId = nil
+            toggleFocusZoom(on: id)
+            return
+        }
+        lastTapNodeId = id
+        lastTapAt = now
+        controller?.dispatch(.tap(id: id, modifiers: CanvasInteractionController.liveSelectionModifiers()))
+    }
+
+    /// Start or continue a drag that began on a card. True when this drag belongs to a card.
+    private func pressMovesCard(_ value: DragGesture.Value, in size: CGSize) -> Bool {
+        if !pressDragging {
+            guard let id = renderer.placeableId(atScreenPoint: value.startLocation, viewSize: size),
+                  let world = renderer.worldPosition(of: id) else { return false }
+            pressDragging = true
+            draggingNodeId = id
+            dragStartScene = Canvas2DProjection.scenePosition(world)
+            dragOriginWorld = world
+            // Pressing one card of a multiple selection moves the whole selection.
+            if selectedNodeIds.contains(id), selectedNodeIds.count > 1 {
+                groupDragOrigins = Dictionary(uniqueKeysWithValues: selectedNodeIds.filter { $0 != id }.compactMap { other in
+                    renderer.worldPosition(of: other).map { (other, $0) }
+                })
+            } else {
+                groupDragOrigins = [:]
+                // Only a single card goes through the controller; a group is saved in one write at
+                // the end (`saveGroupMove`), so the controller never holds a half-finished drag.
+                controller?.dispatch(.dragBegan(id: id))
+            }
+        }
+        guard let id = draggingNodeId, let start = dragStartScene else { return true }
+        let world = draggedWorld(start: start, translation: value.translation, viewHeight: size.height, id: id)
+        renderer.liveMove(id: id, toWorld: world)
+        if let origin = dragOriginWorld {
+            for (other, otherOrigin) in groupDragOrigins {
+                renderer.liveMove(id: other, toWorld: otherOrigin + (world - origin))
+            }
+        }
+        renderer.setHoverTarget(renderer.dropTargetId(nearWorld: world, excluding: id))
+        controller?.dispatch(.dragMoved(id: id, position: world))
+        return true
+    }
+
+    /// Drop the card: the same end, save and undo as the entity-targeted `nodeDrag`.
+    private func endPressDrag(_ value: DragGesture.Value, in size: CGSize) {
+        defer {
+            pressDragging = false
+            draggingNodeId = nil
+            dragStartScene = nil
+            dragOriginWorld = nil
+            groupDragOrigins = [:]
+        }
+        guard let id = draggingNodeId, let start = dragStartScene else { return }
+        let world = draggedWorld(start: start, translation: value.translation, viewHeight: size.height, id: id)
+        if !groupDragOrigins.isEmpty, let origin = dragOriginWorld {
+            saveGroupMove(pressed: id, to: world, from: origin)
+            return
+        }
+        renderer.setHoverTarget(nil)
+        let target = dropTarget(near: world, dragged: id)
+        let modifiers: CanvasDropModifiers = optionHeld ? .forceLink : []
+        controller?.dispatch(.dragEnded(id: id, position: world, dropTarget: target, modifiers: modifiers))
+        if target == nil, let controller, let origin = dragOriginWorld {
+            controller.registerMoveUndo(id: id, origin: origin, destination: world, undoManager: undoManager)
+        }
+    }
+
+    /// Save a whole selection's move as ONE layout write: every carried card keeps its offset from
+    /// the pressed one. No drop-into or link for a group; those stay single-card gestures.
+    private func saveGroupMove(pressed id: String, to world: SIMD3<Double>, from origin: SIMD3<Double>) {
+        guard let layoutStore else { return }
+        let delta = world - origin
+        var rows = layoutStore.layout(for: scopeKey)
+        var moved = groupDragOrigins.mapValues { $0 + delta }
+        moved[id] = world
+        for (movedId, position) in moved {
+            if let index = rows.firstIndex(where: { $0.itemId == movedId }) {
+                rows[index].x = position.x
+                rows[index].y = position.y
+                rows[index].z = position.z
+            } else {
+                rows.append(CanvasItemLayout(itemId: movedId, x: position.x, y: position.y, z: position.z))
+            }
+        }
+        let scope = scopeKey
+        Task { await layoutStore.saveLayout(folderId: scope, items: rows) }
     }
 }

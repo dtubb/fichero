@@ -157,6 +157,17 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     /// placeables it is meant to frame exist.
     var needsFitOnNextContent = false
 
+    /// A camera to restore INSTEAD of fitting when the scope's content arrives: where this person
+    /// last left this folder's board (2026-09-30). Consumed like `needsFitOnNextContent`.
+    var cameraToRestoreOnNextContent: (position: SIMD3<Float>, scale: Float)?
+
+    /// The view's size, set by the host on every update: the fit needs the pane's shape, or a
+    /// narrow pane (the Preview) framed the board by its height and cut the columns off.
+    var viewportSize: CGSize = .zero
+
+    /// Called after every camera move with the new pose; the host remembers it per folder.
+    var onCameraChange: (((position: SIMD3<Float>, scale: Float)) -> Void)?
+
     /// Reconcile the live scene to `newState` via the minimal diff against the
     /// last applied state — the view calls this whenever the resolved scene
     /// changes (a store patch, a selection change). Never rebuilds.
@@ -165,7 +176,12 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         appliedState = newState
         if needsFitOnNextContent, !placeablesById.isEmpty {
             needsFitOnNextContent = false
-            fit()
+            if let saved = cameraToRestoreOnNextContent {
+                cameraToRestoreOnNextContent = nil
+                restoreCamera(saved)
+            } else {
+                fit()
+            }
         }
     }
 
@@ -192,12 +208,17 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
             (yValues.min()! + yValues.max()!) / 2,
             camera.position.z
         )
-        // Spans are CENTRE-to-centre, so add a cell of margin — otherwise the
-        // outermost cards are half off-screen, and a single-card scope frames a
-        // span of 0 (#4290).
-        let margin = Float(CanvasGridPlacement.cellWidth)
-        let span = max(xValues.max()! - xValues.min()!, yValues.max()! - yValues.min()!) + margin
-        setOrthoScale(span * 0.6)
+        // Spans are CENTRE-to-centre, so add margin — otherwise the outermost
+        // cards are half off-screen, and a single-card scope frames a span of 0
+        // (#4290). Two cells, not one: the grid re-flows once as page aspects
+        // load, and a tight fit then cut the board off (2026-09-30).
+        let margin = Float(CanvasGridPlacement.cellWidth) * 2
+        let spanX = xValues.max()! - xValues.min()! + margin
+        let spanY = yValues.max()! - yValues.min()! + margin
+        // The ortho scale is HALF the visible height. Frame whichever axis is the
+        // tighter fit for this pane's shape, so a narrow pane shows every column.
+        let aspect = viewportSize.height > 0 ? Float(viewportSize.width / viewportSize.height) : 1
+        setOrthoScale(max(spanY / 2, spanX / 2 / max(aspect, 0.1)))
     }
 
     // MARK: - Camera control (view drives these from gestures)
@@ -211,6 +232,7 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         applyOrthoScale()
         // Zoom-constant selection chrome (#4601): redraw at the new ratio.
         refreshSelectionDecoration()
+        cameraDidChange()
     }
 
     // MARK: - Drag + marquee (#3084)
