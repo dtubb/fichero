@@ -79,8 +79,8 @@ uncertainty, so the people doing the reading can argue from the same evidence.
 - **Arithmetic as a check.** Where a number system is known, accounting texts that state totals
   let readings of numeral signs be checked against their sums. This method has been used on
   proto-cuneiform and proto-Elamite tablets.
-- **Interchange.** TEI `<charDecl>` and `<glyph>` for signs (already written,
-  `source.sign.export-honest`), IIIF and W3C annotations for instances on images (`iiif.md`), and
+- **Interchange.** TEI `<charDecl>` and `<glyph>` for signs (written for signs that
+  have a code point, `source.sign.export-honest` [PARTIAL]), IIIF and W3C annotations for instances on images (`iiif.md`), and
   Hugging Face datasets and Zenodo for published sets (`source.train.*`, `compute.publish.*`).
 
 ## What exists today (and what this slice reuses)
@@ -88,10 +88,15 @@ uncertainty, so the people doing the reading can argue from the same evidence.
 - **Signs:** `DeclaredSign` (`models/signs.py`) and the `sign.declare` action, with `GET /api/signs` and
   `/api/signs/{id}/instances` (`api/routes/document/signs.py`). A sign can be known only by a
   list number. Instances are found by code point, so a sign with no code point cannot yet be
-  gathered (`source.sign.*`, #4939). There is no app surface (#5166).
+  gathered (`source.sign.*`, #4939). In the app, the Inspector's Signs section shows a character's
+  declared sign and how many instances it has, read-only, and the Segments pane gathers every
+  instance of a sign (`build-notes-ux-wiring.md`). Declaring, editing and searching signs have no
+  surface yet (#5166).
 - **Letterforms and hands:** the character, allograph and hand chain; components and features
   from open lists; and rival hand attributions with certainty and judge (`source.letterform.*`,
-  `source.hand.attributed`, #4935). Engine side only.
+  `source.hand.attributed`, #4935), all [PARTIAL]. The Inspector's Hands section attributes a
+  segment to a hand, the Signs section reads a character's letterform, and the Segments pane gathers
+  everything in a hand (`build-notes-ux-wiring.md`); comparing letterforms has no surface yet.
 - **Segments:** a character or sign is a segment with an open kind, cut to its shape
   (`source.segment.one-primitive`, `source.segment.picture-by-shape`). Every segment and reading
   records its maker.
@@ -185,7 +190,7 @@ identification or a grouping), never as accepted fact (`source.pass.never-overwr
 - **Propose identities.** A classifier trained on the current list proposes the top few signs
   for each mark, with confidence.
 - **Picture vectors.** Every mark's picture gets a vector from a named image encoder: a pretrained
-  self-supervised one, or one fine-tuned on the project's identified marks. "More like this mark"
+  self-supervised one (DINOv2, Oquab et al. 2023, or similar), or one fine-tuned on the project's identified marks. "More like this mark"
   then works across the whole corpus, and the meaning map (`explore.meaning.view-mode`) can lay
   marks out by look.
 - **Propose groups.** Clustering over the picture vectors proposes "these marks may be one sign".
@@ -372,7 +377,8 @@ Marks and identifications:
 - `decipher.text.derived-from-identifications` — **[GAP]** (#5329) a line's text is worked out
   from its counting identifications, so a change reaches every count, search and export.
 - `decipher.instances.without-code-point` — **[GAP]** (#4939) every instance of a sign is gathered with
-  its picture, including a sign with no code point (closes `source.sign.gather-instances`).
+  its picture, including a sign with no code point, found through the identifications that name it
+  (extends `source.sign.gather-instances`, which finds instances by code point only).
 
 Sign lists:
 - `decipher.list.several` — **[GAP]** (#5330) a project holds several sign lists, its own and
@@ -399,7 +405,9 @@ Parts of signs:
 
 Ground truth:
 - `decipher.campaign.blind` — **[GAP]** (#5329) a campaign assigns pages to annotators under a
-  versioned guideline, optionally blind.
+  versioned guideline. In a blind campaign the engine withholds other annotators' identifications
+  of the campaign's marks from each annotator (reads and the gathered instances alike) until the
+  campaign is closed or the annotator has finished their pages.
 - `decipher.campaign.agreement` — **[GAP]** (#5329) agreement is measured per sign, annotator and
   page, and the most-disputed signs are listed.
 - `decipher.campaign.adjudication` — **[GAP]** (#5329) the lead adjudicates rival
@@ -446,8 +454,10 @@ Known subsystems and hypotheses:
   a failure flags the entries' readings.
 - `decipher.hyp.record` — **[GAP]** (#5334) a hypothesis is a record with author, statement, linked
   evidence, status and discussion.
-- `decipher.hyp.as-lens` — **[GAP]** (#5334, #4692) a hypothesis can be applied as a lens, and
-  analyses re-run under it, without changing stored identifications.
+- `decipher.hyp.as-lens` — **[GAP]** (#5334, #4692) a hypothesis can be applied as a lens. Every
+  `decipher.seq.*` and `decipher.parts.*` analysis accepts a lens and returns its result under the
+  lens beside the result without it, and both are saved with the analysis recipe. Stored
+  identifications do not change.
 - `decipher.hyp.accept-is-a-person` — **[GAP]** (#5334) accepting a hypothesis into the
   identifications is a person's audited, undoable act.
 
@@ -462,10 +472,16 @@ Sharing:
 - `decipher.share.import-attributed` — **[GAP]** (#5335) another team's package imports beside the
   project's own, attributed and never merged.
 
+## Documentation matrix, preview harness, accessibility identifiers, UX completeness
+
+Filled at approval, from the surfaces this spec settles (see Open questions). Listed here as
+missing so the gap is visible: none of the four is written yet. [MISSING]
+
 ## Test matrix
 
 To be filled at approval. The fixtures are real, openly licensed corpora: a public proto-Elamite or
-proto-cuneiform set (CDLI) for numerals and sums, and a published sign list with a concordance.
+proto-cuneiform set (CDLI) for numerals and sums, and a small Linear A set with two published
+sign lists and their concordance, for list versions and concordances.
 They are not invented signs. The statistics tests pin both a known result on a reference corpus
 and its baseline.
 

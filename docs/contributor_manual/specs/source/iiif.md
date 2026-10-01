@@ -32,13 +32,16 @@ and search), so colleagues can read it in any IIIF viewer, and a static export c
 - **IIIF Image API 3.0** (regions, sizes, `info.json`, compliance levels 0–2) and
   **Presentation API 3.0** (Collection, Manifest, Canvas, AnnotationPage). Fichero adopts both,
   reads 2.1 as well (much of the world still publishes 2.1), and writes 3.0.
-- **W3C Web Annotation** with IIIF's motivations (`painting`, `supplementing`, `commenting`,
-  `tagging`, `linking`) and the **Text Granularity extension** (`page`, `block`, `line`, `word`,
-  `glyph`): the agreed way to publish transcription lines and words on a canvas.
+- **W3C Web Annotation** motivations (`commenting`, `tagging`, `linking`, `bookmarking`,
+  `highlighting`, `assessing`) plus IIIF's own (`painting`, `supplementing`), and the **Text
+  Granularity extension** (`page`, `block`, `paragraph`, `line`, `word`, `glyph`): the agreed way to
+  publish transcription lines and words on a canvas. Transcription is `supplementing` with a
+  granularity; a person's highlight stays `highlighting`, a note `commenting`, as the export does today.
 - **Content Search API 2.0** (search inside a manifest, with hits as annotations) and
   **Content State API 1.0** (a link that opens a viewer on a region of a canvas).
 - **Authorization Flow API 2.0** for access-controlled images, and **Change Discovery API 1.0**
-  (an activity stream) so harvesters can follow a published library.
+  (an activity stream) so harvesters can follow a published library (not in this slice's behaviours;
+  a later one, once there is a published library to follow).
 - **By reference, not by mirror.** Arkindex stores a page as a pointer to a IIIF image server
   and fetches regions on demand; eScriptorium and Transkribus import a manifest by downloading
   every image. Fichero takes Arkindex's model, with an explicit, per-source choice to keep a
@@ -49,13 +52,17 @@ and search), so colleagues can read it in any IIIF viewer, and a static export c
 
 ## What exists today
 
-- **Import, downloading.** `importers/iiif_import.py` reads a local folder of manifests,
-  collections and annotation pages into documents, page text and entities (#1646).
+- **Import, downloading.** `importers/iiif_import.py` reads a local folder of Presentation **3.0**
+  manifests, collections and W3C AnnotationPages (linked from a canvas's `annotations`) into
+  documents, page text, entities and per-page transcript results (#1646). It does not read 2.x
+  (`sequences`) manifests; only the single-manifest remote loader below does.
   `loaders/iiif_loader.py` fetches a remote manifest and **downloads** each canvas's image at
   up to 1500 px, refusing unsafe URLs (`security/url_security.py`). Nothing keeps a page remote.
 - **Serving, dev tier only.** `api/routes/ingest/iiif.py` serves local images through Image API
-  **2.1** (`/api/iiif/{id}/info.json`, `/{region}/{size}/{rotation}/{quality}.{format}`) and a
-  Presentation manifest per document (`/api/iiif/manifest/{document_id}`). Its tier is `dev`
+  **2.1 at level 1** (`/api/iiif/{id}/info.json`, `/{region}/{size}/{rotation}/{quality}.{format}`;
+  pixel regions and sizes only, no percentage regions or rotation) and a Presentation **3.0**
+  manifest per document whose image service is that 2.1 endpoint (`/api/iiif/manifest/{document_id}`),
+  with the person's annotations as an annotation page. Its tier is `dev`
   (`feature_tiers_generated.py`), so no released build has it.
 - **Export.** Parquet, IIIF, W3C annotation and RDF leave through one record stream
   (`export_service.py`); the georeference extension is read and written
@@ -97,7 +104,8 @@ viewer.
 - **Rights travel with it.** The manifest's `rights`, `requiredStatement` and `provider` are
   stored on the source, shown in the Inspector, and carried into every export. A canvas behind
   IIIF authorization asks for access through the Authorization Flow; Fichero never stores the
-  institution's credentials in the library.
+  institution's credentials, and the access tokens the flow issues are kept for the session only, so
+  no token is ever at rest in the library file.
 - **The institution's text is a reading, not the truth.** Transcription annotations in a
   manifest (`supplementing`, with text granularity) arrive as a pass whose maker is the
   publishing institution, like any other imported result. Fichero's own corrections are new
@@ -122,17 +130,21 @@ viewer.
 A library that is **shared** (`sharing` spec, #5049) can also be read as IIIF, through the same
 port, the same accounts and the same permissions:
 
-- **Image API 3.0, level 2** for local images (2.1 kept for old viewers), from the renditions
-  Fichero already keeps. Remote pages are not proxied: their manifests point at the original.
+- **Image API 3.0** for local images (2.1 kept for old viewers), from the renditions Fichero
+  already keeps: level 1 first (what today's 2.1 route does), then level 2 (percentage regions,
+  rotation), which Mirador and the Universal Viewer use. Remote pages are not proxied: their manifests point at the original.
 - **Presentation API 3.0** for the library tree: the library is a collection, folders are
   collections, documents are manifests.
 - **Annotations** for segments and readings, as above.
-- **Content Search API 2.0** inside a manifest, answered from Fichero's own search.
+- **Content Search API 2.0** inside a manifest, answered from Fichero's own search but returned in
+  the API's own envelope: hits as annotations with text quote and position selectors, in an
+  annotation page.
 - **Content State** links: "Copy IIIF Link" on a selection gives a link that opens any viewer on
-  that region of that page.
+  that region of that page. The link is the API's Base64URL-encoded form, and the same form pasted
+  into Fichero opens or imports what it points at.
 - **Access.** Only what the viewer's account may read is served. What the rights record or a
-  permission withholds is absent from manifests and refused by the image service (the "deny
-  hides" ruling), and an anonymous viewer sees only what the library publishes openly.
+  permission withholds is absent from manifests and refused by the image service (the ruling of
+  2026-09-28 that a deny hides, not marks), and an anonymous viewer sees only what the library publishes openly.
 - **Static publishing.** The static-site export (#3177) writes the same manifests and annotations
   with level 0 tiles, so a library can be published on any web host with no Fichero running.
 
@@ -146,7 +158,8 @@ In:
   canvases as pages at once, without downloading their images.
 - `iiif.import.reads-v2-and-v3` — **[PARTIAL]** (#1646) Presentation 2.1 and 3.0 manifests and
   collections both import. **Built:** a local folder of manifests (`iiif_import.py`).
-  **Not built:** a remote collection walked by reference.
+  **Not built:** a remote collection walked by reference, and 2.x (`sequences`) manifests in the
+  folder importer.
 - `iiif.view.fetches-what-is-shown` — **[GAP]** (#5324) a remote page is drawn from region and size
   requests for what is on screen, through a bounded cache; no file path is ever involved.
 - `iiif.coords.canvas-space` — **[GAP]** (#5324) segments on a remote page are stored in canvas
@@ -169,7 +182,8 @@ In:
 
 Out:
 - `iiif.export.manifest` — **[PARTIAL]** (#5326) a folder, document or selection exports as a
-  Presentation 3.0 manifest or collection. **Built:** a manifest per document, at 2.1, dev tier.
+  Presentation 3.0 manifest or collection. **Built:** a Presentation 3.0 manifest per document with an
+  Image API 2.1 service, dev tier.
 - `iiif.export.points-at-original` — **[GAP]** (#5326) a page that came in by reference exports
   pointing at its original image service; nothing is re-hosted.
 - `iiif.export.segments-as-annotations` — **[GAP]** (#5326) segments export as annotations with
@@ -180,8 +194,8 @@ Out:
   duplicate pages.
 
 Server:
-- `iiif.serve.image-api` — **[PARTIAL]** (#5327) a shared library serves Image API 3.0 level 2
-  for local images. **Built:** Image API 2.1 in the dev tier only.
+- `iiif.serve.image-api` — **[PARTIAL]** (#5327) a shared library serves Image API 3.0 for local
+  images, level 1 then level 2. **Built:** Image API 2.1 level 1, in the dev tier only.
 - `iiif.serve.presentation` — **[PARTIAL]** (#5327) the library tree is served as collections
   and manifests. **Built:** one manifest per document, dev tier.
 - `iiif.serve.search` — **[GAP]** (#5327) Content Search API 2.0 inside a served manifest.
@@ -190,9 +204,14 @@ Server:
 - `iiif.serve.only-what-may-be-read` — **[GAP]** (#5327) only what the viewer's account may read
   is served; withheld material is absent from manifests and refused by the image service.
 - `iiif.serve.no-own-toggle` — **[GAP]** (#5327) the IIIF server is part of sharing and has no
-  separate switch.
+  separate switch (sharing and multi-user stay the only two toggles, `library-sharing.md`).
 - `iiif.publish.static` — **[GAP]** (#3177) the static-site export writes the same manifests and
   annotations with level 0 tiles.
+
+## Documentation matrix, preview harness, accessibility identifiers, UX completeness
+
+Filled at approval, from the surfaces this spec settles (see Open questions). Listed here as
+missing so the gap is visible: none of the four is written yet. [MISSING]
 
 ## Test matrix
 
@@ -210,3 +229,7 @@ library and into the one it came from), against real manifests from at least two
    the cache.
 3. **Proxying remote images** for viewers of a shared library who cannot reach the institution.
    Recommendation: no; the manifest points at the original. Revisit if a real case appears.
+4. **The storage call for a remote page.** Today the storage layer resolves local files
+   (`db/storage.py`). A remote page needs one call that both kinds of page answer (pixels for a
+   page, a region and a size), so the Preview, thumbnails and model runs have one caller. Its shape
+   is designed before `iiif.import.by-reference` is built, not during it.

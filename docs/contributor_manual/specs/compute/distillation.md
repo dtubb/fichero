@@ -41,27 +41,34 @@ community's model.
 - **Rationale distillation:** "Distilling step-by-step" (Hsieh et al. 2023) trains a small model to
   give the teacher's reasons as well as its answer, and gets better results from less data. This
   is #4642's "a model that says why".
-- **Self-training and pseudo-labelling:** a model labels unlabelled data, and only its confident
-  labels are kept (Noisy Student). Confidence thresholds and agreement between several teachers
-  decide what is kept.
+- **Self-training and pseudo-labelling:** a model labels unlabelled data and only its confident
+  labels are kept (pseudo-labelling, Lee 2013). Noisy Student (Xie et al. 2020) adds noise to the
+  student's inputs while it learns, which helps layout detectors more than line readers. Confidence
+  thresholds and agreement between several teachers decide what is kept.
 - **Active learning:** people correct what the student is least sure of first, so every
   correction teaches most.
 - **Cascades and routing:** try the cheap model, and escalate to the expensive one when
-  confidence is low (FrugalGPT, model cascades). Measured per job and per page kind.
+  confidence is low (FrugalGPT, Chen et al. 2023; model cascades). Measured per job and per page
+  kind. Routing on confidence needs calibrated confidence; temperature scaling (Guo et al. 2017) is
+  the standard post-hoc fix for a neural model's over-confidence.
 - **The HTR field's practice:**
   - Kraken and eScriptorium train small recognisers from a few hundred corrected lines, and
     fine-tune a base model per manuscript. Transkribus does the same with its Super Models
     fine-tuned per collection.
   - TrOCR and small vision-language models (Florence-2, SmolVLM, Qwen2-VL-2B, PaliGemma) can be
-    fine-tuned with LoRA.
+    fine-tuned with LoRA. Each base carries its own licence (PaliGemma's derivatives carry the Gemma
+    terms, for example), and the student inherits it.
   - YOLO detectors train from a few hundred boxed pages.
 - **Small enough to ship:** LoRA adapters, quantisation to 4 or 8 bits, and MLX for Apple silicon.
 - **Synthetic data:** text rendered in historical or project fonts, with augmentation, gives a
   recogniser a start for a new script before people have corrected much (the font work in
   `languages-scripts-signs.md`).
-- **Terms of use.** Several hosted-model providers forbid using their outputs to train models
-  that compete with them. Whether a teacher's outputs may train a student is a licence fact,
-  checked before training. It is not an afterthought.
+- **Terms of use.** Some hosted-model providers' terms restrict using their outputs to train
+  models that compete with them, and the terms change. Whether a teacher's outputs may train a
+  student is therefore a recorded fact on the teacher's card, checked before training, with three
+  values: training allowed; not allowed; or unknown. Unknown blocks training until a person who has
+  read the current terms records an answer. Fichero does not ship a judgement of any provider's
+  terms.
 
 ## The design
 
@@ -90,7 +97,8 @@ Every job a model does in Fichero has a teacher and a natural student:
    Unchecked teacher output can be added deliberately, and is then counted and marked
    (`compute.tune.bootstrapped-data-is-marked`).
 4. **Build the set.** The training set is built from the selection (`source.train.*`). It holds the
-   reasons as well, where the teacher gave them and the job keeps them. The split is by document,
+   reasons as well, where the teacher's run recorded them. Today's vision runs do not record a
+   reason beside each reading (#4642 adds it), so until then a set has no reasons, and says so. The split is by document,
    never by line (`source.train.split-by-manuscript`).
 5. **Train.** On the Mac for small jobs, on a cluster for larger ones (`compute.job.*`,
    `compute.tune.*`). The student's card records its teacher, its set, its base model and every
@@ -149,8 +157,6 @@ times in ten. A student whose confidence is not calibrated is not routed on it.
   named small student.
 - `distill.collect.sample-covers-scope` — **[GAP]** (#5337) the teacher's sample is
   proposed to cover every hand, layout and page kind in the scope.
-- `distill.set.checked-only-by-default` — **[GAP]** (#4947) a training set holds people-checked work
-  by default; unchecked teacher output is added only deliberately, and counted.
 - `distill.set.keeps-reasons` — **[GAP]** (#4642) where the teacher gave its reasons, the set keeps them,
   and a student can be trained to give them.
 - `distill.train.card-names-teacher` — **[GAP]** (#5337) a student's card names its teacher,
@@ -164,8 +170,9 @@ times in ten. A student whose confidence is not calibrated is not routed on it.
   only if it beats it on the same held-out pages.
 - `distill.cascade.small-first` — **[GAP]** (#5338) a run uses the student first and sends
   only low-confidence pieces to the teacher or to a person, recording where each piece went.
-- `distill.cascade.calibrated` — **[GAP]** (#5338) routing uses calibrated confidence,
-  checked on held-out pages; an uncalibrated student is not routed on.
+- `distill.cascade.calibrated` — **[GAP]** (#5338) routing uses confidence calibrated on held-out
+  pages (temperature scaling by default), and the calibration error is shown; a student whose
+  error is above the project's limit is not routed on.
 - `distill.queue.uncertainty-first` — **[GAP]** (#5338) the correction queue can be
   ordered by the student's uncertainty and by teacher–student disagreement.
 - `distill.teachers.agreement` — **[GAP]** (#5338) agreement between several teachers can
@@ -179,9 +186,16 @@ times in ten. A student whose confidence is not calibrated is not routed on it.
 - `distill.licence.teacher-terms` — **[GAP]** (#5337) a teacher whose terms forbid training
   on its outputs is refused as a source of training labels, with the reason shown.
 - `distill.licence.inherits-strictest` — **[GAP]** (#5240) a student's card carries the most restrictive
-  of its base, set and teacher licences.
+  of its base, set and teacher licences (extends `compute.tune.licence-carries` with the teacher).
+  That a set holds people-checked work by default, and counts any unchecked teacher output, is
+  already `source.train.human-checked-by-default` and `compute.tune.bootstrapped-data-is-marked`.
 - `distill.runs-local` — **[GAP]** (#5240) an adopted student runs on the Mac through MLX, Core ML or
-  Kraken, throttled like any background work.
+  Kraken, throttled like any background work (the MLX conversion is `compute.tune.convert-for-mlx`).
+
+## Documentation matrix, preview harness, accessibility identifiers, UX completeness
+
+Filled at approval, from the surfaces this spec settles (see Open questions). Listed here as
+missing so the gap is visible: none of the four is written yet. [MISSING]
 
 ## Test matrix
 
@@ -203,7 +217,9 @@ measurement and the cascade's routing are pinned with known confidences and outc
       - ACENET or another Digital Research Alliance of Canada cluster, as a Slurm job
         (`remote-compute.md`, `compute.job.*`);
       - a rented GPU through Hugging Face Jobs (the `gpu` image in `linux-server-image.md`);
-      - a Mac with 32 GB or more through MLX, for the smallest runs.
+      - a Mac with 32 GB or more through MLX, for the smallest runs. Training needs several times
+        the model's own size in memory (weights, gradients, optimiser state, activations), so an
+        8 GB Mac like the Air only RUNS a student; it never trains one.
 
       The trained adapter comes back to the Mac and runs there, quantised (`compute.tune.convert-for-mlx`).
    4. Adopt it only where it clears the bar.

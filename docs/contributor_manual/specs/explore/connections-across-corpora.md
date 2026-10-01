@@ -35,7 +35,9 @@ decide what is a connection.
 
 - **Multilingual sentence vectors.** LaBSE, multilingual E5 and BGE-M3 place sentences in one
   space across languages. Fichero already embeds with multilingual-e5-large and BGE-M3
-  (`db/embeddings.py`), so cross-language neighbours exist in principle today. Bitext mining
+  (`db/embeddings.py`), so cross-language neighbours exist in principle today, for corpora that
+  have text. An undeciphered corpus has no text to embed; for it, picture vectors
+  (`decipher.model.picture-vectors`) are the way in. Bitext mining
   (finding translated or parallel passages) works from these vectors with a margin criterion
   (Artetxe and Schwenk 2019).
 - **Historical language is not modern language.** Modern multilingual models degrade on old
@@ -119,7 +121,8 @@ All of it is proposals and hypotheses, scored against baselines, never applied o
   links and translations) so that the old languages' passages land near each other. It is
   measured on held-out accepted links.
 - **A VLM that reads and links:** a small VLM can be fine-tuned with LoRA on page images from
-  several corpora, with tasks for reading, translating and pointing out the connection. It is
+  several corpora, with tasks for reading and pointing out the connection (and translating only where
+  the project has aligned pairs, which historical text rarely has). It is
   trained by distillation from a large one where the teacher's terms allow
   (`distill.licence.teacher-terms`).
 - These are ordinary jobs, run on the Mac or on a cluster (`compute.job.*`), with results that
@@ -140,6 +143,8 @@ All of it is proposals and hypotheses, scored against baselines, never applied o
   languages and scripts from name variants and shared context.
 - `xcorpus.link.words-over-time` — **[GAP]** (#5341) a word or formula is traced across periods
   with aligned period vectors.
+- `xcorpus.link.shared-structure` — **[GAP]** (#5341) documents of the same type are proposed across
+  languages from their layout and the order of their formulae.
 - `xcorpus.link.same-hand` — **[GAP]** (#5341) the same hand or workshop is proposed across
   collections from letterform and picture vectors.
 - `xcorpus.method.says-its-limits` — **[GAP]** (#5341) each method states what it cannot see,
@@ -157,7 +162,13 @@ All of it is proposals and hypotheses, scored against baselines, never applied o
 - `xcorpus.train.meaning-on-pairs` — **[GAP]** (#5343) an embedding model can be fine-tuned on
   the project's accepted pairs and measured on held-out ones.
 - `xcorpus.train.vlm-read-and-link` — **[GAP]** (#5343) a small VLM can be fine-tuned on several
-  corpora for reading, translating and linking, by distillation where the teacher's terms allow.
+  corpora for reading and pointing out connections, and for translating only where the project has
+  aligned pairs to learn from, by distillation where the teacher's terms allow.
+
+## Documentation matrix, preview harness, accessibility identifiers, UX completeness
+
+Filled at approval, from the surfaces this spec settles (see Open questions). Listed here as
+missing so the gap is visible: none of the four is written yet. [MISSING]
 
 ## Test matrix
 
