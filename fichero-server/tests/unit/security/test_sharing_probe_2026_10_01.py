@@ -688,11 +688,7 @@ def test_pin_loopback_with_the_bootstrap_token_is_owner(harness, monkeypatch):
         assert r.json()["auth_kind"] == "bootstrap"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="#5349: unauthenticated /api/health with a library header reports the library's DB path and size to the network (multi-user off)",
-)
-def test_defect_unauthenticated_health_tells_the_network_about_an_open_library(harness):
+def test_unauthenticated_health_does_not_tell_the_network_about_an_open_library(harness):
     """`/api/health` is unauthenticated (the app polls it before it has a token). Given
     an X-Fichero-Library-Path it calls `assert_library_read_authorized`, which with
     multi-user OFF allows everyone (`authz._allowed` returns True before looking at the
@@ -708,3 +704,14 @@ def test_defect_unauthenticated_health_tells_the_network_about_an_open_library(h
     assert r.status_code == 200
     body = r.json()
     assert body.get("database") is None and body.get("document_count") is None, body
+
+
+def test_pin_a_paired_device_still_gets_its_librarys_health(harness, monkeypatch):
+    """#5349's fix withholds library details only from ANONYMOUS network callers: a paired Mac
+    polling health with its token must still see the library it opened, or its readiness check
+    would never see the library as open."""
+    owner_dev = harness.pair(harness.host(), device_name="Owner's iPad")  # Multi-user off
+    assert harness.host().get("/api/documents").status_code == 200
+    r = harness.remote().get("/api/health", headers=_bearer(owner_dev["device_token"]))
+    assert r.status_code == 200
+    assert r.json().get("document_count") is not None, r.json()

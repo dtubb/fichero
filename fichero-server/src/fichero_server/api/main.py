@@ -1668,6 +1668,11 @@ def _health_sync(
     """
     from fichero_server.models import Document
 
+    if x_fichero_library_path and not _may_see_library_health(request):
+        # Health is unauthenticated so the app can poll before it has a token, but a library's
+        # document count and its path on the host's disk are not for an anonymous network caller
+        # (#5349). They get the general answer, as if they had named no library.
+        x_fichero_library_path = None
     if x_fichero_library_path:
         if not _is_allowed_library_path(x_fichero_library_path):
             raise LibraryAccessDeniedError(_rejected_library_path_payload(x_fichero_library_path))
@@ -1767,6 +1772,28 @@ def _redact_local_path(message: str, db_path) -> str:
     redacted = message.replace(str(path), "<library>")
     redacted = redacted.replace(str(path.parent), "<library>")
     return redacted
+
+
+def _may_see_library_health(request: Request) -> bool:
+    """A same-machine caller, or one presenting a live device or session token (#5349)."""
+    from fichero_server.api.auth import (
+        _authenticate_device_token,
+        _authenticate_session_token,
+        _is_loopback_request,
+    )
+
+    if _is_loopback_request(request):
+        return True
+    raw = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    if not raw:
+        return False
+    try:
+        _user, device, detail = _authenticate_device_token(raw)
+        if device is not None and detail is None:
+            return True
+        return _authenticate_session_token(raw)[0] is not None
+    except Exception:
+        return False
 
 
 def _engine_owner_for(request: Request) -> str | None:
