@@ -577,12 +577,26 @@ def revoke_device(
     return StatusResponse(status="ok")
 
 
+def _ctx_may_manage(ctx: ActionContext, device: Device) -> bool:
+    """The action twin of `_can_manage_device` (#5345). Reached through `/api/actions/invoke`, the
+    device actions used to need only library write access, so any editor could list every device
+    and revoke the owner's. The host app (bootstrap) may; with Multi-user on, so may an owner, or the
+    person who paired this device. With Multi-user off only the host app may, as over REST."""
+    if ctx.is_bootstrap:
+        return True
+    if not _use_multiuser_auth():
+        return False
+    user = next((u for u in get_app_db().list_users() if u.username == ctx.actor), None)
+    return bool(user and user.active and (user.is_owner or user.id == device.user_id))
+
+
 @action("device.list", DeviceListParams, domains=["device"], undoable=False)
-def _device_list_action(_db, _params: DeviceListParams, _ctx: ActionContext):
+def _device_list_action(_db, _params: DeviceListParams, ctx: ActionContext):
     """Registry read action for the app-wide paired-device list."""
     devices = [
         _to_public_device(device).model_dump(mode="json")
         for device in get_app_db().list_devices()
+        if _ctx_may_manage(ctx, device)
     ]
     result = {"items": devices, "count": len(devices)}
     return (
@@ -595,10 +609,14 @@ def _device_list_action(_db, _params: DeviceListParams, _ctx: ActionContext):
 
 
 @action("device.revoke", DeviceRevokeParams, domains=["device"], undoable=False)
-def _device_revoke_action(_db, params: DeviceRevokeParams, _ctx: ActionContext):
+def _device_revoke_action(_db, params: DeviceRevokeParams, ctx: ActionContext):
     """Registry mutation action for revoking an app-wide paired device."""
     app_db = get_app_db()
     before = app_db.get_device(params.device_id)
+    if before is not None and not _ctx_may_manage(ctx, before):
+        from fichero_server.security.authz import AuthorizationError
+
+        raise AuthorizationError("only the owner, or the person who paired it, can revoke a device", required="owner")
     device = app_db.revoke_device(params.device_id)
     if device is None:
         raise ValueError("device not found")

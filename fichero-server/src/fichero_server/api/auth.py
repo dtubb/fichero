@@ -463,10 +463,16 @@ def _authenticate_device_token(token: str):
     if device.expires_at <= now:
         return None, device, "device token expired"
     if not _use_multiuser_auth():
+        # Multi-user off, a paired device acts as the owner (`sharing.private-by-default`) because
+        # the OWNER paired it. A device another person paired while Multi-user was on is not the
+        # owner's: turning Multi-user off must not promote a viewer's Mac to owner (#5344).
+        if device.user_id:
+            paired_by = app_db.get_user(device.user_id)
+            if paired_by is None or not paired_by.active or not paired_by.is_owner:
+                return None, device, "missing or invalid Authorization header"
         if _should_touch_last_seen(device.last_seen, now):
             app_db.touch_device(token_hash, when=now)
-        # Multi-user off, a paired device acts as the owner (`sharing.private-by-default`); without
-        # the owner here its edits were audited as an anonymous ``system`` (#5319).
+        # Without the owner here its edits were audited as an anonymous ``system`` (#5319).
         return _resolve_single_user_owner(), device, None
     user = app_db.get_user(device.user_id)
     if user is None or not user.active:

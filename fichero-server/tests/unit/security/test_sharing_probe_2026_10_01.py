@@ -359,11 +359,7 @@ def test_pin_multiuser_on_a_non_owner_device_cannot_revoke_anothers_device_over_
     assert harness.app_db.get_device(owner_dev["device_id"]).revoked is False
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="#5345: device.revoke / device.list reachable through /api/actions/invoke by any library editor",
-)
-def test_defect_an_editor_revokes_the_owners_device_through_actions_invoke(harness, monkeypatch):
+def test_an_editor_cannot_revoke_the_owners_device_through_actions_invoke(harness, monkeypatch):
     """Multi-user on: Alice (editor of ONE library) revokes the owner's iPad.
 
     `POST /api/pair/devices/{id}/revoke` checks `_can_manage_device` (owner, or the
@@ -387,11 +383,7 @@ def test_defect_an_editor_revokes_the_owners_device_through_actions_invoke(harne
     assert harness.app_db.get_device(owner_dev["device_id"]).revoked is False
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="#5344: turning Multi-user off makes every person's paired device the owner",
-)
-def test_defect_multiuser_off_promotes_a_viewers_device_to_owner(harness, monkeypatch):
+def test_multiuser_off_does_not_promote_a_viewers_device_to_owner(harness, monkeypatch):
     """Bob is a VIEWER and paired his Mac while Multi-user was on. The owner switches
     Multi-user off. Bob's device token now authenticates as the owner: it writes to the
     library, the audit names "owner", and it can reach every other library on the host.
