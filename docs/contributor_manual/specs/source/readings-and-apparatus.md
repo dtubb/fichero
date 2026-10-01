@@ -309,7 +309,12 @@ Sureness and damage
   added and its deleted letters, the struck ones marked
   (`fichero-server/tests/unit/api/test_marks_arrive_as_editorial_facts.py::test_deleted_letters_stay_in_the_reading_as_a_deletion_drawn_in_double_brackets`,
   `fichero-server/tests/unit/formats/test_tei.py::TestARealFileAnotherProjectWrote::test_deleted_text_stays_in_the_reading_as_does_added_text`).
-  Still owed: `<delSpan>` (a deletion across lines, no one reading to span), and a screen.
+  `<delSpan spanTo="#x">` (2026-10-01): a deleted fact on every line it runs through, from where it
+  stands to where `x` stands (an `<lb>`, a block, any element with that id), the lines between
+  deleted whole; one whose target the file never names, or that ends before it starts, is named
+  in `not_imported`
+  (`fichero-server/tests/unit/api/test_marks_arrive_as_editorial_facts.py::test_a_deletion_across_lines_is_a_deletion_on_every_line_it_runs_through`,
+  on the TEI Consortium's own sample). Still owed: a screen.
 - `source.sure.search-finds-what-stands` — **[OK]** (→ #5179, ruled 2026-09-28: "search must match the
   corrected word X alone") a search finds a line by the text that stands, with every `deleted`
   stretch left out, so a `<subst>` read diplomatically as "XY" (X added, Y struck) is found by X

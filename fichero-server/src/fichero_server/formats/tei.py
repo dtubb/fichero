@@ -343,7 +343,13 @@ def read_pages(data: bytes) -> list[SourcePage]:
     # `hand`: the hand in effect -- a `<handShift new="#m2"/>` is a milestone that holds until the
     # next one, across lines and blocks, like `<lb>` (slice 14, `source.hand.attributed`).
     state: dict[str, Any] = {"page": None, "region": None, "line": None, "buffer": [], "counter": 0,
-                             "line_page": None, "hand": None}
+                             "line_page": None, "hand": None, "pending": []}
+    # Where a `<delSpan spanTo="#x">` ends is wherever `x` stands: the reader records that place as
+    # an `anchor` mark so the import can span the lines between (#5179).
+    span_targets = {
+        (e.get("spanTo") or "").lstrip("#")
+        for e in root.iter(f"{{{TEI_NS}}}delSpan") if (e.get("spanTo") or "").startswith("#")
+    }
 
     def current_page() -> dict[str, Any]:
         return state["page"] or new_page(None)
@@ -382,6 +388,7 @@ def read_pages(data: bytes) -> list[SourcePage]:
             line.foreign["_alts"] = whole
         if text:
             line.readings.insert(0, (line.foreign.pop("_kind", "transcription"), text))
+            _take_pending(line)
         elif not line.foreign.get("_alts") and not page_facs_of(line):
             # A milestone that never got text or a zone is punctuation, not a line: real files
             # put `<lb/>` before `<lb/>` and before the block that holds the text.
@@ -394,6 +401,9 @@ def read_pages(data: bytes) -> list[SourcePage]:
 
     def walk(element: Any, region: PageSegment | None, page: dict[str, Any]) -> None:
         tag = _tag(element)
+        if span_targets and isinstance(element.tag, str) and element.get(_XML_ID) in span_targets:
+            at = _mark_at()
+            _mark(element, at, at, tag_as="anchor", attrs={"id": element.get(_XML_ID)})
         if tag == "note" and element.get("type") == UNPLACED_WORD and state["line"] is not None:
             # A word the line's own text does not contain (PAGE XML lets a `Word` carry text its
             # `TextLine` does not). It is a word segment of the line and NOT part of the line's text.
@@ -441,6 +451,7 @@ def read_pages(data: bytes) -> list[SourcePage]:
                 text = _norm("".join(state["buffer"])).strip()
                 if text:
                     seg.readings.append(("transcription", text))
+                    _take_pending(seg)
             flush_line()
             state["region"] = None
             _tail(element)
@@ -566,13 +577,25 @@ def read_pages(data: bytes) -> list[SourcePage]:
         """Where the next character of the holder's reading is: the same offset `<choice>` uses."""
         return len(_norm("".join(state["buffer"])).lstrip())
 
-    def _mark(element: Any, start: int, end: int, **extra: Any) -> None:
+    def _mark(element: Any, start: int, end: int, *, tag_as: str | None = None,
+              attrs: dict | None = None, **extra: Any) -> None:
         holder = state["line"] if state["line"] is not None else state["region"]
+        if attrs is None:
+            attrs = {name: element.get(name) for name in MARK_ATTRS if element.get(name) is not None}
+        mark = {"tag": tag_as or _tag(element), "start": start, "end": end, "attrs": attrs, **extra}
         if holder is None:
+            # Between blocks (a `<delSpan/>` before the `<ab>` it starts deleting, a span ending at a
+            # block's start): the mark belongs at the start of the NEXT text read, not nowhere. It
+            # was dropped here before #5179's delSpan.
+            state["pending"].append(mark)
             return
-        attrs = {name: element.get(name) for name in MARK_ATTRS if element.get(name) is not None}
-        holder.foreign.setdefault(TEI_MARKS, []).append(
-            {"tag": _tag(element), "start": start, "end": end, "attrs": attrs, **extra})
+        holder.foreign.setdefault(TEI_MARKS, []).append(mark)
+
+    def _take_pending(holder: PageSegment) -> None:
+        """Point marks met before this segment's text: they stand at its start."""
+        for mark in state["pending"]:
+            holder.foreign.setdefault(TEI_MARKS, []).append({**mark, "start": 0, "end": 0})
+        state["pending"] = []
 
     def _tail(element: Any) -> None:
         if element.tail:

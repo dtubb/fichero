@@ -157,3 +157,28 @@ def test_deleted_letters_stay_in_the_reading_as_a_deletion_drawn_in_double_brack
         assert letters.replace(UNDERDOT, "").strip() in bare, (letters, drawn)
         assert "⟦" not in reading.content                             # drawn, never stored
     assert seen == expected                                          # every <del>, its own letters
+
+def test_a_deletion_across_lines_is_a_deletion_on_every_line_it_runs_through(db):
+    """`<delSpan spanTo="#x"/>` (#5179): the TEI Consortium sample strikes Hamlet from mid-line to
+    the end of a later line (`#Ham92`, an `<lb>`), and a block up to the start of the next verse
+    line (`#L4`). Diplomatic like `<del>` (ruled 2026-09-28): the letters stay in each reading and
+    every line the span runs through gets a deleted fact over its part, so each is drawn ⟦ ⟧. It was
+    named in `not_imported` as having "no one reading to span"."""
+    from fichero_server.models import ContentRepresentation
+
+    path = Path(__file__).parents[1] / "formats" / "fixtures" / "tei_consortium_testtranscr.xml"
+    doc_id, result = _import(db, path)
+    assert not any("delSpan" in n["what"] for n in result.result["not_imported"])
+
+    texts = {r.segment_id: r.content for r in db.query(ContentRepresentation, document_id=doc_id)}
+    deleted = {}
+    for fact in db.all(EditorialFact):
+        if fact.kind == "deleted" and fact.segment_id in texts:
+            deleted.setdefault(texts[fact.segment_id], []).append(
+                texts[fact.segment_id][fact.char_start:fact.char_end])
+
+    assert deleted["So nightly toils the subject of the land,"] == ["nightly toils the subject of the land,"]
+    for whole in ("And why such daily cast of brazen cannon,", "And foreign mart for implements of war;",
+                  "Why such impress of shipwrights, whose sore task", "blah blah"):
+        assert deleted[whole] == [whole], whole
+    assert "Does not divide the Sunday from the week;" not in deleted, "the span ends where L4 begins"

@@ -825,6 +825,8 @@ def _editorial_facts(order, ids_by_ref, first_reading, source_name, imported):
     def skip(what: str, why: str) -> None:
         skipped[(what, why)] = skipped.get((what, why), 0) + 1
 
+    across = _deletions_across_lines(order, ids_by_ref, first_reading, skip)
+
     for ref, segment in order:
         reading = first_reading.get(ids_by_ref[ref])
         text = reading.content if reading is not None else ""
@@ -881,9 +883,48 @@ def _editorial_facts(order, ids_by_ref, first_reading, source_name, imported):
                 # Diplomatic (ruled 2026-09-28, #5179): the deleted letters are IN the reading and
                 # this fact spans them, drawn ⟦ ⟧ -- never silently dropped from what the page says.
                 fact("deleted", start, end)
-            elif tag == "delSpan":
-                skip("a deletion across lines (<delSpan>)", "it has no one reading to span")
+            # `delSpan` and the `anchor` it ends at are read across segments, below.
+        for start, end, rend in across.get(ref, []):
+            # One fact per line a `<delSpan>` runs through, as diplomatic as `<del>` (ruled
+            # 2026-09-28): the letters stay in each reading, marked deleted, drawn ⟦ ⟧.
+            fact("deleted", start, end, reason=rend)
     return facts, [{"what": what, "count": count, "why": why} for (what, why), count in sorted(skipped.items())]
+
+
+def _deletions_across_lines(order, ids_by_ref, first_reading, skip) -> dict[str, list]:
+    """Each `<delSpan spanTo="#x">`, as a deleted stretch on every segment from where it stands to
+    where `x` stands (#5179): `{ref: [(start, end, rend)]}`. The reader records both places as
+    marks; a segment between them is deleted whole. One whose target the file never names, or
+    that ends before it starts, is named in `not_imported` rather than guessed."""
+    from fichero_server.formats.tei import TEI_MARKS
+
+    texts, anchors = [], {}
+    for index, (ref, segment) in enumerate(order):
+        reading = first_reading.get(ids_by_ref[ref])
+        texts.append(reading.content if reading is not None else "")
+        for mark in segment.foreign.get(TEI_MARKS, []):
+            if mark["tag"] == "anchor":
+                anchors[mark["attrs"].get("id")] = (index, mark["start"])
+    out: dict[str, list] = {}
+    for index, (ref, segment) in enumerate(order):
+        for mark in segment.foreign.get(TEI_MARKS, []):
+            if mark["tag"] != "delSpan":
+                continue
+            target = anchors.get((mark["attrs"].get("spanTo") or "").lstrip("#"))
+            if target is None:
+                skip("a deletion across lines (<delSpan>)", "the place its spanTo names is not in the file's text")
+                continue
+            last, end_at = target
+            if last < index or (last == index and end_at < mark["start"]):
+                skip("a deletion across lines (<delSpan>)", "it ends before it starts")
+                continue
+            for k in range(index, last + 1):
+                start = mark["start"] if k == index else 0
+                end = min(end_at, len(texts[k])) if k == last else len(texts[k])
+                start = min(start, len(texts[k]))
+                if end > start:
+                    out.setdefault(order[k][0], []).append((start, end, mark["attrs"].get("rend")))
+    return out
 
 
 def _edition_title(page: SourcePage) -> str | None:
