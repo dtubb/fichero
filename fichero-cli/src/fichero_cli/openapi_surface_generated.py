@@ -2458,7 +2458,7 @@ def register_generated_openapi_commands(
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/changes/stream"
             params = None
-            return client.request("GET", endpoint_path, params=params)
+            return client.request_stream("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('chat')

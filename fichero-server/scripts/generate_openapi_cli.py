@@ -76,6 +76,12 @@ class RequestField:
     schema: dict
 
 
+def _is_event_stream(op: "Operation") -> bool:
+    """A server-sent-event endpoint. The contract does not mark their content type, but every one
+    is a GET on a ``…/stream`` path (``/api/changes/stream``, ``/api/workflow-execution/stream/{id}``)."""
+    return op.method == "GET" and re.search(r"/stream(/|$)", op.path) is not None
+
+
 def _slug(text: str) -> str:
     value = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
     return value or "op"
@@ -402,6 +408,11 @@ def _emit_function(op: Operation, command_name: str) -> list[str]:
             )
         lines.append(
             f'            return client.request("{op.method}", endpoint_path, params=params, files=files)'
+        )
+    elif _is_event_stream(op):
+        # Print each event as it arrives; a plain request waits for a stream that never ends (#5321).
+        lines.append(
+            f'            return client.request_stream("{op.method}", endpoint_path, params=params)'
         )
     else:
         lines.append(

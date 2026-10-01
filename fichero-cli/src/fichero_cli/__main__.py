@@ -15,6 +15,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from collections.abc import Iterator
 from typing import Any, Callable, Optional
 
 import typer
@@ -308,24 +309,21 @@ def _client(ctx: typer.Context) -> FicheroClient:
 
 
 def _invoke(ctx: typer.Context, operation: Callable[[FicheroClient], Any]) -> None:
-    """Run one client operation, render the result, and surface errors cleanly."""
+    """Run one client operation, render the result, and surface errors cleanly.
+
+    A stream (``request_stream``) is printed line by line as it arrives, while the client is
+    still open (#5321).
+    """
     try:
         with _client(ctx) as client:
             data = operation(client)
+            if isinstance(data, Iterator):
+                for line in data:
+                    typer.echo(_render_stream_line(line, as_json=ctx.obj["json"]))
+                return
     except FicheroError as exc:
         _report_fichero_error(ctx, exc)
     typer.echo(render(data, as_json=ctx.obj["json"]))
-
-
-def _invoke_stream(ctx: typer.Context, operation: Callable[[FicheroClient], list[str]]) -> None:
-    """Run one streaming client operation and print each emitted line."""
-    try:
-        with _client(ctx) as client:
-            lines = operation(client)
-    except FicheroError as exc:
-        _report_fichero_error(ctx, exc)
-    for line in lines:
-        typer.echo(_render_stream_line(line, as_json=ctx.obj["json"]))
 
 
 def _render_stream_line(line: str, *, as_json: bool) -> str:
@@ -2539,7 +2537,7 @@ def activity_stream(
     thread_id: Optional[str] = typer.Option(None, "--thread-id", help="Filter by thread ID."),
 ) -> None:
     """Follow the live activity SSE stream."""
-    _invoke_stream(
+    _invoke(
         ctx,
         lambda c: c.request_stream(
             "GET",
@@ -2561,7 +2559,7 @@ def workflow_stream(
     thread_id: str = typer.Argument(..., help="Workflow execution thread ID."),
 ) -> None:
     """Follow the live workflow-execution SSE stream for a thread."""
-    _invoke_stream(
+    _invoke(
         ctx,
         lambda c: c.request_stream("GET", f"/api/workflow-execution/stream/{thread_id}"),
     )

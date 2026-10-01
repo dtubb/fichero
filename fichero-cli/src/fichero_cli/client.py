@@ -31,6 +31,8 @@ from typing import Any
 from urllib.parse import quote
 from urllib.parse import urlparse
 
+from collections.abc import Iterator
+
 import httpx
 
 from fichero_server.api.routes.system.activity import ActivityResponse
@@ -647,8 +649,11 @@ class FicheroClient:
         path: str,
         *,
         params: dict[str, Any] | None = None,
-    ) -> list[str]:
-        """Issue a request and return SSE/text lines without buffering JSON."""
+    ) -> Iterator[str]:
+        """Issue a request and yield its SSE/text lines as they arrive.
+
+        A live stream never ends, so collecting it first printed nothing, ever (#5321).
+        """
         self._refresh_auth_context()
         try:
             with self._client.stream(
@@ -662,7 +667,7 @@ class FicheroClient:
                         f"{method} {path} -> {response.status_code}: {response.text}",
                         status_code=response.status_code,
                     )
-                return [line for line in response.iter_lines() if line]
+                yield from (line for line in response.iter_lines() if line)
         except httpx.ConnectError as exc:
             raise _connect_error(self.base_url, exc) from exc
         except httpx.HTTPError as exc:
