@@ -106,6 +106,8 @@ def test_a_conversion_that_fails_keeps_the_result_and_the_run(db, caplog):
 import ast  # noqa: E402
 from pathlib import Path  # noqa: E402
 
+from _scan_files import scan_rglob  # noqa: E402
+
 ENGINE = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
 
 #: Places that write an artifact's boxes and rightly do NOT hand them to the conversion. Each says
@@ -144,7 +146,7 @@ def unconverted_box_writers(root: Path = ENGINE, allowed: dict = NOT_A_PRODUCER)
     `test_an_aligned_transcript_is_its_own_pass` pins one. Follow builders if a third appears.
     """
     offenders = []
-    for path in sorted(root.rglob("*.py")):
+    for path in sorted(scan_rglob(root, "*.py")):
         rel = path.relative_to(root).as_posix()
         if rel in allowed:
             continue

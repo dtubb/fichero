@@ -15,6 +15,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from _scan_files import scan_rglob
 from lxml import etree
 
 from fichero_server.formats import alto, pagexml, tei
@@ -33,7 +34,7 @@ def _root(path: Path):
 
 
 def _files(suffix: str, root_name: str) -> list[Path]:
-    return [p for p in sorted(FIXTURES.rglob(f"*{suffix}")) if etree.QName(_root(p)).localname == root_name]
+    return [p for p in sorted(scan_rglob(FIXTURES, f"*{suffix}")) if etree.QName(_root(p)).localname == root_name]
 
 
 def _read(module, data: bytes):
