@@ -414,6 +414,30 @@ class TestTheAuditChainCarriesNoText:
         assert "content_sha256" in blob
         assert "content" not in (audits[0].after or {})
 
+    def test_redo_of_an_undone_create_brings_the_same_words_back(self, db, client):
+        """The audit row holds a digest, not the words, so a redo must not REPLAY it (#5057).
+
+        The default redo re-runs the forward action with its audited params. For a reading those
+        carry `content_sha256` and no `content`, so ⌘⇧Z after ⌘Z answered 422 "content: Field
+        required" and the person's line stayed withdrawn. Redo now un-retracts the same reading.
+        """
+        doc = _make_doc(db)
+        artifact = _artifact(db, doc)
+        _convert(client, artifact.id)
+        segment = _converted_segments(db, artifact.id)[1]
+        created = _write(db, segment, content="the words come back")
+        forward = next(a for a in db.all(ActionAudit) if a.action_name == "representation.create")
+
+        undo = client.post(f"/api/actions/audit/{forward.id}/undo")
+        assert undo.status_code == 200, undo.text
+        inverse = next(a for a in db.all(ActionAudit) if a.inverse_of == forward.id)
+        redo = client.post(f"/api/actions/audit/{inverse.id}/undo")
+        assert redo.status_code == 200, redo.text
+
+        stored = db.get(ContentRepresentation, created.result["id"])
+        assert stored.retracted_at is None, "redo brings the SAME reading back"
+        assert stored.content == "the words come back"
+
 
 class TestTheReadSeamAnswersFromBothStores:
     """`source.one-store`: the caller cannot tell which store a reading came

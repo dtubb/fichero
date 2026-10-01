@@ -465,6 +465,11 @@ def _invert_representation_retract(before, after, ctx: ActionContext):
     domains=["representation", "segment"],
     undoable=True,
     invert=_invert_representation_retract,
+    # Redo of an undone `representation.create` (whose inverse is this retract) brings back the
+    # SAME reading with `unretract`. The default redo replays the create's AUDITED params, and
+    # those carry a digest, not the words (`audit_params`), so ⌘⇧Z answered 422 "content: Field
+    # required" (#5057).
+    redo_via_own_invert=True,
 )
 def retract_representation(
     db: Database,
