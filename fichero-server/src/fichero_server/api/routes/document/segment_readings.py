@@ -53,7 +53,6 @@ from fichero_server.llm.language_policy import (
 )
 from fichero_server.models import Artifact, ContentRepresentation, Document
 from fichero_server.models.source_declarations import project_facts
-from fichero_server.models.word_spans import words_that_leave
 from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.knowledge import ProvenanceKind
 from fichero_server.models.readings import (
@@ -517,6 +516,8 @@ def retired_word_readings(db: Database, line: Segment, kind: str, rule: Any) -> 
         text = next((i.content for i in older if i.id == answer.representation_id), None)
         if text:
             words.append((row.id, text))
+    from fichero_server.models.word_spans import words_that_leave  # lazy: app-import budget (#3950)
+
     return {
         word_id: {reading.id for reading in older_by_word.get(word_id, [])}
         for word_id in words_that_leave(words, chain)
@@ -935,7 +936,7 @@ def _why_omitted(
 DERIVATION_VERSION = 12
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
-DERIVATION_SOURCE_SHA256 = "982fdf43ded9e9bf92753a958eafed16aa5676cfae4ebd113cb4552f55341f03"
+DERIVATION_SOURCE_SHA256 = "9628241c803631645014fc69635ca19559fd232ed85fa54311efc7800d064198"
 
 
 def derivation_source_digest() -> str:

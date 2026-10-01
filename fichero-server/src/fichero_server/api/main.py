@@ -48,7 +48,6 @@ from fichero_server.db.manager import LibraryNotFoundError
 from fichero_server.api.routes.document.segment_conversion import ConversionRefusal
 from fichero_server.security import authz
 from fichero_server.security.discovery import start_bonjour_advertiser
-from fichero_server.security import tailscale_serve
 from fichero_server.models import (
     ContractIdentity,
     EmbeddingStatsResponse,
@@ -911,6 +910,8 @@ async def lifespan(app: FastAPI):
             logger.warning("Bonjour discovery failed to start: %r", exc)
 
     bonjour_started = asyncio.get_running_loop().run_in_executor(None, _start_bonjour)
+    from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
+
     # Sharing over Tailscale (#2603): forward the tailnet port to the loopback listener.
     # Blocking subprocess calls, so off the loop like Bonjour.
     tailnet_forward = asyncio.get_running_loop().run_in_executor(

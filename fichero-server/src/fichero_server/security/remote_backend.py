@@ -16,8 +16,6 @@ import subprocess
 from typing import Mapping
 from urllib.parse import urlparse
 
-from fichero_server.security import tailscale_serve
-
 
 _TRUE_VALUES = {"1", "true", "yes", "on"}
 _LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
@@ -53,6 +51,8 @@ def _host_from_url(raw_url: str | None) -> str | None:
 
 
 def _tailnet_status(env: Mapping[str, str]) -> tuple[str, str | None]:
+    from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
+
     tailnet_url = tailscale_serve.tailnet_url(env)
     if not tailnet_url:
         return "not_configured", None
