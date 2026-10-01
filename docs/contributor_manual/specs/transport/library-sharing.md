@@ -55,13 +55,19 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
   e.g. Tailscale) it carries no address. Run 2026-10-01 on the MBP: it advertised 127.0.0.1 under
   `UNB-C02F45GAQ05P.local` before `edd6c4938`, and `131.202.228.23` under `macbook-pro-m1.local` after.
   Where mDNS does not cross between machines (the campus network) nobody sees it: that is the network.
-- `sharing.tailscale-serve` — **[PARTIAL]** (→ #2603, #5311; pinned by `tests/unit/security/test_tailscale_serve.py`, `tests/unit/security/test_remote_access_tls.py::test_a_tailscale_address_binds_loopback_and_its_certificate_names_it`)
-  with a `.ts.net` sharing address the engine binds loopback only, its certificate names the
-  tailnet host, and the engine makes `tailscale serve --tcp <port> tcp://127.0.0.1:<port>` at start
-  and removes it at stop -- only the forward it made; a port serving something else is refused.
-  Pairing codes carry the address as `tailnet_url`. Run 2026-10-01, MBP host, Air paired over the
-  tailnet. **Still open:** the sandboxed app running the Tailscale CLI (#5317); the address is still
-  typed under Advanced (#5318).
+- `sharing.tailscale-serve` — **[PARTIAL]** (→ #2603, #5311, #5320; pinned by `tests/unit/security/test_tailscale_serve.py`, `tests/unit/security/test_remote_access_tls.py::test_a_tailscale_address_binds_loopback_and_its_certificate_names_it`)
+  with a `.ts.net` sharing address the engine binds loopback only and makes
+  `tailscale serve --https=<port> https+insecure://127.0.0.1:<port>` at start (removing it at stop,
+  only the forward it made; a port serving something else is refused). Tailscale terminates TLS
+  with the tailnet host's public certificate, so devices need no pin (the app holds none for a
+  `.ts.net` host, #5041), and its forwarding headers mark tailnet peers as remote: the bootstrap
+  token is refused through the tailnet address. Pairing codes carry the address as `tailnet_url`.
+  Run 2026-10-01 evening, Air host: the engine logged the forward created, the MBP reached it
+  with a standard TLS check (Let's Encrypt), `tailnet_status` was `reachable`, and the bootstrap
+  token over the tailnet was 403. The first form, a raw `--tcp` forward, gave devices the engine's
+  self-signed certificate and made every tailnet peer look like loopback (#5320). **Still open:**
+  the sandboxed app running the Tailscale CLI (#5317); the address is still typed under
+  Advanced (#5318).
 - `sharing.invite` — **[PARTIAL]** (→ #5049) the pairing card's QR / link carries the address, a one-time
   code, the pin and ONE library path (the host's current library).
 
@@ -87,11 +93,15 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
   appears on the other through the change stream (`/api/changes`, read-authorised per library).
   Run 2026-10-01 engine to engine (CLI, over Tailscale): notes written on each Mac read on the other;
   the stream lost an event when the host's loop stalled past its keepalive, fixed in #5314
-  (`test_an_event_queued_while_the_loop_stalls_past_the_keepalive_is_still_sent`). The app's
-  windows were not run.
-- `sharing.who-did-it` — **[BROKEN]** (→ #5319) each edit's audit row names who made it: the owner on the
-  host, the paired device's person on the other Mac. Run 2026-10-01, Multi-user off: the host's own
-  edit was `system`, the paired Mac's `owner`, and no row named the device.
+  (`test_an_event_queued_while_the_loop_stalls_past_the_keepalive_is_still_sent`). Run again
+  2026-10-01 evening, Air host, over Tailscale's HTTPS: a note made on either Mac arrived on the
+  other's `fichero changes stream-library` at once (the CLI printed nothing until #5321). The
+  app's windows were not run.
+- `sharing.who-did-it` — **[OK]** (→ #5319; pinned by `tests/integration/test_sharing_who_did_it.py`, Multi-user off and on) each edit's audit row names who made it
+  and, for a paired device, which device: `actor` is the owner on the host (loopback + bootstrap
+  token, ruled) and the device's person elsewhere, and `device` is `{id, name}`. Run 2026-10-01
+  evening over the tailnet: the Air's note read `owner`, no device; the MBP's read `owner` on
+  `MBP-3way`. The live change event names the person, not the device.
 - `sharing.revoke` — **[PARTIAL]** (→ #5049) the host lists paired devices and can revoke one; a revoked
   token is refused (pinned in `test_device_pairing_e2e.py`, in-process; run 2026-10-01 across two
   Macs: the paired MBP's next call was 401). The app's device list was not run.
@@ -106,13 +116,14 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
 - `sharing.device-chooses-person` — **[GAP]** (#2403) a remote device must choose and authenticate a
   person; there is no ambient owner.
 
-## The two-machine test (next)
+## The three-device test (2026-10-01 evening, continuing)
 
-On the Air (host) and the MBP (client), apps launched by path, one xcodebuild at a time on each:
-1. Air: Sharing on; read the advertised address, the listeners (`lsof -iTCP -sTCP:LISTEN`), the
-   Bonjour record (`dns-sd -B _fichero._tcp`, `dns-sd -L`).
-2. MBP: paste the invite link; pair; open the shared library.
-3. Edit on the MBP (rename, a reading); see it on the Air. Edit on the Air; see it on the MBP.
-4. Revoke the MBP on the Air; the MBP is refused.
-5. The same over Tailscale (`tailscale serve`), by hand, to learn what automating it needs.
+Air host (engine with a `.ts.net` sharing address), MBP and iPad mini over Tailscale. Done
+engine to engine: pairing over the tailnet, notes both ways with the change stream, who-did-it
+in the audit, the bootstrap token refused from the tailnet. Owed, needing a person:
+1. MBP app: unlock the screen; open the invite link with the built app by path; press Connect;
+   edit in its window; see it in the Air's history.
+2. iPad: open Tailscale (offline since July); trust the developer certificate; install
+   `fichero-ios`; scan or paste the invite; edit; see it arrive on both Macs.
+3. Revoke each device on the Air; each is refused.
 Each failure: an issue, fixed one at a time, its behaviour above re-tagged.
