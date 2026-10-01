@@ -378,6 +378,20 @@ edited in the **Inspector, when the library is selected**: purpose, languages, s
 direction, layers, models per job and the recipe, with an easy way to add a language or a layer.
 That is the one settings surface (`source.project.one-settings-window`).
 
+**What "opinionated" means** (ruled 2026-10-01). Two things at once:
+- **One path that works beautifully.** Historical Spanish hands (early-modern notarial and
+  administrative scripts, the library's two heaviest users today) get a **flagship recipe**,
+  tuned and measured end to end on real pages of that material: the best Kraken lines, the best
+  reader, the corrections loop, entities and the knowledge graph, with defaults that need no
+  adjusting. It is the reference every other recipe is measured against.
+- **The same machinery for anyone else.** Someone working in Cherokee (the syllabary, `Cher`;
+  Fichero already ships a Cherokee font) answers the same questions and gets a **generated**
+  recipe: Fichero searches for models that read the syllabary and the language, proposes them,
+  runs the bake-off on their pages and, where nothing good exists, says so and walks them into
+  training their own: correct some pages, let a large model draft others, distil a small model,
+  and fine-tune it on a cluster or a larger Mac (`compute/distillation.md`). The flagship path
+  and the generated path are the same flow; only how much is already known differs.
+
 **Purposes and the layers they turn on.** "AUTO" runs at import for this project. "Off" means
 it does not run at import; it is still there to run by hand or to add later, and nothing is
 hidden. A purpose changes what is offered first and what runs by itself, never what can be
@@ -596,6 +610,12 @@ Projects and onboarding
   train-your-own path (`compute/distillation.md`).
 - `source.onboard.egress-asked-twice` — **[GAP]** (#4951) whether pages may leave the Mac is asked during
   setup and again the first time a cloud model would be used; the default is that nothing leaves.
+- `source.onboard.flagship-recipe` — **[GAP]** (#4950, #4951) historical Spanish hands have a flagship recipe,
+  measured end to end on real pages of that material, whose defaults need no adjusting; its
+  measurements are published with it.
+- `source.onboard.generates-for-any-language` — **[GAP]** (#4951) for a language and script with no shipped
+  recipe (Cherokee in the syllabary, for example), setup generates one through the same flow:
+  model search, proposal, bake-off, and the train-your-own path where nothing fits.
 - `source.onboard.five-questions` — **[GAP]** (#4951) beyond the purpose, making a project asks at most five
   questions.
 - `source.onboard.samples-first` — **[GAP]** (#4951) onboarding starts by asking for sample pages, and from them
