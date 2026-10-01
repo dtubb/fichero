@@ -191,10 +191,20 @@ measurement and the cascade's routing are pinned with known confidences and outc
 
 ## Open questions
 
-1. **First job to distil.** Line reading for one hand (Kraken recognition from corrected lines)
-   is the best-trodden path and has the most corrected data. Layout (YOLO) is second.
-   Recommendation: start with line reading, with a Kraken student and a small VLM student side by
-   side, measured.
+1. **First job to distil.** Line reading is the best-trodden path and has the most corrected data.
+   Layout (YOLO) is second. **The first real customer is a researcher who has corrected a large
+   number of VLM transcriptions** in his library: his corrections are exactly the checked
+   ground truth step 3 asks for. Recommendation, in this order:
+   1. Measure the current VLM's character and word error rates against his corrections, per hand
+      and page kind (`distill.measure.against-people`). That alone tells him where the VLM fails.
+   2. Build the set from his corrected lines, split by document.
+   3. Fine-tune a small VLM of about 3 GB quantised (for example a 2–3B Qwen-VL-class model with
+      LoRA, through MLX on a Mac with enough memory, or on a cluster), with a Kraken student
+      beside it.
+   4. Adopt it only where it clears the bar.
+
+   His corrections made before the page model (edits of the stored page text) count only after
+   their pages convert (#5222), so conversion comes first.
 2. **The default bar** for adopting a student: relative to the teacher (no worse than its CER
    plus one point) or absolute (CER under 5%)? Recommendation: relative, shown with the absolute
    number.
