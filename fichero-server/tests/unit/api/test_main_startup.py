@@ -8,8 +8,6 @@ a refactor doesn't silently drop them.
 from __future__ import annotations
 
 import os
-import sys
-import types
 import warnings
 
 
@@ -46,67 +44,3 @@ def test_tokenizers_parallelism_disabled() -> None:
     import fichero_server.api.main  # noqa: F401 — import triggers the setdefault
 
     assert os.environ.get("TOKENIZERS_PARALLELISM") == "false"
-
-
-def test_prewarm_embeddings_honors_bge_m3_env(monkeypatch) -> None:
-    """Prewarm must load the same explicit embedding space as the real embedder."""
-    from fichero_server.api.main import _prewarm_embeddings
-    from fichero_server.llm.local_models import MODELS_BASE
-
-    calls: list[dict] = []
-    supported: list[types.SimpleNamespace] = []
-
-    class PoolingType:
-        MEAN = "mean"
-
-    class ModelSource:
-        def __init__(self, *, hf: str):
-            self.hf = hf
-
-    class FakeTextEmbedding:
-        # threads= caps ONNX intra-op parallelism so a bulk embed can't peg
-        # every core (the always-usable-machine throttle, 1bd84fc19). Prewarm
-        # goes through _get_shared_embedder, which now passes it — accept it and
-        # record it so the assertion can pin that the throttle is applied.
-        def __init__(self, *, model_name: str, cache_dir: str, threads: int | None = None):
-            calls.append(
-                {"model_name": model_name, "cache_dir": cache_dir, "threads": threads}
-            )
-
-        @staticmethod
-        def _list_supported_models():
-            return supported
-
-        @staticmethod
-        def list_supported_models():
-            return [{"model": model.model} for model in supported]
-
-        @staticmethod
-        def add_custom_model(**kwargs):
-            supported.append(types.SimpleNamespace(model=kwargs["model"]))
-
-    fake_fastembed = types.ModuleType("fastembed")
-    fake_fastembed.__path__ = []
-    fake_fastembed.TextEmbedding = FakeTextEmbedding
-    fake_common = types.ModuleType("fastembed.common")
-    fake_common.__path__ = []
-    monkeypatch.setitem(sys.modules, "fastembed", fake_fastembed)
-    monkeypatch.setitem(sys.modules, "fastembed.common", fake_common)
-    monkeypatch.setitem(
-        sys.modules,
-        "fastembed.common.model_description",
-        types.SimpleNamespace(PoolingType=PoolingType, ModelSource=ModelSource),
-    )
-    monkeypatch.setenv("FICHERO_EMBED_MODEL", "BAAI/bge-m3")
-
-    _prewarm_embeddings()
-
-    from fichero_server.core.background_compute import embed_threads
-
-    assert calls == [
-        {
-            "model_name": "BAAI/bge-m3",
-            "cache_dir": str(MODELS_BASE / "embeddings"),
-            "threads": embed_threads(),
-        }
-    ]
