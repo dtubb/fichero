@@ -2911,7 +2911,7 @@ async def _propagate_to_page_children(
                     db.save(art)
                     created_artifact_ids.append(art.id)
                     # Each page's result becomes its own pass now (#5222 part 2); never raises.
-                    if art.ocr_geometry is not None and art.ocr_geometry.boxes:
+                    if art.ocr_geometry is not None and art.ocr_geometry.boxes:  # raw-geometry-ok: the result just made, before any conversion
                         from fichero_server.maintenance.project_conversion import (
                             convert_new_results,
                         )

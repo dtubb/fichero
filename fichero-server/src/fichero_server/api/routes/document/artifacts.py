@@ -333,10 +333,9 @@ def _what_only_this_result_holds(db: Database, artifact: Artifact) -> str | None
             f"{len(rows - recorded)} of them have no record yet of where their box was (it is "
             "written the next time the library opens)"
         )
-    # raw-geometry-ok: which boxes had words is the block's to say
     with_words = {
         converted_segment_id(artifact.id, i)
-        for i, box in enumerate(artifact.ocr_geometry.boxes if artifact.ocr_geometry else [])
+        for i, box in enumerate(artifact.ocr_geometry.boxes if artifact.ocr_geometry else [])  # raw-geometry-ok: which boxes had words is the block's to say
         if (box.text or "").strip()
     } & rows
     read = {r.segment_id for r in db.query_in(ContentRepresentation, "segment_id", sorted(with_words))} if with_words else set()
