@@ -179,10 +179,12 @@ def _bind_host_for_public_host(host: str) -> str:
     try:
         ipaddress.ip_address(host)
     except ValueError:
-        if not host.lower().endswith(".local"):
+        # A `.ts.net` host is reached through `tailscale serve --tcp`, which forwards to this
+        # loopback listener (#5311): the engine's own TLS, and the pin, hold end to end.
+        if not host.lower().endswith((".local", ".ts.net")):
             raise ValueError(
-                "public_base_url must use a literal IP address or .local host so "
-                "the engine can bind to a real local Mac address."
+                "public_base_url must use a literal IP address, .local or .ts.net host so "
+                "the engine can bind to a real local Mac address or sit behind tailscale serve."
             )
 
     return "127.0.0.1"

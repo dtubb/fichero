@@ -89,8 +89,25 @@ def test_prepare_remote_access_tls_adds_subject_alt_hosts(tmp_path: Path) -> Non
 
 
 def test_prepare_remote_access_tls_rejects_dns_host_names() -> None:
-    with pytest.raises(ValueError, match="literal IP address or .local"):
+    with pytest.raises(ValueError, match="literal IP address, .local or .ts.net"):
         prepare_remote_access_tls("https://pairing.example.com:9443")
+
+
+def test_a_tailscale_address_binds_loopback_and_its_certificate_names_it(tmp_path: Path) -> None:
+    """#5311: where mDNS does not cross (a campus network), the way to share is a `.ts.net` address
+    carried by `tailscale serve --tcp` to the engine's loopback listener. The TLS step refused any
+    host that was not `.local` or an IP, so with that address sharing never started. Now it binds
+    loopback only (`tailscale serve` is the perimeter) and the certificate names the tailnet host,
+    so the engine's own TLS -- and the device's SPKI pin -- hold end to end through the forward."""
+    material = prepare_remote_access_tls(
+        "https://macbook-air-m1.tail677e72.ts.net:8765",
+        storage_root=tmp_path,
+        subject_alt_hosts=["127.0.0.1", "localhost"],
+    )
+    assert material.bind_host == "127.0.0.1"
+    certificate = x509.load_pem_x509_certificate(Path(material.certificate_path).read_bytes())
+    san = certificate.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+    assert "macbook-air-m1.tail677e72.ts.net" in san.get_values_for_type(x509.DNSName)
 
 
 def test_uvicorn_ssl_kwargs_from_env_requires_both_paths() -> None:
