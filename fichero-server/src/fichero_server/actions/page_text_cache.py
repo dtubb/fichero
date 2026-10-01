@@ -260,6 +260,12 @@ def _store(db: Any, doc: Any, text: str, now: Any, standing: str | None = None) 
         metadata[STANDING_TEXT] = standing
     doc.metadata = metadata
     if text_changed:
+        old_text = doc.page_content or ""
+        if text != old_text:
+            # Highlights quote the old text by offset; re-find them in the new one (#5077).
+            from fichero_server.actions.highlight_reanchor import reanchor_highlights
+
+            reanchor_highlights(db, doc.id, old_text, text)
         doc.page_content = text
         doc.updated_at = now
     db.save(doc)
