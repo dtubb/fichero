@@ -953,8 +953,26 @@ def migrate_canvas_layout_table(
         if not documents_exists:
             logger.debug("documents table does not exist, skipping canvas_layout backfill")
             return
+        # A library from before the spatial columns has none of them yet: this runs before
+        # `_materialize_schema` adds them. Reading a column that is not there failed the whole
+        # migration on every such library's first open (a 2026-05 library, 2026-09-30); a column
+        # that does not exist holds no position, so it reads as NULL.
+        present = {
+            row[0]
+            for row in conn.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'documents'"
+            ).fetchall()
+        }
+
+        def col(name: str) -> str:
+            return name if name in present else "NULL"
+
+        x, y, z, rot, zi = (
+            col(n) for n in ("position_x", "position_y", "position_z", "rotation_z", "z_index")
+        )
+        meta = col("metadata")
         conn.execute(
-            """
+            f"""
             INSERT INTO canvas_layout (
                 id, folder_id, item_id, x, y, z, w, h, d, angle, z_index, style, updated_at
             )
@@ -962,28 +980,28 @@ def migrate_canvas_layout_table(
                 parent_id || '::' || id,
                 parent_id,
                 id,
-                COALESCE(position_x, 0.0),
-                COALESCE(position_y, 0.0),
-                COALESCE(position_z, 0.0),
-                TRY_CAST(json_extract(metadata, '$.canvas_w') AS DOUBLE),
-                TRY_CAST(json_extract(metadata, '$.canvas_h') AS DOUBLE),
-                TRY_CAST(json_extract(metadata, '$.canvas_d') AS DOUBLE),
-                COALESCE(rotation_z, 0.0),
-                COALESCE(z_index, 0),
-                json_extract_string(metadata, '$.canvas_style'),
-                COALESCE(updated_at, CURRENT_TIMESTAMP)
+                COALESCE({x}, 0.0),
+                COALESCE({y}, 0.0),
+                COALESCE({z}, 0.0),
+                TRY_CAST(json_extract({meta}, '$.canvas_w') AS DOUBLE),
+                TRY_CAST(json_extract({meta}, '$.canvas_h') AS DOUBLE),
+                TRY_CAST(json_extract({meta}, '$.canvas_d') AS DOUBLE),
+                COALESCE({rot}, 0.0),
+                COALESCE({zi}, 0),
+                json_extract_string({meta}, '$.canvas_style'),
+                COALESCE({col("updated_at")}, CURRENT_TIMESTAMP)
             FROM documents d
             WHERE parent_id IS NOT NULL
               AND (
-                position_x IS NOT NULL
-                OR position_y IS NOT NULL
-                OR position_z IS NOT NULL
-                OR rotation_z IS NOT NULL
-                OR COALESCE(z_index, 0) != 0
-                OR json_extract(metadata, '$.canvas_w') IS NOT NULL
-                OR json_extract(metadata, '$.canvas_h') IS NOT NULL
-                OR json_extract(metadata, '$.canvas_d') IS NOT NULL
-                OR json_extract(metadata, '$.canvas_style') IS NOT NULL
+                {x} IS NOT NULL
+                OR {y} IS NOT NULL
+                OR {z} IS NOT NULL
+                OR {rot} IS NOT NULL
+                OR COALESCE({zi}, 0) != 0
+                OR json_extract({meta}, '$.canvas_w') IS NOT NULL
+                OR json_extract({meta}, '$.canvas_h') IS NOT NULL
+                OR json_extract({meta}, '$.canvas_d') IS NOT NULL
+                OR json_extract({meta}, '$.canvas_style') IS NOT NULL
               )
               AND NOT EXISTS (
                 SELECT 1

@@ -332,6 +332,23 @@ def test_migrate_canvas_layout_table_backfills_from_a_populated_documents_table(
     ]
 
 
+def test_migrate_canvas_layout_table_on_a_library_from_before_the_spatial_columns(conn):
+    """A library made before documents had positions (a 2026-05 library, found converting copies
+    for #5222 on 2026-09-30): the backfill read `position_x`, which is added only LATER in the same
+    open, so the whole migration failed and was rolled back on its first open. A column that is not
+    there holds no position: the table is made, nothing is backfilled, nothing fails."""
+    conn.execute(
+        "CREATE TABLE documents (id VARCHAR, parent_id VARCHAR, page_content VARCHAR, path VARCHAR)"
+    )
+    conn.execute("INSERT INTO documents VALUES ('child', 'folder', 'text', '/a.jpg')")
+
+    failures: list = []
+    migrate_canvas_layout_table(conn, failures)
+
+    assert failures == []
+    assert conn.execute("SELECT COUNT(*) FROM canvas_layout").fetchone() == (0,)
+
+
 def test_migrate_catalogue_chunk_artifact_type_on_a_populated_artifacts_table(conn):
     conn.execute(
         """
