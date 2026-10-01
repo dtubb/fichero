@@ -229,6 +229,25 @@ Rules for every format
   never `human`; `actor` is who brought the file and `provider` what the FILE says made it (PAGE
   Creator / Comments Producer / TranskribusMetadata, ALTO processingSoftware, TEI respStmt); it
   ranks in the imported tier (`fichero-server/tests/unit/api/test_an_import_is_the_files.py`).
+- `source.format.file-on-its-own-is-a-document` — **[OK]** (→ #5143, ruled 2026-10-01; on-screen check of the app's report pending) a TEI, PAGE
+  or ALTO file imported **on its own** (File › Import, or a drop of the file alone: no folder of
+  scans, no page to put it on) becomes **one document holding every page of the file**, in the
+  file's order: a page for each `<pb>` of a TEI edition, the one page of a PAGE file, each `<Page>`
+  of an ALTO file. Each page carries the file's text for it as an imported pass
+  (`source.format.import-is-pass`) and is labelled with the file's own page number (`<pb n>`).
+  **A page whose image is not there still imports**, as a page without an image; the import names
+  every such page with what it points at (`page 6 (#zone_0006)` names `…/R0000025/…`), so its scan
+  can be put with it later. Nothing is left out: the Digital Genji chapter arrives as 24 pages
+  holding all 11,240 letters the reader finds in it, the DTA Luther fables as 8 pages holding all
+  15,051 (they used to arrive as one text document of the raw file). One undo takes the document
+  and its pages away. Two neighbours keep their behaviour: **Import Page** onto an existing page
+  takes the first page, or the `pages` named, and names the rest (#5308), and a **folder** holding
+  the file and its scans gives each scan the pages that name it (`1bf7fe4b3`).
+  Built in `format_import.import_file_as_pages`, called by `import.file` and `import.upload_file`;
+  pinned by `fichero-server/tests/unit/importers/test_a_file_on_its_own_is_a_document.py` (page for
+  page against the reader; the upload, the drop and one undo) and, for the app's File › Import
+  report ("Imported Without Images"), `fichero/Tests/Unit/general/Services/ImportPagesWithoutImageTests.swift`.
+  A drop elsewhere (a pane, a row) imports the same pages but does not yet show that report.
 - `source.format.reimport-recognised` — **[OK]** (→ #4943) importing the same file again is recognised, not
   duplicated silently — by the mechanism the spec names, the content hash on
   `SegmentPass.import_checksum`, and **no second dedupe table**. Pinned by

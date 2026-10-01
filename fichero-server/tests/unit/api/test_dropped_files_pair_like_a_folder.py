@@ -41,12 +41,16 @@ def test_an_image_and_its_alto_dropped_together_become_one_page_with_a_pass(clie
     assert stored == [], f"no .xml document may exist after a paired drop: {stored}"
 
 
-def test_a_layout_with_no_image_in_the_set_is_named_not_silently_textified(client, tmp_path):
+def test_a_layout_with_no_image_in_the_set_is_its_own_page_not_silently_textified(client, tmp_path):
+    """Ruled 2026-10-01 (#5143): alone, it is a document holding its page, without an image, and
+    the page is named as having none -- no longer an ordinary file named in `unpaired`."""
     _, layout = _drop(tmp_path)
     response = client.post("/api/ingest/files", json={"paths": [str(layout)]})
     assert response.status_code == 200, response.text
     body = response.json()
-    assert layout.name in body["unpaired"], body
+    assert body["unpaired"] == {}, body
+    (document,) = body["documents"]
+    assert len(document["metadata"]["pages_without_image"]) == 1, document["metadata"]
 
 
 def test_an_empty_drop_is_refused(client):

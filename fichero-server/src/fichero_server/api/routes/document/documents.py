@@ -3722,6 +3722,10 @@ def _action_import_upload_file(
         original_filename=params.original_filename,
         parent_id=params.parent_id,
     )
+    # A TEI, PAGE or ALTO file on its own is a document of its pages (#5143).
+    from fichero_server.api.routes.document.format_import import import_file_as_pages
+
+    import_file_as_pages(db, doc, file_path, ctx)
     spec = ChangeSpec(
         domains=["document"],
         target_ids=[doc.id],

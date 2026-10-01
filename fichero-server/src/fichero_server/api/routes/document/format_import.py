@@ -58,7 +58,7 @@ from fichero_server.api.routes.document.segments import (
 from fichero_server.db import Database
 from fichero_server.formats import UnknownFormat, format_for, format_named, read_page
 from fichero_server.formats.harness import SourcePage
-from fichero_server.models import ContentRepresentation, Document, Segment
+from fichero_server.models import ContentRepresentation, DocType, Document, Segment, Status
 from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.knowledge import ProvenanceKind
 from fichero_server.models.reading_orders import ReadingOrderEntry
@@ -342,6 +342,66 @@ def _tei_pages_taken(data: bytes, wanted: list[int] | None, filename: str) -> tu
         )
     left_out = [describe_page(p, n) for n, p in enumerate(pages, start=1) if n not in numbers]
     return page, len(pages), left_out
+
+
+#: Formats whose file, imported on its own, is a document of pages (#5143).
+PAGED_ON_THEIR_OWN = ("tei", "pagexml", "alto")
+
+
+def import_file_as_pages(db: Database, document: Document, path: Path, ctx: ActionContext) -> bool:
+    """A TEI, PAGE or ALTO file imported on its own: every page of it, as a page of `document`.
+
+    `source.format.file-on-its-own-is-a-document` (#5143, ruled 2026-10-01). Each page is a child
+    page in the file's order carrying the file's text for it as an imported pass; no image came
+    with the file, so each page is a page without an image, named in `pages_without_image` with
+    what it points at. False, and nothing written, for a file that is not one of these formats or
+    cannot be read: it stays the ordinary file it always was.
+
+    Written inside the importing action, not as nested `format.import`s, so one undo (deleting
+    the document) takes the pages and their passes with it.
+    """
+    from fichero_server.formats.tei import describe_page, read_pages
+
+    data = path.read_bytes()
+    spec = format_for(path.name, data)
+    if spec is None or spec.name not in PAGED_ON_THEIR_OWN:
+        return False
+    try:
+        pages = read_pages(data) if spec.name == "tei" else [read_page(spec.name, data)]
+    except Exception:  # noqa: BLE001 -- an unreadable file stays an ordinary file, as before
+        return False
+
+    checksum = file_checksum(data)
+    without_image: list[str] = []
+    not_imported: list[str] = []
+    for number, page in enumerate(pages, start=1):
+        described = describe_page(page, number) if spec.name == "tei" else f"page {number}"
+        pb_n = ((page.foreign.get("tei") or {}).get("pb") or {}).get("n")
+        size = {"width": page.image_size[0], "height": page.image_size[1]} if page.image_size else {}
+        child = Document(
+            parent_id=document.id, doc_type=DocType.page, file_type=None,
+            name=f"{document.name} - Page {pb_n or number}", sequence=number, page_label=pb_n,
+            status=Status.completed, metadata={"image_name": page.image_name, "page_number": number, **size},
+        )
+        db.save(child)
+        try:
+            write_page_into_library(
+                db, document_id=child.id, page=page, format_name=spec.name, source_name=document.name,
+                checksum=checksum, pass_name=document.name, ctx=ctx,
+            )
+        except HTTPException as exc:
+            # A page that cannot come in is named with why, and leaves nothing behind (#5308).
+            for row in db.query(SegmentPass, document_id=child.id):
+                db.delete(row)
+            db.delete(child)
+            not_imported.append(f"{described}: {exc.detail}")
+            continue
+        without_image.append(f"{described} names {page.image_name}" if page.image_name else f"{described} names no image")
+
+    document.metadata = {**(document.metadata or {}), "pages_without_image": without_image,
+                         **({"pages_not_imported": not_imported} if not_imported else {})}
+    db.save(document)
+    return True
 
 
 def _anchor_for(

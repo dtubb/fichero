@@ -151,7 +151,28 @@ struct ImportOutcome {
     /// any "N of M" message.
     let attempted: Int
 
+    /// Pages that came in without their image (#5143): a TEI, PAGE or ALTO file imported on its own
+    /// is a document of its pages, and the engine names each page whose scan did not come with it.
+    var pagesWithoutImage: [String] = []
+
     var isComplete: Bool { failures.isEmpty }
+
+    /// The engine's names for the pages without an image, read off the documents it returned.
+    static func pagesWithoutImage(in documents: [Document]) -> [String] {
+        documents.flatMap { document in
+            (document.metadata["pages_without_image"]?.value as? [Any?] ?? []).compactMap { $0 as? String }
+        }
+    }
+
+    /// The report for those pages, or nil when every page came with its image.
+    var pagesWithoutImageMessage: String? {
+        guard !pagesWithoutImage.isEmpty else { return nil }
+        let count = pagesWithoutImage.count
+        let shown = pagesWithoutImage.prefix(6).joined(separator: "\n")
+        let more = count > 6 ? "\n(and \(count - 6) more)" : ""
+        let pages = count == 1 ? "1 page has" : "\(count) pages have"
+        return "Every page came in. \(pages) no image yet; each is named with the image the file points to:\n\(shown)\(more)"
+    }
 
     /// A user-facing sentence for the PARTIAL case, or nil when nothing failed.
     ///
@@ -180,7 +201,8 @@ struct ImportOutcome {
         ImportOutcome(
             documents: [],
             failures: outcomes.flatMap(\.failures),
-            attempted: outcomes.reduce(0) { $0 + $1.attempted }
+            attempted: outcomes.reduce(0) { $0 + $1.attempted },
+            pagesWithoutImage: outcomes.flatMap(\.pagesWithoutImage)
         )
     }
 }

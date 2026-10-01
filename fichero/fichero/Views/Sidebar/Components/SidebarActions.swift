@@ -65,6 +65,7 @@ extension SidebarView {
                 logger.error("Import completed partially: \(message)")
                 sidebarState.dropErrorMessage = message
             }
+            sidebarState.importReportMessage = outcome.pagesWithoutImageMessage
         } catch {
             logger.error("Failed to import files: \(error)")
             sidebarState.dropErrorMessage = "Import failed: \(error.localizedDescription)"

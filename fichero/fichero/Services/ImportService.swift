@@ -163,7 +163,10 @@ class ImportService {
         // [Document] made the partial case indistinguishable from a clean one
         // at every call site, and the only record of it — `lastError` — was
         // read by no view.
-        return ImportOutcome(documents: imported, failures: errors, attempted: urls.count)
+        return ImportOutcome(
+            documents: imported, failures: errors, attempted: urls.count,
+            pagesWithoutImage: ImportOutcome.pagesWithoutImage(in: imported)
+        )
     }
 
     nonisolated static func isDirectory(_ url: URL) -> Bool {

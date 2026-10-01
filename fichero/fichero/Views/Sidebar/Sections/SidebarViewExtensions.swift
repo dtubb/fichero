@@ -229,6 +229,14 @@ private struct SidebarDropAlertsModifier: ViewModifier {
                 )
             ))
             .modifier(sidebarMessageAlert(
+                title: "Imported Without Images",
+                fallback: "Every page came in without its image.",
+                message: Binding(
+                    get: { sidebarState.importReportMessage },
+                    set: { sidebarState.importReportMessage = $0 }
+                )
+            ))
+            .modifier(sidebarMessageAlert(
                 title: "Alias Can’t Be Opened",
                 fallback: "The original item can’t be found.",
                 message: Binding(

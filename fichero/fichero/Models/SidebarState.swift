@@ -57,6 +57,8 @@ class SidebarState {
     var isProcessingDrop: Bool = false
     var dropProgress: Double = 0.0
     var dropErrorMessage: String?
+    /// File › Import of a TEI, PAGE or ALTO file on its own: the pages that came in without an image (#5143).
+    var importReportMessage: String?
     /// Rename failures were log-only; surface them like drop failures do.
     var renameErrorMessage: String?
     /// A selected alias whose target no longer exists (dangling, #2591).

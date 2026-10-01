@@ -838,7 +838,11 @@ async def ingest_files(
                 },
                 ctx,
             )
-            docs.append(Document.model_validate(result.result))
+            document = Document.model_validate(result.result)
+            if "pages_without_image" in (document.metadata or {}):
+                # Not left as an ordinary file: it became a document of its pages (#5143).
+                plan.unpaired.pop(path, None)
+            docs.append(document)
         report = _import_paired_layout(db, docs, plan, ctx)
         return IngestFilesResponse(documents=docs, **report)
 
@@ -1247,6 +1251,10 @@ def _action_import_file(
 ) -> tuple[dict, ChangeSpec]:
     package_path = Path(ctx.library_path) if ctx.library_path else Path(db.path).parent
     doc = import_file_impl(db, params, package_path)
+    # A TEI, PAGE or ALTO file on its own is a document of its pages (#5143).
+    from fichero_server.api.routes.document.format_import import import_file_as_pages
+
+    import_file_as_pages(db, doc, Path(params.path), ctx)
     _upsert_sidecar_entities(db, [doc], ctx)
     _apply_sidecar_renditions(db, [doc], package_path)
     spec = ChangeSpec(
