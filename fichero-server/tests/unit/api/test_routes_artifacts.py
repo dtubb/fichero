@@ -913,3 +913,45 @@ class TestDocumentTextRegions:
             json={"spans": [{"char_start": 0, "char_end": 4}]},
         )
         assert r.status_code == 404
+
+
+class TestTheAuditChainCarriesNoArtifactBody:
+    """#5057: an artifact's body is in the artifact row once; the audit row holds its digest."""
+
+    def test_create_audits_digests_not_the_body(self, client, db):
+        doc = _make_doc(db)
+        secret = "a page of transcription nobody should find in the audit chain"
+        r = client.post(
+            "/api/artifacts/",
+            json={"document_id": doc.id, "artifact_type": "transcription",
+                  "content": secret, "data": {"lines": [secret]}},
+        )
+        assert r.status_code == 200, r.text
+        audit = next(a for a in db.all(ActionAudit) if a.action_name == "artifact.create")
+        blob = audit.model_dump_json()
+        assert secret not in blob, "the persisted ActionAudit row, not the ChangeSpec, is what leaked"
+        assert "content_sha256" in blob and "data_sha256" in blob
+        assert audit.params["document_id"] == doc.id, "ids and decisions stay in the row"
+
+    def test_redo_of_an_undone_create_brings_the_same_artifact_back_whole(self, client, db):
+        """Redo used to replay the create's audited params. With digests in place of the body
+        that would make an EMPTY artifact (content is optional), so redo restores the deleted
+        row's own snapshot instead: the same id, the same body."""
+        doc = _make_doc(db)
+        r = client.post(
+            "/api/artifacts/",
+            json={"document_id": doc.id, "artifact_type": "transcription", "content": "the page"},
+        )
+        artifact_id = r.json()["id"]
+        forward = next(a for a in db.all(ActionAudit) if a.action_name == "artifact.create")
+
+        assert client.post(f"/api/actions/audit/{forward.id}/undo").status_code == 200
+        assert db.get(Artifact, artifact_id) is None
+        inverse = next(a for a in db.all(ActionAudit) if a.inverse_of == forward.id)
+        redo = client.post(f"/api/actions/audit/{inverse.id}/undo")
+        assert redo.status_code == 200, redo.text
+
+        restored = db.get(Artifact, artifact_id)
+        assert restored is not None, "redo brings back the SAME artifact id"
+        assert restored.content == "the page"
+        assert [a for a in db.all(Artifact) if a.document_id == doc.id] == [restored]

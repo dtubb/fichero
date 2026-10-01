@@ -201,6 +201,36 @@ class TestAnnotationCreateAction:
         back = db.get(Annotation, aid)
         assert back is not None and back.text == "x"
 
+    def test_create_audits_digests_not_the_marks_content(self, db):
+        """#5057: ink strokes and a note's words are in the annotation row once."""
+        doc = _mk_doc(db)
+        secret = "a note nobody should find in the audit chain"
+        res = registry.invoke(db, "annotation.create", {
+            "document_id": doc.id, "kind": "note", "text": secret,
+            "ink_payload": "M0 0 L9 9 " * 50, "ocr_text": secret,
+        }, _ctx())
+        audit = db.get(ActionAudit, res.audit_id)
+        blob = audit.model_dump_json()
+        assert secret not in blob and "M0 0 L9 9" not in blob
+        assert {"text_sha256", "ink_payload_sha256", "ocr_text_sha256"} <= set(audit.params)
+        assert audit.params["document_id"] == doc.id
+
+    def test_redo_through_the_undo_route_restores_the_same_mark(self, db, client):
+        """The real ⌘⇧Z path, not the hand-driven inverse above: it replayed the create's audited
+        params and made a NEW mark (now one without its words); it restores the snapshot (#5057)."""
+        doc = _mk_doc(db)
+        res = registry.invoke(
+            db, "annotation.create", {"document_id": doc.id, "kind": "note", "text": "x"}, _ctx()
+        )
+        aid = res.result["id"]
+        assert client.post(f"/api/actions/audit/{res.audit_id}/undo").status_code == 200
+        inverse = next(a for a in db.all(ActionAudit) if a.inverse_of == res.audit_id)
+        redo = client.post(f"/api/actions/audit/{inverse.id}/undo")
+        assert redo.status_code == 200, redo.text
+        back = db.get(Annotation, aid)
+        assert back is not None and back.text == "x"
+        assert [a.id for a in db.all(Annotation) if a.document_id == doc.id] == [aid]
+
     def test_create_validation_rejects_bad_kind(self, db):
         with pytest.raises(ValidationError):
             registry.invoke(

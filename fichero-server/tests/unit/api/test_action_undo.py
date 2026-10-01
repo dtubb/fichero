@@ -613,12 +613,24 @@ class TestRedoViaOwnInvertIsSegmentOnlyOptIn:
 
     @pytest.mark.parametrize("action_name", [
         "claim.delete", "claim.restore",
-        "document.update", "document.delete", "document.restore",
+        "document.update", "document.restore",
         "entity.create", "entity.update", "entity.delete", "entity.restore",
         "entity.merge", "entity.unmerge",
     ])
     def test_shipped_action_does_not_opt_in(self, action_name):
         assert registry.get(action_name).redo_via_own_invert is False
+
+    @pytest.mark.parametrize("action_name", [
+        "document.delete", "artifact.delete", "annotation.delete", "note.delete",
+        "representation.retract",
+    ])
+    def test_the_inverse_of_a_create_that_audits_a_digest_opts_in(self, action_name):
+        """#5057: these creates audit a digest in place of their content (`audit_params`), so a
+        redo that REPLAYED the create would run without the words: a 422, or a new, empty row.
+        Their inverse redoes by its own invert instead: restore the deleted snapshot, the same id.
+        Only the redo of an undone create changes; a person's own delete still redoes by replay
+        (its undo row is a restore, which does not opt in)."""
+        assert registry.get(action_name).redo_via_own_invert is True
 
     def test_document_update_redo_still_replays_the_original_action_name(self, db, spy_emit):
         """Re-affirms `TestDocumentUpdateUndoRedo.test_redo_reapplies_update_

@@ -9,7 +9,13 @@ from enum import StrEnum
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero_server.actions.registry import (
+    ActionContext,
+    ChangeSpec,
+    action,
+    audit_with_digests,
+    registry,
+)
 from fichero_server.api.library_header import optional_library_path
 from fichero_server.api.auth import request_actor
 from pydantic import BaseModel, Field
@@ -128,6 +134,14 @@ class ArtifactCreateRequest(BaseModel):
     step_name: Optional[str] = None
     confidence: Optional[float] = None
     reviewed: bool = False
+
+    def audit_params(self) -> dict:
+        """Every argument except the artifact's body, which the artifact row already holds once
+        (#5057, the rule `registry._audit_params` states): a whole page's OCR or transcription
+        copied into the audit chain is a second, un-editable edition growing without limit. A
+        digest of each stands in, so the row still proves what this call wrote. Redo does not need
+        them: it restores the deleted row's own snapshot (`artifact.delete`'s redo)."""
+        return audit_with_digests(self, "content", "data")
 
 
 class ArtifactUpdateActionParams(BaseModel):
@@ -950,6 +964,10 @@ def _action_create_artifact(
 class ArtifactBulkCreateActionParams(BaseModel):
     artifacts: list[ArtifactCreateRequest]
 
+    def audit_params(self) -> dict:
+        """Each artifact as `artifact.create` audits it: no bodies, their digests (#5057)."""
+        return {"artifacts": [artifact.audit_params() for artifact in self.artifacts]}
+
 
 @action(
     "artifact.bulk_create",
@@ -1074,6 +1092,10 @@ def _action_update_artifact(
     domains=["artifact", "document"],
     undoable=True,
     invert=_invert_artifact_to_restore,
+    # Redo of an undone `artifact.create` (whose inverse is this delete) restores the deleted
+    # row's own snapshot: the same id, its body intact. Replaying the create's AUDITED params
+    # would make an EMPTY artifact, because they carry digests, not the body (#5057).
+    redo_via_own_invert=True,
 )
 def _action_delete_artifact(
     db: Database, params: ArtifactDeleteActionParams, ctx: ActionContext

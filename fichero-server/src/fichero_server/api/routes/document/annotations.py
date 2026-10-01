@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field, field_validator
 from fichero_server.api.auth import action_context
 from fichero_server.api.change_stream import emit_change
 from fichero_server.api.main import get_library_database, get_library_database_for_write
-from fichero_server.actions.registry import registry
+from fichero_server.actions.registry import audit_with_digests, registry
 from fichero_server.api.routes.document.segment_conversion import (
     AnchorBasis,
     ResolvedAnchor,
@@ -105,6 +105,13 @@ class AnnotationCreateRequest(BaseModel):
     linked_entity_ids: list[str] = []
     linked_note_ids: list[str] = []
     metadata: dict[str, Any] = {}
+
+    def audit_params(self) -> dict:
+        """Every argument except the mark's content, which the annotation row holds once (#5057,
+        `registry._audit_params`): ink strokes are unbounded and worthless in an audit row, and a
+        note's text is the row's to keep. Digests stand in. Redo restores the deleted row's own
+        snapshot (`annotation.delete`'s redo), so it never needs them."""
+        return audit_with_digests(self, "ink_payload", "ocr_text", "text")
 
     @field_validator("color")
     @classmethod
@@ -820,16 +827,17 @@ def _action_create_annotation(
     db: Database, params: AnnotationCreateRequest, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     ann = create_annotation_impl(db, params, actor=ctx.actor)
-    after = ann.model_dump(mode="json")
     spec = ChangeSpec(
         domains=["annotation"],
         target_ids=[ann.id],
         before=None,
-        after=after,
+        # The id is all the undo needs (`_invert_create_annotation`). The whole row went here, so
+        # the mark's words and ink reached the audit chain even with `audit_params` (#5057).
+        after={"id": ann.id},
         emit_type="annotation.created",
         document_ids=_annotation_scope_document_ids(ann),
     )
-    return after, spec
+    return ann.model_dump(mode="json"), spec
 
 
 @action(
@@ -861,6 +869,9 @@ def _action_update_annotation(
     domains=["annotation"],
     undoable=True,
     invert=_invert_to_restore_before,
+    # Redo of an undone `annotation.create` (whose inverse is this delete) restores the deleted
+    # snapshot, the same id and its content; the create's AUDITED params hold digests (#5057).
+    redo_via_own_invert=True,
 )
 def _action_delete_annotation(
     db: Database, params: AnnotationIdParams, ctx: ActionContext

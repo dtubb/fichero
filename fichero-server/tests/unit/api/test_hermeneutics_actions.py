@@ -63,6 +63,27 @@ def _audit(db, audit_id: str) -> ActionAudit:
     return row
 
 
+class TestInterpretationAuditCarriesNoProse:
+    def test_create_audits_digests_not_the_interpretation(self, db):
+        """#5057: the interpretation row holds the prose once. It reached the audit chain twice,
+        through the params and through a whole-row `after`; the row keeps digests and the id."""
+        fwk = _framework(db)
+        claim = _claim(db)
+        secret = "an interpretation nobody should find in the audit chain"
+        result = registry.invoke(
+            db,
+            "interpretation.create",
+            {"framework_id": fwk.id, "claim_id": claim.id, "interpretation_text": secret,
+             "passage_text": secret, "act": "contextualizing"},
+            _ctx(actor="alice"),
+        )
+        row = _audit(db, result.audit_id)
+        assert secret not in row.model_dump_json()
+        assert {"interpretation_text_sha256", "passage_text_sha256"} <= set(row.params)
+        assert row.after == {"interpretation_id": result.result["id"]}
+        assert result.result["interpretation_text"] == secret, "the caller still gets the row"
+
+
 # ===========================================================================
 # hermeneutic.actor-not-forged (#4857)
 # ===========================================================================

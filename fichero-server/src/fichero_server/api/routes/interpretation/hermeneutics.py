@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.api.auth import action_context
-from fichero_server.actions.registry import registry
+from fichero_server.actions.registry import audit_with_digests, registry
 from fichero_server.db import Database
 from fichero_server.models.hermeneutics import (
     CircleNavigationDirection,
@@ -118,6 +118,12 @@ class InterpretationCreateRequest(BaseModel):
     # records the REAL actor (`ctx.actor`) instead. Same forgery class as
     # `kg/inclusion.py::InclusionUpsertRequest.updated_by`.
     created_by: str = "human"
+
+    def audit_params(self) -> dict:
+        """Every argument except the prose, which the interpretation row holds once (#5057,
+        `registry._audit_params`); digests stand in. The action is not undoable, so no redo
+        replays this row."""
+        return audit_with_digests(self, "interpretation_text", "passage_text")
 
 
 class InterpretationUpdateRequest(BaseModel):
@@ -1038,7 +1044,8 @@ def _action_create_interpretation(
         domains=["interpretation"],
         target_ids=[interpretation.id],
         before=None,
-        after=after,
+        # The id, not the row: the whole row put the prose in the audit chain (#5057).
+        after={"interpretation_id": interpretation.id},
         emit_type="interpretation.created",
         interpretation_ids=[interpretation.id],
         document_ids=[interpretation.document_id] if interpretation.document_id else [],

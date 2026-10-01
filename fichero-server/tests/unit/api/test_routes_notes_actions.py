@@ -178,6 +178,28 @@ class TestNoteCreateAction:
         assert db.get(Note, nid) is not None
         assert db.get(Note, nid).title == "Cycle"
 
+    def test_create_audits_a_digest_not_the_body(self, db):
+        """#5057: the note row holds its body once; the audit row holds the digest and the id."""
+        secret = "a note body nobody should find in the audit chain"
+        res = registry.invoke(db, "note.create", {"title": "T", "body": secret}, _ctx())
+        audit = db.get(ActionAudit, res.audit_id)
+        assert secret not in audit.model_dump_json()
+        assert "body_sha256" in audit.params and audit.params["title"] == "T"
+        assert audit.after == {"id": res.result["id"]}
+
+    def test_redo_through_the_undo_route_restores_the_same_note(self, db, client):
+        """The real ⌘⇧Z path, not the hand-driven inverse above: it replayed the create's audited
+        params and made a NEW note (now an empty one); it restores the snapshot (#5057)."""
+        res = registry.invoke(db, "note.create", {"title": "Cycle", "body": "words"}, _ctx())
+        nid = res.result["id"]
+        assert client.post(f"/api/actions/audit/{res.audit_id}/undo").status_code == 200
+        inverse = next(a for a in db.all(ActionAudit) if a.inverse_of == res.audit_id)
+        redo = client.post(f"/api/actions/audit/{inverse.id}/undo")
+        assert redo.status_code == 200, redo.text
+        back = db.get(Note, nid)
+        assert back is not None and back.body == "words"
+        assert [n.id for n in db.all(Note) if n.title == "Cycle"] == [nid]
+
     def test_create_validation_rejects_bad_tags(self, db):
         with pytest.raises(ValidationError):
             registry.invoke(db, "note.create", {"tags": "not-a-list"}, _ctx())

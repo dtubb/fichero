@@ -148,6 +148,35 @@ class TestDocumentCreateAction:
         registry.invoke(db, inverse[0], inverse[1], ctx)
         assert db.get(Document, new_id) is not None
 
+    def test_create_audits_a_digest_not_the_page_text(self, db):
+        """#5057: the page's text is in the document row once; the audit row holds its digest."""
+        secret = "a page nobody should find in the audit chain"
+        result = registry.invoke(
+            db, "document.create", {"name": "Page", "page_content": secret}, _ctx()
+        )
+        audit = db.get(ActionAudit, result.audit_id)
+        assert secret not in audit.model_dump_json()
+        assert "page_content_sha256" in audit.params
+        assert audit.params["name"] == "Page"
+
+    def test_redo_through_the_undo_route_brings_the_same_page_back(self, db, client):
+        """The real ⌘Z / ⌘⇧Z path. Redo used to replay the create's audited params, which now
+        hold a digest instead of the text, and would have made a NEW, empty page; it restores
+        the deleted snapshot instead: the same id and text (#5057)."""
+        result = registry.invoke(
+            db, "document.create", {"name": "Page", "page_content": "the words"}, _ctx()
+        )
+        new_id = result.result["id"]
+        assert client.post(f"/api/actions/audit/{result.audit_id}/undo").status_code == 200
+        inverse = next(a for a in db.all(ActionAudit) if a.inverse_of == result.audit_id)
+        redo = client.post(f"/api/actions/audit/{inverse.id}/undo")
+        assert redo.status_code == 200, redo.text
+
+        page = db.get(Document, new_id)
+        assert page.deleted_at is None, "redo brings back the SAME document"
+        assert page.page_content == "the words"
+        assert [d for d in db.all(Document) if d.name == "Page"] == [page]
+
     def test_create_validation_rejects_missing_name(self, db):
         # (c) name is required
         with pytest.raises(ValidationError):

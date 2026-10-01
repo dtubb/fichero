@@ -18,7 +18,7 @@ from fichero_server.api.library_header import require_library_path
 from fichero_server.api.auth import action_context, request_actor
 from fichero_server.api.change_stream import emit_change
 from fichero_server.api.main import get_library_database, get_library_database_for_write
-from fichero_server.actions.registry import registry
+from fichero_server.actions.registry import audit_with_digests, registry
 from fichero_server.db import Database
 from fichero_server.models.knowledge import Note, NoteKind, NoteLink
 from fichero_server.models import DocType, Document, NoteListResponse
@@ -48,6 +48,12 @@ class NoteCreateRequest(BaseModel):
     linked_structure_node_id: str | None = None
     address: str | None = None
     parent_address: str | None = None
+
+    def audit_params(self) -> dict:
+        """Every argument except the note's body, which the note row holds once (#5057,
+        `registry._audit_params`); its digest stands in. Redo restores the deleted row's own
+        snapshot (`note.delete`'s redo), so it never needs the body."""
+        return audit_with_digests(self, "body")
 
 
 def _validate_note_scope(
@@ -577,17 +583,17 @@ def _action_create_note(
     db: Database, params: NoteCreateRequest, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     note = create_note_impl(db, params)
-    after = note.model_dump(mode="json")
     spec = ChangeSpec(
         domains=["note"],
         target_ids=[note.id],
         before=None,
-        after=after,
+        # The id is all the undo needs; the whole row put the body in the audit chain (#5057).
+        after={"id": note.id},
         emit_type="note.created",
         document_ids=_note_scope_document_ids(note),
         emit_fn=_emit_note_change_spec,
     )
-    return after, spec
+    return note.model_dump(mode="json"), spec
 
 
 @action(
@@ -620,6 +626,9 @@ def _action_update_note(
     domains=["note"],
     undoable=True,
     invert=_invert_to_restore_before,
+    # Redo of an undone `note.create` restores this delete's snapshot: the same note, its body
+    # intact. Replaying the create's AUDITED params would make a new, empty note (#5057).
+    redo_via_own_invert=True,
 )
 def _action_delete_note(
     db: Database, params: NoteIdParams, ctx: ActionContext

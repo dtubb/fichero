@@ -22,6 +22,8 @@ into ``after`` — a blind before/after snapshot taken by ``invoke`` could not.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol, runtime_checkable
@@ -182,6 +184,8 @@ class ActionRegistration:
     # restore_version) do NOT set it -- replay-with-a-refreshed-token is
     # already provably correct for them (see `_refresh_replay_expected_versions`)
     # and stays their behaviour. Never a name-prefix test, never global.
+    # #5057: also the inverse of a create whose params audit a DIGEST in place of their content
+    # (`audit_with_digests`): replaying such a create's audit row would run it without the words.
     redo_via_own_invert: bool = False
 
 
@@ -366,6 +370,23 @@ def _audit_params(params: BaseModel) -> dict:
     if callable(hook):
         return hook()
     return params.model_dump(mode="json")
+
+
+def audit_with_digests(params: BaseModel, *fields: str) -> dict:
+    """An ``audit_params()`` body: every argument, with each named CONTENT field replaced by
+    ``<field>_sha256`` (absent when the field was empty), as ``_audit_params`` allows (#5057).
+
+    A params model that uses it must not be REDONE by replaying its audit row: the default redo
+    re-runs the forward action with these params, and the words are not in them. Its inverse must
+    redo by its own invert (``redo_via_own_invert``), restoring the row's own snapshot.
+    """
+    recorded = params.model_dump(mode="json")
+    for name in fields:
+        value = recorded.pop(name, None)
+        if value is not None:
+            text = value if isinstance(value, str) else json.dumps(value, sort_keys=True)
+            recorded[f"{name}_sha256"] = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return recorded
 
 
 def action(

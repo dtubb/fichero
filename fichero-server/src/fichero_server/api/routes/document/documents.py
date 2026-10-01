@@ -46,7 +46,7 @@ from fichero_server.core.perf import perf_span
 from fichero_server.db.storage import auto_snapshot_before_risky_operation
 from fichero_server.db.storage_snapshots import SnapshotRefused
 from fichero_server.db.storage import settings as storage_settings
-from fichero_server.actions.registry import registry
+from fichero_server.actions.registry import audit_with_digests, registry
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -194,6 +194,12 @@ class DocumentCreate(BaseModel):
     rotation_z: Optional[float] = None
     scale: Optional[float] = None
     z_index: Optional[int] = None
+
+    def audit_params(self) -> dict:
+        """Every argument except the page's text, which the document row holds once (#5057, the
+        rule in `registry._audit_params`); its digest stands in. Redo does not need the text: it
+        restores the deleted row's own snapshot (`document.delete`'s redo)."""
+        return audit_with_digests(self, "page_content")
 
 
 class DocumentUpdate(BaseModel):
@@ -3465,6 +3471,10 @@ def _action_assign_document_prototype(
     domains=["document"],
     undoable=True,
     invert=_invert_delete_document,
+    # Redo of an undone `document.create` (whose inverse is this delete) restores the deleted
+    # snapshot: the same id, its text intact. Replaying the create's AUDITED params would make a
+    # new document with no text, since they carry a digest in its place (#5057).
+    redo_via_own_invert=True,
 )
 def _action_delete_document(
     db: Database, params: DocumentDeleteParams, ctx: ActionContext

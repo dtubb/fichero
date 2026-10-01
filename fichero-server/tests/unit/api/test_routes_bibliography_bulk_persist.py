@@ -84,3 +84,14 @@ def test_missing_target_document_is_404(client):
     )
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
+
+
+def test_the_audit_row_holds_the_files_digest_not_the_file(client, db):
+    """#5057: a whole BibTeX export went into the audit chain on every import. The records hold
+    what it said; the audit row keeps a digest, the format and the target."""
+    from fichero_server.models import ActionAudit
+
+    assert _persist(client, text=TWO_BIBTEX, format="bibtex").status_code == 200
+    audit = next(a for a in db.all(ActionAudit) if a.action_name == "bibliography.bulk_import")
+    assert "@book{a" not in audit.model_dump_json()
+    assert "text_sha256" in audit.params and audit.params["format"] == "bibtex"

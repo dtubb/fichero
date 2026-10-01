@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
-from fichero_server.actions.registry import ActionContext, registry
+from fichero_server.actions.registry import ActionContext, audit_with_digests, registry
 from fichero_server.api.auth import action_context
 from fichero_server.api.library_header import require_library_path
 from fichero_server.api.main import get_library_database, get_library_database_for_write
@@ -494,6 +494,11 @@ class BibliographyBulkImportParams(BaseModel):
     format: str | None = Field(default=None, description="Format hint; auto-detected when None")
     target_document_id: str | None = Field(default=None, description="Parent document/collection id")
 
+    def audit_params(self) -> dict:
+        """The file's digest, not the file: an entire BibTeX export is what the records it made
+        hold, and the action is not undoable, so nothing replays it (#5057)."""
+        return audit_with_digests(self, "text")
+
 
 
 def _bulk_import_impl(
@@ -559,7 +564,9 @@ def _action_bulk_import(
     spec = ChangeSpec(
         domains=["bibliography", "document"],
         target_ids=doc_ids,
-        after={"document_ids": doc_ids, "entries": entries},
+        # The ids, not the entries: each entry carries its record's BibTeX, which put the file
+        # back into the audit chain the params no longer hold (#5057).
+        after={"document_ids": doc_ids},
         emit_type="bibliography.bulk_imported",
         document_ids=doc_ids,
     )
