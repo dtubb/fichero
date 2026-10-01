@@ -1014,9 +1014,13 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
   artifact, which no engine producer wrote); `POST /api/conversion/{run_id}/seen` records that a
   person saw it, which is what releases the snapshot. Pinned by
   `fichero-server/tests/unit/maintenance/test_conversion_starts_on_open.py::test_the_status_route_reports_the_run_what_is_left_and_what_was_not_converted`.
-- `source.convert.words-move-with-the-boxes` — **[GAP]** (#4998) once readings are on segments, converting a page
+- `source.convert.words-move-with-the-boxes` — **[PARTIAL]** (#4998, #5066) once readings are on segments, converting a page
   also gives each segment its words as a reading with its maker, so the old block is no longer
-  the only home of the text and a converted result can be deleted again.
+  the only home of the text and a converted result can be deleted again. The words half is built
+  (slice 8b, `segment_conversion._readings_from_conversion`; pinned by
+  `fichero-server/tests/unit/workflows/test_a_new_result_is_a_pass_at_once.py::test_each_converted_box_gets_its_words_as_a_reading_with_the_machines_maker`).
+  Deleting a converted result is NOT: its kept block is also the rectangle-to-position table
+  `resolve_anchor` needs (#5066, ruled: move that table out of the artifact).
 
 ## Test matrix
 

@@ -222,3 +222,20 @@ def test_an_aligned_transcript_is_its_own_pass(db):
     passes = db.query(SegmentPass, document_id=doc.id)
     assert len(passes) == 1
     assert db.get(Artifact, aligned.id).geometry_superseded_by_pass_id == passes[0].id
+
+
+def test_each_converted_box_gets_its_words_as_a_reading_with_the_machines_maker(db):
+    """`source.convert.words-move-with-the-boxes` (the words half): the old block is no longer the
+    only home of a line's text. Each box with words becomes a transcription reading on its segment,
+    made by the machine that read it, not by whoever's library the engine was converting."""
+    from fichero_server.models import ContentRepresentation
+    from fichero_server.models.knowledge import ProvenanceKind
+
+    doc = _page(db)
+    _save(db, doc, _vision_result())
+    pass_row = db.query(SegmentPass, document_id=doc.id)[0]
+    rows = [s for s in db.query(Segment, pass_id=pass_row.id) if s.deleted_at is None]
+    readings = {r.segment_id: r for r in db.query(ContentRepresentation, document_id=doc.id)}
+    assert sorted(readings[s.id].content for s in rows) == ["In the year", "of grace"]
+    assert {r.kind for r in readings.values()} == {"transcription"}
+    assert all(r.provenance_kind != ProvenanceKind.human for r in readings.values())
