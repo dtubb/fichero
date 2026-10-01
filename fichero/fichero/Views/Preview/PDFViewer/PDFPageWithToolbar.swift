@@ -310,7 +310,7 @@ struct PDFPageWithToolbar: View {
                 // (Daniel, 2026-08-30): underline/strikethrough persist as
                 // their own kinds.
                 switch PreviewHighlightStyle(
-                    rawValue: UserDefaults.standard.string(
+                    rawValue: EngineConfig.defaults.string(
                         forKey: PreviewHighlightStyle.storageKey) ?? ""
                 ) {
                 case .underline: return .underline
@@ -332,7 +332,7 @@ struct PDFPageWithToolbar: View {
         // canvas, 2026-08-30); other kinds stay uncolored.
         let color: String? = kind == .highlight
             ? PreviewHighlightStyle(
-                rawValue: UserDefaults.standard.string(
+                rawValue: EngineConfig.defaults.string(
                     forKey: PreviewHighlightStyle.storageKey) ?? ""
             )?.persistedColor
             : nil

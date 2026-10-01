@@ -99,7 +99,7 @@ extension ZoomableImagePreview {
         // reader's current KIND is sticky across sibling steps, and a fresh
         // page opens on the best available (background removed > enhanced >
         // original). Selection only — flipRendition fetches the pixels.
-        let sticky = UserDefaults.standard.string(forKey: Self.stickyRenditionRoleKey)
+        let sticky = EngineConfig.defaults.string(forKey: Self.stickyRenditionRoleKey)
         let preferred = preferredRenditionIndex(in: renditions, stickyRole: sticky)
         // Preferred-first (2026-08-24): when the canvas already fetched the
         // preferred rendition's pixels, LAND there — index, override image,
@@ -181,7 +181,7 @@ extension ZoomableImagePreview {
         svgRenditionMarkup = nil
         svgRenditionError = nil
         if recordSticky {
-            UserDefaults.standard.set(target.role, forKey: Self.stickyRenditionRoleKey)
+            EngineConfig.defaults.set(target.role, forKey: Self.stickyRenditionRoleKey)
             // Only a user flip parks the flip animation; the automatic landing
             // rides the page-step swap already in flight — parking here too
             // would double-animate every sibling step.
@@ -223,7 +223,7 @@ extension ZoomableImagePreview {
         _ target: DocumentRendition, index targetIndex: Int, recordSticky: Bool
     ) {
         if recordSticky {
-            UserDefaults.standard.set(target.role, forKey: Self.stickyRenditionRoleKey)
+            EngineConfig.defaults.set(target.role, forKey: Self.stickyRenditionRoleKey)
             PreviewSwapAnimation.park(.renditionFlip(forward: targetIndex > renditionIndex))
         }
         renditionIndex = targetIndex

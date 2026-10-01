@@ -41,7 +41,7 @@ extension ZoomableImagePreview {
                 // as their OWN kinds (Daniel, 2026-08-30) — a strikethrough
                 // is a judgement, not a tint.
                 switch PreviewHighlightStyle(
-                    rawValue: UserDefaults.standard.string(
+                    rawValue: EngineConfig.defaults.string(
                         forKey: PreviewHighlightStyle.storageKey) ?? ""
                 ) {
                 case .underline: return .underline
@@ -63,7 +63,7 @@ extension ZoomableImagePreview {
         // a backing kind exists (see the toolbars design report).
         let color: String? = kind == .highlight
             ? PreviewHighlightStyle(
-                rawValue: UserDefaults.standard.string(forKey: PreviewHighlightStyle.storageKey) ?? ""
+                rawValue: EngineConfig.defaults.string(forKey: PreviewHighlightStyle.storageKey) ?? ""
             )?.persistedColor
             : nil
         // Box-gated marking (Daniel, 2026-09-04): highlight / underline /
@@ -188,7 +188,7 @@ extension ZoomableImagePreview {
         let strips = selectedMarkupStrips
         guard !strips.isEmpty else { return false }
         let style = PreviewHighlightStyle(
-            rawValue: UserDefaults.standard.string(forKey: PreviewHighlightStyle.storageKey) ?? ""
+            rawValue: EngineConfig.defaults.string(forKey: PreviewHighlightStyle.storageKey) ?? ""
         )
         // Underline / strikethrough are their OWN kinds, as on the drag path.
         let kind: AnnotationKind = switch style {

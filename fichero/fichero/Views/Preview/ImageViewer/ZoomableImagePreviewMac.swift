@@ -173,7 +173,7 @@ struct ZoomableImagePreview: View {
     /// applies to right"): @State seeded from the shared default, written back
     /// on change — so a split can show boxes on one side only, while a fresh
     /// pane still opens the way the last toggle left things.
-    @State var ocrBoxesEnabled = UserDefaults.standard
+    @State var ocrBoxesEnabled = EngineConfig.defaults
         .object(forKey: "imagePreview.ocrBoxesEnabled") as? Bool ?? true
     /// Annotation overlays show/hide (what-to-show menu, 2026-08-30). ON by
     /// default (Daniel, 2026-08-31): his container had this key stuck at 0,
@@ -193,7 +193,7 @@ struct ZoomableImagePreview: View {
     /// is a deliberate view, never where a person should land by accident.
     /// PER-PANE, like the word boxes: seeded from the remembered default, then from the pane's
     /// workspace (`panePreviewLayers`) when it states one.
-    @State var imageVisible = UserDefaults.standard.object(forKey: ImageLayer.defaultsKey) as? Bool ?? true
+    @State var imageVisible = EngineConfig.defaults.object(forKey: ImageLayer.defaultsKey) as? Bool ?? true
     @Environment(\.panePreviewLayers) var panePreviewLayers
     @State var ocrGeometry: OCRGeometry?
     /// THIS pane's region selection (#5020): never another pane's. The window's focus points at it
@@ -416,7 +416,7 @@ struct ZoomableImagePreview: View {
             // remembered for the next pane that mounts.
             .onChange(of: ocrBoxesEnabled) { _, enabled in
                 if PreviewLayerDefaults.shouldRemember(enabled, workspace: panePreviewLayers?.wordBoxes) {
-                    UserDefaults.standard.set(enabled, forKey: "imagePreview.ocrBoxesEnabled")
+                    EngineConfig.defaults.set(enabled, forKey: "imagePreview.ocrBoxesEnabled")
                 }
             }
             // Using this pane's selection makes it the one the Inspector and the markup row act on.
@@ -426,7 +426,7 @@ struct ZoomableImagePreview: View {
             .onDisappear { windowState?.releaseRegionSelection(regionSelection) }
             .onChange(of: imageVisible) { _, visible in
                 if PreviewLayerDefaults.shouldRemember(visible, workspace: panePreviewLayers?.image) {
-                    UserDefaults.standard.set(visible, forKey: ImageLayer.defaultsKey)
+                    EngineConfig.defaults.set(visible, forKey: ImageLayer.defaultsKey)
                 }
             }
             // Sticky markup tool (Daniel, 2026-08-30): arming highlight/note

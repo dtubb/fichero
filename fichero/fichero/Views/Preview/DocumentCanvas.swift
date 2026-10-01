@@ -343,7 +343,7 @@ private struct StorageDisplayImageCanvas: View {
                 // iOS build's `preferred = 0` constant made it provably dead
                 // and Xcode 27 said so ("will never be executed").
                 #if os(macOS)
-                let sticky = UserDefaults.standard.string(
+                let sticky = EngineConfig.defaults.string(
                     forKey: ZoomableImagePreview.stickyRenditionRoleKey
                 )
                 let preferred = preferredRenditionIndex(in: displayable, stickyRole: sticky)
