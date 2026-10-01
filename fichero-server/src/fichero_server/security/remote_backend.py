@@ -81,11 +81,11 @@ def _tailnet_status(env: Mapping[str, str]) -> tuple[str, str | None]:
         logger.warning("Tailnet serve detection failed for %s: %s", tailnet_url, reason)
         return "unknown", reason
 
-    # Reachable means the tailnet port forwards, as raw TCP, to this engine's TLS listener
-    # (#2603). The host name merely appearing in the status is not enough: an HTTPS proxy
-    # to http://127.0.0.1:<port> names it too, and cannot speak to a TLS listener.
+    # Reachable means the tailnet port is Tailscale's HTTPS proxied to this engine's TLS
+    # listener (#2603, #5320). The host name merely appearing in the status is not enough: an
+    # HTTPS proxy to http://127.0.0.1:<port> names it too, and cannot speak to a TLS listener.
     port = int(env.get("FICHERO_TCP_PORT", "8765"))
-    if tailscale_serve.forward_target(payload, port) == f"127.0.0.1:{port}":
+    if tailscale_serve.forward_target(payload, port) == tailscale_serve.wanted_target(port):
         return "reachable", None
     return "serve_not_running", None
 

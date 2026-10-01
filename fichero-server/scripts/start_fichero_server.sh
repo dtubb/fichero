@@ -116,7 +116,9 @@ lan_host = sys.argv[3].strip()
 material = prepare_remote_access_tls(
     public_base_url,
     allow_loopback=allow_loopback,
-    subject_alt_hosts=[lan_host] if lan_host else (),
+    # Name loopback too, as the app's --prepare-remote-access does: the host's own CLI and MCP
+    # dial 127.0.0.1 and verify by hostname (#5320).
+    subject_alt_hosts=[*([lan_host] if lan_host else []), *([] if allow_loopback else ["127.0.0.1", "localhost"])],
 )
 print(material_manifest_json(material))
 PY

@@ -1,11 +1,15 @@
 """Share over Tailscale: the engine puts its own loopback listener on the tailnet (#2603).
 
 The ruled transport is loopback + ``tailscale serve`` (never a raw public bind, never funnel).
-With a ``.ts.net`` sharing address the engine binds 127.0.0.1 only (#5311), so nothing reaches
-it until ``tailscale serve --tcp <port> tcp://127.0.0.1:<port>`` forwards the tailnet port to
-it. A raw TCP forward, not an HTTPS proxy: the engine's own TLS -- and the device's SPKI pin --
-hold end to end. The engine sets that forward up at start and removes it at stop, but only the
-one it made: a forward the person configured themselves is never overwritten or removed.
+With a ``.ts.net`` sharing address the engine binds 127.0.0.1 only (#5311), and
+``tailscale serve --https=<port> https+insecure://127.0.0.1:<port>`` publishes it: Tailscale
+terminates TLS with the tailnet host's public certificate, which is what the app expects of a
+``.ts.net`` host (it holds no pin for one, #5041), and proxies to the engine on loopback. A raw
+TCP forward (#5311's first form) handed devices the engine's self-signed certificate, so no app
+could pair, and made every tailnet peer look like loopback to the engine (#5320); behind the
+HTTPS proxy, Tailscale's forwarding headers mark them as remote. The engine sets the forward up
+at start and removes it at stop, but only the one it made: a forward the person configured
+themselves is never overwritten or removed.
 """
 
 from __future__ import annotations
@@ -57,38 +61,56 @@ def serve_status(cli: str) -> dict:
 
 
 def forward_target(status: dict, port: int) -> str | None:
-    """What the tailnet ``port`` forwards to: "127.0.0.1:8765", "https" for an HTTPS
-    terminator, or None when nothing is configured on it."""
+    """What the tailnet ``port`` serves: an HTTPS proxy's target ("https+insecure://127.0.0.1:8765"),
+    "tcp://<target>" for a raw TCP forward, "https" or "other" when unreadable, None when free."""
     entry = (status.get("TCP") or {}).get(str(port))
     if not entry:
         return None
-    return entry.get("TCPForward") or ("https" if entry.get("HTTPS") else "other")
+    if entry.get("TCPForward"):
+        return f"tcp://{entry['TCPForward']}"
+    if not entry.get("HTTPS"):
+        return "other"
+    for host_port, web in (status.get("Web") or {}).items():
+        if host_port.endswith(f":{port}"):
+            proxy = ((web.get("Handlers") or {}).get("/") or {}).get("Proxy")
+            if proxy:
+                return proxy
+    return "https"
 
 
-def ensure_tcp_forward(port: int, cli: str) -> bool:
-    """Forward the tailnet ``port`` to this engine's loopback listener.
+def wanted_target(port: int) -> str:
+    """The engine's own loopback TLS listener, proxied without re-verifying its self-signed
+    certificate: the hop never leaves this Mac."""
+    return f"https+insecure://127.0.0.1:{port}"
+
+
+def ensure_forward(port: int, cli: str) -> bool:
+    """Publish this engine's loopback listener on the tailnet ``port`` over Tailscale's HTTPS.
 
     Returns True when this call created the forward (so the caller removes it at stop), False
     when it was already in place. Raises RuntimeError -- never overwrites -- when the port
-    already serves something else, or when the forward did not take.
+    already serves something else, or when the forward did not take. The one exception is the
+    raw TCP forward to this same listener that earlier engines made (#5320): it is replaced.
     """
-    want = f"127.0.0.1:{port}"
+    want = wanted_target(port)
     current = forward_target(serve_status(cli), port)
     if current == want:
         return False
-    if current is not None:
+    if current == f"tcp://127.0.0.1:{port}":
+        _run([cli, "serve", f"--tcp={port}", "off"])
+    elif current is not None:
         raise RuntimeError(
             f"tailnet port {port} already serves {current!r}; not replacing a forward "
             "Fichero did not make"
         )
-    _run([cli, "serve", "--bg", "--tcp", str(port), f"tcp://{want}"])
+    _run([cli, "serve", "--bg", f"--https={port}", want])
     if forward_target(serve_status(cli), port) != want:
-        raise RuntimeError(f"tailscale serve did not forward tailnet port {port} to {want}")
+        raise RuntimeError(f"tailscale serve did not publish tailnet port {port} as {want}")
     return True
 
 
-def remove_tcp_forward(port: int, cli: str) -> None:
-    _run([cli, "serve", f"--tcp={port}", "off"])
+def remove_forward(port: int, cli: str) -> None:
+    _run([cli, "serve", f"--https={port}", "off"])
 
 
 def start_for_engine(env: Mapping[str, str] | None = None, *, log) -> tuple[str, int] | None:
@@ -99,7 +121,9 @@ def start_for_engine(env: Mapping[str, str] | None = None, *, log) -> tuple[str,
     (and the remote-backend status reports the forward missing), not a failed launch.
     """
     source = env if env is not None else os.environ
-    if not tailnet_url(source) or (source.get("FICHERO_TCP_TLS_ALSO") or "").strip() != "1":
+    # Any engine with a TLS listener: the app's (FICHERO_TCP_TLS_ALSO sets the certificate too)
+    # and start_fichero_server.sh's, which never set that flag and so never forwarded (#5320).
+    if not tailnet_url(source) or not (source.get("FICHERO_TLS_CERTFILE") or "").strip():
         return None
     port = int(source.get("FICHERO_TCP_PORT", "8765"))
     cli = tailscale_cli()
@@ -107,11 +131,11 @@ def start_for_engine(env: Mapping[str, str] | None = None, *, log) -> tuple[str,
         log.warning("Sharing over Tailscale, but Tailscale is not installed: nothing forwards port %d", port)
         return None
     try:
-        created = ensure_tcp_forward(port, cli)
+        created = ensure_forward(port, cli)
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
         log.warning("Sharing over Tailscale: could not forward tailnet port %d: %r", port, exc)
         return None
-    log.info("Sharing over Tailscale: tailnet port %d -> 127.0.0.1:%d (%s)", port, port,
+    log.info("Sharing over Tailscale: https on tailnet port %d -> 127.0.0.1:%d (%s)", port, port,
              "created" if created else "already in place")
     return (cli, port) if created else None
 
@@ -122,6 +146,6 @@ def stop_for_engine(made: tuple[str, int] | None, *, log) -> None:
         return
     cli, port = made
     try:
-        remove_tcp_forward(port, cli)
+        remove_forward(port, cli)
     except (OSError, subprocess.SubprocessError) as exc:
         log.warning("Sharing over Tailscale: could not remove the forward on port %d: %r", port, exc)

@@ -38,9 +38,13 @@ def test_tailnet_detection_reports_not_configured_without_url(
 def test_tailnet_detection_reports_reachable_when_serve_targets_configured_ts_net(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """#2603: reachable means the tailnet port forwards, as raw TCP, to the engine's TLS
-    listener -- the shape `tailscale serve --tcp 8765 tcp://127.0.0.1:8765` writes."""
-    payload = {"TCP": {"8765": {"TCPForward": "127.0.0.1:8765"}}}
+    """#2603, #5320: reachable means the tailnet port is Tailscale's HTTPS proxied to the
+    engine's TLS listener -- the shape `tailscale serve --https=8765
+    https+insecure://127.0.0.1:8765` writes (read on the Air 2026-10-01)."""
+    payload = {
+        "TCP": {"8765": {"HTTPS": True}},
+        "Web": {"example.ts.net:8765": {"Handlers": {"/": {"Proxy": "https+insecure://127.0.0.1:8765"}}}},
+    }
 
     monkeypatch.setattr(
         remote_backend.subprocess,
