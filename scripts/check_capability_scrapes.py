@@ -90,23 +90,57 @@ def _load_baseline() -> set[str]:
     return {line.strip() for line in lines if line.strip() and not line.strip().startswith("#")}
 
 
-def _write_baseline(paths: set[str]) -> None:
-    header = (
-        "# Capability-scrape ratchet baseline (scripts/check_capability_scrapes.py).\n"
-        "#\n"
-        "# One repo-relative path per line, sorted. Every file here uses the AppSource\n"
-        "# source-reading idiom (references AppSource/appSource( AND asserts .contains(\n"
-        "# on the loaded source) — either a grandfathered capability-scrape awaiting a\n"
-        "# real behavior test, or a legitimate guardrail-scan for a forbidden pattern.\n"
-        "#\n"
-        "# This ratchet only SHRINKS: a NEW file using the idiom that is not listed here\n"
-        "# fails the guardrail. A listed file that stops using the idiom (converted to a\n"
-        "# behavior test, or deleted) must be REMOVED from this list, or the guardrail\n"
-        "# fails on ratchet drift — the point is the count trending to zero, not staying\n"
-        "# put. Run `scripts/check_capability_scrapes.py --update` to regenerate.\n"
-    )
-    body = "\n".join(sorted(paths))
-    BASELINE.write_text(header + (body + "\n" if body else ""))
+HEADER = (
+    "# Capability-scrape ratchet baseline (scripts/check_capability_scrapes.py).\n"
+    "#\n"
+    "# One repo-relative path per line, sorted. Every file here uses the AppSource\n"
+    "# source-reading idiom (references AppSource/appSource( AND asserts .contains(\n"
+    "# on the loaded source) — either a grandfathered capability-scrape awaiting a\n"
+    "# real behavior test, or a legitimate guardrail-scan for a forbidden pattern.\n"
+    "#\n"
+    "# This ratchet only SHRINKS: a NEW file using the idiom that is not listed here\n"
+    "# fails the guardrail. A listed file that stops using the idiom (converted to a\n"
+    "# behavior test, or deleted) must be REMOVED from this list, or the guardrail\n"
+    "# fails on ratchet drift — the point is the count trending to zero, not staying\n"
+    "# put. Run `scripts/check_capability_scrapes.py --update` to regenerate.\n"
+)
+
+
+def _write_baseline(paths: set[str]) -> list[str]:
+    """Edit the baseline in place: drop the entries that no longer scrape, append new ones.
+
+    It used to rewrite the file from the tree, sorted, which dropped every `#` justification a
+    person wrote above an entry and every section note, so a reason survived only until the next
+    run of the maintenance command this tool offers (#5054). Now the human-written text stays
+    where it was; a dropped entry takes the comment lines directly above it along, and the
+    JUSTIFIED entries dropped are returned so the caller says so out loud.
+    """
+    text = BASELINE.read_text() if BASELINE.exists() else HEADER
+    header, body = (HEADER, text[len(HEADER):]) if text.startswith(HEADER) else ("", text)
+    kept: list[str] = []
+    pending: list[str] = []
+    listed: set[str] = set()
+    dropped_justified: list[str] = []
+    for line in body.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            pending.append(line)
+        elif stripped and stripped not in paths:
+            if pending:  # the comment block directly above a dropped entry was its justification
+                dropped_justified.append(stripped)
+            pending = []
+        else:
+            kept.extend(pending)
+            kept.append(line)
+            pending = []
+            if stripped:
+                listed.add(stripped)
+    kept.extend(pending)
+    while kept and not kept[-1].strip():
+        kept.pop()
+    lines = kept + sorted(paths - listed)
+    BASELINE.write_text(header + ("\n".join(lines) + "\n" if lines else ""))
+    return sorted(dropped_justified)
 
 
 def _baseline_label() -> str:
@@ -156,8 +190,13 @@ def main() -> int:
 
     if "--update" in argv:
         current = scan()
-        _write_baseline(current)
+        dropped = _write_baseline(current)
         print(f"Wrote {len(current)} known capability-scrape idiom file(s) to {BASELINE.name}")
+        for path in dropped:
+            print(
+                f"REMOVED a justified entry (it no longer scrapes, or is gone): {path}",
+                file=sys.stderr,
+            )
         return 0
 
     if "--list" in argv:

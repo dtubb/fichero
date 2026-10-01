@@ -292,7 +292,11 @@ def main() -> int:
         ALLOWLIST.write_text(
             json.dumps(
                 {
+                    # The file's own `_doc` is kept: it was rewritten from an older sentence
+                    # here, losing the #5095 explanation of the two maps (#5054's class).
                     "_doc": (
+                        json.loads(ALLOWLIST.read_text()).get("_doc") if ALLOWLIST.exists() else None
+                    ) or (
                         "Repo paths named in docs that do not exist, on purpose "
                         "(build artifacts, or things described as deleted). Every "
                         f"other absent path is a bug. See {RULE_DOC}."

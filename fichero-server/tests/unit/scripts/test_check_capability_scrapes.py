@@ -99,3 +99,51 @@ def test_baseline_entry_that_no_longer_scrapes_is_caught(tmp_path):
         _mod.BASELINE = original_baseline
 
     assert any("ConvertedTests.swift" in p and "ratchet drift" in p for p in problems), problems
+
+
+def test_update_keeps_every_justification_and_says_when_it_drops_one(tmp_path):
+    """`--update` must keep the `#` reasons a person wrote, where they wrote them (#5054).
+
+    It used to regenerate the file from the tree, sorted, and drop every comment: a justification
+    lasted only until someone ran the maintenance command the guard itself offers, and only the
+    entries someone bothered to explain had anything to lose. Now a kept entry keeps its reason
+    and its place, a new entry is appended, and a dropped entry that HAD a reason is reported.
+    """
+    original_baseline = _mod.BASELINE
+    fake = tmp_path / "capability_scrapes_baseline.txt"
+    fake.write_text(
+        _mod.HEADER
+        + "a/PlainTests.swift\n"
+        + "\n# --- a section note\n"
+        + "# why Kept is here\n"
+        + "a/KeptTests.swift\n"
+        + "# why Gone was here\n"
+        + "a/GoneTests.swift\n"
+    )
+    _mod.BASELINE = fake
+    try:
+        dropped = _mod._write_baseline({"a/PlainTests.swift", "a/KeptTests.swift", "a/NewTests.swift"})
+    finally:
+        _mod.BASELINE = original_baseline
+
+    assert fake.read_text() == (
+        _mod.HEADER
+        + "a/PlainTests.swift\n"
+        + "\n# --- a section note\n"
+        + "# why Kept is here\n"
+        + "a/KeptTests.swift\n"
+        + "a/NewTests.swift\n"
+    )
+    assert dropped == ["a/GoneTests.swift"]
+
+
+def test_update_is_a_no_op_on_the_real_baseline():
+    """Run on the real tree, `--update` must leave a current baseline byte-for-byte as it is:
+    the 2026-09-30 baseline carries 30-odd hand-written reasons and section notes (#5054)."""
+    before = _mod.BASELINE.read_text()
+    try:
+        _mod._write_baseline(_mod.scan())
+        after = _mod.BASELINE.read_text()
+    finally:
+        _mod.BASELINE.write_text(before)
+    assert after == before
