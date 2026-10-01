@@ -149,3 +149,79 @@ def test_the_audit_names_the_words_the_edit_retired(db):
 
     audit = db.get(ActionAudit, made.audit_id)
     assert audit.after["retired_word_segment_ids"] == [words[1].id]
+
+
+def test_redo_retires_the_word_again(db):
+    """⌘Z then ⌘⇧Z: the line reading is retracted then unretracted, and since nothing about the
+    words was ever written, the word counts after the undo and is retired again after the redo."""
+    doc_id = _import(db, WORDED)
+    line = _a_line_of_words(db, doc_id)
+    words = [w for w in _words(db, line) if _counting_text(db, w.id)]
+    texts = [_counting_text(db, w.id) for w in words]
+    made = registry.invoke(db, "representation.create", {
+        "document_id": doc_id, "segment_id": line.id, "kind": "transcription",
+        "content": " ".join(texts[:1] + texts[2:]),
+    }, PERSON)
+
+    undone = asyncio.run(undo_action(made.audit_id, request=None, db=db, ctx=ActionContext(actor="historian")))
+    assert _counting_text(db, words[1].id) == texts[1]
+    redone = asyncio.run(undo_action(undone.audit_id, request=None, db=db, ctx=ActionContext(actor="historian")))
+    assert redone.ok is True
+    assert _counting_text(db, words[1].id) is None, "redo must retire the word again"
+
+
+def _exported_words(db, doc_id: str, fmt: str) -> list[str | None]:
+    """Each exported word's text in order, None for a word written with no text: ALTO
+    `String@CONTENT`, hOCR `ocrx_word`'s text."""
+    import xml.etree.ElementTree as ET
+
+    from fichero_server.page_export import export_page
+
+    data = export_page(db, doc_id, fmt).data
+    if fmt == "alto":
+        strings = [e for e in ET.fromstring(data).iter() if e.tag.rsplit("}", 1)[-1] == "String"]
+        return [e.get("CONTENT") or None for e in strings]
+    import html.parser
+
+    class Words(html.parser.HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.out: list[str | None] = []
+            self.depth = 0
+
+        def handle_starttag(self, tag, attrs):
+            if self.depth:
+                self.depth += 1
+            elif "ocrx_word" in (dict(attrs).get("class") or "").split():
+                self.out.append(None)
+                self.depth = 1
+
+        def handle_endtag(self, tag):
+            if self.depth:
+                self.depth -= 1
+
+        def handle_data(self, text):
+            if self.depth and text.strip():
+                self.out[-1] = (self.out[-1] or "") + text.strip()
+
+    parser = Words()
+    parser.feed(data.decode("utf-8"))
+    return parser.out
+
+
+def test_alto_and_hocr_write_a_retired_word_with_no_text(db):
+    """`retired-words-in-the-export`: ALTO `String CONTENT=""` (the form an untranscribed word
+    already takes) and an empty hOCR `ocrx_word`, as PAGE XML above."""
+    doc_id = _import(db, WORDED)
+    line = _a_line_of_words(db, doc_id)
+    words = [w for w in _words(db, line) if _counting_text(db, w.id)]
+    texts = [_counting_text(db, w.id) for w in words]
+    before = {fmt: _exported_words(db, doc_id, fmt) for fmt in ("alto", "hocr")}
+    registry.invoke(db, "representation.create", {
+        "document_id": doc_id, "segment_id": line.id, "kind": "transcription",
+        "content": " ".join(texts[:1] + texts[2:]),
+    }, PERSON)
+    for fmt, was in before.items():
+        now = _exported_words(db, doc_id, fmt)
+        assert len(now) == len(was), f"{fmt}: the retired word keeps its place"
+        assert [b for b, a in zip(was, now) if b is not None and a is None] == [texts[1]], fmt
