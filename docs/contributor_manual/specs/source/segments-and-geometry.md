@@ -888,11 +888,12 @@ The read seam and events
   who made it, in the one maker vocabulary, set by the engine: a person when the box itself
   proves a person drew it, otherwise its pass's maker; never supplied by a caller, never
   defaulting to a person; a pass may hold segments by different makers.
-- `source.seam.area-applies-to-either-store` — **[GAP]** (#4985) asking for a page's segments by area narrows
-  them the same way whether they come from segment records or from a result's block of boxes.
-  (Today the block branch ignores `area` and applies only `kind`; found by the slice 6 recon,
-  2026-09-20. Until it is fixed, "the page reads the same before and after conversion" cannot
-  be tested with an area.)
+- `source.seam.area-applies-to-either-store` — **[OK]** (→ #4985) asking for a page's segments by area narrows
+  them the same way whether they come from segment records or from a result's block of boxes:
+  each box is tested on the rectangle it would have as a row (`_converted_box_columns`). Fixed
+  2026-10-01; the block branch had ignored `area` (found by the slice 6 recon, 2026-09-20).
+  Pinned by `fichero-server/tests/unit/api/test_area_applies_to_either_store.py` (the same area
+  before and after conversion).
 - `source.seam.provisional-ids-refused` — **[OK]** (#4919; pinned by `tests/unit/api/test_segment_readings.py::TestRefusals::test_a_provisional_segment_id_is_refused_on_a_write`) an id read from a block of boxes is marked
   provisional, and every write path refuses one with a typed error.
 - `source.events.segment-ids` — **[OK]** (#4920; pinned by `tests/unit/api/test_change_stream_segment_ids.py::TestChangeSpecReachesSubscriber::test_changespec_segment_and_pass_ids_reach_the_subscriber`) a change event names the segments and passes that changed, so a

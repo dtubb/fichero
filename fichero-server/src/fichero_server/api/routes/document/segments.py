@@ -719,7 +719,17 @@ async def list_document_segments(
         )
         if kind:
             artifact_segments = [s for s in artifact_segments if s.kind == kind]
-        if not artifact_segments and kind:
+        if area_rect:
+            # The SAME rule as the rows above (#4985, `source.seam.area-applies-to-either-store`):
+            # each box's rectangle is the one it would have as a row (`_converted_box_columns`), so a
+            # page answers an area the same before and after it converts.
+            from fichero_server.models.segments import _converted_box_columns
+
+            artifact_segments = [
+                s for s in artifact_segments
+                if rects_intersect(tuple(_converted_box_columns(s)[:4]), area_rect)
+            ]
+        if not artifact_segments and (kind or area_rect):
             # A kind filter that matched nothing on this artifact still
             # names its pass, once — but naming an EMPTY pass adds noise
             # with no segments behind it, so it is skipped rather than
