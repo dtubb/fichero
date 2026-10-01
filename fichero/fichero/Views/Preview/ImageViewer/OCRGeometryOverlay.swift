@@ -30,10 +30,10 @@ struct OCRGeometryOverlay: View {
     @State private var hoverPoint: CGPoint?
     @Environment(\.colorScheme) private var colorScheme
 
-    /// Words when the pass produced them; lines otherwise (never both at
-    /// once — nested rectangles read as clutter, not structure). The ladder
-    /// lives on `OCRGeometry.displayIndexedBoxes` so the interactive region
-    /// layer hit-tests EXACTLY the boxes this canvas draws (2026-08-29).
+    /// Words when the pass produced them; otherwise regions and lines, the
+    /// regions lighter (#5284). The ladder lives on
+    /// `OCRGeometry.displayIndexedBoxes` so the interactive region layer
+    /// hit-tests EXACTLY the boxes this canvas draws (2026-08-29).
     private var boxes: [OCRGeometryBox] {
         geometry.displayIndexedBoxes.map(\.box)
     }
@@ -68,6 +68,7 @@ struct OCRGeometryOverlay: View {
                         .opacity(InlineWordText.plateOpacity)
                     // Nothing to draw at all: no per-tick mapping of every box for nothing.
                     guard drawsBoxes || (inlineTextEnabled && drawsInlineText) else { return }
+                    let linesShown = boxes.contains { $0.level == "line" }
                     for box in boxes {
                         guard let rect = BoundingBoxGeometry.viewRect(
                             normalized: box.bbox, in: size, visible: visible
@@ -83,8 +84,9 @@ struct OCRGeometryOverlay: View {
                         // provenance (measured / aligned / interpolated) is a
                         // different one and keeps the channels it has left.
                         let uncertain = OCRBoxConfidence.isUncertain(box)
+                        let strength = DocumentOverlay.strength(ofKind: box.level, linesShown: linesShown)
                         let stroke = Color.accentColor
-                            .opacity(OCRBoxConfidence.strokeOpacity(box.confidence))
+                            .opacity(OCRBoxConfidence.strokeOpacity(box.confidence) * strength)
                         let drawsText = drawsInlineText && inlineTextEnabled && !box.text.isEmpty
                             && OCRBoxConfidence.drawsInlineText(box.confidence)
                         if drawsText {

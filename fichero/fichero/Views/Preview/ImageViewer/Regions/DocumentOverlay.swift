@@ -30,6 +30,17 @@ struct DocumentOverlay: Equatable {
 
     var boxes: [Box] = []
 
+    /// Whether any line is drawn: read once per draw, not once per box.
+    var showsLines: Bool { boxes.contains { $0.kind == "line" } }
+
+    /// How strongly a box is drawn, 0...1 (#5284, ruled 2026-10-01): a region under lines is lighter, so
+    /// the page's structure reads without competing with its lines; anything else at full strength.
+    static func strength(ofKind kind: String, linesShown: Bool) -> CGFloat {
+        kind == "line" || !linesShown ? 1 : regionUnderLinesStrength
+    }
+
+    static let regionUnderLinesStrength: CGFloat = 0.4
+
     /// A saved annotation mark whose look is pure geometry -- a wash, a bar, a line, a box. The
     /// glyph and text marks (a check in the margin, a note, a star) and anything tappable stay in
     /// SwiftUI: there are few of them, and a note must stay tappable.

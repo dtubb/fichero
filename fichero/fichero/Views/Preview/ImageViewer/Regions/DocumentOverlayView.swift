@@ -202,9 +202,12 @@ final class DocumentOverlayView: NSView {
     /// Every box THIN, in its region's colour (#5207, #5200): an outline and its baseline, no fill at rest --
     /// the fill is hover's and selection's. Lines alternate two tints of their region's colour.
     private func drawBoxes(in dirtyRect: NSRect, imageRect: CGRect, scale: CGFloat, line: CGFloat) {
+        let linesShown = overlay.showsLines
         for (box, rect) in overlay.boxes(in: dirtyRect, imageRect: imageRect) {
             let colour = SelectionStyle.regionColour(box.regionId)
-            let tint = box.alternateTint ? SelectionStyle.alternateTintAlpha : 1
+            // A region under lines is lighter (#5284).
+            let strength = DocumentOverlay.strength(ofKind: box.kind, linesShown: linesShown)
+            let tint = (box.alternateTint ? SelectionStyle.alternateTintAlpha : 1) * strength
             // A segment with its own shapes is drawn AS them -- the outline its file drew, the baseline
             // under its ink -- never as the box around them (#5163's residue).
             if !box.shapes.isEmpty, !(box.showsText && !box.text.isEmpty) {

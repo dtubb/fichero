@@ -90,18 +90,15 @@ struct OCRGeometry: Codable, Hashable {
     /// the display set must carry it — filtering first and enumerating after
     /// would renumber every box.
     ///
-    /// Same ladder the overlay always had — words when the pass produced
-    /// them, lines otherwise — extended one honest rung: a geometry carrying
-    /// ONLY region-level boxes (hand-drawn or combined regions) used to
-    /// render nothing at all, which made curated regions invisible the
-    /// moment they were curated.
+    /// Words when the pass produced them; otherwise every box -- a page's
+    /// regions AND its lines (#5284, ruled 2026-10-01; the overlay draws the
+    /// regions lighter). The old middle rung, lines only, hid a page's regions
+    /// the moment it had lines, a rule from before regions and lines were
+    /// segments of one page.
     var displayIndexedBoxes: [(index: Int, box: OCRGeometryBox)] {
         let indexed = boxes.enumerated().map { (index: $0.offset, box: $0.element) }
         let words = indexed.filter { $0.box.level == "word" }
-        if !words.isEmpty { return words }
-        let lines = indexed.filter { $0.box.level == "line" }
-        if !lines.isEmpty { return lines }
-        return indexed
+        return words.isEmpty ? indexed : words
     }
 
     enum CodingKeys: String, CodingKey {

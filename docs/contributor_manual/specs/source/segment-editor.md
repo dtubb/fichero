@@ -1024,6 +1024,18 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   **Built 2026-09-28 (d046a7a73), image pages:** no fill at rest, and hover now washes
   (`DocumentOverlayView`). **Still PARTIAL:** the PDF page's boxes, and the maintainer's look on the
   clm13027 page.
+- `source.editor.regions-under-lines` — **[OK]** (→ #5284, ruled 2026-10-01; the look on screen pending) **A page with regions and
+  lines draws both**, the regions lighter. The preview used to draw only the finest level a page had
+  (words, else lines, else everything), a rule from before regions and lines were segments of one
+  page, so a page's regions vanished the moment it had lines. Now: words when the page has words (as
+  before); otherwise its lines AND its regions, each region's outline at a lighter strength than its
+  lines, so the structure reads without competing with the lines. A click inside a line still picks
+  the line (the smallest box wins); a click in a region outside every line picks the region.
+  Built in `OCRGeometry.displayIndexedBoxes` (words, else every box) and
+  `DocumentOverlay.strength(ofKind:linesShown:)` (a region under lines at 0.4, read by the image
+  overlay and the SwiftUI canvas alike). Pinned by `fichero/Tests/Unit/general/Models/RegionsUnderLinesTests.swift`
+  and the real-window `ImportedPageDrawsItsBoxesTests.testTheRealPreviewInTheLibraryWindowsTreeDrawsTheImportedPagesRegionsAndLines`
+  (the Syriac page's 4 regions and 12 lines, drawn and in the accessibility tree).
 - `source.editor.regions-in-colours` — **[PARTIAL]** (#5200) **Regions in distinct colours.**
 
   **The palette:** every region is drawn in a colour from a fixed palette of SYSTEM colours (blue,
