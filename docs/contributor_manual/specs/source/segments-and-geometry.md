@@ -1021,6 +1021,20 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
   `fichero-server/tests/unit/workflows/test_a_new_result_is_a_pass_at_once.py::test_each_converted_box_gets_its_words_as_a_reading_with_the_machines_maker`).
   Deleting a converted result is NOT: its kept block is also the rectangle-to-position table
   `resolve_anchor` needs (#5066, ruled: move that table out of the artifact).
+- `source.convert.box-origins-are-their-own-record` — **[GAP]** (#5066, ruled 2026-09-26: "promote the
+  table out of the artifact") where each converted box WAS -- its rectangle, the picture it was
+  measured on, the result and its position in it -- is written at conversion as a small record of
+  its own, one per segment, keyed by the segment's id (`ConvertedBoxOrigin`). The fact is not new:
+  the archive keeps it today inside the result's block, which is the thing a person will want to
+  delete. `resolve_anchor` matches an unpointed anchor against these records, never the block. A
+  library converted before this gains them once, at its first open after the change: only results
+  converted and not yet recorded are read, so a later open reads none. Recording repeats safely.
+- `source.convert.a-converted-result-can-be-deleted` — **[GAP]** (#5066) a converted result can be
+  deleted once every box has its origin recorded and its words are a reading on its segment
+  (`source.convert.words-move-with-the-boxes`). Its passes, segments and readings stay; a mark drawn
+  before conversion still follows its box after the delete; the delete is undone like any other,
+  bringing the result back exactly as it was. Until both hold for a result, the delete is refused
+  with the reason, as today.
 
 ## Test matrix
 
