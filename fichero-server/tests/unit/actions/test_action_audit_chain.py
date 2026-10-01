@@ -518,3 +518,26 @@ def test_near_simultaneous_invokes_produce_linear_chain(db):
         assert len({json.dumps(row.prev_hash) for row in rows}) == 2
     finally:
         registry._actions.pop(name, None)
+
+
+def test_once_the_secret_fell_back_to_a_file_the_keychain_is_not_asked_again(
+    tmp_path, monkeypatch
+):
+    """Sharing test 2026-10-01: a host engine whose keychain could not be reached (a headless
+    session) waited out a 10 s keychain timeout on EVERY audited action -- the fallback to the
+    file never stuck -- stalling the event loop for every client. Worse, a later run with a
+    working keychain would find no key there, mint a new one, and every row already signed with
+    the file secret would stop verifying. A file secret, once written, is THE secret."""
+    from fichero_server.actions import audit_chain
+    from fichero_server.security import keychain
+
+    key_file = tmp_path / ".action-audit-chain.key"
+    monkeypatch.setattr(audit_chain, "_audit_chain_key_file_path", lambda: key_file)
+    monkeypatch.setattr(audit_chain, "_use_keychain_for_audit_secret", lambda: True)
+    written = audit_chain._write_secret_file(key_file, b"k" * 32)
+
+    asked: list[str] = []  # recorded, not raised: the loader swallows keychain exceptions
+    monkeypatch.setattr(keychain, "get_api_key", lambda *_a: asked.append("get"))
+    monkeypatch.setattr(keychain, "set_api_key", lambda *_a: asked.append("set") or False)
+    assert audit_chain._audit_chain_key(create=True) == written
+    assert asked == []

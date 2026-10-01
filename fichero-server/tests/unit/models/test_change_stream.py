@@ -739,6 +739,23 @@ class TestNoteMutationsEmitChange:
         assert call["type"] == "note.created"
         assert folder.id in call["document_ids"]
 
+    def test_a_free_note_reaches_a_live_subscriber(self, client, test_package):
+        """Sharing test 2026-10-01: a paired Mac's change stream got `document.created` for an
+        import but nothing for notes made on the host. The test above monkeypatches
+        `emit_change`, so it proves the call, not delivery; this one listens on the real hub
+        with a note in no folder, as the live run made them."""
+        library_path = str(test_package)
+        queue = change_stream._change_hub.subscribe(library_path)
+        try:
+            resp = client.post("/api/notes", json={"title": "Free", "body": "no folder"})
+            assert resp.status_code == 200, resp.text
+            types = []
+            while not queue.empty():
+                types.append(queue.get_nowait().type)
+            assert "note.created" in types, types
+        finally:
+            change_stream._change_hub.unsubscribe(library_path, queue)
+
     def test_patch_note_emits_updated(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
         monkeypatch.setattr(

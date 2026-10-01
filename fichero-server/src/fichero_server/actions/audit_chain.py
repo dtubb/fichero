@@ -150,6 +150,13 @@ def _write_secret_file(path: Path, secret: bytes) -> bytes:
 
 
 def _audit_chain_key(*, create: bool) -> bytes | None:
+    # A file secret exists only after a keychain fallback (or outside keychain mode); once
+    # written it signs the chain, so it wins -- else every action re-waits a failing keychain
+    # and a later working keychain would mint a second key the old rows cannot verify under.
+    path = _audit_chain_key_file_path()
+    existing = _read_secret_file(path)
+    if existing:
+        return existing
     if _use_keychain_for_audit_secret():
         try:
             from fichero_server.security.keychain import get_api_key, set_api_key
@@ -167,10 +174,8 @@ def _audit_chain_key(*, create: bool) -> bytes | None:
         except Exception as exc:  # pragma: no cover - defensive fallback
             logger.warning("Audit-chain keychain lookup failed: %s", exc)
 
-    path = _audit_chain_key_file_path()
-    existing = _read_secret_file(path)
-    if existing or not create:
-        return existing
+    if not create:
+        return None
     return _write_secret_file(path, secrets.token_bytes(32))
 
 

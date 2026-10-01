@@ -83,6 +83,11 @@ async def stream_library_changes(
                         queue_task.cancel()
                         shutdown_task.cancel()
                         await asyncio.gather(queue_task, shutdown_task, return_exceptions=True)
+                        # A loop stall past the keepalive lets the queue read finish in the
+                        # same tick the timeout fires; cancel() is then a no-op and the
+                        # event would be dropped. Send it.
+                        if queue_task.done() and not queue_task.cancelled():
+                            yield format_change_sse(queue_task.result())
                         yield ": keepalive\n\n"
                         continue
                     for task in pending:

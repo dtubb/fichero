@@ -333,3 +333,33 @@ class TestChangesStreamEndpoint:
                 await anext(stream)
         finally:
             await stream.aclose()
+
+    async def test_an_event_queued_while_the_loop_stalls_past_the_keepalive_is_still_sent(
+        self, test_package, monkeypatch
+    ):
+        """Sharing test 2026-10-01: a paired Mac never saw notes made on the host. The note
+        route ran synchronous work on the event loop (a 10 s keychain timeout) -- longer than
+        the keepalive. When the loop woke, the queued event and the keepalive timeout landed
+        in the same tick: the queue read finished, then the timeout branch cancelled that
+        already-finished task and dropped its event. Any loop stall past the keepalive with an
+        event in flight lost it, silently, for every window and paired device."""
+        import time
+
+        monkeypatch.setattr(changes, "_KEEPALIVE_TIMEOUT", 0.05)
+        library_path = str(test_package)
+        response = await changes.stream_library_changes(
+            _FakeRequest(), x_fichero_library_path=library_path
+        )
+        stream = response.body_iterator
+        try:
+            assert await anext(stream) == ": connected\n\n"
+            pending = asyncio.ensure_future(anext(stream))
+            await asyncio.sleep(0.01)  # the stream is now waiting on its queue
+            emit_change(library_path, type="note.created", document_ids=[])
+            time.sleep(0.2)  # a synchronous stall on the loop, past the keepalive
+            frames = [await asyncio.wait_for(pending, timeout=1)]
+            while not any("note.created" in f for f in frames) and len(frames) < 4:
+                frames.append(await asyncio.wait_for(anext(stream), timeout=1))
+            assert any("note.created" in f for f in frames), frames
+        finally:
+            await stream.aclose()
