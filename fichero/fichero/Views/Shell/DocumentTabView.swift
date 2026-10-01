@@ -114,6 +114,9 @@ struct DocumentTabView: View {
                 // dismissible, like every other engine-state surface in the
                 // window — see EngineVersionMismatchNotice.
                 EngineVersionMismatchNotice()
+                if let library = libraryManager.getLibrary(id: libraryId) {
+                    ConversionNotice(store: library.conversionStatusStore)
+                }
                 contentView
             }
         }

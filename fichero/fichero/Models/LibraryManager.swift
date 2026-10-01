@@ -156,6 +156,10 @@ class LibraryManager {
         /// action list + categories, and reacts to `action.*` change events.
         @ObservationIgnored lazy var actionStore: ActionStore = ActionStore(service: actionsService)
 
+        /// Whether this library's older results are being brought into the page model, and the
+        /// report when they have been (#5222 part 3). One per library, shared by its windows.
+        @ObservationIgnored lazy var conversionStatusStore = ConversionStatusStore(client: ficheroClient)
+
         /// Per-library activity store (#2448). Wraps `activityService`, owns the
         /// run-browser list, and signals `ActivityBrowserView` to refresh on
         /// `workflow.*` SSE events (best-effort until the backend emits dedicated
