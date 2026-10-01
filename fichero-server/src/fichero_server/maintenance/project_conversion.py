@@ -407,7 +407,7 @@ def documents_to_convert(db: Any) -> list[str]:
         ) from exc
 
 
-def _convert_one_page(db: Any, document_id: str, run_id: str) -> str:
+def _convert_one_page(db: Any, document_id: str, run_id: str | None) -> str:
     """Convert one page. Returns ``"converted"``, ``"skipped"``, or raises.
 
     The page action is invoked with `document_id` ALONE — its eager form, which
@@ -441,6 +441,31 @@ def _convert_one_page(db: Any, document_id: str, run_id: str) -> str:
     except (AlreadyConverted, NothingToConvert):
         return "skipped"
     return "converted"
+
+
+def convert_new_results(db: Any, document_id: str, *, run_id: str | None = None) -> str:
+    """Make a page's new result its own pass now, in the run that produced it (#5222 part 2).
+
+    `source.convert.a-new-result-is-a-pass-at-once`: every producer of boxes calls this right
+    after it saves its result. The SAME page action the background runner and a person's first edit
+    use, as the engine's own actor, so a pass made here and one made at the next open are the same
+    pass. Returns ``"converted"`` or ``"skipped"`` (nothing new on the page).
+
+    `source.convert.a-result-that-cannot-convert-is-kept`: a failure here never fails the producer
+    and never loses the result. The result stays saved, the page reads it from its stored boxes as
+    before, and it counts as waiting in the conversion status, so the next open converts it or says
+    why. It is logged as an ERROR with the page and the reason, and returns ``"failed"``.
+    """
+    try:
+        return _convert_one_page(db, document_id, run_id)
+    except Exception as exc:  # noqa: BLE001 -- the result is saved; the next open retries it
+        logger.error(
+            "A new result on page %s did not become a pass (it stays readable and waits for the "
+            "next open): %s",
+            document_id,
+            exc,
+        )
+        return "failed"
 
 
 #: How long an unfinished run may go untouched before another opening may take

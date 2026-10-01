@@ -707,6 +707,10 @@ async def align_transcript_to_regions(
     aligned, artifact = align_and_build_artifact(db, regions_artifact, transcript)
     if artifact is not None:
         db.save(artifact)
+        # The aligned result becomes its own pass now (#5222 part 2); never raises.
+        from fichero_server.maintenance.project_conversion import convert_new_results
+
+        convert_new_results(db, artifact.document_id)
         # #4890: an artifact that lands on a page with no event is an overlay that
         # does not redraw until somebody clicks the item, which is the defect the
         # maintainer watched happen. The run boundary's emit

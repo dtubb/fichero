@@ -835,6 +835,14 @@ def _save_artifact_sync(
     except Exception as meta_e:
         logger.warning(f"Metadata decoration failed for artifact {artifact_id}: {meta_e}")
 
+    # A result with boxes becomes its own pass now, in the run that made it (#5222 part 2,
+    # `source.convert.a-new-result-is-a-pass-at-once`). Never raises: a result that cannot convert
+    # stays saved, readable from its boxes, and waits for the next open.
+    if ocr_geometry is not None and ocr_geometry.boxes:
+        from fichero_server.maintenance.project_conversion import convert_new_results
+
+        convert_new_results(db, resolved_doc_id, run_id=task_id)
+
     return artifact_id
 
 

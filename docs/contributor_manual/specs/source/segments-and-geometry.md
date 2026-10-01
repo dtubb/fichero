@@ -904,29 +904,41 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
 > after the open-time migrations), and the app reads it at `GET /api/conversion/status`. Before
 > that date nothing called `convert_project`, and every page curated before the page model stayed
 > one rerun away from losing its correction (#5075).
-- `source.convert.results-live-as-passes` — **[PARTIAL]** (#5222) results always live as passes: old
+- `source.convert.results-live-as-passes` — **[OK]** (→ #5222) results always live as passes: old
   ones convert when their library opens (the behaviours below), and every tool that finds boxes
-  writes its result as its own pass. **The second half is not built yet** (#5222 part 2: every
-  machine producer still saves its boxes on an artifact, converted only here or on a first edit).
-- `source.convert.a-new-result-is-a-pass-at-once` — **[GAP]** (#5222 part 2; ruled 2026-09-28: "bring
+  writes its result as its own pass (the next three behaviours, built 2026-09-30).
+- `source.convert.a-new-result-is-a-pass-at-once` — **[OK]** (→ #5222 part 2; ruled 2026-09-28: "bring
   them over when they're generated from now on") a result with boxes becomes its own pass in the
   same run that made it, not at the next open: Apple Vision OCR, a VLM's layout or transcription, a
-  PDF's text layer, detect regions, Kraken, merged geometry, a transcript aligned to baselines, an
-  importer, and `artifact.create` with boxes. It goes through the SAME page action the background
+  PDF's text layer at import, detect regions, Kraken, merged geometry, and a transcript aligned to
+  baselines (`artifact.create` takes no boxes, so it has none to convert). It goes through the SAME
+  page action the background
   runner and a person's first edit use (`segment.convert_and_edit` with the page alone, as the
   engine's own actor), so a pass made at once and a pass made at the next open are the same pass.
   It is the machine's work (`source.convert.converting-is-not-a-persons-work`): the page's chosen
   working pass, a person's boxes and readings, and the page's text rules are unchanged, and a
-  rerun on a page a person corrected adds a pass beside theirs rather than replacing it.
-- `source.convert.a-result-that-cannot-convert-is-kept` — **[GAP]** (#5222) when the new result's
+  rerun on a page a person corrected adds a pass beside theirs rather than replacing it. Measured
+  2026-09-30 on the Air under load: 0.22 s for a page of 50 boxes, 0.66 s for 400, which a
+  born-digital PDF's import now pays per page. One seam,
+  `maintenance/project_conversion.py::convert_new_results`, called after `save_artifact` (every
+  vision and LLM tool), a split PDF's per-page results, Merge Geometry, both alignment paths and the
+  importer's text layer. Pinned by `fichero-server/tests/unit/workflows/test_a_new_result_is_a_pass_at_once.py`
+  (`::test_a_tools_result_with_boxes_is_its_own_pass_when_the_run_saves_it`, a rerun adds a pass
+  beside the first, no boxes make no pass, the aligned transcript) and
+  `test_merge_geometry_tool.py::TestMergeGeometry::test_the_merged_result_becomes_its_pass_in_this_run`.
+- `source.convert.a-result-that-cannot-convert-is-kept` — **[OK]** (→ #5222) when the new result's
   conversion fails, the result is still saved and the run still succeeds: the page reads it from
   its stored boxes exactly as before this was built, the failure is logged as an error naming the
   page and the reason, and the result counts as waiting in `GET /api/conversion/status`, so the
   next open converts it or reports why not. Converting is never a reason to lose a result.
-- `source.convert.no-producer-writes-boxes-alone` — **[GAP]** (#5222: "a guard that fails if a tool
+  (`fichero-server/tests/unit/workflows/test_a_new_result_is_a_pass_at_once.py::test_a_conversion_that_fails_keeps_the_result_and_the_run`)
+- `source.convert.no-producer-writes-boxes-alone` — **[OK]** (→ #5222: "a guard that fails if a tool
   emits geometry without a pass") a guard reads the engine's code and fails on any place that saves
   a result with boxes without handing it to the conversion, naming the file and line; a place that
-  legitimately does not (a test fixture, the conversion's own reader) is listed with its reason.
+  legitimately does not (the conversion's own undo, a person's edit through the older regions
+  route) is listed with its reason (`fichero-server/tests/unit/workflows/test_a_new_result_is_a_pass_at_once.py::test_no_producer_saves_boxes_without_converting_them`,
+  with fixtures proving it catches one). Per function: a builder that returns an unsaved result is
+  not followed to its caller.
 - `source.convert.starts-when-a-project-opens` — **[OK]** (→ #5222, #4998, #5088) conversion starts by
   itself after a project opens -- after its migrations, on a background thread -- and never
   delays the opening; pages not yet converted read through from their stored geometry; closing

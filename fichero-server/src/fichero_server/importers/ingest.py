@@ -957,6 +957,12 @@ def _save_pdf_text_layer_geometry(
                 provider="pymupdf",
             )
         )
+        # The text layer becomes the page's own pass now, not at the next open (#5222 part 2).
+        # Never raises: a page that cannot convert keeps its artifact and waits for the next open.
+        if geometry.boxes:
+            from fichero_server.maintenance.project_conversion import convert_new_results
+
+            convert_new_results(db, page_doc.id)
     except Exception as exc:
         logger.warning(
             "text-layer geometry capture failed for %s page %d (import "

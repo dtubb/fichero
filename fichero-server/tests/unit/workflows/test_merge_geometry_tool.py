@@ -105,6 +105,20 @@ class TestMergeGeometry:
         assert out["records"][0]["measured_words"] >= 3
 
     @pytest.mark.asyncio
+    async def test_the_merged_result_becomes_its_pass_in_this_run(self):
+        """#5222 part 2: the merged boxes are handed to the conversion with the page and the run."""
+        db = _db(
+            text_rows=[_row(content="Don Pedro\ninstruía Popayán")],
+            geometry_rows=[_row(ocr_geometry=_measured())],
+        )
+        with patch(
+            "fichero_server.maintenance.project_conversion.convert_new_results",
+            return_value="converted",
+        ) as convert:
+            await _run(db)
+        convert.assert_called_once_with(db, "doc-1", run_id="run-1")
+
+    @pytest.mark.asyncio
     async def test_a_document_missing_either_half_is_reported_not_skipped(self):
         db = _db(text_rows=[], geometry_rows=[_row(ocr_geometry=_measured())])
         out = await _run(db)

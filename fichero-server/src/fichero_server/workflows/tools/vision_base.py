@@ -2910,6 +2910,13 @@ async def _propagate_to_page_children(
                         )
                     db.save(art)
                     created_artifact_ids.append(art.id)
+                    # Each page's result becomes its own pass now (#5222 part 2); never raises.
+                    if art.ocr_geometry is not None and art.ocr_geometry.boxes:
+                        from fichero_server.maintenance.project_conversion import (
+                            convert_new_results,
+                        )
+
+                        convert_new_results(db, page_doc.id)
                 except ConversionRefusal:
                     # A typed refusal has a meaning; it must reach the caller, not hide among
                     # per-page failures (#4993).

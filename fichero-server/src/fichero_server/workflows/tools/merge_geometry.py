@@ -192,6 +192,11 @@ async def merge_geometry_tool(
         )
         db.save(artifact)
         artifact_ids.append(artifact.id)
+        # The merged result becomes its own pass now (#5222 part 2); never raises.
+        if outcome.result.boxes:
+            from fichero_server.maintenance.project_conversion import convert_new_results
+
+            convert_new_results(db, doc_id, run_id=state.get("task_id"))
         records.append({
             "doc_id": doc_id,
             "merged": True,

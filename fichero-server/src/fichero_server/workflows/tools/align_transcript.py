@@ -129,6 +129,10 @@ async def align_transcript_tool(
             continue
 
         db.save(artifact)
+        # The aligned result becomes its own pass now (#5222 part 2); never raises.
+        from fichero_server.maintenance.project_conversion import convert_new_results
+
+        convert_new_results(db, doc_id, run_id=state.get("task_id"))
         aligned_count += 1
         documents.append({"doc_id": doc_id, "artifact_id": artifact.id})
 
