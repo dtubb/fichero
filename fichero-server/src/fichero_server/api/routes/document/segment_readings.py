@@ -524,6 +524,22 @@ def retired_word_readings(db: Database, line: Segment, kind: str, rule: Any) -> 
     }
 
 
+def retired_readings_of(
+    db: Database, segment_id: str, kind: str, rule: Any, memo: dict[tuple[str, str], set[str]],
+) -> set[str]:
+    """The readings of ``segment_id`` (a word) its line's edit retired; empty for anything else.
+    ``memo`` holds each line's answer, so a list or an export works a line out once."""
+    segment = db.get(Segment, segment_id)
+    if segment is None or segment.kind != "word" or not segment.parent_segment_id:
+        return set()
+    if (segment.parent_segment_id, kind) not in memo:
+        line = db.get(Segment, segment.parent_segment_id)
+        memo[(segment.parent_segment_id, kind)] = (
+            retired_word_readings(db, line, kind, rule) if line is not None and line.kind == "line" else set()
+        )
+    return memo[(segment.parent_segment_id, kind)]
+
+
 def counting_by_kind(
     db: Database,
     segment_id: str,
@@ -550,20 +566,13 @@ def counting_by_kind(
     # A word a person's edit of its line took out does not count (#5190). The page's own
     # derivation passes `lines_read_by_a_person_skip_their_words`: it never reads the words under
     # a line a person read, so it cannot meet a retired word, and a dense page skips the lookup.
-    line = None
-    if not lines_read_by_a_person_skip_their_words:
-        segment = db.get(Segment, segment_id)
-        if segment is not None and segment.kind == "word" and segment.parent_segment_id:
-            parent = db.get(Segment, segment.parent_segment_id)
-            line = parent if parent is not None and parent.kind == "line" else None
     memo = retired_memo if retired_memo is not None else {}
     answers: dict[str, CountingAnswer] = {}
     for kind in sorted({item.kind for item in items}):
-        retired: set[str] = set()
-        if line is not None:
-            if (line.id, kind) not in memo:
-                memo[(line.id, kind)] = retired_word_readings(db, line, kind, rule)
-            retired = memo[(line.id, kind)]
+        retired = (
+            set() if lines_read_by_a_person_skip_their_words
+            else retired_readings_of(db, segment_id, kind, rule, memo)
+        )
         answers[kind] = resolve_counting(
             rule,
             [row for row in choices if row.kind == kind],

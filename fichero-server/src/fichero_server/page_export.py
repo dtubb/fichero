@@ -79,8 +79,10 @@ def page_from_library(
         counting_by_kind,
         document_text,
         readings_of_segment,
+        retired_readings_of,
     )
     from fichero_server.models import Document, Segment
+    from fichero_server.models.readings import project_record_rule
     from fichero_server.models.reading_orders import AS_WRITTEN, ReadingOrder, ReadingOrderEntry
     from fichero_server.models.segments import SegmentPass
 
@@ -136,12 +138,20 @@ def page_from_library(
             if link.link_type == "controls" and link.deleted_at is None and link.to_id in ids:
                 controls[link.from_id] = link.to_id
     segments: list[PageSegment] = []
+    rule = project_record_rule(db)
+    retired_memo: dict[tuple[str, str], set[str]] = {}
     for row in rows:
+        # A word its line's edit took out is written with its shape and no text, and its
+        # retired readings are not alternatives either (#5190, `retired-words-in-the-export`).
+        retired = retired_readings_of(db, row.id, reading_kind, rule, retired_memo)
         items = [
             i for i in readings_of_segment(db, row.id)
-            if i.kind == reading_kind and not i.retracted
+            if i.kind == reading_kind and not i.retracted and i.id not in retired
         ]
-        counted = counting_by_kind(db, row.id, items).get(reading_kind) if items else None
+        counted = (
+            counting_by_kind(db, row.id, items, rule=rule, retired_memo=retired_memo).get(reading_kind)
+            if items else None
+        )
         counting_id = counted.representation_id if counted else None
         items.sort(key=lambda i: (i.id != counting_id, i.created_at))
         anchor = row.anchor

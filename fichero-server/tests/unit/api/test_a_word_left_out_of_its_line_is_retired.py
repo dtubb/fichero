@@ -94,3 +94,40 @@ def test_a_word_given_its_own_reading_after_the_edit_counts_again(db):
         "document_id": doc_id, "segment_id": words[0].id, "kind": "transcription", "content": "Typed",
     }, PERSON)
     assert _counting_text(db, words[0].id) == "Typed", "Retired applies only to readings older than the edit"
+
+
+def _page_words(db, doc_id: str) -> list[str | None]:
+    """Each PAGE `Word`'s text in export order, None for a Word with no TextEquiv."""
+    import xml.etree.ElementTree as ET
+
+    from fichero_server.page_export import export_page
+
+    root = ET.fromstring(export_page(db, doc_id, "pagexml").data)
+    out = []
+    for word in root.iter():
+        if word.tag.rsplit("}", 1)[-1] != "Word":
+            continue
+        unicode = [e.text or "" for e in word.iter() if e.tag.rsplit("}", 1)[-1] == "Unicode"]
+        out.append(unicode[0] if unicode else None)
+    return out
+
+
+def test_the_export_writes_a_retired_word_with_its_shape_and_no_text(db):
+    """`source.textedit.retired-words-in-the-export`: the export wrote EVERY reading of a word,
+    so a word the person deleted from the line went out with its old text."""
+    doc_id = _import(db, WORDED)
+    line = _a_line_of_words(db, doc_id)
+    words = [w for w in _words(db, line) if _counting_text(db, w.id)]
+    texts = [_counting_text(db, w.id) for w in words]
+    before = _page_words(db, doc_id)
+
+    registry.invoke(db, "representation.create", {
+        "document_id": doc_id, "segment_id": line.id, "kind": "transcription",
+        "content": " ".join(texts[:1] + texts[2:]),
+    }, PERSON)
+    after = _page_words(db, doc_id)
+
+    assert len(after) == len(before), "the retired word keeps its shape"
+    assert after.count(None) == before.count(None) + 1, "exactly one Word lost its text"
+    gone = [b for b, a in zip(before, after) if b is not None and a is None]
+    assert gone == [texts[1]]

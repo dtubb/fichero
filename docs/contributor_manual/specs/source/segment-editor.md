@@ -779,7 +779,7 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
 
   A strict project shows the same thing. Retirement is not a disagreement, so it never makes a line's
   text vanish.
-- `source.textedit.retired-words-in-the-export` — **[GAP]** (#5190) **The export.** Every exporter writes what the page
+- `source.textedit.retired-words-in-the-export` — **[PARTIAL]** (#5190; built 2026-10-01 in `page_export.page_from_library`: a retired reading is dropped before the segment is written, so a retired word goes out with its shape and no text, and is no alternative either -- PAGE XML pinned by `test_a_word_left_out_of_its_line_is_retired.py::test_the_export_writes_a_retired_word_with_its_shape_and_no_text`. **Still GAP:** ALTO, hOCR and TEI take the same filtered segments but are not pinned, and the library-to-library round trip below is not built) **The export.** Every exporter writes what the page
   shows:
   - the line's text is its counting reading;
   - a retired word is written with its geometry and **no text**:
