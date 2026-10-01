@@ -1808,3 +1808,26 @@ class TestStreamingSearch:
         lines = [json.loads(line) for line in r.text.splitlines() if line.strip()]
         assert lines[-1]["type"] == "error"
         assert "index exploded" in lines[-1]["detail"]
+
+
+def test_full_text_search_folds_case_and_accents_while_the_index_has_hits(client, db):
+    """#5307: Lance's full-text search matched tokens exactly, and the folded fallback ran only when
+    it found NOTHING. So with "Manor house" and "the old manor" both embedded, "manor" found one,
+    "Manor" the other, and only "MANOR" (no exact hit, so the fallback ran) found both. A search for
+    a name in lower case missed every capitalised mention. Accents likewise: "Popayan"."""
+    from fichero_server.models import DocType, Document, FileType
+
+    a = Document(name="A", page_content="Manor house on the hill", doc_type=DocType.file, file_type=FileType.text)
+    b = Document(name="B", page_content="the old manor of Popayán", doc_type=DocType.file, file_type=FileType.text)
+    for doc in (a, b):
+        db.save(doc)
+        db.embed(doc)
+
+    def found(query):
+        r = client.post("/api/search", json={"query": query, "search_type": "fulltext", "min_score": 0.0})
+        assert r.status_code == 200, r.text
+        return {item["document_id"] for item in r.json()["results"]}
+
+    for query in ("manor", "Manor", "MANOR"):
+        assert found(query) >= {a.id, b.id}, query
+    assert b.id in found("Popayan")

@@ -5305,6 +5305,36 @@ class Database(DatabaseEmbeddingMixin):
     # Embedding Convenience Methods
     # =========================================================================
 
+    def _ensure_text_search_index(self, table: Any) -> None:
+        """A full-text index on the passages' text, folding case and accents (#5307).
+
+        Without one, Lance's full-text search matched tokens exactly: "manor" missed "Manor house",
+        and since the folded fallback scan runs only when the search finds NOTHING, every page whose
+        word had another case was dropped whenever any page had it in the query's case. Rows added
+        after the index is built are still searched, with the same tokenizer (measured on lancedb
+        0.37), so it is built once, not on every write. Token-for-token otherwise as before: no
+        stemming, no stop words, no length cap (a CJK line is one long token).
+
+        ponytail: checked per search by listing the table's indexes (metadata only); built on the
+        first full-text search of a library, which costs one pass over the text.
+        """
+        try:
+            if any(i.index_type == "FTS" and list(i.columns) == ["text"] for i in table.list_indices()):
+                return
+            from lancedb.index import FTS
+
+            started = time.perf_counter()
+            with self._lance_lock:
+                table.create_index(
+                    "text",
+                    config=FTS(lower_case=True, ascii_folding=True, stem=False,
+                               remove_stop_words=False, max_token_length=None),
+                    replace=True,
+                )
+            logger.info("built the full-text index in %.1fs", time.perf_counter() - started)
+        except Exception as exc:  # noqa: BLE001 -- search still runs, case-sensitive as before
+            logger.error("could not build the full-text index (search stays case-sensitive): %s", exc)
+
     def _delete_embedding_rows(self, field: str, value: str) -> None:
         """Delete embedding rows by a trusted field/value pair."""
         with self._lance_lock:
@@ -6210,6 +6240,7 @@ class Database(DatabaseEmbeddingMixin):
                     folded_terms = expanded_terms or [_fold_for_search(query)]
                     if has_embeddings:
                         table = self.lance.open_table(EMBEDDINGS_TABLE)
+                        self._ensure_text_search_index(table)
                         candidate_limit = max(limit * 4, offset + limit * 2)
                         raw_fulltext_hits: list[dict] = []
                         if not use_fuzzy_match:
