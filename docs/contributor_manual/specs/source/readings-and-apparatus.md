@@ -335,6 +335,13 @@ Sureness and damage
   **Imported marks draw (2026-09-28, #5179):** the Syriac page's whole-line `unclear` draws an
   under-dot on each of its 12 code points, and a papyrus's mid-line `<gap quantity="13">` draws
   `[--- 13 ---]` where it stands; the stored reading carries no sign (`fichero-server/tests/unit/api/test_marks_arrive_as_editorial_facts.py`).
+  **TEI export (2026-10-01, #5179):** the live facts on the reading written are drawn as the
+  elements an import reads them from -- `unclear`, `supplied` (lost / omitted), `gap`, `surplus`,
+  `del`, `add` -- nested where they nest; one that crosses another's edge is written plain and
+  named in the loss report. A page imported, exported and imported again carries the same facts over
+  the same letters (`test_marks_arrive_as_editorial_facts.py::test_the_facts_go_back_out_as_tei_and_come_back_the_same`,
+  the four DDbDP papyri and the Syriac PAGE page). Still missing: PAGE (`custom` unclear) and ALTO
+  exports of facts, and the app.
 Letterforms
 - `source.letterform.chain` — **[PARTIAL]** (#4935) a character segment can name its character, its allograph and
   its scribe's form.

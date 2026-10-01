@@ -18,6 +18,7 @@ from __future__ import annotations
 from collections import Counter
 from pathlib import Path
 
+import pytest
 from lxml import etree
 
 import fichero_server.api.main  # noqa: F401  (registers every action)
@@ -182,3 +183,35 @@ def test_a_deletion_across_lines_is_a_deletion_on_every_line_it_runs_through(db)
                   "Why such impress of shipwrights, whose sore task", "blah blah"):
         assert deleted[whole] == [whole], whole
     assert "Does not divide the Sunday from the week;" not in deleted, "the span ends where L4 begins"
+
+
+def _facts_by_text(db, doc_id):
+    from fichero_server.models import ContentRepresentation
+
+    texts = {r.segment_id: r.content for r in db.query(ContentRepresentation, document_id=doc_id)}
+    out = Counter()
+    for fact in db.all(EditorialFact):
+        if fact.segment_id in texts and fact.withdrawn_at is None and fact.char_start is not None:
+            text = texts[fact.segment_id]
+            # Stripped: TEI does not keep a reading's edge whitespace (the Syriac page's leading
+            # no-break space), and a mark over the same letters is the same mark.
+            out[(fact.kind.value, text[fact.char_start:fact.char_end].strip() if fact.char_end is not None else "@")] += 1
+    return out
+
+
+@pytest.mark.parametrize("path", PAPYRI + [SYRIAC], ids=lambda p: p.name)
+def test_the_facts_go_back_out_as_tei_and_come_back_the_same(db, path):
+    """#5179's write-back half: a library's editorial facts are written as the TEI elements an
+    import reads them from (unclear, supplied, gap, surplus, del, add), so a page imported, exported
+    and imported again carries the same facts over the same letters. Before this an export wrote
+    the letters and none of the marks: an edition's apparatus lost on the way out."""
+    from fichero_server.page_export import export_page
+
+    doc_id, _ = _import(db, path)
+    before = _facts_by_text(db, doc_id)
+    assert before, "the file carries marks"
+    exported = export_page(db, doc_id, "tei")
+    again = tmp_file = Path(db.path).parent / f"{path.stem}.again.tei.xml"
+    tmp_file.write_bytes(exported.data)
+    doc_again, _ = _import(db, again)
+    assert _facts_by_text(db, doc_again) == before

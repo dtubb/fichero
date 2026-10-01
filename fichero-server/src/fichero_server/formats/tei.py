@@ -139,6 +139,10 @@ KNOWN_INLINE = frozenset({"lb", "pb", "w", "seg", "app", "lem", "rdg", "ab", "p"
 MARK_TAGS = frozenset({"unclear", "supplied", "gap", "surplus", "add", "del", "delSpan"})
 MARK_ATTRS = ("reason", "cert", "quantity", "unit", "extent", "place", "rend", "spanTo")
 TEI_MARKS = "tei:marks"
+#: `foreign` key on an EXPORTED segment: the library's live editorial facts on the reading written
+#: (`page_export.page_from_library`), each {kind, start, end, reason, place, certainty, extent...}.
+#: The TEI writer draws them as the elements an import reads them from (#5179).
+EDITORIAL_FACTS = "editorial:facts"
 
 #: `<note type=...>` that carries a word segment whose text is not in its line's text (#5083).
 UNPLACED_WORD = "unplaced-word"
@@ -874,7 +878,85 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                 "project counts, so the choice is not carried",
             )
         else:
-            _append_text(target, first)
+            facts = segment.foreign.get(EDITORIAL_FACTS) or []
+            if facts:
+                _append_marked(target, first, facts)
+            else:
+                _append_text(target, first)
+
+    def _fact_element(fact: dict) -> Any:
+        """The TEI element an import reads this fact from (`format_import._editorial_facts`)."""
+        kind = fact["kind"]
+        attrs: dict[str, str] = {}
+        cert = fact.get("certainty")
+        if cert is not None:
+            attrs["cert"] = "high" if cert >= 0.9 else "medium" if cert >= 0.6 else "low"
+        if kind == "unclear":
+            name = "unclear"
+            if fact.get("reason"):
+                attrs["reason"] = fact["reason"]
+        elif kind == "restored":
+            name, attrs["reason"] = "supplied", "lost"
+        elif kind == "supplied":
+            name = "supplied"
+            attrs["reason"] = "omitted" if (fact.get("reason") or "").startswith("omitted") else (fact.get("reason") or "omitted")
+        elif kind == "superfluous":
+            name = "surplus"
+        elif kind == "deleted":
+            name = "del"
+            if fact.get("reason"):
+                attrs["rend"] = fact["reason"]
+        elif kind == "added":
+            name = "add"
+            if fact.get("place"):
+                attrs["place"] = fact["place"]
+        else:  # lost
+            name, attrs["reason"] = "gap", "lost"
+            if fact.get("extent_quantity") is not None:
+                quantity = fact["extent_quantity"]
+                attrs["quantity"] = str(int(quantity)) if float(quantity).is_integer() else str(quantity)
+                if fact.get("extent_unit"):
+                    attrs["unit"] = fact["extent_unit"]
+            elif fact.get("extent"):
+                attrs["extent"] = fact["extent"]
+        return etree.Element(q(name), {k: v for k, v in attrs.items() if v is not None})
+
+    def _append_marked(parent: Any, text: str, facts: list[dict]) -> None:
+        """The text with each fact drawn as its element, nested facts nested (#5179). A fact that
+        CROSSES another's edge cannot be one element in XML: it is named in the loss report, its
+        letters written plain. A position-only fact (a gap) is an empty element where it stands."""
+        def key(f):
+            end = f["end"] if f["end"] is not None else f["start"]
+            return (f["start"], -end)
+
+        def emit(into: Any, lo: int, hi: int, inside: list[dict]) -> None:
+            cursor, pending = lo, sorted(inside, key=key)
+            while pending:
+                fact = pending.pop(0)
+                end = fact["end"] if fact["end"] is not None else fact["start"]
+                if fact["start"] < cursor:
+                    report.note("an editorial mark that crosses another", 1,
+                                "XML elements nest; one that overlaps another's edge is written as plain text")
+                    continue
+                _append_text(into, text[cursor:fact["start"]])
+                element = _fact_element(fact)
+                into.append(element)
+                nested = [f for f in pending if f["start"] >= fact["start"]
+                          and (f["end"] if f["end"] is not None else f["start"]) <= end and fact["end"] is not None]
+                pending = [f for f in pending if f not in nested]
+                if fact["end"] is not None:
+                    emit(element, fact["start"], end, nested)
+                cursor = end
+            _append_text(into, text[cursor:hi])
+
+        # A position recorded past the text's end (a `<gap/>` after a line's trailing space, which
+        # the reading does not keep) stands at the end.
+        placed = [
+            {**f, "start": min(f["start"], len(text)),
+             "end": None if f["end"] is None else min(f["end"], len(text))}
+            for f in facts if f["start"] >= 0
+        ]
+        emit(parent, 0, len(text), placed)
 
     def _append_text(element: Any, text: str) -> None:
         last = element[-1] if len(element) else None

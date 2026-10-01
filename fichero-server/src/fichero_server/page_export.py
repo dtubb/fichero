@@ -172,6 +172,12 @@ def page_from_library(
                 foreign=dict(row.metadata.get("foreign") or {}),
             )
         )
+        facts = _editorial_facts_on(db, row.id, items[0].id if items else None)
+        if facts:
+            # Imported here, not at module scope: format modules load on first use (#4038).
+            from fichero_server.formats.tei import EDITORIAL_FACTS
+
+            segments[-1].foreign[EDITORIAL_FACTS] = facts
         if pass_row is not None and pass_row.transformation:
             _georeference_ends(db, row, segments[-1], controls)
     choices.segment_count = len(segments)
@@ -223,6 +229,27 @@ def page_from_library(
 
         page.transformation = transformation_to_iiif(pass_row.transformation)
     return page, choices
+
+
+def _editorial_facts_on(db: Any, segment_id: str, reading_id: str | None) -> list[dict[str, Any]]:
+    """The live editorial facts on the reading being written (#5179), for a writer to draw: a fact
+    on another reading of the segment is about other letters, and one with no place in the text
+    (an `unclear` with no span) has nowhere to stand."""
+    from fichero_server.models.editorial import EditorialFact
+
+    out = []
+    for fact in db.query(EditorialFact, segment_id=segment_id):
+        if fact.withdrawn_at is not None or fact.char_start is None:
+            continue
+        if fact.representation_id is not None and fact.representation_id != reading_id:
+            continue
+        out.append({
+            "kind": fact.kind.value if hasattr(fact.kind, "value") else str(fact.kind),
+            "start": fact.char_start, "end": fact.char_end, "reason": fact.reason, "place": fact.place,
+            "certainty": fact.certainty, "extent": fact.extent,
+            "extent_quantity": fact.extent_quantity, "extent_unit": fact.extent_unit,
+        })
+    return out
 
 
 def _georeference_ends(db: Any, row: Any, segment: PageSegment, controls: dict[str, str]) -> None:
