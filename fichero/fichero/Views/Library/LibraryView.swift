@@ -151,8 +151,9 @@ struct LibraryView: View {
     /// "it won't even let me search by typing into search box").
     @FocusState var searchFieldFocused: Bool
     @State var sortOrder: [KeyPathComparator<Document>] = [.init(\.name, order: .forward)]
-    @SceneStorage("library.sortFieldsByFolder") var sortFieldsByFolderJSON: String = "{}"
-    @SceneStorage("library.sortAscendingByFolder") var sortAscendingByFolderJSON: String = "{}"
+    // Per pane (#5280): two Library panes in one window used to share the window's sort.
+    @PaneStorage("library.sortFieldsByFolder") var sortFieldsByFolderJSON: String = "{}"
+    @PaneStorage("library.sortAscendingByFolder") var sortAscendingByFolderJSON: String = "{}"
 
     // Workflow picker state
     @State var showWorkflowPicker = false
@@ -226,16 +227,16 @@ struct LibraryView: View {
     let featureManager = FeatureManager.shared
     @State var workflowRunProviderCache = WorkflowRunProviderCache.shared
 
-    // Column visibility for Table view (persisted per-window/scene)
-    @SceneStorage("column_name") var showName = true
-    @SceneStorage("column_progress") var showProgress = true
-    @SceneStorage("column_output") var showOutput = true
-    @SceneStorage("column_fileType") var showFileType = true
-    @SceneStorage("column_path") var showPath = false
-    @SceneStorage("column_createdDate") var showCreatedDate = true
-    @SceneStorage("column_modifiedDate") var showModifiedDate = false
-    @SceneStorage("column_size") var showSize = false
-    @SceneStorage("column_artifacts") var showArtifacts = false  // #519: hidden by default
+    // Column visibility for Table view, kept per pane (#5280; was per window, shared by two panes)
+    @PaneStorage("column_name") var showName = true
+    @PaneStorage("column_progress") var showProgress = true
+    @PaneStorage("column_output") var showOutput = true
+    @PaneStorage("column_fileType") var showFileType = true
+    @PaneStorage("column_path") var showPath = false
+    @PaneStorage("column_createdDate") var showCreatedDate = true
+    @PaneStorage("column_modifiedDate") var showModifiedDate = false
+    @PaneStorage("column_size") var showSize = false
+    @PaneStorage("column_artifacts") var showArtifacts = false  // #519: hidden by default
 
     // Per-entity-type visibility flags for the list-view lozenge rows.
     // Now driven by the same @AppStorage CSV used by the KG ontology
@@ -243,12 +244,14 @@ struct LibraryView: View {
     // surface affects all of them. The CSV stores HIDDEN EntityType
     // raw values ("person", "location", "organization", "event",
     // "concept", "other"); empty CSV = show everything. (#887)
-    @AppStorage("inspector.kg.hiddenKinds") var hiddenKindsCSV: String = ""
+    // Kept per pane (#5280, ruled 2026-10-01); a change also writes the shared value the
+    // Inspector and the ontology browser read, so they follow the last change made.
+    @PaneStorage("inspector.kg.hiddenKinds") var hiddenKindsCSV: String = ""
 
     // "dates" doesn't have a KnowledgeEntity counterpart (dates are
     // surfaced via the timeline tool, not as KG entities) so the dates
-    // lozenge stays on a Library-only @SceneStorage flag.
-    @SceneStorage("list_show_dates") var showDatesEntities = true
+    // lozenge stays on a Library-only flag, kept per pane (#5280).
+    @PaneStorage("list_show_dates") var showDatesEntities = true
 
     /// Mac-native column customization for the table view (right-click on
     /// any column header → show/hide menu, drag to reorder, drag-resize).

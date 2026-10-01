@@ -693,6 +693,18 @@ the browse→read flow down the centre.
   `NavigatorMiniMap.swift` (`Views/Preview/ImageViewer/`), which is an image-viewer zoom
   navigator inside a single pane (`preview-magnifier.md`'s territory) — not a second PANE
   showing an overview of a first one. Not built.
+- `panes.options-per-pane` — **[PARTIAL]** (→ #5280, ruled 2026-10-01) each pane remembers its
+  own filter and metadata settings: two panes of one kind set different values and neither
+  overwrites the other, and both survive a relaunch. A new pane starts from the last choice made
+  anywhere, as a new Finder window does (`PaneStorage`: a pane-id → value map beside the shared
+  value; pane leaf ids are saved with the pane list). Built so far: the Library's Metadata
+  attributes, content lines and Show kind (05c3641ad); the Preview's layer toggles (ef8bc076d);
+  the Library's column visibility, sort by folder, dates lozenge and entity-kind filter (pinned by
+  `fichero/Tests/Unit/general/Views/Library/LibraryOptionsPerPaneTests.swift`, which drives the real
+  wrapper in two hosted panes and reads it back as a relaunch; the kind filter answers the hidden-kinds question above: per pane, and the Inspector
+  follows the last change made). Still per window: the table's column order and widths
+  (`TableColumnCustomization`); still app-wide: icon scale, canvas colour-by and arrangement, the
+  magnifier and loupe, and the Reader and Inspector toggles.
 
 ### B. Cross-pane zoom & magnifier state
 
