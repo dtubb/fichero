@@ -131,3 +131,21 @@ def test_the_export_writes_a_retired_word_with_its_shape_and_no_text(db):
     assert after.count(None) == before.count(None) + 1, "exactly one Word lost its text"
     gone = [b for b, a in zip(before, after) if b is not None and a is None]
     assert gone == [texts[1]]
+
+
+def test_the_audit_names_the_words_the_edit_retired(db):
+    """`retiring-is-part-of-the-edit`: one action, one audit row -- and the row says which words
+    the edit retired, so the history can answer "why does this word have no reading"."""
+    from fichero_server.models import ActionAudit
+
+    doc_id = _import(db, WORDED)
+    line = _a_line_of_words(db, doc_id)
+    words = [w for w in _words(db, line) if _counting_text(db, w.id)]
+    texts = [_counting_text(db, w.id) for w in words]
+    made = registry.invoke(db, "representation.create", {
+        "document_id": doc_id, "segment_id": line.id, "kind": "transcription",
+        "content": " ".join(texts[:1] + texts[2:]),
+    }, PERSON)
+
+    audit = db.get(ActionAudit, made.audit_id)
+    assert audit.after["retired_word_segment_ids"] == [words[1].id]

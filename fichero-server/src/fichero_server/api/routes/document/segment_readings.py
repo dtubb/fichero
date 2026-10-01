@@ -466,8 +466,8 @@ def _candidate(item: ReadingRead) -> ReadingCandidate:
     )
 
 
-def retired_word_readings(db: Database, line: Segment, kind: str, rule: Any) -> set[str]:
-    """The ids of the word readings a person's edit of ``line`` took out (#5190, ruled 2026-09-28).
+def retired_word_readings(db: Database, line: Segment, kind: str, rule: Any) -> dict[str, set[str]]:
+    """The word readings a person's edit of ``line`` took out, by word segment id (#5190, ruled 2026-09-28).
 
     `source.textedit.retiring-is-part-of-the-edit`: worked out at read time from the line's
     COUNTING reading, never written. Only a person's line reading retires anything (a machine's is
@@ -478,12 +478,12 @@ def retired_word_readings(db: Database, line: Segment, kind: str, rule: Any) -> 
     """
     line_items = [i for i in readings_of_segment(db, line.id) if i.kind == kind]
     if not line_items:
-        return set()
+        return {}
     by_id = {i.id: i for i in line_items}
     line_choices = [c for c in db.query(ReadingChoice, segment_id=line.id) if c.kind == kind]
     counted = by_id.get(resolve_counting(rule, line_choices, [_candidate(i) for i in line_items]).representation_id or "")
     if counted is None or counted.provenance_kind is not ProvenanceKind.human:
-        return set()
+        return {}
     chain: list[str] = []
     node, seen = counted, set()
     while node is not None and node.id not in seen:   # the corrections it builds on, oldest first
@@ -518,9 +518,8 @@ def retired_word_readings(db: Database, line: Segment, kind: str, rule: Any) -> 
         if text:
             words.append((row.id, text))
     return {
-        reading.id
+        word_id: {reading.id for reading in older_by_word.get(word_id, [])}
         for word_id in words_that_leave(words, chain)
-        for reading in older_by_word.get(word_id, [])
     }
 
 
@@ -534,9 +533,8 @@ def retired_readings_of(
         return set()
     if (segment.parent_segment_id, kind) not in memo:
         line = db.get(Segment, segment.parent_segment_id)
-        memo[(segment.parent_segment_id, kind)] = (
-            retired_word_readings(db, line, kind, rule) if line is not None and line.kind == "line" else set()
-        )
+        by_word = retired_word_readings(db, line, kind, rule) if line is not None and line.kind == "line" else {}
+        memo[(segment.parent_segment_id, kind)] = set().union(*by_word.values())
     return memo[(segment.parent_segment_id, kind)]
 
 

@@ -744,7 +744,7 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   would drop text the person just typed, and keeping all of them would drop the edit. A machine's line
   reading changes nothing here, because a machine's reading is never the record over a reading it
   disagrees with (#5175).
-- `source.textedit.retiring-is-part-of-the-edit` — **[PARTIAL]** (#5190; built 2026-10-01: worked out at read time in `counting_by_kind` / `retired_word_readings`, so the Inspector's readings route, the Segments pane's `counting_texts` and every per-segment reader agree; undo brings the word back and a word given a reading after the edit counts -- `fichero-server/tests/unit/api/test_a_word_left_out_of_its_line_is_retired.py`. **Still GAP:** the action's `ChangeSpec` does not yet name the retired word ids in the audit) **One action, one undo.** Retiring
+- `source.textedit.retiring-is-part-of-the-edit` — **[PARTIAL]** (#5190; built 2026-10-01: worked out at read time in `counting_by_kind` / `retired_word_readings`, so the Inspector's readings route, the Segments pane's `counting_texts` and every per-segment reader agree; undo brings the word back and a word given a reading after the edit counts -- `fichero-server/tests/unit/api/test_a_word_left_out_of_its_line_is_retired.py`. the audit row names them (`after.retired_word_segment_ids`, and they ride the change's `segment_ids` so open windows redraw) -- `test_the_audit_names_the_words_the_edit_retired`. **Still to check:** redo (⌘⇧Z) and the app's panes reading the same after edit, undo and redo) **One action, one undo.** Retiring
   happens inside the same `representation.create` that saves the line reading. It is one audit row and
   one ⌘Z, never a second action or a background job.
 

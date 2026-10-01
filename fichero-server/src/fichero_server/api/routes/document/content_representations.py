@@ -431,6 +431,17 @@ def create_representation(
         "kind": reading.kind,
         "content_sha256": _content_sha256(reading.content),
     }
+    # A person's reading of a LINE retires the words it took out (#5190). Worked out at read
+    # time, never written; named here so the audit says which words this edit retired, and in
+    # `segment_ids` so open windows redraw them. A machine's line reading retires nothing.
+    retired_words: list[str] = []
+    if segment is not None and segment.kind == "line" and reading.provenance_kind is ProvenanceKind.human:
+        from fichero_server.api.routes.document.segment_readings import retired_word_readings
+        from fichero_server.models.readings import project_record_rule
+
+        retired_words = sorted(retired_word_readings(db, segment, reading.kind, project_record_rule(db)))
+        if retired_words:
+            after["retired_word_segment_ids"] = retired_words
     return reading.model_dump(mode="json"), ChangeSpec(
         domains=["representation", "segment"],
         target_ids=[reading.id],
@@ -438,7 +449,7 @@ def create_representation(
         after=after,
         emit_type="representation.created",
         document_ids=[reading.document_id],
-        segment_ids=[reading.segment_id] if reading.segment_id else [],
+        segment_ids=([reading.segment_id] if reading.segment_id else []) + retired_words,
     )
 
 
