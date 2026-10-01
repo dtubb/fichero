@@ -117,7 +117,14 @@ def test_multiuser_off_request_state_keeps_system_actor(
     assert audit.actor == "system"
 
 
-def test_action_context_marks_bootstrap_requests():
+def test_action_context_marks_bootstrap_requests(app_db, monkeypatch):
+    """The bootstrap token on loopback is the owner (ruled), so its edits are the owner's (#5319).
+
+    With Multi-user on the middleware leaves ``user`` empty for authz; attribution must still
+    resolve the owner, or the host's own edits read as an anonymous ``system`` in the history.
+    """
+    monkeypatch.setattr("fichero_server.db.app.get_app_db", lambda: app_db)
+
     class _State:
         user = None
         bootstrap_auth = True
@@ -125,8 +132,9 @@ def test_action_context_marks_bootstrap_requests():
     request = type("Request", (), {"state": _State()})()
     ctx = action_context(request, "/lib/test.fichero", None)
 
-    assert ctx.actor == "system"
+    assert ctx.actor == "owner"
     assert ctx.is_bootstrap is True
+    assert ctx.device is None
 
 
 def test_workflow_emit_preserves_workflow_actor(monkeypatch):

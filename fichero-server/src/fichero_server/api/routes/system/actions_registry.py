@@ -113,6 +113,10 @@ class AuditLogEntry(BaseModel):
         default=None,
         description="Client surface that invoked the action (X-Fichero-Client), e.g. fichero-mcp (#4469).",
     )
+    device: dict | None = Field(
+        default=None,
+        description="The paired device that made the edit, {id, name}; None = the host (#5319).",
+    )
     target_ids: list[str]
     created_at: str
     undone: bool
@@ -262,6 +266,7 @@ async def list_audit_log(
             action_name=a.action_name,
             actor=a.actor,
             client=a.client,
+            device=getattr(a, "device", None),
             target_ids=list(a.target_ids),
             created_at=a.created_at.isoformat(),
             undone=a.undone,

@@ -465,7 +465,9 @@ def _authenticate_device_token(token: str):
     if not _use_multiuser_auth():
         if _should_touch_last_seen(device.last_seen, now):
             app_db.touch_device(token_hash, when=now)
-        return None, device, None
+        # Multi-user off, a paired device acts as the owner (`sharing.private-by-default`); without
+        # the owner here its edits were audited as an anonymous ``system`` (#5319).
+        return _resolve_single_user_owner(), device, None
     user = app_db.get_user(device.user_id)
     if user is None or not user.active:
         return None, device, "missing or invalid Authorization header"
@@ -507,6 +509,10 @@ def actor_from_request(request: Request) -> str:
     caller cannot forge another user through headers or request bodies.
     """
     user = getattr(request.state, "user", None)
+    if user is None and getattr(request.state, "bootstrap_auth", False) is True:
+        # Loopback + the bootstrap token is the owner (ruled), Multi-user on or off; the multi-user
+        # path leaves ``user`` empty for authz, so attribution resolves the owner here (#5319).
+        user = _resolve_single_user_owner()
     if user is None:
         return "system"
     username = getattr(user, "username", None)
@@ -590,7 +596,17 @@ def action_context(
         origin_window=x_fichero_origin_window,
         library_path=x_fichero_library_path,
         is_bootstrap=bool(getattr(request.state, "bootstrap_auth", False)),
+        device=_device_attribution(request),
     )
+
+
+def _device_attribution(request: Request) -> dict | None:
+    """The paired device behind this request's token, as the audit names it (#5319)."""
+    device = getattr(request.state, "device", None)
+    device_id = getattr(device, "id", None)
+    if not device_id:
+        return None
+    return {"id": str(device_id), "name": getattr(device, "name", None)}
 
 
 CANONICAL_OWNER_USERNAME = "owner"

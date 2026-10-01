@@ -2754,6 +2754,13 @@ class ActionAudit(BaseModel):
             "or pre-#4469 rows)."
         ),
     )
+    device: dict | None = Field(
+        default=None,
+        description=(
+            "The paired device whose token made this edit, as {id, name} (#5319), so a shared "
+            "library's history can say which Mac or iPad it came from. None = made on the host."
+        ),
+    )
     target_ids: list[str] = Field(
         default_factory=list,
         description="Primary domain-object ids this action touched.",

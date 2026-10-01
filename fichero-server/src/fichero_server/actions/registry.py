@@ -61,6 +61,8 @@ class ActionContext:
     actor: str = "system"
     # Client surface (X-Fichero-Client) — audit attribution only, never authz (#4469).
     client: str | None = None
+    # The paired device behind a device token, {id, name}: attribution only (#5319).
+    device: dict | None = None
     origin_window: str | None = None
     run_id: str | None = None
     library_path: str | None = None
@@ -273,6 +275,7 @@ class ActionRegistry:
                     action_name=name,
                     actor=ctx.actor,
                     client=ctx.client,
+                    device=ctx.device,
                     target_ids=list(spec.target_ids),
                     params=_audit_params(params),
                     before=spec.before,
@@ -289,6 +292,7 @@ class ActionRegistry:
                 action_name=name,
                 actor=ctx.actor,
                 client=ctx.client,
+                device=ctx.device,
                 target_ids=list(spec.target_ids),
                 params=_audit_params(params),
                 before=spec.before,
