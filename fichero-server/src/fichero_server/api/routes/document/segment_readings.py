@@ -465,6 +465,59 @@ def _candidate(item: ReadingRead) -> ReadingCandidate:
     )
 
 
+def words_in_order(db: Database, line: Segment) -> list[Segment]:
+    """A line's live words in the order the page reads them: the pass's as-written order when it
+    holds every word, else the segments' own order."""
+    siblings = [
+        row for row in db.query(Segment, parent_segment_id=line.id)
+        if row.kind == "word" and row.deleted_at is None
+    ]
+    sequence = _as_written_sequence(db, line.pass_id)
+    if sequence is not None and all(row.id in sequence for row in siblings):
+        siblings.sort(key=lambda row: (sequence[row.id], row.id))
+    else:
+        siblings.sort(key=_segment_order_key)
+    return siblings
+
+
+def estimated_word_rects(db: Database, words: list[Segment]) -> dict[str, list[float]]:
+    """Where each shapeless word with text sits on its line, by word id: an ESTIMATE, never stored
+    (`source.lineeditor.estimated-words`, #5212).
+
+    A word its file placed nowhere is kept on a whole-page anchor marked ``shape: unstated``
+    (`format_import.SHAPE_UNSTATED`). Every word of its line, measured or not, takes its share of
+    the line's box by its share of the line's characters (spaces between words included), along
+    the line's resolved direction; only the shapeless ones are given theirs. A line with no box of
+    its own (itself unstated) estimates nothing. One answer for every surface and every export.
+    """
+    from fichero_server.models.word_spans import estimated_span, word_fractions  # lazy (#3950)
+
+    def unstated(row: Segment) -> bool:
+        return (row.metadata or {}).get("shape") == "unstated"
+
+    line_ids = {w.parent_segment_id for w in words if w.kind == "word" and w.parent_segment_id and unstated(w)}
+    out: dict[str, list[float]] = {}
+    vertical_by_pass: dict[str, bool | None] = {}
+    for line_id in sorted(line_ids):
+        line = db.get(Segment, line_id)
+        if line is None or line.deleted_at is not None or unstated(line) or not line.anchor.rect:
+            continue
+        siblings = words_in_order(db, line)
+        texts = counting_texts(db, siblings)
+        ordered = [texts.get(row.id) or "" for row in siblings]
+        document = db.get(Document, line.document_id)
+        if line.pass_id not in vertical_by_pass:
+            shapes = [row for row in db.query(Segment, pass_id=line.pass_id) if row.deleted_at is None]
+            vertical_by_pass[line.pass_id] = _lines_are_vertical(shapes, document)
+        direction, _level = _direction_of(
+            line, document, " ".join(ordered), vertical_by_pass[line.pass_id], direction_rungs(db, document)
+        )
+        for row, text, (start, end) in zip(siblings, ordered, word_fractions(ordered)):
+            if text and unstated(row):
+                out[row.id] = estimated_span(line.anchor.rect, start, end, direction)
+    return out
+
+
 def retired_word_readings(db: Database, line: Segment, kind: str, rule: Any) -> dict[str, set[str]]:
     """The word readings a person's edit of ``line`` took out, by word segment id (#5190, ruled 2026-09-28).
 
@@ -492,15 +545,7 @@ def retired_word_readings(db: Database, line: Segment, kind: str, rule: Any) -> 
     chain.reverse()
 
     # The words in the order the page reads them, each with what counted before the edit.
-    siblings = [
-        row for row in db.query(Segment, parent_segment_id=line.id)
-        if row.kind == "word" and row.deleted_at is None
-    ]
-    sequence = _as_written_sequence(db, line.pass_id)
-    if sequence is not None and all(row.id in sequence for row in siblings):
-        siblings.sort(key=lambda row: (sequence[row.id], row.id))
-    else:
-        siblings.sort(key=_segment_order_key)
+    siblings = words_in_order(db, line)
     words: list[tuple[str, str]] = []
     older_by_word: dict[str, list[ReadingRead]] = {}
     for row in siblings:

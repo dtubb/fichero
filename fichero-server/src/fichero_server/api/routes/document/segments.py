@@ -404,18 +404,26 @@ class ScopedSegmentListResponse(BaseModel):
 
 
 def _with_texts(db: Database, rows: list[Segment], reads: list[SegmentRead]) -> list[SegmentRead]:
-    """Each read's `text`: its counting transcription, for the whole list in one batch (#5139).
+    """Each read's `text`: its counting transcription, for the whole list in one batch (#5139),
+    and a shapeless word's estimated place (#5212).
 
     Every real segment used to read `text: null` -- a caller could list 4,525 shapes and read
     none of them without one readings request each. A converted row whose words still come from
     its artifact keeps them; a stored reading is the answer otherwise.
     """
-    from fichero_server.api.routes.document.segment_readings import counting_texts
+    from fichero_server.api.routes.document.segment_readings import counting_texts, estimated_word_rects
 
     texts = counting_texts(db, rows)
     for read in reads:
         if read.text is None:
             read.text = texts.get(read.id)
+    # And a shapeless word's place on its line, estimated and marked so (#5212): every read of a
+    # segment comes through here, so every surface sees the same estimate. Never stored.
+    rects = estimated_word_rects(db, rows)
+    for read in reads:
+        if read.id in rects:
+            read.anchor = read.anchor.model_copy(update={"rect": rects[read.id], "polygon": None})
+            read.metadata = {**read.metadata, "geometry": "estimated"}
     return reads
 
 
@@ -2986,12 +2994,9 @@ class SegmentSplitPart(BaseModel):
 def estimated_cut(rect: list[float], fraction: float, direction: str | None) -> list[list[float]]:
     """Two rects from one, cut at `fraction` of the text along the line's direction: the FIRST is
     the text before the cut. `rtl` text starts at the right edge, `ttb` at the top."""
-    x, y, w, h = rect
-    if direction == "ttb":
-        return [[x, y, w, h * fraction], [x, y + h * fraction, w, h * (1 - fraction)]]
-    if direction == "rtl":
-        return [[x + w * (1 - fraction), y, w * fraction, h], [x, y, w * (1 - fraction), h]]
-    return [[x, y, w * fraction, h], [x + w * fraction, y, w * (1 - fraction), h]]
+    from fichero_server.models.word_spans import estimated_span  # lazy: app-import budget (#3950)
+
+    return [estimated_span(rect, 0.0, fraction, direction), estimated_span(rect, fraction, 1.0, direction)]
 
 
 def _parts_cut_at(db: Database, original: Segment, offset: int) -> list["SegmentSplitPart"]:

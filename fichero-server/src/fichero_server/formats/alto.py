@@ -466,6 +466,12 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             )
         attrs = {"ID": xml_id(ref)}
         rect = segment.rect or _bounds(segment.polygon)
+        if segment.geometry_estimated:
+            # ALTO has no way to say a String's box is an estimate, and an unmarked one would read
+            # back as measured: written without it, and the word named (#5212).
+            rect = None
+            report.note("an estimated word place", 1,
+                        f"{ref}: ALTO cannot mark a box as estimated, so the word is written without one")
         if rect:
             attrs.update(
                 HPOS=str(int(round(rect[0] * width))),

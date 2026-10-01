@@ -78,6 +78,7 @@ def page_from_library(
     from fichero_server.api.routes.document.segment_readings import (
         counting_by_kind,
         document_text,
+        estimated_word_rects,
         readings_of_segment,
         retired_readings_of,
     )
@@ -140,6 +141,7 @@ def page_from_library(
     segments: list[PageSegment] = []
     rule = project_record_rule(db)
     retired_memo: dict[tuple[str, str], set[str]] = {}
+    estimated = estimated_word_rects(db, rows)  # a shapeless word's place on its line (#5212)
     for row in rows:
         # A word its line's edit took out is written with its shape and no text, and its
         # retired readings are not alternatives either (#5190, `retired-words-in-the-export`).
@@ -161,7 +163,8 @@ def page_from_library(
         segments.append(
             PageSegment(
                 kind=row.kind,
-                rect=list(anchor.rect) if anchor.rect and not unstated else None,
+                rect=estimated.get(row.id) or (list(anchor.rect) if anchor.rect and not unstated else None),
+                geometry_estimated=row.id in estimated,
                 polygon=[list(p) for p in anchor.polygon] if anchor.polygon and not unstated else None,
                 baseline=[list(p) for p in row.baseline] if row.baseline else None,
                 language=row.language,

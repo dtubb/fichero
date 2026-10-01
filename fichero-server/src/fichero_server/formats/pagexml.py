@@ -241,6 +241,12 @@ IMPLICIT_CUSTOM = "fichero {implicit:true;}"
 #: it, reports it, and the reader gives the segment back without it: a re-import must
 #: not return a shape nobody drew.
 DERIVED_COORDS_CUSTOM = "fichero {coords:derived;}"
+#: A shapeless word's place on its line, ESTIMATED by the engine from its share of the line's
+#: characters (`source.lineeditor.estimated-words`, #5212): written so a PAGE reader can draw it,
+#: marked so a re-import gives the word back shapeless, never with a measured box.
+ESTIMATED_COORDS_CUSTOM = "fichero {geometry:estimated;}"
+#: The marks that say a Word's Coords were not measured on the image.
+_UNMEASURED_CUSTOM = (DERIVED_COORDS_CUSTOM, ESTIMATED_COORDS_CUSTOM)
 
 
 def _is_implicit(element: Any) -> bool:
@@ -379,7 +385,7 @@ def read(data: bytes) -> SourcePage:
             if (
                 child_tag == "Coords"
                 and child.get("points")
-                and DERIVED_COORDS_CUSTOM not in (element.get("custom") or "")
+                and not any(mark in (element.get("custom") or "") for mark in _UNMEASURED_CUSTOM)
             ):
                 points = _points(child.get("points"), width, height)
                 if len(points) >= 3:
@@ -429,7 +435,10 @@ def read(data: bytes) -> SourcePage:
                 # (`keeps-unrecognised`): a file that says something we cannot map
                 # has still said it.
                 segment.foreign["readingDirection"] = direction
-        custom = (element.get("custom") or "").replace(DERIVED_COORDS_CUSTOM, "").strip()
+        custom = element.get("custom") or ""
+        for mark in _UNMEASURED_CUSTOM:
+            custom = custom.replace(mark, "")
+        custom = custom.strip()
         if custom:
             segment.foreign["custom"] = custom
         # A cell's place in its table. Kept because the model has no field for it yet
@@ -634,6 +643,14 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         by_ref[ref] = element
 
         points = segment.polygon or _rect_points(segment.rect)
+        if points and segment.geometry_estimated:
+            element.set("custom", ESTIMATED_COORDS_CUSTOM)
+            report.note(
+                "words placed by estimate",
+                1,
+                "the word has text but no shape; its Coords are its share of the line by "
+                f"characters, marked `{ESTIMATED_COORDS_CUSTOM}`, and dropped again on re-import",
+            )
         if not points:
             derived = _rect_points(_derived_bounds(segment, page.segments))
             if derived:

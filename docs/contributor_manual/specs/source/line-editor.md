@@ -85,23 +85,34 @@ the Segments strip in the middle, and the Inspector follows the focused line.
     line (`moves-by-line`).
   - A vertical line's field is a column over the column.
   - Reading mode never opens it. It belongs to Edit Segments, or to a Transcribe preset that turns it on.
-- `source.lineeditor.estimated-words` — **[GAP]** (#5212) a word with text but no geometry of its own is
-  still shown, laid along its line's baseline. Each word gets its share of the line's length by its share
-  of the line's characters, the spaces between words included.
+- `source.lineeditor.estimated-words` — **[PARTIAL]** (#5212; engine half built, pinned by
+  `tests/unit/api/test_estimated_words.py`; the app half, drawing it dashed, is not) a word with text
+  but no geometry of its own is still shown, laid along its line. Each word of the line, measured or
+  not, gets its share of the line's length by its share of the line's characters, the single spaces
+  between words included; only the shapeless ones are given theirs, so reshaping one word never moves
+  another. A word with no text takes no share.
   - It is drawn DASHED and labelled "estimated" in the Inspector and on hover. It is never drawn as
-    measured.
+    measured. (App: not built.)
   - Dragging it, or any reshape, gives it real geometry through `segment.update`, and it is no longer
     estimated.
 
   **Decided here: the ENGINE computes the estimate,** as it computes the box cut when Return splits a line
-  (the precedent: the split's estimated geometry is the engine's, not the app's). So every surface and
-  every export sees the same estimate.
-  - The engine serves estimated words as segments marked `geometry: estimated` in their metadata. It
-    never stores an estimate as a measurement.
-  - PAGE XML carries the mark on the `Word` (`custom="geometry:estimated"`). ALTO and hOCR have nowhere
-    to say it, and the export's loss report names each estimated word.
+  (the precedent: the split's estimated geometry is the engine's, not the app's, and both now use one
+  helper, `word_spans.estimated_span`). So every surface and every export sees the same estimate.
+  - Built: every read of a segment (`_with_texts`, so every list and single read) serves a shapeless
+    word (`shape: unstated`) with its estimated `anchor.rect` and `metadata.geometry = "estimated"`. The
+    stored row keeps its whole-page anchor: an estimate is never stored as a measurement. A line with no
+    box of its own estimates nothing.
+  - Built: PAGE XML writes the estimate as the Word's Coords marked
+    `custom="fichero {geometry:estimated;}"` (the grammar of the existing `fichero {coords:derived;}`
+    mark), reported as "words placed by estimate"; a re-import drops those Coords, so the word comes
+    back shapeless. ALTO and hOCR have nowhere to say it: they write the word WITHOUT a box (as before)
+    and the loss report names each estimated word. Decided here: an unmarked estimated box would read
+    back as measured, so it is left out rather than written.
+  - Real file: the NZZ page of 10 July 1784 (Transkribus), whose "bringt" has `<Coords points=""/>` among
+    six measured siblings, is placed at the right end of its line.
 
-  The engine half goes to the bugs lane (bugs2). The app half draws what is served.
+  The ruling sent the engine half to the bugs lane (bugs2); with the lanes stopped, the lead built it.
 - `source.lineeditor.agent-parity` — **[GAP]** (#5209) everything the line editor does is an existing
   audited action (`representation.create`, `segment.update`), so a script or an agent can do it too.
   `source.editor.agent-parity` applies unchanged.

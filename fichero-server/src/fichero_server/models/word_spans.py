@@ -59,3 +59,36 @@ def words_that_leave(words: Sequence[tuple[str, str]], chain: Sequence[str]) -> 
                 runs[word_id] = (new[0], new[-1] + 1)
         tokens = new_tokens
     return left
+
+
+def estimated_span(rect: Sequence[float], start: float, end: float, direction: str | None) -> list[float]:
+    """The part of a line's ``rect`` that holds ``start``..``end`` (fractions of its text) along the
+    line's direction: ``rtl`` text starts at the right edge, ``ttb`` at the top. An estimate --
+    nothing records where a character sits on the image (#5154, #5212).
+
+    ponytail: a rect slice, not a strip along a skewed baseline; follow the baseline when a
+    slanted line's estimates are seen to miss.
+    """
+    x, y, w, h = rect
+    if direction == "ttb":
+        return [x, y + h * start, w, h * (end - start)]
+    if direction == "rtl":
+        return [x + w * (1 - end), y, w * (end - start), h]
+    return [x + w * start, y, w * (end - start), h]
+
+
+def word_fractions(texts: Sequence[str]) -> list[tuple[float, float]]:
+    """Each word's share of its line, by its share of the line's characters, the single spaces
+    between words included (`source.lineeditor.estimated-words`, #5212). ``texts`` in the order the
+    line reads them; a word with no text, or an empty line, gets nothing."""
+    read = [t for t in texts if t]
+    total = sum(len(t) for t in read) + max(len(read) - 1, 0)
+    if total == 0:
+        return [(0.0, 0.0) for _ in texts]
+    out: list[tuple[float, float]] = []
+    cursor = 0
+    for text in texts:
+        out.append((cursor / total, (cursor + len(text)) / total))
+        if text:  # a word with no text takes no characters, and no space beside it
+            cursor += len(text) + 1
+    return out

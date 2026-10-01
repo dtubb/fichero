@@ -102,6 +102,10 @@ class PageSegment:
     #: Normalised `[x, y]`: a point shape (#4925). A ground control point's pixel end
     #: (IIIF Georeference `resourceCoords`).
     point: list[float] | None = None
+    #: True when `rect` is the engine's ESTIMATE of a shapeless word's place on its line (#5212),
+    #: never a measurement. PAGE XML marks it on the Word; ALTO and hOCR cannot, so they leave the
+    #: estimate out and name the word in the loss report.
+    geometry_estimated: bool = False
     #: A world position as `(longitude, latitude)` in WGS 84 (EPSG:4326), GeoJSON's axis
     #: order: a ground control point's world end. WGS 84 because that is what Fichero
     #: stores (#5124) and the only CRS IIIF Georeference allows; a format in another CRS

@@ -229,6 +229,11 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         ref = segment.ref or f"s{index}"
         parent_el = by_ref.get(segment.parent_ref or "", page_div)
         rect = segment.rect or _bounds(segment.polygon)
+        if segment.geometry_estimated:
+            # hOCR has no way to say a bbox is an estimate: written without it, the word named (#5212).
+            rect = None
+            report.note("an estimated word place", 1,
+                        f"{ref}: hOCR cannot mark a bbox as estimated, so the word is written without one")
         title_parts = []
         if rect:
             x0 = int(round(rect[0] * width))
