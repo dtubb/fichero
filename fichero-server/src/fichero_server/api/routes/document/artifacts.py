@@ -345,6 +345,20 @@ def _what_only_this_result_holds(db: Database, artifact: Artifact) -> str | None
             f"{len(with_words - read)} of them have no reading of their own, so this result is "
             "still the only home of their words"
         )
+    # A correction made before conversion names the result it corrects
+    # (`ContentRepresentation.derived_from_artifact_id`, the only link between the two stores). The
+    # conversion's own readings name it too, as where their words came from: those are the machine's
+    # readings on this pass's segments, and they are exactly what makes the result redundant.
+    from fichero_server.models.knowledge import ProvenanceKind
+
+    corrections = [
+        r for r in db.query(ContentRepresentation, derived_from_artifact_id=artifact.id)
+        if not (r.segment_id in rows and r.provenance_kind != ProvenanceKind.human)
+    ]
+    if corrections:
+        return (
+            f"{len(corrections)} correction(s) of its text still point at it as what they correct"
+        )
     return None
 
 

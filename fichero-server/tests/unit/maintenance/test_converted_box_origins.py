@@ -171,3 +171,26 @@ def test_a_result_whose_origins_are_not_recorded_yet_is_not_deleted(db):
         _delete(db, result.id)
     assert "where their box was" in str(caught.value)
     assert db.get(Artifact, result.id) is not None
+
+
+def test_a_result_a_correction_still_points_at_is_not_deleted(db):
+    """A correction made before conversion names the result it corrects
+    (`derived_from_artifact_id`, the only link between the two stores). Deleting the result would
+    leave that correction correcting nothing; found auditing what else reads a result (#5066)."""
+    import pytest
+
+    from fichero_server.models import ContentRepresentation
+
+    doc, result = _converted_page(db)
+    from fichero_server.models.anchors import SourceAnchor as _Anchor
+    from fichero_server.models.knowledge import ProvenanceKind
+
+    db.save(ContentRepresentation(
+        document_id=doc.id, kind="transcription", content="corrected",
+        source_anchor=_Anchor(document_id=doc.id, rect=FIRST),
+        derived_from_artifact_id=result.id, provenance_kind=ProvenanceKind.human,
+    ))
+    with pytest.raises(Exception) as caught:
+        _delete(db, result.id)
+    assert "correction" in str(caught.value)
+    assert db.get(Artifact, result.id) is not None

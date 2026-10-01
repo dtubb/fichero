@@ -1045,7 +1045,9 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
   both from the result, so deleting a person's corrected result would have demoted their pass).
   Built 2026-09-30 in the engine: the guard refuses only while a segment has no origin or a box's
   words no reading, naming which; the pass keeps `source_artifact_type` and
-  `source_holds_a_persons_work`; a deleted result comes back only with the boxes its origins
+  `source_holds_a_persons_work`; it also refuses while a person's correction made before
+  conversion still names the result as what it corrects (`derived_from_artifact_id`); a deleted
+  result comes back only with the boxes its origins
   record (a single undo refuses others; a bulk restore brings it back without them). Pinned by
   `fichero-server/tests/unit/maintenance/test_converted_box_origins.py` (the page keeps its words,
   boxes, label, working pass and marks; a person's corrected result keeps its rank; undo brings it
