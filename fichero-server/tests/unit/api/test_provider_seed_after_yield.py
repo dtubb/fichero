@@ -41,7 +41,6 @@ async def test_provider_seed_and_collapse_run_before_yield(monkeypatch) -> None:
     monkeypatch.setattr(api_main, "_collapse_duplicate_providers", lambda: calls.append("collapse"))
     # Avoid the real (slow, network-fetching) embeddings warm-up; unrelated
     # to what this test pins (it's already deferred past readiness, #4690).
-    monkeypatch.setattr(api_main, "_prewarm_embeddings", lambda: None)
 
     async with api_main.lifespan(api_main.app):
         assert calls == ["seed", "collapse"], (

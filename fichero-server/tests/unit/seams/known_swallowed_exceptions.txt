@@ -11,10 +11,8 @@ api/change_stream.py::emit_change 1
 api/change_stream.py::emit_change_all_libraries 1
 api/main.py::_collapse_duplicate_providers 1
 api/main.py::_dependency_versions 2
-api/main.py::_prewarm_embeddings 2
 api/main.py::_seed_builtin_providers 2
 api/main.py::_static_dependency_versions 1
-api/main.py::lifespan._prewarm_embeddings_after_ready 1
 api/main.py::lifespan._start_bonjour 1
 api/main.py::lifespan._warm_workflow_stack 1
 api/main.py::prefetch_library_caches 2

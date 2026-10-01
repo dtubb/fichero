@@ -102,6 +102,16 @@ class TestEmitChangeThreadsItThrough:
         assert captured[0].document_parents == {}
 
 
+def _plain_text_params(tmp_path):
+    """The import action reads `params.path` since #5143 (a TEI/PAGE/ALTO file is a document of
+    its pages); a plain-text file is screened out, so the stubbed import stays the whole story."""
+    from types import SimpleNamespace
+
+    path = tmp_path / "plain.txt"
+    path.write_text("not a paged format")
+    return SimpleNamespace(path=str(path))
+
+
 class TestImportPopulatesIt:
     """The requirement: a real import emits the map POPULATED.
 
@@ -122,7 +132,7 @@ class TestImportPopulatesIt:
         class _DB:
             path = str(tmp_path / "lib.duckdb")
 
-        _payload, spec = core._action_import_file(_DB(), object(), _Ctx())
+        _payload, spec = core._action_import_file(_DB(), _plain_text_params(tmp_path), _Ctx())
 
         assert spec.document_ids == [doc.id]
         assert spec.document_parents == {doc.id: "folder-1"}, (
@@ -178,6 +188,6 @@ class TestImportPopulatesIt:
         class _DB:
             path = str(tmp_path / "lib.duckdb")
 
-        _payload, spec = core._action_import_file(_DB(), object(), _Ctx())
+        _payload, spec = core._action_import_file(_DB(), _plain_text_params(tmp_path), _Ctx())
 
         assert spec.document_parents == {}
