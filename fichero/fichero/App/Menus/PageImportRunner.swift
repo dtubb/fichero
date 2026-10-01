@@ -91,7 +91,8 @@ enum PageImportRunner {
             let taken = max(pagesInFile - leftOut.count, 1)
             return "This file has \(pagesInFile) pages and brought in \(taken) of its \(pagesInFile) pages "
                 + "onto this one. Left out: \(leftOut.joined(separator: ", ")). "
-                + "Import them onto their own pages, or import the file with its images as a folder."
+                + "To bring in every page, import a folder holding the file and the images its pages name: "
+                + "each page goes onto its own image."
         }
 
         /// A new import is a pass BESIDE the existing ones; it is not the working pass.
