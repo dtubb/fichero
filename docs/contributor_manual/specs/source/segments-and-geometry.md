@@ -236,6 +236,58 @@ still labelled unchosen until a person chooses. Which pass is working is worked 
 the project's rule; it is never a flag stored on a pass, so changing the rule rewrites
 nothing.
 
+### One pass from several (DRAFT 2026-10-01, #5232; waiting for rulings, not built)
+
+The maintainer, 2026-09-28: a page holds several results (regions from detect regions, lines and
+words from Apple Vision, a VLM's transcription), "so we need to be able to get them all to one".
+Since #5222 every result is a pass, so the question is how a person **composes** one pass from the
+parts of several.
+
+**What already exists, and is reused rather than rebuilt:** a pass never overwrites another
+(`source.pass.never-overwrites`); "this segment is that one" is a match a machine may propose and a
+person accepts (`source.segment.match-record`); across an accepted one-to-one match, readings and
+marks are COPIED, each copy recorded against its match (`source.segment.carry-across-a-match`); a
+person chooses the working pass (`source.pass.working`); Combine/Join works within one pass
+(#5115); Merge Geometry joins a transcription to measured boxes at the result level, before the
+page model.
+
+**The proposal (each step one audited action, each undone on its own):**
+
+1. **Compose: a new pass, made by the person, from LAYERS of existing passes.** The person picks,
+   per kind, which pass supplies it: regions from pass A, lines (with their words) from pass B.
+   The composed pass gets NEW segments copying those shapes, each recording the segment it was
+   copied from (a match, accepted, made by the person, at certainty 1), so the lineage is the
+   match record that already exists and nothing new is invented for it. The source passes are
+   untouched. Lines go into the region that holds them (by containment, the same rule a
+   detection's lines use); a line no region holds has none.
+2. **Text: from a third pass, through matches.** Matching a transcription's lines to the composed
+   lines is proposed by the machine (same order and overlap, or same order and similar length when
+   the transcription has no shapes) and confirmed by the person, as any match is. Accepting a match
+   carries its readings across (`carry-across-a-match`); the person can accept all the confident
+   ones at once and review the rest. A line with no accepted match has no reading from that pass,
+   and the page says how many.
+3. **Working:** the composed pass is a person's pass, so it is shown first under the rule above; a
+   person may also choose it explicitly.
+
+Undo: compose undoes as a pass delete (`segment.pass_delete`), a carry as its own undo; nothing in
+a source pass changes, so nothing there needs undoing.
+
+**For ruling:**
+- Q1. A NEW composed pass (the sources kept, as proposed), or the chosen layers copied INTO one of
+  the source passes? Recommendation: new; it is what `never-overwrites` already says.
+- Q2. Layers by KIND (regions / lines / words), or by hand-picked segments too? Recommendation:
+  by kind first; picking single segments is Combine/Join's job, and later.
+- Q3. Text alignment: confirm each match, or "accept every confident one" in one step, with a
+  threshold the person can see? Recommendation: the one step, showing the count accepted and the
+  ones left to review.
+- Q4. A transcription with NO shapes (a VLM's plain text): match its lines by order alone, or
+  refuse until it has shapes? Recommendation: by order, proposed and never automatic, with the
+  mismatch named (n lines against m).
+- Q5. What the Making section shows: the composed pass with its sources listed under it.
+
+Behaviours, all [GAP] until ruled, in the list below: `source.pass.compose-from-layers`,
+`source.pass.compose-carries-text-through-matches`, `source.pass.compose-keeps-its-sources`.
+
 ### Reading orders
 
 The ladder itself has no order: which line comes third is never a property of a parent and its
@@ -649,6 +701,15 @@ Passes, orders, links
 - `source.pass.named-authored` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestPassesNamedAuthoredNeverOverwrite::test_two_passes_keep_separate_segments_second_touches_no_row_of_first`) segments live in named passes, each with an author; passes
   can be shown, hidden and compared.
 - `source.pass.never-overwrites` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestPassesNamedAuthoredNeverOverwrite::test_two_passes_keep_separate_segments_second_touches_no_row_of_first`) two layouts of one page are two passes, both kept.
+- `source.pass.compose-from-layers` — **[GAP]** (#5232, DRAFT for ruling) a person composes a new pass
+  from layers of existing passes (regions from one, lines and words from another); its segments
+  are new copies, each matched to the segment it came from, and lines sit in the regions that hold
+  them. See "One pass from several".
+- `source.pass.compose-carries-text-through-matches` — **[GAP]** (#5232, DRAFT) a transcription's
+  text reaches the composed lines only across matches a person accepted, never by position alone;
+  the lines left without a reading are counted.
+- `source.pass.compose-keeps-its-sources` — **[GAP]** (#5232, DRAFT) composing changes nothing in a
+  source pass; undoing it removes the composed pass and nothing else.
 - `source.pass.working-follows-project-rule` — **[OK]** (#4929; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestTheWorkingPass::test_untouched_machine_passes_fall_back_to_the_newest`) in a strict project a machine's pass never
   becomes the working pass until a person makes it so; in a relaxed project the newest pass
   counts and a person's outranks a machine's; a new project is strict.
