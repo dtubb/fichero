@@ -48,6 +48,7 @@ final class EntityStorePartialReconciliationTests: XCTestCase {
         return EntityStore(
             entityService: EntityService(ficheroClient: client),
             kgCurationService: KGCurationService(ficheroClient: client),
+            actions: ActionLibraryService(client: client),
             libraryPath: "/tmp/test.fichero"
         )
     }

@@ -128,6 +128,7 @@ class LibraryManager {
         @ObservationIgnored lazy var entityStore: EntityStore = EntityStore(
             entityService: entityService,
             kgCurationService: kgCurationService,
+            actions: actionsService,
             libraryPath: url.path
         )
 

@@ -15,6 +15,10 @@ struct EntityMergeSheet: View {
     let absorbingEntity: Components.Schemas.KnowledgeEntity
     /// All entities available to absorb (excludes absorbingEntity itself).
     let allEntities: [Components.Schemas.KnowledgeEntity]
+    /// The entities selected in a table for Merge (#5129, ruled 2026-09-27): the person picks which
+    /// one survives, `absorbingEntity` only proposes it, and the others are the ones absorbed.
+    /// Empty when the sheet opens on one entity ("Merge Into…").
+    var survivorChoices: [Components.Schemas.KnowledgeEntity] = []
     let onMerge: () -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -27,13 +31,21 @@ struct EntityMergeSheet: View {
         entityService.flatMap { LibraryManager.shared.library(owningService: $0) }
     }
     @State private var selectedIds: Set<String> = []
+    /// The survivor the person chose from `survivorChoices`; nil keeps `absorbingEntity`.
+    @State private var chosenSurvivorId: String?
     @State private var mergedDescription: String = ""
     @State private var isSaving = false
     @State private var errorText: String?
 
+    private var survivorId: String? { chosenSurvivorId ?? absorbingEntity.id }
+
+    private var survivor: Components.Schemas.KnowledgeEntity {
+        survivorChoices.first { $0.id == survivorId } ?? absorbingEntity
+    }
+
     private var availableEntities: [Components.Schemas.KnowledgeEntity] {
-        allEntities.filter {
-            $0.id != absorbingEntity.id && $0.mergedIntoId == nil
+        (survivorChoices.isEmpty ? allEntities : survivorChoices).filter {
+            $0.id != survivorId && $0.mergedIntoId == nil
         }
     }
 
@@ -41,8 +53,19 @@ struct EntityMergeSheet: View {
         VStack(spacing: 0) {
             Form {
                 Section {
-                    Text("Absorbing entity: **\(absorbingEntity.canonicalName)**")
-                        .font(.body)
+                    if survivorChoices.count >= 2 {
+                        Picker("Keep", selection: Binding(
+                            get: { survivorId ?? "" },
+                            set: { chosenSurvivorId = $0 }
+                        )) {
+                            ForEach(survivorChoices, id: \.id) { entity in
+                                Text(entity.canonicalName).tag(entity.id ?? "")
+                            }
+                        }
+                    } else {
+                        Text("Absorbing entity: **\(survivor.canonicalName)**")
+                            .font(.body)
+                    }
                     Text(
                         "Selected entities will be merged into it. "
                         + "Their claims will be re-pointed and their aliases merged."
@@ -105,10 +128,15 @@ struct EntityMergeSheet: View {
             .padding()
         }
         .frame(width: 460, height: 440)
+        // From a table selection every other selected entity is absorbed, whichever one is kept.
+        .task(id: survivorId) {
+            guard !survivorChoices.isEmpty else { return }
+            selectedIds = Set(availableEntities.compactMap(\.id))
+        }
     }
 
     private func merge() {
-        guard let absorberId = absorbingEntity.id else { return }
+        guard let absorberId = survivorId else { return }
         // MERGE is the verb Daniel's dedupe program is built on, and it ran
         // against the RESERVED-id library: a merge is a write, so this was not
         // an empty view but a change to a graph the user was not looking at.
@@ -184,6 +212,22 @@ struct EntityMergeSheet: View {
         allEntities: [
             Components.Schemas.KnowledgeEntity(id: "ent-only", canonicalName: "Bogotá")
         ],
+        onMerge: {}
+    )
+}
+
+// #5129: Merge from the entities table. The selection arrives as the survivor choices; the
+// proposal is the richest row, and the Keep picker lets the person choose another.
+#Preview("Merge — choose which to keep") {
+    let duplicates = [
+        Components.Schemas.KnowledgeEntity(id: "ent-a", canonicalName: "Ana María Restrepo"),
+        Components.Schemas.KnowledgeEntity(id: "ent-b", canonicalName: "A. M. Restrepo"),
+        Components.Schemas.KnowledgeEntity(id: "ent-c", canonicalName: "Ana Restrepo")
+    ]
+    EntityMergeSheet(
+        absorbingEntity: duplicates[0],
+        allEntities: duplicates,
+        survivorChoices: duplicates,
         onMerge: {}
     )
 }

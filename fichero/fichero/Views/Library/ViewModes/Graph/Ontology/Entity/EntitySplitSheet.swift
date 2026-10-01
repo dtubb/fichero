@@ -4,7 +4,7 @@ import SwiftUI
 /// Sheet for splitting previously-merged entities back out from a primary entity (#1135).
 /// Shows all entities where `mergedIntoId == primary.id` and lets the user
 /// select which to un-merge. Also lets the user move aliases back.
-/// Calls POST /api/kg/entity-curation/split on confirm.
+/// Runs the audited `entity.split` action on confirm (#5129).
 struct EntitySplitSheet: View {
     let primaryEntity: Components.Schemas.KnowledgeEntity
     /// Full entity list — filtered client-side for those merged into primary.
@@ -115,7 +115,9 @@ struct EntitySplitSheet: View {
 
     private func split() {
         guard let primaryId = primaryEntity.id else { return }
-        guard let entityService else {
+        // The library from the service this sheet was handed, by object identity, as
+        // EntityMergeSheet resolves it: its `actionsService` is the audited seam (#5129).
+        guard let library = entityService.flatMap({ LibraryManager.shared.library(owningService: $0) }) else {
             errorText = "This window has no library to split the entity in."
             return
         }
@@ -123,10 +125,15 @@ struct EntitySplitSheet: View {
         errorText = nil
         Task {
             do {
-                _ = try await entityService.splitEntity(
-                    primaryEntityId: primaryId,
-                    splitOffEntityIds: Array(selectedSplitIds),
-                    aliasesToMove: Array(selectedAliases)
+                // The audited `entity.split` action, not the curation route: the route handed back
+                // no `audit_id`, so ⌘Z could not take a split back (#5129).
+                try await library.actionsService.invokeAction(
+                    name: "entity.split",
+                    params: Components.Schemas.EntitySplitRequest(
+                        primaryEntityId: primaryId,
+                        splitOffEntityIds: Array(selectedSplitIds),
+                        aliasesToMove: Array(selectedAliases)
+                    )
                 )
                 onSplit()
                 dismiss()

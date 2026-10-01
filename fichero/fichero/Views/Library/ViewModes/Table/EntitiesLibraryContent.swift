@@ -88,6 +88,8 @@ struct EntitiesLibraryContent: View {
 
     /// The entity a merge-into sheet would absorb others INTO (#5110).
     @State private var entityToMergeInto: Components.Schemas.KnowledgeEntity?
+    /// The table's selection when Merge opened the sheet: the person chooses which one to keep (#5129).
+    @State private var mergeChoices: [Components.Schemas.KnowledgeEntity] = []
     /// The entity a split sheet would un-merge others OUT of (#5110).
     @State private var entityToSplit: Components.Schemas.KnowledgeEntity?
     /// The entity a Wikidata enrichment sheet would import statements about
@@ -160,13 +162,15 @@ struct EntitiesLibraryContent: View {
         // pane's possibly folder-scoped rows.
         .sheet(item: Binding(
             get: { entityToMergeInto.map(IdentifiedEntity.init) },
-            set: { entityToMergeInto = $0?.entity }
+            set: { entityToMergeInto = $0?.entity; if $0 == nil { mergeChoices = [] } }
         )) { wrapped in
             EntityMergeSheet(
                 absorbingEntity: wrapped.entity,
-                allEntities: store.libraryEntities
+                allEntities: store.libraryEntities,
+                survivorChoices: mergeChoices
             ) {
                 entityToMergeInto = nil
+                mergeChoices = []
                 // Force-reload: a merge removes the absorbed rows and changes the
                 // survivor's counts, so the scope has to be re-read rather than patched.
                 Task { await reloadScope(force: true) }
@@ -355,14 +359,13 @@ struct EntitiesLibraryContent: View {
                 }
             },
             merge: { entities in
-                // Keep the richest row as the survivor — the one carrying the most
-                // claims is the least surprising thing to absorb the others into.
-                let ranked = entities.compactMap(\.id).sorted {
-                    (store.libraryClaimCounts[$0] ?? 0) > (store.libraryClaimCounts[$1] ?? 0)
-                }
-                guard let survivor = ranked.first, ranked.count >= 2 else { return }
-                let absorbed = Array(ranked.dropFirst())
-                Task { try? await store.merge(absorbedIds: absorbed, into: survivor) }
+                // The sheet asks which entity survives (maintainer, 2026-09-27, #5129); the row
+                // carrying the most claims is only its first proposal. It merges through the
+                // audited action, so ⌘Z takes it back, and a failure stays on the sheet.
+                let ranked = mergeCandidatesRichestFirst(entities, claimCounts: store.libraryClaimCounts)
+                guard ranked.count >= 2 else { return }
+                mergeChoices = ranked
+                entityToMergeInto = ranked.first
             },
             mergeInto: { entity in entityToMergeInto = entity },
             split: { entity in entityToSplit = entity },

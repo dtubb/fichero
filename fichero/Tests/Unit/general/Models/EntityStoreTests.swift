@@ -303,12 +303,9 @@ final class EntityStoreTests: XCTestCase {
                     )
                 ),
                 .init(
-                    method: "POST", path: "/api/kg/entity-curation/merge",
+                    method: "POST", path: "/api/actions/invoke",
                     statusCode: 200,
-                    body: makeMergeAuditResponse(
-                        survivorId: "entity-1",
-                        absorbedIds: ["entity-2", "entity-3"]
-                    )
+                    body: makeInvokeResponse(auditId: "action-audit-1")
                 ),
                 .init(
                     method: "GET", path: "/api/entities/entity-1",
@@ -330,7 +327,10 @@ final class EntityStoreTests: XCTestCase {
         XCTAssertEqual(store.entities(forDocument: "doc-1").map(\.canonicalName), ["Alpha Prime"])
 
         let requests = MockFicheroURLProtocol.recordedRequests()
-        XCTAssertTrue(requests.contains { $0.httpMethod == "POST" && $0.url?.path == "/api/kg/entity-curation/merge" })
+        // #5129: through the audited action, not the curation route, so ⌘Z can reach it.
+        XCTAssertTrue(requests.contains { $0.httpMethod == "POST" && $0.url?.path == "/api/actions/invoke" })
+        XCTAssertFalse(requests.contains { $0.url?.path == "/api/kg/entity-curation/merge" })
+        XCTAssertEqual(store.actions.lastAction.auditId, "action-audit-1", "the merge must seed ⌘Z")
         XCTAssertTrue(requests.contains { $0.httpMethod == "GET" && $0.url?.path == "/api/entities/entity-1" })
         // The load-bearing assertion: no second inspector fetch. Exactly one
         // GET for the initial load, none after the merge.
@@ -672,6 +672,7 @@ final class EntityStoreTests: XCTestCase {
         return EntityStore(
             entityService: entityService,
             kgCurationService: kgCurationService,
+            actions: ActionLibraryService(client: client),
             libraryPath: "/tmp/test.fichero"
         )
     }
@@ -736,19 +737,10 @@ final class EntityStoreTests: XCTestCase {
         return jsonData(payload)
     }
 
-    private func makeMergeAuditResponse(survivorId: String, absorbedIds: [String]) -> Data {
-        let payload: [String: Any] = [
-            "id": "audit-1",
-            "operation_type": "merge",
-            "source_entity_ids": absorbedIds,
-            "target_entity_id": survivorId,
-            "alias_changes": [:],
-            "reversal_id": NSNull(),
-            "created_by": "human",
-            "created_at": Self.isoFormatter.string(from: Date(timeIntervalSince1970: 1_700_000_000))
-        ]
-        return jsonData(payload)
+    private func makeInvokeResponse(auditId: String) -> Data {
+        jsonData(["ok": true, "result": [String: Any](), "audit_id": auditId, "changed_domains": ["entity", "claim"]])
     }
+
 
     private func makeEntityJSON(
         id: String,

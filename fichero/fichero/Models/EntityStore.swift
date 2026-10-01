@@ -76,6 +76,8 @@ final class EntityStore: ObservableDomainStore {
     // ─── Transport: the EXISTING generated wrappers, unchanged ───
     let entityService: EntityService
     let kgCurationService: KGCurationService
+    /// The audited action seam: merge and split go through it, so ⌘Z can take them back (#5129).
+    let actions: ActionLibraryService
     private let libraryPath: String
     let log = Logger(subsystem: "app.fichero.fichero", category: "EntityStore")
 
@@ -99,10 +101,12 @@ final class EntityStore: ObservableDomainStore {
     init(
         entityService: EntityService,
         kgCurationService: KGCurationService,
+        actions: ActionLibraryService,
         libraryPath: String
     ) {
         self.entityService = entityService
         self.kgCurationService = kgCurationService
+        self.actions = actions
         self.libraryPath = libraryPath
     }
 
