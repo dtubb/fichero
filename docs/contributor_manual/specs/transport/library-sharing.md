@@ -49,12 +49,19 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
 - `sharing.certificate-pinned` — **[PARTIAL]** (→ #5049) a self-signed certificate is made once
   (`--prepare-remote-access`), names the host, 127.0.0.1 and localhost, and the app records its pin
   per host. Fixed by #5041, unproven across machines (#5049).
-- `sharing.bonjour-advertises` — **[PARTIAL]** (→ #5049, read, not run) the engine advertises `_fichero._tcp` with the
-  public URL in its record and no pin (presence, not trust). Read: the record's ADDRESS is the bind
-  host, so it may advertise 127.0.0.1 (`security/discovery.py`).
-- `sharing.tailscale-serve` — **[GAP]** (→ #2603) nothing runs `tailscale serve`; a `.ts.net` address can only
-  be typed under Advanced, and the certificate step refuses a host that is not an IP or `.local`
-  (`remote_access_tls.py`), so the engine likely will not start with one.
+- `sharing.bonjour-advertises` — **[OK]** (→ #5316; pinned by `fichero-server/tests/unit/security/test_discovery.py::test_sharing_advertises_the_lan_listener_never_loopback`) the engine advertises `_fichero._tcp` with the
+  public URL in its record and no pin (presence, not trust). The record's address is the one the
+  LAN listener binds, under the `.local` name the invite uses; with no LAN listener (loopback only,
+  e.g. Tailscale) it carries no address. Run 2026-10-01 on the MBP: it advertised 127.0.0.1 under
+  `UNB-C02F45GAQ05P.local` before `edd6c4938`, and `131.202.228.23` under `macbook-pro-m1.local` after.
+  Where mDNS does not cross between machines (the campus network) nobody sees it: that is the network.
+- `sharing.tailscale-serve` — **[PARTIAL]** (→ #2603, #5311; pinned by `tests/unit/security/test_tailscale_serve.py`, `tests/unit/security/test_remote_access_tls.py::test_a_tailscale_address_binds_loopback_and_its_certificate_names_it`)
+  with a `.ts.net` sharing address the engine binds loopback only, its certificate names the
+  tailnet host, and the engine makes `tailscale serve --tcp <port> tcp://127.0.0.1:<port>` at start
+  and removes it at stop -- only the forward it made; a port serving something else is refused.
+  Pairing codes carry the address as `tailnet_url`. Run 2026-10-01, MBP host, Air paired over the
+  tailnet. **Still open:** the sandboxed app running the Tailscale CLI (#5317); the address is still
+  typed under Advanced (#5318).
 - `sharing.invite` — **[PARTIAL]** (→ #5049) the pairing card's QR / link carries the address, a one-time
   code, the pin and ONE library path (the host's current library).
 
@@ -76,12 +83,18 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
 
 ### C. Working on it from both
 
-- `sharing.edits-both-ways` — **[PARTIAL]** (→ #5049, read, not run) an edit on either Mac lands in the one library and
+- `sharing.edits-both-ways` — **[PARTIAL]** (→ #5049) an edit on either Mac lands in the one library and
   appears on the other through the change stream (`/api/changes`, read-authorised per library).
-- `sharing.who-did-it` — **[PARTIAL]** (→ #5049, read, not run) each edit's audit row names who made it: the owner on the
-  host, the paired device's person on the other Mac.
+  Run 2026-10-01 engine to engine (CLI, over Tailscale): notes written on each Mac read on the other;
+  the stream lost an event when the host's loop stalled past its keepalive, fixed in #5314
+  (`test_an_event_queued_while_the_loop_stalls_past_the_keepalive_is_still_sent`). The app's
+  windows were not run.
+- `sharing.who-did-it` — **[BROKEN]** (→ #5319) each edit's audit row names who made it: the owner on the
+  host, the paired device's person on the other Mac. Run 2026-10-01, Multi-user off: the host's own
+  edit was `system`, the paired Mac's `owner`, and no row named the device.
 - `sharing.revoke` — **[PARTIAL]** (→ #5049) the host lists paired devices and can revoke one; a revoked
-  token is refused (pinned in `test_device_pairing_e2e.py`, in-process only).
+  token is refused (pinned in `test_device_pairing_e2e.py`, in-process; run 2026-10-01 across two
+  Macs: the paired MBP's next call was 401). The app's device list was not run.
 
 ### D. Other people (Multi-user on)
 
