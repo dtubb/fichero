@@ -78,6 +78,7 @@ from fichero_server.models.anchors import (
 # introduces no new circular-import ordering.
 from fichero_server.models.segments import (
     FORWARDING_DEPTH_CAP,
+    ConvertedBoxOrigin,
     LEGACY_ID_PREFIX,
     LEGACY_READING_ID_PREFIX,
     PassRead,
@@ -2847,6 +2848,7 @@ __all__ = [
     # Source-model slice 4 — matches, forwarding notes, a citable reference.
     "SegmentMatch",
     "SegmentForwarding",
+    "ConvertedBoxOrigin",
     "SegmentCarry",
     "ResolvedSegment",
     "SegmentForwardingTooDeep",

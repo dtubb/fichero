@@ -1262,6 +1262,7 @@ class Database(DatabaseEmbeddingMixin):
             ContentRepresentation,
             ContentRepresentationRevision,
             Conversation,
+            ConvertedBoxOrigin,
             Document,
             LibraryReadingKind,
             ReadingChoice,
@@ -1441,6 +1442,8 @@ class Database(DatabaseEmbeddingMixin):
             MigrationRunRecord,
             NoteLink,
             Rendition,
+            # #5066: where each converted box was, its own record (not the result's block).
+            ConvertedBoxOrigin,
         )
 
     def _materialize_schema(self) -> None:
@@ -4780,6 +4783,20 @@ class Database(DatabaseEmbeddingMixin):
                 return []
             raise
         return [row[0] for row in rows or []]
+
+    def converted_results_without_origins(self) -> list[str]:
+        """Artifact ids converted before `ConvertedBoxOrigin` existed and not yet recorded (#5066).
+
+        One query, ids only: it runs at every running-engine open, and a library with thousands of
+        results must not load each one to learn that every origin is already there.
+        """
+        sql = """
+            SELECT a.id FROM artifacts a
+            WHERE a.geometry_superseded_by_pass_id IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM convertedboxorigins o WHERE o.artifact_id = a.id)
+            ORDER BY a.created_at, a.id
+        """
+        return [row[0] for row in self._execute(sql, fetch="all") or []]
 
     def reading_order_neighbours(
         self, order_id: str, *, position: float, parent_entry_id: str | None

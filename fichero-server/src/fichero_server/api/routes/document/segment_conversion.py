@@ -45,7 +45,6 @@ from fichero_server.models.segments import (
     AnchorBasis,
     ResolvedAnchor,
     derive_pass_provenance_kind,
-    converted_segment_id,
     words_for_row,
     converted_pass_id,
     rows_from_reads,
@@ -643,10 +642,66 @@ def _convert_one(db: Any, artifact: Artifact) -> tuple[SegmentPass, list[Segment
     # `expected_version` for a page nobody has edited.
 
     _readings_from_conversion(db, artifact, rows, segment_reads)
+    record_box_origins(db, artifact, rows)
 
     artifact.geometry_superseded_by_pass_id = pass_row.id
     db.save(artifact)
     return pass_row, rows
+
+
+def record_box_origins(db: Any, artifact: Artifact, rows: list[Segment]) -> int:
+    """Each converted box's origin, as its own record (`source.convert.box-origins-are-their-own-record`,
+    #5066). Returns how many were written.
+
+    Taken from the result's block, which is still the machine's original. A row's box is the one its
+    id was made from (`converted_segment_id(artifact_id, box_index)`), so this needs nothing the
+    row does not already say. Idempotent: the record's id is the segment's, and `save_many` writes
+    the same row again. A row whose id is not one of this result's (none should be) is skipped
+    rather than guessed.
+    """
+    from fichero_server.models import ConvertedBoxOrigin
+    from fichero_server.models.segments import converted_segment_id
+
+    # raw-geometry-ok: the conversion IS the reader of the machine's original
+    block = artifact.ocr_geometry
+    if block is None:
+        return 0
+    index_of = {converted_segment_id(artifact.id, i): i for i in range(len(block.boxes))}
+    origins = [
+        ConvertedBoxOrigin(
+            id=row.id,
+            document_id=row.document_id,
+            artifact_id=artifact.id,
+            box_index=index_of[row.id],
+            rect=list(block.boxes[index_of[row.id]].bbox),
+            rendition_id=block.rendition_id,
+        )
+        for row in rows
+        if row.id in index_of
+    ]
+    if origins:
+        db.save_many(origins)
+    return len(origins)
+
+
+def record_missing_box_origins(db: Any, *, should_stop: Any = None) -> int:
+    """Origins for every result converted before they existed (#5066). Returns how many results.
+
+    Run by the RUNNING engine when a library opens (`conversion_on_open`), never by a bare open:
+    only results that are converted and have no origin yet are read, so a later open reads none.
+    Each result is one transaction. Its rows are the pass's live and deleted segments alike, so a
+    box whose segment was deleted still has an origin to resolve to (`segment_deleted`).
+    """
+    done = 0
+    for artifact_id in db.converted_results_without_origins():
+        if should_stop is not None and should_stop():
+            break
+        artifact = db.get(Artifact, artifact_id)
+        rows = db.query(Segment, pass_id=artifact.geometry_superseded_by_pass_id)
+        with db.transaction():
+            record_box_origins(db, artifact, rows)
+        done += 1
+    return done
 
 
 def _readings_from_conversion(
@@ -1662,8 +1717,8 @@ action(
 # ---------------------------------------------------------------------------
 
 
-def _anchor_matches_box(anchor: SourceAnchor, box: OCRGeometryBox, block_frame: str | None) -> bool:
-    """Slice 4's one matching rule, against a BLOCK box rather than a row.
+def _anchor_matches_rect(anchor: SourceAnchor, rect: list[float], frame: str | None) -> bool:
+    """Slice 4's one matching rule, against a converted box's recorded origin (#5066).
 
     Same tolerance on all four numbers and the same frame test as
     `_anchor_matches_segment`, because it is the same question asked of the
@@ -1671,11 +1726,9 @@ def _anchor_matches_box(anchor: SourceAnchor, box: OCRGeometryBox, block_frame: 
     matches a box is about something else, and moving a historian's mark
     onto a line they never marked is worse than leaving it where they put it.
     """
-    if anchor.rect is None:
+    if anchor.rect is None or anchor.rendition_id != frame:
         return False
-    if anchor.rendition_id != block_frame:
-        return False
-    return all(abs(a - b) <= _ANCHOR_TOLERANCE for a, b in zip(anchor.rect, box.bbox))
+    return all(abs(a - b) <= _ANCHOR_TOLERANCE for a, b in zip(anchor.rect, rect))
 
 
 def resolve_anchor(db: Any, anchor: SourceAnchor | None) -> ResolvedAnchor | None:
@@ -1717,23 +1770,42 @@ def resolve_anchor(db: Any, anchor: SourceAnchor | None) -> ResolvedAnchor | Non
     if anchor.rect is None or not anchor.document_id:
         return ResolvedAnchor(anchor=anchor, basis=AnchorBasis.stored)
 
-    for artifact in db.query(Artifact, document_id=anchor.document_id):
+    # Matched against each converted box's ORIGIN, its own record since #5066, not the result's
+    # block: the block is the thing a person may delete, and a mark drawn before conversion must
+    # still find its box's segment afterwards. Origins never move, as the block's boxes never did.
+    # A result converted before origins existed, and not yet recorded (the running engine records
+    # them at the next open), is still read from its block: the same answer either way.
+    from fichero_server.models import ConvertedBoxOrigin
+    from fichero_server.models.segments import converted_segment_id
+
+    by_result: dict[str, list] = {}
+    for origin in db.query(ConvertedBoxOrigin, document_id=anchor.document_id):
+        by_result.setdefault(origin.artifact_id, []).append(origin)
+    candidates: list[tuple[str, list[float], str | None]] = []
+    results = db.query(Artifact, document_id=anchor.document_id)
+    for artifact in results:
+        recorded = by_result.get(artifact.id)
+        if recorded:
+            candidates += [(o.id, o.rect, o.rendition_id) for o in sorted(recorded, key=lambda o: o.box_index)]
+            continue
         if not is_converted(artifact):
             continue
-        # raw-geometry-ok: the kept block IS the permanent rectangle-to-position table
+        # raw-geometry-ok: an unrecorded converted result's kept block is its origins until recorded
         block = artifact.ocr_geometry
-        if block is None:
+        if block is not None:
+            candidates += [
+                (converted_segment_id(artifact.id, i), list(box.bbox), block.rendition_id)
+                for i, box in enumerate(block.boxes)
+            ]
+    # And the origins of results that are gone: the reason the record exists.
+    for artifact_id in sorted(set(by_result) - {a.id for a in results}):
+        candidates += [
+            (o.id, o.rect, o.rendition_id) for o in sorted(by_result[artifact_id], key=lambda o: o.box_index)
+        ]
+    for segment_id, rect, frame in candidates:
+        if not _anchor_matches_rect(anchor, rect, frame):
             continue
-        position = next(
-            (
-                index for index, box in enumerate(block.boxes)
-                if _anchor_matches_box(anchor, box, block.rendition_id)
-            ),
-            None,
-        )
-        if position is None:
-            continue
-        segment = db.get(Segment, converted_segment_id(artifact.id, position))
+        segment = db.get(Segment, segment_id)
         if segment is None:
             # The block remembers the box, but no row was ever made for it
             # (or it was removed outright). Nothing to follow.

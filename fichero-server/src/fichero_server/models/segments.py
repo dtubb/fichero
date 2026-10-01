@@ -999,6 +999,28 @@ class SegmentForwarding(BaseModel):
     sequence: int | None = None
 
 
+class ConvertedBoxOrigin(BaseModel):
+    """Where one converted box WAS: its rectangle, the picture it was measured on, the result and its
+    position in it (`source.convert.box-origins-are-their-own-record`, #5066).
+
+    One row per converted segment, keyed by the segment's id (`converted_segment_id(artifact_id,
+    box_index)`). Written at conversion, never changed. The same fact the result's kept block holds,
+    moved into a record of its own so that a mark drawn before conversion can find its box's segment
+    (`resolve_anchor`) after the result itself is gone. Not a new archival fact: a relocated one.
+    """
+
+    #: The segment's id: one origin per converted box, and repeatable, like the id itself.
+    id: str
+    document_id: str
+    artifact_id: str
+    box_index: int
+    #: The box's rectangle as the machine measured it, normalized, top-left origin.
+    rect: list[float]
+    #: The picture the rectangle is measured on (`OCRGeometryResult.rendition_id`); None for the
+    #: page's own image.
+    rendition_id: str | None = None
+
+
 class SegmentCarry(BaseModel):
     """One record copied across an accepted match
     (`source.segment.carry-across-a-match`). What makes a carry undoable:
