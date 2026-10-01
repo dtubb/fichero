@@ -43015,6 +43015,13 @@
             "title": "Client",
             "description": "Client surface that invoked the action (X-Fichero-Client), e.g. fichero-mcp (#4469)."
           },
+          "device": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Device",
+            "description": "The paired device that made the edit, {id, name}; None = the host (#5319)."
+          },
           "target_ids": {
             "items": {
               "type": "string"
