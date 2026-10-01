@@ -9,7 +9,13 @@ from pydantic import BaseModel, Field
 from fichero_server.api.auth import action_context
 from fichero_server.api.change_stream import emit_change
 from fichero_server.api.main import get_library_database, get_library_database_for_write
-from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero_server.actions.registry import (
+    ActionContext,
+    ChangeSpec,
+    action,
+    audit_with_digests,
+    registry,
+)
 from fichero_server.db import Database
 from fichero_server.models import ResearchNotesListResponse
 from fichero_server.models.research import (
@@ -147,6 +153,11 @@ class NoteCreateRequest(BaseModel):
     linked_claim_ids: list[str] = Field(default_factory=list)
     created_by: str = "human"
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    def audit_params(self) -> dict:
+        """Every argument except the note's text, which the note row holds once (#5057); its digest
+        stands in. Redo restores the deleted row's own snapshot (`research.note.delete`'s redo)."""
+        return audit_with_digests(self, "content")
 
 
 class NoteUpdateRequest(BaseModel):
@@ -521,7 +532,8 @@ def _action_create_note(
     return note, _research_note_spec(
         note.id,
         emit_type="note.created",
-        after=note.model_dump(mode="json"),
+        # The id is all the undo needs; the whole row put the text in the audit chain (#5057).
+        after={"id": note.id},
     )
 
 
@@ -557,6 +569,9 @@ def _action_update_note(
     domains=["research"],
     undoable=True,
     invert=_invert_restore_snapshot("research.note.restore"),
+    # Redo of an undone `research.note.create` restores this snapshot, the same note with its text;
+    # the create's AUDITED params hold a digest instead (#5057).
+    redo_via_own_invert=True,
 )
 def _action_delete_note(
     db: Database, params: NoteIdParams, ctx: ActionContext

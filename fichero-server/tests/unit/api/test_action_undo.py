@@ -622,7 +622,7 @@ class TestRedoViaOwnInvertIsSegmentOnlyOptIn:
 
     @pytest.mark.parametrize("action_name", [
         "document.delete", "artifact.delete", "annotation.delete", "note.delete",
-        "representation.retract",
+        "representation.retract", "research.note.delete", "canvas.item.delete",
     ])
     def test_the_inverse_of_a_create_that_audits_a_digest_opts_in(self, action_name):
         """#5057: these creates audit a digest in place of their content (`audit_params`), so a

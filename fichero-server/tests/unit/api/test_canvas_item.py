@@ -463,3 +463,24 @@ def test_delete_action_missing_item_raises(db, app_db):
             {"folder_id": "f-d", "item_id": "ghost"},
             _ctx(db, app_db),
         )
+
+
+def test_create_audits_digests_and_redo_restores_the_same_card(db, app_db):
+    """#5057: a card's text and payload are in the item row once; the audit row holds digests.
+    Redo used to replay the create's audited params (now without the text) and made a NEW card;
+    it restores the deleted snapshot: the same id, the same text."""
+    ctx = _ctx(db, app_db)
+    secret = "a card nobody should find in the audit chain"
+    created = registry.invoke(
+        db, "canvas.item.create", {"folder_id": "f-redo", "kind": "note", "text": secret}, ctx
+    )
+    audit = db.get(ActionAudit, created.audit_id)
+    assert secret not in audit.model_dump_json()
+    assert "text_sha256" in audit.params
+
+    item_id = created.result["id"]
+    undone = _undo(db, created.audit_id, ctx.library_path)
+    _undo(db, undone.audit_id, ctx.library_path)
+    back = db.get(CanvasItem, item_id)
+    assert back is not None and back.text == secret
+    assert len(db.query(CanvasItem, folder_id="f-redo")) == 1

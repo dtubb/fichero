@@ -192,3 +192,23 @@ def test_research_note_write_routes_write_action_audit(client, db):
     )
     assert toggled.status_code == 200
     assert db.all(ActionAudit)[-1].action_name == "research.checklist.update"
+
+
+def test_a_research_note_audits_a_digest_and_its_redo_restores_the_same_note(client, db):
+    """#5057: the note row holds its text once; the audit row holds a digest. The real ⌘⇧Z path
+    replayed the create's audited params (now without the text); it restores the snapshot instead."""
+    secret = "a research note nobody should find in the audit chain"
+    created = registry.invoke(
+        db, "research.note.create", {"project_id": "proj-1", "content": secret}, _ctx()
+    )
+    audit = db.get(ActionAudit, created.audit_id)
+    assert secret not in audit.model_dump_json()
+    assert "content_sha256" in audit.params
+
+    note_id = created.result.id
+    assert client.post(f"/api/actions/audit/{created.audit_id}/undo").status_code == 200
+    inverse = next(a for a in db.all(ActionAudit) if a.inverse_of == created.audit_id)
+    redo = client.post(f"/api/actions/audit/{inverse.id}/undo")
+    assert redo.status_code == 200, redo.text
+    back = db.get(ResearchNote, note_id)
+    assert back is not None and back.content == secret

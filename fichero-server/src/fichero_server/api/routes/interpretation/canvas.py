@@ -624,6 +624,13 @@ async def delete_folder_canvas_item(
 class CanvasItemCreateParams(CanvasItemCreateRequest):
     folder_id: str
 
+    def audit_params(self) -> dict:
+        """Every argument except the card's text and payload, which the item row holds once
+        (#5057); digests stand in. Redo restores the deleted row's snapshot (`canvas.item.delete`)."""
+        from fichero_server.actions.registry import audit_with_digests
+
+        return audit_with_digests(self, "text", "payload")
+
 
 class CanvasItemUpdateParams(CanvasItemUpdateRequest):
     folder_id: str
@@ -696,7 +703,8 @@ def _action_create_canvas_item(
         domains=["canvas"],
         target_ids=[item.id],
         before=None,
-        after={"item": after},
+        # The ids the undo needs, not the card: the whole row put its text in the audit chain (#5057).
+        after={"item": {"id": item.id, "folder_id": item.folder_id}},
         emit_type="canvas.item.created",
     )
     return after, spec
@@ -737,6 +745,9 @@ def _action_update_canvas_item(
     domains=["canvas"],
     undoable=True,
     invert=_invert_to_restore_canvas_item,
+    # Redo of an undone `canvas.item.create` restores this snapshot, the same card with its text;
+    # the create's AUDITED params hold digests instead (#5057).
+    redo_via_own_invert=True,
 )
 def _action_delete_canvas_item(
     db: Database, params: CanvasItemDeleteParams, ctx: ActionContext
