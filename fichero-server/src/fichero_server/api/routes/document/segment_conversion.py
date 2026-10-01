@@ -234,6 +234,32 @@ def restored_artifact_row(db: Any, payload: dict, *, refuse_different_boxes: boo
             # provider, reviewed, ...); the boxes stay exactly as they are.
             artifact.ocr_geometry = kept
 
+    if marker is not None and current is None and artifact.ocr_geometry is not None:
+        # A converted result a person deleted (#5066) coming back. Its boxes are checked against
+        # the recorded origins, which hold where each box was now that the block is gone: the
+        # undo's own snapshot always agrees. One that does not is refused by a single undo; a bulk
+        # document restore, which cannot refuse a whole document over one result, brings the
+        # result back WITHOUT the disagreeing boxes and says so in the log, never with them.
+        from fichero_server.models import ConvertedBoxOrigin
+
+        origins = {o.box_index: o for o in db.query(ConvertedBoxOrigin, artifact_id=artifact.id)}
+        disagrees = any(
+            index < len(artifact.ocr_geometry.boxes)
+            and (
+                list(artifact.ocr_geometry.boxes[index].bbox) != list(origin.rect)
+                or artifact.ocr_geometry.rendition_id != origin.rendition_id
+            )
+            for index, origin in origins.items()
+        ) or (origins and max(origins) >= len(artifact.ocr_geometry.boxes))
+        if disagrees:
+            if refuse_different_boxes:
+                raise ArtifactGeometryRestoreRefused(artifact.id, marker)
+            logger.error(
+                "restoring deleted converted result %s without its boxes: they disagree with where "
+                "its boxes were recorded (#5066)", artifact.id,
+            )
+            artifact.ocr_geometry = None
+
     artifact.geometry_superseded_by_pass_id = marker
     return artifact
 

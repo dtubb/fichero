@@ -702,6 +702,8 @@ def _pass_candidates(db: Database, document_id: str, georeferencing: bool = Fals
     candidates: list[PassCandidate] = []
     pass_rows = list(db.query(SegmentPass, document_id=document_id))
     corrected = artifacts_a_person_worked_on(db, (p.source_artifact_id for p in pass_rows if p.deleted_at is None))
+    # A deleted result's signals were kept on its pass (#5066).
+    corrected |= {p.source_artifact_id for p in pass_rows if p.source_holds_a_persons_work}
     for pass_row in pass_rows:
         if pass_row.deleted_at is not None:
             continue
@@ -721,9 +723,9 @@ def _pass_candidates(db: Database, document_id: str, georeferencing: bool = Fals
         from_text_layer = False
         if pass_row.source_artifact_id:
             artifact = db.get(Artifact, pass_row.source_artifact_id)
-            from_text_layer = (
-                artifact is not None and artifact.artifact_type == TEXT_LAYER_ARTIFACT_TYPE
-            )
+            # The result's own type, or the type kept on the pass when the result was deleted (#5066).
+            source_type = artifact.artifact_type if artifact is not None else pass_row.source_artifact_type
+            from_text_layer = source_type == TEXT_LAYER_ARTIFACT_TYPE
         candidates.append(
             PassCandidate(
                 pass_id=pass_row.id,

@@ -897,9 +897,13 @@ class TestWhatDeferringRepointingActuallyCosts:
         assert resolved.anchor.rect == [0.6, 0.6, 0.2, 0.05], "and the line has moved"
 
     def test_the_kept_block_is_byte_equal_after_every_door_is_tried(self, db):
-        """#4990 rests on the block never changing. Every writer that could
-        touch it is refused or keeps it: `regions_edit`, `artifact.delete`,
-        `artifact.restore` and the bulk document restore.
+        """#4990 rested on the block never changing. Every writer that could
+        touch it is refused or keeps it: `regions_edit`, `artifact.restore` and
+        the bulk document restore. `artifact.delete` is no longer one of them
+        (#5066): where each box was is its own record now, so the whole result
+        may go -- but it is never REWRITTEN, and a deleted result comes back
+        only with the boxes its origins record
+        (`test_converted_box_origins.py::test_a_deleted_result_comes_back_only_as_it_was`).
         """
         from fichero_server.api.routes.document.documents import restore_documents_impl
         from fichero_server.api.routes.document.segment_conversion import (
@@ -918,9 +922,6 @@ class TestWhatDeferringRepointingActuallyCosts:
                 "artifact_id": artifact.id,
                 "edit": {"op": "move", "indices": [0], "bbox": [0.9, 0.9, 0.05, 0.05]},
             })
-        with pytest.raises(Exception):
-            _invoke_action(db, "artifact.delete", {"artifact_id": artifact.id})
-
         # A snapshot with DIFFERENT boxes, through both restore paths.
         forged = dict(snapshot)
         forged["ocr_geometry"] = dict(snapshot["ocr_geometry"])

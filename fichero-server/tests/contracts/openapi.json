@@ -71832,6 +71832,16 @@
             "$ref": "#/components/schemas/EvidentialDateRange",
             "nullable": true
           },
+          "source_artifact_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Artifact Type"
+          },
+          "source_holds_a_persons_work": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Source Holds A Persons Work"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",

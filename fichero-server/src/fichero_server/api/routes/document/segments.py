@@ -652,6 +652,10 @@ async def list_document_segments(
             if source_artifact is not None:
                 pass_artifact_type = source_artifact.artifact_type
                 source_block = source_artifact.ocr_geometry  # raw-geometry-ok: the words' one home until slice 8
+            elif pass_row.source_artifact_type is not None:
+                # The result was deleted (#5066): its type was kept on the pass, and the words are the
+                # segments' own readings now.
+                pass_artifact_type = pass_row.source_artifact_type
             elif db.get(Artifact, pass_row.source_artifact_id) is not None:
                 # It exists, it just belongs to somebody else's page. No text
                 # is the honest answer, and it is logged, never silent.

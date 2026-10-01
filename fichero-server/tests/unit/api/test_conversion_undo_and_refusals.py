@@ -136,29 +136,36 @@ class TestUndoingAnOldArtifactActionAfterConversion:
         assert restored.geometry_superseded_by_pass_id == converted_pass_id(artifact.id)
         assert db.get(Artifact, artifact.id).geometry_superseded_by_pass_id is not None
 
-    def test_deleting_a_converted_artifact_is_refused(self, db):
-        """RULED 2026-09-20. Until readings hang on segments, this result
-        holds the WORDS of every segment on the page. Deleting it would
-        leave that page readable in outline and blank in substance, and
-        nothing would say so."""
+    def test_deleting_a_converted_artifact_is_refused_while_it_holds_the_only_words(self, db):
+        """RULED 2026-09-20, narrowed by #5066. A page converted by an EARLIER version has segments
+        with no readings of their own: this result is still the only home of their words, and
+        deleting it would leave the page readable in outline and blank in substance."""
+        from fichero_server.models import ContentRepresentation
+
         doc = _make_doc(db)
         artifact = _artifact(db, doc)
         registry.invoke(
             db, "segment.convert_and_edit",
             {"document_id": doc.id}, _ctx(),
         )
+        for reading in db.query(ContentRepresentation, document_id=doc.id):
+            db.delete(reading)  # what an earlier version's conversion left
         with pytest.raises(Exception) as caught:
             registry.invoke(db, "artifact.delete", {"artifact_id": artifact.id}, _ctx())
         assert type(caught.value).__name__ == "ArtifactHoldsTheOnlyWords"
         assert db.get(Artifact, artifact.id) is not None, "nothing may be written"
 
     def test_the_refusal_says_what_a_person_can_do_instead(self, db, client):
+        from fichero_server.models import ContentRepresentation
+
         doc = _make_doc(db)
         artifact = _artifact(db, doc)
         registry.invoke(
             db, "segment.convert_and_edit",
             {"document_id": doc.id}, _ctx(),
         )
+        for reading in db.query(ContentRepresentation, document_id=doc.id):
+            db.delete(reading)
         r = client.delete(f"/api/artifacts/{artifact.id}")
         assert r.status_code == 409, r.text
         assert "words" in r.text and "segments" in r.text

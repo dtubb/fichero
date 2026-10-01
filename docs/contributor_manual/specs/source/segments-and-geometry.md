@@ -1033,7 +1033,7 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
   by `fichero-server/tests/unit/maintenance/test_converted_box_origins.py` (written at conversion; a
   mark follows its box with the result's row gone; a library converted before reads the same, then
   gains the records once; the recording stops between results when the library closes).
-- `source.convert.a-converted-result-can-be-deleted` — **[GAP]** (#5066) a converted result can be
+- `source.convert.a-converted-result-can-be-deleted` — **[PARTIAL]** (→ #5066) a converted result can be
   deleted once every box has its origin recorded and its words are a reading on its segment
   (`source.convert.words-move-with-the-boxes`). Its passes, segments and readings stay; a mark drawn
   before conversion still follows its box after the delete; the delete is undone like any other,
@@ -1043,6 +1043,16 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
   #5222) -- is kept on its pass when the result goes, so the page's text and its working pass are
   the same after the delete as before it (found auditing the delete, 2026-09-30: the ranking read
   both from the result, so deleting a person's corrected result would have demoted their pass).
+  Built 2026-09-30 in the engine: the guard refuses only while a segment has no origin or a box's
+  words no reading, naming which; the pass keeps `source_artifact_type` and
+  `source_holds_a_persons_work`; a deleted result comes back only with the boxes its origins
+  record (a single undo refuses others; a bulk restore brings it back without them). Pinned by
+  `fichero-server/tests/unit/maintenance/test_converted_box_origins.py` (the page keeps its words,
+  boxes, label, working pass and marks; a person's corrected result keeps its rank; undo brings it
+  back exactly; a forged snapshot is refused; no origins, no delete) and
+  `tests/unit/api/test_conversion_undo_and_refusals.py` (no readings, no delete, and the refusal
+  says why). Not yet: the pass's own `text` reads null once its result is gone (its segments carry
+  the words), and no app surface offers the delete.
 
 ## Test matrix
 

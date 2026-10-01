@@ -605,6 +605,12 @@ class SegmentPass(BaseModel):
     #: date (`histdate`). A 1900 atlas plate of Roman Lutetia depicts c. 300 and was made in 1900.
     #: A place geometry adopted from the map is dated by this (`entity.adopt_boundary`).
     depicts: EvidentialDateRange | None = None
+    #: What the page's working-pass choice and the pass's label read from the source result, KEPT
+    #: here when that result is deleted (#5066, `source.convert.a-converted-result-can-be-deleted`):
+    #: its type (a PDF text layer ranks apart) and whether a person made, reviewed or corrected it
+    #: (the SACRED signals, #5222). None while the result is there: it is read from the result.
+    source_artifact_type: str | None = None
+    source_holds_a_persons_work: bool | None = None
     created_at: datetime = Field(default_factory=utc_now)
     #: Soft delete -- a pass is never removed (`segment.pass_delete`'s
     #: inverse, `segment.pass_restore`, clears this).

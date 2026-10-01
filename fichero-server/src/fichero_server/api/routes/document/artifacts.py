@@ -292,54 +292,76 @@ def _update_artifact_impl(
 
 
 class ArtifactHoldsTheOnlyWords(ConversionRefusal, ValueError):
-    """Deleting this result would silently empty the text of every segment
-    on a page somebody has curated.
+    """Deleting this converted result would lose something only it still holds.
 
-    **KEPT, unconditionally, and slice 8b's notes are wrong that it "goes".**
-    Two independent things rest on this refusal, and writing readings only
-    settles one of them:
+    A converted result's block once did two jobs, and a delete has to settle both first
+    (`source.convert.a-converted-result-can-be-deleted`, #5066):
 
-    1. THE WORDS. Until slice 8b a converted page's words lived only in this
-       block. Conversion now writes a reading per segment, so this half IS
-       settled for any page converted since — but not for a page converted by
-       an EARLIER version, whose segments have no readings of their own.
-       Removing the guard would protect libraries converted from now on and
-       silently stop protecting every library converted before.
+    1. THE WORDS. Conversion writes each box's words as a reading on its segment (slice 8b), but a
+       page converted by an EARLIER version has segments with no readings of their own.
+    2. WHERE EACH BOX WAS, which marks drawn before conversion are resolved through. That is its
+       own record now (`ConvertedBoxOrigin`), written at conversion, and recorded once for results
+       converted before it existed, by the running engine at the next open.
 
-    2. THE KEPT BLOCK ITSELF, which is the stronger reason and the one the
-       notes overlook. #4990 rests on the block never changing: it is the
-       permanent table from "the rectangle a box had" to "that box's position",
-       and `resolve_anchor` uses it to recover an unpointed anchor's segment
-       (`source.point.unpointed-anchor-follows-its-box`). Delete this artifact
-       and a mark drawn before conversion stops following its box, with nothing
-       raised. `geometry_from_rows` also builds its projection on this block —
-       the result's own text, provider and rendition come from it.
-
-    So readings did not earn the right to delete this result, and the message
-    below no longer promises that they will. Deleting it needs a way to keep the
-    rectangle-to-position table without the artifact, which is its own design
-    question and nobody's current slice.
-
-    Consistent with the two doors already shut on a converted artifact:
-    `artifact.regions_edit` refuses it, and `vision_base` refuses to
-    overwrite its geometry. "Prefer raising over silent loss" is the rule
-    for research data.
+    Until every box with words has its reading and every segment its origin, the delete is refused
+    with which one is missing. "Prefer raising over silent loss" is the rule for research data.
     """
 
     status_code = 409
 
-    def __init__(self, artifact_id: str, pass_id: str) -> None:
+    def __init__(self, artifact_id: str, pass_id: str, reason: str | None = None) -> None:
         self.artifact_id = artifact_id
         self.pass_id = pass_id
         super().__init__(
-            f"Artifact {artifact_id} cannot be deleted yet: its boxes became "
-            f"the segments of pass {pass_id}, and this result still holds the "
-            "words of every one of them. Deleting it would leave that page's "
-            "segments with no text at all, and it is also the permanent record "
-            "of where each box was, which marks made before conversion are "
-            "resolved through. Delete the segments you do not want, or delete "
-            "the page itself (#4924)."
+            f"Artifact {artifact_id} cannot be deleted yet: its boxes became the segments of pass "
+            f"{pass_id}, and "
+            + (reason or "this result still holds what they need")
+            + ". Delete the segments you do not want, or delete the page itself (#4924, #5066)."
         )
+
+
+def _what_only_this_result_holds(db: Database, artifact: Artifact) -> str | None:
+    """Why a converted result cannot go yet, or None when nothing depends on it (#5066)."""
+    from fichero_server.models import ContentRepresentation, ConvertedBoxOrigin, Segment
+    from fichero_server.models.segments import converted_segment_id
+
+    pass_id = artifact.geometry_superseded_by_pass_id
+    rows = {r.id for r in db.query(Segment, pass_id=pass_id)}
+    recorded = {o.id for o in db.query(ConvertedBoxOrigin, artifact_id=artifact.id)}
+    if rows - recorded:
+        return (
+            f"{len(rows - recorded)} of them have no record yet of where their box was (it is "
+            "written the next time the library opens)"
+        )
+    # raw-geometry-ok: which boxes had words is the block's to say
+    with_words = {
+        converted_segment_id(artifact.id, i)
+        for i, box in enumerate(artifact.ocr_geometry.boxes if artifact.ocr_geometry else [])
+        if (box.text or "").strip()
+    } & rows
+    read = {r.segment_id for r in db.query_in(ContentRepresentation, "segment_id", sorted(with_words))} if with_words else set()
+    if with_words - read:
+        return (
+            f"{len(with_words - read)} of them have no reading of their own, so this result is "
+            "still the only home of their words"
+        )
+    return None
+
+
+def _keep_on_the_pass_what_ranking_reads(db: Database, artifact: Artifact) -> None:
+    """Before a converted result goes, its pass keeps the two facts the page's working-pass choice
+    and the pass's label read from it: its type, and whether a person made, reviewed or corrected
+    it (#5066, the SACRED signals of #5222). Without them a person's corrected pass would rank as a
+    machine's once the result is gone, and the page's text would change."""
+    from fichero_server.api.routes.document.segment_readings import artifacts_a_person_worked_on
+    from fichero_server.models import SegmentPass
+
+    pass_row = db.get(SegmentPass, artifact.geometry_superseded_by_pass_id)
+    if pass_row is None:
+        return
+    pass_row.source_artifact_type = artifact.artifact_type
+    pass_row.source_holds_a_persons_work = artifact.id in artifacts_a_person_worked_on(db, [artifact.id])
+    db.save(pass_row)
 
 
 def _delete_artifact_impl(db: Database, artifact_id: str) -> dict[str, Any]:
@@ -348,13 +370,15 @@ def _delete_artifact_impl(db: Database, artifact_id: str) -> dict[str, Any]:
         raise HTTPException(
             status_code=404, detail=f"Artifact not found: {artifact_id}"
         )
-    # #4924: the third door. Nothing is written before this. STILL
-    # UNCONDITIONAL after slice 8b -- see the class docstring for why writing
-    # readings did not earn the right to delete this.
+    # #4924: the third door. Nothing is written before this. A converted result goes only when
+    # nothing depends on it any more (#5066, see the class docstring).
     if is_converted(artifact):
-        raise ArtifactHoldsTheOnlyWords(
-            artifact.id, artifact.geometry_superseded_by_pass_id or ""
-        )
+        reason = _what_only_this_result_holds(db, artifact)
+        if reason is not None:
+            raise ArtifactHoldsTheOnlyWords(
+                artifact.id, artifact.geometry_superseded_by_pass_id or "", reason
+            )
+        _keep_on_the_pass_what_ranking_reads(db, artifact)
     before = artifact.model_dump(mode="json")
     # Translation and other artifact-scope embeddings must be removed when the
     # artifact is deleted so stale vectors don't linger in search results.
