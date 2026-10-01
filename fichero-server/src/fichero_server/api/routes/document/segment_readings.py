@@ -53,6 +53,7 @@ from fichero_server.llm.language_policy import (
 )
 from fichero_server.models import Artifact, ContentRepresentation, Document
 from fichero_server.models.source_declarations import project_facts
+from fichero_server.models.word_spans import words_that_leave
 from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.knowledge import ProvenanceKind
 from fichero_server.models.readings import (
@@ -394,8 +395,11 @@ def counting_texts(db: Database, rows: list[Segment], kind: str = "transcription
     for choice in db.query_in(ReadingChoice, "segment_id", list(by_segment)):
         choices.setdefault(choice.segment_id, []).append(choice)
     texts: dict[str, str] = {}
+    retired_memo: dict[tuple[str, str], set[str]] = {}   # a line's words worked out once (#5190)
     for segment_id, items in by_segment.items():
-        counted = counting_by_kind(db, segment_id, items, rule=rule, choices=choices.get(segment_id, [])).get(kind)
+        counted = counting_by_kind(
+            db, segment_id, items, rule=rule, choices=choices.get(segment_id, []), retired_memo=retired_memo,
+        ).get(kind)
         if counted is not None and counted.representation_id is not None:
             texts[segment_id] = next(i.content for i in items if i.id == counted.representation_id)
     return texts
@@ -462,6 +466,64 @@ def _candidate(item: ReadingRead) -> ReadingCandidate:
     )
 
 
+def retired_word_readings(db: Database, line: Segment, kind: str, rule: Any) -> set[str]:
+    """The ids of the word readings a person's edit of ``line`` took out (#5190, ruled 2026-09-28).
+
+    `source.textedit.retiring-is-part-of-the-edit`: worked out at read time from the line's
+    COUNTING reading, never written. Only a person's line reading retires anything (a machine's is
+    never the record over a reading it disagrees with, #5175), and only readings older than it
+    ("retired" names the readings that existed when the line was edited; a word given a reading
+    afterwards counts). ⌘Z retracts the line reading, so this answers nothing retired and the words
+    count again with nothing about them written.
+    """
+    line_items = [i for i in readings_of_segment(db, line.id) if i.kind == kind]
+    if not line_items:
+        return set()
+    by_id = {i.id: i for i in line_items}
+    line_choices = [c for c in db.query(ReadingChoice, segment_id=line.id) if c.kind == kind]
+    counted = by_id.get(resolve_counting(rule, line_choices, [_candidate(i) for i in line_items]).representation_id or "")
+    if counted is None or counted.provenance_kind is not ProvenanceKind.human:
+        return set()
+    chain: list[str] = []
+    node, seen = counted, set()
+    while node is not None and node.id not in seen:   # the corrections it builds on, oldest first
+        chain.append(node.content)
+        seen.add(node.id)
+        node = by_id.get(node.corrects_representation_id or "")
+    chain.reverse()
+
+    # The words in the order the page reads them, each with what counted before the edit.
+    siblings = [
+        row for row in db.query(Segment, parent_segment_id=line.id)
+        if row.kind == "word" and row.deleted_at is None
+    ]
+    sequence = _as_written_sequence(db, line.pass_id)
+    if sequence is not None and all(row.id in sequence for row in siblings):
+        siblings.sort(key=lambda row: (sequence[row.id], row.id))
+    else:
+        siblings.sort(key=_segment_order_key)
+    words: list[tuple[str, str]] = []
+    older_by_word: dict[str, list[ReadingRead]] = {}
+    for row in siblings:
+        older = [
+            i for i in readings_of_segment(db, row.id)
+            if i.kind == kind and i.created_at < counted.created_at
+        ]
+        if not older:
+            continue
+        older_by_word[row.id] = older
+        word_choices = [c for c in db.query(ReadingChoice, segment_id=row.id) if c.kind == kind]
+        answer = resolve_counting(rule, word_choices, [_candidate(i) for i in older])
+        text = next((i.content for i in older if i.id == answer.representation_id), None)
+        if text:
+            words.append((row.id, text))
+    return {
+        reading.id
+        for word_id in words_that_leave(words, chain)
+        for reading in older_by_word.get(word_id, [])
+    }
+
+
 def counting_by_kind(
     db: Database,
     segment_id: str,
@@ -469,6 +531,8 @@ def counting_by_kind(
     *,
     rule: Any = None,
     choices: list[ReadingChoice] | None = None,
+    retired_memo: dict[tuple[str, str], set[str]] | None = None,
+    lines_read_by_a_person_skip_their_words: bool = False,
 ) -> dict[str, CountingAnswer]:
     """The counting answer for each kind present, worked out fresh.
 
@@ -483,12 +547,30 @@ def counting_by_kind(
         rule = project_record_rule(db)
     if choices is None:
         choices = list(db.query(ReadingChoice, segment_id=segment_id))
+    # A word a person's edit of its line took out does not count (#5190). The page's own
+    # derivation passes `lines_read_by_a_person_skip_their_words`: it never reads the words under
+    # a line a person read, so it cannot meet a retired word, and a dense page skips the lookup.
+    line = None
+    if not lines_read_by_a_person_skip_their_words:
+        segment = db.get(Segment, segment_id)
+        if segment is not None and segment.kind == "word" and segment.parent_segment_id:
+            parent = db.get(Segment, segment.parent_segment_id)
+            line = parent if parent is not None and parent.kind == "line" else None
+    memo = retired_memo if retired_memo is not None else {}
     answers: dict[str, CountingAnswer] = {}
     for kind in sorted({item.kind for item in items}):
+        retired: set[str] = set()
+        if line is not None:
+            if (line.id, kind) not in memo:
+                memo[(line.id, kind)] = retired_word_readings(db, line, kind, rule)
+            retired = memo[(line.id, kind)]
         answers[kind] = resolve_counting(
             rule,
             [row for row in choices if row.kind == kind],
-            [_candidate(item) for item in items if item.kind == kind],
+            [
+                _candidate(item).model_copy(update={"retracted": True}) if item.id in retired else _candidate(item)
+                for item in items if item.kind == kind
+            ],
         )
     return answers
 
@@ -1133,6 +1215,7 @@ def document_text(
             continue
         counted = counting_by_kind(
             db, row.id, items, rule=record_rule, choices=choices_by_segment.get(row.id, []),
+            lines_read_by_a_person_skip_their_words=True,
         ).get(kind)
         if counted is None or counted.representation_id is None:
             # The line HAS readings and none of them counts (a strict project

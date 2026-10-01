@@ -680,7 +680,7 @@ The editor
 **When a Reader edit takes a word's text out of its line (#5190).**
 
 **Ruled by the maintainer, 2026-09-28:** when a Reader edit takes a word's text out of its line, the engine
-**retires** that word's reading. The behaviours below are the spec for that ruling. None is built. The
+**retires** that word's reading. The behaviours below are the spec for that ruling; the engine half is built (2026-10-01). The
 defaults marked "(default)" are the lead's reading of the ruling, and the maintainer may revisit them.
 
 What exists today, read from the code on 2026-09-28 and not yet run to confirm:
@@ -693,9 +693,11 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   `representation_id = None` ("read from its words").
 - So a line reading typed in the Reader over such a line creates a `representation.create` that the page
   does not read: the words still win. Whatever else #5190 builds, `an-edited-line-reads-from-itself` has to
-  come first. Its first test reproduces this on the recorded Syriac page, where the words have readings.
+  come first. (Correction 2026-10-01: the recorded Syriac page has no line of several words with their own text,
+  nor has the Clm ALTO -- one text-bearing "word" per line. The tests use the corpus's Transkribus German
+  Fraktur PAGE page, 524 words with `Word/TextEquiv` over 74 lines.)
 
-- `source.textedit.word-spans-in-the-line` — **[GAP]** (#5190) **What the words held.** The line's text
+- `source.textedit.word-spans-in-the-line` — **[OK]** (→ #5190; pinned by `fichero-server/tests/unit/models/test_word_spans.py`; runs are token ranges, not yet UTF-16 offsets, as nothing reads them) **What the words held.** The line's text
   before the edit ("the base") is what the page showed:
   - its counting line reading, if it has one;
   - otherwise its words' counting readings joined with single spaces in text order. The derived text's
@@ -709,7 +711,7 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   The line's base is the reading the edit corrects: `corrects_representation_id`, or the words when
   `basedOn` is None. A later edit to the same line maps against the previous edit's line reading, not
   against the words again.
-- `source.textedit.a-word-leaves-the-line` — **[GAP]** (#5190) **What "leaves the line" means.** The base
+- `source.textedit.a-word-leaves-the-line` — **[OK]** (→ #5190; pinned by `fichero-server/tests/unit/models/test_word_spans.py`, one test per case below) **What "leaves the line" means.** The base
   and the new line reading are both split into whitespace-separated tokens. The tokens are aligned in
   order, the same `difflib.SequenceMatcher(autojunk=False)` alignment as `views.diff_word_tokens`. A word
   **stays** only when:
@@ -732,7 +734,7 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
 
   The rule is the same in every direction and script. The base is in logical order, never visual, so
   right-to-left and vertical lines need no case of their own.
-- `source.textedit.an-edited-line-reads-from-itself` — **[GAP]** (#5190) **The edit is what the page shows.**
+- `source.textedit.an-edited-line-reads-from-itself` — **[OK]** (→ #5224; pinned by `fichero-server/tests/unit/api/test_an_edited_line_reads_from_itself.py`) **The edit is what the page shows.**
   Once a person's line reading counts for a line, the page text, line map and export read that line from
   **its own reading**, not from its words. `read_through_children` stops applying to it, and `line_map`
   gives it that `representation_id`, so the next edit corrects it.
@@ -742,7 +744,7 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   would drop text the person just typed, and keeping all of them would drop the edit. A machine's line
   reading changes nothing here, because a machine's reading is never the record over a reading it
   disagrees with (#5175).
-- `source.textedit.retiring-is-part-of-the-edit` — **[GAP]** (#5190) **One action, one undo.** Retiring
+- `source.textedit.retiring-is-part-of-the-edit` — **[PARTIAL]** (#5190; built 2026-10-01: worked out at read time in `counting_by_kind` / `retired_word_readings`, so the Inspector's readings route, the Segments pane's `counting_texts` and every per-segment reader agree; undo brings the word back and a word given a reading after the edit counts -- `fichero-server/tests/unit/api/test_a_word_left_out_of_its_line_is_retired.py`. **Still GAP:** the action's `ChangeSpec` does not yet name the retired word ids in the audit) **One action, one undo.** Retiring
   happens inside the same `representation.create` that saves the line reading. It is one audit row and
   one ⌘Z, never a second action or a background job.
 
