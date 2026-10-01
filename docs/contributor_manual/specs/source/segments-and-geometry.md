@@ -1038,7 +1038,11 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
   (`source.convert.words-move-with-the-boxes`). Its passes, segments and readings stay; a mark drawn
   before conversion still follows its box after the delete; the delete is undone like any other,
   bringing the result back exactly as it was. Until both hold for a result, the delete is refused
-  with the reason, as today.
+  with the reason, as today. What the page's working-pass choice reads from the result -- that it is
+  a PDF's own text layer, and that a person made, reviewed or corrected it (the SACRED signals,
+  #5222) -- is kept on its pass when the result goes, so the page's text and its working pass are
+  the same after the delete as before it (found auditing the delete, 2026-09-30: the ranking read
+  both from the result, so deleting a person's corrected result would have demoted their pass).
 
 ## Test matrix
 
