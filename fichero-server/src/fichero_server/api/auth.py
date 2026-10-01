@@ -220,11 +220,16 @@ def _rate_limit_scope_from_request(request: Request) -> str:
     if user_id and not getattr(state, "bootstrap_auth", False):
         return f"user:{user_id}"
 
-    proxy_identity = _request_header_value(request, _TAILSCALE_PROXY_HEADERS)
-    if proxy_identity is not None:
-        return f"proxy:{proxy_identity.lower()}"
+    # Tailscale's identity header is trusted only when it arrives on loopback, where `tailscale
+    # serve` (which sets it, #5320) is the one that connects. From the LAN listener it is just a
+    # header the caller wrote, and a fresh value per attempt was a fresh bucket (#5350).
+    client_host = request.client.host if request.client else None
+    if client_host in _LOOPBACK_HOSTS:
+        proxy_identity = _request_header_value(request, _TAILSCALE_PROXY_HEADERS)
+        if proxy_identity is not None:
+            return f"proxy:{proxy_identity.lower()}"
 
-    return request.client.host if request.client else "unknown"
+    return client_host or "unknown"
 
 
 def _write_token_file(path: Path, token: str) -> None:

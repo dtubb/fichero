@@ -180,11 +180,7 @@ def test_pin_a_wrong_code_is_refused_and_rate_limited(harness):
     assert statuses[-1] == 429
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="#5350: /api/pair rate limit keyed on a client-supplied Tailscale-User-Login header",
-)
-def test_defect_pairing_rate_limit_cannot_be_dodged_with_a_forged_tailscale_header(harness):
+def test_pairing_rate_limit_cannot_be_dodged_with_a_forged_tailscale_header(harness):
     """An unauthenticated caller rotates `Tailscale-User-Login` and is never rate limited.
 
     `_rate_limit_scope_from_request` (api/auth.py) buckets an unauthenticated request by
