@@ -363,6 +363,75 @@ script nothing can read (lines, hand transcription, train).
 Onboarding can be run again; changing an answer changes defaults for new work and rewrites
 nothing already made.
 
+### Purpose first: "just do it", or the tools (ruled 2026-10-01)
+
+The maintainer ruled on 2026-10-01 that setup be **opinionated**. The first question is what
+the person is trying to do. On the common paths Fichero then **just does it**: it picks the
+models, builds the recipe and runs the layers automatically at import, with no further questions
+and no toggles. For unusual or exploratory work it does not pretend to know; it gives the person
+the **tools** instead: the model finder and bake-off, the recipe editor, the layer choices and the
+analysis views.
+
+**Where it happens.** The first-run window (`FirstRunWindow`, which today makes a library and
+asks nothing about the research) grows into the setup flow. Afterwards everything it set is
+edited in the **Inspector, when the library is selected**: purpose, languages, scripts,
+direction, layers, models per job and the recipe, with an easy way to add a language or a layer.
+That is the one settings surface (`source.project.one-settings-window`).
+
+**Purposes and the layers they turn on.** "AUTO" runs at import for this project. "Off" means
+it does not run at import; it is still there to run by hand or to add later, and nothing is
+hidden. A purpose changes what is offered first and what runs by itself, never what can be
+reached (ruled 2026-10-01: offer first, never hide).
+
+| Purpose | Lines and regions | Reading | Entities (spaCy etc.) | Search vectors | Knowledge graph | Kind |
+|---|---|---|---|---|---|---|
+| Just transcribe | AUTO | AUTO | off | off | off | just do it |
+| People, places and things (entities) | AUTO | AUTO | AUTO | off | off | just do it |
+| Search my sources | AUTO | AUTO | off | AUTO | off | just do it |
+| The full knowledge graph | AUTO | AUTO | AUTO | AUTO | AUTO | just do it |
+| Map places | AUTO | AUTO | AUTO (places) | AUTO | places | just do it |
+| Edit a corpus | AUTO | AUTO | off | off | off | tools (apparatus, comparison) |
+| Decipher a script | off (drawn or checked by hand) | off | off | off | off | tools (`undeciphered-scripts.md`) |
+| Train my own model | AUTO | AUTO (the teacher) | as its base purpose | as its base | as its base | tools (`compute/distillation.md`) |
+| Not sure yet | off | off | off | off | off | everything on demand |
+
+**This refines two rulings, it does not reverse them** (ruled 2026-10-01): the free NLP layer
+runs automatically at import **in projects whose purpose uses entities**, not in every
+project; and Kraken segments automatically at import in projects whose purpose includes lines.
+Neither gains a toggle: the purpose decides. Adding a layer later (Inspector, "Add Layer…")
+runs it over everything already in the project.
+
+**What setup produces: a recipe and the project's defaults.** A **workflow** is a few tools
+chained together. A **recipe** is bigger (ruled 2026-10-01): the workflows a project runs, in
+order, **and** the default model for each step, the settings that go with them, and where each
+step runs. A palaeography recipe might say: Kraken with a named baseline model for lines; a
+named reader; then entities with a named spaCy pipeline; then the knowledge graph with a named
+extraction model. An ancient-Arabic recipe names different models and settings for the same
+steps. A recipe can include its own workflows, can say "this step with this MLX model", or can
+say "too hard for any available model: fine-tune one, on a cluster". Setup writes the
+project's recipe and the project's defaults (languages, scripts, direction, guideline, models per
+job, active layers, the views that open first) at the project rung of the cascade. Both are shown
+before setup closes, and both stay visible in the Inspector. Changing an answer later
+regenerates them and shows what would change; anything the person changed by hand is kept unless
+they choose otherwise.
+
+**Finding and choosing models during setup.** Once languages, scripts and period are known,
+Fichero looks for candidates for each step itself (the extended model finder,
+`source.find.by-need`: Hugging Face, Kraken's Zenodo repository, HTR-United, and the public
+eScriptorium and Transkribus models). An assistant model proposes candidates with reasons drawn
+from their cards (scripts, published accuracy, licence). It runs on the Mac, or in the cloud only
+where the project allows it; it shows its reasons and never picks silently. Then a **bake-off**:
+the top candidates read a few sample pages the person has corrected, or corrects as part of
+setup, and are ranked by character and word error per hand and page kind, with speed, cost,
+size, licence and whether this Mac can run them. The person confirms the winner, which becomes
+the default for that step. The ranking stays on the model cards and can be re-run as
+corrections grow. The bake-off can be skipped ("use the recommendation"). Where nothing fits,
+setup says so and offers the train-your-own path (`compute/distillation.md`).
+
+**Leaving the Mac** (ruled 2026-10-01): asked during setup **and** again the first time a cloud
+model would actually be used, which is when the question means something. The default is that
+nothing leaves.
+
 ### Finding a better model
 
 From a project, or from the AI settings, a researcher can **look for models that suit**: by
@@ -469,6 +538,12 @@ Projects and onboarding
   workflows.
 - `source.recipe.holds-no-second-copy` — **[GAP]** (#4950) a recipe holds no chain that the workflow store also
   holds: a shipped best-practice chain exists once, and the other form is made from it.
+  **Ruled 2026-10-01:** a workflow is a few tools chained; a recipe is the workflows a project
+  runs, in order, plus the default model, settings and place to run for each step. A recipe
+  refers to workflows by name and may carry its own; it never copies one the store already has.
+- `source.recipe.names-models-and-where` — **[GAP]** (#4950) a recipe names the model for each step (for
+  example a Kraken baseline model, an MLX reader, a spaCy pipeline) and where the step runs (this
+  Mac, a cloud provider, or a training job on a cluster).
 - `source.project.automatic-after-first-yes` — **[GAP]** (#4951) automatic chaining is switched on for each
   project and confirms before its first run; what it makes counts as the record only as the
   project's rule allows.
@@ -477,14 +552,52 @@ Projects and onboarding
 - `source.project.relaxed-never-changes-the-maker` — **[GAP]** (#4951) a relaxed project changes what counts as
   the record, never who made it: a machine's reading, pass or claim is stored and shown as a
   machine's in every project (the engine sets this; see → #4868, → #4869).
-- `source.project.one-settings-window` — **[GAP]** (#4951) making a new project and Project Settings… (File menu
-  and the project's context menu) open the same window; there is no second surface.
+- `source.project.one-settings-window` — **[GAP]** (#4951) making a new project runs the setup flow; afterwards
+  its settings live in one place, the library's Inspector (ruled 2026-10-01; Project Settings… in
+  the File menu and the context menu select the library and open that Inspector section); there
+  is no second surface.
 - `source.project.in-the-cascade` — **[GAP]** (#4951) project settings sit between the app and a folder in the
   one cascade; a folder can override them; a shown value says which level it came from.
 - `source.project.own-models` — **[GAP]** (#4951) two projects can use different models for the same job.
 - `source.project.stays-local` — **[GAP]** (#4951) a project marked "pages may not leave this machine" refuses
   cloud models for everything in it, and says why.
-- `source.onboard.five-questions` — **[GAP]** (#4951) making a project asks at most five questions.
+- `source.onboard.purpose-first` — **[GAP]** (#4951) setup first asks what the person is trying to do,
+  from the purposes in the table above in plain words, "Not sure yet" included; the purpose is
+  stored on the project and shown in its Inspector.
+- `source.onboard.purpose-sets-layers` — **[GAP]** (#4951) the purpose decides which layers run at import
+  (the table above): the NLP layer runs automatically only where the purpose uses entities, and
+  lines only where it includes them (refines the NLP and Kraken rulings, 2026-10-01).
+- `source.onboard.offers-never-hides` — **[GAP]** (#4951) a purpose changes what is offered first and what
+  runs by itself; every view and tool stays reachable in every project.
+- `source.onboard.just-do-it` — **[GAP]** (#4951) on a "just do it" purpose, after setup Fichero runs the
+  project's recipe on new material with no further questions.
+- `source.onboard.tools-not-automation` — **[GAP]** (#4951) on a "tools" purpose (edit, decipher, train, not
+  sure), nothing runs at import that the person did not ask for, and the tools that purpose
+  needs are offered first.
+- `source.onboard.add-layer` — **[GAP]** (#4951) a layer or a language can be added later from the library's
+  Inspector; an added layer runs over everything already in the project.
+- `source.onboard.outputs-recipe-and-defaults` — **[GAP]** (#4950, #4951) setup produces the project's recipe
+  (workflows in order, the model, settings and place to run each step) and the project's
+  defaults at the project rung of the cascade; both are shown before setup closes.
+- `source.onboard.edited-in-the-inspector` — **[GAP]** (#4951) everything setup set is shown and edited in the
+  Inspector when the library is selected.
+- `source.onboard.regen-shows-diff` — **[GAP]** (#4951) changing an answer regenerates the recipe and
+  defaults and shows what would change; values the person set by hand are kept unless they
+  choose otherwise.
+- `source.onboard.search-triggered` — **[GAP]** (#4948, #4951) once languages, scripts and period are set,
+  Fichero finds candidate models for each step itself, without a manual search.
+- `source.onboard.assistant-proposal` — **[GAP]** (#4951) an assistant model proposes candidates with reasons
+  from their cards; it runs locally unless the project allows the cloud; it never picks silently.
+- `source.onboard.bakeoff` — **[GAP]** (#4948, #4951) candidates read sample pages the person corrected and
+  are ranked by error per hand and page kind, with speed, cost, size, licence and whether this
+  Mac runs them; the person confirms the winner, which becomes the step's default; the ranking
+  stays on the cards and can be re-run; the bake-off can be skipped.
+- `source.onboard.train-path` — **[GAP]** (#4951, #5336) where no candidate fits a step, setup offers the
+  train-your-own path (`compute/distillation.md`).
+- `source.onboard.egress-asked-twice` — **[GAP]** (#4951) whether pages may leave the Mac is asked during
+  setup and again the first time a cloud model would be used; the default is that nothing leaves.
+- `source.onboard.five-questions` — **[GAP]** (#4951) beyond the purpose, making a project asks at most five
+  questions.
 - `source.onboard.samples-first` — **[GAP]** (#4951) onboarding starts by asking for sample pages, and from them
   proposes scripts, languages, material, period, layout and the best-fitting profile, for
   correction.
