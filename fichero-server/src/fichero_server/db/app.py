@@ -1115,67 +1115,58 @@ class AppDatabase:
             self.conn.commit()
         return True
 
+    #: Every table whose rows point at ``users`` (#5347). A new one must be added here, or
+    #: updating a person who has rows in it fails -- see ``_update_user_fk_safe``.
+    _USER_REFERENCING_TABLES = (
+        "sessions",
+        "enrollment_secrets",
+        "devices",
+        "library_roles",
+        "library_acl_overrides",
+    )
+
     def _update_user_fk_safe(
         self,
         set_clause: str,
         params: list[object],
         user_id: str,
     ) -> None:
-        """Update one user row while preserving ACL references across DuckDB FK limits."""
+        """Update one user row while preserving every reference to it across DuckDB FK limits.
+
+        DuckDB turns an UPDATE of an indexed column (``idx_users_owner``) into delete + insert,
+        which a foreign key refuses while any row still points at the user. So every referencing
+        row is set aside and put back around the update. Only ACL rows were set aside before, so
+        promoting anyone who had ever signed in or paired a device failed (#5347).
+
+        NOT one transaction, deliberately: DuckDB's foreign-key check does not see deletes made
+        earlier in the same transaction, so the update would still be refused. Each statement
+        commits on its own; if anything fails part way, the rows set aside are put back before
+        the error is raised, so a person never loses their sessions, devices or roles.
+        """
         with self._lock:
-            # DuckDB rejects UPDATEs to referenced user rows even when the
-            # primary key stays the same, so temporarily drop ACL references
-            # and restore them around the row update.
-            role_rows = self.conn.execute(
-                """
-                SELECT id, user_id, library_path, role, created_at, updated_at
-                FROM library_roles
-                WHERE user_id = ?
-                ORDER BY created_at, library_path
-                """,
-                [user_id],
-            ).fetchall()
-            override_rows = self.conn.execute(
-                """
-                SELECT id, user_id, library_path, target_id, effect, created_at, updated_at
-                FROM library_acl_overrides
-                WHERE user_id = ?
-                ORDER BY created_at, library_path, target_id
-                """,
-                [user_id],
-            ).fetchall()
-            self.conn.execute(
-                "DELETE FROM library_acl_overrides WHERE user_id = ?",
-                [user_id],
-            )
-            self.conn.execute(
-                "DELETE FROM library_roles WHERE user_id = ?",
-                [user_id],
-            )
-            self.conn.execute(
-                f"UPDATE users SET {set_clause} WHERE id = ?",
-                [*params, user_id],
-            )
-            if role_rows:
-                self.conn.executemany(
-                    """
-                    INSERT INTO library_roles (
-                        id, user_id, library_path, role, created_at, updated_at
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    role_rows,
-                )
-            if override_rows:
-                self.conn.executemany(
-                    """
-                    INSERT INTO library_acl_overrides (
-                        id, user_id, library_path, target_id, effect, created_at, updated_at
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    override_rows,
-                )
+            kept: list[tuple[str, list[str], list[tuple]]] = []
+            for table in self._USER_REFERENCING_TABLES:
+                cursor = self.conn.execute(f"SELECT * FROM {table} WHERE user_id = ?", [user_id])
+                columns = [d[0] for d in cursor.description]
+                kept.append((table, columns, cursor.fetchall()))
+
+            def put_back() -> None:
+                for table, columns, rows in kept:
+                    have = {r[0] for r in self.conn.execute(
+                        f"SELECT {columns[0]} FROM {table} WHERE user_id = ?", [user_id]).fetchall()}
+                    missing = [r for r in rows if r[0] not in have]
+                    if missing:
+                        marks = ", ".join("?" for _ in columns)
+                        self.conn.executemany(
+                            f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({marks})", missing
+                        )
+
+            try:
+                for table in reversed(self._USER_REFERENCING_TABLES):
+                    self.conn.execute(f"DELETE FROM {table} WHERE user_id = ?", [user_id])
+                self.conn.execute(f"UPDATE users SET {set_clause} WHERE id = ?", [*params, user_id])
+            finally:
+                put_back()
             self.conn.commit()
 
     # =========================================================================

@@ -442,12 +442,8 @@ def test_pin_editing_a_person_who_paired_a_device(harness, monkeypatch, change):
     assert client.patch(url, json=change, headers=_bearer(owner_session)).status_code == 200
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="#5347: promoting a person who has ever signed in to owner fails -- DuckDB FK on users (idx_users_owner)",
-)
 @pytest.mark.parametrize("paired", [False, True], ids=["signed-in", "paired"])
-def test_defect_promoting_a_person_who_has_signed_in_to_owner_fails(harness, monkeypatch, paired):
+def test_promoting_a_person_who_has_signed_in_to_owner_works(harness, monkeypatch, paired):
     """`PATCH /api/users/{id} {"is_owner": true}` raises DuckDB's "Violates foreign key
     constraint ... still referenced by a foreign key in a different table" (a 500 to
     the app) whenever the person has a `sessions` row -- i.e. has ever signed in, which
