@@ -340,8 +340,11 @@ Sureness and damage
   `del`, `add` -- nested where they nest; one that crosses another's edge is written plain and
   named in the loss report. A page imported, exported and imported again carries the same facts over
   the same letters (`test_marks_arrive_as_editorial_facts.py::test_the_facts_go_back_out_as_tei_and_come_back_the_same`,
-  the four DDbDP papyri and the Syriac PAGE page). Still missing: PAGE (`custom` unclear) and ALTO
-  exports of facts, and the app.
+  the four DDbDP papyri and the Syriac PAGE page). **PAGE export (2026-10-01):** `unclear` facts
+  are written as `custom` `unclear {offset;length}` from the library, replacing the marks kept from
+  import, so a withdrawn mark is not written back; the kinds PAGE has no `custom` form for are named
+  in the loss report (`::test_a_page_xml_export_writes_the_unclear_facts_as_they_stand_now`).
+  Still missing: ALTO (no standard place for these marks), and the app.
 Letterforms
 - `source.letterform.chain` — **[PARTIAL]** (#4935) a character segment can name its character, its allograph and
   its scribe's form.

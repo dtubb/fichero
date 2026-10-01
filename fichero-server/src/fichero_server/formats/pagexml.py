@@ -517,6 +517,12 @@ def _merge_custom_order(page: SourcePage, indexed: list[tuple[int, int, str]]) -
     return [ref for *_key, ref in sorted(entries)]
 
 
+#: The `foreign` key the exporter puts a segment's editorial facts under (`formats.tei.EDITORIAL_FACTS`;
+#: repeated here so writing PAGE does not load the TEI module).
+_EDITORIAL_FACTS = "editorial:facts"
+_UNCLEAR_CUSTOM = re.compile(r"unclear\s*\{[^}]*\}")
+
+
 def write(page: SourcePage, report: LossReport) -> bytes:
     """One page as PAGE XML 2019, with everything it cannot carry reported.
 
@@ -679,13 +685,26 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         # dropped on the way out -- a silent loss, which is the one thing the loss
         # report exists to make impossible. Writing it back is the fix; declaring it
         # as a loss would have been settling for honest data destruction.
-        if segment.foreign.get("custom"):
+        custom = str(segment.foreign.get("custom") or "")
+        facts = segment.foreign.get(_EDITORIAL_FACTS)
+        if facts is not None:
+            # The library's editorial facts are the record (#5179): the file's own `unclear` marks
+            # kept from import are replaced by the facts as they stand now, so a mark a person
+            # withdrew is not written back and one they added is. PAGE says only `unclear` here;
+            # the other kinds are named in the loss report rather than dropped quietly.
+            custom = _UNCLEAR_CUSTOM.sub("", custom).strip()
+            marks = []
+            for fact in facts:
+                if fact["kind"] == "unclear" and fact["end"] is not None and fact["end"] > fact["start"]:
+                    marks.append(f"unclear {{offset:{fact['start']}; length:{fact['end'] - fact['start']};}}")
+                else:
+                    report.note(f"a '{fact['kind']}' editorial mark", 1,
+                                "PAGE XML records only `unclear` stretches in `custom`")
+            custom = " ".join(filter(None, [custom, *marks]))
+        if custom:
             # Composed with the derived-coords marker, never over it: overwriting it made
             # a worked-out region shape read back as one the source drew.
-            element.set(
-                "custom",
-                " ".join(filter(None, [str(segment.foreign["custom"]), element.get("custom")])),
-            )
+            element.set("custom", " ".join(filter(None, [custom, element.get("custom")])))
         if segment.foreign.get("readingDirection") and not segment.direction:
             element.set("readingDirection", str(segment.foreign["readingDirection"]))
 

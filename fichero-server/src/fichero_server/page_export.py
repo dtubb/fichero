@@ -172,12 +172,12 @@ def page_from_library(
                 foreign=dict(row.metadata.get("foreign") or {}),
             )
         )
-        facts = _editorial_facts_on(db, row.id, items[0].id if items else None)
-        if facts:
-            # Imported here, not at module scope: format modules load on first use (#4038).
-            from fichero_server.formats.tei import EDITORIAL_FACTS
+        # Always set, empty or not: the library's facts are the record, so a writer drops whatever
+        # the file's own marks said when it was imported (a fact a person withdrew stays withdrawn).
+        # Imported here, not at module scope: format modules load on first use (#4038).
+        from fichero_server.formats.tei import EDITORIAL_FACTS
 
-            segments[-1].foreign[EDITORIAL_FACTS] = facts
+        segments[-1].foreign[EDITORIAL_FACTS] = _editorial_facts_on(db, row.id, items[0].id if items else None)
         if pass_row is not None and pass_row.transformation:
             _georeference_ends(db, row, segments[-1], controls)
     choices.segment_count = len(segments)

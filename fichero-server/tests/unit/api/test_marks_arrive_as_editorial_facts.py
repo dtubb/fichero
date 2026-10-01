@@ -215,3 +215,28 @@ def test_the_facts_go_back_out_as_tei_and_come_back_the_same(db, path):
     tmp_file.write_bytes(exported.data)
     doc_again, _ = _import(db, again)
     assert _facts_by_text(db, doc_again) == before
+
+
+def _round_trip(db, doc_id, fmt, suffix):
+    from fichero_server.page_export import export_page
+
+    exported = export_page(db, doc_id, fmt)
+    again = Path(db.path).parent / f"again-{doc_id}{suffix}"
+    again.write_bytes(exported.data)
+    doc_again, _ = _import(db, again)
+    return doc_again
+
+
+def test_a_page_xml_export_writes_the_unclear_facts_as_they_stand_now(db):
+    """#5179, PAGE: the file's `unclear {offset;length}` marks come back out from the library's facts,
+    not from the `custom` string kept at import, so a mark a person WITHDREW is not written back. Before
+    this the kept string was written verbatim: the withdrawn mark came back on the next import."""
+    doc_id, _ = _import(db, SYRIAC)
+    before = _facts_by_text(db, doc_id)
+    assert _facts_by_text(db, _round_trip(db, doc_id, "pagexml", ".page.xml")) == before
+
+    withdrawn = next(f for f in db.all(EditorialFact)
+                     if f.kind.value == "unclear" and f.segment_id == _line(db, doc_id, "l_57").id)
+    registry.invoke(db, "editorial.withdraw", {"fact_id": withdrawn.id}, BOOT)
+    after = _facts_by_text(db, _round_trip(db, doc_id, "pagexml", ".2.page.xml"))
+    assert sum(after.values()) == sum(before.values()) - 1, "the withdrawn mark is not written back"
