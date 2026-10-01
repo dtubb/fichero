@@ -35,7 +35,7 @@ enum DebugScriptVerbs {
     }
 }
 
-#if DEBUG
+#if DEBUG && os(macOS)  // AppleScript commands: macOS only, like AppleScriptCommands.swift (#5322)
 /// `select page <document id>` (Debug test suite): the page opened in the Library, as a click opens it.
 @objc(FicheroSelectPageCommand)
 class FicheroSelectPageCommand: NSScriptCommand {

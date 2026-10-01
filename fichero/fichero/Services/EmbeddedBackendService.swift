@@ -114,8 +114,11 @@ final class EmbeddedBackendService {
     /// The spawned engine's `Process`, held for its lifetime (#5269). Its `terminationHandler` is
     /// what tells a starting launch the engine died; a `Process` only local to the spawn could be
     /// released with that handler, and a launch whose engine exited at once then polled a dead
-    /// socket for minutes instead of showing why.
+    /// socket for minutes instead of showing why. macOS only: iOS has no `Process` and spawns no
+    /// engine, and an unguarded one stopped the iOS app compiling.
+    #if os(macOS)
     var backendProcess: Process?
+    #endif
 
     /// The engine we spawned was handed the library grants in its environment (#5228): it holds
     /// them before it serves, so re-sending them need not delay the first library load.

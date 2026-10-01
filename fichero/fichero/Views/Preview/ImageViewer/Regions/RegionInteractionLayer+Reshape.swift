@@ -1,3 +1,4 @@
+#if os(macOS)  // as RegionInteractionLayer.swift: the layer is AppKit (#5322)
 import SwiftUI
 
 /// Reshape in Edit Segments: a press on a point of any of the ONE selected segment's shapes -- outline,
@@ -134,3 +135,4 @@ extension RegionInteractionLayer {
                        y: (normalized[1] - visible.minY) / visible.height * size.height)
     }
 }
+#endif

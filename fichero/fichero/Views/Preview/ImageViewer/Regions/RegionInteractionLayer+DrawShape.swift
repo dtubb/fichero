@@ -1,3 +1,4 @@
+#if os(macOS)  // as RegionInteractionLayer.swift: the layer is AppKit (#5322)
 import SwiftUI
 
 /// The Shape tool's polygon and baseline in Edit Segments (`source.editor.draw-shapes`): each click adds
@@ -63,3 +64,4 @@ extension RegionInteractionLayer {
         }
     }
 }
+#endif

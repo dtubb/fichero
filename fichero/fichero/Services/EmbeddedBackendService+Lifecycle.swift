@@ -307,7 +307,9 @@ extension EmbeddedBackendService {
 
         // Clear state immediately
         backendPID = nil
+        #if os(macOS)
         backendProcess = nil
+        #endif
         status = .stopped
 
         // Graceful shutdown - send SIGTERM
