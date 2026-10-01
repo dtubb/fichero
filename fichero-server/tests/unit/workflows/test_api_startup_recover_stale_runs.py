@@ -78,7 +78,6 @@ async def test_lifespan_shutdown_stops_managed_local_inference(
     monkeypatch.setattr(api_main, "_seed_builtin_providers", lambda: None)
     monkeypatch.setattr(api_main, "_collapse_duplicate_providers", lambda: None)
     monkeypatch.setattr(api_main, "_install_access_log_filter", lambda: None)
-    monkeypatch.setattr(api_main, "_prewarm_embeddings", lambda: None)
     monkeypatch.setattr(
         api_main,
         "shutdown_managed_local_inference_services",

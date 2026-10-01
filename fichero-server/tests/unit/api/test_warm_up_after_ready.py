@@ -1,4 +1,8 @@
-"""Pin #4690: the embeddings prewarm must wait for readiness AND for quiet.
+"""Pin #4690: the after-ready warm-up must wait for readiness AND for quiet -- and,
+since #5283 (ruled 2026-10-01), it never loads the embedding model (about 1.5 GB).
+
+The history below is of the embeddings load this warm-up used to run; the gates it
+describes now hold the workflow tool-stack warm-up, which still runs here (#5228).
 
 `_prewarm_embeddings()` used to run immediately after the tool-stack warm-up,
 racing the app's own readiness poll for the GIL — measured (2026-09-17, real
@@ -15,7 +19,7 @@ identity load, library restore) run for several more seconds after "ready",
 and those calls' responses landed inside the SAME GIL hold the prewarm had
 just started. The second fix adds an idle gate: the prewarm also waits until
 no non-`/api/health` request has completed for
-`_EMBEDDINGS_PREWARM_IDLE_SECONDS`, re-armed by `_mark_request_activity()`
+`_WARM_IDLE_SECONDS` (then `_EMBEDDINGS_PREWARM_IDLE_SECONDS`), re-armed by `_mark_request_activity()`
 (called by the same middleware) on every qualifying request.
 """
 
@@ -27,21 +31,37 @@ import logging
 import pytest
 
 from fichero_server.api import main as api_main
+from fichero_server.db import embeddings
+
+
+def _watch_model_loads(monkeypatch) -> list[str]:
+    loads: list[str] = []
+    monkeypatch.setattr(embeddings, "_get_shared_embedder", lambda name, _cache: loads.append(name))
+    return loads
+
+
+def _warmed(caplog) -> bool:
+    return any("workflow tool stack warm-up start" in r.message for r in caplog.records)
+
+
+async def _until_warmed(caplog) -> None:
+    for _ in range(500):  # up to 10s: the real tool-stack warm-up takes ~1.3 s
+        if _warmed(caplog):
+            break
+        await asyncio.sleep(0.02)
+    assert _warmed(caplog), "the warm-up never ran after the app was ready and quiet"
 
 
 @pytest.mark.asyncio
-async def test_embeddings_prewarm_waits_for_first_registry_200_signal(
+async def test_warm_up_waits_for_first_registry_200_signal_and_loads_no_model(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Readiness-signal gating, isolated from the idle gate (idle set to ~0
     here so this test proves ONLY the signal ordering, not the idle wait —
-    that's `test_embeddings_prewarm_waits_for_idle_after_signal` below)."""
-    calls: list[str] = []
-
-    monkeypatch.setattr(api_main, "_prewarm_embeddings", lambda: calls.append("prewarm"))
-    monkeypatch.setattr(api_main, "_should_prewarm_embeddings", lambda: True)
-    monkeypatch.setattr(api_main, "_EMBEDDINGS_PREWARM_IDLE_SECONDS", 0.01)
+    that's `test_warm_up_waits_for_idle_after_signal_and_loads_no_model` below)."""
+    loads = _watch_model_loads(monkeypatch)
+    monkeypatch.setattr(api_main, "_WARM_IDLE_SECONDS", 0.01)
 
     caplog.set_level(logging.INFO, logger="fichero_server.api.main")
 
@@ -54,11 +74,6 @@ async def test_embeddings_prewarm_waits_for_first_registry_200_signal(
             "workflow tool stack warm-up start" in r.message for r in caplog.records
         ), "the tool-stack warm-up started before the app was ready (#5228 regression)"
 
-        assert calls == [], (
-            "embeddings prewarm ran before the readiness signal — the #4690 "
-            "regression this test pins (it should wait for a real "
-            "/api/registry 200, not run unconditionally after tool warm-up)"
-        )
 
         # Drive the signal directly (#4690: same style as
         # test_provider_seed_after_yield.py's blocking-event technique) —
@@ -67,29 +82,23 @@ async def test_embeddings_prewarm_waits_for_first_registry_200_signal(
         # same `app` object `lifespan()` above was entered with.
         api_main._mark_first_registry_200(api_main.app)
 
-        for _ in range(500):  # up to 10s: the real tool-stack warm-up (~1.3 s) runs first (#5228)
-            if calls:
-                break
-            await asyncio.sleep(0.02)
-        assert calls == ["prewarm"], (
-            f"embeddings prewarm did not run after the readiness signal fired: {calls!r}"
-        )
+        await _until_warmed(caplog)
+        assert loads == [], "the embedding model was loaded at launch (#5283 regression)"
 
 
 @pytest.mark.asyncio
-async def test_embeddings_prewarm_waits_for_idle_after_signal(
+async def test_warm_up_waits_for_idle_after_signal_and_loads_no_model(
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Run-4 regression: readiness alone is not enough — traffic must also go
     quiet. Drives `_mark_request_activity()` directly every 0.1s (synthetic
     non-health requests, arriving faster than the idle window can close) and
     asserts the prewarm does NOT run while they keep arriving, then DOES run
     within roughly idle+epsilon after they stop."""
-    calls: list[str] = []
-
-    monkeypatch.setattr(api_main, "_prewarm_embeddings", lambda: calls.append("prewarm"))
-    monkeypatch.setattr(api_main, "_should_prewarm_embeddings", lambda: True)
-    monkeypatch.setattr(api_main, "_EMBEDDINGS_PREWARM_IDLE_SECONDS", 0.3)
+    loads = _watch_model_loads(monkeypatch)
+    monkeypatch.setattr(api_main, "_WARM_IDLE_SECONDS", 0.3)
+    caplog.set_level(logging.INFO, logger="fichero_server.api.main")
 
     async with api_main.lifespan(api_main.app):
         api_main._mark_first_registry_200(api_main.app)
@@ -99,20 +108,15 @@ async def test_embeddings_prewarm_waits_for_idle_after_signal(
         for _ in range(8):
             api_main._mark_request_activity(api_main.app)
             await asyncio.sleep(0.1)
-            assert calls == [], (
-                "embeddings prewarm ran while requests were still arriving — "
+            assert not _warmed(caplog), (
+                "the warm-up ran while requests were still arriving — "
                 "the idle gate did not re-arm on activity (#4690 run-4 regression)"
             )
 
         # Traffic stops here. It should fire within idle (0.3s) + a small
         # margin for scheduling.
-        for _ in range(500):  # up to 10s: the real tool-stack warm-up (~1.3 s) runs first (#5228)
-            if calls:
-                break
-            await asyncio.sleep(0.02)
-        assert calls == ["prewarm"], (
-            f"embeddings prewarm did not run after the request stream went idle: {calls!r}"
-        )
+        await _until_warmed(caplog)
+        assert loads == [], "the embedding model was loaded once the app went quiet (#5283 regression)"
 
 
 @pytest.mark.asyncio

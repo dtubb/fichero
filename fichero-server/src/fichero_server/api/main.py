@@ -543,119 +543,10 @@ def _collapse_duplicate_providers() -> None:
         logger.warning("Provider duplicate collapse failed: %s", exc)
 
 
-def _should_prewarm_embeddings() -> bool:
-    """Whether to pre-warm the embeddings model at startup.
-
-    Default TRUE — production and normal dev always warm it. Opt OUT with
-    ``FICHERO_SKIP_EMBEDDINGS_PREWARM=1``: a fresh Application Support home (a
-    UI-test harness engine) has an empty model cache, so warming there blocks
-    startup on a 7-file HuggingFace download and can hang the engine. A UI test
-    that actually EXERCISES embeddings unsets the flag for its engine so it warms;
-    everything else skips the download it does not need. Pure so the gate is
-    testable without booting the engine.
-    """
-    return os.environ.get("FICHERO_SKIP_EMBEDDINGS_PREWARM") != "1"
-
-
-def _prewarm_embeddings() -> None:
-    """Download + initialise the embeddings model so it's ready before first use.
-
-    #4690: this used to run immediately after the tool-stack warm-up, on the
-    same post-bind executor thread, racing the app's OWN readiness poll for
-    the GIL. Measured 2026-09-17 (real launch, engine access log): the
-    tool-stack warm-up (langgraph/MCP import) served 20 concurrent requests
-    fine while it ran, but the embeddings load (fastembed/onnxruntime loading
-    a large multilingual model) correlated with a bare 5.2s window in which
-    the access log shows ZERO completed requests of any kind — then an
-    immediate flood of successes the instant the load finished. That is the
-    engine failing to answer its own readiness probe because loading this
-    model holds the GIL long enough to starve the event loop, not a network
-    or auth problem.
-
-    Now gated behind `_first_registry_200_signal` (see below): the call is
-    deferred until AFTER a real authenticated `/api/registry` 200 proves the
-    app's readiness contract is satisfied, so this load can no longer contend
-    with the poll that gates it. Tradeoff: the first embeddings-consuming
-    feature (semantic search, KG) pays some of this cost if the user reaches
-    it before the deferred warm-up finishes in the background — same
-    "load it before clicking, not blocking anything the window needs"
-    design as the tool-stack warm-up above, just triggered by a
-    request-observed signal instead of an executor schedule.
-
-    Run 4 (2026-09-18): the readiness signal alone still fired too EARLY —
-    `markReady()`'s own post-ready authenticated follow-up calls (session
-    refresh, identity load, library restore) run for several more seconds
-    after "ready", and this load starting right then meant THOSE calls'
-    responses landed inside the same GIL hold instead. Added a second gate:
-    the load also waits for the request stream to go idle
-    (`_EMBEDDINGS_PREWARM_IDLE_SECONDS`, `_last_request_at`) before it starts.
-
-    If idle-gating still isn't enough — the GIL hold itself is 5-8s measured
-    so far, WHEREVER it lands, and idle-gating only controls *when* it lands,
-    not its duration or the fact that it still holds the GIL for that whole
-    stretch — the structural fix is a SUBPROCESS for this specific load (a
-    small worker process that loads the model and either serves embedding
-    requests over IPC or exits after warming the on-disk cache so the next
-    real load is fast), which cannot contend for this process's GIL at all.
-    Not done here: bigger surface (IPC, lifecycle, a second process to manage)
-    for a problem idle-gating may already fully solve.
-    """
-    try:
-        from fastembed import TextEmbedding
-
-        # Use the embedder's own configured embedding space (single source of
-        # truth) so pre-warm always loads the same model the real embedder uses.
-        from fichero_server.db.embeddings import (
-            DEFAULT_MODEL,
-            _configured_embedding_space,
-            _register_fastembed_model_for_space,
-        )
-        from fichero_server.llm.local_models import MODELS_BASE
-
-        # Guard against an unsupported model name (e.g. a stale setting, or a
-        # default that fastembed dropped support for): fall back to the
-        # canonical default rather than failing the whole pre-warm (#1524).
-        space = _configured_embedding_space()
-        _register_fastembed_model_for_space(space)
-        model_name = space.fastembed_model_name
-        try:
-            supported = {m["model"] for m in TextEmbedding.list_supported_models()}
-            if model_name not in supported:
-                logger.warning(
-                    "Embedding model %s not supported by fastembed; "
-                    "falling back to %s",
-                    model_name,
-                    DEFAULT_MODEL,
-                )
-                model_name = DEFAULT_MODEL
-        except Exception:  # noqa: BLE001 — never let the guard block pre-warm
-            pass
-
-        from fichero_server.db.embeddings import _get_shared_embedder
-
-        cache_dir = MODELS_BASE / "embeddings"
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        logger.info("Pre-warming embeddings model: %s", model_name)
-        import warnings
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore", message=".*multilingual-e5-large.*pooling.*"
-            )
-            # Route through _get_shared_embedder so the model lands in
-            # _EMBEDDER_CACHE — not a discarded local instance. Any
-            # subsequent _ensure_embedder() call on a Database is then a
-            # dict lookup rather than a 500 MB reload (#1918).
-            _get_shared_embedder(model_name, str(cache_dir))
-        logger.info("Embeddings model ready")
-    except Exception as exc:
-        logger.warning("Embeddings pre-warm failed (will retry on first use): %s", exc)
-
-
 # #4690: the app's readiness contract (`EngineReadinessProbe`) checks health,
 # identity and finally an authenticated `GET /api/registry` 200 — that last
 # leg is the concrete, cheap signal that the app's own readiness poll has
-# actually succeeded, so the embeddings prewarm below waits for it instead of
+# actually succeeded, so the after-ready warm-up below waits for it instead of
 # a fixed sleep.
 #
 # CORRECTED (2026-09-19, #4690 follow-up): this Event and timestamp used to
@@ -680,19 +571,19 @@ def _prewarm_embeddings() -> None:
 # #4690/run-4: the readiness signal alone fires too EARLY — `markReady()`'s
 # own authenticated follow-up calls (session refresh, identity load, then
 # library restore) run for several more seconds AFTER "ready", and starting
-# the embeddings load right at "ready" means those calls' responses land
-# inside the SAME GIL hold the prewarm just started (measured run 4: bound
+# the (then) embeddings load right at "ready" meant those calls' responses landed
+# inside the SAME GIL hold the warm-up had just started (measured run 4: bound
 # @18523ms → markReady @27132ms, an 8.6s gap, vs. 3.3s in run 3 with no
-# prewarm running concurrently). So the prewarm additionally waits for the
+# prewarm running concurrently). So the warm-up additionally waits for the
 # request stream to go QUIET: no non-`/api/health` request completed for
-# `FICHERO_EMBEDDINGS_PREWARM_IDLE_S` seconds (default 3.0). `last_request_at`
+# `FICHERO_WARM_IDLE_S` seconds (default 3.0). `last_request_at`
 # is a monotonic timestamp (not wall-clock — only elapsed-time math is ever
 # done with it), updated by the same middleware that sets the readiness
 # signal, and re-armed on every qualifying request — the waiter loop below
 # just keeps sleeping for however much of the idle window is left.
 
-_EMBEDDINGS_PREWARM_IDLE_SECONDS = float(
-    os.environ.get("FICHERO_EMBEDDINGS_PREWARM_IDLE_S", "3.0")
+_WARM_IDLE_SECONDS = float(
+    os.environ.get("FICHERO_WARM_IDLE_S", "3.0")
 )
 
 
@@ -724,8 +615,6 @@ def prefetch_library_caches(package_path: Path) -> dict:
     """Warm per-library caches so the first user request is fast (#1918).
 
     Specifically:
-    - Calls ``db._ensure_embedder()`` — which is now a near-zero-cost
-      dict lookup when ``_prewarm_embeddings`` already ran.
     - Opens each LanceDB vector table via ``count_rows()`` to pull its
       memory-mapped pages into the OS page cache before a user issues the
       first semantic search.
@@ -741,7 +630,6 @@ def prefetch_library_caches(package_path: Path) -> dict:
 
     stats: dict = {
         "package_path": str(package_path),
-        "embedder_warmed": False,
         "lance_tables_opened": 0,
     }
 
@@ -755,16 +643,8 @@ def prefetch_library_caches(package_path: Path) -> dict:
         )
         return stats
 
-    # Warm embedder (no-op when _prewarm_embeddings already populated cache).
-    try:
-        db._ensure_embedder()
-        stats["embedder_warmed"] = True
-    except Exception as exc:
-        logger.warning(
-            "prefetch_library_caches: embedder warm failed for %s: %s",
-            package_path,
-            exc,
-        )
+    # The embedding model is NOT loaded here (#5283): it loads on the first embed or semantic
+    # search and is released when idle, so opening a library costs no 1.5 GB.
 
     # Pull LanceDB vector-table metadata into the OS page cache.
     for table_name in (
@@ -1042,9 +922,8 @@ async def lifespan(app: FastAPI):
     # NOT at bind (#5228): started there, this 1.2 s of CPU-bound import held
     # the GIL exactly while the app loaded its libraries, the same contention
     # #4690 measured and removed for the embeddings load. It now runs from
-    # `_prewarm_embeddings_after_ready`, after the readiness signal and quiet,
-    # and before the embeddings load, so neither competes with the launch or
-    # with each other.
+    # `_warm_after_ready`, after the readiness signal and quiet, so it does not
+    # compete with the launch.
     #
     # In an executor, NOT via call_soon: importing is blocking, CPU-bound work
     # and would starve the event loop it ran on — the same mistake, and the
@@ -1084,10 +963,6 @@ async def lifespan(app: FastAPI):
 
             _api_stamp("workflow tool stack warm-up complete")
             logger.info("Workflow tool stack warmed")
-            # Embeddings prewarm moved OUT of this thread (#4690) — it now
-            # waits for `_first_registry_200_signal` instead of running here
-            # unconditionally; see `_prewarm_embeddings_after_ready` below and
-            # the comment on `_prewarm_embeddings` itself for why.
         except Exception as exc:
             # Deliberately not fatal: a failed warm-up must not take down an
             # engine that is already serving. It is logged at WARNING with a
@@ -1096,57 +971,36 @@ async def lifespan(app: FastAPI):
             # _ensure_tools_loaded(), which does not catch (#3951).
             logger.warning("Workflow tool warm-up failed: %r", exc)
 
-    async def _prewarm_embeddings_after_ready() -> None:
-        """Wait for `_first_registry_200_signal`, THEN for the request stream
-        to go quiet, then run the embeddings load on its own executor
-        submission (#4690) — deferred, not skipped: #1918's "load it before
-        clicking" intent is unchanged, only the trigger moved from "as soon as
-        the socket is bound" to "once the app has actually gone quiet", so
-        this load can no longer contend with the app's own readiness poll —
-        or its post-ready follow-up calls — for the GIL (see
-        `_prewarm_embeddings`'s docstring for the measured windows this
-        fixes).
+    async def _warm_after_ready() -> None:
+        """Warm the workflow tool stack once the app is ready AND quiet (#4690, #5228).
 
-        Run 4 (2026-09-18): the readiness signal ALONE fired too early —
-        `markReady()`'s own authenticated follow-up (session refresh, identity
-        load, then library restore) runs for several more seconds AFTER
-        "ready", and starting the load right at "ready" meant those calls'
-        responses landed inside the SAME GIL hold the prewarm had just
-        started (bound→markReady stretched from 3.3s with no prewarm running
-        to 8.6s with the prewarm racing it). So this waits for BOTH: the
-        readiness signal, then quiet — no non-`/api/health` request completed
-        for `_EMBEDDINGS_PREWARM_IDLE_SECONDS` — before it actually loads.
+        Waits for `_first_registry_200_signal`, then for no non-`/api/health` request for
+        `_WARM_IDLE_SECONDS`: `markReady()`'s own follow-up calls (session refresh, identity,
+        library restore) run for seconds after "ready", and a CPU-bound import started then held
+        the GIL through them (bound→markReady went from 3.3 s to 8.6 s, run 4, 2026-09-18). At bind
+        it held the GIL through the app's launch loads (#5228).
 
-        A short-lived process (a test, a CLI import) may never see a real
-        `/api/registry` 200 or ever go quiet — shutdown CANCELS this task
-        rather than awaiting it, so that case can't hang teardown: it is
-        conditional on live traffic that may never come.
+        The embedding model is no longer warmed here (#5283, ruled 2026-10-01): about 1.5 GB held
+        from launch to quit whether or not anything was embedded or searched. It loads on first use
+        and is released when idle (`db.embeddings.leased_embedder`).
 
-        The workflow tool-stack warm-up runs here too, first (#5228): at bind
-        it held the GIL through the app's own launch loads.
+        A short-lived process (a test, a CLI import) may never see a real `/api/registry` 200 or go
+        quiet; shutdown CANCELS this task rather than awaiting it.
         """
-        _api_stamp("embeddings prewarm waiting for readiness signal")
+        _api_stamp("warm-up waiting for readiness signal")
         await app.state.first_registry_200_signal.wait()
-        _api_stamp("embeddings prewarm waiting for idle")
+        _api_stamp("warm-up waiting for idle")
         while True:
             elapsed = time.monotonic() - app.state.last_request_at
-            remaining = _EMBEDDINGS_PREWARM_IDLE_SECONDS - elapsed
+            remaining = _WARM_IDLE_SECONDS - elapsed
             if remaining <= 0:
                 break
             await asyncio.sleep(remaining)
         await asyncio.get_running_loop().run_in_executor(None, _warm_workflow_stack)
-        _api_stamp("embeddings prewarm start")
-        try:
-            if _should_prewarm_embeddings():
-                await asyncio.get_running_loop().run_in_executor(None, _prewarm_embeddings)
-            else:
-                logger.info("Skipping embeddings pre-warm (FICHERO_SKIP_EMBEDDINGS_PREWARM=1)")
-        except Exception as exc:
-            # Same non-fatal contract as the tool-stack warm-up above.
-            logger.warning("Embeddings warm-up failed: %r", exc)
-        _api_stamp("embeddings prewarm complete")
+        # The embedding model is NOT warmed (#5283, ruled 2026-10-01): it is about 1.5 GB, and it
+        # loads on the first embed or semantic search and is released once idle.
 
-    embeddings_warm_started = asyncio.create_task(_prewarm_embeddings_after_ready())
+    warm_started = asyncio.create_task(_warm_after_ready())
 
     _api_stamp("lifespan pre-yield complete")
     yield
@@ -1179,9 +1033,9 @@ async def lifespan(app: FastAPI):
     # `_first_registry_200_signal.wait()` (a short-lived process that never
     # saw a real `/api/registry` 200), and awaiting an un-cancelled wait here
     # would hang shutdown on traffic that may never come.
-    embeddings_warm_started.cancel()
+    warm_started.cancel()
     with suppress(asyncio.CancelledError):
-        await embeddings_warm_started
+        await warm_started
     await shutdown_managed_local_inference_services()
     # Shutdown: close all database connections
     logger.info("Fichero API shutting down...")
@@ -1366,7 +1220,7 @@ async def add_security_headers(request: Request, call_next):
 @app.middleware("http")
 async def _observe_first_registry_200(request: Request, call_next):
     """Fire `_first_registry_200_signal` on the app's own readiness leg, and
-    track request activity for the embeddings-prewarm idle gate (#4690).
+    track request activity for the after-ready warm-up's idle gate (#4690).
 
     Cheap: a routed-path string compare, an already-set `Event` check, and a
     monotonic-clock read on every request (the common case, forever). Watches
@@ -1384,7 +1238,7 @@ async def _observe_first_registry_200(request: Request, call_next):
     ):
         _mark_first_registry_200(request.app)
     # Health polling never stops, so it must not count as "activity" — only
-    # non-health traffic re-arms the idle window the prewarm waits for.
+    # non-health traffic re-arms the idle window the warm-up waits for.
     if routed_path != "/api/health":
         _mark_request_activity(request.app)
     return response

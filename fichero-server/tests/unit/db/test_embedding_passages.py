@@ -54,7 +54,7 @@ def test_format_for_model_pinned_e5_alias_keeps_required_prefixes() -> None:
     )
 
 
-def test_database_embed_text_defaults_to_e5_query_prefix(tmp_path) -> None:
+def test_database_embed_text_defaults_to_e5_query_prefix(tmp_path, monkeypatch) -> None:
     db = Database(tmp_path / "e5-query-prefix.duckdb")
     captured: list[list[str]] = []
 
@@ -63,7 +63,9 @@ def test_database_embed_text_defaults_to_e5_query_prefix(tmp_path) -> None:
             captured.append(list(texts))
             yield [1.0, 0.0]
 
-    db._embedder = FakeEmbedder()
+    # The model is leased from the shared cache by name (#5283), not kept on the Database.
+    monkeypatch.setattr(db_embeddings, "_EMBEDDER_CACHE", {"fake-model": FakeEmbedder()})
+    db._embedder = ("fake-model", str(tmp_path))
     db._embedding_model_name = "intfloat/multilingual-e5-large"
 
     assert db._embed_text("Camilo ledger") == [1.0, 0.0]
@@ -72,7 +74,7 @@ def test_database_embed_text_defaults_to_e5_query_prefix(tmp_path) -> None:
     db.close()
 
 
-def test_database_embed_texts_formats_e5_passage_batches(tmp_path) -> None:
+def test_database_embed_texts_formats_e5_passage_batches(tmp_path, monkeypatch) -> None:
     db = Database(tmp_path / "e5-passage-prefix.duckdb")
     captured: list[list[str]] = []
 
@@ -82,7 +84,9 @@ def test_database_embed_texts_formats_e5_passage_batches(tmp_path) -> None:
             yield [1.0, 0.0]
             yield [0.0, 1.0]
 
-    db._embedder = FakeEmbedder()
+    # The model is leased from the shared cache by name (#5283), not kept on the Database.
+    monkeypatch.setattr(db_embeddings, "_EMBEDDER_CACHE", {"fake-model": FakeEmbedder()})
+    db._embedder = ("fake-model", str(tmp_path))
     db._embedding_model_name = "intfloat/multilingual-e5-large"
 
     assert db._embed_texts(["First page", "Second page"], role="passage") == [

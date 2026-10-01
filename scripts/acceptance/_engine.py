@@ -64,7 +64,6 @@ def engine_env() -> dict[str, str]:
             "FICHERO_TOKEN_DIR": str(STATE),
             "FICHERO_LIBRARY_ALLOWED_ROOTS": str(LIBRARY_ROOT),
             "FICHERO_BACKEND_STABLE_MODE": "1",
-            "FICHERO_SKIP_EMBEDDINGS_PREWARM": "1",
             "FICHERO_SKIP_DERIVATIVE_RESUME": "1",
             # The engine exits when this process does (#4400), so a crashed or killed
             # acceptance script can never leave its engine running unattended.

@@ -45,7 +45,6 @@ def test_main_starts_and_answers_health_on_its_socket():
         "FICHERO_UDS_PATH": sock_path,
         "FICHERO_BOOTSTRAP_TOKEN": "test-token-main-serves",
         "FICHERO_SKIP_DEFAULT_WORKFLOWS": "1",
-        "FICHERO_SKIP_EMBEDDINGS_PREWARM": "1",
     }
     env.pop("FICHERO_TCP_TLS_ALSO", None)
     process = subprocess.Popen(

@@ -15,6 +15,7 @@ import math
 import os
 import re
 import threading
+import time
 from typing import Any, Callable, Literal
 
 from fichero_server.errors import ErrorCategory, handle_error
@@ -160,11 +161,86 @@ _EMBEDDER_CACHE_LOCK = threading.Lock()
 _LEGACY_TABLE_WARNED: set[str] = set()
 
 
+#: Seconds without an embed or a semantic search before the model is released (#5283). bge-m3 is
+#: about 1.5 GB; a reload costs seconds, which the ruling (2026-10-01) accepts over holding it.
+EMBEDDER_IDLE_SECONDS = float(os.environ.get("FICHERO_EMBEDDER_IDLE_SECONDS", "600"))
+# When each model was last let go, and how many embeds hold it now. Guarded by the cache lock.
+_EMBEDDER_LAST_USE: dict[str, float] = {}
+_EMBEDDER_IN_USE: dict[str, int] = {}
+_RELEASER: threading.Thread | None = None
+
+
+class leased_embedder:  # noqa: N801 -- used as `with leased_embedder(...)`, like a function
+    """The model for one embed, loaded if it is not (#5283). While leased it is never released, and
+    ending the lease restarts the idle clock. Never keep the object past the `with`: a reference
+    held anywhere else keeps 1.5 GB alive after its release.
+
+    A class, not `contextlib.contextmanager`: the engine's import budget counts modules (#3950).
+    """
+
+    def __init__(self, model_name: str, cache_dir: str) -> None:
+        self.model_name, self.cache_dir = model_name, cache_dir
+
+    def __enter__(self) -> Any:
+        with _EMBEDDER_CACHE_LOCK:
+            _EMBEDDER_IN_USE[self.model_name] = _EMBEDDER_IN_USE.get(self.model_name, 0) + 1
+        try:
+            return _get_shared_embedder(self.model_name, self.cache_dir)
+        except BaseException:
+            self.__exit__()
+            raise
+
+    def __exit__(self, *_exc: Any) -> None:
+        with _EMBEDDER_CACHE_LOCK:
+            _EMBEDDER_IN_USE[self.model_name] -= 1
+            _EMBEDDER_LAST_USE[self.model_name] = time.monotonic()
+        _start_releaser()
+
+
+def release_idle_embedders(idle_seconds: float | None = None) -> list[str]:
+    """Release every model no embed holds and none has used for `idle_seconds`; the names released."""
+    idle = EMBEDDER_IDLE_SECONDS if idle_seconds is None else idle_seconds
+    now = time.monotonic()
+    with _EMBEDDER_CACHE_LOCK:
+        released = [
+            name for name in list(_EMBEDDER_CACHE)
+            if not _EMBEDDER_IN_USE.get(name) and now - _EMBEDDER_LAST_USE.get(name, 0.0) >= idle
+        ]
+        for name in released:
+            del _EMBEDDER_CACHE[name]
+            _EMBEDDER_LAST_USE.pop(name, None)
+    if released:
+        import gc  # here, not at import: the engine's import budget counts modules (#3950)
+
+        gc.collect()  # the ONNX session goes with its last reference; collect now, not someday
+        logger.info("Released idle embedding model(s): %s", ", ".join(released))
+    return released
+
+
+def _start_releaser() -> None:
+    """One daemon thread while a model is loaded: checks for the idle spell, ends when none is."""
+    global _RELEASER
+    with _EMBEDDER_CACHE_LOCK:
+        if _RELEASER is not None and _RELEASER.is_alive():
+            return
+        _RELEASER = threading.Thread(target=_release_when_idle, name="embedder-releaser", daemon=True)
+        _RELEASER.start()
+
+
+def _release_when_idle() -> None:
+    while True:
+        time.sleep(max(0.05, min(EMBEDDER_IDLE_SECONDS / 4, 60.0)))
+        release_idle_embedders()
+        with _EMBEDDER_CACHE_LOCK:
+            if not _EMBEDDER_CACHE:
+                return
+
+
 def _get_shared_embedder(model_name: str, cache_dir: str) -> Any:
     """Return the process-global TextEmbedding for ``model_name``, loading once.
 
     Double-checked locking so concurrent worker threads don't each load the
-    model. The host stores the returned object on ``self._embedder``.
+    model. Callers lease it (`leased_embedder`) rather than keep it, so it can be released.
     """
     embedder = _EMBEDDER_CACHE.get(model_name)
     if embedder is not None:
@@ -828,10 +904,14 @@ class DatabaseEmbeddingMixin:
         return raw in {"1", "true", "yes", "on"}
 
     def _ensure_embedder(self) -> None:
-        """Lazy-load the embedding model.
+        """Load the embedding model if it is not loaded, and remember which one this library uses.
 
         Uses FastEmbed (ONNX-based, no scikit-learn dependency).
         The model + pooling are pinned in code to avoid silent vector drift.
+
+        The model itself is NOT kept on the instance (#5283): it lives in the process-global cache
+        and every embed leases it (`leased_embedder`), so it can be released once nothing has used
+        it for a while. `self._embedder` holds only which model and where.
         """
         if self._embedder is None:
             try:
@@ -843,12 +923,7 @@ class DatabaseEmbeddingMixin:
                 cache_dir = MODELS_BASE / "embeddings"
                 cache_dir.mkdir(parents=True, exist_ok=True)
                 _register_fastembed_model_for_space(space)
-                # Process-global: loaded once and shared across every Database
-                # instance / worker thread (see _get_shared_embedder). Previously
-                # this constructed a fresh ~500 MB model per instance/thread.
-                self._embedder = _get_shared_embedder(
-                    space.fastembed_model_name, str(cache_dir)
-                )
+                self._embedder = (space.fastembed_model_name, str(cache_dir))
             except ImportError as exc:
                 # Chain the real cause (#2507): a non-fastembed ImportError
                 # (e.g. a bad submodule import) used to be masked as the
@@ -856,6 +931,10 @@ class DatabaseEmbeddingMixin:
                 raise ImportError(
                     "fastembed not installed. Install with: pip install fastembed"
                 ) from exc
+        # Process-global: loaded once and shared across every Database instance / worker thread
+        # (see _get_shared_embedder), and released when idle.
+        with leased_embedder(*self._embedder):
+            pass
 
     def _embed_text(self, text: str, *, role: EmbeddingRole = "query") -> list[float]:
         """Generate embedding vector for text.
@@ -872,7 +951,8 @@ class DatabaseEmbeddingMixin:
         self._ensure_embedder()
         model_name = getattr(self, "_embedding_model_name", None) or self._get_embedding_model_name()
         formatted = format_for_model(model_name, text, role)
-        embeddings = list(self._embedder.embed([formatted]))
+        with leased_embedder(*self._embedder) as embedder:
+            embeddings = list(embedder.embed([formatted]))
         return _l2_normalize(_vector_to_list(embeddings[0]))
 
     def _embed_texts(
@@ -901,8 +981,9 @@ class DatabaseEmbeddingMixin:
         # forever. Two derivative workers doubled it. Same vectors out, same
         # order; only the peak is capped.)
         embeddings: list = []
-        for start in range(0, len(formatted), _EMBED_SLICE):
-            embeddings.extend(self._embedder.embed(formatted[start : start + _EMBED_SLICE]))
+        with leased_embedder(*self._embedder) as embedder:
+            for start in range(0, len(formatted), _EMBED_SLICE):
+                embeddings.extend(embedder.embed(formatted[start : start + _EMBED_SLICE]))
         return [_l2_normalize(_vector_to_list(e)) for e in embeddings]
 
     async def _embed_text_async(

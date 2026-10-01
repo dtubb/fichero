@@ -247,6 +247,21 @@ read of the calling loop before it can be called fully resolved.
   re-verified: whether an infrastructure-level embedding failure actually STOPS an import loudly
   (vs. continuing silently, document by document, each individually counted) — the calling loop
   at the ingest call site was not traced closely enough to say either way.
+- `search.embedding-model-only-while-needed` — **[OK]** (→ #5283, ruled 2026-10-01) the
+  embedding model (bge-m3, about 1.5 GB of the engine's 1.8 GB, measured 2026-09-30) is loaded
+  when something needs it — an embed or a semantic search — and **released once nothing has
+  used it for a while**, so a session that never embeds or searches never holds it. It is
+  **not loaded at launch**: the post-ready prewarm no longer loads it (the workflow tool-stack
+  warm-up stays). An embed that is running holds it; the release waits for it. The first
+  semantic search after a release pays the load again (seconds), which the ruling accepts.
+  Built as `db.embeddings.leased_embedder` (every embed leases the shared model; a Database
+  keeps only which model) and `release_idle_embedders`, run by a daemon thread while a model is
+  loaded (`FICHERO_EMBEDDER_IDLE_SECONDS`, default 600). Pinned by
+  `fichero-server/tests/unit/db/test_embedding_model_only_while_needed.py` (released means
+  collected; an embed in progress holds it; a Database keeps no reference),
+  `tests/unit/api/test_warm_up_after_ready.py` (launch loads no model) and
+  `tests/unit/api/test_prefetch.py::test_prefetch_loads_no_embedding_model`. Not yet measured on
+  a running engine (the footprint after the idle spell).
 - `search.unify-retrieval-as-one-index` — **[PARTIAL, north-star]** (#1824) the four-leg response
   plus leg visibility is real, meaningful movement toward "one queryable index, many lenses" —
   but the issue's own full list (graph + RAG + vector + full-text + hermeneutics + ontology +

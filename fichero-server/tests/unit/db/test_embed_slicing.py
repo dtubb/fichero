@@ -5,8 +5,15 @@ through the ONNX embedder in ONE call spiked the activation peak, which the
 arena keeps forever. _embed_texts must slice — same vectors, same order.
 """
 
+import pytest
+
 from fichero_server.db import embeddings as embeddings_module
 from fichero_server.db.embeddings import _EMBED_SLICE
+
+
+@pytest.fixture(autouse=True)
+def _own_cache(monkeypatch):
+    monkeypatch.setattr(embeddings_module, "_EMBEDDER_CACHE", {})
 
 
 class _RecordingEmbedder:
@@ -20,12 +27,15 @@ class _RecordingEmbedder:
 
 
 class _Host:
-    """The minimal shape _embed_texts reads off `self`."""
+    """The minimal shape _embed_texts reads off `self`: which model, leased from the shared cache
+    (#5283), where the recording model sits."""
 
     _embedding_model_name = "fichero-pinned/multilingual-e5-large-mean-v1"
 
     def __init__(self):
-        self._embedder = _RecordingEmbedder()
+        self.model = _RecordingEmbedder()
+        embeddings_module._EMBEDDER_CACHE["recording-model"] = self.model
+        self._embedder = ("recording-model", "/tmp/cache")
 
     def _ensure_embedder(self):
         pass
@@ -40,11 +50,11 @@ def test_large_batches_are_sliced_and_order_preserved():
     texts = [f"passage {i:04d}" for i in range(_EMBED_SLICE * 2 + 7)]
     vectors = _call(host, texts)
     assert len(vectors) == len(texts)
-    assert max(host._embedder.batch_sizes) <= _EMBED_SLICE
-    assert len(host._embedder.batch_sizes) == 3
+    assert max(host.model.batch_sizes) <= _EMBED_SLICE
+    assert len(host.model.batch_sizes) == 3
 
 
 def test_empty_input_stays_cheap():
     host = _Host()
     assert _call(host, []) == []
-    assert host._embedder.batch_sizes == []
+    assert host.model.batch_sizes == []

@@ -13,7 +13,8 @@ A test must run the engine in a configuration that matches what the **briefcase*
 packaged, shipped engine) runs — *except* for a small, explicit, reviewed set of test-only
 overrides. Today they can silently diverge: the briefcase loads a `.env` via
 `python-dotenv`, while the UI harness sets env inline (`FICHERO_FORCE_UDS_PATH`,
-`FICHERO_UITEST_HOME`, `FICHERO_ALL_FEATURES=1`, `FICHERO_SKIP_EMBEDDINGS_PREWARM=1`).
+`FICHERO_UITEST_HOME`, `FICHERO_ALL_FEATURES=1`; `FICHERO_SKIP_EMBEDDINGS_PREWARM=1` is gone
+since #5283, when the engine stopped loading the embedding model at startup).
 Two failure modes follow: (1) a test passes on config the shipped app never uses; (2) the
 shipped app breaks on config no test covered. And because the harness forces
 `FICHERO_ALL_FEATURES=1`, **no UI test exercises the real release feature gate.**
@@ -28,8 +29,6 @@ shipped app breaks on config no test covered. And because the harness forces
   - `FICHERO_UITEST_HOME` / `_LIBRARY` / `_OPEN_DOCUMENT` — point the engine at the seeded
     disposable library (isolation).
   - `FICHERO_FORCE_UDS_PATH` — dev fast-loop socket.
-  - `FICHERO_SKIP_EMBEDDINGS_PREWARM=1` — skip the model download a fresh-home engine can't
-    serve (a UI plan testing embeddings unsets it).
   Anything set in a test but NOT in this allowlist is a drift bug.
 - `testenv.parity-guardrail` [MISSING] (#4786) — a `check_*.py` that fails when the test engine
   sets an env var the briefcase doesn't know, unless it's in the allowlist; and warns when
@@ -59,7 +58,7 @@ shipped app breaks on config no test covered. And because the harness forces
 
 | Leg | This surface? | Pins | File |
 |-----|---------------|------|------|
-| Pure rule (py) | y | the prewarm gate + any parity/override rule | `fichero-server/tests/unit/api/test_prewarm_gate.py` (done) + parity rule test |
+| Pure rule (py) | y | any parity/override rule (the prewarm gate it once held went with the prewarm, #5283) | parity rule test |
 | Guardrail (py) | y | test/briefcase env parity + allowlist | `scripts/check_test_env_parity.py` (new) |
 | Backend (pytest) | y | engine honors the gate/env | startup/config tests |
 | Click-around (XCUITest) | y | the suite runs under the release gate, not only ALL_FEATURES | a release-tier UI plan |

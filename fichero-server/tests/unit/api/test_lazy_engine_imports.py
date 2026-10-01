@@ -244,8 +244,7 @@ def test_warm_up_runs_after_bind_and_loads_the_stack() -> None:
     out = _run(
         """
         import asyncio, os, sys
-        os.environ["FICHERO_EMBEDDINGS_PREWARM_IDLE_S"] = "0.01"
-        os.environ["FICHERO_SKIP_EMBEDDINGS_PREWARM"] = "1"
+        os.environ["FICHERO_WARM_IDLE_S"] = "0.01"
         from fastapi import FastAPI
         from fichero_server.api import main as api_main
         from fichero_server.api.main import lifespan
