@@ -270,7 +270,93 @@ one is a person's act, recorded with its maker and undoable.
   identifications and their hypotheses, all attributed to them, beside the project's own,
   never merged into it.
 
+### 10. Seeing signs, and correcting them where you see them
+
+Arguing about signs is done with the pictures in front of you. Each of these is a **view mode
+over a selection of marks**: a sign, a group the model proposed, a page, a search. Each one is
+**also a place to correct**. Selecting marks in any view and identifying them, splitting them
+off, merging them into another sign or marking them unclear is an identification with its
+maker, audited and undoable. Every mark in every view opens its page with the mark highlighted.
+
+- **Instance sheet.** Every instance of a sign (or a proposed group) as a grid of its cut
+  pictures, at one scale and aligned on their centres. It can be sorted or grouped by:
+  - closeness to the typical form (the odd ones out first or last);
+  - confidence;
+  - who identified it;
+  - site, period, hand or object type.
+
+  Dragging instances onto another sign re-identifies them. This is the main working view.
+- **Side by side.** Two signs, or two proposed groups, as two sheets with their distribution
+  test (section 4) between them: "do these behave as one sign?" answered next to "do they look
+  like one?".
+- **Overlay.** The instances of a sign superimposed, as an average image and a variance image,
+  to show the typical form and where scribes differed. The difference between two signs'
+  averages shows exactly which part sets them apart, the middle stroke for example.
+- **Map of the picture space.** Every mark as its thumbnail, placed by its picture vector,
+  projected to two dimensions with the method named (`explore.meaning.methods-are-named`). It can
+  be coloured by:
+  - the current identification;
+  - the annotator;
+  - the model's proposal;
+  - site or period;
+  - agreement.
+
+  Marks whose identification differs from their neighbours' stand out. A lasso selects a
+  region of the map for identifying. The projection's distortions are stated, since distance on
+  the map is not a measurement (`explore.meaning.distance-is-not-a-measurement`).
+- **Two maps, linked.** The picture-space map beside the context-space map (section 7): selecting
+  a sign in one lights it in the other, so "looks alike" and "used alike" are read together.
+- **Confusion grid.** Rows are one judge's identifications and columns another's: two students,
+  a student and the lead, or the model and the people. Each cell opens its instances, so the
+  pairs of signs people confuse can be seen and corrected.
+- **Sign in context.** Every occurrence of a sign, lined up on the sign with its neighbours to
+  the left and right (keyword in context, as in `explore.corpus.keyword-in-context`, but with sign
+  pictures), sortable by the sign before or after.
+- **Variation across place and time.** A sign as small multiples: one cell per site, period or
+  hand, each holding its typical form and count. This shows whether a variant is a place's or a
+  period's habit.
+- **Components.** Instances filtered by a component, with or without it, and the component
+  highlighted on each picture.
+- **Sequence views.** A transition diagram (which signs follow which, with arrow widths by
+  probability, against the baseline) and a position grid (signs against position in a line or
+  entry). Clicking a cell opens the instances.
+- **The sign list as a table.** Every sign with its picture, its numbers in each list, its
+  frequency, its agreement score and its open hypotheses, sortable. This is the index the other
+  views open from.
+
+The same selection carries from view to view, so a group found on the map can be checked on an
+instance sheet, overlaid, tested by distribution and corrected, without being lost.
+
 ## Behaviors
+
+Seeing and correcting:
+- `decipher.see.correct-in-any-view` — **[GAP]** (#5339) selecting marks in any of these views lets a
+  person identify, split, merge or mark them unclear, audited and undoable, and every mark opens
+  its page with the mark highlighted.
+- `decipher.see.instance-sheet` — **[GAP]** (#5339) every instance of a sign or group is shown as an
+  aligned grid of pictures, sortable by closeness to the typical form, confidence, judge and
+  context, and dragging instances re-identifies them.
+- `decipher.see.side-by-side` — **[GAP]** (#5339) two signs or groups are shown as two sheets with their
+  distribution test between them.
+- `decipher.see.overlay` — **[GAP]** (#5339) a sign's instances are superimposed as average and variance
+  images, and two signs' averages can be differenced.
+- `decipher.see.picture-map` — **[GAP]** (#5339) marks are laid out as thumbnails by picture vector, with
+  the method and its distortions named, coloured by identification, judge, proposal, context or
+  agreement, with a lasso to select.
+- `decipher.see.linked-maps` — **[GAP]** (#5339) the picture-space and context-space maps are linked, so
+  selecting a sign in one lights it in the other.
+- `decipher.see.confusion-grid` — **[GAP]** (#5339) one judge's identifications against another's, with
+  each cell opening its instances.
+- `decipher.see.in-context` — **[GAP]** (#5339) every occurrence of a sign is lined up with its
+  neighbours, as pictures, and sortable by the sign before or after.
+- `decipher.see.variation` — **[GAP]** (#5339) a sign is shown as small multiples by site, period or hand.
+- `decipher.see.components` — **[GAP]** (#5339) instances are filtered by a component and the component
+  is highlighted on each picture.
+- `decipher.see.sequences` — **[GAP]** (#5339) a transition diagram and a position grid, against the
+  baseline, with each cell opening its instances.
+- `decipher.see.list-table` — **[GAP]** (#5339) the sign list as a sortable table with picture, numbers in
+  each list, frequency, agreement and open hypotheses.
+- `decipher.see.selection-carries` — **[GAP]** (#5339) the same selection carries from view to view.
 
 Marks and identifications:
 - `decipher.mark.before-sign` — **[GAP]** (#5329) a mark can be recorded with only its shape and
