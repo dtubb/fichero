@@ -15,7 +15,7 @@ api/main.py::_seed_builtin_providers 2
 api/main.py::_static_dependency_versions 1
 api/main.py::lifespan._start_bonjour 1
 api/main.py::lifespan._warm_workflow_stack 1
-api/main.py::prefetch_library_caches 2
+api/main.py::prefetch_library_caches 1
 api/routes/ai/hpc.py::_broadcast_hpc_change 1
 api/routes/ai/provider_models.py::_configured_api_base 1
 api/routes/ai/provider_models.py::list_models_for_provider 5
@@ -58,6 +58,9 @@ bookmarks.py::stop_accessing 1
 core/background_compute.py::current_thread_qos_class 1
 core/background_compute.py::set_background_qos 1
 core/duckdb_session.py::pin_utc_session 1
+# #5315: the index failing leaves search case- and accent-sensitive, logged at ERROR only;
+# surfacing it is the search owner's (#5307).
+db/__init__.py::Database._ensure_text_search_index 1
 db/__init__.py::Database._reconnect_after_invalidated 2
 db/__init__.py::Database.search 1
 db/__init__.py::Database.workflow_rows_for_list 1
@@ -132,7 +135,9 @@ loaders/kreuzberg_cache.py::prewarm_for_extraction 1
 loaders/pdf_loader.py::PDFTextLoader.load 1
 loaders/xmp_loader.py::_extract_xmp_fields 1
 loaders/xmp_loader.py::_parse_xmp_file 1
-maintenance/conversion_on_open.py::_run 1
+# #5315: the second is recording converted box origins (#5066): anchors read the block
+# meanwhile and record_missing_box_origins backfills on the next open.
+maintenance/conversion_on_open.py::_run 2
 maintenance/project_conversion.py::convert_project 1
 mcp/manager.py::MCPManager.load_all_tools 1
 security/keychain.py::_invalidate_llm_api_key_cache 1
