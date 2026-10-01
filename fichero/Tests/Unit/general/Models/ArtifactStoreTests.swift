@@ -172,6 +172,34 @@ final class ArtifactStoreTests: XCTestCase {
         XCTAssertEqual(store.items.count, 2, "both rows must remain when every delete fails")
     }
 
+    // MARK: - delete: a refused converted result (#5066)
+
+    /// The engine refuses to delete a converted result something still depends on, and its 409 says
+    /// what. The app showed "Couldn't delete artifact." (the Inspector) or nothing at all (the list),
+    /// because the 409 was undeclared and arrived as a bare status. The reason is kept, word for word.
+    func testARefusedDeleteKeepsTheEnginesReasonAndTheRow() async throws {
+        let store = await Self.storeWithTwoArtifacts()
+        let art1 = try XCTUnwrap(store.items.first { $0.id == "art-1" })
+        let reason = "Artifact art-1 cannot be deleted yet: its boxes became the segments of pass p1, "
+            + "and 3 of them have no reading of their own."
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/artifacts/art-1", method: "DELETE", status: 409,
+                 body: try JSONSerialization.data(withJSONObject: ["detail": reason]))
+        ])
+
+        let failed = await store.delete([art1])
+
+        XCTAssertEqual(failed, 1)
+        XCTAssertEqual(store.deleteRefusal, reason, "the engine's sentence, not a status code")
+        XCTAssertTrue(store.items.contains { $0.id == "art-1" }, "a refused delete keeps the row")
+
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/artifacts/art-1", method: "DELETE", status: 204, body: Data())
+        ])
+        _ = await store.delete([art1])
+        XCTAssertNil(store.deleteRefusal, "a delete that went through leaves no stale reason")
+    }
+
     // MARK: - update: already-correct pattern, first regression test
 
     func testUpdateSplicesInPlaceByIndexPreservingTheOtherRow() async throws {

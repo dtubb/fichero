@@ -8113,6 +8113,16 @@
           "204": {
             "description": "Successful Response"
           },
+          "409": {
+            "description": "A converted result something still depends on (#5066): a segment with no recorded origin, a box whose words have no reading of their own, or a correction that names it. Nothing was deleted, and the sentence says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {

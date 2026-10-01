@@ -277,7 +277,7 @@ struct DocumentInspectorContentV2: View {
         if failedDeletes == 0 {
             actionError = nil
         } else {
-            actionError = "Couldn't delete artifact."
+            actionError = "Couldn't delete: \(artifactStore.deleteRefusal ?? "the engine refused.")"
         }
     }
 

@@ -137,9 +137,13 @@ final class ArtifactStore: ObservableDomainStore {
     /// `succeededIds`). Each artifact is deleted under its OWN `documentId` (a
     /// long doc's artifacts hang off page children, not the scope doc).
     /// Returns the number that failed to delete.
+    /// Why the last `delete` left something in place, in the engine's words; nil when everything went.
+    private(set) var deleteRefusal: String?
+
     @discardableResult
     func delete(_ artifacts: [Artifact]) async -> Int {
         guard !artifacts.isEmpty else { return 0 }
+        deleteRefusal = nil
         var failed = 0
         var succeededIds: Set<String> = []
         for artifact in artifacts {
@@ -151,6 +155,9 @@ final class ArtifactStore: ObservableDomainStore {
                 succeededIds.insert(artifact.id)
             } catch {
                 failed += 1
+                // The engine's own reason, kept for the view to show (#5066): a converted result
+                // that still holds what its page needs says which thing it still holds.
+                deleteRefusal = deleteRefusal ?? error.localizedDescription
                 log.error(
                     "Failed to delete artifact \(artifact.id, privacy: .public): \(error.localizedDescription, privacy: .public)"
                 )

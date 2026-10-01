@@ -440,6 +440,8 @@ def _invert_artifact_create(
     return ("artifact.delete", {"artifact_id": artifact_id})
 
 
+from fichero_server.api.routes.document.format_import import ErrorDetail as _ErrorDetail  # noqa: E402
+
 # Routes
 
 
@@ -955,7 +957,20 @@ async def update_artifact(
     return ArtifactResponse.model_validate(result.result)
 
 
-@router.delete("/{artifact_id}", status_code=204)
+@router.delete(
+    "/{artifact_id}",
+    status_code=204,
+    responses={
+        409: {
+            "model": _ErrorDetail,
+            "description": (
+                "A converted result something still depends on (#5066): a segment with no recorded "
+                "origin, a box whose words have no reading of their own, or a correction that names "
+                "it. Nothing was deleted, and the sentence says which."
+            ),
+        },
+    },
+)
 async def delete_artifact(
     artifact_id: str,
     db: Database = Depends(get_library_database_for_write),

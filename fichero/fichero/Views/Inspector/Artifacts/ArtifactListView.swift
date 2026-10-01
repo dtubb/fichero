@@ -53,6 +53,8 @@ struct ArtifactListView: View {
     @State private var selectedIDs: Set<String> = []
     @State private var artifactsToDelete: [Artifact] = []
     @State private var showingDeleteConfirmation = false
+    /// The engine's reason a delete left something in place (#5066), shown rather than dropped.
+    @State private var deleteRefusal: String?
 
     /// Resolve a workflow id to its display name for run-group headers.
     /// `nil` (or an unresolved id) falls back to a generic "Workflow Run".
@@ -95,6 +97,13 @@ struct ArtifactListView: View {
             }
         } message: {
             Text(deletionPrompt)
+        }
+        .alert("Couldn't Delete", isPresented: Binding(
+            get: { deleteRefusal != nil }, set: { if !$0 { deleteRefusal = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(deleteRefusal ?? "")
         }
         .onAppear {
             // Seed the multi-selection from whatever the shared focus already holds.
@@ -320,7 +329,9 @@ struct ArtifactListView: View {
 
     private func deleteArtifacts(_ targets: [Artifact]) async {
         guard !targets.isEmpty else { return }
-        await store.delete(targets)
+        if await store.delete(targets) > 0 {
+            deleteRefusal = store.deleteRefusal ?? "The engine refused."
+        }
         // Drop the deleted ids from the selection; clear focus if it was deleted.
         let deletedIDs = Set(targets.map(\.id))
         selectedIDs.subtract(deletedIDs)

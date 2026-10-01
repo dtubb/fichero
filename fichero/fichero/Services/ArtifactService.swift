@@ -230,6 +230,11 @@ class ArtifactService {
                 }
             }
             logger.info("Deleted artifact \(id)")
+        case .conflict(let refusal):
+            // A converted result something still depends on (#5066). The engine's sentence says
+            // which -- a box without its own reading, a segment whose origin is not recorded yet,
+            // a correction that names it -- and it is shown as said, not as a server error.
+            throw ArtifactServiceError.refused(try refusal.body.json.detail)
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ArtifactServiceError.serverError(detail?.detail?.description ?? "Validation error")
@@ -323,6 +328,8 @@ class ArtifactService {
 enum ArtifactServiceError: Error, LocalizedError {
     case unexpectedResponse(Int)
     case serverError(String)
+    /// The engine declined, and its sentence says why (#5066): shown as it is.
+    case refused(String)
 
     var errorDescription: String? {
         switch self {
@@ -330,6 +337,8 @@ enum ArtifactServiceError: Error, LocalizedError {
             return "Unexpected response from artifact service (status: \(code))"
         case .serverError(let message):
             return "Server error: \(message)"
+        case .refused(let reason):
+            return reason
         }
     }
 }
