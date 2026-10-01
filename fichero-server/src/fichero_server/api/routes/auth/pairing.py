@@ -23,6 +23,7 @@ from fichero_server.api.routes.auth.accounts import _current_session_user
 from fichero_server.db.app import AppDatabase, get_app_db
 from fichero_server.models import AccountUser, ActionAudit, Device
 from fichero_server.security.remote_access_tls import validate_spki_pin, validate_tailnet_url
+from fichero_server.security import tailscale_serve
 
 logger = logging.getLogger(__name__)
 
@@ -410,7 +411,8 @@ def create_pairing_code(
         user_id=user.id,
         expires_at=expires_at,
     )
-    tailnet_url = (os.environ.get("FICHERO_TAILNET_URL") or "").strip()
+    # FICHERO_TAILNET_URL, else a `.ts.net` sharing address -- which is all the app sets (#2603).
+    tailnet_url = tailscale_serve.tailnet_url()
     if tailnet_url:
         try:
             tailnet_url = validate_tailnet_url(tailnet_url)

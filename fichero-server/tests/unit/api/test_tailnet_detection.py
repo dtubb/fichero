@@ -38,13 +38,9 @@ def test_tailnet_detection_reports_not_configured_without_url(
 def test_tailnet_detection_reports_reachable_when_serve_targets_configured_ts_net(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    payload = {
-        "Web": {
-            "example.ts.net:443": {
-                "Handlers": {"/": "http://127.0.0.1:8765"}
-            }
-        }
-    }
+    """#2603: reachable means the tailnet port forwards, as raw TCP, to the engine's TLS
+    listener -- the shape `tailscale serve --tcp 8765 tcp://127.0.0.1:8765` writes."""
+    payload = {"TCP": {"8765": {"TCPForward": "127.0.0.1:8765"}}}
 
     monkeypatch.setattr(
         remote_backend.subprocess,
@@ -58,6 +54,33 @@ def test_tailnet_detection_reports_reachable_when_serve_targets_configured_ts_ne
     )
 
     assert remote_status["tailnet_status"] == "reachable"
+
+
+def test_an_https_proxy_to_the_engine_port_is_not_reachable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The older shape, still on the MBP 2026-10-01: Tailscale terminates HTTPS on 443 and
+    proxies plain http:// to 8765. The engine's listener speaks TLS, so this cannot reach it --
+    but the host name appears in the status, which the old substring check took as reachable.
+    A `.ts.net` sharing address alone (no FICHERO_TAILNET_URL, as the app sets it) counts as
+    configured."""
+    payload = {
+        "TCP": {"443": {"HTTPS": True}},
+        "Web": {"example.ts.net:443": {"Handlers": {"/": {"Proxy": "http://127.0.0.1:8765"}}}},
+    }
+
+    monkeypatch.setattr(
+        remote_backend.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout=json.dumps(payload)),
+    )
+
+    remote_status = _health_remote_backend(
+        monkeypatch,
+        FICHERO_PUBLIC_BASE_URL="https://example.ts.net:8765",
+    )
+
+    assert remote_status["tailnet_status"] == "serve_not_running"
 
 
 def test_tailnet_detection_reports_serve_not_running_when_status_lacks_host(

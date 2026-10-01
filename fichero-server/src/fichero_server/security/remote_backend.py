@@ -16,6 +16,8 @@ import subprocess
 from typing import Mapping
 from urllib.parse import urlparse
 
+from fichero_server.security import tailscale_serve
+
 
 _TRUE_VALUES = {"1", "true", "yes", "on"}
 _LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
@@ -51,14 +53,14 @@ def _host_from_url(raw_url: str | None) -> str | None:
 
 
 def _tailnet_status(env: Mapping[str, str]) -> tuple[str, str | None]:
-    tailnet_url = (env.get("FICHERO_TAILNET_URL") or "").strip()
+    tailnet_url = tailscale_serve.tailnet_url(env)
     if not tailnet_url:
         return "not_configured", None
 
-    tailnet_host = _host_from_url(tailnet_url)
+    cli = tailscale_serve.tailscale_cli() or "tailscale"
     try:
         result = subprocess.run(
-            ["tailscale", "serve", "status", "--json"],
+            [cli, "serve", "status", "--json"],
             capture_output=True,
             check=True,
             text=True,
@@ -79,7 +81,11 @@ def _tailnet_status(env: Mapping[str, str]) -> tuple[str, str | None]:
         logger.warning("Tailnet serve detection failed for %s: %s", tailnet_url, reason)
         return "unknown", reason
 
-    if tailnet_host and tailnet_host in json.dumps(payload, sort_keys=True):
+    # Reachable means the tailnet port forwards, as raw TCP, to this engine's TLS listener
+    # (#2603). The host name merely appearing in the status is not enough: an HTTPS proxy
+    # to http://127.0.0.1:<port> names it too, and cannot speak to a TLS listener.
+    port = int(env.get("FICHERO_TCP_PORT", "8765"))
+    if tailscale_serve.forward_target(payload, port) == f"127.0.0.1:{port}":
         return "reachable", None
     return "serve_not_running", None
 

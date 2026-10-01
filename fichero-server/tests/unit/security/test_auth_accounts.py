@@ -918,6 +918,31 @@ def test_pairing_code_surfaces_optional_tailnet_url(client, app_db, monkeypatch)
     assert response.json()["spki_pin"] == "c3BraS1waW4="
 
 
+def test_pairing_code_carries_a_ts_net_sharing_address_without_the_tailnet_env(
+    client, app_db, monkeypatch
+):
+    """#2603: the app sets only FICHERO_PUBLIC_BASE_URL. Shared at a `.ts.net` address, its
+    pairing codes still came back with tailnet_url null, so a device had no address to dial."""
+    _enable_multiuser(monkeypatch)
+    monkeypatch.delenv("FICHERO_TAILNET_URL", raising=False)
+    monkeypatch.setenv("FICHERO_PUBLIC_BASE_URL", "https://fichero-demo.ts.net:8765")
+    app_db.create_user(
+        username="owner",
+        display_name="Owner",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+    session_token = client.post(
+        "/api/auth/login",
+        json={"username": "owner", "password": "password"},
+    ).json()["session_token"]
+
+    response = client.post("/api/pair/code", headers=_bearer(session_token))
+
+    assert response.status_code == 200
+    assert response.json()["tailnet_url"] == "https://fichero-demo.ts.net:8765"
+
+
 @pytest.mark.parametrize(
     ("tailnet_url", "message"),
     [

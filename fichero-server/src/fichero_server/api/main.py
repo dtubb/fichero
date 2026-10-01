@@ -48,6 +48,7 @@ from fichero_server.db.manager import LibraryNotFoundError
 from fichero_server.api.routes.document.segment_conversion import ConversionRefusal
 from fichero_server.security import authz
 from fichero_server.security.discovery import start_bonjour_advertiser
+from fichero_server.security import tailscale_serve
 from fichero_server.models import (
     ContractIdentity,
     EmbeddingStatsResponse,
@@ -910,6 +911,11 @@ async def lifespan(app: FastAPI):
             logger.warning("Bonjour discovery failed to start: %r", exc)
 
     bonjour_started = asyncio.get_running_loop().run_in_executor(None, _start_bonjour)
+    # Sharing over Tailscale (#2603): forward the tailnet port to the loopback listener.
+    # Blocking subprocess calls, so off the loop like Bonjour.
+    tailnet_forward = asyncio.get_running_loop().run_in_executor(
+        None, lambda: tailscale_serve.start_for_engine(log=logger)
+    )
 
     # Warm the AI stack AFTER the app is ready and quiet, never before (#3950, #5228).
     #
@@ -1029,6 +1035,7 @@ async def lifespan(app: FastAPI):
     await bonjour_started
     if app.state.bonjour_advertiser is not None:
         app.state.bonjour_advertiser.stop()
+    tailscale_serve.stop_for_engine(await tailnet_forward, log=logger)
     # #4690: CANCEL rather than await — this task may be parked forever on
     # `_first_registry_200_signal.wait()` (a short-lived process that never
     # saw a real `/api/registry` 200), and awaiting an un-cancelled wait here
