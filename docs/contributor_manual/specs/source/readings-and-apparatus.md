@@ -310,6 +310,12 @@ Sureness and damage
   (`fichero-server/tests/unit/api/test_marks_arrive_as_editorial_facts.py::test_deleted_letters_stay_in_the_reading_as_a_deletion_drawn_in_double_brackets`,
   `fichero-server/tests/unit/formats/test_tei.py::TestARealFileAnotherProjectWrote::test_deleted_text_stays_in_the_reading_as_does_added_text`).
   Still owed: `<delSpan>` (a deletion across lines, no one reading to span), and a screen.
+- `source.sure.search-finds-what-stands` — **[GAP]** (#5179, ruled 2026-09-28: "search must match the
+  corrected word X alone") a search finds a line by the text that stands, with every `deleted`
+  stretch left out, so a `<subst>` read diplomatically as "XY" (X added, Y struck) is found by X
+  alone, in full text and fuzzy search alike. The deleted letters are still in the reading, still
+  drawn ⟦ ⟧ in the Reader, and still found by a search for them. Applies to every deletion, not
+  only an imported one.
 - `source.sure.brackets-are-drawn` — **[PARTIAL]** (#4935) editorial signs are produced from those facts on display
   and export; they are never stored in a reading's text.
   **Built engine-side:** `editorial/leiden.py` draws the signs when read and never changes the text (`fichero-server/tests/unit/models/test_leiden.py::test_nested_facts_draw_inside_out_and_the_text_is_never_changed`, `fichero-server/tests/unit/models/test_leiden.py::test_a_lost_stretch_with_no_text_is_a_gap_of_its_extent`). **Missing:** the app, and exports.
