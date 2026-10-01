@@ -404,6 +404,7 @@ nav:
               - Git / Worktree / GitHub Workflow: contributor_manual/specs/harness/git-worktree-workflow.md
               - Release & Versioning: contributor_manual/specs/harness/release-and-versioning.md
               - Version & Contract Integrity: contributor_manual/specs/harness/version-and-contract-integrity.md
+              - Release Channels & Feature Tiers (draft): contributor_manual/specs/harness/release-channels-and-feature-tiers.md
           - KG:
               - Hermeneutic Layer: contributor_manual/specs/kg/hermeneutic-layer.md
               - KG Enrichment, RDF & Linked Data: contributor_manual/specs/kg/kg-enrichment.md
@@ -418,6 +419,7 @@ nav:
               - Readings & Apparatus: contributor_manual/specs/source/readings-and-apparatus.md
               - Languages, Scripts & Signs: contributor_manual/specs/source/languages-scripts-signs.md
               - Segment Editor: contributor_manual/specs/source/segment-editor.md
+              - Editable Reader (draft): contributor_manual/specs/source/editable-reader.md
               - Line Editor: contributor_manual/specs/source/line-editor.md
               - Formats & Training: contributor_manual/specs/source/formats-and-training.md
               - Maps & Georeference: contributor_manual/specs/source/maps-and-georeference.md

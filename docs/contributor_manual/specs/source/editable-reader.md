@@ -28,7 +28,7 @@ The same holds for any text in the Reader that is someone's or some model's read
 source: the transcription, a translation, a transliteration, a normalised text. Text that is not
 a reading (a comparison, a run log, a table) is not editable, and the Reader says why.
 
-Lives in: the WebKit Reader (`fichero-server/.../api/templates/document_view.html`, served by
+Lives in: the WebKit Reader (`fichero-server/src/fichero_server/api/templates/document_view.html`, served by
 `api/routes/system/views.py`), its bridge (`DocumentKGWebPaneCoordinatorMacOS.swift`,
 `ReaderTextEditRunner.swift`, `ReaderTextEdit.swift`), and the engine's audited actions
 (`representation.create`, `segment.split`, `segment.merge`, `reading_order.place`).
