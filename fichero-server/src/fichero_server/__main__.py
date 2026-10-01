@@ -23,6 +23,7 @@ import warnings
 
 from fichero_server.security.bind_host import resolve_bind_host
 from fichero_server.security.bind_host import resolve_lan_bind_host
+from fichero_server.security.bind_host import primary_lan_ip as _primary_lan_ip
 from fichero_server.security.security_scoped_access import activate_library_bookmarks
 from fichero_server.security.remote_access_tls import (
     material_manifest_json,
@@ -61,21 +62,6 @@ def _listener_hosts(bind_host: str) -> list[str]:
     if lan_host is None or lan_host == bind_host:
         return [bind_host]
     return [bind_host, lan_host]
-
-
-def _primary_lan_ip() -> str:
-    """The machine's outbound-interface IPv4, found without any DNS.
-
-    The sandboxed engine cannot getaddrinfo a Bonjour name (errno 8, live
-    2026-08-27), so binding to "macbook-pro-m1.local" failed. A connected
-    UDP socket names the primary interface without sending a packet.
-    """
-    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        probe.connect(("192.0.2.1", 1))  # TEST-NET-1: never routed, never sent
-        return probe.getsockname()[0]
-    finally:
-        probe.close()
 
 
 def _bind_listener_socket(host: str, port: int) -> socket.socket:

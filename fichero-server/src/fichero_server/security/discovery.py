@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from fichero_server import __version__
-from fichero_server.security.bind_host import resolve_bind_host
+from fichero_server.security.bind_host import primary_lan_ip, resolve_lan_bind_host
 from fichero_server.security.remote_access_tls import _validate_public_base_url
 
 SERVICE_TYPE = "_fichero._tcp.local."
@@ -43,6 +43,7 @@ class BonjourConfig:
     version: str
     spki_hash: str
     public_url: str
+    server_host: str = ""
 
 
 def _is_truthy(value: str | None) -> bool:
@@ -76,7 +77,10 @@ def build_bonjour_config(
 
     source = env if env is not None else os.environ
     enabled = _is_truthy(source.get(ENABLE_ENV))
-    resolved_host = resolve_bind_host(source, host=host)
+    # Advertise the LAN listener -- the address a peer can actually reach -- never the loopback
+    # bind host. No LAN listener (loopback only, e.g. behind tailscale serve): no address.
+    lan_host = resolve_lan_bind_host(source)
+    resolved_host = host if host is not None else (_lan_address(lan_host) if lan_host else "")
     raw_port = str(port if port is not None else source.get(PORT_ENV, DEFAULT_PORT))
     resolved_port = int(raw_port)
     if not 1 <= resolved_port <= 65535:
@@ -98,7 +102,19 @@ def build_bonjour_config(
         version=version,
         spki_hash=spki_hash,
         public_url=public_url,
+        server_host=lan_host if lan_host and lan_host.lower().endswith(".local") else "",
     )
+
+
+def _lan_address(lan_host: str) -> str:
+    """The address the LAN listener binds for `lan_host`, as `__main__` resolves it."""
+    try:
+        addr = socket.getaddrinfo(lan_host, None, socket.AF_INET, socket.SOCK_STREAM)[0][4][0]
+    except socket.gaierror:
+        addr = None
+    # The sandbox resolves the Mac's own Bonjour name to loopback; the listener then binds the
+    # primary interface instead.
+    return addr if addr and not addr.startswith("127.") else primary_lan_ip()
 
 
 def _packed_address(host: str) -> bytes | None:
@@ -132,7 +148,7 @@ def build_service_info(
 ) -> Any:
     """Create a zeroconf.ServiceInfo-compatible object for tests/runtime."""
 
-    address = _packed_address(config.host)
+    address = _packed_address(config.host) if config.host else None
     addresses = [address] if address is not None else []
     return service_info_cls(
         SERVICE_TYPE,
@@ -140,7 +156,8 @@ def build_service_info(
         addresses=addresses,
         port=config.port,
         properties=_txt_properties(config),
-        server=f"{_safe_host_label(socket.gethostname())}.local.",
+        server=f"{config.server_host}." if config.server_host
+        else f"{_safe_host_label(socket.gethostname())}.local.",
     )
 
 

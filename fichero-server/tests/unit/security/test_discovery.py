@@ -214,3 +214,39 @@ async def _never_runs() -> None:
 
 async def _recover_none() -> int:
     return 0
+
+
+def test_sharing_advertises_the_lan_listener_never_loopback(monkeypatch) -> None:
+    """Sharing test 2026-10-01: the record advertised FICHERO_BIND_HOST, which the app sets to
+    127.0.0.1, under `socket.gethostname()` (on the MBP `UNB-C02F45GAQ05P`, not its Bonjour name).
+    A peer resolving it dialled itself, and `UNB-....local -> 127.0.0.1` went out on the network.
+    With the app's LAN listener set, the record carries the address that listener binds and the
+    `.local` name the invite uses; with no LAN listener there is no address to give."""
+    monkeypatch.setattr(discovery.socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", ("10.0.0.7", 8765))])
+    env = {
+        "FICHERO_ENABLE_BONJOUR": "1",
+        "FICHERO_BIND_HOST": "127.0.0.1",
+        "FICHERO_LAN_HOST": "macbook-pro-m1.local",
+        # As RemoteAccessConfig.swift sets it whenever sharing is on.
+        "FICHERO_ALLOW_NON_LOOPBACK_BIND": "I_UNDERSTAND_SHARED_SECRET_RISK",
+    }
+    info = discovery.build_service_info(
+        discovery.build_bonjour_config(env), service_info_cls=FakeServiceInfo
+    )
+    assert info.addresses == [bytes([10, 0, 0, 7])]
+    assert info.server == "macbook-pro-m1.local."
+
+    # The sandbox resolves the Mac's own Bonjour name to loopback: the listener then binds the
+    # primary interface, and so must the record.
+    monkeypatch.setattr(discovery.socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", ("127.0.0.1", 8765))])
+    monkeypatch.setattr(discovery, "primary_lan_ip", lambda: "10.0.0.8")
+    info = discovery.build_service_info(
+        discovery.build_bonjour_config(env), service_info_cls=FakeServiceInfo
+    )
+    assert info.addresses == [bytes([10, 0, 0, 8])]
+
+    loopback_only = {k: v for k, v in env.items() if k != "FICHERO_LAN_HOST"}
+    info = discovery.build_service_info(
+        discovery.build_bonjour_config(loopback_only), service_info_cls=FakeServiceInfo
+    )
+    assert info.addresses == []

@@ -9,6 +9,7 @@ risk-acknowledged escape hatch rather than the default path.
 from __future__ import annotations
 
 import ipaddress
+import socket
 import warnings
 from collections.abc import Mapping
 from os import environ
@@ -104,3 +105,18 @@ def resolve_lan_bind_host(
             f"{LAN_BIND_HOST_ENV} must be a non-loopback address when set."
         )
     return resolved
+
+
+def primary_lan_ip() -> str:
+    """The machine's outbound-interface IPv4, found without any DNS.
+
+    The sandboxed engine cannot getaddrinfo a Bonjour name (errno 8, live
+    2026-08-27), so binding to "macbook-pro-m1.local" failed. A connected
+    UDP socket names the primary interface without sending a packet.
+    """
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        probe.connect(("192.0.2.1", 1))  # TEST-NET-1: never routed, never sent
+        return probe.getsockname()[0]
+    finally:
+        probe.close()
