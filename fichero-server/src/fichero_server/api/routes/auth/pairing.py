@@ -191,12 +191,18 @@ def _pairing_user(request: Request, app_db: AppDatabase) -> AccountUser:
     if not _use_multiuser_auth():
         return _owner_for_pairing(request, app_db)
     user = _current_session_user(request)
+    if user is None and getattr(request.state, "bootstrap_auth", False):
+        # The host app is the owner (loopback + bootstrap, ruled), Multi-user on or off: it must be
+        # able to list and revoke the devices it shared with, not only mint codes (#5346).
+        return _owner_for_pairing(request, app_db)
     if user is None or not user.active:
         raise HTTPException(status_code=401, detail="missing or invalid Authorization header")
     return user
 
 
 def _can_manage_device(request: Request, device: Device) -> bool:
+    if getattr(request.state, "bootstrap_auth", False):
+        return True  # the host app, as above (#5346)
     user = _current_session_user(request)
     return bool(user and (user.is_owner or user.id == device.user_id))
 

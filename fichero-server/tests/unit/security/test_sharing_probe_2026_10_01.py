@@ -515,11 +515,7 @@ def test_pin_multiuser_on_a_device_cannot_reach_a_library_it_was_not_shared(
 
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="#5346 (sharing.multiuser-pairing): with Multi-user on the host app's bootstrap token cannot list or revoke devices",
-)
-def test_defect_multiuser_on_the_host_app_cannot_revoke_a_device(harness, monkeypatch):
+def test_multiuser_on_the_host_app_can_list_and_revoke_a_device(harness, monkeypatch):
     """The host app talks to its engine with the loopback bootstrap token, which the
     ruling makes the owner. With Multi-user on, `_pairing_user` (pairing.py) demands a
     session user and 401s the bootstrap, so the Sharing pane cannot list paired devices

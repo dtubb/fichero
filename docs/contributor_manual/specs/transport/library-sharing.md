@@ -99,8 +99,11 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
 ### D. Other people (Multi-user on)
 
 - `sharing.multiuser-pairing` — **[PARTIAL]** (→ #5049, read, not run) with Multi-user on, creating a pairing code needs a
-  signed-in person, and the app's own bootstrap token carries none, so the pairing card may be
-  refused (`pairing.py`, `auth.py`). The one end-to-end test signs in as owner first.
+  signed-in person, or the host app itself: the app's bootstrap token on loopback acts as the one
+  active owner for minting a code, listing devices and revoking one (#5346, 2026-10-01; before, the
+  card could be refused and the host could not list or revoke). A code minted that way pairs a device
+  for the owner; choosing another person is `sharing.device-chooses-person`. Pinned by
+  `fichero-server/tests/unit/security/test_sharing_probe_2026_10_01.py::test_multiuser_on_the_host_app_can_list_and_revoke_a_device`.
 - `sharing.private-by-default` — **[PARTIAL]** (→ #2403) only with Multi-user on: a single-user paired device
   sees every library as owner.
 - `sharing.device-chooses-person` — **[GAP]** (#2403) a remote device must choose and authenticate a
