@@ -130,7 +130,9 @@ extension DocumentService {
                 segments: Int(body.segments),
                 readings: Int(body.readings),
                 orderEntries: Int(body.orderEntries),
-                geometryProblems: Int(body.geometryProblems ?? 0)
+                geometryProblems: Int(body.geometryProblems ?? 0),
+                pagesInFile: Int(body.pagesInFile ?? 1),
+                pagesLeftOut: body.pagesLeftOut ?? []
             ))
         // Every refusal below hands the person THE ENGINE'S OWN SENTENCE. "Nothing
         // recognises 'x.xml'. This build reads: ..." is what tells a scholar what to do

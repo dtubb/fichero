@@ -91,6 +91,28 @@ struct PageImportTextTests {
         #expect(report.contains("nothing already on the page was changed"))
     }
 
+    /// #5308: a 24-page TEI edition imported onto one page brings in page 1. The engine names the
+    /// 23 pages it left out; the report used to say nothing, so the person saw a plain success.
+    @Test("pages a multi-page file left out lead the report, named as the engine names them")
+    func pagesLeftOutLeadTheReport() {
+        let report = PageImportRunner.Text.report(
+            fileName: "kouigenji-01.tei.xml", recognisedFormat: "tei",
+            segments: 20, readings: 20, orderEntries: 20, geometryProblems: 0,
+            pagesInFile: 3, pagesLeftOut: ["page 2 (n=2)", "page 3 (n=3)"]
+        )
+        let warning = report.range(of: "1 of its 3 pages")
+        let read = report.range(of: "Read kouigenji-01.tei.xml")
+        #expect(warning != nil)
+        #expect(report.contains("page 2 (n=2)"))
+        #expect(report.contains("page 3 (n=3)"))
+        if let warning, let read { #expect(warning.lowerBound < read.lowerBound) }
+    }
+
+    @Test("a one-page file says nothing about pages")
+    func onePageSaysNothing() {
+        #expect(PageImportRunner.Text.pagesLeftOutWarning(pagesInFile: 1, leftOut: []) == nil)
+    }
+
     @Test("the pass a 409 names is found in the engine's own sentence")
     func passIdIsExtracted() {
         let detail = "'folio.xml' is already on this document as pass 0123456789abcdef0123456789abcdef (same content, sha256 abc…). Nothing was written."

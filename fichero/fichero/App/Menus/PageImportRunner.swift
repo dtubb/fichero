@@ -83,6 +83,17 @@ enum PageImportRunner {
                 + "Worth a look."
         }
 
+        /// The pages a multi-page file did NOT bring in, or nil when it brought in all of them
+        /// (#5308). The engine takes one page onto one page and names the rest (#5143); the report
+        /// said nothing, so a 24-page edition looked like a complete import.
+        static func pagesLeftOutWarning(pagesInFile: Int, leftOut: [String]) -> String? {
+            guard !leftOut.isEmpty else { return nil }
+            let taken = max(pagesInFile - leftOut.count, 1)
+            return "This file has \(pagesInFile) pages and brought in \(taken) of its \(pagesInFile) pages "
+                + "onto this one. Left out: \(leftOut.joined(separator: ", ")). "
+                + "Import them onto their own pages, or import the file with its images as a folder."
+        }
+
         /// A new import is a pass BESIDE the existing ones; it is not the working pass.
         static let notWorkingPass =
             "It arrived as a new pass. It is not the working pass, and nothing already on the page was changed."
@@ -95,9 +106,12 @@ enum PageImportRunner {
             segments: Int,
             readings: Int,
             orderEntries: Int,
-            geometryProblems: Int
+            geometryProblems: Int,
+            pagesInFile: Int = 1,
+            pagesLeftOut: [String] = []
         ) -> String {
             var lines: [String] = []
+            if let left = pagesLeftOutWarning(pagesInFile: pagesInFile, leftOut: pagesLeftOut) { lines.append(left) }
             // No glyph here: the alert itself is presented at `.warning` style when
             // geometryProblems > 0 (see `importPage` below), which already shows a
             // warning icon — a second one in plain text beside it would be a
@@ -137,6 +151,9 @@ enum PageImportRunner {
         let readings: Int
         let orderEntries: Int
         let geometryProblems: Int
+        /// How many pages the file has, and the ones it did not bring in (#5308).
+        var pagesInFile: Int = 1
+        var pagesLeftOut: [String] = []
     }
 
     enum Outcome: Equatable {
@@ -173,9 +190,10 @@ enum PageImportRunner {
                     body: Text.report(
                         fileName: url.lastPathComponent, recognisedFormat: result.format,
                         segments: result.segments, readings: result.readings,
-                        orderEntries: result.orderEntries, geometryProblems: result.geometryProblems
+                        orderEntries: result.orderEntries, geometryProblems: result.geometryProblems,
+                        pagesInFile: result.pagesInFile, pagesLeftOut: result.pagesLeftOut
                     ),
-                    style: result.geometryProblems > 0 ? .warning : .informational
+                    style: result.geometryProblems > 0 || !result.pagesLeftOut.isEmpty ? .warning : .informational
                 )
             case .alreadyImported(let detail):
                 let answer = Text.alreadyImported(fileName: url.lastPathComponent, detail: detail)
