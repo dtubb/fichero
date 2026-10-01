@@ -5369,11 +5369,33 @@ class Database(DatabaseEmbeddingMixin):
             self._delete_embedding_rows("document_id", doc.id)
             self.save_vectors(EMBEDDINGS_TABLE, [record], replace=True)
 
+    def _standing_text_records(self, doc: BaseModel, text: str | None) -> list[dict[str, Any]]:
+        """Rows for the page's STANDING text, deletions left out (#5179,
+        `source.sure.search-finds-what-stands`), beside its passages, so full-text search finds a
+        `<subst>` read "XY" (Y struck) by X alone: the index tokenizes "XY" as one word. Only for a
+        page that has one (`page_text_cache.STANDING_TEXT`). Scope `standing`, ids suffixed, and no
+        char span: their offsets are into the standing text, not the page's, so an excerpt from one
+        is shown without a highlight rather than with a wrong one."""
+        from fichero_server.actions.page_text_cache import STANDING_TEXT
+
+        standing = (getattr(doc, "metadata", None) or {}).get(STANDING_TEXT)
+        if not standing or standing == text:
+            return []
+        rows = self.passage_embedding_records(doc, text=standing)
+        for row in rows:
+            row["id"] = f"{row['id']}:standing"
+            row["passage_id"] = row["id"]
+            row["embedding_scope"] = "standing"
+            row["char_start"] = None
+            row["char_end"] = None
+        return rows
+
     def save_passage_embeddings(self, doc: BaseModel, *, text: str | None = None) -> int:
         """Save passage/chunk-level embeddings for a document."""
         records = self.passage_embedding_records(doc, text=text)
         if not records:
             return 0
+        records += self._standing_text_records(doc, text if text is not None else getattr(doc, "page_content", None))
         with self._lance_lock:
             self._delete_embedding_rows("document_id", doc.id)
             self.save_vectors(EMBEDDINGS_TABLE, records)

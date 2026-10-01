@@ -841,7 +841,9 @@ def _why_omitted(
 #: 10: ...and the project's, the last stated rung (#5172, one order for every caller).
 #: 11: a line a person read reads from their reading, not its imported words, and the words under
 #:     it are not read twice (#5224); a person's older-format correction ranks as a person's (#5222).
-DERIVATION_VERSION = 11
+#: 12: the cache also keeps the page's STANDING text, deletions left out, for search (#5179); the
+#:     derivation itself is unchanged, the bump re-derives every page once so each gains it.
+DERIVATION_VERSION = 12
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
 DERIVATION_SOURCE_SHA256 = "982fdf43ded9e9bf92753a958eafed16aa5676cfae4ebd113cb4552f55341f03"

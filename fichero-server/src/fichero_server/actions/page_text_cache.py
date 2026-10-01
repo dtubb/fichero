@@ -78,6 +78,10 @@ def _document_ids(spec: Any, action_name: str, params: Any) -> list[str]:
         or action_name in _ORDER_ACTIONS
         or (action_name in _MEMBERSHIP_ACTIONS and _restore_may_change_text(spec, action_name))
         or (action_name == "segment.update" and getattr(params, "is_furniture", None) is not None)
+        # A deletion changes the page's STANDING text, which search reads (#5179). A withdraw or a
+        # restore names no kind, and is rare: it always refreshes.
+        or (action_name == "editorial.record" and str(getattr(params, "kind", "")) in {"deleted", "EditorialFactKind.deleted"})
+        or action_name in ("editorial.withdraw", "editorial.restore")
         # Every box move from the app is a `convert_and_edit`; only a delete or a combine changes
         # which lines the page has (an add has no reading yet).
         or (
@@ -140,6 +144,50 @@ def cache_text(derived: Any) -> str:
     return derived.text
 
 
+#: `Document.metadata` key holding the page's STANDING text (`source.sure.search-finds-what-stands`,
+#: #5179): the page text with every live `deleted` stretch left out, kept only when it differs.
+#: Search matches it beside `page_content`, so a `<subst>` read "XY" (Y struck) is found by X alone.
+STANDING_TEXT = "page_text_standing"
+
+
+def standing_text(db: Any, derived: Any) -> str | None:
+    """The derived text with every live `deleted` editorial fact's stretch removed, or None when the
+    page has none. A fact's offsets are code points into its reading, which sits in the derived text
+    at its span; a fact naming no reading applies to its segment's span."""
+    from fichero_server.models.editorial import EditorialFact, EditorialFactKind
+
+    if not derived.spans:
+        return None
+    segment_ids = sorted({span.segment_id for span in derived.spans})
+    facts = [
+        f for f in db.query_in(EditorialFact, "segment_id", segment_ids)
+        if f.kind == EditorialFactKind.deleted and f.withdrawn_at is None
+        and f.char_start is not None and f.char_end is not None and f.char_end > f.char_start
+    ]
+    if not facts:
+        return None
+    cut: list[tuple[int, int]] = []
+    for span in derived.spans:
+        for f in facts:
+            if f.segment_id != span.segment_id:
+                continue
+            if f.representation_id is not None and f.representation_id != span.representation_id:
+                continue
+            start = min(span.end, span.start + f.char_start)
+            end = min(span.end, span.start + f.char_end)
+            if end > start:
+                cut.append((start, end))
+    if not cut:
+        return None
+    keep, position = [], 0
+    for start, end in sorted(cut):
+        if start > position:
+            keep.append(derived.text[position:start])
+        position = max(position, end)
+    keep.append(derived.text[position:])
+    return "".join(keep)
+
+
 def _sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
@@ -194,16 +242,22 @@ def cached_line_map(db: Any, document_id: str, text: str) -> list[dict[str, Any]
 DERIVATION_STAMP = "page_text_derivation"
 
 
-def _store(db: Any, doc: Any, text: str, now: Any) -> bool:
-    """Write the cache and stamp it with the derivation that produced it. True when the TEXT
-    changed (a page to re-embed); a stamp-only update is saved but is not a text change."""
+def _store(db: Any, doc: Any, text: str, now: Any, standing: str | None = None) -> bool:
+    """Write the cache and stamp it with the derivation that produced it. True when the TEXT, or the
+    standing text search reads beside it, changed (a page to re-embed); a stamp-only update is
+    saved but is not a text change."""
     from fichero_server.api.routes.document.segment_readings import DERIVATION_VERSION
 
     metadata = dict(doc.metadata or {})
-    text_changed = text != (doc.page_content or "")
+    standing_changed = metadata.get(STANDING_TEXT) != standing
+    text_changed = text != (doc.page_content or "") or standing_changed
     if not text_changed and metadata.get(DERIVATION_STAMP) == DERIVATION_VERSION:
         return False
     metadata[DERIVATION_STAMP] = DERIVATION_VERSION
+    if standing is None:
+        metadata.pop(STANDING_TEXT, None)
+    else:
+        metadata[STANDING_TEXT] = standing
     doc.metadata = metadata
     if text_changed:
         doc.page_content = text
@@ -241,7 +295,7 @@ def ensure_current(db: Any, document_ids: list[str]) -> list[str]:
         from fichero_server.models import PageLineMap
 
         db.save(PageLineMap(id=document_id, text_sha=_sha(text), lines=line_map(db, derived)))
-        if _store(db, doc, text, utc_now()):
+        if _store(db, doc, text, utc_now(), standing_text(db, derived)):
             changed.append(document_id)
     return changed
 
@@ -279,7 +333,7 @@ def refresh_in_transaction(db: Any, spec: Any, action_name: str = "", params: An
         text = cache_text(derived)
         # Stored even when the text is unchanged: two lines that read alike can swap places.
         db.save(PageLineMap(id=document_id, text_sha=_sha(text), lines=line_map(db, derived)))
-        if _store(db, doc, text, utc_now()):
+        if _store(db, doc, text, utc_now(), standing_text(db, derived)):
             changed.append(document_id)
     return changed
 
