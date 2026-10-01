@@ -9,7 +9,8 @@ corpus.
 from __future__ import annotations
 
 import logging
-from fichero_server.core.timeutil import utc_now
+from datetime import datetime
+from fichero_server.core.timeutil import ensure_utc, utc_now
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
@@ -246,6 +247,10 @@ class NotePatchRequest(BaseModel):
     linked_structure_node_id: str | None = None
     address: str | None = None
     parent_address: str | None = None
+    #: Compare-and-set (#5348): the note's ``updated_at`` as the editor last saw it. When given and
+    #: the note has changed since, nothing is written and the edit is refused 409 with the current
+    #: text, as a stale reading is. Optional, so older callers keep their last-save-wins behaviour.
+    expected_updated_at: datetime | None = None
 
 
 def patch_note_impl(
@@ -262,6 +267,18 @@ def patch_note_impl(
         raise HTTPException(404, f"Note not found: {note_id}")
     before = note.model_dump(mode="json")
     updates = request.model_dump(exclude_unset=True)
+    expected = updates.pop("expected_updated_at", None)
+    if expected is not None and ensure_utc(expected) != ensure_utc(note.updated_at):
+        raise HTTPException(status_code=409, detail={
+            "reason": "stale",
+            "message": ("this note was changed since you opened it; nothing was written. "
+                        "Keep yours (save again against the current version), take theirs, or compare."),
+            "note_id": note.id,
+            "expected_updated_at": ensure_utc(expected).isoformat(),
+            "updated_at": ensure_utc(note.updated_at).isoformat(),
+            "current_body": note.body,
+            "current_title": note.title,
+        })
     next_page_id = updates.get("page_id", note.page_id)
     next_folder_id = updates.get("folder_id", note.folder_id)
     _validate_note_scope(db, page_id=next_page_id, folder_id=next_folder_id)

@@ -10643,6 +10643,7 @@ def register_generated_openapi_commands(
         note_id: str = typer.Argument(..., help="Path parameter: note_id."),
         address: Optional[str] = typer.Option(None, "--address", help="Request field: address."),
         body_2: Optional[str] = typer.Option(None, "--body", help="Request field: body."),
+        expected_updated_at: Optional[str] = typer.Option(None, "--expected-updated-at", help="Request field: expected_updated_at."),
         folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Request field: folder_id."),
         kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
         linked_claim_ids: Optional[str] = typer.Option(None, "--linked-claim-ids", help="Request field: linked_claim_ids."),
@@ -10662,6 +10663,7 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "address": address,
                 "body": body_2,
+                "expected_updated_at": expected_updated_at,
                 "folder_id": folder_id,
                 "kind": kind,
                 "linked_claim_ids": linked_claim_ids,
@@ -10676,6 +10678,7 @@ def register_generated_openapi_commands(
             }, {
                 "address": {'type': 'string', 'nullable': True, 'title': 'Address', 'x-cli-required': False},
                 "body": {'type': 'string', 'nullable': True, 'title': 'Body', 'x-cli-required': False},
+                "expected_updated_at": {'type': 'string', 'format': 'date-time', 'nullable': True, 'title': 'Expected Updated At', 'x-cli-required': False},
                 "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'x-cli-required': False},
                 "kind": {'type': 'string', 'enum': ['zettel', 'reference', 'hub', 'inbox', 'fleeting', 'permanent'], 'title': 'NoteKind', 'description': 'Zettelkasten note kinds (#917).', 'x-cli-required': False},
                 "linked_claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Linked Claim Ids', 'x-cli-required': False},

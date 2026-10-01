@@ -601,11 +601,7 @@ def test_pin_who_did_it_cannot_be_claimed_by_a_header_or_body(harness):
 # =============================================================================
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="#5348: note edits have no stale-write refusal -- a second Mac's edit silently overwrites the first",
-)
-def test_defect_two_macs_editing_one_note_the_first_edit_is_silently_lost(harness):
+def test_two_macs_editing_one_note_the_second_stale_edit_is_refused(harness):
     """The host and the paired Mac both open a note at body "draft". The host saves
     "host words"; the Mac, which never saw that, saves "mac words". Both get 200 and the
     host's words are gone with nothing telling either person.
@@ -711,3 +707,12 @@ def test_pin_a_paired_device_still_gets_its_librarys_health(harness, monkeypatch
     r = harness.remote().get("/api/health", headers=_bearer(owner_dev["device_token"]))
     assert r.status_code == 200
     assert r.json().get("document_count") is not None, r.json()
+
+
+def test_pin_an_edit_against_the_current_version_is_saved(harness):
+    """#5348's refusal is only for a STALE edit: saving against the version you last saw works."""
+    host = harness.host()
+    note_id = host.post("/api/notes", json={"body": "draft"}).json()["id"]
+    seen = host.get(f"/api/notes/{note_id}").json()
+    r = host.patch(f"/api/notes/{note_id}", json={"body": "mine", "expected_updated_at": seen["updated_at"]})
+    assert r.status_code == 200 and r.json()["body"] == "mine", r.text

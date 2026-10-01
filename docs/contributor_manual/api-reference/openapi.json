@@ -63433,6 +63433,12 @@
             "type": "string",
             "nullable": true,
             "title": "Parent Address"
+          },
+          "expected_updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Expected Updated At"
           }
         },
         "type": "object",
