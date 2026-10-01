@@ -199,8 +199,13 @@ measurement and the cascade's routing are pinned with known confidences and outc
       and page kind (`distill.measure.against-people`). That alone tells him where the VLM fails.
    2. Build the set from his corrected lines, split by document.
    3. Fine-tune a small VLM of about 3 GB quantised (for example a 2–3B Qwen-VL-class model with
-      LoRA, through MLX on a Mac with enough memory, or on a cluster), with a Kraken student
-      beside it.
+      LoRA), with a Kraken student beside it. **Where it trains, most realistic first:**
+      - ACENET or another Digital Research Alliance of Canada cluster, as a Slurm job
+        (`remote-compute.md`, `compute.job.*`);
+      - a rented GPU through Hugging Face Jobs (the `gpu` image in `linux-server-image.md`);
+      - a Mac with 32 GB or more through MLX, for the smallest runs.
+
+      The trained adapter comes back to the Mac and runs there, quantised (`compute.tune.convert-for-mlx`).
    4. Adopt it only where it clears the bar.
 
    His corrections made before the page model (edits of the stored page text) count only after
