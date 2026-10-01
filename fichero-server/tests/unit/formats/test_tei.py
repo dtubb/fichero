@@ -271,6 +271,23 @@ class TestARealFileAnotherProjectWrote:
                  for m in greek_line.foreign.get(tei.TEI_MARKS, []) if m["tag"] == "del"]
         assert marks and spans == ["ἐπετρέψῃ"]                   # the mark spans exactly the struck word
 
+    def test_a_verse_line_that_ends_with_its_lb_keeps_its_text(self, real_bytes):
+        """Found 2026-10-01 by reading the file for `<delSpan>`: the Hamlet speech writes each verse
+        line as `<l>text <lb n="Ham88"/></l>`, the line break AFTER its text. The text before the
+        first `<lb>` of a block with no open line went nowhere -- it was neither the block's (the
+        block then had a line) nor a line's -- and seven of the speech's lines were dropped from the
+        reading without a word."""
+        page = tei.read_pages(real_bytes)[0]
+        texts = [s.readings[0][1] for s in page.segments if s.readings]
+        for verse in ("Why this same strict and most observant watch",
+                      "So nightly toils the subject of the land,",
+                      "And why such daily cast of brazen cannon,",
+                      "And foreign mart for implements of war;",
+                      "Why such impress of shipwrights, whose sore task",
+                      "Does not divide the Sunday from the week;",
+                      "What might be toward, that this sweaty haste"):
+            assert any(verse in t for t in texts), verse
+
     def test_markup_the_model_has_no_field_for_is_kept_by_name(self, real_bytes):
         page = tei.read_pages(real_bytes)[0]
         kept = {name for s in page.segments for name in s.foreign.get("tei-inline", [])}

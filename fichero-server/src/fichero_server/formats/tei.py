@@ -63,6 +63,16 @@ _XML_ID = f"{{{XML_NS}}}id"
 
 #: Text-side elements that are a REGION of text.
 REGION_TAGS = frozenset({"ab", "p", "head", "l"})
+
+
+class _NoAttributes:
+    """An element with no attributes, for a segment the file makes but names nowhere."""
+
+    def get(self, _name: str, default: Any = None) -> Any:
+        return default
+
+
+_NO_ATTRIBUTES = _NoAttributes()
 #: Elements whose content is not the page's transcription.
 NON_TRANSCRIPTION = frozenset({"note", "teiHeader", "facsimile"})
 #: Inline elements the reader understands; anything else is recorded, not silently absorbed.
@@ -436,6 +446,16 @@ def read_pages(data: bytes) -> list[SourcePage]:
             _tail(element)
             return
         if tag == "lb":
+            if state["line"] is None and region is not None and _norm("".join(state["buffer"])).strip():
+                # Text BEFORE the first `<lb>` of a block that has no open line: a verse line
+                # written `<l>text <lb/></l>`, its break AFTER the text (the TEI Consortium's
+                # Hamlet). That text is a line of its own. It went nowhere -- the block took no
+                # text once it had a line, and no line held it -- and the lines were dropped.
+                leading = add_segment("line", _NO_ATTRIBUTES, region, page)
+                state["line"], state["line_page"] = leading, page
+                marks = region.foreign.pop(TEI_MARKS, None)
+                if marks:
+                    leading.foreign[TEI_MARKS] = marks
             flush_line()
             line = add_segment("line", element, region, page)
             state["line"], state["buffer"], state["line_page"] = line, [], page
