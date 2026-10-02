@@ -95,6 +95,29 @@ viewer.
 - **Offline.** A remote page that is not cached shows its last thumbnail and says it is remote
   and unreachable. It never shows a blank.
 
+### IIIF folders: a folder that is a collection, in or out (2026-10-01)
+
+Two kinds of special folder in the library, so IIIF is a place rather than a command:
+
+- **A IIIF source folder** is bound to a collection or manifest URL (the British Library's
+  Endangered Archives Programme, a university's digital library, another Fichero's published
+  folder). Its contents are that collection, by reference: a canvas becomes a page, a manifest a
+  document, a sub-collection a folder. It **follows** the source: canvases the institution adds
+  appear; ones it withdraws are shown as withdrawn (never silently deleted, since a person's
+  segments and readings hang on them). Work done inside it (segments, readings, claims) is the
+  library's own, as everywhere.
+- **A IIIF published folder** is served as a IIIF collection (when the library is shared) and
+  written as one in a static export: its documents as manifests, with their segments and
+  readings as annotations. Moving or copying a document into it publishes it; out of it,
+  unpublishes it. What the rights record withholds stays out.
+
+A folder can be both: a source folder whose work is published back as annotations on the
+institution's own canvases.
+
+Like any folder, either can follow **its own recipe** (`source/models-chains-and-projects.md`,
+the cascade): an EAP collection of Persian manuscripts in one folder runs a different reader from
+the Spanish deeds next to it.
+
 ### Honesty about a remote source
 
 - **It can change or vanish.** Fichero records the service's identity (URI, and an ETag or a
@@ -156,6 +179,12 @@ sharing toggles stay the only two).
 In:
 - `iiif.import.by-reference` — **[GAP]** (#5324) a pasted manifest or collection link adds its
   canvases as pages at once, without downloading their images.
+- `iiif.folder.source` — **[GAP]** (#5324) a folder can be bound to a IIIF collection or manifest URL; its
+  contents are that collection by reference, and it follows the source: additions appear,
+  withdrawals are shown as withdrawn, never silently deleted.
+- `iiif.folder.published` — **[GAP]** (#5327) a folder can be published as a IIIF collection (served when
+  the library is shared, written in a static export); putting a document in publishes it,
+  taking it out unpublishes it; withheld material stays out.
 - `iiif.import.reads-v2-and-v3` — **[PARTIAL]** (#1646) Presentation 2.1 and 3.0 manifests and
   collections both import. **Built:** a local folder of manifests (`iiif_import.py`).
   **Not built:** a remote collection walked by reference, and 2.x (`sequences`) manifests in the

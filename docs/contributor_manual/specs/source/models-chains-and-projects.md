@@ -243,7 +243,14 @@ runs: a step can only use what an earlier step produced. A typical recipe for a 
 8. **make a vector** for search.
 
 Which steps are present follows from the purpose: "just transcribe" stops at step 5, the full
-knowledge graph runs all eight. **Which model** each step uses is the recipe's default for the
+knowledge graph runs all eight. **Maps are steps too**: a map recipe (or a map folder in a
+project) adds georeferencing (control points, a transformation) and finding places, as
+`maps-and-georeference.md` defines them.
+
+**A recipe applies to a library or to a folder** (2026-10-01). The library has its recipe; any
+folder can follow a different one, by the same cascade as language and models: a folder of maps
+follows a map recipe, a IIIF folder of Persian manuscripts a Persian reader, beside Spanish deeds
+following the flagship. **Which model** each step uses is the recipe's default for the
 project, and the cascade can override it lower down: one folder of Latin charters can name a
 different reader without a second recipe.
 
@@ -677,6 +684,8 @@ Projects and onboarding
   and run.
 - `source.recipe.travels-with-export` — **[GAP]** (#5364) an export package can include the recipe that
   made its data, in the same RO-Crate.
+- `source.recipe.per-folder` — **[GAP]** (#4951, #5364) a folder can follow a recipe other than its
+  library's, resolved by the cascade; work in it runs that recipe.
 - `source.recipe.steps-are-jobs` — **[GAP]** (#4949, #5364) a recipe step names a job, where it applies
   (which segment kinds), a model, settings and a prompt; the recipe is checked before it runs, so
   a step uses only what an earlier step produced.
