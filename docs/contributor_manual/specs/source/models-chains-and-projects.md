@@ -197,6 +197,7 @@ chaining safe: a step can only follow a step that gives what it needs.
 | split pages | a scan or PDF page holding two pages (a spread), or a strip of frames | page segments, each a page of its own, in order |
 | prepare the image | a page image | a new rendition (cropped, deskewed, rotated, dewarped, adjusted); the original untouched |
 | describe for the catalogue | a page or document | proposed values for the project's metadata fields, for a person to confirm |
+| train a model | a training set of checked work (boxes, lines, readings) | a model card for a new detector or reader (YOLO regions or lines, Kraken lines or text, a LoRA on a vision model), measured on held-out pages |
 | find statements | readings (with their mentions) | claims: subject, relation, object (who did what to whom), each naming the stretch of text it came from |
 
 "Read a page" is kept apart from "read a line" on purpose. Vision-language models mostly do

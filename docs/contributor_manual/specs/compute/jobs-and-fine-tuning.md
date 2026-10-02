@@ -323,6 +323,13 @@ All untagged and unbuilt unless stated.
   on the Mac can then be told to use that model rather than its built-in one. *Existing data:*
   pages segmented before are untouched; the trained model makes new passes. *Test:* as above,
   plus one page segmented on the Mac with the returned model.
+- `compute.tune.yolo-layout` — **[GAP]** (#5240) a `train-layout` job trains a YOLO-family detector for
+  regions (by kind) or lines from a training set of the project's checked boxes (exported as YOLO,
+  which Fichero already writes, `source.format.yolo-out`), on a cluster, a GPU service or a large
+  Mac; the trained detector comes back as a model card and is measured on held-out pages
+  (precision and recall per region kind) before a recipe may use it. *Existing data:* earlier
+  passes are untouched; the detector makes new passes. *Test:* a tiny set trains, returns, and
+  finds boxes on one held-out page.
 - `compute.tune.lora` — **[GAP]** (#5240) a `train-lora` job fine-tunes a base model named by card with LoRA
   (QLoRA when the card and the target's memory call for it), from a recipe file that names
   rank, learning rate, epochs and the prompt form, and returns the adapter, its log and scores.

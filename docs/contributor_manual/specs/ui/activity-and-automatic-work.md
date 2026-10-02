@@ -543,8 +543,16 @@ Identifiers: `activity.window` · `activity.table` · `activity.row.<jobId>` · 
 8. **How long is history kept?** *Recommend:* done jobs collapse to their top row after a day and
    are kept for 30 days; failed jobs stay until dismissed; the record (audit log) keeps everything
    regardless.
-9. **Remote (Slurm) jobs.** *Recommend:* a remote job is a job with `lane = remote` and the states
-   `compute/jobs-and-fine-tuning.md` defines mapped onto `waiting_reason`; no second job model.
+9. **Remote jobs: a cluster, a Docker server, a GPU service.** *Ruled 2026-10-01 (the
+   maintainer): one global queue for everything, tied into HPC and Docker.* A job sent to a Slurm
+   cluster (ACENET), to Fichero's own server image running in Docker on another machine, or to a
+   GPU service (Hugging Face Jobs) is a row in the same queue with `lane = remote` and its target
+   named; the states `compute/jobs-and-fine-tuning.md` defines map onto `waiting_reason`; no second
+   job model. Global pause stops new submissions and polling; it never kills a job already running
+   on a cluster (that costs allocation). Cancel on the row cancels it there. Its errors (the
+   cluster's own message, the log tail) show in the row like any other. Its result lands through
+   the one landing path (`compute.land.*`). The same inputs fingerprint stops a training or
+   inference job being sent twice for unchanged inputs.
 
 ## Requests to other specs (for the manager to route)
 
