@@ -1046,7 +1046,23 @@ fork, which names the recipe and version it came from and credits its authors.
 | This Mac cannot run a pinned model | The first `alternatives` entry that can is used and shown; with none, as "no model fits" | As left |
 | A `cluster` step with no bound target | "No cluster is set up"; **Add a Place to Run…** opens the compute settings | Everything else; train steps are never automatic anyway |
 
-### 14. Two journeys, end to end
+### 14. Journeys, end to end, and the real projects they are tested against
+
+**The real projects** (2026-10-01). Onboarding and the recipes are tested against these, the
+maintainer's own corpora; the journeys above are their shape, and each is checked on its real
+pages before a behaviour is tagged [OK]:
+
+| Project | Material | What the recipe must handle |
+|---|---|---|
+| **Jesuit letters** (the flagship) | 18th- and 19th-century Spanish letters by Jesuits, handwritten | Spanish hands of two centuries; the flagship recipe, measured on the corrected letters; entities and statements for the correspondence network |
+| **1740 slave sale records** | Spanish colonial sale records of enslaved people, 1740 | formulaic notarial structure (who sold whom to whom, for how much): statements with transfer verbs checked; dates and places; people named with care |
+| **Istmina archive** | Istmina (Chocó, Colombia), 1870s to 1980s: heavily damaged and faded, many hands and kinds of writing | image preparation first (contrast, deskew); readers measured per hand and per decade; honest "illegible" and damage marks; a mix of print, typescript and manuscript |
+| **The Marshall diary** | one hand, handwritten diary | the clearest case for **fine-tuning Kraken** on the person's own corrections: one hand, many pages |
+| **Colombian maps** | Spanish maps of Colombia | the map recipe: regions and labels, place names linked to a gazetteer, georeferencing |
+
+Libraries for several of these exist on the maintainer's Macs (Istmina, the Marshall diaries,
+Black Pacific); a recipe is measured on them through the running app's engine, never by reading
+the library files directly.
 
 **(a) A historian of historical Spanish letters**, with a folder of 3,000 page
 images on an 8 GB MacBook Air and forty pages already corrected in an earlier tool (exported as
@@ -1083,7 +1099,7 @@ different notary, they use **Try Another Option…** to compare the corrector's 
 their own; theirs wins there, and **Use This** for that folder only records a folder override.
 Later they export the recipe with their measurements, so a colleague starts from it.
 
-**(b) A researcher in Cherokee**, on a 16 GB Mac, with two folders: printed issues of a
+**(b) An invented case: a researcher in Cherokee** (no such project exists; it stands for a language and script no shipped recipe covers), on a 16 GB Mac, with two folders: printed issues of a
 newspaper in the syllabary (about 400 pages) and handwritten letters (about 900 pages). There are
 no corrected pages.
 
