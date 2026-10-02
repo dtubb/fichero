@@ -1,62 +1,104 @@
-# Source Model — Models, chains, projects and the synced folder — Design Spec (#TBD)
+# Source Model — Models, recipes, projects and setup — Design Spec (#TBD)
 
 > Milestone: source-model
-> Manual: TBD — a "Setting up a project" section: the few questions Fichero asks, what it sets
-> up from the answers, how to see and change the chain of models a project uses, how to find a
-> better model, how to see how any reading was made, and how a project's folder is kept in
-> step.
+> Manual: TBD — a "Setting up a project" section: the purpose question and what each purpose
+> runs by itself; what setup asks and what it works out; the recipe it makes, and how to see
+> and change it in the Inspector; checking models on your own corrected pages; taking,
+> following, updating and publishing a recipe; finding a better model; how to see how any
+> reading was made.
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
 > code makes them pass. **Status: DRAFT.** A slice of the source model: read `source-model.md`
-> first. Every behaviour below is tagged **[GAP]** with its issue; everything under "The design" is unbuilt
-> design.
+> first. Every behaviour below is tagged **[GAP]** with its issue; everything under "The design"
+> is unbuilt design. Reorganised on 2026-10-01 into one design (it had grown by accretion); no
+> behaviour id was removed or renamed.
 >
-> **See also, and do not duplicate.** Four specs own neighbouring ground and change daily on
-> the release branch. This slice builds on them and restates none of them:
+> **See also, and do not duplicate.** Neighbouring specs own neighbouring ground. This slice
+> builds on them and restates none of them:
 > `ai/ai-settings.md` (ratified: provider rows as peers, downloads inside each row, ONE
-> catalogue; its `settings.one-catalog-unification` is the catalogue this slice describes the
-> *contents* of); `ui/model-selector-consistency.md` (ruled: pickers list the configured
-> models and the role defaults such as `$small`, `$large` and the vision tiers, from one
-> shared list builder); `ui/workflows.md` (a workflow is a saved graph of tool nodes; the
-> workflow bar; the locked default workflows); `ui/workflow-node-config.md` (what a node's
-> popover shows). Where this slice needs one of them to change, that is listed under
+> catalogue; its `settings.one-catalog-unification` is the catalogue whose *contents* this slice
+> describes); `ai/provider-keys.md` (where keys live); `ui/model-selector-consistency.md`
+> (pickers list configured models and role defaults from one list builder); `ui/workflows.md`
+> and `ui/workflow-node-config.md` (a workflow is a saved graph of tool nodes; the workflow bar;
+> the locked default workflows); `ui/activity-and-automatic-work.md` (the one job model that
+> **runs** a recipe, #5352); `compute/remote-compute.md`, `compute/jobs-and-fine-tuning.md` and
+> `compute/distillation.md` (where work runs; training; teaching a small model from a big one);
+> `source/formats-and-training.md` (ground truth, measuring, training sets);
+> `source/synced-folder.md` (a folder kept in step with a project); `source/iiif.md`;
+> `export/exporter.md`. Where this slice needs one of them to change, that is listed under
 > "Requests to other specs", not done here.
 
 ## Intent
 
-The source model makes a page rich. This slice is about how that richness gets *made* with the
-least effort and the most honesty: which model does which job, how jobs chain, how a project
-says what it is so Fichero can set itself up, and how the results stay in step with a folder
-on disk.
+The source model makes a page rich. This slice is about how that richness gets *made*, with the
+least effort and the most honesty: which model does which job, how jobs chain into a recipe,
+how a project says what it is for so Fichero can set itself up, and how recipes are shared so
+the next project on the same material starts from the best measured one.
 
-Four rulings from the maintainer drive it (recorded in the foundation): every model described
-one way, the same in the app, over MCP and on the command line; steps chain, and how a result
-was made is always visible, through workflows and the workflow bar; a project sets itself up
-through a short onboarding, because language and models are no longer one setting for a whole
-project; and a project can be tied to a synced folder.
+Setup is **opinionated**. The first question is what the person is trying to do. On the common
+paths Fichero then just does it: it picks the models by rule, measures them on the person's own
+corrected pages, and runs the work by itself as material arrives. On unusual paths it does not
+pretend to know; it offers the tools. Historical Spanish hands, the material of the app's two
+heaviest users, get a **flagship recipe** tuned and measured end to end. Any other language and
+script (Cherokee in its syllabary, say) goes through **the same flow**, which finds what models
+exist, says plainly where none does, and leads into training one.
+
+## The words (one meaning each)
+
+These terms are used in this slice and nowhere with another meaning. They refine the glossary in
+`source-model.md` ("The words"); where that table is shorter, this one is the detail.
+
+| Word | Means |
+|---|---|
+| **project** | what the app still calls a library: one research undertaking with its own file and settings |
+| **purpose** | the answer to setup's first question: what the person is trying to do (one of a fixed list, below). It decides which **layers** run by themselves. Stored on the project |
+| **layer** | a family of work that a purpose switches on or off at import: lines and regions, reading, entities, search vectors, knowledge graph (plus `prepare` and `output`, which follow the others) |
+| **job** | one kind of work, registered by name with what it **takes** and **gives** ("find lines", "read a line"). The registry is open |
+| **model card** | the one description Fichero keeps of a model: what it does, what it suits, how it runs, how far to trust it |
+| **workflow** | a saved graph of tools, as `ui/workflows.md` defines it. What runs is always a workflow |
+| **chain** | jobs in order. A chain is a workflow; there is no second kind of thing |
+| **recipe** | how a project's material is processed: its steps in order, and for each step the job, where it applies, the model, the settings, the prompt and where it runs; plus its **defaults** (below). It refers to workflows by name and may carry its own. It is data, never code |
+| **step** | one entry in a recipe: one job, one layer, one model (or none yet), its settings and prompt, where it runs |
+| **profile** | the **defaults** section of a recipe: what a project *is* (languages, scripts, period, direction, guideline, level of normalisation, record rule, fonts, metadata fields, views that open first). Stored as a prototype the project inherits from. There is no separate profile file |
+| **project defaults** | the values setup writes at the project rung of the cascade, from the answers and the recipe's profile |
+| **flagship recipe** | the recipe for historical Spanish hands, shipped with Fichero, measured end to end on real pages of that material |
+| **generated recipe** | a recipe assembled by rules at setup, for material no shipped or published recipe fits |
+| **follow / override / fork** | a project **follows** a published recipe at a version; its own changes are **overrides** on top; a **fork** makes the recipe the project's own, no longer following |
+| **bake-off** | candidates for a step read the person's corrected pages and are ranked by error |
+| **ground truth** | pages, or lines, a person has fully corrected, trusted to test or teach a model (`formats-and-training.md`) |
+| **compute target** | a place work can run besides this Mac: a cluster, a Linux machine, a GPU service (`compute/remote-compute.md`) |
+
+How they relate: **setup** asks the purpose and a few facts; from them and the model cards it
+**assembles a recipe by rule** (or takes a published one that fits); the recipe's **profile**
+becomes the project defaults; the purpose picks which of the recipe's **steps** run by themselves;
+each step's **job** declares what it takes and gives, which lets the recipe be checked before it
+runs and lets the activity system remake exactly what a correction touched.
 
 ## What exists today (read on disk 2026-09-19 by a code worker; to be re-read before tagging)
 
 - **Models are described in several shapes, partly unified already.** The four local runtimes
   (MLX, spaCy, Kraken, Whisper) are folded into one catalogue entry and one download path
-  (`llm/local_model_catalog.py`, `/api/local-inference/catalog`). Still separate: providers (`llm/providers.py`);
-  cloud model prices and abilities from a vendored list (`llm/model_types.py`); the local
-  catalogue entry (`llm/local_inference.py`) which spaCy, Kraken and Whisper are folded into
-  (`llm/local_model_catalog.py`); a separate list of embedding models (`llm/local_models.py`);
-  and named model profiles in the app database (`llm/model_profiles.py`). None says what a
-  model **takes in and gives out**; the nearest thing is a free list of words such as
-  "segmentation" or "recognition". The AI settings spec already records the unification as a
-  gap with open issues.
+  (`llm/local_model_catalog.py`, `/api/local-inference/catalog`). Still separate: providers
+  (`llm/providers.py`); cloud model prices and abilities from a vendored list
+  (`llm/model_types.py`); a separate list of embedding models (`llm/local_models.py`); and named
+  model profiles in the app database (`llm/model_profiles.py`; a local-runtime configuration,
+  not a project profile). None says what a model **takes in and gives out**; the nearest thing
+  is a free list of words such as "segmentation" or "recognition".
 - **Two families of engine routes** (one for MLX, one for spaCy, Kraken and Whisper) carry
   through into two families of MCP tools. **The command line already has about twenty-five
-  model commands**, because it is generated from the OpenAPI contract (about 700 commands in
-  all): list, download and delete a model, model profiles, install Kraken, compare models.
-  Anything this slice adds as a route reaches the command line for nothing.
+  model commands**, because it is generated from the OpenAPI contract. Anything this slice adds
+  as a route reaches the command line for nothing.
 - **A model recommender and a language-fit score exist** (`llm/model_recommendations.py`,
-  `llm/language_coverage.py`, `llm/script_coverage.py`, served as language fit): how well a
-  model covers a script, in four tiers, with an honest "cannot tell".
-- **A fifth chaining mechanism ships** beside the four below: chains of workflows with
-  conditions and their own routes (`execution/chaining.py`, `api/routes/workflow/chains.py`).
+  `llm/language_coverage.py`, `llm/script_coverage.py`). The score is LOOVE-style **tokenizer
+  coverage**: a script's exemplar characters are sorted into four tiers (a token of their own,
+  reachable only by merges, byte fallback, unreachable), with a coverage score and token
+  fertility, worked out offline from the model's tokenizer files only. With no tokenizer it says
+  "unknown"; it says of itself that it measures coverage, not the quality of the model's work.
+- **Tesseract is read, not run.** Its TSV output and box files are parsed
+  (`media/ocr_geometry.py` `parse_tesseract_tsv`, the `tesseract_box` format), but no Tesseract
+  runtime ships and it is not a provider.
+- **A second chaining mechanism ships** beside workflows: chains of workflows with conditions
+  and their own routes (`execution/chaining.py`, `api/routes/workflow/chains.py`).
 - **One place already refuses cloud use for privacy** (`enforce_model_profile_privacy`).
 - **Role defaults** (`$small`, `$large`, vision tiers) are app-wide. A workflow node can store
   an alias, resolved when it runs. There is no default at the level of a project, a folder or
@@ -64,300 +106,288 @@ project; and a project can be tied to a synced folder.
 - **Kraken's reading models are a hard-coded shortlist of two**, fetched from Zenodo by DOI and
   marked in the code as provisional. There is no browsing of Kraken's repository or of
   Hugging Face.
-- **Chains.** Workflow tools declare typed ports, and about fifty default workflows ship. But
-  the paleography ones are a single transcribe step with a tuned prompt, not real chains.
-  "Find the lines with one engine, read them with another" exists **four separate ways** with
-  no shared part. VERIFIED on disk by the spec writer (file and function), 2026-09-19:
+- **Chains.** Workflow tools declare typed ports, and about fifty locked default workflows ship
+  (`workflows/default_workflows.py`). The paleography ones are a single transcribe step with a
+  tuned prompt, not real chains. "Find the lines with one engine, read them with another"
+  exists **four separate ways** with no shared part. VERIFIED on disk, 2026-09-19:
   (1) `llm/kraken_runtime.py` `recognize_lines` / `recognize_to_geometry`: Kraken segments
   (`blla.segment`) and reads (`rpred.rpred`) in one script; (2)
   `workflows/tools/economy_htr.py`, tool `economy_htr`: `crop_line_strips` cuts line pictures,
-  then `trocr_transcribe_lines` or `kraken_transcribe_page` reads them, all inside one
-  function `economy_htr_file`; (3) `workflows/tools/align_transcript.py`, tool
-  `align_transcript`; (4) `workflows/tools/merge_geometry.py`, tool `merge_geometry`. What (3)
-  and (4) do inside is VERIFIED by an independent reviewer: (3) puts a transcript's lines on
-  Kraken's baselines only when the line counts match, and writes nothing otherwise
-  (`media/transcript_alignment.py`); (4) lays a reviewed transcript over measured word boxes,
-  records for every word whether its box was measured or worked out, and refuses a page whose
-  line structure cannot be trusted (`media/geometry_merge.py`). **Kraken's
-  baselines cropped and handed to Apple Vision or a local vision model does not exist**,
-  though every piece it needs does (Apple Vision accepts any image; the cropping exists).
+  then `trocr_transcribe_lines` or `kraken_transcribe_page` reads them, inside one function;
+  (3) `workflows/tools/align_transcript.py`, tool `align_transcript`: puts a transcript's lines
+  on Kraken's baselines only when the line counts match, and writes nothing otherwise
+  (`media/transcript_alignment.py`); (4) `workflows/tools/merge_geometry.py`, tool
+  `merge_geometry`: lays a reviewed transcript over measured word boxes, records for every word
+  whether its box was measured or worked out, and refuses a page whose line structure cannot be
+  trusted (`media/geometry_merge.py`). **Kraken's baselines cropped and handed to Apple Vision
+  or a local vision model does not exist**, though every piece it needs does.
 - **How a result was made** is partly recorded: an artifact names its provider, model, run,
   step and the artifact it came from. It is not shown as a chain anywhere.
-- **A prototype system exists** (VERIFIED on disk: `models/node_prototypes.py`,
-  `models/prototype_schema.py`): a node can name a prototype; prototypes inherit from a parent
-  and carry attributes that a node of that prototype takes on, in the manner of Tinderbox. It
-  is used for kinds of document today. It is the natural base for project profiles.
-- **Fichero's own licence is the GNU Affero GPL, version 3** (VERIFIED: `LICENSE` at the root).
-- **No project.** Nothing between a project and a document carries settings. The one
-  project-level setting mechanism has a single use. First-run onboarding asks about the
-  project, permissions and AI providers; it asks nothing about languages, scripts or period.
+- **A prototype system exists** (`models/node_prototypes.py`, `models/prototype_schema.py`): a
+  node can name a prototype; prototypes inherit from a parent and carry attributes that a node
+  of that prototype takes on, in the manner of Tinderbox. It is used for kinds of document
+  today. It is the natural base for a recipe's profile and for overrides.
+- **Fichero's own licence is the GNU Affero GPL, version 3** (`LICENSE` at the root).
+- **No project settings.** Nothing between the app and a document carries settings. First-run
+  onboarding (`fichero/fichero/Views/Onboarding/FirstRunWindow.swift`) makes a library and asks
+  about permissions and AI providers; it asks nothing about purpose, languages, scripts or
+  period.
+- **Folder watching exists** for automation triggers (`workflows/file_watcher.py`, on
+  `watchdog`), the base the synced folder's intake grows from.
 - **Apple Vision** runs in the engine, takes a language from a supported list, and returns line
   and word boxes.
 - **Two Readers exist**: a native one, and an engine-made HTML page that declares itself
   English. Neither handles direction, script or vertical writing.
 - **Embeddings** use one multilingual model for everything; the alternative is chosen by an
-  environment variable, not in Settings. Vectors live in DuckDB and refuse to mix spaces.
+  environment variable, not in Settings.
 - **spaCy** knows five languages. For any other it used to fall back to English without
-  saying so; that was fixed on 2026-09-19 (`7c04953cf`, #4914): it now declines, by name. One
-  loose end remains in an availability check (recorded in `historical-text-normalization.md`).
+  saying so; fixed on 2026-09-19 (`7c04953cf`, #4914): it now declines, by name.
 
 ## What the field does (survey, 2026-09-19; sources at the end)
 
 - **Kraken's model repository** (the `ocr_models` community on Zenodo, read through the
-  HTRMoPo project that `kraken list` uses) now publishes a machine-readable model card: task,
+  HTRMoPo project that `kraken list` uses) publishes a machine-readable model card: task,
   script, language, characters covered, accuracy, licence, authors, a DOI for the version and
-  one for the family. It covers segmentation, reading, reading order and correction, and is
-  not tied to Kraken alone.
-- **HTR-United** catalogues *training sets*, not models. (When the maintainer spoke of two
-  places, these two are the likely pair: HTR-United for ground truth; Zenodo/HTRMoPo for
-  models.)
-- **Hugging Face** is where most other models live and can be searched by language, task,
-  project and licence. Period and script are only in free text, so Fichero must read the
-  model pages to find "seventeenth-century Spanish". Teklia publishes permissively licensed
-  PyLaia readers there; the CATMuS sets are there.
+  one for the family. It covers segmentation, reading, reading order and correction.
+- **HTR-United** catalogues *training sets*, not models: one YAML description per set, in a
+  GitHub repository, checked against a schema by continuous integration on every submission.
+- **Hugging Face** hosts most other models. A model card is a README with a YAML header
+  (licence, languages, task, datasets, evaluation results). Period and script appear only in
+  free text, so Fichero must read the page to find "seventeenth-century Spanish". Teklia
+  publishes permissively licensed PyLaia readers there; the CATMuS sets are there.
 - **Transkribus** has hundreds of public models, usable only inside Transkribus.
 - **OCR-D** describes every tool in one machine-readable file with typed inputs, outputs and
-  parameters: the closest prior art to describing models one way.
+  parameters: the closest prior art to describing jobs one way.
 - **Arkindex** signs every result with the run that made it, from which the tool version, its
-  settings and the **model version** can be recovered: the closest prior art to "how was this
-  made".
-- **Onboarding elsewhere is tiny.** eScriptorium insists on two things only: reading direction
-  and where the line sits (on the baseline, or hanging from a top line as in Hebrew).
-  Transkribus asks nothing until a job is run.
-- **Evidence on vision-language models**: they now beat older recognisers on modern hands and
-  do well on historical print; a small open model trained on historical text (CHURRO) beats
-  much larger ones. But they invent plausible readings and quietly modernise spelling, which
-  a faithful transcription must not do. No study was found that compares, fairly, reading
-  each cut-out line against reading the whole page: Fichero should measure that on its own
-  sources.
-- **Licences.** The YOLO family (Ultralytics, DocLayout-YOLO, and YALTAi which puts YOLO
-  inside Kraken) is under the AGPL, and its publisher holds that this covers the trained
-  weights too. **Fichero is itself AGPL, so these are compatible with it**, with one caution
-  not yet checked with anyone qualified: the Mac App Store build, where Apple's terms and
-  copyleft code from *other* authors do not sit easily together. So such models are better
-  **downloaded on request than bundled**. Models whose terms are not open at all are a
-  separate matter (below). Surya's weights
-  carry a revenue cap. One well-known embedding model (jina-embeddings-v3) is non-commercial;
-  the two Fichero uses or offers (multilingual-e5, BGE-M3) are permissive. Apple's own document
-  reader (macOS 26), Detectron2 / LayoutParser and the RT-DETR family have no such problem.
+  settings and the model version can be recovered: the closest prior art to "how was this made".
+- **Onboarding elsewhere is tiny.** eScriptorium insists on two things: reading direction and
+  where the line sits (on the baseline, or hanging from a top line as in Hebrew). Transkribus
+  asks nothing until a job is run.
+- **Vision-language models** now beat older recognisers on modern hands and do well on
+  historical print; a small open model trained on historical text (CHURRO) beats much larger
+  ones. But they invent plausible readings and quietly modernise spelling, which a faithful
+  transcription must not do. No fair comparison of reading each cut-out line against reading
+  the whole page was found: Fichero measures that on its own sources (the bake-off).
+- **Licences.** The YOLO family (Ultralytics, DocLayout-YOLO, YALTAi) is under the AGPL, and
+  its publisher holds that this covers trained weights. Fichero is itself AGPL, so these are
+  compatible, with one caution not yet checked with anyone qualified: the Mac App Store build.
+  So such models are **downloaded on request, not bundled**. Surya's weights carry a revenue
+  cap. One well-known embedding model (jina-embeddings-v3) is non-commercial; the two Fichero
+  uses or offers (multilingual-e5, BGE-M3) are permissive.
 - **Apple's frameworks cover none of the hard cases** (early-modern hands, Syriac, woodblock
-  Chinese, Indigenous orthographies). Their language lists must be asked for at run time, not
-  assumed.
+  Chinese, Indigenous orthographies). Their language lists must be asked for at run time.
+
+### Prior art for the recipe format (2026-10-01)
+
+There is no standard for "an HTR recipe". Fichero uses standards for the wrapper and its own
+published schema for the inside:
+
+- **RO-Crate, and its Workflow RO-Crate profile**, is a JSON-LD metadata file
+  (`ro-crate-metadata.json`) that describes a folder of files, their authors, licence and
+  provenance. WorkflowHub accepts workflows packaged this way, and Zenodo takes any deposit and
+  gives it a DOI. **Adopted** as the wrapper, so a recipe can be deposited and cited. A Fichero
+  recipe would be a workflow type WorkflowHub does not yet know; registering it there is
+  optional.
+- **CWL** (Common Workflow Language) describes command-line tools and workflows in YAML, with
+  typed inputs and outputs, and runs them in containers. **Not adopted** for the inside: a CWL
+  step runs an arbitrary command, and a recipe must never run code (`source.recipe.data-not-code`);
+  Fichero's steps are its own registered jobs, not programs. CWL's typed inputs and outputs are
+  the model for a job's declared *takes* and *gives*.
+- **HTR-United** is the precedent for the **catalogue**: one folder per entry in a public
+  GitHub repository, a published schema, and automatic checks on every submission.
+- **Hugging Face model cards and Kraken's HTRMoPo cards** are what a recipe **points at**: a
+  step pins a model by Hugging Face repository and revision, or by Zenodo DOI, and Fichero reads
+  the card behind the pin. HTRMoPo cards carry the model type, script (ISO 15924), language,
+  metrics including CER, licence and creators, but no period (2026-10-01 search).
+- **OCR-D** and **Arkindex**, above, are the precedents for typed tool descriptions and for
+  recording the run behind every result.
 
 ## The design (proposed)
 
-### One card for every model
+### 1. One card for every model
 
 Every model Fichero can use has one **model card**, in one shape, whatever it is: a cloud
-vision-language model, a local one, Apple Vision, a Kraken segmenter, a Kraken reader, a
-layout detector, a spaCy or Stanza pipeline, an embedding model, a speech recogniser.
+vision-language model, a local one, Apple Vision, a Kraken segmenter or reader, a Tesseract
+language model, a layout detector, a spaCy or Stanza pipeline, an embedding model, a speech
+recogniser.
+
+**Tesseract becomes a provider** (2026-10-01), a peer of the others in the AI settings. Its
+binary is built into the app at build time (a sandboxed app cannot run code it downloads); its
+per-language data files (`traineddata`) are downloaded on demand as data, each with a card of its
+own. It is fast, local, Apache-licensed and covers many scripts in print and typescript, so it is
+the **local baseline in every bake-off for print and typescript**, and it can read cut lines
+handed to it by another finder (its single-line mode).
 
 The cards are the **contents of the one catalogue** the AI settings spec already calls for.
-They are what the shared picker lists and what a role default resolves to. They are not a new
-catalogue beside it.
-
-A card says:
+They are what the shared picker lists and what a role default resolves to. A card says:
 
 - **What it is**: name, version, who made it, where it came from (a DOI, a Hugging Face
-  address), how to cite it.
-- **What it does**: one or more **jobs** from the list below.
-- **What it suits**: scripts, languages, a period (from year, to year), print or hand or
-  typescript, reading direction, where the line sits, the characters it knows.
-- **How it runs**: on this machine or in the cloud; the engine it needs; its size; the memory
-  it needs; whether this Mac can run it.
-- **How far to trust it**: its licence and **licence class**; its published accuracy, on what
-  data; what it was trained on; its known limits; whether Fichero's maintainers have tried it;
-  and **this project's own measurements** of it against ground-truth pages (see
-  `formats-and-training.md`).
+  repository and revision, a provider and model id), how to cite it.
+- **What it does**: one or more **jobs** from the registry.
+- **What it suits**: scripts (ISO 15924), languages (BCP 47, with a Glottolog code where there
+  is one), a period (from year, to year), print or hand or typescript, reading direction, where
+  the line sits, the characters it knows.
+- **How it runs**: on this machine, in the cloud, or on a compute target; the engine it needs;
+  its size; the memory it needs; whether this Mac can run it; its **speed** (pages or lines per
+  hour, measured on this Mac where it has run, otherwise published and marked an estimate); its
+  **price** per page for a cloud model (from the vendored price list); and an **energy estimate**
+  per page, marked as an estimate (below).
+- **Whether it can be trained**: yes, and how (Kraken by `ketos`, LoRA on a small open
+  vision-language model, Tesseract's own training), or no (a closed hosted model).
+- **How far to trust it**: its licence and **licence class** (open, non-commercial, gated,
+  special terms); its published accuracy, on what data; what it was trained on; its known
+  limits; its **coverage** of the project's script (below); and **this project's own
+  measurements** of it against ground truth.
+- **Where else it is**: the compute targets it is present on, and the training job that made it,
+  if any (asked for by `compute/remote-compute.md`).
+
+**Coverage, two ways.** For a model that reads through a tokenizer (a language or
+vision-language model), coverage is the LOOVE tier score that exists today. For a model that
+reads through a fixed character set (Kraken's codec, Tesseract's character set), coverage is the
+share of the script's exemplar characters in that set. Neither says how well the model reads;
+both say when it cannot (a reader whose set lacks half the syllabary is excluded, not ranked).
+
+**Energy is an estimate, and says so.** Local: the measured time per page times a typical power
+draw for this Mac's chip class. A compute target: GPU hours times the card's rated power times
+the site's published overhead, where known. Cloud: a published per-request figure where the
+provider gives one, otherwise "unknown". Shown in grams of CO2 per thousand pages using the
+grid figure for the place it runs, where one is known, always labelled "estimate".
 
 The same card is what the app shows, what MCP returns and what the command line prints.
 
-### Jobs: what goes in and what comes out
+**Where a card's facts come from** (from the 2026-10-01 search). Script, language, task and
+licence are usually structured at the source (HTRMoPo cards on Zenodo, Hugging Face tags), and
+are read as they are. Accuracy is structured mainly in HTRMoPo cards, so Kraken's repository is
+read through the `htrmopo` library, which parses each record's card, not through Zenodo's plain
+search (which returns titles and descriptions only). **Period is structured nowhere** on model
+cards: it comes from the HTR-United record of the card's named training set, where there is one
+(HTR-United records carry typed dates), or a language model reads it from the card's prose and a
+person confirms it. **Whether a reader reads lines or pages** is rarely stated: it is worked out
+from the architecture (a CTC reader such as Kraken's reads lines; a vision-language model reads
+pages unless its card says it reads lines), shown as "worked out from the architecture", and
+correctable. Trainability is worked out from the runtime (Kraken, TrOCR, Tesseract and open
+vision-language models can be trained; a closed hosted model cannot).
 
-A short, fixed list of jobs, each defined in the source model's own terms. This is what makes
-chaining safe: a step can only follow a step that gives what it needs.
+A fact proposed by a language model is marked unconfirmed until a person confirms it, and the
+rules that assemble a recipe ignore unconfirmed facts.
 
-| Job | Takes | Gives |
-|---|---|---|
-| find regions | a page image | a pass of regions, with kinds |
-| find lines | a page image (and regions, if any) | a pass of lines with baselines and polygons |
-| put in order | a pass | a named reading order |
-| read a line | a line's picture | a reading of that line |
-| read a page | a page image | a reading of the page, with or without shapes |
-| tie text to lines | a reading of the page + a pass of lines | readings on those lines |
-| correct | a reading + the picture it was read from | a new reading that names the first |
-| propose a shape | a page image + a click | one shape |
-| find a table's cells | a table segment's picture (and its lines, if any) | cell segments with rows, columns, spans and headers |
-| trace a drawing | a segment's picture | a drawing (SVG) as a reading of that segment |
-| describe / classify a picture | a segment's picture | a description, or classes |
-| translate / transliterate / normalise | a reading | a reading |
-| find names; tag words | a reading | mentions on stretches of it; word-level analysis |
-| make a vector | a reading, or a picture | a vector |
-| transcribe speech | a stretch of a recording | a reading, with timings |
-| split pages | a scan or PDF page holding two pages (a spread), or a strip of frames | page segments, each a page of its own, in order |
-| prepare the image | a page image | a new rendition (cropped, deskewed, rotated, dewarped, adjusted); the original untouched |
-| describe for the catalogue | a page or document | proposed values for the project's metadata fields, for a person to confirm |
-| train a model | a training set of checked work (boxes, lines, readings) | a model card for a new detector or reader (YOLO regions or lines, Kraken lines or text, a LoRA on a vision model), measured on held-out pages |
+### 2. Jobs: a registry of what goes in and what comes out
 
-**The knowledge and output jobs** (added 2026-10-01, so a recipe can reach everything the archive
-model holds, not only reading). Each is defined in the spec that owns it; the recipe only names it:
+A job is registered by name with what it **takes**, what it **gives**, its **settings**, the
+**layer** it belongs to, **how its outputs are compared** (section 8a), and a **plain
+description with an example**: what it does, why a recipe would include it, and the trade-offs
+between its usual options, in a researcher's words. That description is what setup, the
+Inspector, the recipe's README and the user manual show, so a new job explains itself everywhere
+with no extra writing. This is what makes chaining safe: a step can only follow a step
+that gives what it needs. The registry is **open**: a new feature adds a job (or an export
+format) by registering it, and from then on recipes can name it, setup can offer it, the
+activity queue can run it and the recipe check knows where it may go, with no other change.
+Each entry records the Fichero version that added it, so a recipe naming a job this copy lacks
+can say which version has it.
 
-| Job | Takes | Gives | Owned by |
+**Reading jobs**
+
+| Job | Takes | Gives | Layer |
 |---|---|---|---|
-| link to authorities | entities | proposed links to Wikidata, VIAF, GeoNames, Pleiades or a project's own authority, for a person to confirm | `kg/kg-enrichment.md` (`kg.entity.authority-link-create`, `kg.enrich.reconciliation-external-authority-scope`) |
-| place in a gazetteer | place entities and mentions | coordinates and a gazetteer identifier, with the gazetteer named | `kg.enrich.geocode-place-entities`, `maps-and-georeference.md` |
-| enrich from linked data | linked entities | facts fetched from a SPARQL endpoint (Wikidata or another set in Settings), as claims whose source is that endpoint, kept apart from what the pages say | `kg.enrich.*`, `kg.enrich.imported-vs-extracted-layers` |
-| work out dates | readings and mentions of dates | normalised dates (any calendar, as a day count) with the text they came from | `histnorm.dates.*` |
-| attribute hands | segments and their pictures | proposed hand attributions with certainty | `source.hand.attributed` |
-| export | a project, folder or selection | files in the formats the recipe names, all from the one export stream: transcription formats (PAGE, ALTO, TEI, hOCR, plain text), IIIF, reading and writing formats (Markdown folder, Word, PDF), tables (Excel, CSV, Parquet, JSONL), linked data (RDF as Turtle or JSON-LD), a static Eleventy site, and training sets, with their provenance and, if asked, the recipe | `formats-and-training.md`, `export/exporter.md` (most emitters exist; several are not yet reachable from the app, #505, #507) |
-| publish | a folder | a IIIF published folder, a static site, or RDF behind the SPARQL console | `iiif.md`, `explore/networks.md` |
+| prepare the image | a page image | a new rendition (cropped, deskewed, rotated, dewarped, adjusted); the original untouched | prepare |
+| split pages | a scan or PDF page holding two pages, or a strip of frames | page segments, each a page of its own, in order | prepare |
+| find regions | a page image | a pass of regions, with kinds | lines |
+| find lines | a page image (and regions, if any) | a pass of lines with baselines and polygons | lines |
+| put in order | a pass | a named reading order | lines |
+| refine shapes | a page image + a pass | a new pass with the same segments' shapes adjusted (a detector tightening a vision model's rough boxes) | lines |
+| find signs | a page or line image | sign segments, for scripts read sign by sign (cuneiform, hieroglyphs, Linear B, undeciphered scripts) | lines |
+| propose a shape | a page image + a click | one shape | lines |
+| find a table's cells | a table segment's picture (and its lines) | cell segments with rows, columns, spans and headers | lines |
+| read a line | a line's picture | a reading of that line | reading |
+| read a page | a page image | a reading of the page, with or without shapes | reading |
+| tie text to lines | a reading of the page + a pass of lines | readings on those lines | reading |
+| correct | a reading + the picture it was read from | a new reading that names the first | reading |
+| trace a drawing | a segment's picture | a drawing (SVG) as a reading of that segment | reading |
+| identify signs | sign segments + a sign list | proposed identifications with certainty, for a person to confirm (`undeciphered-scripts.md`, `languages-scripts-signs.md`) | reading |
+| describe / classify a picture | a segment's picture | a description, or classes | reading |
+| translate / transliterate / normalise | a reading | a reading | reading |
+| transcribe speech | a stretch of a recording | a reading, with timings | reading |
+| find names; tag words | a reading | mentions on stretches of it; word-level analysis | entities |
+| make a vector | a reading, or a picture | a vector | vectors |
+| find statements | readings (with their mentions) | claims: subject, relation, object, each naming the stretch of text it came from | graph |
+| describe for the catalogue | a page or document | proposed values for the project's metadata fields, for a person to confirm | catalogue |
+| train a model | a training set of checked work | a model card for a new detector or reader, measured on held-out pages | train |
+
+"Read a page" is kept apart from "read a line" on purpose. Vision-language models mostly do the
+first, and cannot be trusted to keep shapes; Kraken and its kin do the second.
+
+**Knowledge and output jobs.** Each is defined in the spec that owns it; a recipe only names it.
+
+| Job | Takes | Gives | Layer | Owned by |
+|---|---|---|---|---|
+| link to authorities | entities | proposed links to Wikidata, VIAF, GeoNames, Pleiades or a project's own authority, for a person to confirm | graph | `kg/kg-enrichment.md` |
+| place in a gazetteer | place entities and mentions | coordinates and a gazetteer identifier, with the gazetteer named | places | `kg/kg-enrichment.md`, `maps-and-georeference.md` |
+| enrich from linked data | linked entities | facts fetched from a SPARQL endpoint, as claims whose source is that endpoint, kept apart from what the pages say | graph | `kg/kg-enrichment.md` |
+| work out dates | readings and mentions of dates | normalised dates (any calendar, as a day count) with the text they came from | graph | `historical-text-normalization.md` |
+| attribute hands | segments and their pictures | proposed hand attributions with certainty | reading | `readings-and-apparatus.md` |
+| export | a project, folder or selection | files in the formats the step names, all from the one export stream (PAGE, ALTO, TEI, hOCR, plain text, IIIF, Markdown, Word, PDF, Excel, CSV, Parquet, JSONL, RDF, a static Eleventy site, training sets), with provenance and, if asked, the recipe | output | `formats-and-training.md`, `export/exporter.md` |
+| publish | a folder | a IIIF published folder, a static site, or RDF behind the SPARQL console | output | `iiif.md`, `explore/networks.md` |
 
 SPARQL itself is a way of **asking** the knowledge graph, not a step that changes anything; a
 recipe can only make sure the graph it queries is filled and published.
 
-**Kept in sync.** An export step can write to a **synced export folder**: once made, it is kept
-current as the work changes. A correction, a new page or an accepted link re-queues the export of
-exactly what it touched (the activity spec's dependencies), so the folder (Markdown for an
-Obsidian vault, Excel for a collaborator, the Eleventy site for the web) always matches the
-library without anyone exporting again (`export.exporter-manager-continuous-sync`, #4640; the
-synced-folder spec, #4952). **It works both ways** (`synced-folder.md`): someone can work on the
-folder of TEI files in their own editor (Oxygen, VS Code), and an edited or new file comes back
-into the library as a new pass (`source.sync.outside-edits-are-passes`), with both kept when the
-library and the file changed at once (`source.sync.conflicts-kept-both`); Fichero never
-overwrites a file it did not write.
+An export step can write to a **synced folder** that is kept current as the work changes, and
+that can work both ways; that is specified in `synced-folder.md`.
 
-**Expandable by design.** Jobs and export formats are a **registry**, not a fixed list. A new
-feature adds a job (or an emitter) by declaring its name, what it takes, what it gives and its
-settings; from then on recipes can name it, onboarding can offer it, the activity queue runs it,
-and the recipe check knows where it may go. The recipe format is versioned, so a recipe written
-today keeps working when jobs are added, and one that names a job this copy of Fichero does not
-have says so instead of failing part way. Javier's and Ann's recipe is the first one built on it;
-everything else is added the same way.
-| find statements | readings (with their mentions) | claims: subject, relation, object (who did what to whom), each naming the stretch of text it came from |
+### 3. One way to say "find here, read there"
 
-"Read a page" is kept apart from "read a line" on purpose. Vision-language models mostly do
-the first, and cannot be trusted to keep shapes; Kraken and its kin do the second.
+A single general step replaces today's four special ones: **take the segments of a pass, cut
+each one's picture (to its polygon, straightened on its baseline), hand each to any model that
+can do the next job, and write what comes back as readings on those same segments.** Because it
+works on any pass and any reader, **recipes mix runtimes step by step**: any finder can feed any
+reader, and any reader any corrector. With it:
 
-### One way to say "find here, read there"
-
-A single general step replaces today's three or four special ones: **take the segments of a
-pass, cut each one's picture (to its polygon, straightened on its baseline), hand each to any
-model that can do the next job, and write what comes back as readings on those same
-segments.** With it:
-
+- Kraken finds the baselines; Tesseract reads each cut line in its single-line mode.
 - Kraken finds the baselines; Apple Vision reads each line.
-- Kraken finds the baselines; a local vision-language model reads each line; a second model
-  corrects against the picture.
+- A vision-language model proposes regions or lines; a YOLO detector (or Kraken) refines their
+  shapes; a reader reads them.
+- YOLO finds the regions, Kraken the lines in them; a small local vision-language model reads
+  each line; a large one corrects only the lines read with low confidence.
 - A person draws the lines by hand for a script no segmenter knows; any reader reads them.
-- A layout detector finds the regions; each kind of region goes to a different reader (a
-  table to one, a marginal gloss in another language to another).
+- A layout detector finds the regions; each kind of region goes to a different reader (a table
+  to one, a marginal gloss in another language to another).
+
+So a recipe's choice is a **combination**, one model per step, and that is what is measured and
+recorded (section 8).
 
 `economy_htr`, `align_transcript`, `merge_geometry` and Kraken's own segment-and-read are
 **retired into it**, keeping what they do well (refusing a page rather than guessing;
 recording measured against worked-out boxes).
 
-### How a recipe uses jobs (2026-10-01)
+### 4. Chains are workflows, and every result says how it was made
 
-A recipe is written in these jobs, not in tools. Each step names a **job**, **where it applies**
-(which segments: a page, regions of a kind, lines, words), its **model**, its **settings** and
-its **prompt**. Because each job declares what it takes and gives, a recipe is checked before it
-runs: a step can only use what an earlier step produced. A typical recipe for a bound manuscript:
+A **chain** is a workflow. Today there is a second kind (`execution/chaining.py`), so this is a
+migration: its conditions fold into the workflow graph and it is retired. What this slice adds:
 
-1. **split pages**: spreads into single pages (a splitter or a vision model; skipped when
-   pages are already single);
-2. **find regions**: a layout model gives regions with kinds (main text, margin, table, heading,
-   drawing);
-3. **find lines** in the text regions (a named Kraken model);
-4. **read each line**, **by region kind** ("find here, read there"): main text to one reader,
-   marginal glosses in Latin to another, tables to the cell finder and then a reader, drawings
-   to "trace a drawing";
-5. **correct** (a vision model, with the recipe's own prompt);
-6. **find names; tag words** (a named spaCy pipeline for the language);
-7. **find statements**: who did what to whom, as claims for the knowledge graph (a named model
-   and prompt; transfer verbs such as selling, giving and owing get their own check);
-8. **make a vector** for search.
-
-Which steps are present follows from the purpose: "just transcribe" stops at step 5, the full
-knowledge graph runs all eight. **Maps are steps too**: a map recipe (or a map folder in a
-project) adds georeferencing (control points, a transformation) and finding places, as
-`maps-and-georeference.md` defines them.
-
-**A recipe applies to a library or to a folder** (2026-10-01). The library has its recipe; any
-folder can follow a different one, by the same cascade as language and models: a folder of maps
-follows a map recipe, a IIIF folder of Persian manuscripts a Persian reader, beside Spanish deeds
-following the flagship. **Which model** each step uses is the recipe's default for the
-project, and the cascade can override it lower down: one folder of Latin charters can name a
-different reader without a second recipe.
-
-### Chains are workflows
-
-A **chain** is a workflow: a saved graph of steps, as the workflows spec already defines.
-There is to be no second kind of thing. Today there **is** one (`execution/chaining.py`), so
-this is a migration: its conditions fold into the workflow graph and it is retired (routed to
-`ui/workflows.md`). What this slice adds:
-
-- steps declare their job, so a chain can be checked before it runs (what each step gives is
-  what the next one takes);
+- steps declare their job, so a chain is checked before it runs;
 - a step's model is a **model card or a role default**, chosen with the one shared picker;
-- a chain can be made of **jobs with no model named** ("find lines, read each line, correct,
-  find names"), which resolves against the project's settings when it runs. That is what lets
-  one best-practice chain serve many projects;
-- the **workflow bar** offers the project's default chain first, on whatever is selected:
-  sources, pages, or these three lines;
+- a chain can be made of **jobs with no model named**, resolved against the project's recipe
+  when it runs, so one chain can serve many projects;
+- the **workflow bar** offers the project's recipe first, on whatever is selected, then the
+  workflows the selection can feed;
 - machine output arrives as a **new pass or new readings**, never over a person's work.
 
-### How was this made
+**How was this made.** Every pass and every reading carries its **making**: the run; the step;
+the recipe and its version; the model card and its exact version; the settings and prompt used;
+what it was given (which pass, which reading, which image rendition); and whether a person or a
+machine made it, set by the engine. Because each reading names what it was made from, the chain
+can be walked back. The **Inspector** shows it for the selected segment as a short readable
+chain ("Lines found by Kraken (blla 5.2) → read by the CATMuS reader → corrected by Qwen (local)
+→ corrected by you, 3 May"); the workflow bar and the Activity row show the same for a run; MCP
+and the command line return the same answer. Two chains run on one page can be **compared** and
+scored against ground truth.
 
-Every pass and every reading carries its **making**: the run; the step; the model card and its
-exact version; the settings used; what it was given (which pass, which reading, which image);
-and whether a person or a machine made it, set by the engine. Because each reading names what
-it was made from, the whole chain can be walked back.
+### 5. A project, its settings and the cascade
 
-- The **Inspector** shows it for the selected segment, as a short readable chain: "Lines found
-  by Kraken (blla, version…) → read by Apple Vision (Spanish) → corrected by Qwen (local) →
-  corrected by you, 3 May."
-- The **workflow bar** and the run log show the same for a run.
-- The same answer comes back over MCP and the command line.
-- Two chains run on the same page can be **compared**, reading against reading, and scored
-  against ground truth where there is some.
-
-### A project
-
-**A project is what Fichero has called a library** (the maintainer has decided on the new
-name; the rename is not yet carried through the app, and is not this spec's to carry). One
-project is one research undertaking with its own file: a palaeographic project here, a
-project of twenty-first-century notes there. So a project is not a new kind of container, and
-nothing new sits between it and its folders.
-
-What is new is that **a project has settings of its own**, and an onboarding that fills them
-in. Until now almost every such setting (language, the models for each job) has been one
-value for the whole app.
-
-### Project profiles: "Spanish palaeography", and it sets itself up
-
-A **profile** is a named, shareable description of a kind of project: "Spanish palaeography,
-16th to 18th century"; "Medieval Latin with glosses"; "Modern typed notes"; "Syriac
-manuscripts". Choosing one is often the *whole* of onboarding: say "Spanish palaeography" and
-Fichero brings the right languages and scripts, the right chain, the right models (offering
-to download them), the right transcription guideline, and only the tools that matter.
-
-- A profile is built on the **prototype system that already exists**: a profile is a prototype
-  for a project. Profiles inherit ("Spanish palaeography, notarial hands" from "Spanish
-  palaeography" from "Handwritten, Latin script"), and a project can override anything.
-- A profile is **a plain file that can be shared** (one JSON document, or lines of JSON for a
-  set of them): languages and scripts; period; material; **which recipe is its chain** and
-  which model does each job; the project's rule for what counts as the record (strict or
-  relaxed); the guideline and level of normalisation; model suggestions with their citations; rights
-  defaults; what the synced folder should hold. It holds no sources and no secrets.
-- Profiles can be **exported, imported, and published** by a community of practice, so best
-  practice for a language or a script travels as a file, not as folklore. Fichero ships a
-  starter set, kept as data.
-- **It can be automatic, after a first yes.** Automatic work is switched on once for each
-  project, and the first time Fichero shows what it is about to do and waits. After that new
-  sources go through the project's chain by themselves. Whether what it makes counts as the
-  record follows **the project's rule**: in a strict project (every new project) it is a pass
-  and readings to look at until a person says so; in a relaxed project the newest counts.
-  Cloud models are used only if the project allows it.
+**A project is what Fichero has called a library** (the rename is decided, not yet carried
+through the app, and not this spec's to carry). It is one research undertaking with its own
+file. What is new is that **a project has settings of its own**: its purpose, its recipe and its
+defaults. Until now almost every such setting has been one value for the whole app.
 
 Project settings sit **inside the cascade already ruled** for language and other attributes:
 
@@ -366,538 +396,1288 @@ app  >  project  >  folder  >  source  >  page  >  region  >  line  >  word  >  
 ```
 
 Each level inherits from the one above unless it says otherwise, and every shown value says
-where it came from. So a project of mostly Spanish papers can hold one folder of Nahuatl
-ones, set on that folder, without becoming two projects. A project whose settings were never
-filled in behaves exactly as today. (The cascade was recorded earlier as a future direction;
-per-project settings bring its upper levels forward.)
+where it came from. So a project of Spanish deeds can hold one folder of Nahuatl papers, or one
+folder of maps, set on that folder, without becoming two projects. **A folder can follow a
+different recipe** (a IIIF folder of Persian manuscripts, a folder of maps), and **a single step's
+model can be overridden lower down** (one folder of Latin charters names a different reader)
+without a second recipe. A project whose settings were never filled in behaves exactly as today.
 
 A project's settings:
 
-- **What it is**: languages, scripts, period, print or hand, how complex the pages are. These
-  become the defaults that cascade down to its pages and segments.
-- **Its chain**: the default workflow for new sources, and which model does each job here (a
-  card, or a role default). Two projects can use quite different models: a
-  palaeographic one, and one of twenty-first-century notes.
-- **Its rules**: whether pages may leave this machine (which shuts out cloud models for
-  everything in it); the transcription guideline and level of normalisation; the rights
-  defaults (see `rights-and-access.md`).
-- **Its folder**, if it has one (below).
+- **Its purpose** (below), and any layers added since.
+- **Its recipe**: the published recipe it follows and the version, its overrides, and which
+  compute target each "runs on a cluster" step is bound to; or a recipe of its own.
+- **Its defaults** (the recipe's profile, as overridden): languages, scripts, period, direction,
+  where the line sits, guideline and level of normalisation, fonts, metadata fields, the views
+  that open first.
+- **Its rules**: whether pages may leave this machine (`source.project.stays-local`); what counts
+  as the record, strict or relaxed (a new project is strict); rights defaults
+  (`rights-and-access.md`).
+- **Its synced folders**, if any (`synced-folder.md`).
 
-### Onboarding: a profile, or five questions
+**One settings surface: the Inspector** (ruled 2026-10-01). Everything setup set is shown and
+edited in the **Inspector when the library is selected**, with an easy way to add a language or a
+layer. "Project Settings…" in the File menu and on the library's context menu selects the library
+and opens that Inspector section; it is not a second window. A folder's own settings are edited in
+the same Inspector when the folder is selected. (This settles the 2026-09-20 direction, which had
+left open a separate project settings window: there is none.)
 
-Onboarding is a window (the app's first-run window, which already has a step for making a
-library, is the thing to grow), shown when a **new project** is made. The same settings are
-reached afterwards from **Project Settings…**, in the File menu and on the project's context
-menu. One window, reached two ways; no second settings surface. An existing project can run
-the onboarding at any time.
+### 6. Purposes and the layers they turn on
 
-**It starts with sample pages** (ruled 2026-09-19). Drop in a few pages and Fichero proposes
-what the project is: scripts, languages, print or hand, period, how complex the pages are,
-and the profile that fits best. Then a profile, or the questions, or both, to correct what it
-proposed. With no sample pages, it offers the profiles; and if none fits, making a project
-asks **at most five things**, each of which changes what Fichero does.
-Anything that can be worked out is worked out and shown for correction, not asked.
+Setup's first question is the purpose, in plain words. "AUTO" means the layer runs by itself on
+material added to this project. "off" means it does not run by itself; it is still there to run
+by hand or to add later. A purpose changes **what is offered first and what runs by itself,
+never what can be reached** (ruled 2026-10-01: offer first, never hide).
 
-1. **Which scripts?**
-2. **Which languages?**
-3. **Print, handwriting or typescript, and roughly when?**
-4. **How complex are the pages?** (one column; columns or tables; margins and glosses)
-5. **May pages leave this machine?**
-
-(How faithful the transcription must be is set by the guideline a profile carries, not asked
-as a sixth question.)
-
-Reading direction and where the line sits follow from the script, and can be corrected. The
-Mac's abilities are detected. (Sample pages come first, as above; these questions are what is
-left when there are none, or to correct what Fichero proposed.)
-
-From the answers Fichero proposes a **default chain**. A best-practice chain is a **recipe: a
-shareable file of its own** (ruled 2026-09-19) that names the jobs, the models that suit, and
-for which languages, scripts and periods it is meant. Applying a recipe **makes a workflow**.
-What runs is always a workflow, so there is still one way of running things; a recipe is a
-second way of arriving at one, built to be shared between people and projects. Profiles and
-onboarding point at recipes. Fichero ships a starter set. Fichero says plainly:
-
-- which models it will use, and why;
-- which it needs to download, how big they are, and their licences;
-- **where no good model exists**, and what to do about it: "No reader is known for this
-  script. Transcribe twenty pages by hand, or with a vision model and correct them; Fichero
-  will then help you train one." Honest absence, never a quiet wrong substitute.
-
-Examples of recipes the survey suggests: modern typed English (Apple's document reader, spaCy,
-the multilingual embedder; all local); early-modern Spanish hands (Kraken lines, the nearest
-reader, a local vision model correcting each line, expect to fine-tune); medieval Latin with
-glosses (regions by kind, a CATMuS reader, LatinCy); an Arabic manuscript (right-to-left
-lines, a reader searched for by script, no dependable historical word-tagger, so stop at text
-and vectors); an Indigenous language in Latin letters (a letter-faithful reader, **never** a
-language-model correction that would turn it into Spanish or English; no fake lemmas); a
-script nothing can read (lines, hand transcription, train).
-
-Onboarding can be run again; changing an answer changes defaults for new work and rewrites
-nothing already made.
-
-### Purpose first: "just do it", or the tools (ruled 2026-10-01)
-
-The maintainer ruled on 2026-10-01 that setup be **opinionated**. The first question is what
-the person is trying to do. On the common paths Fichero then **just does it**: it picks the
-models, builds the recipe and runs the layers automatically at import, with no further questions
-and no toggles. For unusual or exploratory work it does not pretend to know; it gives the person
-the **tools** instead: the model finder and bake-off, the recipe editor, the layer choices and the
-analysis views.
-
-**Where it happens.** The first-run window (`FirstRunWindow`, which today makes a library and
-asks nothing about the research) grows into the setup flow. Afterwards everything it set is
-edited in the **Inspector, when the library is selected**: purpose, languages, scripts,
-direction, layers, models per job and the recipe, with an easy way to add a language or a layer.
-That is the one settings surface (`source.project.one-settings-window`).
-
-**What "opinionated" means** (ruled 2026-10-01). Two things at once:
-- **One path that works beautifully.** Historical Spanish hands (early-modern notarial and
-  administrative scripts, the library's two heaviest users today) get a **flagship recipe**,
-  tuned and measured end to end on real pages of that material: the best Kraken lines, the best
-  reader, the corrections loop, entities and the knowledge graph, with defaults that need no
-  adjusting. It is the reference every other recipe is measured against.
-- **The same machinery for anyone else.** Someone working in Cherokee (the syllabary, `Cher`;
-  Fichero already ships a Cherokee font) answers the same questions and gets a **generated**
-  recipe: Fichero searches for models that read the syllabary and the language, proposes them,
-  runs the bake-off on their pages and, where nothing good exists, says so and walks them into
-  training their own: correct some pages, let a large model draft others, distil a small model,
-  and fine-tune it on a cluster or a larger Mac (`compute/distillation.md`). The flagship path
-  and the generated path are the same flow; only how much is already known differs.
-
-**Purposes and the layers they turn on.** "AUTO" runs at import for this project. "Off" means
-it does not run at import; it is still there to run by hand or to add later, and nothing is
-hidden. A purpose changes what is offered first and what runs by itself, never what can be
-reached (ruled 2026-10-01: offer first, never hide).
-
-| Purpose | Lines and regions | Reading | Entities (spaCy etc.) | Search vectors | Knowledge graph | Kind |
+| Purpose | Lines and regions | Reading | Entities | Search vectors | Knowledge graph | Kind |
 |---|---|---|---|---|---|---|
 | Just transcribe | AUTO | AUTO | off | off | off | just do it |
-| People, places and things (entities) | AUTO | AUTO | AUTO | off | off | just do it |
+| People, places and things | AUTO | AUTO | AUTO | off | off | just do it |
 | Search my sources | AUTO | AUTO | off | AUTO | off | just do it |
 | The full knowledge graph | AUTO | AUTO | AUTO | AUTO | AUTO | just do it |
 | Map places | AUTO | AUTO | AUTO (places) | AUTO | places | just do it |
 | Edit a corpus | AUTO | AUTO | off | off | off | tools (apparatus, comparison) |
 | Decipher a script | off (drawn or checked by hand) | off | off | off | off | tools (`undeciphered-scripts.md`) |
-| Train my own model | AUTO | AUTO (the teacher) | as its base purpose | as its base | as its base | tools (`compute/distillation.md`) |
+| Train my own model | as its base purpose | AUTO (the teacher) | as its base | as its base | as its base | tools (`compute/distillation.md`) |
 | Not sure yet | off | off | off | off | off | everything on demand |
 
-**This refines two rulings, it does not reverse them** (ruled 2026-10-01): the free NLP layer
-runs automatically at import **in projects whose purpose uses entities**, not in every
-project; and Kraken segments automatically at import in projects whose purpose includes lines.
-Neither gains a toggle: the purpose decides. Adding a layer later (Inspector, "Add Layer…")
-runs it over everything already in the project.
+"Train my own model" asks for a **base purpose** (Just transcribe unless changed): it runs that
+purpose's layers, with reading done by the best available teacher, and offers the distillation
+tools first. The `prepare` layer runs whenever a later layer that needs it runs; the `output`
+layer runs when the project has a synced folder or a published folder. `train` steps never run by
+themselves (`source.recipe.train-never-automatic`).
 
-**What setup produces: a recipe and the project's defaults.** A **workflow** is a few tools
-chained together. A **recipe** is bigger (ruled 2026-10-01): the workflows a project runs, in
-order, **and** the default model for each step, the settings that go with them, and where each
-step runs. A palaeography recipe might say: Kraken with a named baseline model for lines; a
-named reader; then entities with a named spaCy pipeline; then the knowledge graph with a named
-extraction model. An ancient-Arabic recipe names different models and settings for the same
-steps. A recipe can include its own workflows, can say "this step with this MLX model", or can
-say "too hard for any available model: fine-tune one, on a cluster". Setup writes the
-project's recipe and the project's defaults (languages, scripts, direction, guideline, models per
-job, active layers, the views that open first) at the project rung of the cascade. Both are shown
-before setup closes, and both stay visible in the Inspector. Changing an answer later
-regenerates them and shows what would change; anything the person changed by hand is kept unless
-they choose otherwise.
+**This refines two rulings, it does not reverse them** (ruled 2026-10-01): the free NLP layer runs
+automatically at import **in projects whose purpose uses entities**, not in every project; and
+Kraken segments automatically at import in projects whose purpose includes lines. Neither gains a
+toggle: the purpose decides. Adding a layer later (Inspector, "Add Layer…") turns on the recipe's
+steps of that layer and runs them over everything already in the project, as one job.
 
-**Built procedurally, and deterministic** (ruled 2026-10-01). Setup is a widget the person fills
-in (purpose, languages, scripts, period, kind of material), with search beside it, not a
-conversation. The recipe is **assembled by rules** from those answers and from the structured
-facts on model cards (jobs, scripts, languages, period, licence, size, measured accuracy): for
-each step, the candidates whose cards suit the answers, ranked by the language-fit score and by
-measurements. The same answers and the same catalogue always give the same recipe, so it is
-reproducible, explainable ("chosen because its card says Latin script, Spanish, 16th century,
-CER 6% on these pages") and testable. A language model is a helper, never the decider. It can
-fill in a card whose source page describes a model only in prose (proposing scripts and
-languages for a person to confirm, kept on the card), explain a choice in plain words, or
-suggest answers from sample pages. The rules still assemble the recipe.
+### 7. Setup, screen by screen
 
-**Finding and choosing models during setup.** Once languages, scripts and period are known,
-Fichero looks for candidates for each step itself (the extended model finder,
-`source.find.by-need`: Hugging Face, Kraken's Zenodo repository, HTR-United, and the public
-eScriptorium and Transkribus models). An assistant model proposes candidates with reasons drawn
-from their cards (scripts, published accuracy, licence). It runs on the Mac, or in the cloud only
-where the project allows it; it shows its reasons and never picks silently. Then a **bake-off**:
-the top candidates read a few sample pages the person has corrected, or corrects as part of
-setup, and are ranked by character and word error per hand and page kind, with speed, cost,
-size, licence and whether this Mac can run them. The person confirms the winner, which becomes
-the default for that step. The ranking stays on the model cards and can be re-run as
-corrections grow. The bake-off can be skipped ("use the recommendation"). Where nothing fits,
-setup says so and offers the train-your-own path (`compute/distillation.md`).
+**The step order below is provisional: to be aligned with the maintainer's step document
+(2026-10-02),** which will be the source for the order and wording of the steps. What is fixed
+is what the steps must collectively do: ask the purpose first, count or ask the volume, ask at
+most five facts, show the recipe with its reasons and estimates, offer the bake-off, and run
+nothing before Start.
 
-**Leaving the Mac** (ruled 2026-10-01): asked during setup **and** again the first time a cloud
-model would actually be used, which is when the question means something. The default is that
-nothing leaves.
+Setup is a window with a form and search, not a conversation. It grows from today's first-run
+window (`FirstRunWindow.swift`). It opens when a **new project** is made, and from **Set Up…** in
+the library's Inspector for an existing one. It can be closed at any point: the answers so far are
+kept as a draft on the project, and **nothing runs until Start**. "Set up later" makes a project
+with no settings, which behaves as today.
 
-### Where the recipe sits (2026-10-01)
+| # | Screen | What it asks | What it works out and shows instead of asking |
+|---|---|---|---|
+| 1 | **What are you doing?** | the purpose (and, for "Train my own model", its base purpose) | — |
+| 2 | **Your material** | a folder, files, a IIIF manifest or collection, recordings, or "later"; **how much**, only when it cannot be counted (under 100 pages; 100 to 5,000; 5,000 to 100,000; more); and, optionally, where corrected transcriptions are | the page count (counted from the folder, the PDFs' pages or the manifest); the sample pages: up to ten, spread across the material (first, last, evenly spaced, and the largest and smallest images), which the person can swap |
+| 3 | **What it is** | at most five things, each pre-filled where it can be: **scripts**; **languages**; **print, handwriting or typescript, and roughly when**; **how complex the pages are** (one column; columns or tables; margins and glosses); **may pages leave this Mac** (asked here only if a step would use the cloud; see screen 4) | reading direction and where the line sits (from the script); the fonts the script needs (from the shipped fonts and the script); this Mac's chip, memory and free disk; which providers have keys; which compute targets exist |
+| 4 | **How it will be done** | nothing, unless the person wants to change something | the recipe: a published one that fits, or one generated by rule; each step's model, where it runs, download size, licence class, published and local measurements, and why it was chosen; steps with no fitting model; total download size against free disk; the estimate for the whole volume |
+| 5 | **Check on your pages** | which corrected pages to use, or "skip" | the bake-off: candidate combinations ranked on those pages |
+| 6 | **Ready** | **Start** (the first yes for automatic work) | a summary: purpose, defaults, recipe, downloads, and what will run by itself on the material now, with the whole volume's estimate, and the main alternative's beside it ("about 1,200 pages: about 3 hours on this Mac, $0; or about 40 minutes in the cloud, about $18") |
 
-The recipe is the one description of **how a project's material is processed**. Everything else
-either writes it, runs it, records it, or carries it:
+**Setup teaches the method.** Every screen, and every step of the proposed recipe, explains itself
+in plain words: what the step does, why it is in this recipe, what the options are and their
+trade-offs (accuracy, cost, speed, carbon, trainability), with a small example drawn from the
+person's own sample pages where there are some (the lines Kraken found on page 3; the names found
+in one of its lines). The words come from the job registry's descriptions, so the same
+explanation appears in setup, in the Inspector and in the recipe's README, and the user manual is
+written from the same source.
 
-| Part | Its relation to the recipe |
+**Pre-filled from the sample pages.** Where a local model is available to look, Fichero suggests
+scripts, languages, material, period and layout from the samples, and labels each suggested value
+"suggested from your pages" until the person accepts or changes it. With no local model available
+the fields start empty and nothing is downloaded just to make a suggestion. Each field has search
+(scripts by name or ISO 15924 code; languages by name, BCP 47 tag or Glottolog code; periods by
+years or by a named period).
+
+**Recordings, and languages with no script.** When the material is recordings, the scripts field
+becomes **how to write it**: a practical orthography (a script and its conventions), IPA, or a
+transcription system of the project's own. The reading step becomes "transcribe speech", and the
+reading's script is the one chosen. The language itself may have no script (`Zxxx` in ISO 15924);
+that is recorded, not treated as an error.
+
+**Folders that differ.** Where the material's folders differ (print in one, handwriting in
+another; a second language in one), screen 3's answers can be given per folder, and the rules
+assemble a folder override for each step that differs, not a second recipe.
+
+**Corrected transcriptions given at setup** come in through the one import path as person-made
+passes marked as ground truth: PAGE, ALTO or TEI with their transcriptions, or plain text files
+named after their images (page-level ground truth, with no lines). Pages already in an existing
+library with person-made readings can be chosen instead. Without any, screen 5 offers to correct
+two or three sample pages now, starting from the recommended reader's draft.
+
+**An existing library** (the two historians already have one) runs the same setup from its
+Inspector. Samples and ground truth come from its own pages. Start applies the recipe to material
+added from then on; running it over the pages already there is offered as a separate choice with
+its page count and estimate, and its output arrives as new passes and readings, never over what a
+person made.
+
+### 7a. What onboarding teaches
+
+Setup is the method, explained as it goes. Each relevant step explains its topic in plain words,
+with an example from the person's own pages where there are some, and says what the choice
+changes. The **step order is to be aligned with the maintainer's step document (2026-10-02)**;
+the topics are what must be covered somewhere along the way.
+
+| Topic | What it explains | An example from the person's own material |
+|---|---|---|
+| **Languages** | language tags and Glottolog; that a document can hold several; how the language cascades to folders, pages and lines | "Page 12 has a Latin formula inside Spanish text" |
+| **Scripts** | ISO 15924; direction; where the line sits; style variants of one script (naskh and nastaliq) | the script and direction worked out for a sample |
+| **Fonts** | why a script needs a font that has its characters; the fonts Fichero ships and how to add one | a sample line shown in the chosen font |
+| **Glyphs and Unicode** | characters, glyphs and code points; combining marks; private-use characters and their risks | a sample word broken into its characters |
+| **A faithful way to write the script** | working out a graphemic representation: graphemes against allographs, what to keep distinct, abbreviations, private-use characters, declared signs | two letterforms on a sample page that are one grapheme |
+| **Finding sources** | IIIF collections and archives that publish pages; adding them by reference | a manifest link pasted in, its pages shown |
+| **Models and memory** | what a model is; why size and memory decide what runs on this Mac; local against cloud | "This Mac has 8 GB: the 3B corrector fits, the 7B does not" |
+| **Kraken** | finding lines and reading them; segmentation and recognition models; training | the lines Kraken found on a sample page |
+| **YOLO and layout** | detecting regions by kind; when a layout detector helps | regions found on a sample page |
+| **Forms and tables** | finding cells, rows and columns; reading each cell | a table on a sample page |
+| **Workflows and recipes** | a workflow is a few tools chained; a recipe is the steps, models, settings and places to run; following, overriding and sharing | the proposed recipe, step by step |
+| **Entities** | people, places, things and their mentions; what a tagger can and cannot do in this language | names found in a sample line |
+| **Statements** | subject, relation, object, each tied to the text it came from | "A sold B to C", found in a sample |
+| **Maps** | georeferencing and gazetteers; places on a map | a place in a sample placed on a map |
+| **Time and calendars** | dating systems, calendar changes, uncertain dates, one timeline | a date in a sample, normalised |
+| **Normalisation** | as written, expanded, normalised; why the record keeps what was written | an abbreviation in a sample, three ways |
+| **Output formats** | PAGE, ALTO, TEI, IIIF and the rest; what each is for; the synced folder | a sample page's TEI |
+| **Fine-tuning and distilling** | training a small model on the project's corrections; teacher and student; when it pays | the corrected-line count so far, against the threshold |
+| **HPC and remote compute** | clusters, GPU services, what they cost, what leaves the Mac | the estimate for training here and there |
+
+**Written once.** Each explanation lives with its job or topic in the registry (section 2): the
+plain description, its example's recipe (which sample to show and how), and its trade-offs. The
+same text appears in setup, in the Inspector beside the setting it explains, in the recipe's
+README and in the user manual. A new job or topic explains itself in all four by being registered.
+
+### 8. How the recipe is assembled: rules first, measurement second
+
+**By rule, and deterministic** (ruled 2026-10-01). The recipe is assembled from the answers and
+the confirmed facts on model cards. The same answers and the same catalogue always give the same
+recipe, so it is reproducible, explainable and testable. In order:
+
+1. **Look for a published recipe that fits.** The shipped and catalogue recipes whose `suits`
+   cover the scripts, languages, material and period, and whose steps serve the purpose, are
+   listed; the flagship comes first where it fits. If one fits, it is proposed as the recipe to
+   follow, and the rest of this list fills only the steps it leaves without a model this Mac can
+   use.
+2. **Otherwise, generate one.** The purpose gives the steps (a template per purpose: which jobs,
+   in which layers, in which order). For each step, candidates come from the catalogue and from
+   the model finder (`source.find.by-need`), which searches Hugging Face, Kraken's Zenodo
+   repository and the open list of sources by job, script, language and period.
+3. **Filter by hard constraints.** A candidate is kept only if its card names the step's job;
+   covers the project's script (the coverage measure in section 1; a reader whose character set
+   lacks the script is out; a finder whose card says "any script" stays in, marked "not measured
+   on this script") and, for a language-dependent job, its language; can run on this Mac
+   or on a bound compute target; has an open licence class, or one the person has accepted; and,
+   if it runs in the cloud, the project allows pages to leave. A **correction or normalising step
+   by a language model** is kept only if the model's card lists the project's language: a model
+   that does not know the language would turn it into one it does (a Cherokee or Nahuatl text into
+   English or Spanish), so it is left out, and the recipe says why; in a mixed document it may
+   still correct the segments whose language its card lists. A reader made for **another style of
+   the same script** (naskh for a nastaliq hand, ISO 15924 `Aran`) is not proposed as a substitute;
+   the gap is named. Material (print, handwriting, typescript) and period are otherwise **soft**:
+   a handwriting reader may be proposed for print, ranked after print readers; a print-only reader
+   (Tesseract) is never proposed for handwriting. An unknown period counts as neither a match nor a
+   mismatch.
+4. **Rank what is left** (below), per step, and then as **combinations** across the steps of a
+   chain.
+5. **Explain each choice** in the facts it rests on: "chosen because its card says Latin script,
+   Spanish, 1500–1700, handwriting; CER 6.1% on your 12 pages; local, free, about 400 pages an
+   hour on this Mac; trainable".
+
+**The ranking signals** (2026-10-01). Each candidate, and each combination, carries six numbers
+or facts, shown in the bake-off table and on screen 4:
+
+| Signal | From | Notes |
+|---|---|---|
+| **Accuracy** | this project's measurement; else the published measurement on matching material; else the coverage tier | character and word error rate per hand and page kind; coverage is a floor, not a score of quality |
+| **Cost** | the vendored price list times the whole volume; compute-target hours for a cluster | estimated for the whole volume before anything runs |
+| **Local or remote** | the card and the project's egress rule | this Mac, a compute target, or a cloud provider |
+| **Speed** | measured on this Mac where it has run; else published, marked as an estimate | pages per hour, and the time for the whole volume |
+| **Carbon** | the energy estimate in section 1 | always labelled an estimate; "unknown" where no figure exists |
+| **Trainability** | the card | whether the project can later fine-tune it on its own corrections |
+
+The order is fixed, so the ranking stays deterministic: **accuracy first, in bands** (candidates
+within one point of character error rate of the best are tied on accuracy); within a band,
+**local before remote**, then **cheaper**, then **faster**, then **lower carbon**, then
+**trainable before not**, then smaller size, then the card id. The **volume** sets one more rule:
+
+| Volume | Rule | What it usually means (2026-10-01 search) |
+|---|---|---|
+| Under 100 pages | accuracy decides; a cloud model the project allows can win on accuracy alone, because its whole cost is small | a cloud vision model, no download |
+| 100 to 5,000 | the fixed order | a local specialist reader or a small historical vision model on this Mac, at no cost |
+| 5,000 to 100,000 | the fixed order, and the train step is offered from the start, because a fine-tuned fast reader repays its training | a Kraken reader fine-tuned on the project's corrections, or a distilled adapter |
+| More than 100,000 | as above, and a candidate whose whole-volume cost or time is beyond the limits (engine constants; by default more than 500 dollars in the cloud, or more than 30 days of background work on this Mac) is shown but not chosen; the recipe proposes the teacher-and-student path (`compute/distillation.md`): the best model reads a sample as teacher, people correct it, and a small trainable model is fine-tuned, on a cluster where needed, for the rest | training on a cluster, then a fast student on this Mac or a cluster |
+
+**Reader tiers, when nothing is measured.** Accuracy without a measurement falls back to the
+reader's tier, from the 2026-10-01 search: **specialist line readers** (Kraken models, including
+the multi-script PP-OCRv6 readers; TrOCR fine-tunes) above **small historical vision-language
+models** (CHURRO-class, a few billion parameters, trained on historical documents) above
+**general vision-language models**. **Tesseract** is a tier of its own for print and typescript
+only; it is never proposed for handwriting (it can still be tried by hand). Fine-tuned adapters
+(LoRA) are found as their own tier, with their base model, and are scarce today. Within a tier,
+coverage orders the candidates.
+
+**LOOVE coverage applies to tokenizer models only.** For cloud and local language and
+vision-language models it is a filter (unreachable characters exclude) and the last accuracy
+signal when nothing is measured. For Kraken and Tesseract, which read through a fixed character
+set, the character-set coverage in section 1 does that job instead. For a measured candidate,
+measurement outranks both.
+
+**A language model helps, never decides.** It can fill in a prose-only card (facts marked
+unconfirmed), explain a choice in plain words, or suggest answers from sample pages. It runs on
+the Mac, or in the cloud only where the project allows. The rules still assemble the recipe.
+
+**Where no model fits** a step, setup says so in words ("No reader is known for this script"),
+keeps the step in the recipe marked **needs a model**, and offers what does work: draw or check
+lines by hand, transcribe by hand, draft with a vision model the project allows and correct, and
+then the train-your-own path (`compute/distillation.md`). Steps that do not depend on it run;
+steps that do wait, saying why. Never a quiet substitute.
+
+**The flagship and the generated path are one flow.** The flagship recipe is simply the published
+recipe that step 1 finds for historical Spanish hands; it has been tuned and measured end to end
+on real pages of that material, and its defaults need no adjusting. A generated recipe is what the
+same flow makes when step 1 finds nothing. Either can be followed, overridden, forked and
+published.
+
+### 8a. Trying another option, at any time (and the bake-off)
+
+A person can **compare options whenever they like**, not only during setup, and **for every job**,
+not only reading. On any selection (a few pages, one region, some lines, a document),
+**Try Another Option…** (Inspector and context menu) offers, for a step or a run of steps, one or
+two alternatives: another reader; Kraken lines read by Tesseract against a vision model reading
+the page; a different prompt; another corrector; spaCy pipeline A against B against a language
+model extractor for entities; another model or prompt for statements; another authority for
+linking; another date rule; another layout detector; another embedding model for search. Then:
+
+- Each alternative runs on the selection as a job in Activity, after showing its cost and time,
+  and lands as **new passes, readings, mentions or claims**, never over existing work. (A search
+  vector alternative is built beside the current index and does not replace it.)
+- The results open **side by side in panes** (Source view panes for shapes, Reader panes for
+  text, lists for entities and statements), compared **the way the job declares**:
+
+  | Job family | How outputs are compared |
+  |---|---|
+  | shapes (regions, lines, signs) | overlaid on the same image; where a person drew or confirmed shapes, overlap scores (precision and recall at a stated overlap) |
+  | readings | a text diff with differences highlighted (the diff lens); character and word error rate where the selection has corrected text |
+  | entities, statements, authority links, dates | precision and recall against what a person has confirmed, where there is some; otherwise side-by-side lists with what only one side found marked |
+  | search vectors | a few queries the person types (or the project's saved searches), with each option's top results side by side, and which results the person marks relevant |
+
+  Each option also shows its cost, speed and carbon estimate.
+- **Use This** makes the winner the step's choice (or the combination's) **for a scope the person
+  picks**: the project, or just this folder. It is stored as an override on the recipe, like any
+  other.
+- The comparison is **kept**, with its selection and options, and can be run again later (after
+  more corrections, or a new model).
+
+**The bake-off is this same tool**, run by setup on the sample ground-truth pages, over the
+combinations the rules propose:
+
+- **Combinations, not single models.** For each chain of steps (find lines then read; read then
+  correct), the bake-off ranks whole candidate pipelines: for example three line finders by three
+  readers. The rules prune first, so it stays small: the top three per step by rule rank, then at
+  most **nine combinations**, keeping those with the best summed rule rank. All run on the same
+  pages.
+- **Tesseract is in every bake-off for print and typescript**, as the fast local baseline, when it
+  has data for the language; never for handwriting.
+- The table shows, per combination: accuracy per hand and page kind, cost for the whole volume,
+  local or remote, speed, carbon estimate and trainability, ranked by the fixed order above.
+- **The winning combination is what the recipe records**: each step's model is set from it, and
+  the measurement goes on the cards and into the recipe's measurements.
+- It needs at least **100 corrected lines on at least two pages** (an engine constant); below that
+  it says how many more are needed and is offered again when there are enough. It runs as a job in
+  Activity, so the person can leave setup while it runs; the first automatic run waits until the
+  winner is confirmed or the bake-off is skipped. Cloud candidates take part only where the
+  project allows the cloud, and their cost is shown first.
+- **Skipping** keeps the rule-ranked recommendation. Each such step shows "not measured on this
+  project" in the Inspector, and the bake-off is offered there once enough ground truth exists.
+
+### 8b. Scripts and material the flow must handle
+
+The flow has no special case for any script; these are the cases it is checked against, so that
+"any language" is tested, not assumed. The verdicts come from the search in 8c.
+
+| Material | What the rules and setup do |
 |---|---|
-| **Onboarding** (above) | **Writes** it: the purpose picks the steps; the answers and model cards pick the models by rule; the bake-off confirms them. |
-| **Activity and automatic work** (`ui/activity-and-automatic-work.md`, #5352) | **Runs** it: new material goes through the recipe's steps as jobs; because each job declares what it takes and gives, a correction re-queues exactly the later steps that depend on it (#5360, #5361). |
-| **The archive format** (`source-model.md`) | **Records** it: every pass, segment, reading and claim a step makes names its maker, the model, the run, and the recipe and version that ran it ("How was this made"), and lands as new work, never over a person's. So any reading can say which recipe made it, and an updated recipe can be run again safely. |
-| **Export** (`formats-and-training.md`, `export/`) | **Carries** it: PAGE, ALTO, TEI and the rest carry what the steps made with its provenance, and an export package can include the recipe that made it (both inside one RO-Crate), so someone else can see, and re-run, how the data was produced. |
-| **IIIF** (`iiif.md`) | Runs **on** IIIF pages kept by reference, and its results leave **as** IIIF annotations. A shared recipe's sample pages can be IIIF links to public pages, so measurements point at real pages without copying them. |
-| **Fine-tuning** (`compute/distillation.md`) | Is **a step and a version**: "train a model" is a step that runs where the recipe says (a cluster, Hugging Face, a large Mac); the trained student's card is pinned into the next version of the recipe, measured, and adopted only where it clears the bar; "small first, big when unsure" is a step with a fallback. |
-| **Decipherment and connections across corpora** (`undeciphered-scripts.md`, `explore/connections-across-corpora.md`) | Use the same format for **analysis recipes**: the analyses' inputs, sign list version, lens and method, re-runnable and shareable like a processing recipe. |
-| **Sharing a library** (`transport/library-sharing.md`) | Everyone working in a shared library works under its one recipe; jobs run on the host, and every reading still names who or what made it. |
-| **API keys** (`ai/provider-keys.md`) | A recipe names providers and models, **never keys**. Keys stay in the Mac's Keychain per provider. Taking a recipe whose steps need a provider without a key says which key is missing, and the project's rule on pages leaving the Mac still applies. A shared recipe can never carry a key. |
-| **Cataloguing and arbitrary metadata** (no spec yet: #5365) | A recipe or profile can declare the project's **metadata fields** (typed, with controlled vocabularies, mapped to a standard such as Dublin Core or ISAD(G) where one fits), set on any node and inherited like language, on top of the prototypes that already carry inheritable attributes (`models/node_prototypes.py`). A **"describe for the catalogue"** step proposes values from the page for a person to confirm. |
-| **Image editing** (`ui/preview-image-editing.md`) | **"Prepare the image"** is a step: crop, deskew, rotate, dewarp, contrast, each a reversible edit that makes a new rendition and never touches the original. Later steps read the prepared rendition, and every segment records which rendition its coordinates belong to. |
+| **Latin-script hands** (the flagship; early-modern English, French, German Kurrent) | specialist readers and a small historical vision model exist but rarely for the exact period and hand; the bake-off on the person's pages decides; the flagship fits Spanish |
+| **Print and typescript in any script** | Tesseract's data for the language (the print baseline), Apple's document reader where its run-time list has the language, and Kraken print models (PP-OCRv6 covers ten scripts) compete |
+| **Hebrew, Armenian, Greek print, Syriac, Georgian, Ge'ez** | multi-script Kraken readers with published per-script error rates; where the published rate is high (Georgian), the train step is offered from the start |
+| **Arabic-script hands** | naskh readers exist; a **nastaliq** hand (Persian, Ottoman) has none, and a naskh reader is not proposed in its place: "needs a model" |
+| **Chinese, Japanese and Korean, including vertical text** | direction (top to bottom, columns right to left) follows from the script; finders and readers that declare vertical text only; general vision models as candidates where the project allows the cloud |
+| **Kuzushiji** (cursive Japanese) | a few new open readers (a fine-tuned small vision model; a Zenodo model): candidates for the bake-off |
+| **Chữ Nôm, Coptic, Tibetan** | no open reader passes (some exist only inside closed platforms): "needs a model", and Tesseract only for print where it has data |
+| **Palm-leaf manuscripts** (Khmer, Balinese and others) | long, narrow, damaged leaves with curving lines: a prepare step and a finder that keeps curved baselines; no open reader: "needs a model" |
+| **Indigenous languages in Latin letters** (colonial Nahuatl, Quechua) and **syllabaries** (Cherokee) | readers exist only in closed platforms, or not at all; a letter-faithful Latin-script reader can draft with the person correcting; no language-model correction unless its card lists the language; no fake lemmas; usually the train path |
+| **Scripts read sign by sign** (cuneiform, Egyptian hieroglyphs and hieratic, Linear B, Maya) | "find signs" and "identify signs" against a sign list replace "find lines" and "read a line"; specialist pipelines found are shown but are not runnable until a job runs them; a general vision model is never proposed in their place; the purpose offered first is "Decipher a script" or "Edit a corpus" (`undeciphered-scripts.md`) |
+| **Undeciphered scripts** | the "Decipher a script" purpose: tools, not automation |
+| **Languages with no script** (oral recordings) | "transcribe speech" with Whisper (about a hundred languages) or MMS (over a thousand, under a non-commercial licence, so a deliberate choice), chosen by the language lists on their cards, into the orthography or IPA chosen at setup; LOOVE coverage does not apply; where no speech model lists the language, transcribe by hand and train |
 
-So the order of building is: the jobs and their declared inputs and outputs, then the recipe
-format and the one job system that runs it, then onboarding that writes it; export, IIIF,
-fine-tuning and sharing then attach to it rather than each inventing their own.
+### 8c. Evidence from the 2026-10-01 model search
 
-### Sharing recipes: publish, pull, update (ruled 2026-10-01)
+A search of Hugging Face, Kraken's Zenodo repository, HTR-United and Tesseract's data across 31
+cases, made to test this design before it is built. **GOOD**: structured facts are enough for a
+rule to choose. **PARTIAL**: something usable exists, but period or hand is in prose only, so the
+bake-off decides. **NONE**: no open model; the train path. Model names are examples found, not
+choices made.
 
-Recipes are meant to be shared, so the next project on the same material starts from the best
-measured recipe rather than from nothing. There is no standard for "an HTR recipe"; Fichero uses
-standards for the wrapper and its own published schema for the inside.
+| Case | Verdict | Found (examples) |
+|---|---|---|
+| 16th-century Spanish secretary and procesal hands | PARTIAL | TRIDIS v2 (Zenodo), PP-OCRv6, CHURRO 3B; spaCy Spanish; Tesseract `spa` for print |
+| Early-modern Latin, print / hand | GOOD / PARTIAL | CATMuS and medieval TrOCR families, TRIDIS; LatinCy; Tesseract `lat` |
+| Medieval Latin (Caroline, Gothic) | GOOD | TrOCR per script style; a CATMuS-trained Qwen vision model |
+| German Kurrent (19th century) | PARTIAL | a Kraken Kurrent model; Tesseract Fraktur data for print |
+| German Fraktur print | GOOD | PP-OCRv6; Tesseract `frak2021` |
+| Early-modern English secretary hand | PARTIAL | TRIDIS v2; CHURRO |
+| French 18th-century hand | PARTIAL | McCATMuS (16th–21st c.); medieval French TrOCR and one LoRA adapter |
+| Arabic manuscript (naskh) | PARTIAL | Muharaf recogniser and segmenter (Zenodo) |
+| Persian and Ottoman nastaliq | NONE | — |
+| Hebrew, print / cursive hand | GOOD / PARTIAL | PP-OCRv6 (published CER 1.47%) |
+| Yiddish | PARTIAL | PP-OCRv6; Tesseract `yid` |
+| Syriac | PARTIAL | PP-OCRv6 (published CER 4.8%) |
+| Coptic | NONE | Tesseract `cop` for print only |
+| Greek polytonic, print / manuscript | GOOD / PARTIAL | CLLG polytonic Greek (HTRMoPo card); greCy |
+| Church Slavonic, Old Cyrillic | PARTIAL | Old Cyrillic uncial model (Zenodo); a 1B line reader |
+| Armenian | GOOD | PP-OCRv6 |
+| Georgian | PARTIAL | PP-OCRv6, published CER high (12.75%): fine-tune |
+| Ge'ez and Amharic | PARTIAL | a pre-alpha Ethiopic fine-tune of PP-OCRv6 |
+| Sanskrit in Devanagari | PARTIAL | TrOCR and PP-OCRv6 fine-tunes; a curved-line segmenter |
+| Tamil, historical | PARTIAL, near NONE | a multi-script Indic research model |
+| Classical Chinese woodblock | PARTIAL | research models; general vision models; layout detectors |
+| Japanese kuzushiji | PARTIAL | a 2B vision model fine-tune; a Zenodo model |
+| Vietnamese chữ Nôm | NONE (open) | a PaddleOCR fine-tune outside these ecosystems |
+| Colonial Nahuatl and Quechua | NONE (open) | closed platform models only |
+| Cuneiform | NONE (HTR ecosystems) | a specialist sign detector (code and weights on Zenodo) |
+| Tibetan | NONE (open) | closed platform models only; Tesseract `bod` for print |
+| Khmer palm-leaf | NONE | research models and data only |
+| Egyptian hieroglyphs and hieratic | NONE | a specialist sign pipeline |
+| Linear B, Old Turkic, Maya | NONE | — |
+| Speech, major / low-resource / unwritten languages | GOOD / PARTIAL / NONE | Whisper; MMS; fine-tunes |
+
+Of 30 written cases: 6 GOOD, 16 PARTIAL, 8 NONE. So the bake-off decides about half the time, and
+the honest "needs a model" path is needed for about a quarter. That is why both are part of
+setup, not exceptions to it.
+
+What the search changed in the rules above: period is never structured on model cards (it is
+confirmed by a person, or taken from a training set's HTR-United record); accuracy is structured
+mainly in HTRMoPo cards (read through `htrmopo`); line or page reading is worked out from the
+architecture; reader tiers order unmeasured candidates; LOOVE coverage applies to tokenizer
+models only; fine-tuned adapters are a tier of their own and scarce; the volume bands change the
+recommendation; Tesseract is a print baseline and never a handwriting reader; and the NONE cases
+are named, never filled with a model for another style or a general vision model.
+
+**Not verified by the search**: whether Tesseract has data for the Cherokee syllabary (the search
+reports none; Tesseract's own published list is to be checked when the provider is built).
+
+### 9. The recipe: what it holds, and its file format
+
+A **workflow** is a few tools chained. A **recipe** is bigger (ruled 2026-10-01): the steps a
+project runs, in order, each with its job, where it applies (which segments: pages, regions of a
+kind, lines, words), its model, its settings, its prompt, its layer and where it runs; plus its
+profile. A recipe refers to workflows by name and may carry its own; it never copies one the
+workflow store already holds. **The locked default workflows stay in the workflow store**; shipped
+recipes refer to them by name, so each chain exists once (`source.recipe.holds-no-second-copy`).
+Applying a recipe's steps makes and runs workflows: what runs is always a workflow.
+
+**Where it lives.** A project's recipe lives in the project's database, as data the engine owns:
+the followed recipe and version, the project's overrides, its purpose and added layers, and its
+compute-target bindings. The Inspector, MCP and the command line all read the same **resolved
+recipe** from the engine. The resolved recipe has an `automatic` section, worked out from the
+purpose and the steps' layers, listing what runs by itself on add (and so is kept current on
+change) and whether each may use the cloud; this is the section the activity spec asks for, and
+it is never written by hand. The folder below is what **Export Recipe** writes and what the
+catalogue holds.
 
 **A recipe is a folder.**
 
 ```
-spanish-secretary-hand/
-  recipe.yaml              purpose, languages, scripts, period; the steps in order, each with its
-                           model (pinned to a version), settings, prompt and where it runs
-  prompts/*.prompt.md      every prompt the recipe uses, one file each, with a small header
-                           (model, version, variables), so prompts are reviewed like code
-  workflows/*.json         any workflows the recipe carries (multi-step processes of its own)
-  measurements.yaml        bake-off results: error rates per hand and page kind, on what, when
-  ro-crate-metadata.json   the standard wrapper (Workflow RO-Crate), generated by Fichero
-  LICENSE, README.md
+spanish-hands/
+  recipe.yaml              what it suits, its profile, its steps in order
+  prompts/*.prompt.md      every prompt, one file each, with a small header
+  workflows/*.json         any workflows the recipe carries (built only from Fichero's tools)
+  measurements.yaml        results: error rates per step, hand and page kind, on what, when
+  ro-crate-metadata.json   the Workflow RO-Crate wrapper, generated by Fichero
+  LICENSE                  the recipe's own licence (CC BY 4.0 for the shipped ones)
+  README.md                plain words for a person deciding whether to use it
 ```
 
-Models are named by stable, pinned identifiers: a Hugging Face repository and revision, or a
-Zenodo DOI (Kraken's model repository publishes cards of this kind). `recipe.yaml` follows a JSON
-Schema Fichero publishes. The RO-Crate wrapper is what WorkflowHub and Zenodo accept, so a recipe
-can be deposited and cited.
+**The flagship's `recipe.yaml`, as an example of the schema.** The model pins below are
+**illustrative**: the real ones are set by the flagship's own measurement (#4950), and a DOI shown
+as `NNNNNNN` is a placeholder.
 
-**Publish.** From the library's Inspector, Export Recipe writes the folder; Publish Recipe…
-offers the community catalogue (a `fichero-recipes` repository on GitHub, one folder per recipe,
-checked automatically on every submission: the schema, that pinned models still exist, that
-prompts and workflows referenced are present), or Zenodo for a DOI. HTR-United's catalogue of
-training data works this way and is the precedent. Publishing is its own act, asked every time,
-and nothing about the project's pages leaves with it unless the person adds sample pages.
+```yaml
+fichero_recipe: 1                       # schema version; a newer one than this Fichero knows is refused
+id: fichero/spanish-hands
+version: 1.2.0
+title: Historical Spanish hands, 1500-1800
+authors: [{name: Fichero maintainers}]
+licence: CC-BY-4.0
+suits:
+  scripts: [Latn]
+  languages: [es]                       # BCP 47; Glottolog stan1288
+  material: [handwriting]
+  period: {from: 1500, to: 1800}
+  kinds: [notarial, administrative, letters]
+purposes: [transcribe, entities, search, knowledge-graph, map-places]
+defaults:                               # the profile
+  direction: ltr
+  line_position: baseline
+  guideline: diplomatic                 # abbreviations kept as written; expansions are a second reading
+  normalisation: as-written
+  record_rule: strict
+  fonts: [Junicode]
+  views_first: [source, reader]
+steps:
+  - id: split
+    job: split-pages
+    layer: prepare
+    applies_to: pages
+    when: {spreads_detected: true}
+    model: {builtin: page-splitter}
+    runs_on: this-mac
+  - id: lines
+    job: find-lines
+    layer: lines
+    applies_to: pages
+    model: {kraken: blla, kraken_version: "5.2"}
+    runs_on: this-mac
+  - id: read
+    job: read-a-line
+    layer: reading
+    applies_to: {lines_in: [main-text, margin]}
+    model: {zenodo: 10.5281/zenodo.NNNNNNN}          # a Kraken reader, pinned by version DOI
+    runs_on: this-mac
+  - id: correct
+    job: correct
+    layer: reading
+    applies_to: lines
+    when: {confidence_below: 0.90}      # small first, big when unsure
+    model: {hf: mlx-community/Qwen2.5-VL-7B-Instruct-4bit, revision: 1a2b3c4}
+    alternatives:                       # used in order when this Mac cannot run the pin
+      - {hf: mlx-community/Qwen2.5-VL-3B-Instruct-4bit, revision: 5d6e7f8}
+    prompt: prompts/correct-line.prompt.md
+    settings: {temperature: 0, keep_spelling: true}
+    runs_on: this-mac
+  - id: names
+    job: find-names-tag-words
+    layer: entities
+    applies_to: readings
+    model: {spacy: es_core_news_md, version: "3.8.0"}
+    runs_on: this-mac
+  - id: dates
+    job: work-out-dates
+    layer: graph
+    applies_to: readings
+    settings: {calendars: [julian, gregorian], switch: 1582-10-15}
+    runs_on: this-mac
+  - id: statements
+    job: find-statements
+    layer: graph
+    applies_to: readings
+    model: {role: $large}               # resolved by the project; a shared recipe may name a role
+    prompt: prompts/statements.prompt.md
+    settings: {check_transfer_verbs: true}
+    runs_on: this-mac
+  - id: vectors
+    job: make-a-vector
+    layer: vectors
+    applies_to: readings
+    model: {hf: intfloat/multilingual-e5-large, revision: 0dc5580}
+    runs_on: this-mac
+  - id: tei
+    job: export
+    layer: output
+    settings: {formats: [tei, page], to: synced-folder}
+  - id: train-reader
+    job: train-a-model
+    layer: train
+    offered_when: {corrected_lines_at_least: 2000}
+    settings: {kind: kraken-recognition, base: read}
+    runs_on: cluster                    # bound by the project to one of its compute targets
+```
 
-**Pull and update.** Setup searches the catalogue by script, language, period and purpose. A
-project that takes a published recipe **follows** it at a version. When the recipe's author
-publishes a new version (a better prompt, a new step, a newer model, a new multi-step workflow),
-the project's Inspector says an update is available and shows exactly what would change, step
-by step, with the new version's measurements beside the old. Taking it is the person's choice.
+Rules the schema enforces:
 
-**Local changes are kept.** A project can change anything in the recipe it follows: a custom
-prompt, a different model for one step, an extra step. Those are stored as the project's own
-**overrides on top of** the followed version, like a value set lower in the cascade. An update
-replaces only what the project did not override, and lists any step where the author changed
-something the project also changed, for the person to decide. A project can also **fork** a
-recipe (make it its own, no longer following) and publish the fork, crediting the original.
+- **Models are pinned**: a Hugging Face repository and revision; a Zenodo version DOI; a spaCy
+  package and version; a Kraken built-in and Kraken's version; or, for a cloud model, the provider
+  and its model id (a hosted model's weights cannot be pinned, so the recipe also records the date
+  it was measured). A shared recipe may name a **role default** (`$large`) instead, resolved by
+  the project.
+- **`runs_on`** is a kind of place: `this-mac`, `cloud: <provider>`, `cluster` or `gpu-service`.
+  A shared recipe never names a person's own cluster account; the project binds each kind to one
+  of its compute targets.
+- **`alternatives`** are tried in order when the pin cannot run here (too little memory, wrong
+  chip); the one used is recorded on the project and shown.
+- **`when`** and **`offered_when`** are the only conditions, from a short fixed list (spreads
+  detected, a confidence threshold, a count of corrected lines). There are no expressions.
+- **Every job named must be in this Fichero's registry**, and every step's input must be given by
+  an earlier step or by the source itself.
+
+**A prompt is a file** with a small header, so prompts are reviewed like code:
+
+```markdown
+---
+for_job: correct
+written_for: {hf: mlx-community/Qwen2.5-VL-7B-Instruct-4bit}
+version: 3
+variables: [reading, guideline]
+---
+You are checking a transcription of one line of a Spanish notarial hand...
+```
+
+A variable the step does not supply is refused when the recipe is checked.
+
+**`measurements.yaml`** records, per step: the model pin; character and word error rate per hand
+and per page kind; how many lines and pages; which pages (IIIF links to public pages, or "private:
+N pages" where they cannot be shared); the Fichero version; and the date. The flagship publishes
+its measurements; a project's own bake-off results are kept on the cards and are added to the file
+only when the person exports or publishes.
 
 **A recipe is data, never code.** It names models, prompts, settings and workflows built from
-Fichero's own tools. It cannot carry scripts or anything that runs outside those tools, so
-importing someone else's recipe can never run arbitrary code on the Mac. A recipe whose steps
-need a cloud model is shown as such before it is taken, and the project's rule on pages
-leaving the Mac still applies.
+Fichero's own tools. It cannot carry scripts, cannot grant a model tools or network access, and
+cannot reach anything outside the registered jobs. Importing a recipe that tries is refused,
+naming the offending entry. **A recipe never holds a key**: it names providers and models; keys
+stay in the Keychain (`ai/provider-keys.md`).
 
-### Finding a better model
+**A recipe is checked before anything runs**: at setup, when taken from the catalogue, when an
+update is offered, and before each run. The check reports, step by step: unknown jobs (with the
+Fichero version that has them); a newer schema version; inputs no earlier step gives; pinned
+models that cannot be found; models this Mac cannot run and no alternative can; cloud steps in a
+project whose pages may not leave; cloud steps whose provider has no key; `cluster` steps with no
+bound target; missing prompt files or variables.
 
-From a project, or from the AI settings, a researcher can **look for models that suit**: by
-job, script, language, period and whether it must run locally. Fichero searches the places the
-field keeps them (Kraken's repository on Zenodo; Hugging Face; an open list that can grow) and
-shows results **as cards**, with licence class, size and whether this Mac can run them.
+### 10. Where the recipe sits
 
-- **Open** models (permissive, or copyleft compatible with Fichero's own AGPL) are downloaded
-  when asked for, with no further step; nothing copyleft is bundled (ruled). Others (non-commercial; gated; special terms; a revenue cap) say so
-  plainly and need a deliberate choice; some cannot be redistributed at all and the card says
-  why.
+The recipe is the one description of **how a project's material is processed**. Everything else
+writes it, runs it, records it, or carries it:
+
+| Part | Its relation to the recipe |
+|---|---|
+| **Setup** (above) | **Writes** it: the purpose picks the steps; the answers and model cards pick the models by rule; the bake-off confirms them. |
+| **Activity and automatic work** (`ui/activity-and-automatic-work.md`, #5352) | **Runs** it: new material goes through the resolved recipe's automatic steps as jobs; because each job declares what it takes and gives, a correction re-queues exactly the later steps that depend on it (#5360, #5361). |
+| **The archive format** (`source-model.md`) | **Records** it: every pass, segment, reading and claim a step makes names the recipe and version that ran it, beside its maker, model and run, and lands as new work, never over a person's. |
+| **Export** (`formats-and-training.md`, `export/exporter.md`) | **Carries** it: an export package can include the recipe that made it, in the same RO-Crate. |
+| **The synced folder** (`synced-folder.md`) | Is an **output step's** destination, kept current as the work changes, and can work both ways. |
+| **IIIF** (`iiif.md`) | Runs **on** IIIF pages kept by reference; results leave **as** IIIF annotations. A shared recipe's measurement pages can be IIIF links to public pages. |
+| **Fine-tuning** (`compute/distillation.md`, `compute/jobs-and-fine-tuning.md`) | Is **a step and a version**: a `train-a-model` step runs where the recipe says; the trained student's card is pinned into the project's next recipe version only where it clears the bar. A training job's "recipe file" (`compute.tune.lora`) is the settings of that step. |
+| **Decipherment and connections across corpora** | Use the same folder format for **analysis recipes** (`undeciphered-scripts.md`). |
+| **Sharing a library** (`transport/library-sharing.md`) | Everyone in a shared library works under its one recipe; jobs run on the host; every reading still names who or what made it. |
+| **API keys** (`ai/provider-keys.md`) | A recipe names providers, **never keys**. |
+| **Cataloguing** (#5365) | A recipe's profile can declare the project's **metadata fields** (typed, with controlled vocabularies, mapped to Dublin Core or ISAD(G) where one fits), inherited like language through the prototypes; a "describe for the catalogue" step proposes values. |
+| **Image editing** (`ui/preview-image-editing.md`) | "Prepare the image" is a step that makes a new rendition; later steps read it, and every segment records which rendition its coordinates belong to. |
+
+So the order of building is: the job registry with declared inputs and outputs; the recipe format
+and the one job system that runs it; setup, which writes it; then export, IIIF, fine-tuning and
+sharing attach to it rather than each inventing their own.
+
+### 11. Running: the hand-off to Activity
+
+Setup ends at **Start**, which is the project's **first yes** for automatic work
+(`source.project.automatic-after-first-yes`). From then on the activity spec owns the running:
+
+- **On add**, each new source goes through the resolved recipe's automatic steps, as jobs in the
+  one Activity table, throttled like all background work.
+- **On change**, whatever a correction touched is marked out of date and remade through the jobs'
+  declared inputs, and a person's work is never overwritten (`activity.derived.*`).
+- **One pause** (*Pause Background Work*) stops all of it; a hand run still runs.
+- **What it makes counts as the record only as the project's rule allows**: in a strict project,
+  machine work is a pass and readings to review; in a relaxed one the newest counts, and a
+  person's reading always outranks a machine's. Who made it never changes.
+- Model downloads the recipe needs are jobs too, so a multi-gigabyte download is visible.
+
+### 12. Sharing recipes: publish, follow, update, override, fork (ruled 2026-10-01)
+
+**Publish.** From the library's Inspector, **Export Recipe** writes the folder. **Publish
+Recipe…** offers the community catalogue (a `fichero-recipes` repository on GitHub, one folder per
+recipe, checked automatically on every submission: the schema, that pinned models still resolve,
+that referenced prompts and workflows are present, that a licence is given), or Zenodo for a DOI.
+Publishing is its own act, asked every time, and nothing of the project's pages leaves with it
+unless the person adds sample pages, each listed before sending.
+
+**Find.** Setup and the Inspector search the catalogue by script, language, period and purpose,
+and show each recipe's measurements. Fichero checks the catalogue for updates to followed recipes
+at most once a day, sending only the recipe ids; offline, nothing is offered and nothing breaks.
+
+**Follow and update.** A project that takes a published recipe **follows** it at a version. When
+a new version appears, the Inspector says an update is available and shows exactly what would
+change, step by step: steps added and removed, a model's old and new pin, a prompt's text
+difference, settings changed, and the new version's published measurements beside the old. Where
+the changed steps run on this Mac and the project has ground truth, Fichero **measures the new
+version on the project's own pages** in the background and shows that too. Taking it is the
+person's choice. A taken update changes **new work**; running the changed steps over existing
+pages is offered as one job with its page count and estimate, and its output arrives as new passes
+and readings.
+
+**Overrides are kept.** A project can change anything in the recipe it follows: a prompt, a model
+for one step, a setting, an extra step, a removed step. Those are stored as **overrides on top of**
+the followed version, like values set lower in the cascade (the prototype system: the followed
+version is the parent, the project's overrides its own values). An update replaces only what the
+project did not override. Where the author changed something the project also changed, the update
+lists that step with both versions, and the project's own is kept unless the person takes the
+author's.
+
+**Fork.** A project can **fork** a recipe (make it its own, no longer following) and publish the
+fork, which names the recipe and version it came from and credits its authors.
+
+### 13. When things go wrong
+
+| Situation | What the person sees | What runs |
+|---|---|---|
+| A model download fails | The download job in Activity says why ("connection lost at 1.2 of 3.1 GB"); it is retried three times with back-off, then the steps that need the model wait with "Model download failed" and **Retry** or **Use the next candidate** (the bake-off's runner-up, or the rule's next) | Every step that does not need that model |
+| A cloud step has no key | At the check: "Step *correct* needs a key for Anthropic". At run time the step waits with "Needs a key for Anthropic", and **Add Key…** opens Settings. Choosing a local candidate instead is an explicit change, kept as an override | The other steps; never another model in its place |
+| A cloud step in a project whose pages may not leave | The check says the step is refused and why; the Inspector offers the best local candidate or **Allow for this provider** | The other steps |
+| The first cloud call | Asked once per provider per project: what is sent (page images, or text), to whom, how many pages, the estimated cost; **Allow** or **Keep on this Mac** | Nothing for that step until answered |
+| No model fits a step | "No reader is known for this script", the step marked **needs a model**, and the hand-transcribe, draft-and-correct and train-your-own routes | Steps that do not depend on it |
+| The bake-off is skipped | Each step shows "not measured on this project"; the bake-off is offered once 100 corrected lines on two pages exist | The rule-ranked recommendation |
+| Not enough ground truth | "Needs 64 more corrected lines" | The recommendation |
+| A recipe names a job this Fichero lacks | "This recipe needs *trace a drawing*, added in Fichero 1.6. Update Fichero, or take it without that step." Taking it without records an override "step removed: job not available" | The other steps |
+| A newer schema version | "This recipe needs a newer Fichero (recipe format 2)"; nothing is taken | Nothing |
+| A pinned model no longer exists | The check names the step and the missing pin, and offers the rule's next candidate | The other steps |
+| This Mac cannot run a pinned model | The first `alternatives` entry that can is used and shown; with none, as "no model fits" | As left |
+| A `cluster` step with no bound target | "No cluster is set up"; **Add a Place to Run…** opens the compute settings | Everything else; train steps are never automatic anyway |
+
+### 14. Two journeys, end to end
+
+**(a) A historian of sixteenth-century Spanish notarial records**, with a folder of 3,000 page
+images on an 8 GB MacBook Air and forty pages already corrected in an earlier tool (exported as
+PAGE XML).
+
+1. **What are you doing?** The full knowledge graph.
+2. **Your material.** The folder; corrected transcriptions: the PAGE folder. Fichero shows ten
+   sample pages and imports the forty corrected pages as ground truth.
+3. **What it is.** Pre-filled from the samples and confirmed: Latin script; Spanish (plus Latin,
+   added by search, for formulae); handwriting, 1550–1600; one column with margins. Pages may
+   leave this Mac: not asked, because no step uses the cloud. Shown, not asked: left to right,
+   on the baseline, Junicode, "8 GB, Apple M2".
+4. **How it will be done.** The flagship `spanish-hands` 1.2.0 fits and is proposed to follow.
+   The 7B corrector cannot run in 8 GB, so its 3B alternative is used, and said. Downloads: about
+   2.6 GB, all open licences. The `train-reader` step shows "offered after 2,000 corrected lines;
+   no cluster set up".
+5. **Check on your pages.** The rules propose two line finders (Kraken's default, and the
+   flagship's tuned segmenter) and three readers (the flagship's Kraken reader, another Kraken
+   reader, Tesseract's Spanish data as the baseline): six combinations, run on the forty pages in
+   Activity (about twenty minutes). The flagship's pair wins at CER 7.4% against 9.8% for the
+   next and 31% for Tesseract on this hand, all local, free and trainable; the table shows each
+   one's pages per hour and carbon estimate. The person confirms; the recipe records the pair.
+6. **Ready.** "3,000 pages will be split where needed, lined, read, corrected where unsure,
+   searched, and mined for people, places, dates and statements: about 30 hours of background
+   work on this Mac, $0. (Reading in the cloud instead: not allowed in this project.)" **Start.**
+
+Then: the work grinds through Activity over days, pausing on battery. The historian corrects a
+line; its page's entities, claims and vectors are remade (activity spec). They change the
+correction prompt to keep a notary's abbreviations as written: an override. Version 1.3.0 of the
+flagship is published with a new reader; the Inspector shows the diff, the published CER, and
+"on your pages: 6.2% against 7.4%"; the prompt conflict is listed and theirs is kept. They take
+it; re-running the reader over the 3,000 pages is offered as one job. On a few pages of a
+different notary, they use **Try Another Option…** to compare the corrector's prompt against
+their own; theirs wins there, and **Use This** for that folder only records a folder override.
+Later they export the recipe with their measurements, so a colleague starts from it.
+
+**(b) A researcher in Cherokee**, on a 16 GB Mac, with two folders: printed issues of a
+newspaper in the syllabary (about 400 pages) and handwritten letters (about 900 pages). There are
+no corrected pages.
+
+1. **What are you doing?** Just transcribe.
+2. **Your material.** Both folders; no corrected transcriptions. Counted: about 1,300 pages.
+3. **What it is.** No local model is installed to suggest, so the fields start empty. Script:
+   "Cherokee" found by search (`Cher`); language: Cherokee (`chr`); print and handwriting,
+   1820–1900; columns (the newspaper), one column (the letters). Shown: left to right, on the
+   baseline, Noto Sans Cherokee (shipped).
+4. **How it will be done.** No published recipe fits, so one is generated, and because the
+   folders differ in material it proposes the print folder its own reading step. Find lines:
+   Kraken's default segmenter, whose card does not name the script, marked "not measured on this
+   script". **Printed folder**: if Tesseract has Cherokee data (unverified, 8c), it passes on
+   coverage and is the reader, its small download shown; if not, the printed folder is "needs a
+   model" too, and the paragraph below starts from the printed pages, which are quicker to
+   correct. **Letters**: no reader passes (no card made for Cherokee handwriting; Tesseract is
+   never proposed for handwriting; Apple Vision's run-time list lacks Cherokee). Correct: left
+   out, because no language model's card lists Cherokee. Whether
+   pages may leave is asked now, because a cloud vision model could draft letters for correction;
+   the researcher answers no (the community's material stays here), and the recipe is assembled
+   again without it. Each step's explanation shows a line Kraken found on one of their own pages.
+5. **Check on your pages.** Nothing to measure yet; skipped. The Inspector will offer it once
+   100 lines are corrected.
+6. **Ready.** "400 printed pages will be lined and read by Tesseract: about 20 minutes on this
+   Mac, $0. 900 letters will be lined; reading them needs a model: transcribe by hand, and Fichero
+   will offer to train one after about 1,000 corrected lines." **Start.**
+
+Then: the newspaper is read in minutes and the researcher corrects a few columns; once 100 lines
+are corrected the bake-off is offered there and measures Tesseract on them. The letters are lined
+automatically; the researcher checks the lines and transcribes in the Source view with the
+syllabary's font and keyboard. At the threshold the train step is offered: with no cluster and
+16 GB, Fichero says a Mac with 32 GB or a cluster is needed and links to adding one
+(`compute/distillation.md`); a Kraken reader fine-tuned from the corrected letters (with the
+corrected newspaper lines as extra data, marked as print) comes back as a card, is measured on
+held-out letters, and is pinned into the letters folder's next recipe version only where it
+clears the bar. The researcher can publish the recipe and, if the community agrees, the model, so
+the next Cherokee project starts from both.
+
+### 15. Finding a better model
+
+From a project's Inspector, or from the AI settings, a researcher can **look for models that
+suit**: by job, script, language, period and whether it must run locally. Fichero searches the
+places the field keeps them and shows results **as cards**, with licence class, size and whether
+this Mac can run them: Kraken's repository on Zenodo through the `htrmopo` library; Hugging Face
+by task, language and licence (`image-to-text` for readers; `library=peft` for fine-tuned
+adapters, shown with their base model and training data); Tesseract's language data; Whisper's
+and other speech models' language lists; HTR-United for training sets, on the train-your-own
+path; and an open list that can grow. Specialist pipelines found outside these (a cuneiform sign
+detector published as code and weights) are shown as cards marked "not runnable in Fichero yet"
+until a registered job can run them.
+
+- **Open** models (permissive, or copyleft compatible with Fichero's own AGPL) are downloaded when
+  asked for; nothing copyleft is bundled (ruled). Others (non-commercial, gated, special terms, a
+  revenue cap) say so plainly and need a deliberate choice; some cannot be redistributed and the
+  card says why.
 - A model's **citation is shown** wherever its work is shown, and goes into exports.
 - A downloaded model becomes a row under its provider in the AI settings, like any other.
-- A model can be **tried on a few pages** and measured against ground truth before it is made
-  a project's default.
+- A model can be **tried on a few pages** and measured against ground truth before it becomes a
+  step's model (Try Another Option…, section 8a).
 
-### The Reader shows anything
+### 16. The Reader shows anything; language tools are honest
 
-The Reader lays out any script in its direction (right-to-left, vertical, mixed), uses the font
-a reading needs, shows declared signs as their pictures, and keeps glosses and notes in their
-places (detail in `languages-scripts-signs.md`). There is **one** Reader renderer that does
-this; today there are two, and neither does.
+The Reader lays out any script in its direction, uses the font a reading needs, shows declared
+signs as their pictures, and keeps glosses and notes in their places (`languages-scripts-signs.md`).
+There is **one** Reader renderer; today there are two, and neither does this.
 
-### Language tools are honest
+A word-tagger or name-finder runs only for a language it was made for. Where none exists, Fichero
+says so, and offers what does work for any language (search, vectors, a language model if the
+project allows one). It never quietly runs the English pipeline over another language.
 
-A word-tagger or name-finder runs only for a language it was made for. Where none exists,
-Fichero says so, and offers what does work for any language (search, vectors, a language
-model if the project allows one). It never quietly runs the English pipeline over another
-language.
+### 17. The synced folder
 
-### The synced folder
-
-Specified in its own file, `synced-folder.md`: it is a programme of its own (watching a
-folder, matching files, bringing outside edits in, keeping outputs current), and it belongs
-half to the exporter and half to the importer.
+Specified in its own file, `synced-folder.md`: watching a folder, matching files, bringing
+outside edits in, keeping outputs current. It belongs half to the exporter and half to the
+importer; in a recipe it is the destination of an output step.
 
 ## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
 
-Model cards and jobs
-- `source.model.one-card` — **[GAP]** (#4948) every usable model has one card in one shape, whatever kind it is.
-- `source.model.card-is-the-catalogue` — **[GAP]** (#4948) cards are the contents of the single catalogue; the
-  shared picker and role defaults read them; no second catalogue exists.
-- `source.model.jobs-typed` — **[GAP]** (#4948) a card names its jobs from a fixed list, each with what it takes
-  and gives in source-model terms.
-- `source.model.suits` — **[GAP]** (#4948) a card states scripts, languages, period, material, direction and line
-  position.
-- `source.model.licence-class` — **[GAP]** (#4948) a card carries a licence and a licence class; only open
-  models (permissive, or compatible copyleft) download without a further deliberate step.
-- `source.model.citation-shown` — **[GAP]** (#4948) a model's citation appears wherever its work is shown and in
-  exports.
-- `source.model.measured-here` — **[GAP]** (#4948) a card shows this project's own measurements of the model.
-- `source.model.reaches-cli-by-generation` — **[GAP]** (#4948) a card route reaches the command line through
-  the generated client; no model command is hand-written.
+Model cards
+- `source.model.one-card` — **[GAP]** (#4948) every usable model (cloud, local, Apple Vision, Kraken,
+  layout, spaCy, embedding, speech) is returned by one catalogue route in one card shape with the
+  same fields.
+- `source.model.card-is-the-catalogue` — **[GAP]** (#4948) cards are the contents of the single
+  catalogue; the shared picker and role defaults read them; no second catalogue exists.
+- `source.model.jobs-typed` — **[GAP]** (#4948) a card names its jobs from the registry, each with
+  what it takes and gives in source-model terms.
+- `source.model.suits` — **[GAP]** (#4948) a card states scripts (ISO 15924), languages (BCP 47),
+  period, material, direction and line position; a fact proposed by a language model is marked
+  unconfirmed until a person confirms it, and the recipe rules ignore unconfirmed facts.
+- `source.model.licence-class` — **[GAP]** (#4948) a card carries a licence and a licence class;
+  only open models (permissive, or compatible copyleft) download without a further deliberate step.
+- `source.model.citation-shown` — **[GAP]** (#4948) a model's citation appears wherever its work is
+  shown and in exports.
+- `source.model.measured-here` — **[GAP]** (#4948) a card shows this project's own measurements of
+  the model (error per hand and page kind, lines, date), or "not measured on this project".
+- `source.model.reaches-cli-by-generation` — **[GAP]** (#4948) a card route reaches the command line
+  through the generated client; no model command is hand-written.
+- `source.model.ranking-facts` — **[GAP]** (#4948) a card carries speed (measured on this Mac or
+  published, marked as an estimate), price per page for a cloud model, an energy estimate per page
+  labelled as an estimate or "unknown", and whether and how it can be trained.
+- `source.model.coverage-two-ways` — **[GAP]** (#4948) a card states its coverage of a script: the
+  LOOVE tokenizer tiers for a language or vision-language model, the share of the script's
+  exemplar characters in its character set for Kraken or Tesseract, or "unknown".
+- `source.model.tesseract-provider` — **[GAP]** (#4948) Tesseract is a provider row in the AI
+  settings: its binary is built into the app, each language's data is downloaded on demand as
+  data with a card of its own, and it can read whole pages or cut lines.
+- `source.model.period-confirmed-not-guessed` — **[GAP]** (#4948, #4951) a card's period comes from
+  the HTR-United record of its named training set, or from a language model's reading of its prose
+  confirmed by a person; until then it is unknown, and an unknown period neither raises nor lowers
+  a candidate.
+- `source.model.line-or-page-from-architecture` — **[GAP]** (#4948) where a card does not say
+  whether a reader reads lines or pages, it is worked out from the architecture (CTC readers read
+  lines; vision-language models read pages), shown as worked out, and correctable.
+- `source.find.zenodo-through-htrmopo` — **[GAP]** (#4948) Kraken's Zenodo repository is searched
+  through the `htrmopo` library, which reads each record's card (model type, script, language,
+  CER, licence), never through Zenodo's plain search alone.
+- `source.find.adapters-as-a-tier` — **[GAP]** (#4948) the search finds fine-tuned adapters (Hugging
+  Face `library=peft`) as their own tier, each shown with its base model and training data.
 
-Chains and making
-- `source.chain.is-a-workflow` — **[GAP]** (#4949) a chain is a workflow; the second chaining mechanism that
-  ships today (`execution/chaining.py`) is folded into the workflow graph and retired.
-- `source.resolve.one-cascade` — **[GAP]** (#4949) which model does a job, which language applies and which
-  guideline holds are all answered by one engine resolver walking the one cascade; today's
-  app-wide role defaults are its top level, not a separate system.
-- `source.egress.one-gate` — **[GAP]** (#4949) whether content may leave this machine is decided in one place,
-  where a model is called, reading the cascade (a project's rule, a segment's rights record);
-  today's privacy check on model profiles becomes that gate.
-- `source.chain.checked-before-run` — **[GAP]** (#4949) a chain whose steps do not fit (what one gives is not
-  what the next takes) is refused before it runs, with the reason.
-- `source.chain.segments-to-any-reader` — **[GAP]** (#4949) one general step cuts each segment's picture and
-  hands it to any model that can do the next job, writing readings back on the same segments.
-- `source.chain.jobs-without-models` — **[GAP]** (#4949) a chain can name jobs only, resolved against the
-  project's settings when run.
-- `source.chain.bar-offers-project-default` — **[GAP]** (#4949) the workflow bar offers the project's default
-  chain first, on the current selection, down to chosen segments.
-- `source.chain.output-never-overwrites` — **[GAP]** (#4949) a chain's output is a new pass or new readings.
-- `source.making.recorded` — **[GAP]** (#4949) every pass and reading records run, step, model card and version,
-  settings, inputs, and person-or-machine (set by the engine).
-- `source.making.walkable` — **[GAP]** (#4949) the chain behind any reading can be walked back step by step.
-- `source.making.in-inspector` — **[GAP]** (#4949) the Inspector shows the selected segment's making as a
-  readable chain.
-- `source.making.same-everywhere` — **[GAP]** (#4949) the same making is returned over MCP and the command line,
-  and shown for a run in the workflow bar and run log.
-- `source.making.compare-chains` — **[GAP]** (#4949) two chains' results on one page can be compared and scored.
+Jobs and chains
+- `source.recipe.jobs-are-a-registry` — **[GAP]** (#4949, #5364) jobs and export formats are
+  registered by name with what they take, give, accept as settings, their layer and the Fichero
+  version that added them; a newly registered one is available to recipes, setup, the activity
+  queue and the recipe check with no other change; a recipe naming a job this copy lacks is
+  refused before anything runs, naming the job and the version that has it.
+- `source.recipe.jobs-carry-descriptions` — **[GAP]** (#4949) every registered job carries a plain
+  description, an example and the trade-offs between its usual options, and declares how its
+  outputs are compared; setup, the Inspector and an exported recipe's README show that same text.
+- `source.job.find-and-identify-signs` — **[GAP]** (#4949) finding signs and identifying them
+  against a sign list are jobs a recipe can name, used in place of finding lines and reading a
+  line for scripts read sign by sign.
+- `source.job.refine-shapes` — **[GAP]** (#4949) refining a pass's shapes with another model (a
+  detector tightening a vision model's boxes) is a job that makes a new pass and keeps the first.
+- `source.job.prepare-the-image` — **[GAP]** (#4949) preparing an image (crop, deskew, rotate,
+  dewarp, adjust) is a job that makes a new rendition and never changes the original; later steps
+  and segments name the rendition they used.
+- `source.job.split-pages` — **[GAP]** (#4949) splitting a spread or a strip of frames into ordered
+  pages is a job a recipe can name.
+- `source.job.find-statements` — **[GAP]** (#4949) finding statements (subject, relation, object),
+  each naming the stretch of text it came from, is a job a recipe can name.
+- `source.job.describe-for-catalogue` — **[GAP]** (#5365) a step can propose values for the
+  project's metadata fields from a page or document, for a person to confirm.
+- `source.chain.is-a-workflow` — **[GAP]** (#4949) a chain is a workflow; the second chaining
+  mechanism that ships today (`execution/chaining.py`) is folded into the workflow graph and retired.
+- `source.chain.checked-before-run` — **[GAP]** (#4949) a chain whose steps do not fit (what one
+  gives is not what the next takes) is refused before it runs, naming the step and the missing input.
+- `source.chain.segments-to-any-reader` — **[GAP]** (#4949) one general step cuts each segment's
+  picture and hands it to any model that can do the next job, writing readings back on the same
+  segments; `economy_htr`, `align_transcript`, `merge_geometry` and Kraken's segment-and-read are
+  retired into it; any finder can feed any reader through it (Kraken lines read by Tesseract,
+  Apple Vision or a vision-language model).
+- `source.chain.jobs-without-models` — **[GAP]** (#4949) a chain can name jobs only, resolved
+  against the project's recipe when run.
+- `source.chain.bar-offers-project-default` — **[GAP]** (#4949) the workflow bar offers the
+  project's recipe first, on the current selection, down to chosen segments.
+- `source.chain.bar-offers-what-fits` — **[GAP]** (#4949) beside the project's recipe, the workflow
+  bar offers the workflows the current selection can feed; there is no list of tools to hide.
+- `source.chain.output-never-overwrites` — **[GAP]** (#4949) a chain's output is a new pass or new
+  readings; no reading or pass a person made is changed.
+- `source.resolve.one-cascade` — **[GAP]** (#4949) which model does a job, which language applies
+  and which guideline holds are all answered by one engine resolver walking the one cascade;
+  today's app-wide role defaults are its top level, not a separate system.
+- `source.egress.one-gate` — **[GAP]** (#4949) whether content may leave this machine is decided in
+  one place, where a model is called, reading the cascade (a project's rule, a segment's rights
+  record); today's privacy check on model profiles becomes that gate.
 
-Projects and onboarding
-- `source.project.has-settings` — **[GAP]** (#4951) a project (today's library) has settings of its own for
-  languages, scripts, period, chain, models, rules and folder; one never filled in behaves as
-  before.
-- `source.profile.is-a-prototype` — **[GAP]** (#4951) a project profile is a prototype for a project;
-  profiles inherit from one another, and a project can override any value.
-- `source.profile.shareable-file` — **[GAP]** (#4951) a profile can be exported to and imported from a plain file
-  that holds settings, chain, tools to show, guideline and model suggestions, and no sources
-  or secrets.
-- `source.profile.sets-up-the-project` — **[GAP]** (#4951) choosing a profile sets languages, scripts, chain,
-  guideline and the tools shown, and offers to download the models it names.
-- `source.chain.bar-offers-what-fits` — **[GAP]** (#4949) beside the project's chain, the workflow bar offers the
-  workflows the current selection can feed; there is no list of tools to hide.
-- **BLOCKED on the maintainer** (the next three): recipes as files were ruled on 2026-09-19;
-  about fifty locked default workflows already ship as the app's best-practice chains
-  (`workflows/default_workflows.py`). Two stores of the same chains is the duplicate the
-  maintainer most wants to avoid. The reviewers recommend **recipe files as the one source,
-  with the shipped default workflows seeded from them**. In the morning file; nothing is
-  built on recipes until ruled.
-- `source.recipe.is-a-file` — **[GAP]** (#4950) a best-practice chain is a shareable recipe file that names jobs,
-  suitable models, and the languages, scripts and periods it is for.
-- `source.recipe.makes-a-workflow` — **[GAP]** (#4950) applying a recipe makes a workflow; nothing runs except
-  workflows.
-- `source.recipe.holds-no-second-copy` — **[GAP]** (#4950) a recipe holds no chain that the workflow store also
-  holds: a shipped best-practice chain exists once, and the other form is made from it.
-  **Ruled 2026-10-01:** a workflow is a few tools chained; a recipe is the workflows a project
-  runs, in order, plus the default model, settings and place to run for each step. A recipe
-  refers to workflows by name and may carry its own; it never copies one the store already has.
-- `source.recipe.recorded-on-what-it-made` — **[GAP]** (#4949, #5364) every pass, segment, reading and
-  claim a recipe step makes records the recipe and version that ran it, beside its maker, model
-  and run.
-- `source.recipe.travels-with-export` — **[GAP]** (#5364) an export package can include the recipe that
-  made its data, in the same RO-Crate.
+How a result was made
+- `source.making.recorded` — **[GAP]** (#4949) every pass and reading records run, step, model card
+  and version, settings and prompt, inputs, and person-or-machine (set by the engine).
+- `source.recipe.recorded-on-what-it-made` — **[GAP]** (#4949, #5364) every pass, segment, reading
+  and claim a recipe step makes records the recipe id and version that ran it, beside its maker,
+  model and run.
+- `source.making.walkable` — **[GAP]** (#4949) the chain behind any reading can be walked back step
+  by step to the image rendition it started from.
+- `source.making.in-inspector` — **[GAP]** (#4949) the Inspector shows the selected segment's making
+  as a readable chain.
+- `source.making.same-everywhere` — **[GAP]** (#4949) the same making is returned over MCP and the
+  command line, and shown for a run in the workflow bar and its Activity row.
+- `source.making.compare-chains` — **[GAP]** (#4949) two chains' results on one page can be compared
+  reading against reading and scored against ground truth.
+
+Projects
+- `source.project.has-settings` — **[GAP]** (#4951) a project (today's library) has settings of its
+  own (purpose, recipe, defaults, rules, synced folders); one never set up behaves exactly as before.
+- `source.project.in-the-cascade` — **[GAP]** (#4951) project settings sit between the app and a
+  folder in the one cascade; a folder can override them; a shown value says which level it came from.
+- `source.project.own-models` — **[GAP]** (#4951) two projects can use different models for the
+  same job, and each run uses its own project's.
+- `source.project.one-settings-window` — **[GAP]** (#4951) making a new project runs setup;
+  afterwards its settings live in one place, the library's Inspector (ruled 2026-10-01); Project
+  Settings… in the File menu and the context menu selects the library and opens that Inspector
+  section; no separate settings window exists.
+- `source.project.stays-local` — **[GAP]** (#4951) a project whose pages may not leave this machine
+  refuses every cloud step in it, naming the step and the rule.
+- `source.project.record-rule` — **[GAP]** (#4951) a project is strict or relaxed about what counts
+  as the record; a new project is strict; a recipe's profile can set either.
+- `source.project.relaxed-never-changes-the-maker` — **[GAP]** (#4951) a relaxed project changes
+  what counts as the record, never who made it: a machine's reading, pass or claim is stored and
+  shown as a machine's in every project (the engine sets this; see → #4868, → #4869).
+- `source.project.automatic-after-first-yes` — **[GAP]** (#4951) nothing in a project runs by itself
+  until the person presses Start at the end of setup (the first yes), which shows what will run,
+  on how many pages, with an estimate; what it makes counts as the record only as the project's
+  rule allows.
+
+Profiles (the defaults section of a recipe)
+- `source.profile.is-a-prototype` — **[GAP]** (#4951) a recipe's profile is stored as a prototype
+  the project inherits from; the followed recipe is the parent, the project's overrides its own
+  values; any value can be overridden and shows where it came from.
+- `source.profile.shareable-file` — **[GAP]** (#4951) a profile travels as the `defaults` section of
+  `recipe.yaml` (languages, scripts, period, direction, guideline, normalisation, record rule,
+  fonts, metadata fields, views), never in a file of its own, and holds no sources or secrets.
+- `source.profile.sets-up-the-project` — **[GAP]** (#4951) taking a recipe sets the project's
+  defaults from its profile and offers to download the models its steps name, with sizes and
+  licences.
+
+Purposes and layers
+- `source.onboard.purpose-first` — **[GAP]** (#4951) setup's first screen asks the purpose, from the
+  table's purposes in plain words, "Not sure yet" included; the purpose is stored on the project
+  and shown in its Inspector.
+- `source.onboard.purpose-sets-layers` — **[GAP]** (#4951) the purpose decides which layers run at
+  import, as the table says: the NLP layer runs by itself only where the purpose uses entities, and
+  lines only where it includes them (refines the NLP and Kraken rulings, 2026-10-01).
+- `source.onboard.offers-never-hides` — **[GAP]** (#4951) a purpose changes what is offered first
+  and what runs by itself; every view and tool stays reachable in every project.
+- `source.onboard.just-do-it` — **[GAP]** (#4951) on a "just do it" purpose, after Start, new
+  material runs through the recipe's automatic steps with no further question.
+- `source.onboard.tools-not-automation` — **[GAP]** (#4951) on a "tools" purpose (edit, decipher,
+  train, not sure), nothing runs at import that the person did not ask for, and that purpose's
+  tools are offered first.
+- `source.onboard.add-layer` — **[GAP]** (#4951) a layer or a language can be added later from the
+  library's Inspector; an added layer turns on the recipe's steps of that layer and runs them over
+  everything already in the project, as one job.
+- `source.recipe.steps-name-layers` — **[GAP]** (#4950) every step names a layer; the resolved
+  recipe's `automatic` section lists the steps whose layer the purpose (or an added layer) turns
+  on, with whether each may use the cloud, and is never written by hand.
+
+Setup
+- `source.onboard.widget-and-search` — **[GAP]** (#4951) setup is a form with search beside each
+  field, not a conversation.
+- `source.onboard.screens-in-order` — **[GAP]** (#4951) setup asks the purpose first and shows
+  Start last, with its screens in one fixed order (provisionally the six of section 7; to be
+  aligned with the maintainer's step document of 2026-10-02); it can be closed at any screen with
+  the answers kept as a draft, and nothing runs before Start.
+- `source.onboard.teaches-the-method` — **[GAP]** (#4951) across its steps setup explains each topic
+  of section 7a (languages, scripts, fonts, glyphs and Unicode, a faithful way to write the script,
+  finding sources, models and memory, Kraken, layout, tables, workflows and recipes, entities,
+  statements, maps, calendars, normalisation, output formats, fine-tuning, remote compute) with an
+  example from the person's own pages where there are some.
+- `source.onboard.topics-written-once` — **[GAP]** (#4951) each topic's and each job's explanation
+  is stored once, with its job or topic in the registry, and the same text is shown in setup, the
+  Inspector, an exported recipe's README and the user manual.
+- `source.onboard.set-up-later` — **[GAP]** (#4951) "Set up later" makes a project with no settings
+  that behaves as today, and Set Up… in its Inspector runs setup at any time.
+- `source.onboard.samples-first` — **[GAP]** (#4951) given material, setup picks up to ten sample
+  pages spread across it (first, last, evenly spaced, largest and smallest), which the person can
+  swap; from them, where a local model is available, it suggests scripts, languages, material,
+  period and layout, each labelled "suggested from your pages" until accepted.
+- `source.onboard.five-questions` — **[GAP]** (#4951) beyond the purpose and the material, setup
+  asks at most five things (scripts, languages, material and period, layout, whether pages may
+  leave), and the last only when a step would use the cloud.
+- `source.onboard.volume-counted-or-asked` — **[GAP]** (#4951) setup counts the pages of the
+  material given (images, PDF pages, manifest canvases) and asks how much (tens, thousands,
+  hundreds of thousands) only when it cannot count; the volume is stored and used by the rules.
+- `source.onboard.self-documenting` — **[GAP]** (#4951) each setup screen and each proposed step
+  explains in plain words what it does, why it is in the recipe, and its options' trade-offs
+  (accuracy, cost, speed, carbon, trainability), with an example from the person's own sample
+  pages where there are some, using the job registry's descriptions.
+- `source.onboard.recordings-orthography` — **[GAP]** (#4951) for recordings, setup asks how the
+  speech is to be written (a practical orthography, IPA, or the project's own system) instead of
+  which script, and the recipe's reading step is "transcribe speech"; a language with no script is
+  recorded as such.
+- `source.onboard.folders-differ` — **[GAP]** (#4951) where folders of the material differ in
+  material or language, the answers can be given per folder and the rules assemble a folder
+  override for each step that differs, not a second recipe.
+- `source.onboard.script-cases-covered` — **[GAP]** (#4951) for a fixture of each material in the
+  coverage table (Latin hands, print in another script, vertical CJK, kuzushiji, palm-leaf,
+  right-to-left, sign-by-sign scripts, an Indigenous syllabary, unwritten speech), setup produces
+  the steps the table names or "needs a model", never an error and never a silent substitute.
+- `source.onboard.estimate-before-start` — **[GAP]** (#4951) screens 4 and 6 show the whole
+  volume's estimate (time where it runs, cost, carbon labelled as an estimate) for the proposed
+  recipe and for its main alternative, before anything runs.
+- `source.onboard.derives-not-asks` — **[GAP]** (#4951) direction, line position, fonts, this Mac's
+  chip and memory, keys present and compute targets are worked out, shown, and correctable, never
+  asked.
+- `source.onboard.ground-truth-from-files` — **[GAP]** (#4951) corrected transcriptions given at
+  setup (PAGE, ALTO, TEI, or plain text named after its image) come in through the one import path
+  as person-made passes marked ground truth, and the bake-off uses them.
+- `source.onboard.existing-library` — **[GAP]** (#4951) setup on an existing library takes samples
+  and ground truth from its pages, rewrites nothing, and offers running the recipe over its
+  existing pages as a separate job with its page count and estimate.
+- `source.onboard.search-triggered` — **[GAP]** (#4948, #4951) once scripts, languages and period
+  are set, Fichero finds candidates for each step itself, without a manual search.
+- `source.onboard.proposes-chain` — **[GAP]** (#4951) screen 4 shows the proposed recipe: a
+  published one that fits (the flagship first where it fits) or a generated one, with each step's
+  model, where it runs, download size, licence class and measurements.
+- `source.onboard.deterministic-recipe` — **[GAP]** (#4950, #4951) the recipe is assembled by rules
+  from the answers and the cards' confirmed facts; the same answers and catalogue always give the
+  same recipe, and each choice names the card facts and measurements it rests on.
+- `source.recipe.candidates-filtered-then-ranked` — **[GAP]** (#4950) candidates are kept only if
+  they pass the hard constraints (job, script coverage, language where it matters, runs here or on
+  a bound target, licence, egress); material and period only lower a candidate's rank. The rest
+  are ranked in a fixed order: accuracy in one-point bands (measured here, else published, else
+  coverage), then local before remote, cheaper, faster, lower carbon, trainable, smaller, then
+  card id.
+- `source.recipe.volume-rule` — **[GAP]** (#4950, #4951) the volume band changes the
+  recommendation: under 100 pages accuracy alone decides; from 5,000 the train step is offered
+  from the start; above 100,000 a candidate whose whole-volume cost or time is beyond the limits
+  (by default 500 dollars in the cloud or 30 days on this Mac) is shown but not chosen, and the
+  teacher-and-student path is proposed.
+- `source.recipe.reader-tiers` — **[GAP]** (#4948) with no measurement, readers are ordered by tier:
+  specialist line readers, then small historical vision-language models, then general ones;
+  Tesseract only for print and typescript; within a tier, by coverage.
+- `source.recipe.no-other-style-substitute` — **[GAP]** (#4951) a reader made for another style of
+  the project's script (naskh for nastaliq) is never proposed in its place; the step is "needs a
+  model" and the gap is named.
+- `source.onboard.sign-scripts-specialist-path` — **[GAP]** (#4951) for scripts read sign by sign
+  (cuneiform, hieroglyphs, Linear B, Maya), setup names the gap, shows any specialist pipeline
+  found as a card marked "not runnable in Fichero yet", offers the decipher or train paths, and
+  never proposes a general vision model in their place.
+- `source.onboard.speech-candidates` — **[GAP]** (#4951) for recordings, speech models (Whisper,
+  MMS) are candidates by the language lists on their cards, LOOVE coverage is not used, and where
+  none lists the language setup says so and offers hand transcription in the chosen orthography or
+  IPA, then training.
+- `source.recipe.loove-tokenizer-only` — **[GAP]** (#4948) LOOVE tokenizer coverage filters and
+  ranks only language and vision-language models; Kraken and Tesseract are judged on their
+  character-set coverage; a measurement on the project's pages outranks both.
+- `source.recipe.no-llm-correction-in-unknown-language` — **[GAP]** (#4950) a correction or
+  normalising step by a language model is included only when the model's card lists the project's
+  language; otherwise it is left out and the recipe says why.
+- `source.onboard.assistant-proposal` — **[GAP]** (#4951) a language model may help: filling in a
+  prose-only card (facts unconfirmed until a person confirms), explaining a choice, or suggesting
+  answers from samples; it runs locally unless the project allows the cloud, and never decides the
+  recipe.
+- `source.onboard.bakeoff` — **[GAP]** (#4948, #4951) the bake-off runs the rule-proposed
+  candidates on the chosen ground-truth pages and shows, per candidate, error per hand and page
+  kind, whole-volume cost, local or remote, speed, carbon estimate and trainability, ranked in the
+  fixed order; the person confirms the winner; the ranking stays on the cards and can be re-run.
+- `source.onboard.bakeoff-combinations` — **[GAP]** (#4951) for a chain of steps (find lines then
+  read; read then correct) the bake-off ranks whole combinations, at most three per step and at
+  most nine combinations after pruning by summed rule rank, all on the same pages.
+- `source.onboard.bakeoff-records-combination` — **[GAP]** (#4950) the confirmed combination sets
+  each step's model in the recipe, and its measurement is kept on the cards and in the recipe's
+  measurements.
+- `source.onboard.bakeoff-tesseract-baseline` — **[GAP]** (#4951) for print or typescript, when
+  Tesseract has data for the language, a Tesseract combination is in every bake-off; for
+  handwriting it is never proposed.
+- `source.onboard.bakeoff-minimum` — **[GAP]** (#4951) the bake-off needs at least 100 corrected
+  lines on at least two pages; below that it says how many more are needed and is offered again
+  when there are enough.
+- `source.onboard.bakeoff-is-a-job` — **[GAP]** (#4951, #5352) the bake-off runs as a job in
+  Activity; the person can leave setup while it runs; the first automatic run waits until the
+  winner is confirmed or the bake-off is skipped.
+- `source.onboard.bakeoff-skippable` — **[GAP]** (#4951) skipping the bake-off keeps the
+  rule-ranked recommendation, and each such step shows "not measured on this project" in the
+  Inspector until a bake-off runs.
+- `source.onboard.says-no-model` — **[GAP]** (#4951) where no candidate passes the hard constraints
+  for a step, setup says so in words and proposes the hand-transcribe, draft-and-correct and
+  train routes; it never substitutes silently.
+- `source.onboard.no-model-step-kept` — **[GAP]** (#4951) a step with no model stays in the recipe
+  marked "needs a model"; steps that do not depend on it run, and those that do wait with that
+  reason.
+- `source.onboard.train-path` — **[GAP]** (#4951, #5336) where no candidate fits a reading step,
+  setup offers the train-your-own path (`compute/distillation.md`) and shows the corrected-line
+  count at which training will be offered.
+- `source.onboard.egress-asked-twice` — **[GAP]** (#4951) whether pages may leave is asked in setup
+  when a step would use the cloud, and again the first time a cloud model is actually called, once
+  per provider per project, showing what is sent, to whom, how many pages and the estimated cost;
+  the default is that nothing leaves.
+- `source.onboard.flagship-recipe` — **[GAP]** (#4950, #4951) historical Spanish hands have a
+  flagship recipe, shipped with Fichero and in the catalogue, measured end to end on real pages of
+  that material, whose defaults need no adjusting; its `measurements.yaml` is published with it.
+- `source.onboard.generates-for-any-language` — **[GAP]** (#4951) for a language and script no
+  published recipe fits (Cherokee in the syllabary, for example), setup generates one through the
+  same flow: model search, rules, bake-off where possible, and "needs a model" with the train path
+  where nothing fits.
+- `source.onboard.outputs-recipe-and-defaults` — **[GAP]** (#4950, #4951) setup produces the
+  project's recipe and its defaults at the project rung of the cascade; both are shown on the
+  Ready screen before Start.
+- `source.onboard.edited-in-the-inspector` — **[GAP]** (#4951) everything setup set (purpose,
+  defaults, recipe, steps, models, layers) is shown and edited in the Inspector when the library
+  is selected.
+- `source.onboard.regen-shows-diff` — **[GAP]** (#4951) changing an answer re-assembles the recipe
+  and defaults and shows what would change, step by step; values the person set by hand are kept
+  unless they choose otherwise.
+- `source.onboard.rerun-rewrites-nothing` — **[GAP]** (#4951) changing a project's answers or recipe
+  changes defaults for new work only; nothing already made is rewritten.
+
+The recipe and its format
+- `source.recipe.is-a-file` — **[GAP]** (#4950) a recipe can be exported as, and taken from, a
+  shareable folder that names its steps, their models, and the scripts, languages, period and
+  purposes it suits.
+- `source.recipe.makes-a-workflow` — **[GAP]** (#4950) applying a recipe's steps makes and runs
+  workflows; nothing runs except workflows.
+- `source.recipe.holds-no-second-copy` — **[GAP]** (#4950) a recipe refers to workflows in the
+  store by name and may carry its own, but never a copy of one the store holds; the locked default
+  workflows stay in the store and shipped recipes refer to them (ruled 2026-10-01).
+- `source.recipe.stored-in-project` — **[GAP]** (#4950) a project's recipe (followed version,
+  overrides, purpose, added layers, target bindings) is stored in the project database, and the
+  Inspector, MCP and the command line return the same resolved recipe from the engine.
+- `source.recipe.steps-are-jobs` — **[GAP]** (#4949, #5364) a recipe step names a job, where it
+  applies (which segment kinds), a model, settings and a prompt; the recipe is checked before it
+  runs, so a step uses only what an earlier step or the source gives.
+- `source.recipe.per-region-kind` — **[GAP]** (#4949) a step can send each kind of region to a
+  different model (main text, marginal gloss, table, drawing).
+- `source.recipe.names-models-and-where` — **[GAP]** (#4950) a recipe names the model for each step,
+  pinned (Hugging Face repository and revision, Zenodo DOI, package and version, Kraken built-in
+  and version, or a cloud provider's model id with the date measured) or a role default, and where
+  it runs: `this-mac`, `cloud`, `cluster` or `gpu-service`.
+- `source.recipe.runs-on-binds-to-a-target` — **[GAP]** (#4950) a shared recipe never names a
+  person's compute target; the project binds each `cluster` or `gpu-service` step to one of its own,
+  and an unbound step waits with "No cluster is set up".
+- `source.recipe.alternatives-in-order` — **[GAP]** (#4950) when this Mac cannot run a step's pin,
+  the first listed alternative that can is used, and the choice is recorded and shown.
+- `source.recipe.conditions-fixed-list` — **[GAP]** (#4950) a step's `when` and `offered_when` use
+  only a fixed list of conditions (spreads detected, a confidence threshold, a corrected-line
+  count); anything else is refused when the recipe is checked.
+- `source.recipe.train-never-automatic` — **[GAP]** (#4950, #5336) a train step never runs by
+  itself; it is offered when its condition is met and runs only when the person starts it.
+- `source.recipe.prompt-files` — **[GAP]** (#5364) each prompt is one file with a header naming its
+  job, the model it was written for, its version and its variables; a variable the step does not
+  supply is refused when the recipe is checked.
+- `source.recipe.schema-versioned` — **[GAP]** (#5364) `recipe.yaml` carries its schema version; a
+  version newer than this Fichero understands is refused with the version named, and an older one
+  keeps working.
+- `source.recipe.folder-format` — **[GAP]** (#5364) a recipe exports as a folder: `recipe.yaml`
+  (published JSON Schema), one file per prompt, its workflows, its measurements, a licence, a README
+  and a Workflow RO-Crate wrapper.
+- `source.recipe.data-not-code` — **[GAP]** (#5364) a recipe can name only registered jobs, models,
+  prompts, settings and workflows built from Fichero's tools; it cannot carry scripts or grant a
+  model tools or network access, and an imported recipe that tries is refused, naming the entry.
+- `source.recipe.never-holds-keys` — **[GAP]** (#5364) a recipe names providers and models but never
+  a key; exporting one that would include a key is impossible by construction, and taking one that
+  needs a missing key says which.
+- `source.recipe.checked-at-every-door` — **[GAP]** (#4950, #5364) a recipe is checked at setup,
+  when taken, when an update is offered and before each run, and the check lists by step: unknown
+  jobs, newer schema, unmet inputs, missing pins, models this Mac cannot run, refused cloud steps,
+  missing keys, unbound targets, missing prompts or variables.
 - `source.recipe.per-folder` — **[GAP]** (#4951, #5364) a folder can follow a recipe other than its
-  library's, resolved by the cascade; work in it runs that recipe.
-- `source.recipe.reaches-the-whole-model` — **[GAP]** (#4949, #5364) a recipe can name the knowledge and
-  output jobs too: link to authorities, place in a gazetteer, enrich from linked data over SPARQL,
-  work out dates, attribute hands, export and publish; each is owned by its own spec and only
-  named by the recipe; facts fetched from an endpoint are kept apart from what the pages say.
-- `source.recipe.jobs-are-a-registry` — **[GAP]** (#4949, #5364) jobs and export formats are registered by
-  name with what they take, give and accept as settings; a new one is available to recipes,
-  onboarding, the activity queue and the recipe check with no other change; a recipe naming a job
-  this copy lacks says so before anything runs.
+  library's, and a step's model can be overridden on a folder, resolved by the cascade; work in
+  that folder runs that recipe.
+- `source.recipe.reaches-the-whole-model` — **[GAP]** (#4949, #5364) a recipe can name the knowledge
+  and output jobs too: link to authorities, place in a gazetteer, enrich from linked data over
+  SPARQL, work out dates, attribute hands, export and publish; each is owned by its own spec and
+  only named by the recipe; facts fetched from an endpoint are kept apart from what the pages say.
 - `source.recipe.export-folder-in-sync` — **[GAP]** (#4640, #4952) an export step can write a synced
   folder that is kept current as the work changes, re-exporting only what a change touched.
-- `source.recipe.steps-are-jobs` — **[GAP]** (#4949, #5364) a recipe step names a job, where it applies
-  (which segment kinds), a model, settings and a prompt; the recipe is checked before it runs, so
-  a step uses only what an earlier step produced.
-- `source.recipe.per-region-kind` — **[GAP]** (#4949) a step can send each kind of region to a different
-  model (main text, marginal gloss, table, drawing).
-- `source.recipe.never-holds-keys` — **[GAP]** (#5364) a recipe names providers and models but never a key;
-  taking one that needs a missing key says which.
-- `source.job.prepare-the-image` — **[GAP]** (#4949) preparing an image (crop, deskew, rotate, dewarp,
-  adjust) is a job that makes a new rendition and never changes the original; later steps and
-  segments name the rendition they used.
-- `source.job.describe-for-catalogue` — **[GAP]** (#5365) a step can propose values for the project's
-  metadata fields from a page or document, for a person to confirm.
-- `source.job.split-pages` — **[GAP]** (#4949) splitting a spread or a strip of frames into ordered pages
-  is a job a recipe can name.
-- `source.job.find-statements` — **[GAP]** (#4949) finding statements (subject, relation, object), each
-  naming the stretch of text it came from, is a job a recipe can name.
-- `source.recipe.folder-format` — **[GAP]** (#5364) a recipe exports as a folder: `recipe.yaml` (published
-  JSON Schema), one file per prompt, its workflows, its measurements and a Workflow RO-Crate
-  wrapper; models are pinned by repository and revision or DOI.
-- `source.recipe.publish` — **[GAP]** (#5364) a recipe can be published to the community catalogue on
-  GitHub, which checks the schema, the pinned models and the referenced files on submission, or
-  to Zenodo for a DOI; publishing is asked every time and sends no pages unless added.
-- `source.recipe.catalogue-search` — **[GAP]** (#5364) setup searches the catalogue by script, language,
-  period and purpose, and shows each recipe's measurements.
-- `source.recipe.follow-and-update` — **[GAP]** (#5364) a project follows a published recipe at a version;
-  a new version is offered with a step-by-step diff and its measurements beside the old; taking it
-  is the person's choice.
-- `source.recipe.overrides-kept` — **[GAP]** (#5364) a project's own changes (a prompt, a model, an extra
-  step) are kept as overrides on top of the followed version; an update replaces only what was not
-  overridden and lists conflicting steps for the person to decide.
-- `source.recipe.fork` — **[GAP]** (#5364) a recipe can be forked into the project's own and published,
-  crediting the original.
-- `source.recipe.data-not-code` — **[GAP]** (#5364) a recipe can name only models, prompts, settings and
-  workflows built from Fichero's tools; nothing in it runs outside them, and an imported recipe
-  that tries is refused.
-- `source.recipe.names-models-and-where` — **[GAP]** (#4950) a recipe names the model for each step (for
-  example a Kraken baseline model, an MLX reader, a spaCy pipeline) and where the step runs (this
-  Mac, a cloud provider, or a training job on a cluster).
-- `source.project.automatic-after-first-yes` — **[GAP]** (#4951) automatic chaining is switched on for each
-  project and confirms before its first run; what it makes counts as the record only as the
-  project's rule allows.
-- `source.project.record-rule` — **[GAP]** (#4951) a project is strict or relaxed about what counts as the
-  record; a new project is strict; a profile can set either.
-- `source.project.relaxed-never-changes-the-maker` — **[GAP]** (#4951) a relaxed project changes what counts as
-  the record, never who made it: a machine's reading, pass or claim is stored and shown as a
-  machine's in every project (the engine sets this; see → #4868, → #4869).
-- `source.project.one-settings-window` — **[GAP]** (#4951) making a new project runs the setup flow; afterwards
-  its settings live in one place, the library's Inspector (ruled 2026-10-01; Project Settings… in
-  the File menu and the context menu select the library and open that Inspector section); there
-  is no second surface.
-- `source.project.in-the-cascade` — **[GAP]** (#4951) project settings sit between the app and a folder in the
-  one cascade; a folder can override them; a shown value says which level it came from.
-- `source.project.own-models` — **[GAP]** (#4951) two projects can use different models for the same job.
-- `source.project.stays-local` — **[GAP]** (#4951) a project marked "pages may not leave this machine" refuses
-  cloud models for everything in it, and says why.
-- `source.onboard.purpose-first` — **[GAP]** (#4951) setup first asks what the person is trying to do,
-  from the purposes in the table above in plain words, "Not sure yet" included; the purpose is
-  stored on the project and shown in its Inspector.
-- `source.onboard.purpose-sets-layers` — **[GAP]** (#4951) the purpose decides which layers run at import
-  (the table above): the NLP layer runs automatically only where the purpose uses entities, and
-  lines only where it includes them (refines the NLP and Kraken rulings, 2026-10-01).
-- `source.onboard.offers-never-hides` — **[GAP]** (#4951) a purpose changes what is offered first and what
-  runs by itself; every view and tool stays reachable in every project.
-- `source.onboard.just-do-it` — **[GAP]** (#4951) on a "just do it" purpose, after setup Fichero runs the
-  project's recipe on new material with no further questions.
-- `source.onboard.tools-not-automation` — **[GAP]** (#4951) on a "tools" purpose (edit, decipher, train, not
-  sure), nothing runs at import that the person did not ask for, and the tools that purpose
-  needs are offered first.
-- `source.onboard.add-layer` — **[GAP]** (#4951) a layer or a language can be added later from the library's
-  Inspector; an added layer runs over everything already in the project.
-- `source.onboard.outputs-recipe-and-defaults` — **[GAP]** (#4950, #4951) setup produces the project's recipe
-  (workflows in order, the model, settings and place to run each step) and the project's
-  defaults at the project rung of the cascade; both are shown before setup closes.
-- `source.onboard.edited-in-the-inspector` — **[GAP]** (#4951) everything setup set is shown and edited in the
-  Inspector when the library is selected.
-- `source.onboard.regen-shows-diff` — **[GAP]** (#4951) changing an answer regenerates the recipe and
-  defaults and shows what would change; values the person set by hand are kept unless they
-  choose otherwise.
-- `source.onboard.search-triggered` — **[GAP]** (#4948, #4951) once languages, scripts and period are set,
-  Fichero finds candidate models for each step itself, without a manual search.
-- `source.onboard.deterministic-recipe` — **[GAP]** (#4950, #4951) the recipe is assembled by rules from the
-  setup answers and the model cards' structured facts; the same answers and catalogue always give
-  the same recipe, and each choice names the card facts and measurements it rests on.
-- `source.onboard.widget-and-search` — **[GAP]** (#4951) setup is a form with search beside it, not a
-  conversation.
-- `source.onboard.assistant-proposal` — **[GAP]** (#4951) a language model may help: filling in a card
-  described only in prose (for a person to confirm), explaining a choice, or suggesting answers
-  from sample pages. It runs locally unless the project allows the cloud, and never decides the
-  recipe.
-- `source.onboard.bakeoff` — **[GAP]** (#4948, #4951) candidates read sample pages the person corrected and
-  are ranked by error per hand and page kind, with speed, cost, size, licence and whether this
-  Mac runs them; the person confirms the winner, which becomes the step's default; the ranking
-  stays on the cards and can be re-run; the bake-off can be skipped.
-- `source.onboard.train-path` — **[GAP]** (#4951, #5336) where no candidate fits a step, setup offers the
-  train-your-own path (`compute/distillation.md`).
-- `source.onboard.egress-asked-twice` — **[GAP]** (#4951) whether pages may leave the Mac is asked during
-  setup and again the first time a cloud model would be used; the default is that nothing leaves.
-- `source.onboard.flagship-recipe` — **[GAP]** (#4950, #4951) historical Spanish hands have a flagship recipe,
-  measured end to end on real pages of that material, whose defaults need no adjusting; its
-  measurements are published with it.
-- `source.onboard.generates-for-any-language` — **[GAP]** (#4951) for a language and script with no shipped
-  recipe (Cherokee in the syllabary, for example), setup generates one through the same flow:
-  model search, proposal, bake-off, and the train-your-own path where nothing fits.
-- `source.onboard.five-questions` — **[GAP]** (#4951) beyond the purpose, making a project asks at most five
-  questions.
-- `source.onboard.samples-first` — **[GAP]** (#4951) onboarding starts by asking for sample pages, and from them
-  proposes scripts, languages, material, period, layout and the best-fitting profile, for
-  correction.
-- `source.onboard.derives-not-asks` — **[GAP]** (#4951) direction, line position and hardware are worked out,
-  shown, and correctable.
-- `source.onboard.proposes-chain` — **[GAP]** (#4951) the answers yield a proposed default chain from recipes
-  kept as data, with models, downloads and licences stated.
-- `source.onboard.says-no-model` — **[GAP]** (#4951) where the existing language-fit score finds no suitable
-  model, Fichero says so and proposes the hand-transcribe-then-train route; it never
-  substitutes silently.
-- `source.onboard.rerun-rewrites-nothing` — **[GAP]** (#4951) changing a project's answers changes defaults for
-  new work only.
+- `source.recipe.travels-with-export` — **[GAP]** (#5364) an export package can include the recipe
+  that made its data, in the same RO-Crate.
+
+Trying another option
+- `source.try.any-time` — **[GAP]** (#4950) Try Another Option… is offered on any selection (pages,
+  a region, lines, a document) in the Inspector and the context menu, for a step or a run of
+  steps, with one or two alternatives (a model, a combination or a prompt), at any time after setup.
+- `source.try.every-job` — **[GAP]** (#4950) it works for every registered job, reading and beyond:
+  layout, entities, statements, authority links, dates and search vectors.
+- `source.try.never-over-existing` — **[GAP]** (#4950) each alternative shows its cost and time,
+  runs as a job in Activity, and lands as new passes, readings, mentions or claims (a vector
+  alternative as an index beside the current one); nothing existing changes.
+- `source.try.compared-as-declared` — **[GAP]** (#4950) results open side by side in panes and are
+  compared the way the job declares: shapes overlaid with overlap scores against confirmed shapes;
+  readings by text diff with error rates against corrected text; entities, statements, links and
+  dates by precision and recall against confirmed ones, else side-by-side lists; vectors by the
+  top results for the person's queries; each with cost, speed and carbon estimate.
+- `source.try.use-this-scope` — **[GAP]** (#4950) Use This makes the winner the step's (or the
+  combination's) choice for the project or for one folder, stored as an override on the recipe.
+- `source.try.kept-and-rerunnable` — **[GAP]** (#4950) a comparison is kept with its selection and
+  options and can be run again later.
+- `source.try.bakeoff-is-the-same-tool` — **[GAP]** (#4950, #4951) setup's bake-off is Try Another
+  Option… run on the sample ground-truth pages over the rule-proposed combinations; there is one
+  comparison code path.
+
+Running and failure
+- `source.recipe.download-failure-waits` — **[GAP]** (#4950, #5352) a failed model download is shown
+  in Activity with its reason, retried three times, then the steps that need the model wait with
+  "Model download failed" and offer Retry or the next candidate; other steps run.
+- `source.recipe.missing-key-never-substitutes` — **[GAP]** (#5364) a cloud step whose provider has
+  no key waits with "Needs a key for <provider>" and Add Key…; no other model is used in its place
+  unless the person chooses one, which is kept as an override.
+- `source.recipe.take-without-missing-step` — **[GAP]** (#4949) a recipe naming a job this Fichero
+  lacks can be taken without that step; the removal is recorded as an override "job not available"
+  and offered back after Fichero is updated.
+- `source.recipe.pinned-model-gone` — **[GAP]** (#5364) a pinned model that can no longer be fetched
+  is reported by the check, naming the step, and the rule's next candidate is offered.
+
+Sharing
+- `source.recipe.publish` — **[GAP]** (#5364) a recipe can be published to the community catalogue
+  on GitHub, which checks the schema, the pinned models, the referenced files and the licence on
+  submission, or to Zenodo for a DOI; publishing is asked every time and sends no pages unless
+  added, each listed first.
+- `source.recipe.catalogue-search` — **[GAP]** (#5364) setup and the Inspector search the catalogue
+  by script, language, period and purpose, and show each recipe's measurements.
+- `source.recipe.update-check` — **[GAP]** (#5364) Fichero checks for new versions of followed
+  recipes at most once a day, sending only recipe ids; offline, nothing is offered and nothing
+  fails.
+- `source.recipe.follow-and-update` — **[GAP]** (#5364) a project follows a published recipe at a
+  version; a new version is offered with a step-by-step diff (steps, pins, prompt text, settings)
+  and its measurements beside the old; taking it is the person's choice.
+- `source.recipe.update-measured-here` — **[GAP]** (#5364) when an update changes steps that run on
+  this Mac and the project has ground truth, the new version is measured on the project's pages in
+  the background and shown beside the old.
+- `source.recipe.update-new-work-only` — **[GAP]** (#5364) a taken update changes new work;
+  re-running changed steps on existing pages is offered as one job, whose output arrives as new
+  passes and readings.
+- `source.recipe.overrides-kept` — **[GAP]** (#5364) a project's own changes (a prompt, a model, a
+  setting, an extra or removed step) are kept as overrides on top of the followed version; an
+  update replaces only what was not overridden and lists conflicting steps, keeping the project's
+  own unless the person takes the author's.
+- `source.recipe.fork` — **[GAP]** (#5364) a recipe can be forked into the project's own and
+  published, naming the recipe and version it came from and crediting its authors.
 
 Finding models
-- `source.find.by-need` — **[GAP]** (#4948) the existing model recommender and language-fit score are extended
-  (not replaced) to search by job, script, language, period and local-only, across an open
-  list of sources including Kraken's repository and Hugging Face (→ #2116).
-- `source.find.download-is-a-provider-row` — **[GAP]** (#4948) a downloaded model becomes a row under its
-  provider, through the one catalogue's download path.
-- `source.find.results-are-cards` — **[GAP]** (#4948) results are shown as cards, with licence class, size and
-  whether this Mac can run them.
-- `source.find.try-before-default` — **[GAP]** (#4948) a found model can be tried on chosen pages and measured
-  before becoming a default.
+- `source.find.by-need` — **[GAP]** (#4948) the existing model recommender and language-fit score
+  are extended (not replaced) to search by job, script, language, period and local-only, across an
+  open list of sources including Kraken's repository and Hugging Face (→ #2116).
+- `source.find.download-is-a-provider-row` — **[GAP]** (#4948) a downloaded model becomes a row under
+  its provider, through the one catalogue's download path.
+- `source.find.results-are-cards` — **[GAP]** (#4948) results are shown as cards, with licence
+  class, size and whether this Mac can run them.
+- `source.find.try-before-default` — **[GAP]** (#4948) a found model can be tried on chosen pages and
+  measured before becoming a step's model.
 
 Reader and language tools
-- `source.reader.one-renderer` — **[GAP]** (#4948) one Reader renderer shows any script, direction and declared
-  sign.
+- `source.reader.one-renderer` — **[GAP]** (#4948) one Reader renderer shows any script, direction
+  and declared sign.
 - `source.nlp.no-silent-fallback` — **[GAP]** (#4948) see `histnorm.language.no-silent-english-entity-model`
   (→ #4914), which owns this; not restated here.
 
 ## Requests to other specs (for the manager to route; nothing edited here)
 
-- `ai/ai-settings.md`: the single catalogue's entries should take the card shape above,
-  including embedding models (today chosen by an environment variable) and licence class.
-  Also: its local-runtime "profile" (`llm/model_profiles.py`) should take another name (a
-  runtime configuration), because **profile** now means a project's set-up.
-- `ui/model-selector-consistency.md`: a picker row could show what a card knows (suits,
-  local or cloud, licence class); that spec's open question on what a row shows.
-- `ui/workflows.md` / `ui/workflow-node-config.md`: a recipe file makes a workflow (the
-  maintainer ruled recipes are files of their own; the locked default workflows and recipes
-  must not become two stores of the same chains); steps declare a job; a chain is checked
-  before it runs; the general "segments to any reader" step replaces `economy_htr` and its
-  kin; the known drift between `kraken_model` and `kraken_recognition_model` disappears when
-  the model is a card.
-- `historical-text-normalization.md`: done. The silent fall-back to the English spaCy pipeline
-  is recorded there as `histnorm.language.no-silent-english-entity-model`, broken, #4914.
+- `ai/ai-settings.md`: the single catalogue's entries should take the card shape above, including
+  embedding models (today chosen by an environment variable) and licence class. Its local-runtime
+  "profile" (`llm/model_profiles.py`) should take another name (a runtime configuration), because
+  **profile** here means a recipe's defaults. And a **Tesseract** provider row (binary built in,
+  language data downloaded as data), as section 1 describes.
+- `ui/` (the compare design, still a proposal): Try Another Option… needs panes that show two
+  passes or readings side by side with a diff lens, and list views for entities and statements.
+- `source/source-model.md`: its glossary rows for **profile** and **recipe** should point here (a
+  profile is a recipe's defaults section; a recipe is more than a chain), and its ruling 10's
+  "project settings window" is settled as the Inspector (ruled 2026-10-01).
+- `ui/activity-and-automatic-work.md`: its request for an `automatic` section is met by the
+  resolved recipe (`source.recipe.steps-name-layers`), worked out from the purpose, not written in
+  the shared file.
+- `ui/model-selector-consistency.md`: a picker row could show what a card knows (suits, local or
+  cloud, licence class).
+- `ui/workflows.md` / `ui/workflow-node-config.md`: steps declare a job; a chain is checked before
+  it runs; the general "segments to any reader" step replaces `economy_htr` and its kin; the drift
+  between `kraken_model` and `kraken_recognition_model` disappears when the model is a card.
+- `compute/remote-compute.md` asked that a card can say "also present on these targets" and
+  "trained by this job": accepted in principle, to be added to the card shape with #4948.
 - The Reader specs: two renderers exist, one declaring itself English.
 
 ## Test matrix
 
-To be filled at approval.
+To be filled at approval. The legs this slice will need, so the gap is visible:
 
-## Open questions
+| Leg | Pins |
+|---|---|
+| Backend (pytest) | the recipe schema (valid, newer version, unknown job, code refused, missing prompt variable); the assembly rules (same answers and catalogue, same recipe; filter and rank order; volume rule; no-LLM-correction rule; "needs a model"); combination pruning (never more than nine); the resolved recipe and its `automatic` section per purpose; overrides through an update; the check's report for each failure row; each coverage-table fixture; each job family's comparison |
+| MCP / CLI | the resolved recipe, the check, the catalogue search and Try Another Option return the same as the app |
+| Click-around (Mac) | setup's six screens on a fixture folder, each explaining itself; Start enqueues the automatic steps in Activity; the Inspector shows and edits the recipe; Try Another Option on two pages, then Use This for a folder |
+| Named-machine | the flagship measured on real Spanish pages; the Cherokee journey on real syllabary scans |
 
-Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
-`source-model.md`.
+## Open questions (with recommendations)
+
+1. **Is training ever automatic?** A train step costs cluster allocation or hours of a large Mac.
+   *Recommend:* never automatic (as written, `source.recipe.train-never-automatic`); offered when
+   its condition is met.
+2. **The bake-off's minimum.** 100 corrected lines on two pages is enough to rank three readers
+   roughly, not to trust small differences. *Recommend:* keep 100/2 as the floor, and show each
+   rank with its line count and a "too close to call" mark when two candidates are within one
+   point of CER.
+3. **The first-cloud-use question: once per provider per project, or once per step?**
+   *Recommend:* once per provider per project; a new step with the same provider is listed in the
+   Inspector but not asked again.
+4. **Does a re-run after a taken update happen by itself?** *Recommend:* no; offered as one job
+   with its estimate, because on a 3,000-page project it is days of work.
+5. **Where does the flagship's measurement come from?** It needs real pages of Spanish notarial
+   and administrative hands with ground truth that can be published. *Recommend:* the app's two
+   heaviest users' corrected pages, measured privately, with the published `measurements.yaml`
+   pointing at public IIIF pages of comparable material (or stating "private: N pages"), so no
+   unpublished archive page leaves.
+6. **The catalogue's home.** *Recommend:* a `fichero-recipes` repository under the project's own
+   GitHub organisation, mirrored to Zenodo by release, as HTR-United does for training sets.
+7. **Where the carbon figures come from.** There is no agreed per-page figure for cloud models.
+   *Recommend:* a small vendored table, like the price list, of chip power draws, GPU ratings and
+   grid figures, with its sources cited; cloud "unknown" unless a provider publishes a figure;
+   always labelled an estimate, and last but one in the ranking order, so a guess never outranks
+   a measurement or a price.
+8. **The volume limits** (500 dollars, 30 days) at which a candidate is shown but not chosen.
+   *Recommend:* keep them as engine constants for now, shown in the explanation ("not chosen:
+   about 7,500 dollars for 500,000 pages"), rather than a budget setting; revisit if people ask
+   for a budget.
+
+**Not asked** (already decided by rulings): purpose first; purpose decides layers; offer, never
+hide; the recipe's contents; deterministic rules; the flagship and generated paths; the bake-off;
+the Inspector as the one surface; egress asked twice; recipes as shared folders, data not code,
+no keys; per-folder recipes; jobs as a registry.
+
+Older questions were ruled on 2026-09-19 and 2026-10-01: see `source-model.md`.
 
 ## Sources
 
 - HTRMoPo: https://github.com/mittagessen/HTRMoPo · Kraken repository: https://kraken.re/6.0.0/advanced/repo.html · https://zenodo.org/communities/ocr_models/records
 - HTR-United: https://htr-united.github.io/catalog.html · CATMuS: https://huggingface.co/datasets/CATMuS/medieval · Teklia PyLaia: https://huggingface.co/collections/Teklia/pylaia
-- Hugging Face API: https://huggingface.co/docs/hub/api
+- Hugging Face model cards: https://huggingface.co/docs/hub/model-cards · API: https://huggingface.co/docs/hub/api
+- RO-Crate and Workflow RO-Crate: https://www.researchobject.org/ro-crate/ · https://about.workflowhub.eu/Workflow-RO-Crate/ · WorkflowHub: https://workflowhub.eu
+- CWL: https://www.commonwl.org/
 - Transkribus public models: https://help.transkribus.org/public-models
 - OCR-D tool description: https://ocr-d.de/en/spec/ocrd_tool · Arkindex runs and models: https://doc.teklia.com/arkindex/processes/worker_runs/ · https://doc.teklia.com/arkindex/models/
 - eScriptorium quick start: https://escriptorium.readthedocs.io/en/latest/quick-start/
@@ -907,6 +1687,14 @@ Most were ruled on 2026-09-19: see "Rulings of 2026-09-19" and "Still open" in
 - Embedders: https://huggingface.co/intfloat/multilingual-e5-large · https://huggingface.co/BAAI/bge-m3
 - CHURRO: https://arxiv.org/pdf/2509.19768 · Benchmarking LLMs for HTR: https://arxiv.org/pdf/2503.15195
 
-Not verified in this pass: HTRMoPo's exact field names; what Apple Vision does with
-handwriting, right-to-left, vertical text and single-line pictures (to be probed at run time);
-a fair comparison of line-by-line against whole-page reading by vision-language models.
+The 2026-10-01 model search (section 8c) cites its own sources, among them PP-OCRv6
+(https://zenodo.org/records/21788410), TRIDIS v2 (https://zenodo.org/records/13862096), McCATMuS
+(https://zenodo.org/records/13788177), Muharaf (https://zenodo.org/records/14295489), the medieval
+TrOCR family (https://huggingface.co/medieval-data), CHURRO (https://github.com/stanford-oval/Churro),
+Tesseract's data list (https://tesseract-ocr.github.io/tessdoc/Data-Files.html) and HTR-United's
+schema (https://htr-united.github.io/document-your-data.html).
+
+Not verified in this pass: what Apple Vision does with handwriting,
+right-to-left, vertical text and single-line pictures (to be probed at run time); a fair
+comparison of line-by-line against whole-page reading by vision-language models; whether the
+Hugging Face revisions in the example exist (they are illustrative).
