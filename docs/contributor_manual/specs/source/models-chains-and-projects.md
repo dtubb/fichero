@@ -198,6 +198,22 @@ chaining safe: a step can only follow a step that gives what it needs.
 | prepare the image | a page image | a new rendition (cropped, deskewed, rotated, dewarped, adjusted); the original untouched |
 | describe for the catalogue | a page or document | proposed values for the project's metadata fields, for a person to confirm |
 | train a model | a training set of checked work (boxes, lines, readings) | a model card for a new detector or reader (YOLO regions or lines, Kraken lines or text, a LoRA on a vision model), measured on held-out pages |
+
+**The knowledge and output jobs** (added 2026-10-01, so a recipe can reach everything the archive
+model holds, not only reading). Each is defined in the spec that owns it; the recipe only names it:
+
+| Job | Takes | Gives | Owned by |
+|---|---|---|---|
+| link to authorities | entities | proposed links to Wikidata, VIAF, GeoNames, Pleiades or a project's own authority, for a person to confirm | `kg/kg-enrichment.md` (`kg.entity.authority-link-create`, `kg.enrich.reconciliation-external-authority-scope`) |
+| place in a gazetteer | place entities and mentions | coordinates and a gazetteer identifier, with the gazetteer named | `kg.enrich.geocode-place-entities`, `maps-and-georeference.md` |
+| enrich from linked data | linked entities | facts fetched from a SPARQL endpoint (Wikidata or another set in Settings), as claims whose source is that endpoint, kept apart from what the pages say | `kg.enrich.*`, `kg.enrich.imported-vs-extracted-layers` |
+| work out dates | readings and mentions of dates | normalised dates (any calendar, as a day count) with the text they came from | `histnorm.dates.*` |
+| attribute hands | segments and their pictures | proposed hand attributions with certainty | `source.hand.attributed` |
+| export | a project, folder or selection | files in the formats the recipe names (PAGE, ALTO, TEI, IIIF, RDF as Turtle or JSON-LD, Parquet, a static site), with their provenance and, if asked, the recipe | `formats-and-training.md`, `export/` |
+| publish | a folder | a IIIF published folder, a static site, or RDF behind the SPARQL console | `iiif.md`, `explore/networks.md` |
+
+SPARQL itself is a way of **asking** the knowledge graph, not a step that changes anything; a
+recipe can only make sure the graph it queries is filled and published.
 | find statements | readings (with their mentions) | claims: subject, relation, object (who did what to whom), each naming the stretch of text it came from |
 
 "Read a page" is kept apart from "read a line" on purpose. Vision-language models mostly do
@@ -686,6 +702,10 @@ Projects and onboarding
   made its data, in the same RO-Crate.
 - `source.recipe.per-folder` — **[GAP]** (#4951, #5364) a folder can follow a recipe other than its
   library's, resolved by the cascade; work in it runs that recipe.
+- `source.recipe.reaches-the-whole-model` — **[GAP]** (#4949, #5364) a recipe can name the knowledge and
+  output jobs too: link to authorities, place in a gazetteer, enrich from linked data over SPARQL,
+  work out dates, attribute hands, export and publish; each is owned by its own spec and only
+  named by the recipe; facts fetched from an endpoint are kept apart from what the pages say.
 - `source.recipe.steps-are-jobs` — **[GAP]** (#4949, #5364) a recipe step names a job, where it applies
   (which segment kinds), a model, settings and a prompt; the recipe is checked before it runs, so
   a step uses only what an earlier step produced.
