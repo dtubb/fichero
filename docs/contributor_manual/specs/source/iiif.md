@@ -118,6 +118,28 @@ Like any folder, either can follow **its own recipe** (`source/models-chains-and
 the cascade): an EAP collection of Persian manuscripts in one folder runs a different reader from
 the Spanish deeds next to it.
 
+### A million pages without slowing down (2026-10-01)
+
+A IIIF collection by reference can be very large (a national library's digitised holdings run to
+millions of canvases), and Fichero should take a million pages without the Mac slowing down.
+That is possible because by reference a page costs almost nothing locally:
+
+- **What the library stores is small.** Per canvas: its identity, its image service, its size,
+  its label and its place in the tree; a few hundred bytes. A million canvases is a few hundred
+  megabytes of rows, not terabytes of images. Importing walks the collection as a background job
+  in the one queue (throttled, resumable, polite to the institution's server: it respects its
+  rate limits and retries with backoff).
+- **No thumbnails are made in advance.** A thumbnail is fetched from the image service, at
+  thumbnail size, only when it scrolls into view, and kept in the bounded cache. The Library's
+  lists and grids load lazily, so a folder of a million pages opens as fast as one of a hundred.
+- **Heavy work runs where the compute is, and fetches from the source.** A recipe step on a
+  million pages is sent to a cluster (ACENET), a GPU service or a Docker server. That machine
+  fetches each image **directly from the institution's image service**, at the size the model
+  needs, never through the Mac; it returns only the results (passes, readings, claims, and the
+  pixels-seen provenance), which land as usual. The Mac only coordinates.
+- **Search and the knowledge graph grow with the results,** indexed in batches as results land,
+  not page by page.
+
 ### Honesty about a remote source
 
 - **It can change or vanish.** Fichero records the service's identity (URI, and an ETag or a
@@ -185,6 +207,14 @@ In:
 - `iiif.folder.published` — **[GAP]** (#5327) a folder can be published as a IIIF collection (served when
   the library is shared, written in a static export); putting a document in publishes it,
   taking it out unpublishes it; withheld material stays out.
+- `iiif.scale.million-pages` — **[GAP]** (#5324) a collection of a million canvases imports by reference as a
+  throttled, resumable background job that respects the source's rate limits; the library holds
+  only per-canvas metadata, and opening a folder of a million pages is as fast as one of a hundred.
+- `iiif.scale.no-advance-thumbnails` — **[GAP]** (#5324) no thumbnail of a remote page is made in advance;
+  it is fetched at thumbnail size when it scrolls into view and kept in the bounded cache.
+- `iiif.scale.remote-runs-fetch-from-source` — **[GAP]** (#5324, #5240) a step run on a cluster, GPU service or
+  server fetches each image directly from the source's image service, never through the Mac, and
+  returns only results with the pixels-seen provenance.
 - `iiif.import.reads-v2-and-v3` — **[PARTIAL]** (#1646) Presentation 2.1 and 3.0 manifests and
   collections both import. **Built:** a local folder of manifests (`iiif_import.py`).
   **Not built:** a remote collection walked by reference, and 2.x (`sequences`) manifests in the
