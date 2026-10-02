@@ -1058,7 +1058,7 @@ pages before a behaviour is tagged [OK]:
 | **1740 slave sale records** | Spanish colonial sale records of enslaved people, 1740 | formulaic notarial structure (who sold whom to whom, for how much): statements with transfer verbs checked; dates and places; people named with care |
 | **Istmina archive** | Istmina (Chocó, Colombia), 1870s to 1980s: heavily damaged and faded, many hands and kinds of writing | image preparation first (contrast, deskew); readers measured per hand and per decade; honest "illegible" and damage marks; a mix of print, typescript and manuscript |
 | **The Marshall diary** | one hand, handwritten diary | the clearest case for **fine-tuning Kraken** on the person's own corrections: one hand, many pages |
-| **Colombian maps** | Spanish maps of Colombia | the map recipe: regions and labels, place names linked to a gazetteer, georeferencing |
+| **Colombian maps** | Spanish colonial-period maps of Colombia, handwritten labels | the map recipe: regions and labels, place names linked to a gazetteer, georeferencing |
 
 Libraries for several of these exist on the maintainer's Macs (Istmina, the Marshall diaries,
 Black Pacific); a recipe is measured on them through the running app's engine, never by reading
