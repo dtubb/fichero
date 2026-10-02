@@ -312,6 +312,10 @@ can say which version has it.
 | find statements | readings (with their mentions) | claims: subject, relation, object, each naming the stretch of text it came from | graph |
 | describe for the catalogue | a page or document | proposed values for the project's metadata fields, for a person to confirm | catalogue |
 | train a model | a training set of checked work | a model card for a new detector or reader, measured on held-out pages | train |
+| find documents in a folder | the pages of a folder, in order | proposed groupings: which pages make one document (a letter of three pages in an archive bundle), for a person to confirm with Group | prepare |
+| split into entries | a reading of a diary, register or ledger | entries (a dated diary entry, a register line), each a segment with its date | structure |
+| extract to a table | documents and the project's metadata fields (from their prototype) | one row per document or entry (seller, buyer, the person sold, price, date, place, for a sale record), each value tied to the text it came from, exportable as a spreadsheet | structure |
+| pull out passages | readings and a question or theme | excerpts, each with its source and place, gathered into a note or a collection | knowledge |
 
 "Read a page" is kept apart from "read a line" on purpose. Vision-language models mostly do the
 first, and cannot be trusted to keep shapes; Kraken and its kin do the second.
@@ -1567,6 +1571,15 @@ The recipe and its format
   when taken, when an update is offered and before each run, and the check lists by step: unknown
   jobs, newer schema, unmet inputs, missing pins, models this Mac cannot run, refused cloud steps,
   missing keys, unbound targets, missing prompts or variables.
+- `source.job.find-documents` — **[GAP]** (#4949) a step can propose which consecutive pages of a folder form
+  one document, for a person to confirm (the existing Group action makes it so).
+- `source.job.split-into-entries` — **[GAP]** (#4949) a step can split a diary, register or ledger into
+  dated entries.
+- `source.job.extract-to-table` — **[GAP]** (#4949, #5365) a step can fill one row per document or entry
+  with the project's metadata fields, each value tied to the text it came from, exportable as a
+  spreadsheet.
+- `source.job.pull-out-passages` — **[GAP]** (#4949) a step can gather excerpts on a question or theme,
+  each with its source and place, into a note or collection.
 - `source.recipe.by-material-kind` — **[GAP]** (#4951, #5364) a project can follow one recipe per kind of
   material; a sorting step tags each page's kind (handwritten, printed, typescript, map, drawing,
   photograph) from the image, each kind runs its own recipe, and a person's correction of a page's
