@@ -602,10 +602,23 @@ within one point of character error rate of the best are tied on accuracy); with
 
 | Volume | Rule | What it usually means (2026-10-01 search) |
 |---|---|---|
-| Under 100 pages | accuracy decides; a cloud model the project allows can win on accuracy alone, because its whole cost is small | a cloud vision model, no download |
+| Under 100 pages | start cheap and local; if the A/B shows it misses the bar, a cloud model the project allows is the first escalation, because its whole cost is small | Tesseract or Kraken first, then a cloud vision model if needed |
 | 100 to 5,000 | the fixed order | a local specialist reader or a small historical vision model on this Mac, at no cost |
 | 5,000 to 100,000 | the fixed order, and the train step is offered from the start, because a fine-tuned fast reader repays its training | a Kraken reader fine-tuned on the project's corrections, or a distilled adapter |
 | More than 100,000 | as above, and a candidate whose whole-volume cost or time is beyond the limits (engine constants; by default more than 500 dollars in the cloud, or more than 30 days of background work on this Mac) is shown but not chosen; the recipe proposes the teacher-and-student path (`compute/distillation.md`): the best model reads a sample as teacher, people correct it, and a small trainable model is fine-tuned, on a cluster where needed, for the rest | training on a cluster, then a fast student on this Mac or a cluster |
+
+**Cheapest and local first; escalate on evidence** (ruled 2026-10-01). Whatever the volume, a
+step's **starting** choice is the cheapest local candidate that passes the hard constraints:
+Tesseract for print and typescript where it has the script, Kraken (a specialist reader, or the
+multi-script PP-OCRv6 readers) for handwriting, or a local open OCR model where neither fits (for
+example Chandra, or a small historical vision model such as CHURRO). The first A/B test then puts
+that choice beside the costlier options (a larger local model, a cloud model, a combination) on
+the person's own pages, showing **accuracy, cost and environmental cost side by side**. The
+recipe moves to a costlier option only when that comparison shows the cheap one misses the
+project's bar, and the person confirms. **Distilling and fine-tuning are options**, offered when
+the comparison or the volume makes them worth it, never the default. The volume table below
+says when each escalation is worth offering; it no longer lets a cloud model be the starting
+choice.
 
 **Reader tiers, when nothing is measured.** Accuracy without a measurement falls back to the
 reader's tier, from the 2026-10-01 search: **specialist line readers** (Kraken models, including
@@ -1375,6 +1388,11 @@ Setup
   are ranked in a fixed order: accuracy in one-point bands (measured here, else published, else
   coverage), then local before remote, cheaper, faster, lower carbon, trainable, smaller, then
   card id.
+- `source.recipe.cheapest-local-first` — **[GAP]** (#4950, #4951) a step's starting choice is the cheapest
+  local candidate that passes the hard constraints (Tesseract, Kraken, or a local open OCR model);
+  a costlier option replaces it only after an A/B on the person's pages shows the cheap one misses
+  the bar and the person confirms; the comparison shows accuracy, cost and environmental cost side
+  by side; distilling and fine-tuning are offered as options, never defaults.
 - `source.recipe.volume-rule` — **[GAP]** (#4950, #4951) the volume band changes the
   recommendation: under 100 pages accuracy alone decides; from 5,000 the train step is offered
   from the start; above 100,000 a candidate whose whole-volume cost or time is beyond the limits
