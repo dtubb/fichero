@@ -220,7 +220,11 @@ current as the work changes. A correction, a new page or an accepted link re-que
 exactly what it touched (the activity spec's dependencies), so the folder (Markdown for an
 Obsidian vault, Excel for a collaborator, the Eleventy site for the web) always matches the
 library without anyone exporting again (`export.exporter-manager-continuous-sync`, #4640; the
-synced-folder spec, #4952).
+synced-folder spec, #4952). **It works both ways** (`synced-folder.md`): someone can work on the
+folder of TEI files in their own editor (Oxygen, VS Code), and an edited or new file comes back
+into the library as a new pass (`source.sync.outside-edits-are-passes`), with both kept when the
+library and the file changed at once (`source.sync.conflicts-kept-both`); Fichero never
+overwrites a file it did not write.
 
 **Expandable by design.** Jobs and export formats are a **registry**, not a fixed list. A new
 feature adds a job (or an emitter) by declaring its name, what it takes, what it gives and its
