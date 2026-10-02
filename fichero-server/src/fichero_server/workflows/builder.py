@@ -2460,6 +2460,12 @@ async def execute_workflow(
     Returns:
         Final execution state
     """
+    # Scheduled and file-triggered runs pass the STORED workflow, whose nodes are plain dicts;
+    # build_graph needs a WorkflowDef, so every such run crashed before it started (#5372).
+    from fichero_server.workflows.runtime import to_workflow_def  # noqa: PLC0415
+
+    workflow = to_workflow_def(workflow)
+
     # Build the graph
     graph = build_graph(workflow)
 
