@@ -284,6 +284,23 @@ resource:
 | network | cloud model calls, downloads, sync | a few, per provider rate limit | the limit is the provider's, not the CPU's |
 | database | reindex, repair, metrics | 1 | one writer |
 
+**Load once, use fully, one heavy model at a time** (ruled 2026-10-01). Reloading a model for
+every page is waste: today Kraken reloads its segmenter and reader on each page, Whisper starts a
+process per file, the Apple bridge a process per call (#5370). And running two heavy models at
+once (MLX and Kraken together) is worse: on a Mac's shared memory they fight, swap, and each runs
+slower than alone. So the local ML lane schedules **by model**, not by job:
+
+- A heavy model is **loaded once and kept resident** while there is work for it, and fed in batches
+  (many pages per call, many lines per call where the model takes lines).
+- The lane **groups waiting work by the model it needs**: it runs all the Kraken pages that are
+  ready, then switches to the MLX reader for all the lines that are ready, rather than alternating
+  page by page. A switch unloads the old model first.
+- **Two heavy models run together only when both fit** in this Mac's memory with room to spare
+  (measured resident sizes from the model cards, `source.model.runs-here`). On an 8 GB Mac that is
+  never; on a large Mac a small Kraken and a small reader can overlap, which is when pipelining
+  pages between stages pays.
+- A model nobody needs is unloaded after a short idle time, so the Mac gets its memory back.
+
 Priorities: a job a person is **watching** (they pressed Run, they opened the page being read) runs
 at utility QoS and goes to the front of its lane; everything else runs at background QoS on the
 efficiency cores (`core/background_compute.py`, now applied to every lane, not three call sites).
@@ -439,6 +456,14 @@ workflow by hand: a hand run is a job like any other.
 - `activity.throttle.lanes` — **[GAP]** (#5358) jobs run in lanes by resource
   (local ML, images, network, database) with bounded concurrency; a waiting job says what it is
   waiting for.
+- `activity.lane.load-once` — **[GAP]** (#5358, #5370) a heavy model is loaded once and kept resident
+  while work for it remains, fed in batches; it is never reloaded per page or per call.
+- `activity.lane.group-by-model` — **[GAP]** (#5358) the local ML lane runs ready work grouped by the model it
+  needs, switching models only between groups and unloading the old one first.
+- `activity.lane.co-run-only-if-it-fits` — **[GAP]** (#5358) two heavy models run at once only when their
+  measured resident sizes fit this Mac's memory with headroom; on an 8 GB Mac, never.
+- `activity.lane.idle-unload` — **[GAP]** (#5358) a resident model with no work is unloaded after a short idle
+  time.
 - `activity.throttle.watched-first` — **[GAP]** (#5358) a job a person is waiting
   on goes first in its lane at utility QoS.
 - `activity.throttle.power-heat-memory` — **[GAP]** (#5358) background lanes slow
