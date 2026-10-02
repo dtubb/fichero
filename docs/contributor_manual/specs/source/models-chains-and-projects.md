@@ -486,6 +486,26 @@ setup says so and offers the train-your-own path (`compute/distillation.md`).
 model would actually be used, which is when the question means something. The default is that
 nothing leaves.
 
+### Where the recipe sits (2026-10-01)
+
+The recipe is the one description of **how a project's material is processed**. Everything else
+either writes it, runs it, records it, or carries it:
+
+| Part | Its relation to the recipe |
+|---|---|
+| **Onboarding** (above) | **Writes** it: the purpose picks the steps; the answers and model cards pick the models by rule; the bake-off confirms them. |
+| **Activity and automatic work** (`ui/activity-and-automatic-work.md`, #5352) | **Runs** it: new material goes through the recipe's steps as jobs; because each job declares what it takes and gives, a correction re-queues exactly the later steps that depend on it (#5360, #5361). |
+| **The archive format** (`source-model.md`) | **Records** it: every pass, segment, reading and claim a step makes names its maker, the model, the run, and the recipe and version that ran it ("How was this made"), and lands as new work, never over a person's. So any reading can say which recipe made it, and an updated recipe can be run again safely. |
+| **Export** (`formats-and-training.md`, `export/`) | **Carries** it: PAGE, ALTO, TEI and the rest carry what the steps made with its provenance, and an export package can include the recipe that made it (both inside one RO-Crate), so someone else can see, and re-run, how the data was produced. |
+| **IIIF** (`iiif.md`) | Runs **on** IIIF pages kept by reference, and its results leave **as** IIIF annotations. A shared recipe's sample pages can be IIIF links to public pages, so measurements point at real pages without copying them. |
+| **Fine-tuning** (`compute/distillation.md`) | Is **a step and a version**: "train a model" is a step that runs where the recipe says (a cluster, Hugging Face, a large Mac); the trained student's card is pinned into the next version of the recipe, measured, and adopted only where it clears the bar; "small first, big when unsure" is a step with a fallback. |
+| **Decipherment and connections across corpora** (`undeciphered-scripts.md`, `explore/connections-across-corpora.md`) | Use the same format for **analysis recipes**: the analyses' inputs, sign list version, lens and method, re-runnable and shareable like a processing recipe. |
+| **Sharing a library** (`transport/library-sharing.md`) | Everyone working in a shared library works under its one recipe; jobs run on the host, and every reading still names who or what made it. |
+
+So the order of building is: the jobs and their declared inputs and outputs, then the recipe
+format and the one job system that runs it, then onboarding that writes it; export, IIIF,
+fine-tuning and sharing then attach to it rather than each inventing their own.
+
 ### Sharing recipes: publish, pull, update (ruled 2026-10-01)
 
 Recipes are meant to be shared, so the next project on the same material starts from the best
@@ -646,6 +666,11 @@ Projects and onboarding
   **Ruled 2026-10-01:** a workflow is a few tools chained; a recipe is the workflows a project
   runs, in order, plus the default model, settings and place to run for each step. A recipe
   refers to workflows by name and may carry its own; it never copies one the store already has.
+- `source.recipe.recorded-on-what-it-made` — **[GAP]** (#4949, #5364) every pass, segment, reading and
+  claim a recipe step makes records the recipe and version that ran it, beside its maker, model
+  and run.
+- `source.recipe.travels-with-export` — **[GAP]** (#5364) an export package can include the recipe that
+  made its data, in the same RO-Crate.
 - `source.recipe.steps-are-jobs` — **[GAP]** (#4949, #5364) a recipe step names a job, where it applies
   (which segment kinds), a model, settings and a prompt; the recipe is checked before it runs, so
   a step uses only what an earlier step produced.
