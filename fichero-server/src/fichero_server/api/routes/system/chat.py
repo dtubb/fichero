@@ -399,24 +399,28 @@ def _get_langchain_llm(db: Database, provider: str = None, model: str = None):
 
     Uses the unified llm.py interface which supports all providers via LiteLLM.
     """
-    # Get first configured provider/model if not specified
+    # Unspecified: the app's text default (Settings > AI Defaults), on-device by factory default.
+    # It used to look providers up in the LIBRARY database, where they never are (they live in
+    # app.duckdb), and then fall back to openai/gpt-4o-mini: every chat without an explicit model
+    # silently went to OpenAI (#5368). A cloud call is never a fallback.
     if not provider or not model:
-        configured_providers = db.query(ProviderModel, enabled=True)
-        if configured_providers:
-            first_provider = configured_providers[0]
-            provider = provider or first_provider.provider_type.value
-            # Get first model for this provider
-            models = db.query(ModelModel, provider_id=first_provider.id, enabled=True)
-            if models:
-                model = model or models[0].model_id
+        from fichero_server.db.app import get_app_db  # noqa: PLC0415
+
+        defaults = get_app_db().get_ai_defaults()
+        default_provider = defaults.get("default_text_provider") or "apple"
+        if not provider:
+            provider = default_provider
+            model = model or defaults.get("default_text_model") or "apple-intelligence"
+        elif not model:
+            if provider == default_provider and defaults.get("default_text_model"):
+                model = defaults["default_text_model"]
             else:
-                # Use provider default
                 info = get_provider_info(provider)
-                model = model or (info.default_model if info else "gpt-4o-mini")
-        else:
-            # Fallback defaults
-            provider = provider or "openai"
-            model = model or "gpt-4o-mini"
+                if info is None or not info.default_model:
+                    raise ValueError(
+                        f"No model is set for provider {provider!r}; choose one in Settings > AI."
+                    )
+                model = info.default_model
 
     # Get provider info for API base
     provider_db = db.query(ProviderModel, provider_type=provider)
