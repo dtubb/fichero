@@ -1068,6 +1068,22 @@ Libraries for several of these exist on the maintainer's Macs (Istmina, the Mars
 Black Pacific); a recipe is measured on them through the running app's engine, never by reading
 the library files directly.
 
+**Choosing the embedding model for search** (2026-10-01). Like every step it is chosen by the
+rules, starts cheap and local, and is one A/B away from an alternative:
+- The rules take the project's languages and scripts and pick the smallest local multilingual
+  embedder whose card covers them all (a small or base multilingual E5 for most projects; BGE-M3,
+  2.3 GB, when the project mixes many languages or has long documents, and only on a Mac that
+  holds it).
+- The A/B for embeddings is a search test: the person types a few questions they actually ask of
+  their material, and sees each model's top results side by side; the one that finds what they
+  meant wins. With no questions yet, the rules' choice stands.
+- Changing the embedder re-embeds the project as one background job with its estimate.
+
+**Every step has an Advanced section.** The defaults come from the rules, and the setup and the
+Inspector show each step in plain words; an **Advanced** disclosure on every step shows and lets
+a person change its model, settings and prompt, with the A/B one click away. Nothing in Advanced is
+needed for the common paths.
+
 **Mixed material in one project** (2026-10-01). A real project rarely holds one kind of thing.
 A database on the Jesuits holds handwritten letters, printed books, maps and more, often in the
 same folders. So a project can follow **several recipes at once**, routed by material:
@@ -1580,6 +1596,11 @@ The recipe and its format
   spreadsheet.
 - `source.job.pull-out-passages` — **[GAP]** (#4949) a step can gather excerpts on a question or theme,
   each with its source and place, into a note or collection.
+- `source.recipe.embedder-by-language` — **[GAP]** (#4948, #4951) the embedder is the smallest local
+  model whose card covers all the project's languages and scripts and that this Mac holds; its A/B
+  is a side-by-side search on the person's own questions; changing it re-embeds as one job.
+- `source.recipe.advanced-per-step` — **[GAP]** (#4951) every step shown in setup and the Inspector has an
+  Advanced disclosure for its model, settings and prompt, with A/B one click away.
 - `source.recipe.by-material-kind` — **[GAP]** (#4951, #5364) a project can follow one recipe per kind of
   material; a sorting step tags each page's kind (handwritten, printed, typescript, map, drawing,
   photograph) from the image, each kind runs its own recipe, and a person's correction of a page's

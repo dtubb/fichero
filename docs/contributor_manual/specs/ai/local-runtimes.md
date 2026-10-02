@@ -417,11 +417,17 @@ no library content; they are listed, become jobs, and stop when the person choos
    behind one seam rather than as a child server (the sandboxed engine cannot spawn its own Python
    children, #4973). That also removes the port and the 30–300 s server warm-up. Measure the
    bundle's size first (roughly 150–250 MB, not yet measured).
-2. **Apple Speech: bundle or drop?** *Recommend:* bundle `pyobjc-framework-Speech` with the
-   on-device-only flag; it is the one speech path that needs no download in the sandbox. Keep
-   `apple-speech` as the audio default only once it passes a fixture recording.
-3. **Cloud aliases in recipes: refuse or allow?** *Recommend:* allow, marked "can change", and
-   record the dated id on each reading, so provenance is exact even when the recipe is not.
+   *Note 2026-10-01:* Fichero already runs MLX through its oMLX provider, but oMLX installs mlx-lm,
+   mlx-vlm and mlx-whisper with pip into a private environment the first time it is used
+   (`llm/mlx_runtime.py:222-247,296`). That works in Debug and is refused by the sandboxed DMG, so
+   the answer is to bundle those packages at build time and keep the oMLX provider as it is.
+2. **Speech: which runtime?** *Ruled 2026-10-01:* speech is a choice of options, like any job,
+   chosen by the same rules and A/B: Apple's on-device speech recognition (bundled so it works in
+   the sandbox; macOS 26's newer speech analyser where available), Whisper (99 languages), and a
+   more multilingual model for languages Whisper lacks (Meta's MMS, over 1,100 languages). The
+   cheapest local option that covers the language starts; the others are one A/B away.
+3. **Cloud aliases in recipes.** *Ruled 2026-10-01:* allowed, marked "can change" in the recipe
+   editor, with the dated version that actually answered recorded on each reading.
 4. **Apple Vision's strips: conditional or always?** They became a base pass on 2026-08-23 because
    they found lines the first pass missed. *Recommend:* measure on the fixture pages whether a
    sparse-first-pass rule loses any line; keep "always" if it does.
