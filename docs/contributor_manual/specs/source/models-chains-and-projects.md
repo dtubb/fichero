@@ -429,6 +429,18 @@ before setup closes, and both stay visible in the Inspector. Changing an answer 
 regenerates them and shows what would change; anything the person changed by hand is kept unless
 they choose otherwise.
 
+**Built procedurally, and deterministic** (ruled 2026-10-01). Setup is a widget the person fills
+in (purpose, languages, scripts, period, kind of material), with search beside it, not a
+conversation. The recipe is **assembled by rules** from those answers and from the structured
+facts on model cards (jobs, scripts, languages, period, licence, size, measured accuracy): for
+each step, the candidates whose cards suit the answers, ranked by the language-fit score and by
+measurements. The same answers and the same catalogue always give the same recipe, so it is
+reproducible, explainable ("chosen because its card says Latin script, Spanish, 16th century,
+CER 6% on these pages") and testable. A language model is a helper, never the decider. It can
+fill in a card whose source page describes a model only in prose (proposing scripts and
+languages for a person to confirm, kept on the card), explain a choice in plain words, or
+suggest answers from sample pages. The rules still assemble the recipe.
+
 **Finding and choosing models during setup.** Once languages, scripts and period are known,
 Fichero looks for candidates for each step itself (the extended model finder,
 `source.find.by-need`: Hugging Face, Kraken's Zenodo repository, HTR-United, and the public
@@ -600,8 +612,15 @@ Projects and onboarding
   choose otherwise.
 - `source.onboard.search-triggered` — **[GAP]** (#4948, #4951) once languages, scripts and period are set,
   Fichero finds candidate models for each step itself, without a manual search.
-- `source.onboard.assistant-proposal` — **[GAP]** (#4951) an assistant model proposes candidates with reasons
-  from their cards; it runs locally unless the project allows the cloud; it never picks silently.
+- `source.onboard.deterministic-recipe` — **[GAP]** (#4950, #4951) the recipe is assembled by rules from the
+  setup answers and the model cards' structured facts; the same answers and catalogue always give
+  the same recipe, and each choice names the card facts and measurements it rests on.
+- `source.onboard.widget-and-search` — **[GAP]** (#4951) setup is a form with search beside it, not a
+  conversation.
+- `source.onboard.assistant-proposal` — **[GAP]** (#4951) a language model may help: filling in a card
+  described only in prose (for a person to confirm), explaining a choice, or suggesting answers
+  from sample pages. It runs locally unless the project allows the cloud, and never decides the
+  recipe.
 - `source.onboard.bakeoff` — **[GAP]** (#4948, #4951) candidates read sample pages the person corrected and
   are ranked by error per hand and page kind, with speed, cost, size, licence and whether this
   Mac runs them; the person confirms the winner, which becomes the step's default; the ranking
