@@ -1064,6 +1064,20 @@ Libraries for several of these exist on the maintainer's Macs (Istmina, the Mars
 Black Pacific); a recipe is measured on them through the running app's engine, never by reading
 the library files directly.
 
+**Mixed material in one project** (2026-10-01). A real project rarely holds one kind of thing.
+A database on the Jesuits holds handwritten letters, printed books, maps and more, often in the
+same folders. So a project can follow **several recipes at once**, routed by material:
+
+- By **place**: a folder follows its own recipe (`source.recipe.per-folder`).
+- By **kind**, where folders are mixed: a cheap first step, **sort by material**, tags each page
+  (handwritten, printed, typescript, map, drawing, photograph) from the image itself (a small local
+  classifier or a quick look by a local vision model), and each kind follows the recipe the project
+  names for it: Kraken and the letters' reader for handwriting, Tesseract for print, the map
+  recipe for maps. A person can correct a page's kind, and the correction is kept and re-routes the
+  page.
+- The setup form asks what kinds of material the project holds, and proposes one recipe per kind;
+  the sample pages' sorting shows the proportions.
+
 **(a) A historian of historical Spanish letters**, with a folder of 3,000 page
 images on an 8 GB MacBook Air and forty pages already corrected in an earlier tool (exported as
 PAGE XML).
@@ -1553,6 +1567,10 @@ The recipe and its format
   when taken, when an update is offered and before each run, and the check lists by step: unknown
   jobs, newer schema, unmet inputs, missing pins, models this Mac cannot run, refused cloud steps,
   missing keys, unbound targets, missing prompts or variables.
+- `source.recipe.by-material-kind` — **[GAP]** (#4951, #5364) a project can follow one recipe per kind of
+  material; a sorting step tags each page's kind (handwritten, printed, typescript, map, drawing,
+  photograph) from the image, each kind runs its own recipe, and a person's correction of a page's
+  kind is kept and re-routes the page.
 - `source.recipe.per-folder` — **[GAP]** (#4951, #5364) a folder can follow a recipe other than its
   library's, and a step's model can be overridden on a folder, resolved by the cascade; work in
   that folder runs that recipe.
