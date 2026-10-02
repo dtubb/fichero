@@ -195,6 +195,8 @@ chaining safe: a step can only follow a step that gives what it needs.
 | make a vector | a reading, or a picture | a vector |
 | transcribe speech | a stretch of a recording | a reading, with timings |
 | split pages | a scan or PDF page holding two pages (a spread), or a strip of frames | page segments, each a page of its own, in order |
+| prepare the image | a page image | a new rendition (cropped, deskewed, rotated, dewarped, adjusted); the original untouched |
+| describe for the catalogue | a page or document | proposed values for the project's metadata fields, for a person to confirm |
 | find statements | readings (with their mentions) | claims: subject, relation, object (who did what to whom), each naming the stretch of text it came from |
 
 "Read a page" is kept apart from "read a line" on purpose. Vision-language models mostly do
@@ -501,6 +503,9 @@ either writes it, runs it, records it, or carries it:
 | **Fine-tuning** (`compute/distillation.md`) | Is **a step and a version**: "train a model" is a step that runs where the recipe says (a cluster, Hugging Face, a large Mac); the trained student's card is pinned into the next version of the recipe, measured, and adopted only where it clears the bar; "small first, big when unsure" is a step with a fallback. |
 | **Decipherment and connections across corpora** (`undeciphered-scripts.md`, `explore/connections-across-corpora.md`) | Use the same format for **analysis recipes**: the analyses' inputs, sign list version, lens and method, re-runnable and shareable like a processing recipe. |
 | **Sharing a library** (`transport/library-sharing.md`) | Everyone working in a shared library works under its one recipe; jobs run on the host, and every reading still names who or what made it. |
+| **API keys** (`ai/provider-keys.md`) | A recipe names providers and models, **never keys**. Keys stay in the Mac's Keychain per provider. Taking a recipe whose steps need a provider without a key says which key is missing, and the project's rule on pages leaving the Mac still applies. A shared recipe can never carry a key. |
+| **Cataloguing and arbitrary metadata** (no spec yet: #5365) | A recipe or profile can declare the project's **metadata fields** (typed, with controlled vocabularies, mapped to a standard such as Dublin Core or ISAD(G) where one fits), set on any node and inherited like language, on top of the prototypes that already carry inheritable attributes (`models/node_prototypes.py`). A **"describe for the catalogue"** step proposes values from the page for a person to confirm. |
+| **Image editing** (`ui/preview-image-editing.md`) | **"Prepare the image"** is a step: crop, deskew, rotate, dewarp, contrast, each a reversible edit that makes a new rendition and never touches the original. Later steps read the prepared rendition, and every segment records which rendition its coordinates belong to. |
 
 So the order of building is: the jobs and their declared inputs and outputs, then the recipe
 format and the one job system that runs it, then onboarding that writes it; export, IIIF,
@@ -676,6 +681,13 @@ Projects and onboarding
   a step uses only what an earlier step produced.
 - `source.recipe.per-region-kind` — **[GAP]** (#4949) a step can send each kind of region to a different
   model (main text, marginal gloss, table, drawing).
+- `source.recipe.never-holds-keys` — **[GAP]** (#5364) a recipe names providers and models but never a key;
+  taking one that needs a missing key says which.
+- `source.job.prepare-the-image` — **[GAP]** (#4949) preparing an image (crop, deskew, rotate, dewarp,
+  adjust) is a job that makes a new rendition and never changes the original; later steps and
+  segments name the rendition they used.
+- `source.job.describe-for-catalogue` — **[GAP]** (#5365) a step can propose values for the project's
+  metadata fields from a page or document, for a person to confirm.
 - `source.job.split-pages` — **[GAP]** (#4949) splitting a spread or a strip of frames into ordered pages
   is a job a recipe can name.
 - `source.job.find-statements` — **[GAP]** (#4949) finding statements (subject, relation, object), each
