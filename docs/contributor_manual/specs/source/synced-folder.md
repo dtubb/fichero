@@ -55,6 +55,16 @@ fifty thousand images must not start work by surprise).
 - Writing is throttled like all background work, so a large project never pegs the machine.
 - **The layout is fixed** (ruled): Fichero chooses where each kind of file goes and what it is
   called, so two projects' folders look alike and a file can always be matched to its source.
+- **Adopting an existing folder** (2026-10-01, the maintainer). A folder someone already keeps (a
+  folder of TEI files, of ALTO, of PAGE XML) can be **made the synced folder by importing it**: its
+  files come in through the one import path, and from then on the folder **keeps its own layout**.
+  Each file is matched to the source it made; work done in Fichero is written back into **the same
+  file, in the same format**; edits made in the folder come in as passes, as above. A new synced
+  folder uses Fichero's fixed layout; an adopted one keeps the one it had (this refines the
+  fixed-layout ruling of 2026-09-19 for adopted folders only). Adopting is the person's
+  explicit permission for Fichero to write those files: it records each file's checksum when it
+  reads it, and writes back only if the file is unchanged since; a file edited meanwhile is a
+  conflict, and both are kept.
 - **Fichero never overwrites a file it did not write.** It records a checksum of everything it
   writes; a file in its way that it does not recognise is left alone and reported.
 
@@ -84,6 +94,10 @@ fifty thousand images must not start work by surprise).
   syncing is throttled background work.
 - `source.sync.fixed-layout` — **[GAP]** (#4952) the folder's layout is chosen by Fichero and is the same for
   every project.
+- `source.sync.adopt-existing-folder` — **[GAP]** (#4952) importing a folder of TEI, ALTO or PAGE XML can
+  make it the synced folder: it keeps its own layout, each file is matched to its source, work in
+  Fichero is written back into the same file in the same format, and edits made in the folder come
+  in as passes.
 - `source.sync.never-overwrites-a-stranger` — **[GAP]** (#4952) Fichero overwrites only files it wrote itself,
   known by a checksum it recorded; any other file in the way is left and reported.
 - `source.sync.out-is-the-exporters` — **[GAP]** (#4952) writing outputs as the work goes on is the exporter's

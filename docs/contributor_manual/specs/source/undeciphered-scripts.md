@@ -332,7 +332,36 @@ maker, audited and undoable. Every mark in every view opens its page with the ma
 The same selection carries from view to view, so a group found on the map can be checked on an
 instance sheet, overlaid, tested by distribution and corrected, without being lost.
 
+### 11. Tablets and seals: 3D sources and vector glyphs (2026-10-01)
+
+Cuneiform and other impressed or carved writing is not ink: a wedge is a dent in clay, and a
+photograph shows its shadow, which changes with the light.
+
+- **3D and many-light sources are read as sources.** A 3D scan (PLY, OBJ or glTF; GigaMesh's
+  curvature renderings of cuneiform scans are the field's precedent) or an RTI or raking-light
+  set (one object photographed under many lights) comes in as a source of its own kind. Fichero
+  makes its **renditions**: views lit from chosen angles, a curvature map where wedges stand out.
+  Segmenting, models and people work on those renditions like any page image, and every segment
+  names the rendition it was drawn on; a segment can also keep where it lies on the 3D surface.
+- **A sign can become a vector glyph.** Three ways, from crudest to best:
+  - **tracing** the sign's picture (a fallback, good for ink, poor for impressed signs);
+  - **detecting the wedges**, each as a head point, a direction and a length, with the same
+    detector machinery as layout (`compute.tune.yolo-layout`), and drawing each as a clean wedge.
+    This is the main path for cuneiform: the glyph says how the sign is built (how many wedges,
+    at what angles), so variants can be compared by structure;
+  - **a vision model's SVG**, as a draft for a person to correct; every correction is training data
+    for the wedge detector.
+- The vector glyph becomes the sign's picture in the sign list and each instance's own form;
+  where Unicode has the sign, a standard cuneiform font draws the conventional form beside it.
+
 ## Behaviors
+
+Tablets and vector glyphs:
+- `decipher.source.3d-and-rti` — **[GAP]** (#5366) a 3D scan or an RTI set is a source; its renditions (lit
+  views, a curvature map) are what segmenting and models read, and each segment names its rendition.
+- `decipher.glyph.vector` — **[GAP]** (#5366) a sign's instance can be turned into a vector glyph by tracing,
+  by detecting its wedges (head, direction, length), or from a vision model's SVG drafted for
+  correction.
 
 Seeing and correcting:
 - `decipher.see.correct-in-any-view` — **[GAP]** (#5339) selecting marks in any of these views lets a
