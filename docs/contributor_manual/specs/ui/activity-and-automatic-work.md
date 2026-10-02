@@ -300,6 +300,12 @@ slower than alone. So the local ML lane schedules **by model**, not by job:
   never; on a large Mac a small Kraken and a small reader can overlap, which is when pipelining
   pages between stages pays.
 - A model nobody needs is unloaded after a short idle time, so the Mac gets its memory back.
+- **Watch the processors, not only memory** (2026-10-01). The engine measures what each job uses
+  (CPU cores, GPU, the Neural Engine, memory) and shows it in the job's row. The lane uses it to be
+  efficient: two steps that compete for the **same** processor wait for each other, but a step that
+  is CPU-bound (Kraken's line post-processing, measured at about 10 s a page on one core) can run
+  beside one that is GPU-bound (an MLX reader) when memory allows, so neither sits idle. Busy CPU
+  work is spread over the performance cores up to the lane's limit rather than left on one thread.
 
 Priorities: a job a person is **watching** (they pressed Run, they opened the page being read) runs
 at utility QoS and goes to the front of its lane; everything else runs at background QoS on the
@@ -462,6 +468,10 @@ workflow by hand: a hand run is a job like any other.
   needs, switching models only between groups and unloading the old one first.
 - `activity.lane.co-run-only-if-it-fits` — **[GAP]** (#5358) two heavy models run at once only when their
   measured resident sizes fit this Mac's memory with headroom; on an 8 GB Mac, never.
+- `activity.lane.measures-processors` — **[GAP]** (#5358) each job's row shows what it uses (CPU, GPU, Neural
+  Engine, memory), measured by the engine.
+- `activity.lane.overlap-different-processors` — **[GAP]** (#5358, #5370) a CPU-bound step and a GPU-bound
+  step can run at the same time when memory allows; two steps on the same processor do not.
 - `activity.lane.idle-unload` — **[GAP]** (#5358) a resident model with no work is unloaded after a short idle
   time.
 - `activity.throttle.watched-first` — **[GAP]** (#5358) a job a person is waiting
